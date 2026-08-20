@@ -105,6 +105,12 @@ dependencies = [
 [[package]]
 name = "loom-runtime"
 version = "0.1.0"
+dependencies = [
+ "loom-capability",
+ "loom-core",
+ "loom-protocol",
+ "serde_json",
+]
 
 [[package]]
 name = "loom-storage"

@@ -1,0 +1,1210 @@
+//! Runtime Effect Engine and the authority gate for validated resolutions.
+
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
+
+use loom_capability::{CapabilityRegistry, SemanticKind};
+use loom_core::{
+    AssociationRole, EntityId, EventId, FacetOwner, RelationshipId, RelationshipParticipant,
+    SchemaRevision, TimelineId, WorkId, WorldEffect,
+};
+use loom_protocol::{ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation};
+use serde_json::Value;
+
+use crate::{BudgetError, BudgetUsage, CandidateWorldView, ResolutionBudget};
+
+/// A typed failure raised while an untrusted Resolution crosses the Runtime
+/// validation boundary.
+///
+/// A `ValidationError` means that the proposal is not eligible to become a
+/// `ValidatedResolution`. It is deliberately separate from
+/// `loom_protocol::Rejection`, which is a normal semantic outcome returned by a
+/// Capability resolver and should not be treated as a Runtime defect.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ValidationError {
+    /// The proposal refers to a semantic type absent from the registry.
+    UnknownSemantic {
+        /// Semantic category being looked up.
+        kind: SemanticKind,
+        /// Stable semantic key that was not registered.
+        key: String,
+    },
+    /// The proposing Capability does not own the mutated semantic.
+    SemanticOwnerMismatch {
+        /// Semantic category whose owner was checked.
+        kind: SemanticKind,
+        /// Stable semantic key being mutated or proposed.
+        key: String,
+        /// Owner recorded in the Runtime registry.
+        expected: String,
+        /// Opaque proposer key supplied for this validation.
+        proposer: String,
+    },
+    /// The proposal's schema revision differs from registry metadata.
+    SchemaRevisionMismatch {
+        /// Semantic category whose revision was checked.
+        kind: SemanticKind,
+        /// Stable semantic key whose revision is invalid.
+        key: String,
+        /// Registry revision required by Runtime.
+        expected: SchemaRevision,
+        /// Revision supplied by the untrusted proposal.
+        actual: SchemaRevision,
+    },
+    /// A registered payload/value validator rejected a complete value.
+    SchemaViolation {
+        /// Semantic category whose schema rejected the value.
+        kind: SemanticKind,
+        /// Stable semantic key whose value was checked.
+        key: String,
+        /// Validator-selected explanation of the violation.
+        message: String,
+    },
+    /// An identity was nil or otherwise invalid at the Runtime boundary.
+    InvalidIdentity {
+        /// Structural category of the invalid identity.
+        kind: &'static str,
+        /// Technical identity rendered for diagnostics.
+        id: String,
+    },
+    /// A referenced Entity was not present in candidate state.
+    MissingEntity {
+        /// Entity identity that could not be resolved.
+        entity_id: EntityId,
+    },
+    /// A referenced active Relationship was not present in candidate state.
+    MissingRelationship {
+        /// Relationship identity that could not be resolved.
+        relationship_id: RelationshipId,
+    },
+    /// A proposed identity collides with base or prior candidate state.
+    DuplicateIdentity {
+        /// Structural category of the duplicated identity.
+        kind: &'static str,
+        /// Technical identity rendered for diagnostics.
+        id: String,
+    },
+    /// A Relationship participant set violates its registered structure.
+    RelationshipStructure {
+        /// Relationship semantic key whose structure failed.
+        relationship_type: String,
+        /// Explanation of the cardinality/participant violation.
+        message: String,
+    },
+    /// An Event association role is not allowed by its Event definition.
+    InvalidAssociationRole {
+        /// Event containing the invalid association.
+        event_id: EventId,
+        /// Role that was not declared by the Event definition.
+        role: AssociationRole,
+    },
+    /// A causal link does not point to ancestry or an earlier batch Event.
+    InvalidCausalReference {
+        /// Event containing the causal link.
+        event_id: EventId,
+        /// Referenced cause that was unavailable at this batch position.
+        cause_event_id: EventId,
+    },
+    /// An Event/Effect invariant callback rejected candidate state.
+    InvariantViolation {
+        /// Event whose candidate state was checked.
+        event_id: EventId,
+        /// Invariant-selected explanation of the violation.
+        message: String,
+    },
+    /// A Work mutation is scoped to a different Timeline than the base view.
+    WorkTimelineMismatch {
+        /// Timeline pinned by the candidate view.
+        expected: TimelineId,
+        /// Timeline supplied by the Work proposal.
+        actual: TimelineId,
+    },
+    /// A Work proposal references an unavailable causal Event.
+    MissingWorkCausalEvent {
+        /// Work item containing the invalid reference.
+        work_id: WorkId,
+        /// Event identity that was not available in the Resolution result.
+        event_id: EventId,
+    },
+}
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownSemantic { kind, key } => {
+                write!(formatter, "unknown {kind} semantic: {key}")
+            }
+            Self::SemanticOwnerMismatch {
+                kind,
+                key,
+                expected,
+                proposer,
+            } => write!(
+                formatter,
+                "{kind} semantic {key} is owned by {expected}, not {proposer}"
+            ),
+            Self::SchemaRevisionMismatch {
+                kind,
+                key,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "{kind} semantic {key} requires schema {expected}, received {actual}"
+            ),
+            Self::SchemaViolation { kind, key, message } => {
+                write!(
+                    formatter,
+                    "{kind} semantic {key} schema violation: {message}"
+                )
+            }
+            Self::InvalidIdentity { kind, id } => {
+                write!(formatter, "invalid {kind} identity: {id}")
+            }
+            Self::MissingEntity { entity_id } => {
+                write!(formatter, "missing Entity reference: {entity_id}")
+            }
+            Self::MissingRelationship { relationship_id } => {
+                write!(
+                    formatter,
+                    "missing active Relationship reference: {relationship_id}"
+                )
+            }
+            Self::DuplicateIdentity { kind, id } => {
+                write!(formatter, "duplicate {kind} identity: {id}")
+            }
+            Self::RelationshipStructure {
+                relationship_type,
+                message,
+            } => write!(
+                formatter,
+                "relationship {relationship_type} structure violation: {message}"
+            ),
+            Self::InvalidAssociationRole { event_id, role } => write!(
+                formatter,
+                "event {event_id} uses undeclared association role {role}"
+            ),
+            Self::InvalidCausalReference {
+                event_id,
+                cause_event_id,
+            } => write!(
+                formatter,
+                "event {event_id} cannot reference unavailable cause {cause_event_id}"
+            ),
+            Self::InvariantViolation { event_id, message } => {
+                write!(formatter, "event {event_id} invariant violation: {message}")
+            }
+            Self::WorkTimelineMismatch { expected, actual } => write!(
+                formatter,
+                "Work mutation targets Timeline {actual}, expected {expected}"
+            ),
+            Self::MissingWorkCausalEvent { work_id, event_id } => write!(
+                formatter,
+                "Work {work_id} references unavailable causal Event {event_id}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ValidationError {}
+
+/// A Runtime error returned by validation/orchestration code.
+///
+/// `RuntimeError` is the Rust error channel for malformed proposals and policy
+/// limits. It never encodes a normal `Rejection`, which is preserved by
+/// `EffectEngine::validate_outcome` as `ValidationOutcome::Rejected`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RuntimeError {
+    /// The proposal violated a structural, semantic or invariant rule.
+    Validation(ValidationError),
+    /// The proposal exceeded a configured Runtime budget.
+    Budget(BudgetError),
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Validation(error) => error.fmt(formatter),
+            Self::Budget(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeError {}
+
+impl From<ValidationError> for RuntimeError {
+    fn from(value: ValidationError) -> Self {
+        Self::Validation(value)
+    }
+}
+
+/// The result of passing a resolver's normal `ResolveOutcome` through Runtime.
+///
+/// `Rejected` remains a valid semantic result and does not construct a
+/// `ValidatedResolution`. `Validated` is the only value that crosses the
+/// Runtime authority gate toward a future commit port.
+#[derive(Debug)]
+pub enum ValidationOutcome {
+    /// Runtime validated a Resolution against the pinned candidate state.
+    Validated(ValidatedResolution),
+    /// The owning Capability normally refused the attempted behavior.
+    Rejected(Rejection),
+}
+
+/// Runtime-owned authority token proving that one Resolution passed candidate
+/// validation.
+///
+/// The fields and constructor are private to `loom-runtime`; Protocol,
+/// Capability and API callers can produce only an untrusted `Resolution`.
+/// Storage may consume this token through a Runtime-owned persistence port, but
+/// successful validation still does not guarantee commit: the port must perform
+/// the pinned `TimelineVersion` CAS at its own linearization point.
+#[derive(Debug)]
+pub struct ValidatedResolution {
+    resolution: Resolution,
+    base_version: loom_core::TimelineVersion,
+    read_set: crate::ReadSet,
+}
+
+impl ValidatedResolution {
+    /// Returns the Timeline version against which validation ran.
+    #[must_use]
+    pub const fn base_version(&self) -> loom_core::TimelineVersion {
+        self.base_version
+    }
+
+    /// Borrows the validated proposal for a Runtime-owned commit adapter.
+    ///
+    /// The returned value is still the original protocol shape; this accessor
+    /// does not let a caller construct a new authority token or bypass the
+    /// version CAS.
+    #[must_use]
+    pub const fn resolution(&self) -> &Resolution {
+        &self.resolution
+    }
+
+    /// Returns the proposed Events whose nested Effects passed validation.
+    #[must_use]
+    pub fn events(&self) -> &[ProposedEvent] {
+        &self.resolution.events
+    }
+
+    /// Returns the Work mutations validated with the Events.
+    #[must_use]
+    pub fn work(&self) -> &[WorkMutation] {
+        &self.resolution.work
+    }
+
+    /// Returns the Runtime-observed provenance for this validation run.
+    #[must_use]
+    pub const fn read_set(&self) -> &crate::ReadSet {
+        &self.read_set
+    }
+
+    pub(crate) fn new(
+        resolution: Resolution,
+        base_version: loom_core::TimelineVersion,
+        read_set: crate::ReadSet,
+    ) -> Self {
+        Self {
+            resolution,
+            base_version,
+            read_set,
+        }
+    }
+}
+
+/// Runtime Effect Engine for one immutable semantic registry and validation
+/// policy.
+///
+/// The engine never mutates the base snapshot. It validates each Event and
+/// nested Effect in order, applies successful Effects to a candidate overlay,
+/// invokes read-only invariant callbacks against that candidate and creates
+/// the Runtime-only `ValidatedResolution` only after every check succeeds.
+pub struct EffectEngine<'registry> {
+    registry: &'registry CapabilityRegistry,
+    budget: ResolutionBudget,
+}
+
+impl<'registry> EffectEngine<'registry> {
+    /// Creates an Effect Engine over an assembled Capability registry.
+    ///
+    /// The registry is borrowed for the engine lifetime, keeping semantic
+    /// ownership and read-only invariant implementations in the Capability
+    /// assembly that Runtime consumes. Callers that have not already passed the
+    /// registry assembly gate should use `from_capability_registry`.
+    #[must_use]
+    pub fn new(registry: &'registry CapabilityRegistry) -> Self {
+        Self {
+            registry,
+            budget: ResolutionBudget::unlimited(),
+        }
+    }
+
+    /// Creates an Effect Engine after checking the Capability registry's
+    /// dependency and registration assembly invariants.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Capability registry error when dependency/version/reaction
+    /// validation has not passed.
+    pub fn from_capability_registry(
+        registry: &'registry CapabilityRegistry,
+    ) -> Result<Self, loom_capability::RegistryError> {
+        registry.validate()?;
+        Ok(Self::new(registry))
+    }
+
+    /// Replaces the Runtime budget policy used before validation.
+    #[must_use]
+    pub fn with_budget(mut self, budget: ResolutionBudget) -> Self {
+        self.budget = budget;
+        self
+    }
+
+    /// Returns the immutable semantic metadata used by this engine.
+    #[must_use]
+    pub const fn registry(&self) -> &CapabilityRegistry {
+        self.registry
+    }
+
+    /// Validates one untrusted Resolution against a pinned base view.
+    ///
+    /// `proposer` is the opaque Capability owner key selected by the Runtime
+    /// router. It is compared with registry metadata for every semantic Event,
+    /// Facet and Relationship mutation. The caller receives an authority token
+    /// only after all Events, Effects, Work references and invariants pass.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RuntimeError::Budget` for a policy limit and
+    /// `RuntimeError::Validation` for any malformed, unauthorized or
+    /// structurally invalid proposal.
+    pub fn validate(
+        &self,
+        base: &crate::BaseWorldView,
+        proposer: &str,
+        resolution: Resolution,
+    ) -> Result<ValidatedResolution, RuntimeError> {
+        let usage = BudgetUsage::from_resolution(&resolution);
+        self.budget.check(usage).map_err(RuntimeError::Budget)?;
+
+        let mut candidate = CandidateWorldView::from_base(base);
+        let mut seen_events = HashSet::new();
+        for event in &resolution.events {
+            if !seen_events.insert(event.id) {
+                return Err(ValidationError::DuplicateIdentity {
+                    kind: "Event",
+                    id: event.id.to_string(),
+                }
+                .into());
+            }
+            validate_event(self.registry, &mut candidate, proposer, event)?;
+            self.validate_invariants(&candidate, event)?;
+            candidate.note_event(event.id);
+        }
+        validate_work(&mut candidate, &resolution)?;
+
+        let mut read_set = base.read_set();
+        read_set.extend(candidate.read_set());
+        Ok(ValidatedResolution::new(
+            resolution,
+            base.version(),
+            read_set,
+        ))
+    }
+
+    /// Validates a normal resolver result while preserving Capability
+    /// rejection as a normal outcome.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Runtime error only when a resolved proposal violates Runtime
+    /// validation or budget policy.
+    pub fn validate_outcome(
+        &self,
+        base: &crate::BaseWorldView,
+        proposer: &str,
+        outcome: ResolveOutcome,
+    ) -> Result<ValidationOutcome, RuntimeError> {
+        match outcome {
+            ResolveOutcome::Resolved(resolution) => self
+                .validate(base, proposer, resolution)
+                .map(ValidationOutcome::Validated),
+            ResolveOutcome::Rejected(rejection) => Ok(ValidationOutcome::Rejected(rejection)),
+        }
+    }
+
+    fn validate_invariants(
+        &self,
+        candidate: &CandidateWorldView,
+        event: &ProposedEvent,
+    ) -> Result<(), ValidationError> {
+        for invariant in self.registry.invariants() {
+            invariant.validate(candidate).map_err(|violation| {
+                ValidationError::InvariantViolation {
+                    event_id: event.id,
+                    message: format!("{}: {}", violation.code, violation.message),
+                }
+            })?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_event(
+    registry: &CapabilityRegistry,
+    candidate: &mut CandidateWorldView,
+    proposer: &str,
+    event: &ProposedEvent,
+) -> Result<(), ValidationError> {
+    if event.id.is_nil() {
+        return Err(ValidationError::InvalidIdentity {
+            kind: "Event",
+            id: event.id.to_string(),
+        });
+    }
+
+    let definition =
+        registry
+            .event(&event.event_type)
+            .ok_or_else(|| ValidationError::UnknownSemantic {
+                kind: SemanticKind::Event,
+                key: event.event_type.to_string(),
+            })?;
+    ensure_owner(
+        SemanticKind::Event,
+        event.event_type.to_string(),
+        definition.owner.as_str(),
+        proposer,
+    )?;
+    ensure_revision(
+        SemanticKind::Event,
+        event.event_type.to_string(),
+        definition.definition.schema_revision,
+        event.schema_revision,
+    )?;
+    validate_json_schema(
+        definition.definition.payload_schema.as_ref(),
+        &event.payload,
+        SemanticKind::Event,
+        &event.event_type.to_string(),
+    )
+    .map_err(|message| ValidationError::SchemaViolation {
+        kind: SemanticKind::Event,
+        key: event.event_type.to_string(),
+        message,
+    })?;
+
+    for participant in &event.participants {
+        validate_event_participant(
+            candidate,
+            &definition.definition.participant_roles,
+            event,
+            participant,
+        )?;
+    }
+    for relationship in &event.relationship_refs {
+        if !definition.definition.relationship_roles.is_empty()
+            && !definition
+                .definition
+                .relationship_roles
+                .iter()
+                .any(|role| role == &relationship.role)
+        {
+            return Err(ValidationError::InvalidAssociationRole {
+                event_id: event.id,
+                role: relationship.role.clone(),
+            });
+        }
+        if candidate
+            .relationship(relationship.relationship_id)
+            .is_none()
+        {
+            return Err(ValidationError::MissingRelationship {
+                relationship_id: relationship.relationship_id,
+            });
+        }
+    }
+
+    for causal_link in &event.causal_links {
+        let cause_event_id = causal_link.event_id();
+        if !candidate.event_exists(cause_event_id) {
+            return Err(ValidationError::InvalidCausalReference {
+                event_id: event.id,
+                cause_event_id,
+            });
+        }
+    }
+
+    for effect in &event.effects {
+        validate_effect(registry, candidate, proposer, effect)?;
+        candidate.apply_effect(effect);
+    }
+    Ok(())
+}
+
+fn validate_event_participant(
+    candidate: &CandidateWorldView,
+    allowed_roles: &[AssociationRole],
+    event: &ProposedEvent,
+    participant: &loom_protocol::EventParticipant,
+) -> Result<(), ValidationError> {
+    if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| role == &participant.role) {
+        return Err(ValidationError::InvalidAssociationRole {
+            event_id: event.id,
+            role: participant.role.clone(),
+        });
+    }
+    if participant.entity_id.is_nil() {
+        return Err(ValidationError::InvalidIdentity {
+            kind: "Entity",
+            id: participant.entity_id.to_string(),
+        });
+    }
+    if candidate.entity(participant.entity_id).is_none() {
+        return Err(ValidationError::MissingEntity {
+            entity_id: participant.entity_id,
+        });
+    }
+    Ok(())
+}
+
+fn validate_effect(
+    registry: &CapabilityRegistry,
+    candidate: &mut CandidateWorldView,
+    proposer: &str,
+    effect: &WorldEffect,
+) -> Result<(), ValidationError> {
+    match effect {
+        WorldEffect::CreateEntity { entity_id } => validate_create_entity(candidate, *entity_id),
+        WorldEffect::PutFacet {
+            owner,
+            facet_type,
+            schema_revision,
+            value,
+        } => validate_put_facet(
+            registry,
+            candidate,
+            proposer,
+            *owner,
+            facet_type,
+            *schema_revision,
+            value,
+        ),
+        WorldEffect::RemoveFacet { owner, facet_type } => {
+            validate_remove_facet(registry, candidate, proposer, *owner, facet_type)
+        }
+        WorldEffect::CreateRelationship {
+            relationship_id,
+            relationship_type,
+            participants,
+        } => validate_create_relationship(
+            registry,
+            candidate,
+            proposer,
+            *relationship_id,
+            relationship_type,
+            participants,
+        ),
+        WorldEffect::EndRelationship { relationship_id } => {
+            validate_end_relationship(registry, candidate, proposer, *relationship_id)
+        }
+    }
+}
+
+fn validate_create_entity(
+    candidate: &CandidateWorldView,
+    entity_id: EntityId,
+) -> Result<(), ValidationError> {
+    if entity_id.is_nil() {
+        return Err(ValidationError::InvalidIdentity {
+            kind: "Entity",
+            id: entity_id.to_string(),
+        });
+    }
+    if candidate.entity(entity_id).is_some() {
+        return Err(ValidationError::DuplicateIdentity {
+            kind: "Entity",
+            id: entity_id.to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_put_facet(
+    registry: &CapabilityRegistry,
+    candidate: &CandidateWorldView,
+    proposer: &str,
+    owner: FacetOwner,
+    facet_type: &loom_core::FacetTypeId,
+    schema_revision: SchemaRevision,
+    value: &serde_json::Value,
+) -> Result<(), ValidationError> {
+    let definition =
+        registry
+            .facet(facet_type)
+            .ok_or_else(|| ValidationError::UnknownSemantic {
+                kind: SemanticKind::Facet,
+                key: facet_type.to_string(),
+            })?;
+    ensure_owner(
+        SemanticKind::Facet,
+        facet_type.to_string(),
+        definition.owner.as_str(),
+        proposer,
+    )?;
+    ensure_revision(
+        SemanticKind::Facet,
+        facet_type.to_string(),
+        definition.definition.schema_revision,
+        schema_revision,
+    )?;
+    ensure_owner_exists(candidate, owner)?;
+    validate_json_schema(
+        Some(&definition.definition.schema),
+        value,
+        SemanticKind::Facet,
+        &facet_type.to_string(),
+    )
+    .map_err(|message| ValidationError::SchemaViolation {
+        kind: SemanticKind::Facet,
+        key: facet_type.to_string(),
+        message,
+    })
+}
+
+fn validate_remove_facet(
+    registry: &CapabilityRegistry,
+    candidate: &CandidateWorldView,
+    proposer: &str,
+    owner: FacetOwner,
+    facet_type: &loom_core::FacetTypeId,
+) -> Result<(), ValidationError> {
+    let definition =
+        registry
+            .facet(facet_type)
+            .ok_or_else(|| ValidationError::UnknownSemantic {
+                kind: SemanticKind::Facet,
+                key: facet_type.to_string(),
+            })?;
+    ensure_owner(
+        SemanticKind::Facet,
+        facet_type.to_string(),
+        definition.owner.as_str(),
+        proposer,
+    )?;
+    ensure_owner_exists(candidate, owner)
+}
+
+fn validate_create_relationship(
+    registry: &CapabilityRegistry,
+    candidate: &CandidateWorldView,
+    proposer: &str,
+    relationship_id: RelationshipId,
+    relationship_type: &loom_core::RelationshipTypeId,
+    participants: &[RelationshipParticipant],
+) -> Result<(), ValidationError> {
+    if relationship_id.is_nil() {
+        return Err(ValidationError::InvalidIdentity {
+            kind: "Relationship",
+            id: relationship_id.to_string(),
+        });
+    }
+    if candidate.relationship(relationship_id).is_some() {
+        return Err(ValidationError::DuplicateIdentity {
+            kind: "Relationship",
+            id: relationship_id.to_string(),
+        });
+    }
+    let definition = registry.relationship(relationship_type).ok_or_else(|| {
+        ValidationError::UnknownSemantic {
+            kind: SemanticKind::Relationship,
+            key: relationship_type.to_string(),
+        }
+    })?;
+    ensure_owner(
+        SemanticKind::Relationship,
+        relationship_type.to_string(),
+        definition.owner.as_str(),
+        proposer,
+    )?;
+    validate_relationship_structure(
+        candidate,
+        relationship_type,
+        &definition.definition.roles,
+        participants,
+    )
+}
+
+fn validate_end_relationship(
+    registry: &CapabilityRegistry,
+    candidate: &CandidateWorldView,
+    proposer: &str,
+    relationship_id: RelationshipId,
+) -> Result<(), ValidationError> {
+    let relationship = candidate
+        .relationship(relationship_id)
+        .ok_or(ValidationError::MissingRelationship { relationship_id })?;
+    let relationship_type = relationship.relationship_type();
+    let definition = registry.relationship(relationship_type).ok_or_else(|| {
+        ValidationError::UnknownSemantic {
+            kind: SemanticKind::Relationship,
+            key: relationship_type.to_string(),
+        }
+    })?;
+    ensure_owner(
+        SemanticKind::Relationship,
+        relationship_type.to_string(),
+        definition.owner.as_str(),
+        proposer,
+    )
+}
+
+fn ensure_owner(
+    kind: SemanticKind,
+    key: String,
+    expected: &str,
+    proposer: &str,
+) -> Result<(), ValidationError> {
+    if expected != proposer {
+        return Err(ValidationError::SemanticOwnerMismatch {
+            kind,
+            key,
+            expected: expected.to_owned(),
+            proposer: proposer.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn ensure_revision(
+    kind: SemanticKind,
+    key: String,
+    expected: SchemaRevision,
+    actual: SchemaRevision,
+) -> Result<(), ValidationError> {
+    if expected != actual {
+        return Err(ValidationError::SchemaRevisionMismatch {
+            kind,
+            key,
+            expected,
+            actual,
+        });
+    }
+    Ok(())
+}
+
+fn ensure_owner_exists(
+    candidate: &CandidateWorldView,
+    owner: FacetOwner,
+) -> Result<(), ValidationError> {
+    match owner {
+        FacetOwner::Entity(entity_id) => {
+            if entity_id.is_nil() {
+                return Err(ValidationError::InvalidIdentity {
+                    kind: "Entity",
+                    id: entity_id.to_string(),
+                });
+            }
+            if candidate.entity(entity_id).is_none() {
+                return Err(ValidationError::MissingEntity { entity_id });
+            }
+        }
+        FacetOwner::Relationship(relationship_id) => {
+            if relationship_id.is_nil() {
+                return Err(ValidationError::InvalidIdentity {
+                    kind: "Relationship",
+                    id: relationship_id.to_string(),
+                });
+            }
+            if candidate.relationship(relationship_id).is_none() {
+                return Err(ValidationError::MissingRelationship { relationship_id });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_relationship_structure(
+    candidate: &CandidateWorldView,
+    relationship_type: &loom_core::RelationshipTypeId,
+    roles: &[loom_capability::RelationshipRole],
+    participants: &[RelationshipParticipant],
+) -> Result<(), ValidationError> {
+    let relationship_type_text = relationship_type.to_string();
+    if participants.is_empty() {
+        return Err(ValidationError::RelationshipStructure {
+            relationship_type: relationship_type_text,
+            message: "participant set must not be empty".to_owned(),
+        });
+    }
+
+    let mut entity_ids = HashSet::new();
+    let mut role_counts: HashMap<AssociationRole, usize> = HashMap::new();
+    for participant in participants {
+        if participant.entity_id.is_nil() {
+            return Err(ValidationError::InvalidIdentity {
+                kind: "Entity",
+                id: participant.entity_id.to_string(),
+            });
+        }
+        if !entity_ids.insert(participant.entity_id) {
+            return Err(ValidationError::RelationshipStructure {
+                relationship_type: relationship_type.to_string(),
+                message: format!("Entity {} appears more than once", participant.entity_id),
+            });
+        }
+        if candidate.entity(participant.entity_id).is_none() {
+            return Err(ValidationError::MissingEntity {
+                entity_id: participant.entity_id,
+            });
+        }
+        *role_counts.entry(participant.role.clone()).or_default() += 1;
+    }
+
+    if !roles.is_empty() {
+        for participant in participants {
+            if !roles.iter().any(|rule| rule.role == participant.role) {
+                return Err(ValidationError::RelationshipStructure {
+                    relationship_type: relationship_type.to_string(),
+                    message: format!("role {} is not declared", participant.role),
+                });
+            }
+        }
+    }
+    for rule in roles {
+        let count = role_counts.get(&rule.role).copied().unwrap_or_default();
+        if count < usize::from(rule.minimum)
+            || rule
+                .maximum
+                .is_some_and(|maximum| count > usize::from(maximum))
+        {
+            return Err(ValidationError::RelationshipStructure {
+                relationship_type: relationship_type.to_string(),
+                message: format!(
+                    "role {} count {count} is outside {}..{}",
+                    rule.role,
+                    rule.minimum,
+                    rule.maximum
+                        .map_or_else(|| "unbounded".to_owned(), |maximum| maximum.to_string())
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_json_schema(
+    schema: Option<&Value>,
+    value: &Value,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(schema) = schema else {
+        return Ok(());
+    };
+    validate_schema_node(schema, value, "$", kind, key)
+}
+
+fn validate_schema_node(
+    schema: &Value,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(schema_object) = schema.as_object() else {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            "schema declaration must be an object",
+        ));
+    };
+    if schema_object.is_empty() {
+        return Ok(());
+    }
+
+    validate_schema_constraints(schema_object, value, path, kind, key)?;
+    validate_schema_properties(schema_object, value, path, kind, key)?;
+    validate_schema_items(schema_object, value, path, kind, key)?;
+    validate_numeric_bounds(schema_object, value, path, kind, key)?;
+    validate_array_bounds(schema_object, value, path, kind, key)
+}
+
+fn validate_schema_constraints(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    if let Some(type_declaration) = schema.get("type") {
+        let type_matches = type_declaration
+            .as_str()
+            .is_some_and(|type_name| schema_type_matches(type_name, value))
+            || type_declaration.as_array().is_some_and(|types| {
+                types.iter().any(|type_name| {
+                    type_name
+                        .as_str()
+                        .is_some_and(|type_name| schema_type_matches(type_name, value))
+                })
+            });
+        if !type_matches {
+            return Err(schema_error(
+                kind,
+                key,
+                path,
+                &format!("value does not match type {type_declaration}"),
+            ));
+        }
+    }
+    if let Some(enum_values) = schema.get("enum")
+        && !enum_values
+            .as_array()
+            .is_some_and(|values| values.iter().any(|candidate| candidate == value))
+    {
+        return Err(schema_error(kind, key, path, "value is not in enum"));
+    }
+    if let Some(constant) = schema.get("const")
+        && constant != value
+    {
+        return Err(schema_error(kind, key, path, "value does not match const"));
+    }
+    validate_required(schema, value, path, kind, key)
+}
+
+fn validate_required(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(required) = schema.get("required") else {
+        return Ok(());
+    };
+    let Some(required) = required.as_array() else {
+        return Err(schema_error(kind, key, path, "required must be an array"));
+    };
+    let Some(object) = value.as_object() else {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            "required applies only to an object",
+        ));
+    };
+    for property in required {
+        let Some(property) = property.as_str() else {
+            return Err(schema_error(
+                kind,
+                key,
+                path,
+                "required entries must be strings",
+            ));
+        };
+        if !object.contains_key(property) {
+            return Err(schema_error(
+                kind,
+                key,
+                path,
+                &format!("missing required property {property}"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_schema_properties(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(properties) = schema.get("properties") else {
+        return Ok(());
+    };
+    let Some(properties) = properties.as_object() else {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            "properties must be an object",
+        ));
+    };
+    let Some(object) = value.as_object() else {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            "properties applies only to an object",
+        ));
+    };
+    for (property, property_schema) in properties {
+        if let Some(property_value) = object.get(property) {
+            let property_path = format!("{path}.{property}");
+            validate_schema_node(property_schema, property_value, &property_path, kind, key)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_schema_items(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(items) = schema.get("items") else {
+        return Ok(());
+    };
+    let Some(array) = value.as_array() else {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            "items applies only to an array",
+        ));
+    };
+    for (index, item) in array.iter().enumerate() {
+        let item_path = format!("{path}[{index}]");
+        validate_schema_node(items, item, &item_path, kind, key)?;
+    }
+    Ok(())
+}
+
+fn schema_type_matches(type_name: &str, value: &Value) -> bool {
+    match type_name {
+        "object" => value.is_object(),
+        "array" => value.is_array(),
+        "string" => value.is_string(),
+        "number" => value.is_number(),
+        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+        "boolean" => value.is_boolean(),
+        "null" => value.is_null(),
+        _ => false,
+    }
+}
+
+fn validate_numeric_bounds(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(number) = value.as_f64() else {
+        return Ok(());
+    };
+    if let Some(minimum) = schema.get("minimum").and_then(Value::as_f64)
+        && number < minimum
+    {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            &format!("number is below minimum {minimum}"),
+        ));
+    }
+    if let Some(maximum) = schema.get("maximum").and_then(Value::as_f64)
+        && number > maximum
+    {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            &format!("number is above maximum {maximum}"),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_array_bounds(
+    schema: &serde_json::Map<String, Value>,
+    value: &Value,
+    path: &str,
+    kind: SemanticKind,
+    key: &str,
+) -> Result<(), String> {
+    let Some(array) = value.as_array() else {
+        return Ok(());
+    };
+    if let Some(minimum) = schema.get("minItems").and_then(Value::as_u64)
+        && match usize::try_from(minimum) {
+            Ok(minimum) => array.len() < minimum,
+            Err(_) => true,
+        }
+    {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            &format!("array has fewer than {minimum} items"),
+        ));
+    }
+    if let Some(maximum) = schema.get("maxItems").and_then(Value::as_u64)
+        && match usize::try_from(maximum) {
+            Ok(maximum) => array.len() > maximum,
+            Err(_) => false,
+        }
+    {
+        return Err(schema_error(
+            kind,
+            key,
+            path,
+            &format!("array has more than {maximum} items"),
+        ));
+    }
+    Ok(())
+}
+
+fn schema_error(kind: SemanticKind, key: &str, path: &str, message: &str) -> String {
+    format!("{kind} {key} at {path}: {message}")
+}
+
+fn validate_work(
+    candidate: &mut CandidateWorldView,
+    resolution: &Resolution,
+) -> Result<(), ValidationError> {
+    for mutation in &resolution.work {
+        match mutation {
+            WorkMutation::Schedule(work) => {
+                if work.id.is_nil() {
+                    return Err(ValidationError::InvalidIdentity {
+                        kind: "Work",
+                        id: work.id.to_string(),
+                    });
+                }
+                if work.timeline_id != candidate.timeline_id() {
+                    return Err(ValidationError::WorkTimelineMismatch {
+                        expected: candidate.timeline_id(),
+                        actual: work.timeline_id,
+                    });
+                }
+                if let Some(event_id) = work.causal_event_id
+                    && !candidate.event_exists(event_id)
+                {
+                    return Err(ValidationError::MissingWorkCausalEvent {
+                        work_id: work.id,
+                        event_id,
+                    });
+                }
+            }
+            WorkMutation::Cancel(work_id) => {
+                if work_id.is_nil() {
+                    return Err(ValidationError::InvalidIdentity {
+                        kind: "Work",
+                        id: work_id.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
