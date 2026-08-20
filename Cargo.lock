@@ -106,6 +106,7 @@ dependencies = [
 name = "loom-runtime"
 version = "0.1.0"
 dependencies = [
+ "loom-api",
  "loom-capability",
  "loom-core",
  "loom-protocol",
