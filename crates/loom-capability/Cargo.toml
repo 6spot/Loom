@@ -3,5 +3,12 @@ name = "loom-capability"
 version.workspace = true
 edition.workspace = true
 
+[dependencies]
+loom-core = { path = "../loom-core" }
+loom-protocol = { path = "../loom-protocol" }
+semver = { version = "1", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [lints]
 workspace = true
