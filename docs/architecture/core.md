@@ -1,58 +1,78 @@
-# Loom Core Minimum Closure
+# Loom Core v0 Conceptual Closure
 
-> Status: confirmed architectural baseline.
+> Status: **closure review passed; Core v0 conceptual boundary frozen by default.**
 >
-> 本文定义 Loom Core 的最小闭包（minimum closure）：如果移除所有具体领域能力，Core 仍必须能够独立承载一个持续存在、可演化、可暂停恢复、可分叉并可被上层扩展的智能世界。
+> 本文定义 Loom Core 的最小概念闭包。它不是实现规格，而是回答：**哪些机制必须属于 Core，哪些语义必须留在 Capability 之外。**
 
-## 1. Core 的定义
+## 1. Admission Rule
 
 > **Loom Core is a world runtime, not a domain simulation.**
->
-> **Core 决定世界怎样存在和运行；Capability 决定这个世界会什么、意味着什么；Application 决定用户拿这个世界来做什么。**
 
-Core 的准入标准不是“这个概念是否重要”，而是：
+一个概念只有在同时满足以下条件时，才有资格进入 Core：
 
-> **如果没有它，一个持续智能世界 Runtime 是否仍然能够闭环？**
+1. 它跨不同 World 类型普遍存在；
+2. 移除它后，持续 World Runtime 无法闭环；
+3. 它无法通过现有 Core + Capability 组合表达；
+4. 它不要求 Core 理解具体领域语义。
 
-如果能够闭环，则该概念原则上不应进入最小 Core，而应由 Capability Module、World Template 或 Application 承担。
+“重要”不等于“属于 Core”。Human、Company、Institution、Goal、Emotion、News、Money、Combat 等都可以非常重要，但仍不属于最小 Kernel。
 
-## 2. Core 的八个 Kernel Concern
+## 2. Core 的八个职责域
 
 ```text
 Loom Core
 │
 ├── 1. World & Timeline
-│      identity / lifecycle / fork
-│
 ├── 2. Identity & Structure
-│      Entity / Actor / Agent / Relationship
-│
 ├── 3. State
-│      timeline-local state / facets / revision
-│
 ├── 4. History
-│      Event / Ledger / Effect / causality
-│
 ├── 5. Time
-│      WorldClock / Scheduler
-│
 ├── 6. Agency
-│      local view / context / decision / intent
-│
 ├── 7. Runtime
-│      work queue / resolve / evaluate / commit / reaction
-│
 └── 8. Capability Host
-       registration / binding / invocation / semantic extension
 ```
 
-这些是 Core 的职责域，不要求每个 World 都实际启用其中全部能力。例如，一个纯机械市场 World 可以完全没有 Agent；Agent 是 Core 支持的结构原语，而不是 World 存在的必要条件。
+这些职责域内部既包含 **World Primitives**，也包含 **Runtime Facilities / Protocols**。属于 Core 不代表它一定是世界中的一个一等对象。
+
+### 2.1 World Primitives
+
+主要包括：
+
+```text
+World
+Timeline
+Entity
+Actor
+Agent
+Relationship
+State / State Facet instance
+Event
+Effect
+World Time
+```
+
+### 2.2 Runtime Facilities / Protocols
+
+主要包括：
+
+```text
+Scheduler / Trigger
+Durable Work
+Execution Policy / Strategy
+Cognitive Execution
+Rule / Validation Kernel
+Ingress
+World Change Feed / Feedback
+Entropy / controlled nondeterminism
+Execution Session / Provenance
+Capability Host
+```
 
 ## 3. World & Timeline
 
 World 是长期存在的世界身份与运行边界。
 
-Timeline 是一个 World 中的一条权威历史分支。一个 Timeline 只有一份权威 Event Ledger。
+Timeline 是一个 World 中的一条权威历史分支。每条 Timeline 只有一份权威 Event Ledger。
 
 ```text
 World
@@ -61,72 +81,63 @@ World
 └── Counterfactual Timeline
 ```
 
-Fork 创建新的历史分支，但不重写原 Timeline。
+Fork 创建新的历史分支，不重写原 Timeline。
 
-### Timeline 与 Trajectory
+### 3.1 Timeline 与 Trajectory
 
-个人、公司、国家等主体不各自拥有独立的权威 Timeline。
+个人、公司、国家等 Entity 不拥有独立权威 Timeline。它们在某条 World Timeline 上拥有自己的 **Trajectory**：权威世界历史关于某个 Identity 的局部投影。
 
-它们在某条 World Timeline 中拥有自己的 **Trajectory**：世界历史关于某一 Identity 的局部轨迹/投影。
-
-```text
-World Timeline
-├── 张三 Trajectory
-├── Company X Trajectory
-└── Country A Trajectory
-```
-
-同一个 Event 可以同时进入多个 Entity / Relationship Trajectory，因此主体之间通过共享 Event 产生交集和因果影响。
+同一个 Event 可以同时关联多个 Entity / Relationship Trajectory，从而形成主体路径之间的交集和因果影响。
 
 > **Timeline is the history of the world; Trajectory is the history of an identity within that world.**
->
-> **Timeline 是世界走过的历史，Trajectory 是一个身份在这段历史中走过的路径。**
 
-Trajectory 不取代、不复制权威 Ledger。
+Trajectory 是 Projection / Index，不是第二套 Ledger。
+
+### 3.2 Fork
+
+Fork Point 之前的 committed history 是共享祖先；Fork 时的逻辑 State 和 Pending Work 被继承到新分支，之后各自独立演化。
+
+```text
+Identity       = same existing World identity
+Past           = shared ancestry
+Current State  = initially equivalent
+Pending Future = inherited
+Future Outcome = independent
+```
+
+Fork 后 Runtime State 必须逻辑隔离，不能让一个 Timeline 对 Work 的取消或修改影响另一个 Timeline。
 
 ## 4. Identity & Structure
 
 ### 4.1 Entity Identity
 
-Entity 的核心职责是回答“它是谁”，而不是承载固定领域 Schema。
+Entity 的核心职责是回答“它是谁”。
 
-Identity 必须具有稳定、唯一、不可复用、与名称和可变状态无关的内部标识。
-
-```text
-WorldEntity
-- entity_id      # authoritative identity
-- provenance
-- optional global_entity_ref
-- structural role(s)
-```
-
-名字、别名、职位、位置、财富、关系等都不能作为身份本身。
+Identity 必须由稳定、唯一、不可复用、与名称和可变状态无关的内部 ID 建立。
 
 > **Names describe an identity; they do not create one.**
 >
-> **ID 决定“是谁”，名字只是“如何称呼它”。**
+> **ID 决定是谁；名字只是如何称呼它。**
 
-### 4.2 Global Entity / World Entity / Timeline State
+外部身份证号、公司注册号、平台账号等可以作为 External Identity Key / identity evidence，但不替代 Loom 内部 identity。
+
+### 4.2 Identity scope
 
 ```text
 Global Entity      # optional cross-world identity anchor
       ↓
-World Entity       # stable identity inside one World
+World Entity       # stable identity in one World
       ↓
-Timeline State     # mutable state on one Timeline
+Timeline State     # mutable reality in one Timeline
 ```
 
-同一个 World 的不同 Timeline 共享已有 World Entity Identity，但拥有不同的可变状态、关系、经历和认知轨迹。
-
 > **Identity belongs to World; mutable State belongs to Timeline.**
->
-> **身份属于世界，人生属于时间线。**
 
-Fork 时已经存在的 Entity Identity 延续到新 Timeline；Fork 后新产生的 Entity 默认由各自分支的因果历史独立创建，除非显式建立身份对应关系。
+同一个 World Entity 在不同 Timeline 上仍然是同一个 Identity，只是经历、关系、状态、认知和未来轨迹不同。
 
 ### 4.3 Entity / Actor / Agent
 
-Core 只保留 Runtime 必需的结构角色：
+Core 只保留少量运行结构角色：
 
 ```text
 Entity
@@ -134,25 +145,23 @@ Entity
     └── Agent
 ```
 
-- **Entity**：具有稳定身份、可被引用并拥有 Timeline-local State 的世界对象。
-- **Actor**：可以作为 Action/Intent 行动归属主体，但不要求自己进行认知计算。
-- **Agent**：具有局部认知边界并能够自主执行感知—判断—Intent 循环的 Actor。
+- **Entity**：稳定可引用并拥有 Timeline-local State 的世界对象。
+- **Actor**：可以作为 Intent / Action 的归属主体，不要求自己进行认知计算。
+- **Agent**：具有局部认知边界并能够自主形成 Decision / Intent 的 Actor。
 
-Core 不使用 `HUMAN / COMPANY / COUNTRY / MONSTER` 等领域 Entity Type 作为运行分支条件。
+Core 不使用 `HUMAN / COMPANY / COUNTRY / MONSTER` 等领域类型驱动 Runtime。
 
 ### 4.4 Relationship
 
-Relationship 保留为独立 Core Primitive，因为它表达多个 Identity 之间持续、可演化的结构连接。
+Relationship 是独立 Core Primitive，因为它表达多个 Identity 之间持续、可演化、可拥有自身状态与生命周期的结构连接。
 
-Relationship 拥有自己的唯一身份、参与者、角色、生命周期与 Timeline-local State，并应允许 N-ary participant/role 模型；二元 edge 只是特例。
-
-Core 不理解 `friend / married / employed_by / owns` 等具体关系语义，这些由 Capability Module 定义。
+Relationship 应拥有稳定 `relationship_id`，支持 participant + role，允许 N-ary 关系；具体 `friend / married / employed_by / owns` 等语义属于 Capability。
 
 ## 5. State
 
-Core State 是 Timeline-local 的可变事实投影。
+Core State 表示某条 Timeline 的当前现实投影。
 
-领域状态通过版本化、可验证的 **State Facet** 组合到 Entity 或 Relationship 上，而不是通过巨大固定 Schema 或继承树表达。
+领域状态通过可组合的 **State Facet** 表达，而不是通过巨大固定 Schema 或领域继承树表达。
 
 ```text
 Entity / Relationship
@@ -162,79 +171,100 @@ Entity / Relationship
     └── Facet C
 ```
 
-Facet Definition 由 Capability 提供，Core 负责：
+Capability 定义 Facet schema、语义、校验和领域 transition；Core 负责 persistence、revision、Timeline isolation、event-driven mutation、snapshot/projection 和 contract enforcement。
 
-- persistence；
-- revision；
-- Timeline isolation；
-- event-driven mutation；
-- snapshot / projection；
-- schema contract enforcement。
+Capability 不能直接修改 State。
 
-Capability 可以定义 State 语义，但不能直接修改 State。
-
-State Facet 可随 committed Event 被 attach / update / end；领域身份和能力因此能够随历史演化，而不是出生时固定。
-
-Core 可支持 stored / derived / materialized projection，但具体推导语义属于 Capability。
-
-## 6. History: Event / Ledger / Effect
+## 6. History: Intent / Event / Effect
 
 Core 的第一运行公理：
 
 > **No mutation without a committed Event.**
 >
-> **世界状态不能被直接修改；任何真实变化都必须先成为该 Timeline 上的历史。**
+> 世界状态不能被直接修改；任何真实变化都必须先成为该 Timeline 上的历史。
 
 严格区分：
 
-- **Intent**：某个 Actor 想尝试什么；
+- **Intent**：Actor 想尝试什么；
 - **Action Attempt**：一次具体尝试，可被追踪；
 - **Event**：Runtime 已承认并提交的历史事实；
-- **Effect**：该 Event 对 Timeline State 的确定性变化。
+- **Effect**：该 Event 对 Timeline State 的已解析、确定性变化。
 
 ```text
-Intent
-  ↓
-Resolve
-  ↓
+Intent / Proposal
+      ↓
+    Resolve
+      ↓
 Resolved Outcome + Effects
-  ↓
-Validate
-  ↓
+      ↓
+   Validate
+      ↓
 Atomic Commit
-  ↓
+      ↓
 Event Ledger
-  ↓
+      ↓
 Materialized State
 ```
 
-Nondeterminism、随机数和模型推理允许发生在 Commit 前；Commit 后的 Event 必须保存已解析结果与 Effects，Replay 不重新随机、不重新调用模型决定历史。
+Event Ledger append-only。Commit 后 Replay 直接应用 committed Event / Effects，不重新随机、不重新调用模型、不重新决定历史。
 
-Direct Effect 与 downstream Reaction 分离。一个 Event 的后续社会、经济或认知影响必须通过新的 Work / Intent / Event 继续形成因果链，而不是把整个未来塞进一次 Event。
+Direct Effect 与 downstream Reaction 分离。后续影响通过新的 Work / Intent / Event 形成因果链。
 
-Event Ledger 与技术日志、调试日志严格分离。
+World Event Ledger 与技术日志、Runtime Audit、Platform Change History 严格分离。
 
-## 7. Time
+## 7. Time: Past / Present / Future
 
-Core 提供 WorldClock 与 Scheduler。
+Core 使用 WorldClock，不依赖操作系统当前时间作为世界语义。
 
-世界时间不等于操作系统时间，也不要求固定 Tick。
+Timeline 运行结构分成三类：
 
-Scheduler 只负责：
+```text
+Event Ledger = determined past
+State        = current reality
+Durable Work = unresolved future execution
+```
 
-> 在 World Time T 到达时，把相应工作重新放入 Runtime。
+> **A scheduled future is not a future fact.**
 
-它不理解“发工资”“复诊”“技能冷却”等领域含义。
+Durable Work 只表达“未来需要 Runtime 再处理一次”，不能预先冻结未来结果。
 
-当没有有意义的待处理工作时，非实时 World 可以直接推进到下一个有意义的 World Time，而无需空转。
+### 7.1 Durable Work
+
+Durable Work 是某条 Timeline 上持久、可恢复的 Runtime 执行义务。它至少应具备：
+
+- stable work identity；
+- Timeline isolation；
+- due time / trigger；
+- handler reference；
+- causal / correlation references；
+- cancellation / supersession；
+- retry / idempotency safety；
+- restart safety；
+- execution lifecycle；
+- budget / priority metadata as needed。
+
+Work 可以重复投递，但 world mutation 不能重复。最终一致性防线仍然是 Runtime Commit。
+
+### 7.2 Scheduler / Trigger
+
+Scheduler 不理解领域语义，只负责在 World Time 到达时重新产生 Work。
+
+Core 至少支持：
+
+```text
+Temporal Trigger  → at/after World Time T
+Event Trigger     → when matching committed Event occurs
+```
+
+跨时间、多阶段的 `Hiring / Travel / Settlement / Quest / CourtCase` 等 Process 不成为 Core Primitive；Capability 使用 State + Event + Durable Work + Trigger 组合出自己的持续流程。
 
 ## 8. Agency
 
-### 8.1 Agent-local View
+### 8.1 Local cognition boundary
 
-Agent cognition 不能默认访问 omniscient World State。
+> **World Truth ≠ Agent View.**
 
-Core 必须提供：
+Agent cognition 不默认访问 omniscient World State。
 
 ```text
 World Truth
@@ -246,15 +276,13 @@ Agent-local Representation
 Context
 ```
 
-一个 Agent 可以拥有不完整、过时甚至错误的局部表示。
+Agent-local Representation 可以不完整、过时或错误。
 
 ### 8.2 Context
 
 > **Context is budgeted attention.**
 
-Context 是 Runtime 按需构造的有限世界切片，不是 World State 的副本。
-
-至少应保持：
+Context 是按需构造的有限世界切片，不是 World State 的永久副本。
 
 ```text
 Actual World Context
@@ -264,127 +292,191 @@ Agent Context
 Cognitive Context
 ```
 
-Visibility 优先于 Relevance：某个秘密再相关，只要 Agent 不可知，就不能进入它的 Cognitive Context。
+Visibility / knowledge eligibility 必须先于 relevance。
 
-Context 可以是多 Facet、重叠且动态变化的；普通 Context 是临时 Runtime 投影，而不是永久维护的大对象。
+### 8.3 Persistent agent-local state
 
-### 8.3 Persistent Agent-local State
+Core 不强制完整的人类 Memory 模型。Core 只保证 Agent 可以拥有跨 Wake 持续存在、Timeline-local、私有且可按预算检索进入 Context 的内部状态。
 
-Core 不强制规定完整的“人类 Memory 模型”。Core 真正保证的是：
+Episodic memory、semantic memory、consolidation、decay、emotion、personality、goal、need 等具体语义属于 Capability。
 
-> Agent 可以拥有跨 Wake 持续存在、Timeline-local、私有且可按预算检索进入 Context 的内部状态。
+### 8.4 Decision and cognition
 
-`episodic memory / semantic memory / consolidation / decay / trauma / human emotion` 等具体认知语义属于 Capability。
+Core 定义 Decision / Intent 协议，不定义 Agent 为什么行动。
 
-### 8.4 Decision
+Goal、Need、Policy、Habit、Role Duty、Emotion、External Command 等都可以成为 Capability 提供的 Decision Driver / Bias。
 
-Core 定义 Agent 的认知边界与 Decision/Intent 协议，但不定义 Agent **为什么** 行动。
+LLM 不等于 Agent。Core 提供 **Cognitive Execution Contract**，官方实现可以提供可配置 `LLM Executor`，也允许其他执行器：
 
-Goal、Need、Policy、Role Duty、Habit、Emotion、External Command 等都可以由 Capability 作为 Decision Driver / Bias 提供。
+```text
+Rule / Policy
+Behavior Tree
+Small Model
+LLM
+Human
+Hybrid
+```
 
-因此 Goal、Plan、Personality、Emotion 不是 Kernel 强制字段。
-
-> **Core defines how an Agent can decide; Capability defines why and with what semantics.**
-
-LLM 只是 Cognitive Path 中一种昂贵的认知执行器，不是 Agent 本身，也不是 Runtime 本身。
+Cognitive Provider 只能基于 Runtime 准备好的受限 Context 产生 Decision / Intent，不能直接读取 World repository、Commit Event 或修改 State。
 
 ## 9. Runtime
 
-Loom Runtime 是 **event-driven + demand-driven + world-time-aware** 的世界执行器，不通过固定 Tick 扫描整个世界。
+Loom Runtime 是 **event-driven + demand-driven + world-time-aware** 的可恢复执行器，而不是固定 Tick 扫描器。
+
+### 9.1 Execution Policy, not fixed pipeline
+
+Core 不规定固定的：
 
 ```text
-Pending Work
-    ↓
-Runtime Router
-    ├── Fast Path
-    └── Cognitive Path
-            ↓
-          Intent
-            ↓
-          Resolve
-            ↓
-          Evaluate
-            ↓
-          Commit
-            ↓
-          Event
-            ↓
-          State
-            ↓
-Reaction / Perception / Scheduler
-            ↓
-         New Work
+Fast Path → Cognitive Path
 ```
 
-### 9.1 Fast Path
+这只能是一种默认优化策略。
 
-机械性、确定性、规则化工作默认走 Fast Path，不需要 Agent 或 LLM。
+Core 真正提供的是可替换的 **Execution Policy / Strategy**：
 
-例如：期限到期、状态过期、确定性结算、自动流程推进等。
+```text
+Work / Decision Need
+        ↓
+Execution Policy
+        ↓
+Deterministic / Policy / Cognition / Composite / Custom
+        ↓
+Result / Intent / New Work
+```
 
-### 9.2 Cognitive Path
+一个 World 可以完全确定性运行，也可以直接使用 Cognition，或采用混合、并行、多阶段执行策略。
 
-只有当工作确实需要主体自主认知时，才进入 Agent Wake / Context / Decision。
+### 9.2 Runtime Commit Authority
 
-Stimulus 不等于模型调用。Runtime 先执行 routing、relevance、activation、budget 判断，再决定是否调用昂贵 Cognition。
+只有 Runtime 可以 Commit World Event。
 
-> **Agent persists; compute is on demand.**
+Resolution 可以并行，但 Commit 是 Timeline State mutation 的唯一线性化点。并发冲突必须失败、重试或重新 Resolve，不能产生互相矛盾的双重成功。
 
-### 9.3 Work Queue
+Reaction 不得递归直接修改世界，应产生新的 Work 并重新进入 Runtime，受 work/reaction/compute budgets 控制。
 
-Scheduler、Reaction、External Input、Application Intervention、Process Continuation、Agent Deferred Work 等统一进入 Runtime Work Queue。
-
-Work Item 只是“需要处理的工作”，不等于 Stimulus、Intent 或 Event；Work 最终可以被忽略而不产生世界变化。
-
-### 9.4 Commit Authority
-
-Timeline Commit 是世界状态变化的唯一线性化点。
-
-Resolution 可以并行，但 Commit 必须依据最新 Timeline State 保证一致性。并发冲突需要失败、重试或重新 Resolve，不能产生互相矛盾的双重成功。
-
-Reaction 不允许递归直接修改世界，应产生新的 Work Item 回到 Queue，并受到 reaction depth / work / compute 等预算限制。
-
-### 9.5 Resumability
-
-持续 World 不等于永久 `while(true)` 进程。
-
-World 的 State、Timeline、Future Work 与 Scheduler 持久存在；Runtime Compute 可以停止并在之后重新加载继续推进。
+### 9.3 Resumability
 
 > **World persists; runtime execution is resumable.**
 
+持续 World 不等于永久 `while(true)` 进程。State、Timeline、Durable Work 和 Trigger 持久存在；Runtime Compute 可以停止并稍后继续。
+
 ## 10. Rule / Validation Kernel
 
-Core 不把所有规则视为“违反即拒绝”。至少区分：
+Core 不把所有 Rule 视为“违反即拒绝”。至少区分：
 
-- Runtime Invariant；
-- Feasibility / structural constraint；
-- Access / Authority / Permission；
-- Law / Policy / Norm；
-- Enforcement / Reaction。
+```text
+Runtime Invariant
+Feasibility / Structural Constraint
+Access / Authority / Permission
+Law / Policy / Norm
+Enforcement / Reaction
+```
 
-只有少量 Runtime Invariant 必须阻止 Commit，例如身份一致性、Timeline isolation、Event sequencing、State schema integrity、atomicity、referential integrity 等。
+只有少量 Runtime Invariant 必须阻止 Commit，例如身份一致性、Timeline isolation、event sequencing、schema integrity、atomicity、referential integrity。
 
-违法、违规、失礼或违反制度通常仍然可以成为真实 Event；规则存在不等于遵守、发现、判断、执行或同等后果。
+违法、违规、违背政策或社会规范通常仍然可以成为真实 Event。
 
-Core Rule Kernel 只提供 applicability / evaluation / invariant validation / reaction registration 等协议，不理解具体法律、制度、社会规范或游戏规则。
+Core Rule Kernel 只定义 applicability / evaluation / invariant validation / reaction registration 协议，不理解具体法律、企业制度、社会规范或游戏规则。
 
 Actual Rule 与 Agent Belief About Rule 必须分离。
 
-## 11. Capability Host
+## 11. Runtime Boundaries
 
-Extensibility 本身属于 Core，但具体 Capability 不属于 Core。
+### 11.1 Ingress
 
-Capability Host 的最小职责：
+Ingress 是外部系统向 Runtime 提交输入的受控边界，不是 World Event。
+
+Core Ingress Protocol 至少需要支持：
+
+```text
+identity / idempotency
+source / provenance
+target World / Timeline
+time metadata
+handler routing
+payload
+runtime authorization context
+```
+
+Ingress acceptance 只表示 Runtime 接受了输入，不代表输入内容已经成为 World Truth。
+
+Capability 负责解释领域语义；Runtime 最终仍通过 Event Commit 改变世界。
+
+### 11.2 Feedback / World Change Feed
+
+Loom Core 不直接控制现实系统，也不负责执行不可逆外部副作用。
+
+已经 committed 的世界变化可以通过 **World Change Feed** 被 Application / Observer 读取；Capability 或 Application 可以进一步构造 Feedback Projection。
+
+```text
+                  External
+               ↙            ↖
+            Ingress       Feedback
+               ↓             ↑
+             Runtime → Event ┘
+```
+
+Feedback 是只读观察边界，不因 subscriber success/failure 改变 World。如果外部根据反馈决定重新影响 World，应通过新的 Ingress 返回 Runtime。
+
+## 12. Explicit nondeterminism
+
+任何可能影响 World Truth 的不确定来源都必须通过明确的 Core execution boundary 进入，不能隐藏在 Capability 实现内部。
+
+```text
+world time      → WorldClock
+randomness      → Entropy Source
+external input  → Ingress
+cognition       → Cognitive Executor
+domain logic    → registered Resolver / Evaluator
+```
+
+Capability 不应通过系统时间、隐藏 `random()`、私自模型调用或外部 API 查询偷偷改变 Resolution。
+
+历史确定性来自 committed Event，而不是要求当初的计算过程绝对可重复。
+
+> **Historical replay applies committed history; re-simulation recomputes an alternative future.**
+
+## 13. Execution Session & Provenance
+
+一次 Work 真正开始处理时形成 **Execution Session**，并绑定当时激活的 Runtime Revision / implementation references。
+
+Session 一旦开始不在中途切换 Runtime Revision；未来尚未开始的 Durable Work 在实际执行时使用当时当前引擎。
+
+Execution Provenance 可以记录：
+
+```text
+execution_session_id
+runtime_revision
+capability implementation refs
+execution policy revision
+input state revision
+world time
+ingress refs
+entropy refs
+cognitive executor refs
+result / event refs
+```
+
+这些属于 Runtime Audit / operator provenance，默认不进入 Agent Context，也不是 World Event。
+
+软件变化本身记录在独立 Runtime Change Ledger 中。World 不执行“upgrade to revision”；新的执行自然运行在当前已激活引擎上。
+
+## 14. Capability Host
+
+Extensibility 本身属于 Core，具体领域能力不属于 Core。
+
+Capability Host 最小职责：
 
 ```text
 Discover
 Validate
 Bind
 Invoke
-Version / identify implementation
+Identify implementation
 ```
 
-Capability Module 可以向 Core 贡献：
+Capability 可以贡献：
 
 - State Facet Definitions；
 - Relationship Definitions；
@@ -392,76 +484,41 @@ Capability Module 可以向 Core 贡献：
 - Resolvers；
 - Rule / Evaluator Definitions；
 - Runtime Handlers；
-- migrations / projections / domain contracts as needed。
+- domain projections / migrations / contracts as needed。
 
-Capability 定义语义，Core 拥有运行数据和生命周期。
-
-Capability **不得**：
+Capability 可以定义世界语义，但绝不能：
 
 - 直接修改 Timeline State；
 - 直接写 Event Ledger；
-- 修改稳定 Entity/Relationship Identity；
-- 依赖 Core 内部数据库表结构；
-- 启动自己的 World 主循环；
-- 绕过 Scheduler / Runtime Queue；
-- 直接决定 LLM Wake；
-- 把 Agent 不可见的 World Truth 偷渡进 Agent Context。
+- 绕过 Runtime Commit；
+- 私自启动另一个 World loop；
+- 越过 Agent cognition boundary；
+- 隐藏影响 World Truth 的 nondeterminism。
 
-多个 Capability 若确实需要稳定协作，应通过 Core-owned contract / Event / Action / Relationship / Work 等协议，而不是互相调用内部实现。
+## 15. Closure Review
 
-## 12. Core Admission Rule
-
-未来任何新概念想进入 Core，都必须通过以下测试：
-
-### Test A — Closure
-
-拿掉它以后，一个持续 World Runtime 是否仍能完整运行？
-
-如果能，优先放 Capability。
-
-### Test B — Mechanism vs Semantics
-
-它描述的是：
-
-- **世界如何存在/运行** → Core candidate；
-- **某种世界里有什么/意味着什么** → Capability candidate。
-
-### Test C — World Substitution
-
-将现代人类社会替换为：
-
-- 中世纪魔法世界；
-- 机器文明；
-- RPG；
-- 纯机械市场；
-- 舆情/信息传播世界。
-
-如果概念仍然是 Runtime 闭环所必需，它才更像 Core。
-
-## 13. Core MUST NOT know
-
-Core 不应天然理解以下具体领域概念：
+Core v0 使用四种明显不同的 World 做了反证：
 
 ```text
-人类心理学中的具体情绪
-人生需求与价值观
-工资 / 职业 / 劳动合同
-婚姻 / 家庭制度
-货币 / 股票 / 银行账户
-政府制度 / 具体法律
-新闻 / 财报 / 舆情语义
-战斗 / HP / 魔法 / 任务
-驾驶 / 医疗 / 教育
+Life Simulation
+RPG
+Public Opinion / Information World
+Mechanical Market Simulation
 ```
 
-同样，`Observation / Information Artifact / Claim / Institution / Goal / Plan / Human Memory / Emotion` 等此前讨论过且非常重要的高级概念，除非其最低层机制通过上述 Core Admission Rule，否则应作为官方 Foundational Capability 或 Domain Capability 提供，而不是自动进入 Kernel。
+结果：四种 World 都可以由当前 Core 闭环，且没有要求把 Human、Institution、Information Model、Goal、Emotion、Combat、Money、Workflow 或 LLM-specific Agent 等领域概念塞进 Kernel。
 
-它们的设计语义仍然有效；本原则只重新确定其架构归属。
+Review 过程中确认的关键边界：
 
-## 14. Core Closure Statement
+- `Process` 是 Capability semantic pattern；Core 提供 Durable Work / Trigger。
+- External Input 是 Ingress Boundary，不是领域 Primitive。
+- LLM 是可配置 Cognitive Executor，不是 Agent 类型。
+- `Fast/Cognitive` 是可选执行策略，不是固定线路。
+- 外部输出使用 Feedback / Change Feed，不在 Core 中直接执行现实副作用。
+- 平台软件历史与 World Timeline 分离，通过 Execution Provenance 关联。
 
-Loom Core 的最小闭包可以概括为：
+因此：
 
-> **Core 能够让一个有稳定身份和 Timeline-local State 的世界，在 World Time 中通过统一 Runtime 处理工作；需要自主认知时，Agent 基于受隔离且有预算的局部 Context 产生 Intent；所有实际变化都经过 Resolve / Evaluate / Commit 成为不可变 Event，并形成新的 State 与后续 Work；同时 Capability Host 可以为这些机制赋予任意领域语义，而不能夺取 Runtime 权威。**
+> **Loom Core v0 Conceptual Closure Review: PASSED.**
 
-这套闭包必须能够同时承载人生模拟、RPG、舆情/信息世界、现实镜像以及没有 Agent 的机械世界，而无需向 Core 注入相应领域知识。
+从此 Core 默认冻结。新增 Core 概念必须重新通过 Admission Rule；能通过现有 Core + Capability 表达的能力，默认拒绝进入 Kernel。
