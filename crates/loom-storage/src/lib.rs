@@ -71,3 +71,10 @@
 //! `docs/architecture/runtime-contracts.md`.
 
 #![forbid(unsafe_code)]
+
+mod in_memory;
+
+pub use in_memory::{InMemoryStore, SetupError};
+
+#[cfg(test)]
+mod tests;

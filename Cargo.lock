@@ -115,6 +115,11 @@ dependencies = [
 [[package]]
 name = "loom-storage"
 version = "0.1.0"
+dependencies = [
+ "loom-core",
+ "loom-runtime",
+ "serde_json",
+]
 
 [[package]]
 name = "memchr"
