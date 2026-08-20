@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+loom-api = { path = "../loom-api" }
 loom-capability = { path = "../loom-capability" }
 loom-core = { path = "../loom-core" }
 loom-protocol = { path = "../loom-protocol" }
