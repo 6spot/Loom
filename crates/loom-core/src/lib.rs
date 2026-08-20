@@ -1,4 +1,4 @@
-//! Loom Core: stable world primitives and invariant contracts.
+//! Loom Core: the stable **World Language** of Loom.
 //!
 //! # Responsibility
 //!
@@ -20,16 +20,25 @@
 //!
 //! # Dependency boundary
 //!
-//! Core must remain independent from Tokio, SQLx, Axum, GPUI, pgvector, model
-//! providers, network clients, platform clocks and random-number implementations.
-//! World-affecting nondeterminism is always injected through explicit Runtime
-//! boundaries rather than hidden inside Core primitives.
+//! `loom-core` is the bottom of the Loom Cargo dependency DAG. It must not depend
+//! on any higher Loom crate. It must also remain independent from Tokio, SQLx,
+//! Axum, GPUI, pgvector, model providers, network clients, platform clocks and
+//! random-number implementations.
+//!
+//! Core is **not** a `common`, `shared-model` or DTO dumping ground. A type does
+//! not belong here merely because multiple crates need it. Cross-component
+//! untrusted execution values belong to `loom-protocol`; public consumption
+//! contracts belong to `loom-api`.
+//!
+//! World-affecting nondeterminism is injected through explicit Runtime boundaries
+//! rather than hidden inside Core primitives.
 //!
 //! # Documentation contract
 //!
 //! Every new public Core type, enum variant and high-risk field must document its
 //! meaning, owner, truth domain, lifecycle, forbidden uses and its distinction
-//! from neighboring concepts. The normative detailed contract lives in
-//! `docs/architecture/runtime-contracts.md`.
+//! from neighboring concepts. The normative detailed contracts live in
+//! `docs/architecture/runtime-contracts.md` and
+//! `docs/architecture/governance.md`.
 
 #![forbid(unsafe_code)]
