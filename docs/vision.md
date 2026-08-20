@@ -1,651 +1,199 @@
 # Loom：持续演化智能世界引擎
 
-## 1. 项目定义
-
-Loom 是一个用于**构建、运行和扩展持续演化智能世界**的开放引擎。
-
-一个 Loom 世界不是一次性的任务结果，而是一个能够持续存在的动态系统。世界中的实体拥有身份、状态、关系与历史；其中的智能体能够感知环境、形成记忆、做出判断、采取行动并相互影响；外部输入、内部事件和世界规则共同推动世界不断变化。
-
-Loom 的目标，是让开发者或用户能够定义一个世界，并让这个世界在时间中持续运行、被观察、被干预、被扩展，也能够与现实世界或其他系统持续交换信息。
-
 > **Loom lets you create worlds that keep living.**
 
----
+Loom 是一个用于构建、运行和扩展**持续演化智能世界**的开放引擎。
 
-## 2. Loom 中真正被运行的是什么
+它的核心不是执行一次模拟、生成一份报告，或让一组 Agent 对话若干轮，而是维护一个能够长期存在的 **World**：世界拥有自己的身份、历史、当前状态、时间和未来待处理事项；它可以被暂停、恢复、观察、干预、分叉，并继续沿自己的因果历史演化。
 
-Loom 的核心不是“执行一轮模拟”，而是维护并推进一个持续存在的 **World**。
-
-一个世界由以下基础部分共同构成：
-
-```text
-World
-├── Entities
-├── Agents
-├── State
-├── Relationships
-├── Events
-├── Time
-├── Rules
-├── Memory
-├── Environment
-└── Runtime
-```
-
-这些部分并不是彼此独立的数据结构，而是一个相互作用的整体：
-
-```text
-外部输入 / 用户行为 / 系统事件
-            ↓
-        World Runtime
-            ↓
-     更新世界可感知状态
-            ↓
-      Agent 感知与判断
-            ↓
-      Agent 采取行动
-            ↓
- Entity / Relationship / Environment 改变
-            ↓
-       产生新的 Event
-            ↓
-    写入 State 与 Memory
-            ↓
-        时间继续推进
-```
-
-世界因此不是一个静态知识图谱，也不是一组孤立的 Agent，而是一个能够在时间中持续产生新状态的运行系统。
-
----
-
-## 3. World：世界
-
-**World 是 Loom 的最高层运行单元。**
-
-它代表一个完整、可持续存在的世界上下文，包含该世界中的实体、关系、规则、环境、时间、历史与当前状态。
-
-World 负责回答：
-
-- 这个世界里存在什么；
-- 当前正在发生什么；
-- 什么事情曾经发生过；
-- 世界中的对象彼此是什么关系；
-- 世界遵循什么规则；
-- 时间如何推进；
-- 外部信息如何进入；
-- 一次行动如何真正改变世界。
-
-World 应当拥有稳定身份，并能够被创建、加载、暂停、恢复、复制、观察和持续推进。
-
-这意味着世界本身是长期对象，而不是某个 API 请求或某一次 simulation task 的临时上下文。
-
----
-
-## 4. Entity：实体
-
-**Entity 是世界中可以被识别、引用并拥有状态的对象。**
-
-实体可以是：
-
-- 人；
-- 组织；
-- 群体；
-- 地点；
-- 物品；
-- 机构；
-- 资源；
-- 虚构对象；
-- 由扩展定义的新类型对象。
-
-Entity 的意义在于提供统一的世界对象模型。
-
-一个实体至少应该能够拥有：
-
-- 唯一身份；
-- 类型；
-- 属性；
-- 当前状态；
-- 与其他实体的关系；
-- 与其相关的事件与历史。
-
-Agent 是一种具有自主行为能力的特殊 Entity，但 Entity 不等于 Agent。这样 Loom 才能描述一个真正完整的世界，而不是把世界中的一切都强行建模成智能体。
-
----
-
-## 5. Agent：智能体
-
-**Agent 是能够感知、判断并主动影响世界的 Entity。**
-
-一个 Agent 不只是一次 LLM 调用，而是世界中的持续存在者。
-
-它应当能够拥有：
-
-- 身份与角色；
-- 人格或行为特征；
-- 目标与动机；
-- 对世界的局部认知；
-- 长期与短期记忆；
-- 社会关系；
-- 可执行的行为能力；
-- 随经历发生变化的内部状态。
-
-Agent 的行为过程可以抽象为：
-
-```text
-Perceive
-   ↓
-Interpret
-   ↓
-Remember / Recall
-   ↓
-Decide
-   ↓
-Act
-   ↓
-World changes
-```
-
-关键点在于：Agent 的行为必须最终作用于 World，而不是只生成一段文本。
-
-文本、对话或推理只是 Agent 行为的一种表现形式；真正重要的是行为是否对世界状态产生了可记录、可追踪的影响。
-
----
-
-## 6. State：状态
-
-**State 描述世界在某个时刻“事实是什么”。**
-
-状态既包括全局世界状态，也包括实体、关系、环境和 Agent 自身的局部状态。
-
-例如：
-
-- 某个实体当前所在位置；
-- 一个组织当前拥有的资源；
-- 两个人当前是否互相信任；
-- 某条政策当前是否生效；
-- 一个 Agent 当前知道哪些信息；
-- 某个地区当前处于什么环境条件。
-
-State 是 Loom 判断世界当前事实的权威基础。
-
-世界演化，本质上就是状态随着时间与事件不断发生变化。
-
----
-
-## 7. Relationship：关系
-
-**Relationship 描述实体之间持续存在、并且可以变化的联系。**
-
-关系不应只是知识图谱中的静态边，而应该是世界状态的一部分。
-
-它可以表达：
-
-- 社交关系；
-- 信任与敌意；
-- 隶属关系；
-- 所有权；
-- 交易关系；
-- 权力关系；
-- 家庭关系；
-- 合作或竞争关系；
-- 由具体世界扩展定义的其他关系。
-
-Relationship 可以拥有自己的属性、强度、状态和历史。
-
-Agent 的行为可以改变关系，关系也会反过来影响 Agent 后续的认知、判断和行动。
-
-因此关系不是附属信息，而是社会性世界产生群体行为和涌现现象的重要基础。
-
----
-
-## 8. Event：事件
-
-**Event 是驱动世界发生变化的基本单位。**
-
-一个事件表达“某件事发生了”。
-
-事件可以来自：
-
-- Agent 行为；
-- 世界内部规则；
-- 用户干预；
-- 系统调度；
-- 外部数据源；
-- 其他世界或其他系统。
-
-例如：
-
-```text
-某人发布了一条消息
-某组织宣布了一项决定
-某商品价格发生变化
-某地发生天气变化
-两名 Agent 完成一次交易
-用户向世界注入一个新事实
-外部新闻被映射为世界事件
-```
-
-Event 连接“发生了什么”与“世界因此发生了什么变化”。
-
-事件应当具有时间、来源、参与者、上下文、结果等信息，并能够被记录、查询、回放或用于后续推理。
-
-事件历史最终构成世界历史的一部分。
-
----
-
-## 9. Time：时间
-
-**Time 让 Loom 从静态结构变成动态世界。**
-
-没有时间，就只有实体、关系和知识；有了时间，才有变化、因果、历史与演化。
-
-Loom 的时间模型需要能够支持：
-
-- 世界时间推进；
-- 事件排序；
-- 延迟发生的行为；
-- 周期性行为；
-- 不同速度的世界运行；
-- 暂停与恢复；
-- 历史回溯；
-- 必要时与现实时间建立映射。
-
-世界时间不必始终等于现实时间。
-
-有些世界可能实时运行，有些世界可能快速推进数天、数月或数年，也可能在一个关键节点暂停等待外部输入。
-
-因此 Time 应当是 World Runtime 的基础能力，而不是一次模拟循环中的简单轮次编号。
-
----
-
-## 10. Rules：规则
-
-**Rules 定义这个世界中什么可以发生，以及事情如何发生。**
-
-规则负责约束世界，而不是让所有变化都依赖 LLM 临时决定。
-
-规则可以定义：
-
-- 行为是否合法；
-- 状态如何变化；
-- 资源如何消耗或产生；
-- 事件满足什么条件后触发；
-- 哪些实体能够执行哪些行为；
-- 世界中的物理、社会、经济或业务规律；
-- 某个扩展特有的运行逻辑。
-
-规则可以由确定性逻辑、概率模型、模型推理或它们的组合实现。
-
-Loom 不要求所有世界拥有相同规则，但应该提供统一的规则承载与执行机制，使具体世界可以定义自己的运行规律。
-
----
-
-## 11. Memory：记忆
-
-**Memory 让世界和 Agent 拥有历史连续性。**
-
-记忆不是单纯把聊天记录保存下来，而是让过去真正影响未来。
-
-Loom 中至少存在两类记忆：
-
-### Agent Memory
-
-记录 Agent 曾经感知、经历、判断和参与过的事情。
-
-它影响 Agent：
-
-- 知道什么；
-- 相信什么；
-- 如何理解其他实体；
-- 如何判断当前事件；
-- 接下来可能做什么。
-
-### World Memory
-
-记录整个世界已经发生的事实和历史。
-
-它为世界提供连续性，并为查询、回放、分析、推理和未来状态生成提供依据。
-
-Memory 与 State 的区别是：
-
-- State 更关注“现在是什么”；
-- Memory 更关注“过去发生过什么，以及这些经历如何影响现在”。
-
----
-
-## 12. Environment：环境
-
-**Environment 描述实体和 Agent 所处的共享外部条件。**
-
-环境可以包括：
-
-- 空间；
-- 地理；
-- 社会背景；
-- 市场条件；
-- 公共信息；
-- 天气；
-- 可用资源；
-- 平台或媒介；
-- 世界级变量。
-
-Environment 决定了 Agent 能感知什么、能够做什么，以及相同行为在不同条件下会产生什么结果。
-
-环境本身也属于可变化的世界状态，并能够被事件和外部信息持续更新。
-
----
-
-## 13. Runtime：世界运行时
-
-**World Runtime 是让整个世界真正“活起来”的核心。**
-
-它负责协调：
-
-- 时间推进；
-- 事件产生与分发；
-- Agent 调度；
-- 感知与行为；
-- 规则执行；
-- 状态变更；
-- 关系变化；
-- 记忆写入与检索；
-- 外部输入接入；
-- 世界暂停、恢复和持续运行。
-
-Runtime 的职责不是执行一个固定的“步骤 1 → 步骤 2 → 步骤 3 → 生成报告”流程。
-
-它更像一个长期运行的世界内核：只要世界存在，Runtime 就能够继续推动它演化。
-
-因此 Loom 从现有代码演进时，最重要的架构变化之一，是逐渐从：
-
-```text
-Input
-  ↓
-Build Simulation
-  ↓
-Run N Rounds
-  ↓
-Generate Report
-  ↓
-End
-```
-
-演进为：
+## 1. Loom 运行的是 World
 
 ```text
 Create / Load World
         ↓
-    World Runtime
+    Loom Runtime
         ↓
-   Continuous Evolution
-   ↙       ↓        ↘
-Observe  Intervene  External Input
-   ↘       ↓        ↙
-     World continues
+Continuous Evolution
 ```
 
-报告、预测结果或某个阶段性输出，都应该是对世界进行观察和解释的能力，而不是世界生命周期的终点。
+World 不是 API 请求、simulation job 或 Application session。报告、预测、故事、游戏画面和分析结果都只是对 World 的观察或使用方式，不是 World 生命周期的终点。
 
----
-
-## 14. External Input：外部世界输入
-
-Loom 的世界可以持续接收来自外部系统的信息，并将它们转换为内部世界能够理解的事件、状态或环境变化。
-
-外部来源可以包括：
+世界中的真实变化统一形成历史：
 
 ```text
-External Sources
-├── User Input
-├── News
-├── Social Media
-├── Financial Data
-├── Weather
-├── API
-├── Webhook
-├── Database
-├── Sensors
-└── Other Worlds
+Input / Stimulus / Intent
+          ↓
+        Runtime
+          ↓
+        Resolve
+          ↓
+         Event
+          ↓
+        Effect
+          ↓
+         State
 ```
 
-Loom 的核心能力不是“支持某一种新闻源”，而是建立统一的**外部世界输入机制**。
+> **No mutation without a committed Event.**
+>
+> 世界状态不能被直接修改；任何真实变化都必须先成为该 Timeline 上的历史。
 
-具体数据源负责获取和标准化数据；World Runtime 决定这些信息如何进入世界并产生影响。
+## 2. 五层架构
 
-这样一个世界既可以完全独立运行，也可以成为现实世界的持续镜像，或者与现实信息保持部分同步。
-
----
-
-## 15. Extension：扩展
-
-**Extension 是 Loom 面向不同用途和世界类型的扩展机制。**
-
-Loom Core 提供世界运行所需的通用能力，而具体领域可以通过 Extension 增加：
-
-- 新 Entity 类型；
-- 新 Agent 能力；
-- 新 Rule；
-- 新 Event；
-- 新数据源；
-- 新交互方式；
-- 新观察与分析能力；
-- 新 UI；
-- 新领域运行机制。
-
-例如，一个扩展可以将 Loom 组织成预测推演系统；另一个扩展可以提供游戏规则；另一个扩展可以创建故事世界、社会实验或现实世界镜像。
-
-这些用途是建立在 Loom 世界能力之上的不同产品形态，而不是反过来定义 Loom Core。
-
-可以将整体关系理解为：
+Loom 使用五个清晰的所有权边界：
 
 ```text
-                         Loom
-                          │
-                Intelligent World Engine
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-   World Model       World Runtime      World Interaction
-        │                 │                 │
- Entity / State      Time / Event      Observe / Control
- Agent / Relation    Rule / Memory     Query / Intervene
-        │                 │                 │
-        └─────────────────┬─────────────────┘
-                          │
-                     Extensions
-                          │
-      ┌────────────┬────────────┬────────────┬────────────┐
-      │            │            │            │            │
- Prediction     Game        Story World   Social Lab   Real-world Mirror
+                 Loom Core
+                    ↓
+           Capability Modules
+                    ↓
+             World Template
+                    ↓
+                  World
+                    ↑
+                    │
+               Application
 ```
 
-扩展能力越丰富，Loom 能承载的世界类型越多，但核心世界模型仍应保持稳定、通用和可组合。
+- **Core**：定义世界怎样存在和运行。
+- **Capability Module**：定义世界会什么、具体语义意味着什么。
+- **World Template**：组合 Capability、初始规则和默认配置，是创建 World 的“出生配方”。
+- **World**：真正持续存在并拥有历史的运行实例。
+- **Application**：用户如何创建、观察、分析、交互或干预 World 的产品体验。
 
----
+> **Core decides how worlds exist and run; Capability defines semantics; Application defines purpose and experience.**
 
-## 16. World Interaction：观察与干预
+一个 Application 可以管理多个 World；同一个 World 也可以被不同 Application 以不同方式观察和使用。
 
-一个持续存在的世界必须能够被理解和影响。
+## 3. Core 只保留世界运行所必需的机制
 
-因此 Loom 需要提供统一的世界交互能力：
+Loom Core 是 **world runtime**，不是某个领域模拟器。
 
-### Observe
-
-观察当前世界：
-
-- 当前状态；
-- 实体状态；
-- Agent 行为；
-- 关系网络；
-- 事件流；
-- 世界历史；
-- 运行指标。
-
-### Query
-
-向世界提问：
-
-- 为什么发生了某件事；
-- 某个 Agent 为什么做出某种选择；
-- 某段时间发生了什么；
-- 当前有哪些重要变化；
-- 某个实体经历了什么。
-
-### Intervene
-
-主动改变世界：
-
-- 注入事件；
-- 修改规则；
-- 改变环境；
-- 与某个 Agent 交互；
-- 添加或移除实体；
-- 调整运行速度；
-- 暂停或恢复世界。
-
-观察和干预不是附加调试功能，而是人与一个活世界建立连接的基础接口。
-
----
-
-## 17. Loom 的核心能力层
-
-从能力层看，Loom 可以被归纳为四部分：
-
-### 17.1 World Model
-
-负责描述世界是什么。
-
-包括：
-
-- World；
-- Entity；
-- Agent；
-- State；
-- Relationship；
-- Environment。
-
-### 17.2 World Runtime
-
-负责让世界继续运行。
-
-包括：
-
-- Time；
-- Event；
-- Rules；
-- Agent execution；
-- State transition；
-- Memory lifecycle。
-
-### 17.3 World Interface
-
-负责人和其他系统如何连接世界。
-
-包括：
-
-- Observe；
-- Query；
-- Intervene；
-- External Input；
-- API / SDK / UI。
-
-### 17.4 Extension System
-
-负责让 Loom 可以承载新的领域和产品形态。
-
-包括：
-
-- 自定义世界类型；
-- 自定义实体；
-- 自定义行为；
-- 自定义规则；
-- 自定义数据源；
-- 自定义交互和展示。
-
-四层关系可以概括为：
+Core 的概念闭包由以下职责组成：
 
 ```text
-Extension System
-       ↓
-World Interface
-       ↓
-World Runtime
-       ↓
-World Model
+World & Timeline
+Identity & Structure
+State
+History
+Time
+Agency
+Runtime
+Capability Host
 ```
 
-World Model 提供稳定基础，Runtime 让其产生演化，Interface 让外部能够观察和改变它，Extension 则让同一套核心能力能够服务于不同世界与产品。
+其中既包含世界原语，也包含 Runtime 必需的设施和协议，例如 Durable Work、Scheduler、Ingress、Feedback、Cognitive Execution、Execution Provenance 等。
 
----
+Core 不理解“人、公司、国家、工资、婚姻、股票、新闻、魔法、战斗、恐惧”等具体领域语义。它只提供足够稳定、通用的机制，让 Capability 能够表达这些世界。
 
-## 18. 核心设计原则
+## 4. 世界只有一条权威历史，主体拥有自己的轨迹
 
-### 18.1 世界优先
-
-产品流程围绕 World 建模，而不是围绕一次任务建模。
-
-### 18.2 持续性
-
-世界、Agent、关系和记忆应当能够跨运行周期持续存在。
-
-### 18.3 状态可追踪
-
-重要世界变化必须能够追溯到事件、行为或外部输入。
-
-### 18.4 行为必须作用于世界
-
-Agent 的输出不是终点。有效行为应该能够产生世界状态变化，或明确形成一次被世界记录的行动。
-
-### 18.5 核心能力与具体用途解耦
-
-Core 负责“世界如何存在和运行”，Extension 负责“这个世界被用来做什么”。
-
-### 18.6 外部输入统一化
-
-新闻、用户输入、API 数据或其他来源应通过统一机制进入世界，而不是分别侵入核心运行逻辑。
-
-### 18.7 规则与智能协作
-
-确定性规则负责可约束、可验证的世界逻辑；模型智能负责需要理解、判断、生成和适应的部分。二者应协作，而不是让 LLM 承担所有世界逻辑。
-
-### 18.8 可观察、可干预
-
-世界必须能够被人和外部系统理解、查询和改变，而不能成为无法解释的黑盒模拟过程。
-
----
-
-## 19. 从当前代码向 Loom 演进
-
-当前仓库继承自 MiroFish，其主要流程仍然是：
+一个 World 可以拥有多条 Timeline，用于主历史、预测、实验或反事实分支。
 
 ```text
-图谱构建
-  ↓
-环境搭建
-  ↓
-模拟运行
-  ↓
-报告生成
-  ↓
-深度互动
+World
+├── Main Timeline
+├── Scenario Timeline
+└── Counterfactual Timeline
 ```
 
-这套能力是 Loom 的重要基础，但未来演进的中心应该逐渐从“预测任务工作流”转向“持续世界运行时”。
+每条 Timeline 只有一份权威 Event Ledger。
 
-现有能力不需要被简单推翻，而应重新识别它们在 Loom 中所属的位置：
+个人、公司、国家等 Entity 不各自拥有独立权威 Timeline；它们在某条 World Timeline 上拥有自己的 **Trajectory**。同一个 Event 可以同时进入多个 Entity 或 Relationship 的 Trajectory，因此不同主体的发展路径会相交、碰撞并产生新的因果结果。
 
-- 图谱能力 → World Model / Relationship / Memory 的基础能力；
-- 环境搭建 → World Creation；
-- 多 Agent 模拟 → World Runtime 的初始形态；
-- 报告生成 → World Observe / Query / Analysis；
-- 深度互动 → World Interaction；
-- 外部材料输入 → External Input；
-- OASIS / Zep / LLM → Loom 底层实现与 Provider，而不是 Loom 的产品定义本身。
+> **Timeline is the history of the world; Trajectory is the history of an identity within that world.**
 
-后续架构设计与重构，都应以本文件定义的 World Model 与 World Runtime 为共同语言。
+Identity 属于 World；可变 State 属于 Timeline。Fork 创建的是同一批既有身份的另一段历史，而不是把“张三”复制成另一个身份。
 
----
+## 5. Agent 是世界中的持续存在者，LLM 只是可配置认知执行器
 
-## 20. 一句话定义
+Loom 支持 Agent，但不是所有 World 都必须拥有 Agent。
 
-**Loom 是一个用于构建和运行持续演化智能世界的开放引擎：世界中的实体拥有状态、关系与历史，智能体拥有认知、记忆和行为能力，并在时间、规则、事件以及外部信息的共同作用下持续演化。**
+Agent 是具有局部认知边界和自主决策能力的 Actor。它只能依据自己可获得的局部世界表示和 Context 行动，而不能默认读取全知 World State。
+
+```text
+World Truth
+    ↓
+Perception / Access Boundary
+    ↓
+Agent-local Representation
+    ↓
+Context
+    ↓
+Decision / Intent
+```
+
+LLM 不等于 Agent，也不等于 Runtime。Core 提供可配置的 **Cognitive Execution** 能力，具体执行器可以是 LLM、规则、策略、行为树、小模型、人类或混合实现。
+
+Core 不规定固定的 `Fast Path → Cognitive Path` 流水线。Runtime 通过可替换的 Execution Policy / Strategy 决定一次工作采用确定性逻辑、策略、认知执行或组合方式。
+
+> **Agent persists; compute is on demand.**
+
+## 6. 过去、现在和未来被明确分离
+
+一条 Timeline 的运行结构可以概括为：
+
+```text
+Event Ledger   = 已经确定的过去
+State          = 当前现实
+Durable Work   = 尚未确定结果的未来执行义务
+```
+
+Scheduled future 不是 future fact。未来 Work 真正执行时，需要根据当时最新的 Timeline State 重新判断结果。
+
+Fork 共享 Fork Point 之前的历史祖先，并继承当时的逻辑 State 与待处理 Work；Fork 之后的 State、Work 和未来结果各自独立演化。
+
+## 7. 世界可以连接现实，但 Core 不直接控制现实
+
+外部系统通过 **Ingress Protocol** 向 Loom 提交输入；输入不会直接修改 State，而是进入 Runtime 并经过领域解释、Resolution 和 Event Commit。
+
+Loom 通过 **World Change Feed / Feedback** 把已经提交的世界变化提供给 Application 或外部观察者。
+
+```text
+                  External
+               ↙            ↖
+            Ingress       Feedback
+               ↓             ↑
+             Runtime → Event ┘
+```
+
+Feedback 是只读观察边界。Loom Core 不直接执行现实世界副作用；如果外部 Application 根据反馈决定再次影响 World，应重新通过 Ingress 进入 Runtime。
+
+## 8. 世界演化，软件升级
+
+> **Worlds evolve; software upgrades. Never confuse the two.**
+>
+> **世界只会演化，软件才会升级。**
+
+法律、制度、技术、能力和社会规则的变化属于 World 自己的历史，只影响其有效时间之后的世界行为，不重写过去。
+
+Core 或 Capability 实现的 Bug 修复和软件发布属于平台历史。新的 Runtime Revision 激活以后，新启动的 Execution Session 使用当前实现；已经提交的 Event 不重新计算，已经开始的一次 Execution Session 不在中途切换实现。
+
+平台变化通过独立的 Runtime Change Ledger 和 Execution Provenance 被人类审计，但默认不进入 Agent Context，也不是 World Event。
+
+## 9. Loom 的用途由上层决定
+
+同一个 Core 可以承载完全不同的世界：
+
+```text
+Life Simulation
+RPG / Strategy Game
+Public Opinion Analysis
+Prediction / Scenario Analysis
+Social Experiment
+Decision Sandbox
+Reality Mirror
+Mechanical Market Simulation
+```
+
+这些用途的差异应该主要来自 Capability、Template 和 Application，而不是通过修改 Core 把 Loom 固化成某一种产品。
+
+## 10. 设计方向
+
+Loom 的核心目标不是让每个世界都拥有相同内容，而是提供一组足够小、足够稳定、足够可组合的运行机制，使不同世界能够长期存在并自然产生不同历史。
+
+因此后续设计遵循一个严格准入标准：
+
+> **如果移除一个概念后，持续 World Runtime 仍然能够闭环，那么它原则上不应进入最小 Core。**
+
+Core 保持稳定；新的世界能力优先通过 Capability 扩展。
