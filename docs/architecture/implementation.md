@@ -620,7 +620,156 @@ semantic/vector retrieval does not become World Truth
 
 先不引入完整社会、经济、人类心理或大规模领域 Capability，也不以 LLM 是否接通作为 Core 是否成立的判断标准。
 
-## 20. Repository Rule
+## 20. Core Mutation and Commit Outcome
+
+### 20.1 Core value types
+
+Core 首批值类型保持窄而强类型：
+
+```text
+WorldId
+TimelineId
+EntityId
+RelationshipId
+EventId
+WorkId
+ExecutionSessionId
+
+WorldInstant
+WorldDuration
+EventSeq
+StateRevision
+TimelineVersion
+```
+
+ID 的具体生成由 Runtime/allocator 完成；Core 不通过 UUIDv7 生成过程偷偷获得系统时钟或随机源。
+
+### 20.2 Entity and Relationship structure
+
+Entity 是稳定身份，不承载具体领域状态。可变语义通过 Timeline-local State/Facet 表达。
+
+Relationship 拥有稳定 `relationship_id`、类型与 participant structure，并支持 N-ary participants。
+
+v0 原则：
+
+> **Relationship participant structure is immutable after creation.**
+
+若关系主体发生根本变化，应结束旧 Relationship 并创建新 Relationship；关系本身的状态、强度、条款等可通过 State/Facet 演化。这样同一个 Relationship ID 不会在不同历史位置指向完全不同的参与者集合。
+
+### 20.3 Facet boundary
+
+Rust API 可以通过统一的 `FacetOwner` 表达 Entity/Relationship owner，但数据库继续区分 `entity_facet` 与 `relationship_facet`，以保留真实 foreign key 与 referential integrity。
+
+Facet 使用完整 candidate state 做 schema/invariant validation；v0 不把 JSON Patch 作为 Core mutation protocol。
+
+### 20.4 WorldEffect
+
+v0 的 WorldEffect 只表达 Core 能够识别的最小世界结构/状态变化，例如：
+
+```text
+CreateEntity
+PutFacet
+RemoveFacet
+CreateRelationship
+EndRelationship
+```
+
+`TransferMoney`、`DamageCharacter`、`FireEmployee`、`FallInLove` 等领域动作都不属于 Core Effect；它们由 Capability 解析成 Event + Core WorldEffects。
+
+> **Effect is a world mutation primitive, not a database patch and not a domain action.**
+
+WorldEffect 不能独立 Commit；每一个 WorldEffect 必须隶属于一个 Event。允许 Event 没有 Effect，但不允许 State 在没有 Event 的情况下成为新的 World Truth。
+
+### 20.5 ProposedEvent and CommittedEvent
+
+Capability/Resolver 产生 `ProposedEvent`；只有 Runtime Commit 成功后才存在 `CommittedEvent`。
+
+事件的稳定结构包括：
+
+```text
+event type / schema revision
+world time semantics
+participants
+relationship references
+causal links
+semantic payload
+frozen WorldEffects
+```
+
+Runtime/Storage 再关联 `timeline_id`、`event_seq`、platform committed timestamp、execution provenance 等提交事实。
+
+### 20.6 Event causality is acyclic
+
+Event causality 必须形成 DAG。
+
+一个 Event 只能引用：
+
+1. 当前 Timeline ancestry 中已经提交的 Event；或
+2. 同一 Commit 中逻辑上排在它前面的 Event。
+
+不得形成向后的 causal cycle。Commit 后每个 Event 获得连续 Timeline-local `event_seq`。
+
+### 20.7 WorkMutation is not WorldEffect
+
+Durable Work 属于 Runtime Future，不属于 World Truth，因此 Work mutation 不进入 `WorldEffect`。
+
+概念结构：
+
+```text
+CommitProposal
+├── ProposedEvent[0..N]
+└── WorkMutation[0..N]
+```
+
+但它们必须能够在同一数据库事务中原子落地。
+
+### 20.8 Work completion is part of the transaction
+
+执行某个 Durable Work 后，当前 Work 的完成与它产生的世界提交必须原子发生：
+
+```text
+BEGIN
+validate Timeline revision
+validate Work claim/idempotency
+append Events
+apply Effects
+create/cancel/supersede new Work
+mark current Work completed
+advance Timeline head/revision
+COMMIT
+```
+
+因此崩溃不能造成“Event 已提交但 Work 仍 pending，从而再次产生相同世界变化”。
+
+### 20.9 Zero-event execution outcome
+
+Execution Outcome 允许 `0..N Events`。
+
+`0 Events` 只允许 NO_ACTION、纯 evaluation 完成或其他不改变 World Truth 的 Runtime outcome；此时仍可完成当前 Work。任何 WorldEffect 都要求至少一个 Event。
+
+### 20.10 Effect Engine and candidate overlay
+
+Capability 不能获得 Storage write handle。它只能产生 Commit Proposal。
+
+Runtime Effect Engine 至少负责：
+
+```text
+validate event schema
+validate causality
+validate identities
+validate relationship structure
+apply Effects to candidate overlay
+validate JSON Schema
+validate Capability invariants
+validate Runtime invariants
+validate Work mutations
+```
+
+Effect validation 使用 `Base WorldView + Mutation Overlay`，不复制整个 World。后续 Effect/validator 在同一个候选提交中必须看到前面 Effect 已经产生的 candidate state。
+
+最终只有 `ValidatedCommit` 可以进入 Storage 的 PostgreSQL transaction。
+
+## 21. Repository Rule
 
 当前工作树只保留 Loom 自己的实现与文档。旧 MiroFish 工程代码不设置 `legacy/` 墓地目录；需要追溯时使用 Git 历史或上游仓库。
 
