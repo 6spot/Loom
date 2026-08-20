@@ -2,11 +2,9 @@
 
 > Status: confirmed top-level architecture boundary.
 >
-> This document defines where responsibilities belong. When a new concept is introduced, the first question should be: **which layer owns it?**
+> 本文定义 Loom 的五层责任边界。新增任何概念时，第一问应当是：**它属于哪一层？**
 
 ## 1. Overview
-
-Loom is organized around five top-level concepts:
 
 ```text
                  Loom Core
@@ -21,170 +19,137 @@ Loom is organized around five top-level concepts:
                Application
 ```
 
-These are not five deployment tiers. They are architectural ownership boundaries.
+这不是部署分层，而是架构所有权边界。
 
-The central distinction is:
+- **Core**：定义一个持续智能世界如何存在和运行。
+- **Capability Module**：为 Core 提供可复用的领域/世界语义能力。
+- **World Template**：组合 Capability、初始规则和默认配置，形成可复用的“出生配方”。
+- **World**：被真正创建、持续存在并拥有历史的运行实例。
+- **Application**：用户如何创建、观察、分析、交互或干预 World 的产品体验。
 
-- **Core** defines how a persistent intelligent world can exist and run.
-- **Capability Module** adds reusable domain/world abilities.
-- **World Template** composes capabilities, rules, and defaults into a reusable kind of world.
-- **World** is the actual persistent running instance.
-- **Application** is the user-facing product that creates, controls, observes, analyzes, or interacts with Worlds.
+> **Core -> Capability Module -> World Template -> World <- Application**
 
 ## 2. Core
 
 ### Definition
 
-**Loom Core is the persistent world runtime and the set of domain-neutral world primitives.**
+**Loom Core is the domain-neutral world kernel and runtime.**
 
-Core answers questions such as:
-
-- How does a World persist and evolve?
-- How is time represented and advanced?
-- How are Events validated, committed, ordered, replayed, and forked?
-- How are State, Entity, Relationship, Agent, Institution, and Timeline represented at the runtime level?
-- How does information enter the system without immediately becoming World Truth?
-- How is Agent perception isolated from omniscient World State?
-- When does an Agent wake, what context can it receive, and when is model cognition actually necessary?
-- How do Actions, Affordances, Rules, Memory, Context, and Scheduler interact?
-
-### Core primitives currently established
+Core 的最小职责已经收敛为八个 Kernel Concern：
 
 ```text
-World
-Timeline
-World Constitution / Runtime Revision
-
-Entity
-Agent
-Collective Entity / Institution
-Relationship
-State
-
-Event
-Event Ledger
-Snapshot
-Clock
-Scheduler
-
-Observation
-Information Artifact
-Claim
-Information Space
-Channel / Propagation
-Exposure / Perception
-
-Agent Knowledge / Belief
-Agent Entity Representation
-Memory
-Need / Goal / Plan / Decision / Intent
-Affective State
-Context Frame
-
-Action Definition
-Affordance
-Rule / Norm / Enforcement mechanism
-Runtime Commit Authority
+1. World & Timeline
+2. Identity & Structure
+3. State
+4. History
+5. Time
+6. Agency
+7. Runtime
+8. Capability Host
 ```
 
-The exact implementation of these primitives remains subject to later technical design, but their conceptual boundaries are part of the architecture baseline.
+更具体的 Core 闭包定义见 `docs/architecture/core.md`。
 
-### Core does not own domain semantics
+Core 负责：
 
-Core should not intrinsically know what the following mean:
+- World / Timeline 的身份、生命周期和 Fork；
+- Entity / Actor / Agent / Relationship 的稳定结构身份；
+- Timeline-local State 与 State Facet 生命周期；
+- Event Ledger、Effect、因果和唯一 Commit Authority；
+- WorldClock / Scheduler；
+- Agent-local view、有限 Context、Decision / Intent 协议；
+- event-driven / demand-driven Runtime Queue、Resolve、Evaluate、Commit、Reaction；
+- Capability 的注册、绑定和受控调用。
+
+Core **不**天然理解：
 
 ```text
+human
+company
+country
 salary
-stock
+job
 marriage
-job promotion
+stock
 bank account
-combat damage
-spell
+news
+public opinion
+fear
+guilt
+combat
+HP
+magic
 quest
-campaign polling
-insurance
-medical diagnosis
 ```
 
-Those meanings belong above Core.
+Core 只提供机制，不提供这些领域语义。
+
+此前讨论过的 `Observation / Information Artifact / Claim / Institution / Goal / Plan / Human Memory / Emotion` 等高级概念仍然是 Loom 重要能力，但其架构归属必须通过 Core Admission Rule 判断；默认不因为“重要”就进入 Kernel。
 
 ## 3. Capability Module
 
 ### Definition
 
-**A Capability Module contributes a reusable kind of world/domain ability on top of Core primitives.**
+**Capability Module 为 Core 原语赋予一种可复用的世界语义或能力。**
 
-It is not a complete application and does not own the World lifecycle.
+它不是完整产品，也不拥有 World 生命周期和 Commit Authority。
 
-Examples may include:
+Capability 可以是基础型的：
 
 ```text
+information
+institution
+goal
+planning
 social
+resource
+memory
+```
+
+也可以是领域型的：
+
+```text
 employment
 family
 economy
-health
-education
-media
-politics
 finance
+health
+politics
 combat
 inventory
 magic
 mobility
 ```
 
-A Capability Module may define domain-specific combinations of:
+这两类架构地位相同，只是复用范围不同。
 
-- Entity/State schemas;
-- Relationship types;
-- Action definitions;
-- Affordance semantics;
-- Rule/Norm definitions;
-- process semantics;
-- Context facets;
-- domain-specific memory/knowledge structures;
-- source/import semantics;
-- analysis projections.
+Capability 可以贡献：
 
-However, runtime data produced by those semantics still belongs to the World/Timeline lifecycle managed by Core.
+- State Facet Definitions；
+- Relationship Definitions；
+- Action Definitions；
+- Resolvers；
+- Rule / Evaluator Definitions；
+- Runtime Handlers；
+- projections / migrations / domain contracts as needed。
 
-### Reuse principle
+Capability 定义语义，Core 管理运行数据、Timeline、Event、State、Scheduler 和 Commit 生命周期。
 
-A capability is intended to be reusable across multiple products and world types.
+Capability 不得直接写 State/Ledger、启动自己的 World 主循环、绕过 Scheduler/Runtime、直接唤醒 LLM 或突破 Agent 的认知边界。
 
-For example:
+### Composition
 
-```text
-social
-├── Life Simulation Application
-├── Public Opinion Application
-└── RPG Application
+多个 Capability 可以在同一 World 中组合，但不应互相调用内部实现形成耦合网。
 
-economy
-├── Life Simulation Application
-├── Strategy Game Application
-└── Business Simulation Application
-```
-
-The goal is to avoid reimplementing the same world semantics independently inside each Application.
-
-### Composition principle
-
-Capability Modules may coexist in a World, but they should not become an uncontrolled mesh of internal implementation calls. Their shared behavior should be expressed through Core-owned primitives, declared semantics, capabilities, Events, Relationships, Actions, Rules, and runtime coordination.
-
-The detailed Capability Module contract is intentionally **not yet frozen** in this document and remains a later design topic.
+当确实需要协作时，应通过 Core-owned contract、Event、Action、Relationship、Work 或其他稳定协议完成。
 
 ## 4. World Template
 
 ### Definition
 
-**A World Template is a reusable composition of capabilities, rules, defaults, and configuration for creating a class of Worlds.**
+**World Template 是创建某类 World 的可复用出生配方。**
 
-A Template is not a running World and not a user-facing Application.
-
-Examples:
+例如：
 
 ```text
 modern-human-life
@@ -194,88 +159,73 @@ corporate-society
 medieval-fantasy
 ```
 
-For example, a `modern-human-life` template might compose:
+Template 可以组合：
 
 ```text
-human/social capability
-employment capability
-family capability
-economy capability
-health capability
-institution/government capability
-media/information capability
-
-+ default rule sets
-+ default capability configuration
-+ default world constitution/profile
+Capability selection
+initial rules
+initial state/schema defaults
+initial configuration
+world bootstrap data
 ```
 
-A Template therefore answers:
+但 Template 不是运行中的 World，也不是持续控制 World 的订阅关系。
 
-> "If I want to create this kind of world, what reusable capabilities and default rules/configuration should be assembled?"
+> **Template creates a World; it does not keep governing it.**
 
-Templates should remain versionable because future Worlds may use newer standards while existing Worlds preserve their historical semantics.
+Template 后续变化只影响未来新建 World，除非某个已存在 World 自己通过历史事件发生相应变化。
 
 ## 5. World
 
 ### Definition
 
-**A World is the actual persistent world instance running under Loom Runtime.**
+**World 是实际被创建并持续存在的世界实例。**
 
-A World has a stable identity and contains or references its actual runtime data, including:
+World 拥有稳定身份，并包含或引用：
 
 ```text
 World identity
-Capability bindings
-World constitution / rule revisions
+World Entities / Relationships
 Timelines
-Entities and Agents
-Institutions and Relationships
-State projections
+Timeline-local State
 Event history
-Information state
+Future scheduled work
+World rules / semantic state
+Capability semantic bindings needed by that World
 ```
 
-A World is not an API request, simulation job, report, or application session.
+World 不是 API 请求、simulation job、report 或 Application session。
 
-### Timeline relationship
+### Timeline
 
-A World may contain multiple Timelines:
+一个 World 可以有多条 Timeline：
 
 ```text
 World
 ├── Main Timeline
-├── Prediction Timeline A
-├── Counterfactual Timeline B
-└── Correction / Experiment Timeline C
+├── Scenario Timeline
+└── Counterfactual Timeline
 ```
 
-The World defines the shared universe identity/configuration boundary; a Timeline represents one concrete historical evolution/runtime branch of that World.
+每条 Timeline 是一条独立的权威历史分支，并拥有唯一权威 Event Ledger。
 
-### World is not Application
+个人、公司、国家等主体不各自拥有独立 Timeline；它们在某条 World Timeline 上拥有自己的 **Trajectory**。
 
-The same World may be observed or manipulated by multiple Applications, subject to permissions and product semantics.
+### Identity
 
-For example, one persistent real-world mirror could potentially be consumed by:
+> **Identity belongs to World; mutable State belongs to Timeline.**
 
-```text
-Public Opinion Application
-Risk Analysis Application
-Prediction Application
-Research/Observer Application
-```
+同一 World Entity 在不同 Timeline 上仍然是同一个 Identity，只是关系、经历、状态、认知和后续轨迹可以不同。
 
-without duplicating the underlying World merely because the product experience differs.
+名字不是 Identity；稳定内部 ID 才是权威身份标识。
 
 ## 6. Application
 
 ### Definition
 
-**An Application is an upper-layer product built with Loom.**
+**Application 是基于 Loom 构建的上层产品。**
 
-It defines what users are trying to accomplish and how they interact with one or more Worlds.
-
-Examples:
+例如：
 
 ```text
 Life Simulator
@@ -287,33 +237,21 @@ Decision Sandbox
 Reality Mirror Dashboard
 ```
 
-Applications may:
+Application 可以：
 
-- create Worlds from Templates;
-- choose/configure capabilities;
-- interact with existing Worlds;
-- observe one or more Timelines;
-- present narrative or visual projections;
-- provide user intervention tools;
-- perform analysis/reporting;
-- fork scenarios for experiments or prediction.
+- 从 Template 创建 World；
+- 选择/配置 Capability；
+- 与已有 World 交互；
+- 观察一条或多条 Timeline；
+- 展示叙事、可视化和分析投影；
+- 发起受 Runtime 管理的用户干预；
+- 创建 Scenario / Counterfactual Fork。
 
-An Application should not redefine Core semantics merely because its user experience is different.
+Application 不拥有 World Truth，也不能直接修改 Timeline State 或绕过 Event Ledger。
 
-### Product vs world distinction
+> **Application is not World.**
 
-A game is a product experience, not necessarily a special type of Runtime.
-
-A single underlying World might be exposed as:
-
-```text
-Game UI
-Narrative experience
-Research dashboard
-Automated simulation observer
-```
-
-without changing the fundamental World runtime model.
+同一个 World 可以被多个不同 Application 观察和使用，而无需复制底层世界。
 
 ## 7. Examples
 
@@ -327,16 +265,10 @@ World Template:
 modern-human-life
 
 Capabilities:
-social
-employment
-family
-economy
-health
-media
-institution
+human cognition / social / family / employment / economy / health / information ...
 
 Core:
-standard Loom world runtime
+standard Loom world kernel
 ```
 
 ### RPG
@@ -349,16 +281,10 @@ World Template:
 medieval-fantasy
 
 Capabilities:
-social
-character
-inventory
-combat
-quest
-economy
-magic
+character / inventory / combat / quest / economy / magic ...
 
 Core:
-standard Loom world runtime
+standard Loom world kernel
 ```
 
 ### Public Opinion Analysis
@@ -371,35 +297,78 @@ World Template:
 modern-society / real-world-mirror
 
 Capabilities:
-social
-media
-institution
-information propagation
-source ingestion
-analysis projections
+information / media / institution / social propagation / source ingestion / analysis ...
 
 Core:
-standard Loom world runtime
+standard Loom world kernel
 ```
 
-The domain changes. The Core world model does not.
+### Mechanical Market
 
-## 8. Ownership test
+```text
+Application:
+Market Simulation / Exchange Testbed
 
-When adding a new concept, use this test:
+World Template:
+mechanical-market
 
-- If it defines **how every Loom world can exist/run**, it belongs in **Core**.
-- If it defines a **reusable kind of world/domain ability**, it belongs in a **Capability Module**.
-- If it defines a **reusable composition of capabilities/rules/defaults**, it belongs in a **World Template**.
-- If it is **persistent runtime data/history for one created universe**, it belongs to a **World/Timeline**.
-- If it defines **what a user does with Loom or how the experience is presented**, it belongs in an **Application**.
+Capabilities:
+asset / order / matching / market rules
 
-If a feature seems to belong to multiple layers, split the responsibilities instead of collapsing the boundaries.
+Agents:
+optional or zero
 
-## 9. Stable boundary
+Core:
+standard Loom world kernel
+```
 
-The following distinction is now part of Loom's architecture baseline:
+四种用途不同，但不要求向 Core 注入对应领域知识。
+
+## 8. Ownership Test
+
+新增概念时按以下顺序判断：
+
+1. **如果移除它，持续 World Runtime 是否无法闭环？**
+   - 是：可能属于 Core。
+   - 否：优先考虑 Capability。
+2. **它描述的是机制还是语义？**
+   - “世界如何存在/运行” → Core candidate。
+   - “某种世界里有什么/意味着什么” → Capability candidate。
+3. **它是否只是创建时的组合与默认值？**
+   - 是 → World Template。
+4. **它是否是一个具体已创建世界的事实、状态或历史？**
+   - 是 → World / Timeline。
+5. **它是否定义用户拿 Loom 做什么以及如何体验？**
+   - 是 → Application。
+
+如果一个概念看起来跨层，应拆分责任，而不是打破边界。
+
+## 9. Evolution Boundary
+
+Loom 必须严格区分：
+
+```text
+World evolution
+Software upgrade
+Historical alternative
+```
+
+- World 通过自己的 Event / Rule / State 演化；
+- Core / Capability implementation 可以升级，但技术升级默认不改变 World Truth；
+- 若要改变过去的因果结果，应通过 Fork / Replay 创建另一条 Timeline，而不是重写历史。
+
+Template 是出生配方，不持续同步已创建 World。
+
+详细约束见 `docs/architecture/evolution.md`。
+
+## 10. Stable Boundary
+
+以下边界已经作为 Loom 架构基线确认：
+
+> **Core owns existence, identity, time, history, state transition, cognition boundaries and orchestration. Capability owns semantics. Application owns purpose and experience.**
+
+未来设计应保持：
 
 > **Core -> Capability Module -> World Template -> World <- Application**
 
-Future design discussions should preserve this separation unless a later explicit architecture decision supersedes it.
+除非后续明确的架构决策正式替代本基线。
