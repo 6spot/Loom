@@ -80,3 +80,22 @@
 //! `docs/architecture/governance.md`.
 
 #![forbid(unsafe_code)]
+
+mod budget;
+mod provenance;
+mod validation;
+mod views;
+
+pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use provenance::{ReadDependency, ReadSet};
+pub use validation::{
+    EffectEngine, RuntimeError, ValidatedResolution, ValidationError, ValidationOutcome,
+};
+pub use views::{
+    BaseWorldSnapshot, BaseWorldView, CandidateWorldView, FacetSnapshot, RelationshipSnapshot,
+};
+
+pub use loom_capability::SemanticKind;
+
+#[cfg(test)]
+mod tests;

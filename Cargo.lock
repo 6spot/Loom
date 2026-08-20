@@ -76,6 +76,13 @@ version = "0.1.0"
 [[package]]
 name = "loom-capability"
 version = "0.1.0"
+dependencies = [
+ "loom-core",
+ "loom-protocol",
+ "semver",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "loom-core"
@@ -98,6 +105,12 @@ dependencies = [
 [[package]]
 name = "loom-runtime"
 version = "0.1.0"
+dependencies = [
+ "loom-capability",
+ "loom-core",
+ "loom-protocol",
+ "serde_json",
+]
 
 [[package]]
 name = "loom-storage"
@@ -144,6 +157,16 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "semver"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+dependencies = [
+ "serde",
+ "serde_core",
+]
 
 [[package]]
 name = "serde"

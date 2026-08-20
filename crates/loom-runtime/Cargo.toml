@@ -3,5 +3,11 @@ name = "loom-runtime"
 version.workspace = true
 edition.workspace = true
 
+[dependencies]
+loom-capability = { path = "../loom-capability" }
+loom-core = { path = "../loom-core" }
+loom-protocol = { path = "../loom-protocol" }
+serde_json = "1"
+
 [lints]
 workspace = true
