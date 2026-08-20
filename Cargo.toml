@@ -2,11 +2,13 @@
 resolver = "3"
 members = [
     "crates/loom-core",
-    "crates/loom-runtime",
+    "crates/loom-protocol",
+    "crates/loom-api",
     "crates/loom-capability",
     "crates/loom-agency",
-    "crates/loom-boundary",
+    "crates/loom-runtime",
     "crates/loom-storage",
+    "crates/loom-boundary",
 ]
 
 [workspace.package]
