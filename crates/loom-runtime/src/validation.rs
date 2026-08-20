@@ -264,11 +264,23 @@ pub enum ValidationOutcome {
 #[derive(Debug)]
 pub struct ValidatedResolution {
     resolution: Resolution,
+    timeline_id: TimelineId,
     base_version: loom_core::TimelineVersion,
     read_set: crate::ReadSet,
 }
 
 impl ValidatedResolution {
+    /// Returns the Timeline identity against which validation ran.
+    ///
+    /// The identity is pinned privately with the Runtime authority token so a
+    /// commit adapter cannot retarget a validated proposal to another
+    /// Timeline. It is immutable and is not a constructor input available to
+    /// Protocol or Capability callers.
+    #[must_use]
+    pub const fn timeline_id(&self) -> TimelineId {
+        self.timeline_id
+    }
+
     /// Returns the Timeline version against which validation ran.
     #[must_use]
     pub const fn base_version(&self) -> loom_core::TimelineVersion {
@@ -305,11 +317,13 @@ impl ValidatedResolution {
 
     pub(crate) fn new(
         resolution: Resolution,
+        timeline_id: TimelineId,
         base_version: loom_core::TimelineVersion,
         read_set: crate::ReadSet,
     ) -> Self {
         Self {
             resolution,
+            timeline_id,
             base_version,
             read_set,
         }
@@ -417,6 +431,7 @@ impl<'registry> EffectEngine<'registry> {
         read_set.extend(candidate.read_set());
         Ok(ValidatedResolution::new(
             resolution,
+            base.timeline_id(),
             base.version(),
             read_set,
         ))

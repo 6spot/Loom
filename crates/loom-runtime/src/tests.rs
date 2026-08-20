@@ -500,6 +500,7 @@ fn validated_resolution_can_only_result_from_engine_validation() {
     let validated = EffectEngine::new(&registry)
         .validate(&base_view(), OWNER, Resolution::default())
         .expect("empty resolution is a valid no-change candidate");
+    assert_eq!(validated.timeline_id(), timeline());
     assert!(validated.resolution().events.is_empty());
     assert!(validated.resolution().work.is_empty());
 }

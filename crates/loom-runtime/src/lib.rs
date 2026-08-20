@@ -82,11 +82,17 @@
 #![forbid(unsafe_code)]
 
 mod budget;
+mod persistence;
 mod provenance;
 mod validation;
 mod views;
 
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use persistence::{
+    CommitError, CommitResult, CommitStore, CommittedEvent, PlatformTime, ReadError,
+    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
+    WorldStore,
+};
 pub use provenance::{ReadDependency, ReadSet};
 pub use validation::{
     EffectEngine, RuntimeError, ValidatedResolution, ValidationError, ValidationOutcome,
@@ -96,6 +102,22 @@ pub use views::{
 };
 
 pub use loom_capability::SemanticKind;
+#[doc(hidden)]
+pub use loom_protocol::{NewWork, ProposedEvent, Resolution, WorkMutation, WorkSchedule};
+
+/// Test-only access to the existing Capability assembly contract.
+///
+/// This hidden module is used by adapter tests to assemble a real Runtime
+/// registry without adding a forbidden `loom-storage -> loom-capability` Cargo
+/// edge. It introduces no storage or semantic authority and is not part of the
+/// supported application surface.
+#[doc(hidden)]
+pub mod test_support {
+    pub use loom_capability::{
+        Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition,
+        RegistrationError,
+    };
+}
 
 #[cfg(test)]
 mod tests;
