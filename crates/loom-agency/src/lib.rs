@@ -3,14 +3,14 @@
 //! # Responsibility
 //!
 //! This crate defines the boundary between a persistent Agent identity and any
-//! cognitive executor used to choose an attempted action. It owns AgentWorldView
+//! cognitive executor used to choose an attempted action. It owns `AgentWorldView`
 //! composition contracts, context selection, decision contracts and
 //! cognitive-executor SPI. LLMs, rules, humans or hybrid executors are
 //! implementations of cognition; none of them define Agent identity.
 //!
 //! # Knowledge boundary
 //!
-//! Agency never receives the authoritative BaseWorldView directly. Agent input
+//! Agency never receives the authoritative `BaseWorldView` directly. Agent input
 //! must be constructed from observation, information, knowledge, memory,
 //! visibility and context-budget rules so subjective knowledge cannot collapse
 //! into omniscient World Truth.

@@ -3,7 +3,7 @@
 //! # Responsibility
 //!
 //! This crate owns execution sessions, pinned authoritative world reads,
-//! resolution budgets and ReadSet recording, controlled entropy/cognition
+//! resolution budgets and `ReadSet` recording, controlled entropy/cognition
 //! gateways, candidate-state construction, Effect validation, Durable Work
 //! execution policy and the unique Timeline commit authority.
 //!
@@ -66,7 +66,7 @@
 //!
 //! Runtime must not let Capability code obtain raw Storage transactions, system
 //! clocks, network clients, raw random sources or direct Event-Ledger append
-//! handles. Runtime itself must not import a concrete PostgreSQL adapter or HTTP
+//! handles. Runtime itself must not import a concrete `PostgreSQL` adapter or HTTP
 //! server to assemble its dependencies. Long cognition/resolution work must not
 //! hold the Timeline commit lock.
 //!
@@ -74,7 +74,7 @@
 //!
 //! Public Runtime types must explain which authority gate they represent. In
 //! particular, `ValidatedResolution`, Runtime world-view implementations,
-//! ReadSet, ExecutionSession, persistence ports and Durable Work types must never
+//! `ReadSet`, `ExecutionSession`, persistence ports and Durable Work types must never
 //! rely on names alone to communicate safety semantics. See
 //! `docs/architecture/runtime-contracts.md` and
 //! `docs/architecture/governance.md`.
