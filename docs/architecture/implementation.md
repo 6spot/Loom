@@ -2,7 +2,7 @@
 
 > Status: confirmed technical baseline after Core v0 conceptual closure.
 >
-> 本文只负责 Loom v0 的实现技术基线：工程边界、基础依赖、数据权威、持久化、运行环境、UI 与默认禁止项。领域语义仍由 Capability 定义；Core 概念边界以 `core.md` 为准。
+> 本文定义 Loom v0 的实现技术基线：Rust 工程层级、Cargo 依赖方向、基础依赖、统一 Public API、数据权威、持久化、运行环境、UI 与默认禁止项。领域语义仍由 Capability 定义；Core 概念边界以 `core.md` 为准；详细执行语义以 `runtime-contracts.md` 为准；**Rust 依赖和公开能力治理以 `governance.md` 为强制规范**。
 
 ## 1. Implementation Principle
 
@@ -11,6 +11,18 @@
 MiroFish 的旧 Python/Vue 实现不再作为 Loom 的工程骨架，也不作为兼容目标。需要参考具体算法、交互或实现思想时，可以查看 Git 历史或上游源码；Loom 不为旧接口、旧流程或旧数据模型保留兼容层。
 
 Loom v0 采用 Rust 独立实现。
+
+同时必须区分三张不同的图：
+
+```text
+Semantic ownership
+Runtime call flow
+Cargo dependency direction
+```
+
+它们不能相互代替。运行时 A 调用 B，不等于 Cargo 必须 `A -> B`。Rust crate 依赖应通过 contract/port 做 dependency inversion，保持严格 DAG。
+
+---
 
 ## 2. Version Policy
 
@@ -21,7 +33,7 @@ Loom 不机械追逐所有依赖的 `latest`，也不长期停留在过时版本
 1. 有官方 LTS 的基础组件：采用最新仍受支持的 LTS；
 2. 没有 LTS 的组件：采用最新稳定版本；
 3. Rust toolchain、关键框架与快速演进依赖必须可复现地锁定；
-4. 应用仓库提交 `Cargo.lock`；
+4. 应用/workspace 仓库提交 `Cargo.lock`；
 5. 依赖升级属于 Runtime / Platform Change，不属于 World History；
 6. 升级不得静默改变已提交 World Event 的历史语义。
 
@@ -40,87 +52,364 @@ GPUI             pinned Zed revision, not floating main
 
 Rust 本身没有 Java 风格的 LTS 发布线，因此使用明确的 stable toolchain 版本，而不是模糊的 `stable`。
 
-## 3. Workspace Ownership
+---
+
+## 3. Rust Implementation Layers
+
+Loom 的产品/世界概念仍然使用：
 
 ```text
-crates/loom-core
-    World primitives, identity, timeline/state/history contracts and hard invariants
-
-crates/loom-runtime
-    execution sessions, durable work, world time, scheduling, entropy,
-    resolution and the unique commit authority
-
-crates/loom-capability
-    capability registration/binding/invocation, schema and semantic extension contracts
-
-crates/loom-agency
-    agent-local view/context, semantic retrieval, decision contracts
-    and cognitive executor boundary
-
-crates/loom-boundary
-    external ingress, HTTP/API boundary and committed-world feedback/output boundary
-
-crates/loom-storage
-    PostgreSQL/pgvector/object-storage implementations hidden behind runtime contracts
-
-apps/loom-server
-    server process and runtime composition
-
-apps/loom-cli
-    operator/developer CLI
-
-apps/loom-studio
-    official GPUI application; Native + Web/WASM target
+Core
+Capability
+World Template
+World
+Application
 ```
 
-这些 crate 是代码责任边界，不是微服务边界。v0 保持单体 Rust workspace，不为了未来规模提前拆服务。
-
-## 4. Dependency Direction
-
-目标依赖方向：
+但 Rust 物理实现采用独立的 dependency architecture：
 
 ```text
-                    Applications
-             ┌──────────┼──────────┐
-             ↓          ↓          ↓
-           Server      CLI       Studio
-             ↓                     ↓
-          Boundary                 GPUI
-             ↓
-           Runtime
-       ┌─────┼──────────┐
-       ↓     ↓          ↓
-    Agency Capability Storage
-       \      |         /
-             Core
+L0  Kernel
+    loom-core
+
+L1  Internal Execution Protocol
+    loom-protocol
+
+L2  Public / Extension Contracts
+    loom-api
+    loom-capability
+    loom-agency
+
+L3  Engine
+    loom-runtime
+
+L4  Adapters
+    loom-storage
+    loom-boundary
+    concrete Capability implementations
+    cognitive/provider adapters
+
+L5  Applications / Composition Roots
+    loom-server
+    loom-cli
+    loom-studio
 ```
 
-关键规则：
+这些层是代码责任和编译依赖边界，不是微服务边界。v0 保持单体 Rust workspace，不为了未来规模提前拆服务。
 
-- `loom-core` 不依赖 Tokio、SQLx、Axum、GPUI、pgvector、HTTP client、LLM SDK 或随机数实现；
-- Core 中的 World Time 使用 Loom 自己的语义类型，不直接暴露平台日期时间类型；
-- Capability 不直接持有数据库、网络、系统时钟、随机数源或 Commit Authority；
-- Storage 负责实现持久化，不定义 World 语义；
-- Application 可以组合实现，但不能反向成为 Core 依赖。
+### 3.1 `loom-core` — World Language
 
-根 workspace 可以统一依赖版本，但每个 crate 只声明自己真实使用的依赖。
+负责：
 
-## 5. v0 Dependency Baseline
+```text
+World / Timeline primitives
+strong identities
+World Time
+Entity / Relationship structural mechanism
+Facet ownership mechanism
+Event ordering/association primitives
+minimal mechanical WorldEffect
+hard World invariants
+```
 
-### 5.1 Core
+Core 不承担“共享 DTO”职责。一个类型被多个 crate 使用，不代表它应该进入 Core。
+
+### 3.2 `loom-protocol` — Internal Execution Language
+
+负责 Runtime / Capability / Agency 之间共享的、**尚未获得 Runtime authority** 的执行协议，例如：
+
+```text
+ActionInvocation
+Resolution
+ResolveOutcome
+Rejection
+ProposedEvent
+NewWork / WorkMutation
+shared execution query/value specifications
+```
+
+Protocol 只描述“组件提出/交换了什么”，不决定它能否成为 World Truth。
+
+### 3.3 `loom-api` — Public Consumption Language
+
+负责 Loom 对 Application、Transport、SDK 暴露的统一消费 contract，例如：
+
+```text
+World
+Timeline
+Action
+Query
+History
+Subscription
+Capability Catalog / Discovery
+Runtime Administration
+```
+
+它是一个 contract crate，不是 HTTP crate。HTTP/CLI/GPUI 都只是它的消费者或 adapter。
+
+### 3.4 `loom-capability` — Semantic Extension API/SPI
+
+负责 Capability manifest、definition、resolver/invariant/work/reaction SPI，以及 Resolver 所需的 host-facing port（例如 `ResolutionContext`）。
+
+它依赖 Core/Protocol，但不依赖 Runtime。
+
+### 3.5 `loom-agency` — Agency Extension API/SPI
+
+负责 Agent-local context/cognition/Decision contracts 与 Cognitive Executor SPI。
+
+`Decision::Act` 使用 Protocol 的 `ActionInvocation`，因此 Agency 不需要依赖 Runtime。
+
+### 3.6 `loom-runtime` — Execution Authority
+
+负责：
+
+```text
+ExecutionSession
+Runtime-backed World Views
+ReadSet
+ResolutionBudget
+Effect Engine
+Candidate overlay
+ValidatedResolution authority gate
+controlled entropy/clock
+Durable Work execution
+Timeline CAS/commit orchestration
+Runtime Revision execution state
+Runtime-required persistence ports
+implementation of loom-api services
+```
+
+### 3.7 `loom-storage` — Persistence Adapter
+
+负责 PostgreSQL/pgvector/object-store 的具体实现，并实现 Runtime-owned persistence ports。
+
+Runtime 不依赖 Storage concrete crate；Application composition root 将 `PgStorage` 注入 Runtime。
+
+### 3.8 `loom-boundary` — Transport Adapter
+
+负责 HTTP/JSON、SSE、必要时 WebSocket 等 transport concern，并**只把 transport 映射到 `loom-api`**。
+
+Boundary 不直接调用 Runtime internal type，也不直接调用 Capability Resolver。
+
+---
+
+## 4. Mandatory Cargo Dependency Direction
+
+本节约定：
+
+> **`A -> B` 表示 A 的 `Cargo.toml` 依赖 B。**
+
+允许的 Framework 依赖：
+
+```text
+loom-protocol
+-> loom-core
+
+loom-api
+-> loom-core
+-> loom-protocol
+
+loom-capability
+-> loom-core
+-> loom-protocol
+
+loom-agency
+-> loom-core
+-> loom-protocol
+
+loom-runtime
+-> loom-core
+-> loom-protocol
+-> loom-api
+-> loom-capability
+-> loom-agency
+
+loom-storage
+-> loom-core
+-> loom-runtime
+
+loom-boundary
+-> loom-api
+```
+
+禁止形成：
+
+```text
+runtime <-> capability
+runtime <-> agency
+runtime <-> storage
+runtime <-> boundary
+```
+
+### 4.1 Port ownership
+
+Port 放在需要能力的一侧。
+
+```text
+Capability needs host query/subresolution
+-> port belongs to loom-capability
+-> Runtime implements it
+
+Runtime needs persistence
+-> port belongs to loom-runtime
+-> loom-storage implements it
+
+Application/transport needs Loom capability
+-> contract belongs to loom-api
+-> Runtime implements it
+-> loom-boundary adapts transport to it
+
+Runtime needs cognition
+-> SPI belongs to loom-agency
+-> concrete provider adapter implements it
+```
+
+这使运行时调用方向可以与 Cargo dependency 方向不同，同时保持无环。
+
+### 4.2 Composition root
+
+`loom-server` 是主要 composition root，负责实例化并连接：
+
+```text
+Runtime
+PgStorage
+Capability registry / concrete capabilities
+Cognitive providers
+Clock / Entropy implementation
+HTTP Boundary
+```
+
+Runtime 本身不负责 import/construct 具体 Storage、HTTP server、领域 Capability 或 provider implementation。
+
+### 4.3 Machine enforcement
+
+`tools/check_architecture.py` 通过 `cargo metadata` 检查 workspace 直接依赖边及关键基础设施泄漏；CI 在 `cargo check` 前执行它。
+
+新增不在 allowlist 内的 edge 必须先经过架构评审并更新 `governance.md`，不能为了让 CI 变绿直接修改 checker。
+
+完整强制规则见 `docs/architecture/governance.md`。
+
+---
+
+## 5. One Public Loom API
+
+> **Extension defines semantics; Loom owns exposure.**
+>
+> **One engine, one public contract, many semantic extensions.**
+
+Capability 可以定义：
+
+```text
+finance.transfer
+employment.contract
+social.publish
+```
+
+但 Capability 不能定义：
+
+```text
+POST /finance/transfer
+FinanceController
+finance-specific public CLI command as an engine bypass
+GPUI engine endpoint
+public WebSocket/gRPC service
+SDK service that bypasses Loom API
+```
+
+统一路径：
+
+```text
+HTTP / GPUI / CLI / SDK
+          ↓
+        Loom API
+          ↓
+        Runtime
+          ↓
+ Capability Registry
+          ↓
+ owning Capability Resolver
+```
+
+### 5.1 Loom API capability domains
+
+v0 对外 contract 按 Loom 自身能力组织，而不是按领域模块组织：
+
+```text
+World API
+Timeline API
+Action API
+Query API
+History API
+Subscription API
+Catalog / Discovery API
+Admin API
+```
+
+统一入口不意味着一个巨大 God Trait；实现时应按职责拆成小 service traits。
+
+### 5.2 World API vs Admin API
+
+二者都属于 Loom public contract，但必须分离 namespace/authorization boundary：
+
+```text
+World API
+= observe / interact with World and Timeline
+
+Admin API
+= operate Runtime/platform lifecycle
+```
+
+Runtime admin 操作不能伪装成领域 Action；Capability 也不能借 Action 获取平台管理权限。
+
+### 5.3 Capability Discovery
+
+Loom 统一暴露 Catalog，使 Consumer 可以发现：
+
+```text
+installed Capabilities
+semantic IDs
+Actions
+Facets
+Relationships
+Events
+schemas / schema revisions
+dependencies / ownership
+```
+
+Studio/CLI 可以根据 schema 动态构造通用交互；定制 UI 仍然通过相同 Loom API 调用语义 Action。
+
+---
+
+## 6. v0 Dependency Baseline
+
+### 6.1 Core
 
 ```text
 uuid            stable UUID support; v0 IDs use UUIDv7
-serde           serialization contracts
-serde_json      flexible Capability payload/state representation
+serde           serialization contracts where required
+serde_json      flexible Capability payload/state representation where required
 thiserror       typed library errors
 ```
 
-WorldId、TimelineId、EntityId、RelationshipId、EventId、WorkId、ExecutionSessionId 等使用强类型 wrapper，而不是在 Core 中裸传字符串。
+WorldId、TimelineId、EntityId、RelationshipId、EventId、WorkId、ExecutionSessionId 等使用强类型 wrapper，而不是在公共契约中裸传字符串。
 
 UUIDv7 用于技术身份与良好的索引局部性；Timeline 的权威历史顺序仍由 `event_seq` 定义，不能由 UUID 时间顺序替代。
 
-### 5.2 Runtime
+### 6.2 Protocol / API
+
+`loom-protocol` 和 `loom-api` 保持纯 contract。允许依赖 Core 和必要的 serialization/schema value libraries，但禁止引入：
+
+```text
+SQLx / pgvector / object_store
+Axum / concrete HTTP server
+provider SDK / reqwest provider implementation
+GPUI
+Runtime implementation
+```
+
+API 不泄漏 `ValidatedResolution`、Storage transaction、ReadSet recorder、Mutation Overlay 等内部 authority/implementation type。
+
+### 6.3 Runtime
 
 ```text
 tokio           1.51.x LTS async runtime
@@ -131,11 +420,13 @@ tracing         structured runtime instrumentation
 
 `rand` 不作为 Core/Capability 可随意调用的公共能力。所有会影响 World Truth 的随机性必须通过 Runtime Entropy Boundary。
 
-### 5.3 Capability
+Runtime 不直接依赖 SQLx/PostgreSQL adapter、Axum transport 或 provider HTTP client。
+
+### 6.4 Capability
 
 ```text
 schemars        Rust type -> JSON Schema
-jsonschema      runtime JSON Schema validation
+jsonschema      runtime/schema validation support where contract placement proves appropriate
 semver          Capability/API/software compatibility metadata
 ```
 
@@ -157,7 +448,7 @@ Commit
 
 Schema/version metadata 属于软件与 Capability contract，不属于 World Truth。
 
-### 5.4 Storage
+### 6.5 Storage
 
 ```text
 sqlx            explicit SQL + PostgreSQL driver + migrations
@@ -166,22 +457,29 @@ object_store    S3-compatible/object-store implementation substrate
 blake3          content integrity/provenance/cache identity
 ```
 
-不在 v0 引入 ORM。Core persistence、Timeline CAS、Event append、`FOR UPDATE SKIP LOCKED`、JSONB、递归查询和分区策略都允许使用明确 SQL。
+不在 v0 引入 ORM。Timeline CAS、Event append、`FOR UPDATE SKIP LOCKED`、JSONB、递归查询和分区策略都允许使用明确 SQL。
 
 数据库迁移使用 SQLx migrations，并保留人工可读 SQL。
 
-### 5.5 Boundary / Network
+### 6.6 Boundary / Network
 
 ```text
-axum            HTTP server
-Tower           service/middleware contracts
+axum            HTTP server adapter
+tower           service/middleware contracts
 tower-http      HTTP middleware where required
-reqwest         external HTTP / cognitive provider adapters
-rustls          TLS preference
-url             typed URL handling
 ```
 
-协议默认：
+外部 provider HTTP adapter 可使用：
+
+```text
+reqwest
+rustls
+url
+```
+
+但这些 provider/client dependency 不进入 Core/Protocol/API/Capability/Agency contract 或 Runtime authority crate。
+
+传输协议默认：
 
 ```text
 Commands / Ingress        HTTP + JSON
@@ -192,7 +490,7 @@ Bidirectional realtime    WebSocket only when genuinely required
 
 不因为“实时”默认使用 WebSocket，也不在 v0 默认引入 gRPC。
 
-### 5.6 Application
+### 6.7 Application
 
 ```text
 config           layered application configuration
@@ -201,9 +499,9 @@ clap             Loom CLI
 anyhow           application/binary error aggregation only
 ```
 
-Library crates 保持 typed error；`anyhow` 不进入 Core contract。
+Library crates 保持 typed error；`anyhow` 不进入 Core/Protocol/API contract。
 
-### 5.7 Dev / CI
+### 6.8 Dev / CI
 
 ```text
 proptest         property/invariant testing
@@ -212,7 +510,9 @@ cargo-deny       advisories/licenses/sources/dependency policy
 
 `cargo-nextest`、`testcontainers` 可以在测试规模或本地集成测试需求出现时加入，不作为 Core 设计前提。
 
-## 6. Data Foundation
+---
+
+## 7. Data Foundation
 
 Loom v0 不采用“只有一个存储介质”，而采用：
 
@@ -256,9 +556,11 @@ other immutable or content-addressable blobs
 
 PostgreSQL 只保存对象引用、hash、size、content type、provenance 等结构化 metadata。
 
-Object store implementation 通过 Loom 自己的薄 `BlobStore` contract 隔离；上层不得绑定某个云供应商。
+Object store implementation 通过 Loom 自己的薄 Blob/persistence port 隔离；上层 contract 不绑定某个云供应商。
 
-## 7. Authority First, Projections Later
+---
+
+## 8. Authority First, Projections Later
 
 > **Authority first, projections later.**
 >
@@ -283,11 +585,13 @@ pgvector 从 v0 开始启用，因为 semantic retrieval 是 Agency/Memory/Infor
 
 换 embedding model 可以重建 embedding，不得因此重写 Event 或 World State。
 
-## 8. World Graph and Event Causal Graph
+---
+
+## 9. World Graph and Event Causal Graph
 
 Loom 一定具有图结构，但“有 Graph”不等于“必须使用 Graph Database”。
 
-### 8.1 World Structural Graph
+### 9.1 World Structural Graph
 
 ```text
 Entity
@@ -299,7 +603,7 @@ Relationship Participant
 
 Relationship 是有自身 ID、State、Lifecycle 的 Core structural primitive，并允许 N-ary participants。PostgreSQL 使用关系表保存权威结构。
 
-### 8.2 Event Graph
+### 9.2 Event Graph
 
 Event 中凡是需要关联、索引、因果追踪和完整性约束的结构必须关系化，不能只塞入 JSONB。
 
@@ -331,7 +635,7 @@ world_event
 
 多层 Event causality 初期使用 PostgreSQL recursive CTE；只有出现真实规模/算法瓶颈后才引入专用 Graph Projection。
 
-### 8.3 Direct Participant vs Population
+### 9.3 Direct Participant vs Population
 
 不能把大型事件涉及的几百万个受众全部展开成 `event_participant`。
 
@@ -340,7 +644,9 @@ world_event
 
 Population 的领域语义由 Capability 定义，Core 只提供可引用的 scope/target mechanism。
 
-## 9. Event, State and Durable Work Persistence
+---
+
+## 10. Event, State and Durable Work Persistence
 
 权威模型：
 
@@ -358,7 +664,9 @@ Event envelope 的稳定关联字段关系化；领域 payload 与冻结的 reso
 
 即：凡是 Core 明确需要关联、索引、追踪和完整性约束的结构优先关系化；领域可变语义保留给 Capability payload/facet JSONB。
 
-## 10. Timeline Commit Transaction
+---
+
+## 11. Timeline Commit Transaction
 
 Timeline Commit 是 World Truth 的唯一线性化点。
 
@@ -369,22 +677,28 @@ Read snapshot + expected revision
         ↓
 Resolve / Cognition / Evaluate
         ↓
+Runtime Validation
+        ↓
+ValidatedResolution
+        ↓
 BEGIN
         ↓
 Validate Timeline revision / CAS
         ↓
-Append 1..N committed Events
+Append 0..N committed Events
         ↓
 Apply frozen Effects to materialized State
         ↓
-Create/cancel/supersede Durable Work
+Create/cancel Durable Work
+        ↓
+Complete current Work when applicable
         ↓
 Advance Timeline head/revision
         ↓
 COMMIT
 ```
 
-任何一步失败，整个 Commit Batch 失败。
+任何一步失败，整个事务失败。
 
 不得出现：
 
@@ -392,9 +706,10 @@ COMMIT
 Event committed but State missing
 State changed but Event missing
 Event/State committed but required future Work lost
+Work-generated Event committed while current Work stays Pending
 ```
 
-一个 Commit Batch 可以原子提交 `1..N Events`；每个 Event 仍有独立、连续的 Timeline-local `event_seq`。
+一个 Commit 可以原子提交 `0..N Events`；零 Event 用于 NoChange/纯 Runtime outcome，任何 WorldEffect 仍必须隶属于至少一个 Event。
 
 ### Concurrency
 
@@ -412,7 +727,9 @@ short commit transaction
 
 冲突意味着当前 Resolution 基于旧 World State，不得直接落库；Runtime 必须重新读取并根据策略 revalidate / resolve。
 
-## 11. World Time and Platform Time
+---
+
+## 12. World Time and Platform Time
 
 World Time 与平台时间严格分离。
 
@@ -435,7 +752,9 @@ available_at     when the platform may retry/claim the work
 
 现实服务器 retry 30 秒不能自动让 World Time 前进 30 秒。
 
-## 12. Durable Work
+---
+
+## 13. Durable Work
 
 Durable Work 与生成它的 Event/State change 必须能够在同一 PostgreSQL transaction 中落库。
 
@@ -443,7 +762,18 @@ v0 调度/claim 优先使用 PostgreSQL transaction + `FOR UPDATE SKIP LOCKED`�
 
 Runtime 可以 at-least-once 执行 Work，但 World Commit 必须支持幂等/冲突保护，防止重复 World mutation。
 
-## 13. Fork Persistence
+Work 的核心语义与状态机以 `runtime-contracts.md` 为准：
+
+```text
+Pending / Completed / Cancelled / Dead
+claim = lease, not state
+World reschedule = new Work
+technical retry = same Work + platform backoff
+```
+
+---
+
+## 14. Fork Persistence
 
 v0 优先简单、正确的实现：
 
@@ -459,13 +789,15 @@ Fork Timeline
 
 不在 v0 提前实现复杂 copy-on-write branch storage。真实规模证明必要后再优化。
 
-## 14. Controlled Nondeterminism
+---
+
+## 15. Controlled Nondeterminism
 
 所有会影响 World Truth 的非确定性必须有明确边界：
 
 ```text
-external input   -> Ingress
-cognition        -> Cognitive Executor
+external input   -> Loom Boundary/API ingress
+cognition        -> Agency Cognitive Executor
 randomness       -> Runtime Entropy Service
 time             -> World Clock
 ```
@@ -482,53 +814,63 @@ external API
 
 Replay 使用 committed Event 中已经冻结的结果，不重新抽随机数或重新调用模型。
 
-## 15. Cognitive / Semantic Retrieval Boundary
+---
+
+## 16. Cognitive / Semantic Retrieval Boundary
 
 Core 不依赖 LLM vendor SDK，也不把 Agent 定义成 LLM。
 
 ```text
-CognitiveRequest
+AgentWorldView
       ↓
-CognitiveExecutor
+Cognitive Executor
       ↓
-DecisionResult / Intent
+Decision
       ↓
-Resolver
+ActionInvocation (loom-protocol)
       ↓
-Commit
+Runtime / Capability Resolver
+      ↓
+Resolution
+      ↓
+Validation / Commit
 ```
 
-Provider adapter 初期使用普通 HTTP (`reqwest` + `rustls` + Serde) 即可。
+具体 Provider adapter 使用普通 HTTP (`reqwest` + `rustls` + Serde) 即可，但它实现 `loom-agency` SPI，不进入 Runtime/Core contract。
 
-Semantic retrieval 可以由 `loom-agency`/Capability contract 表达，由 `loom-storage` 的 pgvector implementation 提供。
+Semantic retrieval 可以由 Agency/Capability contract 表达，由 Storage 的 pgvector implementation 提供，经 Runtime-controlled view/port 使用。
 
-Core 不出现 provider/model/API-key/embedding-model 语义。
+Core/Protocol/API 不出现 provider/model/API-key/embedding-model implementation 语义。
 
-## 16. GPUI Direction
+---
+
+## 17. GPUI Direction
 
 Loom 官方 UI 采用 GPUI 作为优先技术方向：
 
 ```text
-                   Loom Engine
-                       Rust
-                        │
-               Application Boundary
-                        │
-                      GPUI
-                 ┌──────┴──────┐
-                 ↓             ↓
-              Native        Web/WASM
+                 Loom API
+                    │
+               loom-studio
+                    │
+                  GPUI
+             ┌──────┴──────┐
+             ↓             ↓
+          Native        Web/WASM
 ```
 
 规则：
 
 1. GPUI 只存在于 `apps/loom-studio` Application 层；
-2. Core/Runtime/Storage/Capability 永远不依赖 GPUI；
-3. 使用经过验证的 Zed commit SHA，不依赖浮动 `main`；
-4. GPUI Web backend 仍在快速演进，因此 Native + Web 共用 UI 是目标，不是 Core contract；
-5. GPUI API 变化不得要求修改 World/Core contracts。
+2. Core/Protocol/API contracts/Runtime/Storage/Capability 不依赖 GPUI；
+3. Studio 只通过 `loom-api` 消费 Engine capability，不 import Capability/Storage/Runtime internals；
+4. 使用经过验证的 Zed commit SHA，不依赖浮动 `main`；
+5. GPUI Web backend 仍在快速演进，因此 Native + Web 共用 UI 是目标，不是 Core contract；
+6. GPUI API 变化不得要求修改 World/Core contracts。
 
-## 17. CI Baseline
+---
+
+## 18. CI Baseline
 
 GitHub Actions 是统一环境验证入口。
 
@@ -538,11 +880,19 @@ GitHub Actions 是统一环境验证入口。
 Ubuntu
 macOS
 
+python3 tools/check_architecture.py
 cargo fmt --check
 cargo check --workspace --all-targets --all-features
 cargo clippy -- -D warnings
 cargo test
 ```
+
+Architecture Policy 是 CI gate：
+
+- Cargo graph 必须无环；
+- workspace direct dependency 必须符合 allowlist；
+- Core/Protocol/API/Capability/Agency/Runtime 不得出现已明确禁止的基础设施泄漏；
+- 违规是 build failure，不是 warning。
 
 Rust toolchain 必须显式安装/固定，不依赖 GitHub runner 偶然预装的版本。
 
@@ -558,7 +908,9 @@ property/invariant tests
 
 CI 通过只证明当前实现/环境验收通过，不改变 World semantic contracts。
 
-## 18. Default-Rejected Dependencies
+---
+
+## 19. Default-Rejected Dependencies and Shortcuts
 
 以下组件不是永久禁止，但 v0 **默认不引入**。新增必须给出真实需求、不可替代原因和清晰的所有权边界：
 
@@ -574,7 +926,7 @@ dedicated Vector DB
 SeaORM / general ORM
 gRPC
 
-vendor-specific LLM SDK in Core/runtime contracts
+vendor-specific LLM SDK in Core/Protocol/API/Runtime contracts
 Wasmtime / dynamic plugin ABI
 
 petgraph
@@ -583,26 +935,44 @@ async-trait by default
 dashmap / parking_lot / crossbeam by default
 ```
 
+同样默认拒绝以下“实现捷径”：
+
+```text
+Capability-specific public HTTP controller
+Capability-specific engine SDK bypass
+Runtime importing PgStorage
+Boundary importing Runtime internals
+Capability/Agency importing Runtime
+Application feature code importing Storage repository
+moving authority types into shared crate for convenience
+```
+
 其中 Graph/Search/Analytics/专用 Vector Engine 若未来加入，只能作为可重建 Projection，除非经过新的 Authority Architecture Review。
 
-## 19. First Implementation Milestone
+---
+
+## 20. First Implementation Milestone
 
 第一阶段只证明 World Runtime 闭环：
 
 ```text
-Create World / Timeline
+Create World / Timeline through Loom API
         ↓
 create minimal identity/state
         ↓
-submit Work / Intent
+ActionInvocation / Durable Work
         ↓
-Resolve
+Capability Resolve
         ↓
-Commit Event + Effects
+Resolution
+        ↓
+Runtime Validation
+        ↓
+ValidatedResolution
+        ↓
+Commit Event + Effects + Work atomically
         ↓
 materialize State
-        ↓
-schedule Durable Work
         ↓
 pause / reload / resume
 ```
@@ -610,6 +980,8 @@ pause / reload / resume
 验收还必须证明：
 
 ```text
+architecture dependency checker passes
+Capability cannot expose/bypass Loom API
 commit conflict cannot partially mutate World
 replay reproduces materialized State
 pending Work survives restart
@@ -620,9 +992,11 @@ semantic/vector retrieval does not become World Truth
 
 先不引入完整社会、经济、人类心理或大规模领域 Capability，也不以 LLM 是否接通作为 Core 是否成立的判断标准。
 
-## 20. Core Mutation and Commit Outcome
+---
 
-### 20.1 Core value types
+## 21. Core Mutation and Commit Outcome
+
+### 21.1 Core value types
 
 Core 首批值类型保持窄而强类型：
 
@@ -644,7 +1018,7 @@ TimelineVersion
 
 ID 的具体生成由 Runtime/allocator 完成；Core 不通过 UUIDv7 生成过程偷偷获得系统时钟或随机源。
 
-### 20.2 Entity and Relationship structure
+### 21.2 Entity and Relationship structure
 
 Entity 是稳定身份，不承载具体领域状态。可变语义通过 Timeline-local State/Facet 表达。
 
@@ -656,13 +1030,13 @@ v0 原则：
 
 若关系主体发生根本变化，应结束旧 Relationship 并创建新 Relationship；关系本身的状态、强度、条款等可通过 State/Facet 演化。这样同一个 Relationship ID 不会在不同历史位置指向完全不同的参与者集合。
 
-### 20.3 Facet boundary
+### 21.3 Facet boundary
 
 Rust API 可以通过统一的 `FacetOwner` 表达 Entity/Relationship owner，但数据库继续区分 `entity_facet` 与 `relationship_facet`，以保留真实 foreign key 与 referential integrity。
 
 Facet 使用完整 candidate state 做 schema/invariant validation；v0 不把 JSON Patch 作为 Core mutation protocol。
 
-### 20.4 WorldEffect
+### 21.4 WorldEffect
 
 v0 的 WorldEffect 只表达 Core 能够识别的最小世界结构/状态变化，例如：
 
@@ -680,9 +1054,9 @@ EndRelationship
 
 WorldEffect 不能独立 Commit；每一个 WorldEffect 必须隶属于一个 Event。允许 Event 没有 Effect，但不允许 State 在没有 Event 的情况下成为新的 World Truth。
 
-### 20.5 ProposedEvent and CommittedEvent
+### 21.5 ProposedEvent and CommittedEvent
 
-Capability/Resolver 产生 `ProposedEvent`；只有 Runtime Commit 成功后才存在 `CommittedEvent`。
+Capability/Resolver 通过 `loom-protocol` 产生 `ProposedEvent`；只有 Runtime Commit 成功后才存在 committed Event。
 
 事件的稳定结构包括：
 
@@ -698,7 +1072,7 @@ frozen WorldEffects
 
 Runtime/Storage 再关联 `timeline_id`、`event_seq`、platform committed timestamp、execution provenance 等提交事实。
 
-### 20.6 Event causality is acyclic
+### 21.6 Event causality is acyclic
 
 Event causality 必须形成 DAG。
 
@@ -709,21 +1083,21 @@ Event causality 必须形成 DAG。
 
 不得形成向后的 causal cycle。Commit 后每个 Event 获得连续 Timeline-local `event_seq`。
 
-### 20.7 WorkMutation is not WorldEffect
+### 21.7 Resolution and WorkMutation
 
 Durable Work 属于 Runtime Future，不属于 World Truth，因此 Work mutation 不进入 `WorldEffect`。
 
-概念结构：
+Protocol 的统一语义输出：
 
 ```text
-CommitProposal
+Resolution
 ├── ProposedEvent[0..N]
 └── WorkMutation[0..N]
 ```
 
-但它们必须能够在同一数据库事务中原子落地。
+`Resolution` 是未受信任 proposal，不能直接进入 Storage。
 
-### 20.8 Work completion is part of the transaction
+### 21.8 Work completion is part of the transaction
 
 执行某个 Durable Work 后，当前 Work 的完成与它产生的世界提交必须原子发生：
 
@@ -733,7 +1107,7 @@ validate Timeline revision
 validate Work claim/idempotency
 append Events
 apply Effects
-create/cancel/supersede new Work
+create/cancel new Work
 mark current Work completed
 advance Timeline head/revision
 COMMIT
@@ -741,15 +1115,15 @@ COMMIT
 
 因此崩溃不能造成“Event 已提交但 Work 仍 pending，从而再次产生相同世界变化”。
 
-### 20.9 Zero-event execution outcome
+### 21.9 Zero-event execution outcome
 
 Execution Outcome 允许 `0..N Events`。
 
-`0 Events` 只允许 NO_ACTION、纯 evaluation 完成或其他不改变 World Truth 的 Runtime outcome；此时仍可完成当前 Work。任何 WorldEffect 都要求至少一个 Event。
+`0 Events` 只允许 NoChange、纯 evaluation 完成或其他不改变 World Truth 的 Runtime outcome；此时仍可完成当前 Work。任何 WorldEffect 都要求至少一个 Event。
 
-### 20.10 Effect Engine and candidate overlay
+### 21.10 Effect Engine and candidate overlay
 
-Capability 不能获得 Storage write handle。它只能产生 Commit Proposal。
+Capability 不能获得 Storage write handle。它只能产生 Protocol `Resolution`。
 
 Runtime Effect Engine 至少负责：
 
@@ -758,6 +1132,7 @@ validate event schema
 validate causality
 validate identities
 validate relationship structure
+validate semantic ownership
 apply Effects to candidate overlay
 validate JSON Schema
 validate Capability invariants
@@ -767,10 +1142,37 @@ validate Work mutations
 
 Effect validation 使用 `Base WorldView + Mutation Overlay`，不复制整个 World。后续 Effect/validator 在同一个候选提交中必须看到前面 Effect 已经产生的 candidate state。
 
-最终只有 `ValidatedCommit` 可以进入 Storage 的 PostgreSQL transaction。
+最终只有 Runtime-owned `ValidatedResolution` 可以交给 Runtime persistence port 尝试 PostgreSQL commit。
 
-## 21. Repository Rule
+`ValidatedResolution` 不进入 `loom-protocol`/`loom-api`，即使 Storage 需要消费它也不能为了方便移动 authority ownership。
+
+---
+
+## 22. Repository and Architecture Rule
 
 当前工作树只保留 Loom 自己的实现与文档。旧 MiroFish 工程代码不设置 `legacy/` 墓地目录；需要追溯时使用 Git 历史或上游仓库。
 
-技术基线默认冻结，但它不像 Core Conceptual Closure 那样要求概念级冻结。依赖 patch/minor、安全升级与实现细节可以按维护流程更新；任何会改变 Core authority、World semantics、Commit boundary 或数据权威的技术变更，必须先回到架构层重新评审。
+所有后续开发必须先遵守：
+
+```text
+docs/architecture/core.md
+docs/architecture/runtime-contracts.md
+docs/architecture/governance.md
+AGENTS.md
+```
+
+技术基线默认冻结，但它不像 Core Conceptual Closure 那样要求概念级冻结。依赖 patch/minor、安全升级与不改变边界的实现细节可以按维护流程更新。
+
+任何会改变以下内容的实现，必须先回到架构层重新评审并更新规范：
+
+```text
+Core authority / World semantics
+Timeline Commit boundary
+Protocol/API type ownership
+Cargo dependency allowlist
+Capability semantic ownership
+public Loom API exposure rule
+Storage/Boundary dependency inversion
+```
+
+禁止“先写违反规范的代码，再让文档迁就实现”。
