@@ -1,143 +1,157 @@
-# Loom Core Design Principles
+# Loom Design Principles
 
 > Status: confirmed architectural baseline.
 >
-> This document records principles that have been explicitly agreed during Loom's architecture design. It is intentionally stricter and more stable than exploratory design notes. New implementation work should preserve these principles unless a later architecture decision explicitly supersedes them.
+> 本文记录 Loom 已确认的设计原则。它既包含 Core Laws，也包含对官方 Capability 的语义约束；某个概念“设计上重要”并不等于它必须属于 Kernel。具体架构归属以 `docs/architecture/core.md` 与 `docs/architecture/layers.md` 为准。
 
-## 1. World and runtime
+## 1. Core and architecture
 
 1. Loom Core is a **world runtime**, not a domain-specific simulator.
-2. A World is a persistent object that continues to exist across requests, model calls, reports, pauses, and resumptions.
-3. World State may only be changed through **committed World Events**.
-4. The Event Ledger is append-only and immutable; previously committed history is never silently rewritten.
-5. Current State is a materialized projection used for efficient execution and querying; it must remain reconstructible from retained history and snapshots.
-6. Events store their fully resolved effects. Nondeterministic reasoning, randomness, or model inference may happen before commit, but committed outcomes are frozen.
-7. A Timeline is a first-class historical/runtime branch of a World. Historical replay that changes causal outcomes creates a new Timeline instead of overwriting an existing one.
-8. World Time, external occurrence time, Loom receipt time, effective/valid time, and commit order are separate concepts. Ledger sequence is the authoritative linear commit order.
+2. Loom 使用五层边界：**Core -> Capability Module -> World Template -> World <- Application**。
+3. Core 决定世界怎样存在和运行；Capability 决定世界会什么、意味着什么；Application 决定用户拿 World 做什么。
+4. Core 的准入标准是：移除该概念后，持续 World Runtime 是否无法闭环；重要但非闭包必需的概念优先进入 Capability。
+5. World Template 是创建 World 的出生配方，不持续控制或同步已创建 World。
+6. Application ≠ World；一个 World 可以被多个 Application 观察和使用。
+7. Extensibility 本身属于 Core；具体领域语义不属于 Core。
 
-## 2. Truth, information, and cognition
+## 2. World, timeline, identity
 
-9. **World Truth, Information Space, and Agent Knowledge are separate layers.**
-10. An external Observation records what a source reported or what Loom observed; it is not automatically World Truth.
-11. A Claim is a reusable semantic proposition. Claims may be supported, contradicted, corrected, or interpreted differently by different Worlds and Agents.
-12. An Information Artifact is the carrier of information, such as a report, filing, article, announcement, message, video, or internal document. Artifact, Observation, and Claim are distinct objects.
-13. Truth does not automatically propagate. An Agent only knows information through an actual perception, communication, discovery, or accessible information path.
-14. Awareness of a Claim is not belief in that Claim.
-15. Agent belief may remain inconsistent with World Truth for long periods. Incorrect belief is a valid world state and may cause real Events.
-16. Belief is private cognition; Expression is an action. An Agent may believe one thing and publicly express another.
+8. World 是长期存在的世界身份和运行边界，不是一次请求、simulation job 或 report。
+9. Timeline 是 World 中的一条权威历史分支；每条 Timeline 只有一份权威 Event Ledger。
+10. Fork 创建新的历史分支，不重写原 Timeline。
+11. **Identity belongs to World; mutable State belongs to Timeline.**
+12. 同一个 World Entity 在不同 Timeline 上仍然是同一个 Identity，只是状态、关系、经历、认知和后续轨迹可以不同。
+13. Identity 必须由稳定、唯一、不可复用、与名称和可变状态无关的内部 ID 建立。
+14. **Names describe identity; they do not create it.** 名字、别名、职位、位置等不是身份本身。
+15. Global Entity 是可选的跨 World 身份锚点；World Entity 是某个 World 内稳定身份；Timeline State 是某条历史上的可变状态。
+16. Fork 时已经存在的 World Entity Identity 必然延续；Fork 后新产生的 Entity 默认由各分支历史独立创建，除非显式建立对应关系。
+17. Entity、Actor、Agent 是 Runtime 结构角色，不是 `HUMAN / COMPANY / COUNTRY / MONSTER` 等领域类型。
+18. Actor 表示行动归属主体；Agent 是拥有局部认知和自主决策能力的 Actor。
 
-## 3. Agent existence and computation
+## 3. Timeline and trajectory
 
-17. **Agent existence is persistent; Agent compute is on demand.**
-18. Agents are dormant by default. A Stimulus may make an Agent eligible to wake, but a Stimulus does not imply an LLM call.
-19. Runtime should use cheap deterministic routing, relevance filtering, policies, routines, heuristics, lightweight models, and batching before expensive cognition.
-20. LLM reasoning is a last cognitive resource for important, novel, ambiguous, conflicting, or high-uncertainty decisions.
-21. An Agent may wake and still choose `NO_ACTION`, `WAIT`, `DEFER`, or abandon a goal. The world must not force activity merely because cognition occurred.
-22. Agent output is an Action Intent, not a direct State mutation. Runtime remains the sole authority that validates and commits Events.
-23. Agent cognition must not directly access omniscient World State unless that Agent is explicitly modeled as omniscient. Context must respect the Agent's actual knowledge boundary.
+19. 个人、公司、国家等主体不各自拥有独立权威 Timeline。
+20. Entity 在某条 World Timeline 上拥有自己的 **Trajectory**；Trajectory 是 World Ledger 的局部投影/索引，而不是第二套历史权威。
+21. Relationship 也可以拥有自己的 Trajectory。
+22. 同一个 Event 可以同时属于多个 Entity / Relationship Trajectory，因此不同主体的演化路径通过共享 Event 发生交集。
+23. Objective Entity Trajectory 与 Agent Experienced History 分离：事实上发生过，不代表 Agent 当时知道、记住或正确理解。
 
-## 4. Context and bounded cognition
+## 4. Entity, relationship, state
 
-24. **Context is budgeted attention.**
-25. A Runtime Context Frame is a temporary projection of the relevant world slice, not a copy of World State and not a permanently maintained mega-object.
-26. Actual Situation Context and Agent Perceived Context are separate.
-27. Visibility/knowledge eligibility is evaluated before relevance. A secret does not enter an Agent's context merely because it is relevant.
-28. Context is multi-faceted and may combine temporal, spatial, social, institutional, normative, goal, information, and domain-specific facets.
-29. World Context -> Agent Context -> Cognitive Prompt Context are separate filtering stages.
-30. Long-term memory may be large; Working Memory and prompt context must remain aggressively bounded.
-31. Important Decisions may retain compact context references/revisions for auditability without copying the entire context.
+24. Entity 的核心职责是稳定身份，不应承载巨大固定领域 Schema。
+25. 领域状态通过可组合、版本化、可验证的 **State Facet** 附着到 Entity / Relationship 的 Timeline-local State 上。
+26. State Facet 必须有正式 Definition / Schema / Validation / Version，不是自由 JSON 堆积。
+27. Capability 定义 Facet 语义，Core 负责 persistence、revision、Timeline isolation、event-driven mutation、snapshot 和 projection 生命周期。
+28. Entity 的领域能力和状态可以随 committed Event 动态增加、变化或结束，不依赖固定继承树。
+29. Relationship 是独立 Core Primitive，不是 Entity Facet；它拥有唯一身份、参与者、角色、Timeline-local State 和生命周期。
+30. Relationship 应支持 N-ary participant/role 模型，二元 edge 只是特例。
+31. Core 不理解 friend / married / employed_by / owns 等具体 Relationship 语义。
+32. Multiplex Relationship 是正常情况：相同 Entity 之间可以同时存在多种不同关系。
 
-## 5. Memory and learning
+## 5. History and state change
 
-32. **World History is not Agent Memory.** What happened and what an Agent remembers are separate.
-33. Experience does not automatically become long-term Memory. Memory encoding is selective and Agent-local.
-34. Memory should conceptually distinguish episodic experience, semantic/entity knowledge, skill/procedural state, habit/policy, and working memory.
-35. Knowledge/Belief represents current cognition; Memory records retained traces and the history from which cognition formed.
-36. Forgetting primarily changes accessibility, fidelity, or recall strength; it does not delete Loom's historical evidence.
-37. Repeated experience should consolidate into more compact Beliefs, Relationship patterns, Skills, Habits, or Policies rather than causing linear active-memory growth forever.
-38. An Agent may reinterpret an old experience when new evidence arrives without rewriting the historical Event.
-39. Memory retrieval may determine which people, paths, methods, and prior experiences an Agent can currently think of; recall can therefore create new perceived Affordances.
+33. **No mutation without a committed Event.**
+34. Intent 是行动意图，Action Attempt 是一次尝试，Event 是已提交的历史事实，Effect 是确定性 State 变化；四者严格分离。
+35. Runtime 是唯一 Commit Authority；Agent、Capability、Application、External Source 都不能直接修改 Timeline State。
+36. Event Ledger append-only；已经提交的历史不得被静默改写。
+37. Event 必须保存已解析 outcome 和 Effects；Replay 不重新随机、不重新调用模型决定已提交历史。
+38. Nondeterminism may happen before commit; committed history is deterministic.
+39. Current State 是高效运行所需的 materialized projection，不是历史本身。
+40. Direct Effect 与 downstream Reaction 分离；后续影响通过新的 Work / Intent / Event 形成因果链。
+41. 一个 Intent 可以产生 0..N Events；一个 Event 也可以由多个 Intent / Process 共同促成。
+42. 失败尝试仍可能形成真实 Event；“未成功改变目标状态”不等于“什么都没有发生”。
+43. User/Application Intervention 同样必须经过 Runtime -> Event -> Effect。
+44. World Event Ledger 与 technical log / debug log 严格分离。
 
-## 6. Goals, personality, emotion, and decision
+## 6. Time and runtime
 
-40. Need, Goal, Plan, Decision, Intent, and Event are distinct concepts.
-41. Goals describe desired states, not merely actions.
-42. Agents may hold multiple conflicting Goals. Goal importance and urgency change over time.
-43. Personality is a **bias, not destiny**. It affects decision tendencies but does not permanently forbid actions.
-44. Values influence decisions but do not make otherwise feasible actions physically impossible.
-45. Every major Decision is time-local: the same Agent may rationally choose differently on different days because Needs, Goals, Beliefs, Resources, Relationships, Mood, Pressure, or Context changed.
-46. Agents are boundedly rational. They reason from their own limited knowledge and limited candidate set rather than optimizing from omniscient global state.
-47. Emotion is a lightweight Agent-local state produced through appraisal of perceived events, not a fixed lookup from Event type.
-48. Personality, Need Pressure, Emotion, and Mood are separate. Emotion and stress may change attention, recall, risk perception, goal priority, and decision style.
-49. Internal affect is not automatically externally visible. Expression is separately decided and other Agents may misread it.
+45. World Time 与操作系统时间分离；External occurrence time、received time、effective/valid time、commit time/sequence 也应保持区别。
+46. Ledger sequence 是 Timeline 的权威线性 Commit 顺序。
+47. Loom Runtime 是 **event-driven + demand-driven + world-time-aware**，不通过固定 Tick 扫描整个世界。
+48. Scheduler 只负责在 World Time 到达时重新产生 Runtime Work，不理解领域行为语义。
+49. 没有有意义工作时，非实时 World 可以 fast-forward 到下一个有意义时间点。
+50. World 持续存在不等于 Runtime 永久占用进程；Runtime execution 必须可暂停、持久化和恢复。
+51. Scheduler、Reaction、External Input、Application、Process Continuation、Agent Deferred Work 等统一进入 Runtime Work Queue。
+52. Work Item 只是待处理工作，不等于 Stimulus、Intent 或 Event；Work 可以最终被忽略而不产生历史变化。
+53. Reaction 不递归直接修改世界，而应产生新的 Work，并受 depth / work / compute budget 约束。
+54. Timeline Commit 是唯一线性化点；Resolution 可并行，但 Commit 必须依据最新 State 保持一致性。
 
-## 7. Actions and affordances
+## 7. Fast Path and cognition
 
-50. Action Definitions describe available kinds of behavior. Affordances are computed dynamically from current Agent and Timeline state.
-51. **Can I?** and **Will I?** are separate questions. Capability determines feasibility; Motivation/Decision determines choice.
-52. Underlying model knowledge must never automatically become Agent knowledge or skill.
-53. Skill, Resource, Tool, Permission, Access, Relationship, Location, Health, and Context may all affect Affordance.
-54. Skill is not merely boolean; proficiency and action difficulty may matter and may evolve through learning, practice, injury, or disuse.
-55. Actual Affordance and Perceived Affordance are distinct. An Agent may attempt something it mistakenly believes possible, or fail to consider something it could actually do.
-56. A missing path does not necessarily make a Goal impossible. Alternative actions, public channels, social contacts, or discovery mechanisms may create other routes.
-57. Relationships create possibilities, not guaranteed results.
-58. Direct and mediated access are distinct. An Agent may be unable to solve a problem directly but know someone or some channel that may advance it.
-59. Social routing proceeds through real Agent decisions. A mediator is an Agent, not a transparent graph hop.
-60. Referral, forwarding/escalation, and delegation are distinct mechanisms.
-61. Planning may be progressive: take one reachable step, gain new information/context, then plan the next step.
+55. Runtime 严格区分 **Fast Path** 与 **Cognitive Path**。
+56. 机械性、确定性、流程化工作默认走 Fast Path，不需要 Agent 或 LLM。
+57. LLM 是需要时才调用的昂贵认知执行器，类似高级思考能力；它不是 Agent 本身，也不是 Runtime 本身。
+58. **Agent persists; compute is on demand.**
+59. Agent 默认可以 dormant；Stimulus 不意味着模型调用。
+60. Runtime 应先使用 deterministic routing、relevance filtering、routine、policy、heuristic、lightweight model、batching，再考虑昂贵 Cognition。
+61. Agent 可 Wake 后仍选择 `NO_ACTION / WAIT / DEFER`；认知发生不代表必须产生世界行为。
+62. Underlying model knowledge must never automatically become Agent knowledge or skill.
 
-## 8. Rules and real-world flexibility
+## 8. Agent-local view and context
 
-62. Loom distinguishes **impossibility, prohibition, and enforcement**.
-63. A rule's existence does not imply compliance, detection, judgment, enforcement, or equal consequences.
-64. Hard Runtime Invariants should be few and protect world/runtime consistency rather than encode social expectations.
-65. Most laws, policies, procedures, permissions, conventions, and norms are not physical impossibilities and may be violated, bypassed, overridden, ignored, or selectively enforced.
-66. Event occurrence and compliance evaluation are separate. An action may factually happen while being unauthorized, irregular, prohibited, or socially disapproved.
-67. Formal rules, legitimate exceptions, discretionary authority, informal practice, and outright violations are distinct concepts.
-68. Enforcement actors are themselves World Entities/Agents and may delay, refuse, misjudge, favor, corrupt, or violate rules.
-69. Formal Norms and Emergent Social Norms may diverge.
-70. Agent belief about a rule or enforcement risk may differ from the actual rule and actual enforcement behavior.
+63. Agent cognition 默认不能访问 omniscient World State。
+64. Core 必须提供 Agent-local representation / perception boundary，使 Agent 可以拥有不完整、过时甚至错误的世界表示。
+65. **Context is budgeted attention.**
+66. Context 是 Runtime 临时构造的有限世界切片，不是 World State 副本和永久维护的大对象。
+67. Actual World Context、Agent Context、Cognitive Context 是不同过滤阶段。
+68. Visibility / access eligibility 必须先于 relevance；秘密再相关，只要 Agent 不可知就不能进入其 Cognitive Context。
+69. Context 可以是多 Facet、重叠并随 Stimulus 动态变化。
+70. Context Construction 必须受到 Entity、Relationship、retrieval、compute 和 token budget 约束。
+71. Core 只保证 Agent 可以拥有跨 Wake 持续存在、Timeline-local、私有并可检索进入 Context 的内部状态；完整人类 Memory 模型不是 Kernel 强制语义。
+72. Goal、Need、Plan、Personality、Emotion、Habit、Role Duty 等可以作为 Capability 提供的 Decision Driver / Bias，而不是 Agent Kernel 固定字段。
+73. Core 定义 Agent 怎样在有限局部认知下形成 Decision/Intent；Capability 定义它为什么行动以及如何解释世界。
 
-## 9. Relationships, identity, and institutions
+## 9. Affordance and access
 
-71. One Person/Agent remains one World Entity even when participating in many institutions, roles, countries, companies, families, and social contexts.
-72. Membership, Citizenship, Employment, Family status, Role, and other identities are expressed through Relationships/Statuses rather than single-value fields on a Person.
-73. Loom natively supports **multiplex relationships**: the same entities may simultaneously have multiple relationships with different meanings and states.
-74. Structural/objective relationships and subjective relationship states are separate.
-75. Subjective social states are directional. Alice trusting Bob does not imply Bob trusts Alice.
-76. Knowing of an Entity, recognizing it, being familiar with it, and having a direct relationship with it are distinct.
-77. Each Agent may maintain an Agent-local Entity Representation. That representation may be incomplete, stale, or wrong.
-78. Actual Social Graph and Agent Perceived Social Graph are distinct.
-79. Formal Authority and actual Influence are distinct.
-80. Role/Relationship may create Permission, Access, Authority, Obligation, or new Affordances, but other personal relationships and goals continue to affect behavior inside institutional contexts.
-81. A person's contextual Role changes which identity facets are salient; it does not create a separate Agent persona.
-82. Collective Entity / Institution is the general abstraction for companies, governments, agencies, schools, families, associations, media organizations, informal groups, and other persistent collectives.
-83. Institutions may contain other Institutions, but structural `PART_OF` does not imply absolute control.
-84. Institutional Information Assets and Agent Memory are separate. Access may be revoked while previously internalized Knowledge, Memory, and Skill remain with the Agent.
+74. Action Definition 描述一种可尝试行为；Affordance 根据当前 World/Timeline/Actor 状态动态计算。
+75. **Can I?** 与 **Will I?** 分离；可行性不等于选择。
+76. Actual Affordance 与 Perceived Affordance 分离；Agent 可以基于错误认知尝试失败，也可能因为不知道而错过真实机会。
+77. Direct Affordance 与 Mediated Affordance 分离；“我做不了，但我知道谁或哪个渠道可能推进”是有效行动能力。
+78. Social path 的每一跳都必须经过对应 Agent 自己的 Decision；中间人不是透明图节点。
+79. Referral、Forward/Escalation、Delegation 是不同机制。
+80. Planner 可以 Progressive Planning：只规划当前可达的一步，通过新信息和 Context 再展开下一步。
+81. Relationship creates possibility, not guaranteed outcome.
 
-## 10. Information provenance and organizations
+## 10. Rule and validation
 
-85. Institutions and other Entities may publish or issue Information Artifacts through Channels.
-86. Official media, government agencies, companies, exchanges, research bodies, and other organizations should be represented through the same Entity/Institution identity system used elsewhere in the World.
-87. Provenance should remain traceable across Publisher/Issuer -> Channel -> Artifact -> Observation -> Claim -> World/Agent interpretation.
-88. A source's publication is a fact about what that source said; the proposition contained in that publication is not automatically true.
-89. Internal organizational information and public information may have different visibility and release times.
+82. Loom 区分 **impossibility, prohibition, authority/permission and enforcement**。
+83. Hard Runtime Invariant 应尽可能少，只保护 identity consistency、Timeline isolation、event sequencing、state/schema integrity、atomicity、referential integrity 等内核一致性。
+84. Law / Policy / Norm violation 通常不等于 Commit failure；违法或违规行为仍然可以成为真实 Event。
+85. Rule existence ≠ compliance ≠ detection ≠ judgment ≠ enforcement ≠ equal consequence.
+86. Feasibility、Access、Authority、Permission、Legal/Policy Status、Social Norm Status、Enforcement Risk 是不同评价维度，不应压成一个 `allowed=true/false`。
+87. Actual Rule 与 Agent Belief About Rule 分离。
+88. Rule / Reaction Handler 不能直接修改世界，只能返回 Evaluation、Proposal 或新的 Work，由 Runtime 继续处理。
+89. 确定性 Reaction 优先进入 Fast Path；需要主体自主判断时才形成 Stimulus 进入 Cognitive Path。
 
-## 11. Architecture layering
+## 11. Capability boundary
 
-90. Loom uses five top-level architectural concepts: **Core, Capability Module, World Template, World, and Application**.
-91. Core defines how worlds exist and run.
-92. Capability Modules add reusable domain/world abilities without becoming complete products.
-93. World Templates compose capabilities, rules, and defaults into reusable world configurations.
-94. A World is the actual persistent running instance with its own timelines, entities, state, history, and constitution/configuration.
-95. An Application is a product experience that creates, controls, observes, analyzes, or interacts with Worlds. **Application is not World.**
-96. The same Capability Module may be reused by multiple Applications and World Templates.
-97. New Applications should not require forking or rewriting Core when the required behavior can be expressed through existing world primitives and Capability Modules.
+90. Capability Module 定义领域语义，但不拥有 World Runtime、Timeline State、Event Ledger 或 Commit Authority。
+91. Capability 可以贡献 State Facet、Relationship、Action、Resolver、Evaluator/Rule、Runtime Handler、Projection、Migration 等定义。
+92. Capability Handler 是受 Core 调用的能力，不是独立后台 World Service。
+93. Capability 不得直接访问并依赖 Core 内部数据库结构来修改世界事实。
+94. Capability 之间不应互相调用内部实现形成耦合网；确有稳定协作需要时，通过 Core-owned contract / Event / Action / Relationship / Work 等协议完成。
+95. Foundational Capability 与 Domain Capability 架构地位相同，只是复用范围不同。
+96. Information、Institution、Goal、Planning、Human Memory、Emotion 等高级机制可以成为官方基础 Capability；重要性本身不是进入 Kernel 的理由。
 
-## 12. Change discipline
+## 12. World evolution vs software change
 
-98. Reusable standards and capabilities may evolve over time, but running Worlds must not silently change semantics because the platform was upgraded.
-99. Runtime behavior, capability definitions, rules, and schemas that affect reproducibility must be versioned or otherwise revision-addressable.
-100. Existing Worlds should remain pinned to their chosen semantic versions/revisions until an explicit migration or world-level change occurs.
-101. Historical facts and committed Events are never rewritten merely to adopt a new standard. If historical causal results must change, use a new Timeline/Fork.
-102. New projects and new Worlds may default to newer stable standards while older Worlds preserve their historical semantics.
+97. **Worlds evolve; software upgrades. Never confuse the two.**
+98. World 内的新规则、新制度、新技术、新能力通过 Event / Rule / State 在自己的历史中出现并从相应 effective time 影响未来，而不是执行一个笼统的 `Upgrade World`。
+99. 新规则不会修改其生效前已经发生的历史；旧规则仍然是过去当时适用的真实规则。
+100. Core / Capability package version 属于软件实现、兼容性和可复现元数据，不是 World 内的时代版本。
+101. Technical schema/storage migration 默认必须在世界语义上不可见，不产生虚假的 World Event。
+102. 如果软件修复改变了未来的解析语义，已提交历史仍保持不变；若要查看“如果过去当时使用新语义会怎样”，使用 Fork / Replay 创建另一条 Timeline。
+103. World Template 是出生配方；Template 后续变化只影响未来新建 World，不自动同步已创建 World。
+104. Capability implementation 已安装、World 支持该语义、某 Timeline/Entity 此刻拥有实际 Affordance 是三个不同层次，不能压成单一 `enabled`。
+
+## 13. Stable laws
+
+105. **Identity belongs to World; mutable State belongs to Timeline.**
+106. **Timeline is the history of the world; Trajectory is the history of an identity within that world.**
+107. **No mutation without a committed Event.**
+108. **Context is budgeted attention.**
+109. **Agent persists; compute is on demand.**
+110. **Worlds evolve; software upgrades.**
+111. **Core owns existence, identity, time, history, state transition, cognition boundaries and orchestration. Capability owns semantics. Application owns purpose and experience.**
+
+如果未来某个新设计与这些原则冲突，应先形成显式架构决策并说明替代关系，而不是在实现中静默改变基线。
