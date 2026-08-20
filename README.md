@@ -15,7 +15,10 @@ Loom 的权威设计来自：
 - [`docs/architecture/core.md`](docs/architecture/core.md) — Core v0 Conceptual Closure
 - [`docs/architecture/layers.md`](docs/architecture/layers.md) — 五层所有权边界
 - [`docs/architecture/evolution.md`](docs/architecture/evolution.md) — World Evolution 与 Runtime Change
-- [`docs/architecture/implementation.md`](docs/architecture/implementation.md) — Rust 实现边界
+- [`docs/architecture/implementation.md`](docs/architecture/implementation.md) — Loom v0 技术基线、依赖与数据权威
+- [`docs/architecture/runtime-contracts.md`](docs/architecture/runtime-contracts.md) — Runtime / Capability / Effect / Durable Work 的详细实现契约与注释规范
+
+`runtime-contracts.md` 是后续实现 Core/Runtime/Capability 公共类型时的直接语义依据。代码中的公开抽象必须使用 Rust doc comments 记录其意义、所有权、Truth domain、权限、禁止事项、持久化与一致性规则，不能要求维护者通过聊天记录猜测设计意图。
 
 ## Rust workspace
 
