@@ -14,6 +14,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  RUST_VERSION: "1.97.1"
+
 jobs:
   rust:
     name: Rust ${{ matrix.os }}
@@ -29,9 +32,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Toolchain
+      - name: Install Rust
         run: |
-          rustup show active-toolchain
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup default "$RUST_VERSION"
           rustc --version
           cargo --version
 
