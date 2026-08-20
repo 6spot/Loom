@@ -21,7 +21,7 @@
 //! # Dependency boundary
 //!
 //! `loom-core` is the bottom of the Loom Cargo dependency DAG. It must not depend
-//! on any higher Loom crate. It must also remain independent from Tokio, SQLx,
+//! on any higher Loom crate. It must also remain independent from Tokio, `SQLx`,
 //! Axum, GPUI, pgvector, model providers, network clients, platform clocks and
 //! random-number implementations.
 //!
@@ -42,3 +42,16 @@
 //! `docs/architecture/governance.md`.
 
 #![forbid(unsafe_code)]
+
+mod ids;
+mod structure;
+mod values;
+
+pub use ids::{
+    ActionTypeId, EntityId, EventId, EventTypeId, ExecutionSessionId, FacetTypeId, RelationshipId,
+    RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId,
+};
+pub use structure::{
+    Entity, FacetOwner, Relationship, RelationshipParticipant, RelationshipRole, WorldEffect,
+};
+pub use values::{EventSeq, StateRevision, TimelineVersion, WorldDuration, WorldInstant};
