@@ -528,6 +528,13 @@ impl CandidateWorldView {
         result
     }
 
+    /// Reports whether a Relationship identity has existed in base or in the
+    /// current candidate lifecycle, regardless of active status.
+    pub(crate) fn relationship_identity_exists(&self, relationship_id: RelationshipId) -> bool {
+        self.relationships.contains_key(&relationship_id)
+            || self.base.relationships.contains_key(&relationship_id)
+    }
+
     /// Looks up a Facet after applying prior complete replacements/removals.
     #[must_use]
     pub fn facet(&self, owner: FacetOwner, facet_type: &FacetTypeId) -> Option<FacetSnapshot> {

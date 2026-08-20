@@ -392,9 +392,15 @@ impl<'registry> EffectEngine<'registry> {
         self.budget.check(usage).map_err(RuntimeError::Budget)?;
 
         let mut candidate = CandidateWorldView::from_base(base);
-        let mut seen_events = HashSet::new();
         for event in &resolution.events {
-            if !seen_events.insert(event.id) {
+            if event.id.is_nil() {
+                return Err(ValidationError::InvalidIdentity {
+                    kind: "Event",
+                    id: event.id.to_string(),
+                }
+                .into());
+            }
+            if candidate.event_exists(event.id) {
                 return Err(ValidationError::DuplicateIdentity {
                     kind: "Event",
                     id: event.id.to_string(),
@@ -713,7 +719,7 @@ fn validate_create_relationship(
             id: relationship_id.to_string(),
         });
     }
-    if candidate.relationship(relationship_id).is_some() {
+    if candidate.relationship_identity_exists(relationship_id) {
         return Err(ValidationError::DuplicateIdentity {
             kind: "Relationship",
             id: relationship_id.to_string(),

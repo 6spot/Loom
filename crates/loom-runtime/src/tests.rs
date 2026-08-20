@@ -7,7 +7,7 @@ use loom_capability::{
     RelationshipDefinition as CapabilityRelationshipDefinition, RelationshipRole,
 };
 use loom_core::{
-    Entity, EntityId, EventId, EventSeq, FacetOwner, FacetTypeId, RelationshipId,
+    Entity, EntityId, EventId, EventSeq, FacetOwner, FacetTypeId, Relationship, RelationshipId,
     RelationshipParticipant, RelationshipTypeId, SchemaRevision, StateRevision, TimelineId,
     TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
@@ -67,6 +67,10 @@ fn base_view() -> BaseWorldView {
         id: entity_id,
         world_id: world(),
     })
+    .with_entity(Entity {
+        id: entity(11),
+        world_id: world(),
+    })
     .with_facet(
         FacetOwner::entity(entity_id),
         facet_type,
@@ -123,6 +127,22 @@ fn proposed_event(value: u128) -> ProposedEvent {
         SchemaRevision::new(1),
         WorldInstant::new(5),
         json!({"value": value}),
+    )
+}
+
+fn pair_participants() -> Vec<RelationshipParticipant> {
+    vec![
+        RelationshipParticipant::new(entity(10), "left"),
+        RelationshipParticipant::new(entity(11), "right"),
+    ]
+}
+
+fn pair_relationship(id: RelationshipId) -> Relationship {
+    Relationship::new(
+        id,
+        world(),
+        RelationshipTypeId::from("counter.pair"),
+        pair_participants(),
     )
 }
 
@@ -219,6 +239,134 @@ fn relationship_structure_is_checked_at_the_effect_boundary() {
 }
 
 #[test]
+fn relationship_identity_collision_spans_active_and_ended_lifecycles() {
+    let registry = registry();
+    let engine = EffectEngine::new(&registry);
+    let relationship_id = relationship(20);
+    let create = proposed_event(20).with_effect(WorldEffect::CreateRelationship {
+        relationship_id,
+        relationship_type: RelationshipTypeId::from("counter.pair"),
+        participants: pair_participants(),
+    });
+    let end = proposed_event(21).with_effect(WorldEffect::EndRelationship { relationship_id });
+    let recreate = proposed_event(22).with_effect(WorldEffect::CreateRelationship {
+        relationship_id,
+        relationship_type: RelationshipTypeId::from("counter.pair"),
+        participants: pair_participants(),
+    });
+    let lifecycle_error = engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![create, end, recreate], Vec::new()),
+        )
+        .expect_err("an ended Relationship identity must not be reused");
+    assert!(matches!(
+        lifecycle_error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity {
+            kind: "Relationship",
+            ..
+        })
+    ));
+
+    let inactive_base = BaseWorldSnapshot::new(
+        world(),
+        timeline(),
+        TimelineVersion::new(EventSeq::new(4), StateRevision::new(4)),
+        WorldInstant::new(4),
+    )
+    .with_entity(Entity {
+        id: entity(10),
+        world_id: world(),
+    })
+    .with_entity(Entity {
+        id: entity(11),
+        world_id: world(),
+    })
+    .with_relationship(pair_relationship(relationship_id), false);
+    let inactive_error = engine
+        .validate(
+            &BaseWorldView::new(inactive_base),
+            OWNER,
+            Resolution::new(
+                vec![
+                    proposed_event(23).with_effect(WorldEffect::CreateRelationship {
+                        relationship_id,
+                        relationship_type: RelationshipTypeId::from("counter.pair"),
+                        participants: pair_participants(),
+                    }),
+                ],
+                Vec::new(),
+            ),
+        )
+        .expect_err("an inactive base Relationship identity must not be reused");
+    assert!(matches!(
+        inactive_error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity {
+            kind: "Relationship",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn relationship_identity_allows_new_and_rejects_existing_active_ids() {
+    let registry = registry();
+    let engine = EffectEngine::new(&registry);
+    let new_relationship = proposed_event(24).with_effect(WorldEffect::CreateRelationship {
+        relationship_id: relationship(24),
+        relationship_type: RelationshipTypeId::from("counter.pair"),
+        participants: pair_participants(),
+    });
+    engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![new_relationship], Vec::new()),
+        )
+        .expect("a never-before-used Relationship identity should be valid");
+
+    let active_base = BaseWorldSnapshot::new(
+        world(),
+        timeline(),
+        TimelineVersion::new(EventSeq::new(4), StateRevision::new(4)),
+        WorldInstant::new(4),
+    )
+    .with_entity(Entity {
+        id: entity(10),
+        world_id: world(),
+    })
+    .with_entity(Entity {
+        id: entity(11),
+        world_id: world(),
+    })
+    .with_relationship(pair_relationship(relationship(25)), true);
+    let active_error = engine
+        .validate(
+            &BaseWorldView::new(active_base),
+            OWNER,
+            Resolution::new(
+                vec![
+                    proposed_event(25).with_effect(WorldEffect::CreateRelationship {
+                        relationship_id: relationship(25),
+                        relationship_type: RelationshipTypeId::from("counter.pair"),
+                        participants: pair_participants(),
+                    }),
+                ],
+                Vec::new(),
+            ),
+        )
+        .expect_err("an active Relationship identity must not be reused");
+    assert!(matches!(
+        active_error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity {
+            kind: "Relationship",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn proposer_cannot_mutate_another_capabilitys_facet() {
     let event = proposed_event(1).with_effect(WorldEffect::PutFacet {
         owner: FacetOwner::entity(entity(10)),
@@ -289,6 +437,46 @@ fn forward_and_cyclic_causal_links_are_rejected() {
     assert!(matches!(
         cycle_error,
         super::RuntimeError::Validation(ValidationError::InvalidCausalReference { .. })
+    ));
+}
+
+#[test]
+fn event_identity_collision_spans_ancestry_and_batch() {
+    let registry = registry();
+    let engine = EffectEngine::new(&registry);
+
+    let ancestry_error = engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![proposed_event(100)], Vec::new()),
+        )
+        .expect_err("an ancestry Event identity must not be reused");
+    assert!(matches!(
+        ancestry_error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity { kind: "Event", .. })
+    ));
+
+    engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![proposed_event(101)], Vec::new()),
+        )
+        .expect("a new Event identity should be valid");
+
+    let first = proposed_event(102);
+    let second = proposed_event(102);
+    let batch_error = engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![first, second], Vec::new()),
+        )
+        .expect_err("a batch-local Event identity must not be reused");
+    assert!(matches!(
+        batch_error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity { kind: "Event", .. })
     ));
 }
 
