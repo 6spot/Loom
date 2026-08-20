@@ -1,0 +1,11 @@
+[package]
+name = "loom-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-core = { path = "../loom-core" }
+loom-protocol = { path = "../loom-protocol" }
+
+[lints]
+workspace = true
