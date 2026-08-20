@@ -2,22 +2,23 @@
 
 > Status: normative technical contract for the first Rust implementation.
 >
-> 本文详细定义 Loom v0 从“请求一个世界行为”到“世界事实被提交”的运行契约。`core.md` 定义概念边界，`implementation.md` 定义技术基线；本文负责把这些原则落实为可编码、可测试、可审计的 Runtime/Capability 协议。
+> 本文详细定义 Loom v0 从“请求一个世界行为”到“世界事实被提交”的运行契约。`core.md` 定义概念边界，`implementation.md` 定义技术基线，`governance.md` 强制约束 Rust crate 依赖与统一对外暴露；本文负责把这些原则落实为可编码、可测试、可审计的 Runtime/Capability 协议。
 >
-> 本文优先解释**概念语义和所有权**，Rust 代码片段是接口草图，不代表最终语法必须一字不差。若实现细节需要调整，不能静默改变本文已经锁定的 authority、truth、ownership 或 transaction boundary。
+> 本文优先解释**概念语义和所有权**。Rust 代码片段是接口草图，不代表最终语法必须一字不差。若实现细节需要调整，不能静默改变本文已经锁定的 authority、truth、ownership、dependency 或 transaction boundary。
 
 ## 0. Documentation Contract
 
-Loom 的核心抽象不能只靠名字表达语义。每一个公开的 Core/Runtime/Capability 类型、trait、关键 enum variant 与高风险字段，在代码中都必须使用 Rust doc comments (`///` / `//!`) 说明至少以下内容：
+Loom 的核心抽象不能只靠名字表达语义。每一个公开的 Core/Protocol/API/Runtime/Capability/Agency 类型、trait、关键 enum variant 与高风险字段，在代码中都必须使用 Rust doc comments (`///` / `//!`) 说明至少以下内容：
 
-1. **Meaning**：它在 Loom 世界模型中代表什么；
+1. **Meaning**：它在 Loom 世界模型或执行模型中代表什么；
 2. **Owner**：哪个 crate / Runtime component 拥有它的解释权；
-3. **Truth domain**：它属于 World Truth、Runtime State、Execution Provenance、Agent Knowledge 还是 software metadata；
+3. **Truth domain**：它属于 World Truth、Runtime State、Execution Provenance、Agent Knowledge、public API contract 还是 software metadata；
 4. **Input / output boundary**：谁可以创建、读取、修改或消费它；
 5. **Forbidden use**：它明确不能被用来做什么；
 6. **Relationship**：它与最容易混淆的相邻概念有什么区别；
 7. **Persistence**：若持久化，权威位置和生命周期是什么；
-8. **Concurrency / version rule**：若涉及 Snapshot、Revision、Commit 或 Retry，必须写清楚一致性规则。
+8. **Concurrency / version rule**：若涉及 Snapshot、Revision、Commit 或 Retry，必须写清楚一致性规则；
+9. **Exposure rule**：若进入 `loom-api` 或 transport，必须说明它是否属于稳定 public contract，禁止把 Runtime internal type 意外泄漏出去。
 
 禁止只写这类无信息注释：
 
@@ -34,14 +35,15 @@ struct Resolution { /* ... */ }
 /// A `Resolution` describes the Events, World Effects and future Work that a
 /// resolver believes should follow from one invocation. It is **not** World
 /// Truth and cannot be committed directly. Runtime validation must transform
-/// it into a `ValidatedResolution` before Storage is allowed to persist it.
+/// it into a Runtime-owned `ValidatedResolution` before persistence may commit
+/// it.
 ///
-/// Unlike `Decision`, this type contains resolved world semantics. Unlike
-/// `ValidatedResolution`, it has not crossed the Runtime authority gate.
+/// Unlike `Decision`, this value already contains resolved world semantics.
+/// Unlike `ValidatedResolution`, it has not crossed the Runtime authority gate.
 pub struct Resolution { /* ... */ }
 ```
 
-> **Documentation is part of the contract.** Missing semantic documentation on a new public Core/Runtime abstraction is an implementation defect, not optional cleanup.
+> **Documentation is part of the contract.** Missing semantic documentation on a new public Core/Protocol/API/Runtime abstraction is an implementation defect, not optional cleanup.
 
 ---
 
@@ -85,7 +87,32 @@ Durable Work 不一定通过 `ActionInvocation`；WorkHandler 可以直接产生
 Resolution -> Runtime Validation -> ValidatedResolution -> Commit
 ```
 
-没有 Capability、Agent、Application、Ingress adapter 或 WorkHandler 可以绕过这条路径。
+没有 Capability、Agent、Application、Ingress adapter、Boundary、Storage 或 WorkHandler 可以绕过这条路径。
+
+### 1.1 Execution flow is not Cargo dependency flow
+
+上图表达**运行时调用/数据流**，不是 `Cargo.toml` 依赖图。
+
+Rust 物理依赖以 `governance.md` 为准：
+
+```text
+loom-core
+   ↑
+loom-protocol
+   ↑
+├──────────────┬──────────────┐
+loom-api   loom-capability   loom-agency
+      \          |           /
+       \         |          /
+            loom-runtime
+             ↑        ↑
+             |        |
+       loom-storage  (runtime-backed loom-api implementation)
+
+loom-boundary -> loom-api
+```
+
+其中 `A -> B` 在治理文档中明确表示 A depends on B。
 
 ---
 
@@ -204,7 +231,7 @@ Facet 原则：
 
 > **Capability has semantic power, but never Runtime authority.**
 
-Capability 是一组有唯一所有者的世界语义和解释这些语义的 resolver/validator/handler。它不是服务进程，也不拥有数据库或网络资源。
+Capability 是一组有唯一所有者的世界语义和解释这些语义的 resolver/validator/handler。它不是服务进程，也不拥有数据库、HTTP endpoint 或网络资源。
 
 ### 4.1 Capability Manifest
 
@@ -213,7 +240,7 @@ Manifest 至少表达：
 ```text
 Capability ID
 Capability version
-required Loom API version
+required Loom contract/API compatibility
 required Capability dependencies
 ```
 
@@ -270,6 +297,35 @@ PutFacet finance.account            forbidden
 
 跨 Capability mutation 必须通过 Runtime-mediated subresolution 让目标 semantic owner 自己解释并产生 Effects。
 
+### 4.5 Capability exposes semantics, not transport
+
+Capability 可以注册语义：
+
+```text
+FacetDefinition
+RelationshipDefinition
+EventDefinition
+ActionDefinition / Resolver
+Invariant
+WorkHandler
+Reaction
+```
+
+Capability **禁止**注册或直接对外暴露：
+
+```text
+HTTP route/controller
+SSE/WebSocket endpoint
+gRPC service
+CLI engine command that bypasses Loom API
+GPUI engine endpoint
+public SDK service
+```
+
+`finance.basic` 可以拥有 `finance.transfer`，但不能拥有一个绕过 Loom 的 `POST /finance/transfer` public engine API。
+
+> **Extension defines semantics; Loom owns exposure.**
+
 ---
 
 ## 5. Capability Registration Nodes
@@ -323,9 +379,9 @@ Action 表示“请求世界规则尝试做什么”。
 Resolver：
 
 - 读取 `BaseWorldView`；
-- 可以通过 Runtime 发起声明过依赖的 subresolution；
+- 可以通过 host `ResolutionContext` 发起声明过依赖的 subresolution；
 - 可以请求 Runtime-controlled Entropy/Cognition boundary；
-- 返回 `ResolveOutcome`；
+- 返回 `loom-protocol` 的 `ResolveOutcome`；
 - 不能写 Storage、Commit、直接修改 Event Ledger。
 
 ### 5.5 Invariant
@@ -417,19 +473,22 @@ Agent/LLM 永远不能直接收到 authoritative BaseWorldView。
 
 ### 6.4 ResolutionContext
 
-ResolutionContext 是 Runtime 给 Resolver 的受控执行上下文，至少持有：
+`ResolutionContext` 是 Capability Extension API 定义的 host-facing port：Resolver 表达“Host 必须提供哪些受控能力”，Runtime 提供具体实现。
+
+它至少允许 Resolver 使用：
 
 ```text
 Timeline identity
 pinned base version
 BaseWorldView query boundary
 Resolution budget
-ReadSet recorder
 Runtime-mediated subresolution gateway
 explicit Entropy/Cognition access where policy allows
 ```
 
-它不是数据库 context，也不是 transaction。
+ReadSet recorder 可以由 Runtime implementation 在背后自动记录，不要求 Capability 直接管理 recorder。
+
+`ResolutionContext` 不是数据库 context，也不是 transaction；它属于 `loom-capability` contract，而不是为了方便让 Capability import `loom-runtime`。
 
 ---
 
@@ -512,7 +571,7 @@ pub enum Decision {
 }
 ```
 
-Decision 属于 Agency，不是 World Truth。
+Decision 属于 `loom-agency`，不是 World Truth。
 
 Cognitive Executor 不能返回 Event、Effect 或 Resolution。
 
@@ -528,7 +587,7 @@ Agent 不提交一个事务数组来决定“这五个 Action 必须原子”。
 
 ### 8.4 ActionInvocation
 
-Runtime 的统一行为协议：
+`ActionInvocation` 属于 `loom-protocol`，是 Runtime/Agency/Capability 之间共享的统一行为执行协议：
 
 ```rust
 pub struct ActionInvocation {
@@ -537,7 +596,7 @@ pub struct ActionInvocation {
 }
 ```
 
-不要再套 `ActionRequest` / `ActionCommand`。
+不要在内部执行链再套 `IntentRequest` / `ActionRequest` / `ActionCommand`。
 
 “谁发起调用”属于 ExecutionOrigin/provenance，而不是所有 Action 都强制拥有 `actor: EntityId`。有些行为可能没有人格化 Actor。
 
@@ -559,7 +618,23 @@ Runtime
 
 ## 9. ResolveOutcome, Resolution and Rejection
 
-### 9.1 ResolveOutcome
+### 9.1 Protocol ownership
+
+以下未受信任执行值属于 `loom-protocol`：
+
+```text
+ActionInvocation
+ResolveOutcome
+Rejection
+Resolution
+ProposedEvent
+NewWork
+WorkMutation
+```
+
+它们必须能被 Capability/Agency/Runtime 共享，但不能因此被放进 Core，也不能反向要求 Capability 依赖 Runtime。
+
+### 9.2 ResolveOutcome
 
 Resolver/WorkHandler 的领域结果分两类：
 
@@ -580,7 +655,7 @@ Err(...)
 = implementation/runtime/storage/provider 等执行故障
 ```
 
-### 9.2 Rejection Is Not Automatically an Event
+### 9.3 Rejection Is Not Automatically an Event
 
 余额不足、目标不可达、合同状态不允许等可以是 Resolver rejection。
 
@@ -588,7 +663,7 @@ Runtime 不自动创建 `ACTION_REJECTED` Event。
 
 如果某领域认为“拒绝本身成为了世界事实”（例如银行正式拒绝一笔交易），owning Capability 应显式返回包含对应 Event 的 Resolution。
 
-### 9.3 Resolution
+### 9.4 Resolution
 
 ```rust
 pub struct Resolution {
@@ -602,17 +677,20 @@ Resolution 是 **untrusted semantic output**：
 - 可以有 `0..N Events`；
 - 可以创建/取消未来 Work；
 - 不能直接 Commit；
-- 不能被 Storage 接口接受为持久化输入。
+- 不能被 Storage 作为裸 persistence commit input；
+- 不属于 public Loom API authority contract。
 
 成功 Resolution 可以是空变化。比如 Work 执行后发现无需改变世界，但当前 Work 仍需要被 Runtime 原子标记 Completed。
 
-### 9.4 ValidatedResolution
+### 9.5 ValidatedResolution
 
-`ValidatedResolution` 是 Runtime authority gate 的结果。
+`ValidatedResolution` 属于 `loom-runtime`，是 Runtime authority gate 的结果。
 
-只有 Runtime Effect Engine / validation pipeline 能创建它；Capability API 不提供 constructor。
+只有 Runtime Effect Engine / validation pipeline 能创建它；Capability/Protocol/API 不提供 constructor。
 
-Storage commit contract 接受 `ValidatedResolution`，不接受裸 `Resolution`。
+Runtime-owned persistence port 可以接受 `ValidatedResolution`；`loom-storage` 通过实现该 port 消费它，但不能构造它。
+
+不得为了“Storage 也要看到这个类型”把它移动进 `loom-protocol`/`loom-api`。
 
 Validation 至少包括：
 
@@ -630,15 +708,17 @@ Work mutation validation
 
 它表示“有资格尝试 Commit”，不表示 Commit 一定成功；Timeline CAS 仍可能冲突。
 
-### 9.5 ExecutionResult
+### 9.6 ExecutionResult and public mapping
 
-调用方最终看到的是收敛后的执行结果，例如：
+Runtime 内部执行最终会形成收敛后的结果，例如：
 
 ```text
 Committed(event ids, new timeline version)
 NoChange
 Rejected(code/details)
 ```
+
+`loom-api` 可以定义稳定的 public response contract，并由 Runtime 将内部结果映射过去。API 不需要暴露 CAS retry、Mutation Overlay、ValidatedResolution 等内部细节。
 
 CAS conflict 通常属于 Runtime retry/re-resolution 流程，不应冒充领域 Rejection。
 
@@ -648,7 +728,7 @@ CAS conflict 通常属于 Runtime retry/re-resolution 流程，不应冒充领�
 
 ### 10.1 ProposedEvent
 
-ProposedEvent 是 Resolution 中尚未成为 World Truth 的 Event candidate。它可以包含：
+`ProposedEvent` 属于 `loom-protocol`，是 Resolution 中尚未成为 World Truth 的 Event candidate。它可以包含：
 
 ```text
 EventId
@@ -662,9 +742,9 @@ payload
 resolved World Effects
 ```
 
-### 10.2 CommittedEvent
+### 10.2 Committed Event
 
-只有 Timeline transaction 成功以后 Event 才是 CommittedEvent，并获得 authoritative：
+只有 Timeline transaction 成功以后 Event 才成为 World Truth，并获得 authoritative：
 
 ```text
 TimelineId
@@ -672,6 +752,8 @@ EventSeq
 commit provenance
 platform committed_at
 ```
+
+具体 persisted record/Rust read model 不要求和 ProposedEvent 一一同型。
 
 ### 10.3 Event Can Have Zero Effects
 
@@ -730,7 +812,7 @@ World Event Graph 只描述世界事实因果；Resolution call graph / Work / S
 
 ### 12.1 Minimal WorldEffect
 
-v0 WorldEffect 保持少而机械：
+v0 WorldEffect 属于 `loom-core`，保持少而机械：
 
 ```rust
 pub enum WorldEffect {
@@ -796,7 +878,7 @@ Capability A Resolver
         │
         └─ request Action B through ResolutionContext
                     │
-                 Runtime
+                 Runtime host
                     │
             Capability B Resolver
                     │
@@ -888,7 +970,7 @@ Pending
 
 ### 14.4 WorkMutation
 
-v0 只需要：
+`WorkMutation` 属于 `loom-protocol`。v0 只需要：
 
 ```rust
 pub enum WorkMutation {
@@ -1048,7 +1130,27 @@ COMMIT
 
 任一失败全部 rollback。
 
-### 16.3 CAS Conflict
+### 16.3 Persistence Port Ownership
+
+Runtime 定义完成上述闭环所需的 persistence ports；`loom-storage` 实现这些 ports。
+
+因此运行时虽然是：
+
+```text
+Runtime calls Storage
+```
+
+Cargo 必须是：
+
+```text
+loom-storage -> loom-runtime
+```
+
+而不是 `loom-runtime -> loom-storage`。
+
+Application composition root 负责实例化 concrete Storage 并注入 Runtime。
+
+### 16.4 CAS Conflict
 
 CAS conflict 不是 Capability Rejection。
 
@@ -1056,11 +1158,92 @@ CAS conflict 不是 Capability Rejection。
 
 ---
 
-## 17. Provenance Domains
+## 17. Unified Loom API Exposure
+
+> **One engine, one public contract, many semantic extensions.**
+
+`loom-api` 是 Loom 对 Application/transport 的唯一 public consumption contract。
+
+### 17.1 Public path
+
+```text
+HTTP / GPUI / CLI / SDK
+          ↓
+        loom-api
+          ↓
+   Runtime implementation
+          ↓
+ Capability Registry
+```
+
+Boundary 将 HTTP/SSE/WebSocket 映射到 API；Studio/CLI 消费 API；Capability 只向 Runtime Registry 注册语义。
+
+### 17.2 Public capability domains
+
+API 可以按 Loom engine responsibility 拆分：
+
+```text
+World
+Timeline
+Action
+Query
+History
+Subscription
+Catalog / Discovery
+Admin
+```
+
+统一 API 不等于一个 God Trait。应按职责拆小 contract。
+
+### 17.3 World API vs Admin API
+
+World API 和 Runtime Admin API 都属于 Loom public contract，但必须分开 namespace/authorization boundary。
+
+```text
+World API
+= interact with / observe World and Timeline
+
+Admin API
+= operate Runtime/platform lifecycle
+```
+
+### 17.4 No capability-specific bypass
+
+禁止：
+
+```text
+HTTP -> finance resolver
+GPUI -> employment crate
+CLI -> storage repository
+SDK -> ValidatedResolution/CommitStore
+```
+
+即使某个 Capability 很常用，也不能因此获得第二套 public surface。
+
+### 17.5 Catalog and discovery
+
+Loom API 统一暴露 Capability/semantic catalog，使消费者可以发现：
+
+```text
+semantic id
+owner capability
+schema / schema revision
+actions
+facets
+relationships
+events
+dependencies
+```
+
+Schema-driven generic UI/CLI 可以建立在 Catalog 上；定制 UI 仍然通过相同 API 调用。
+
+---
+
+## 18. Provenance Domains
 
 Loom 至少区分三类“为什么”：
 
-### 17.1 World Causality
+### 18.1 World Causality
 
 ```text
 Event E100 -> Event E200
@@ -1068,7 +1251,7 @@ Event E100 -> Event E200
 
 回答“世界里的什么事实导致了后续事实”。属于 World Truth graph。
 
-### 17.2 Execution Provenance
+### 18.2 Execution Provenance
 
 ```text
 Execution Session
@@ -1082,7 +1265,7 @@ Execution Session
 
 回答“软件当时如何计算并提交了这些事实”。不属于 World Truth。
 
-### 17.3 Agent Knowledge / Memory Provenance
+### 18.3 Agent Knowledge / Memory Provenance
 
 回答“某 Agent 为什么知道/相信/记住某件事”。属于 Information/Memory Capability domain。
 
@@ -1090,7 +1273,7 @@ Execution Session
 
 ---
 
-## 18. Persistence Mapping Guidance
+## 19. Persistence Mapping Guidance
 
 本文定义语义，不把 Rust 类型机械映射成一表一类型。v0 数据库仍遵循：
 
@@ -1123,13 +1306,14 @@ runtime_revision
 - flexible Capability payload/state 使用 JSONB；
 - large immutable content 放 Object Storage；
 - embedding 是 pgvector retrieval projection，不是 Event Truth；
-- Storage schema 可以因性能调整，但不能改变 authority semantics。
+- Storage schema 可以因性能调整，但不能改变 authority semantics；
+- public API 不直接暴露数据库 schema/repository model。
 
 ---
 
-## 19. Rust API Shape Guidance
+## 20. Rust API and Crate Shape Guidance
 
-### 19.1 Avoid Giant Capability Trait
+### 20.1 Avoid Giant Capability Trait
 
 不要把所有能力塞进一个拥有二十个方法的 trait。
 
@@ -1156,19 +1340,70 @@ Reaction
 
 是否需要 dyn async dispatch、RPITIT 或其他 Rust 语法策略，在真正实现 object-safety 时决定；不要为了接口草图提前引入 `async-trait`。
 
-### 19.2 Type-System Authority Gate
+### 20.2 Crate placement
+
+强制归属：
+
+```text
+loom-core
+    stable World mechanism / WorldEffect / IDs / World Time
+
+loom-protocol
+    ActionInvocation / Resolution / ResolveOutcome / Rejection
+    ProposedEvent / NewWork / WorkMutation
+
+loom-api
+    stable public Loom consumption service contracts / public DTOs
+
+loom-capability
+    CapabilityManifest / definitions / Resolver / Invariant / WorkHandler
+    ResolutionContext host-facing port
+
+loom-agency
+    Decision / cognitive executor contracts / Agent context contracts
+
+loom-runtime
+    Runtime WorldView implementations / ReadSet / Overlay / EffectEngine
+    ValidatedResolution / commit orchestration / Runtime persistence ports
+
+loom-storage
+    SQLx/PostgreSQL/pgvector/object-store implementations of Runtime ports
+
+loom-boundary
+    HTTP/SSE/WebSocket mapping over loom-api
+```
+
+### 20.3 Type-System Authority Gate
 
 尽可能让 Rust 类型系统表达权限：
 
 ```text
 Capability can construct Resolution
 Capability cannot construct ValidatedResolution
-Storage commit accepts ValidatedResolution only
+Storage can consume ValidatedResolution through Runtime-owned port
+Storage cannot construct ValidatedResolution
+Public API cannot expose ValidatedResolution
 ```
 
 不要只靠注释约定“请不要直接 commit”。
 
-### 19.3 Public API Documentation
+### 20.4 Dependency inversion
+
+以下方向属于 contract：
+
+```text
+loom-protocol -> loom-core
+loom-api -> loom-core / loom-protocol
+loom-capability -> loom-core / loom-protocol
+loom-agency -> loom-core / loom-protocol
+loom-runtime -> loom-core / loom-protocol / loom-api / loom-capability / loom-agency
+loom-storage -> loom-core / loom-runtime
+loom-boundary -> loom-api
+```
+
+Runtime 在调用层可以使用 Storage/Capability/Agency，但物理依赖通过 ports/SPI 保持无环。
+
+### 20.5 Public API documentation
 
 实现以上类型时，`///` 必须包含语义而非翻译字段名。关键字段也应说明，例如：
 
@@ -1181,9 +1416,11 @@ Storage commit accepts ValidatedResolution only
 pub base_version: TimelineVersion,
 ```
 
+`loom-api` public type 还必须说明它是否稳定暴露给 transport/SDK，以及不得泄漏哪些 internal authority semantics。
+
 ---
 
-## 20. v0 Non-Goals
+## 21. v0 Non-Goals
 
 本契约明确不要求第一版实现：
 
@@ -1201,13 +1438,16 @@ vendor LLM SDK contract
 Agent omniscient WorldView
 multi-action Agent transaction API
 automatic rejected-action Event
+Capability-specific public transport API
+per-module controller/service exposure
+Runtime coupled to concrete Storage/HTTP/provider implementation
 ```
 
 这些只有在真实用例证明现有机制不足时再进入架构评审。
 
 ---
 
-## 21. Normative v0 Rules
+## 22. Normative v0 Rules
 
 以下规则视为本文的最小验收摘要：
 
@@ -1232,45 +1472,58 @@ automatic rejected-action Event
 19. **v0 WorkMutation only needs Schedule and Cancel.**
 20. **Fork clones pending future obligations into branch-local Work identities.**
 21. **Capability never receives raw Storage, Network, System Clock, Random or Commit handles.**
-22. **Every new public Core/Runtime abstraction must carry semantic Rust doc comments sufficient to recover its design intent without reading chat history.**
+22. **Every new public Core/Protocol/API/Runtime abstraction carries semantic Rust docs sufficient to recover design intent without chat history.**
+23. **Semantic ownership, runtime call flow and Cargo dependency direction are different graphs.**
+24. **Capability/Agency depend on Core/Protocol, never Runtime.**
+25. **Runtime never depends on concrete Storage/Boundary/Capability/provider implementations.**
+26. **Storage implements Runtime-owned persistence ports; Boundary adapts only `loom-api`.**
+27. **`loom-protocol` contains untrusted shared execution language, never Runtime authority.**
+28. **`loom-api` is the single public Loom consumption contract.**
+29. **Capability defines semantics and cannot define its own public HTTP/CLI/UI/SDK exposure.**
+30. **ValidatedResolution remains Runtime-owned even when another crate needs to consume it.**
+31. **Architecture changes update governance/contracts before violating implementation is written.**
+32. **Architecture CI violations are build failures.**
 
 ---
 
-## 22. First Implementation Order
+## 23. First Implementation Order
 
 实现不再继续扩充抽象，按最短闭环推进：
 
 ```text
-1. Core value types
-   IDs / WorldInstant / EventSeq / TimelineVersion / semantic IDs
-
-2. Core structural types
+1. loom-core value/structural types
+   IDs / WorldInstant / EventSeq / TimelineVersion
    FacetOwner / RelationshipParticipant / Event associations / WorldEffect
 
-3. Runtime semantic output
+2. loom-protocol
    ActionInvocation / ResolveOutcome / Resolution / Rejection
+   ProposedEvent / NewWork / WorkMutation
 
-4. Runtime authority gate
-   BaseWorldView / CandidateWorldView / ResolutionContext / ReadSet / budget
+3. contract crates
+   loom-capability: Manifest / definitions / Resolver / Invariant / Handler / Reaction / ResolutionContext
+   loom-agency: Decision / CognitiveExecutor contracts
+   loom-api: minimal World / Action / Query / History / Catalog service boundaries
+
+4. loom-runtime authority
+   Base/Candidate view implementations / ReadSet / budget / Effect Engine
    ValidatedResolution constructor kept Runtime-private
+   persistence ports + Timeline commit orchestration
 
-5. Durable Work
-   WorkStatus / NewWork / WorkMutation / lease/runtime metadata contracts
+5. in-memory validation tests
+   ownership / causal DAG / candidate overlay / rejection semantics
+   architecture dependency tests/checker
 
-6. Capability registration
-   Manifest / definitions / resolver / invariant / handler / reaction
+6. loom-storage
+   PostgreSQL Timeline CAS + Event/State/Work atomic commit
+   PostgreSQL 18 + pgvector integration tests
 
-7. In-memory validation tests
-   ownership, causal DAG, candidate overlay, rejection semantics
+7. loom-boundary
+   minimal HTTP/JSON + SSE adapter over loom-api
 
-8. PostgreSQL persistence
-   Timeline CAS + Event/State/Work atomic commit
-
-9. PostgreSQL 18 + pgvector integration tests
-
-10. First minimal Capability vertical slice
+8. first minimal Capability vertical slice
+   registered through Capability SPI, externally invoked only through Loom API
 ```
 
 第一批实现的目标不是覆盖社会世界，而是证明：
 
-> **一个没有领域硬编码的 Runtime，能够让 Capability 在受控读取、受控解算、受控验证和唯一 Commit Authority 下安全改变一个持久 World。**
+> **一个没有领域硬编码、没有 crate cycle、没有模块私有公开接口的 Runtime，能够让 Capability 在受控读取、受控解算、受控验证、统一 API 和唯一 Commit Authority 下安全改变一个持久 World。**
