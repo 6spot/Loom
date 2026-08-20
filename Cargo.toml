@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/loom-core",
+    "crates/loom-runtime",
+    "crates/loom-capability",
+    "crates/loom-agency",
+    "crates/loom-boundary",
+    "crates/loom-storage",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
