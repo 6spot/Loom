@@ -19,17 +19,18 @@ pub struct Entity {
     pub world_id: WorldId,
 }
 
-/// Stable semantic role assigned to one participant in a Relationship.
+/// Stable semantic role assigned to a Core association.
 ///
-/// A role is a structural label carried by Core; its domain interpretation is
-/// owned by the Capability that owns the Relationship type. It is not a
-/// Capability type ID, Entity name or authorization grant.
+/// `AssociationRole` is the neutral role value shared by Relationship
+/// participants and Protocol Event associations. Core carries the structural
+/// label; the Capability that owns the surrounding semantic type interprets
+/// it. It is not a Capability type ID, Entity name or authorization grant.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct RelationshipRole(String);
+pub struct AssociationRole(String);
 
-impl RelationshipRole {
-    /// Creates a relationship role from its semantic key.
+impl AssociationRole {
+    /// Creates an association role from its semantic key.
     #[must_use]
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
@@ -42,19 +43,19 @@ impl RelationshipRole {
     }
 }
 
-impl From<String> for RelationshipRole {
+impl From<String> for AssociationRole {
     fn from(value: String) -> Self {
         Self::new(value)
     }
 }
 
-impl From<&str> for RelationshipRole {
+impl From<&str> for AssociationRole {
     fn from(value: &str) -> Self {
         Self::new(value)
     }
 }
 
-impl std::fmt::Display for RelationshipRole {
+impl std::fmt::Display for AssociationRole {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.0)
     }
@@ -65,20 +66,20 @@ impl std::fmt::Display for RelationshipRole {
 /// Core supports N-ary relationships by carrying a list of these values. The
 /// participant set is fixed when a Relationship is created; changing the
 /// participating identities requires ending the old Relationship and creating
-/// another one. The role itself remains semantic metadata interpreted by the
-/// owning Capability.
+/// another one. The association role remains semantic metadata interpreted by
+/// the owning Capability.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct RelationshipParticipant {
     /// Entity identity occupying the role.
     pub entity_id: EntityId,
-    /// Semantic role occupied by that Entity.
-    pub role: RelationshipRole,
+    /// Neutral association role occupied by that Entity.
+    pub role: AssociationRole,
 }
 
 impl RelationshipParticipant {
     /// Creates one role-bearing Relationship participant.
     #[must_use]
-    pub fn new(entity_id: EntityId, role: impl Into<RelationshipRole>) -> Self {
+    pub fn new(entity_id: EntityId, role: impl Into<AssociationRole>) -> Self {
         Self {
             entity_id,
             role: role.into(),
@@ -216,7 +217,7 @@ mod tests {
     use serde_json::json;
     use uuid::Uuid;
 
-    use super::{FacetOwner, RelationshipParticipant, RelationshipRole, WorldEffect};
+    use super::{AssociationRole, FacetOwner, RelationshipParticipant, WorldEffect};
     use crate::{EntityId, FacetTypeId, RelationshipId, RelationshipTypeId, SchemaRevision};
 
     #[test]
@@ -239,7 +240,7 @@ mod tests {
     fn relationship_participants_keep_typed_role_and_identity() {
         let participant = RelationshipParticipant::new(
             EntityId::new(Uuid::from_u128(2)),
-            RelationshipRole::new("member"),
+            AssociationRole::new("member"),
         );
         let effect = WorldEffect::CreateRelationship {
             relationship_id: RelationshipId::new(Uuid::from_u128(3)),

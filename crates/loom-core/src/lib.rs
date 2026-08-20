@@ -52,6 +52,6 @@ pub use ids::{
     RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId,
 };
 pub use structure::{
-    Entity, FacetOwner, Relationship, RelationshipParticipant, RelationshipRole, WorldEffect,
+    AssociationRole, Entity, FacetOwner, Relationship, RelationshipParticipant, WorldEffect,
 };
 pub use values::{EventSeq, StateRevision, TimelineVersion, WorldDuration, WorldInstant};

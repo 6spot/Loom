@@ -48,7 +48,7 @@
 #![forbid(unsafe_code)]
 
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventTypeId, RelationshipId, RelationshipRole, SchemaRevision,
+    ActionTypeId, AssociationRole, EntityId, EventId, EventTypeId, RelationshipId, SchemaRevision,
     TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldInstant,
 };
 use serde::{Deserialize, Serialize};
@@ -81,23 +81,23 @@ impl ActionInvocation {
 
 /// A role-bearing direct Entity association attached to a proposed Event.
 ///
-/// This value records a structural Event fact before commit. The role is a
-/// semantic label interpreted by the Event-owning Capability; it does not
-/// expand a population or grant access to the Entity. Runtime validates Entity
-/// references and Event schema/ownership before assigning authoritative
+/// This value records a structural Event fact before commit. The association
+/// role is a neutral Core label interpreted by the Event-owning Capability; it
+/// does not expand a population or grant access to the Entity. Runtime validates
+/// Entity references and Event schema/ownership before assigning authoritative
 /// Timeline ordering.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct EventParticipant {
     /// Entity directly participating in the proposed Event.
     pub entity_id: EntityId,
-    /// Event-local semantic role of that Entity.
-    pub role: RelationshipRole,
+    /// Neutral association role of that Entity in this Event.
+    pub role: AssociationRole,
 }
 
 impl EventParticipant {
     /// Creates one direct role-bearing Event association.
     #[must_use]
-    pub fn new(entity_id: EntityId, role: impl Into<RelationshipRole>) -> Self {
+    pub fn new(entity_id: EntityId, role: impl Into<AssociationRole>) -> Self {
         Self {
             entity_id,
             role: role.into(),
@@ -115,14 +115,14 @@ impl EventParticipant {
 pub struct EventRelationshipRef {
     /// Relationship identity referenced by the proposed Event.
     pub relationship_id: RelationshipId,
-    /// Event-local semantic role of the Relationship reference.
-    pub role: RelationshipRole,
+    /// Neutral association role of the Relationship reference in this Event.
+    pub role: AssociationRole,
 }
 
 impl EventRelationshipRef {
     /// Creates a Relationship association for a proposed Event.
     #[must_use]
-    pub fn new(relationship_id: RelationshipId, role: impl Into<RelationshipRole>) -> Self {
+    pub fn new(relationship_id: RelationshipId, role: impl Into<AssociationRole>) -> Self {
         Self {
             relationship_id,
             role: role.into(),
@@ -357,13 +357,15 @@ impl Resolution {
 /// The v0 schedule for a newly proposed Durable Work item.
 ///
 /// `WorkSchedule` uses World semantic time and intentionally supports only an
-/// immediate retry/continuation or one absolute `WorldInstant`. Cron,
+/// immediate continuation or one absolute `WorldInstant`. It does not encode
+/// technical retry: a technical retry reuses the same Work, while a
+/// world-driven reschedule creates a new Work. Cron,
 /// calendars and recurring DSLs belong to Capability composition over chained
 /// Work, not this Core/Protocol primitive. This schedule is a future execution
 /// request, never a future World fact.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum WorkSchedule {
-    /// Make the Work eligible for immediate Runtime scheduling.
+    /// Make the new Work eligible for immediate Runtime scheduling.
     Immediate,
     /// Make the Work eligible when the World reaches this semantic instant.
     At(WorldInstant),
@@ -440,32 +442,43 @@ mod tests {
     use std::str::FromStr;
 
     use loom_core::{
-        ActionTypeId, EventId, EventTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
-        WorldEffect, WorldInstant,
+        ActionTypeId, AssociationRole, EntityId, EventId, EventTypeId, RelationshipId,
+        SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldInstant,
     };
     use serde_json::json;
 
     use super::{
-        ActionInvocation, CausalLink, NewWork, ProposedEvent, Rejection, RejectionCode, Resolution,
-        ResolveOutcome, WorkMutation, WorkSchedule,
+        ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, NewWork,
+        ProposedEvent, Rejection, RejectionCode, Resolution, ResolveOutcome, WorkMutation,
+        WorkSchedule,
     };
 
     #[test]
     fn protocol_values_round_trip_through_json() {
         let event_id = EventId::from_str("00000000-0000-0000-0000-000000000003")
             .expect("test EventId should parse");
-        let event = ProposedEvent::new(
+        let mut event = ProposedEvent::new(
             event_id,
             EventTypeId::from("counter.incremented"),
             SchemaRevision::new(1),
             WorldInstant::new(4),
             json!({"amount": 1}),
-        )
-        .with_causal_link(CausalLink::new(
+        );
+        event.participants.push(EventParticipant::new(
+            EntityId::from_str("00000000-0000-0000-0000-000000000010")
+                .expect("test participant EntityId should parse"),
+            AssociationRole::new("actor"),
+        ));
+        event.relationship_refs.push(EventRelationshipRef::new(
+            RelationshipId::from_str("00000000-0000-0000-0000-000000000011")
+                .expect("test relationship ref should parse"),
+            AssociationRole::new("subject"),
+        ));
+        event.causal_links.push(CausalLink::new(
             EventId::from_str("00000000-0000-0000-0000-000000000002")
                 .expect("test causal EventId should parse"),
-        ))
-        .with_effect(WorldEffect::CreateEntity {
+        ));
+        event.effects.push(WorldEffect::CreateEntity {
             entity_id: loom_core::EntityId::from_uuid(
                 "00000000-0000-0000-0000-000000000005"
                     .parse()
@@ -483,11 +496,33 @@ mod tests {
             WorkSchedule::At(WorldInstant::new(8)),
         );
         let resolution = Resolution::new(vec![event], vec![WorkMutation::Schedule(work)]);
+        let resolved = ResolveOutcome::Resolved(resolution);
 
-        let encoded = serde_json::to_string(&resolution).expect("resolution should serialize");
-        let decoded: Resolution =
-            serde_json::from_str(&encoded).expect("resolution should deserialize");
-        assert_eq!(decoded, resolution);
+        let action = ActionInvocation::new(
+            ActionTypeId::from("counter.increment"),
+            json!({"amount": 1}),
+        );
+        let action_encoded = serde_json::to_string(&action).expect("action should serialize");
+        let action_decoded: ActionInvocation =
+            serde_json::from_str(&action_encoded).expect("action should deserialize");
+        assert_eq!(action_decoded, action);
+
+        let resolved_encoded =
+            serde_json::to_string(&resolved).expect("resolved outcome should serialize");
+        let resolved_decoded: ResolveOutcome =
+            serde_json::from_str(&resolved_encoded).expect("resolved outcome should deserialize");
+        assert_eq!(resolved_decoded, resolved);
+
+        for schedule in [
+            WorkSchedule::Immediate,
+            WorkSchedule::At(WorldInstant::new(8)),
+        ] {
+            let schedule_encoded =
+                serde_json::to_string(&schedule).expect("schedule should serialize");
+            let schedule_decoded: WorkSchedule =
+                serde_json::from_str(&schedule_encoded).expect("schedule should deserialize");
+            assert_eq!(schedule_decoded, schedule);
+        }
     }
 
     #[test]
@@ -498,14 +533,14 @@ mod tests {
         );
         assert_eq!(invocation.action.as_str(), "counter.increment");
 
-        let rejection = Rejection::new(
+        let rejected = ResolveOutcome::Rejected(Rejection::new(
             RejectionCode::new("counter.invalid_amount"),
             "amount must be positive",
-        );
-        assert!(matches!(
-            ResolveOutcome::Rejected(rejection),
-            ResolveOutcome::Rejected(_)
         ));
+        let encoded = serde_json::to_string(&rejected).expect("rejected should serialize");
+        let decoded: ResolveOutcome =
+            serde_json::from_str(&encoded).expect("rejected should deserialize");
+        assert_eq!(decoded, rejected);
     }
 
     #[test]

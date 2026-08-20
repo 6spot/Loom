@@ -36,7 +36,7 @@
 //! # Forbidden leakage
 //!
 //! Public API contracts must not expose internal authority or implementation
-//! details such as `ValidatedResolution`, mutation overlays, ReadSet recorders,
+//! details such as `ValidatedResolution`, mutation overlays, `ReadSet` recorders,
 //! database transactions, Work claim leases, Capability Resolver objects or
 //! provider clients.
 //!

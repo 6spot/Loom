@@ -7,7 +7,7 @@
 //! Entity/Relationship structure, Durable Work, execution/runtime metadata,
 //! pgvector-backed semantic retrieval and object-store references.
 //!
-//! PostgreSQL is the authoritative database for v0 structured World/Runtime
+//! `PostgreSQL` is the authoritative database for v0 structured World/Runtime
 //! state; object storage holds large immutable/content-addressable blobs. Search,
 //! graph, analytics or specialized vector systems may be added later only as
 //! rebuildable projections unless the authority architecture is explicitly
@@ -46,7 +46,7 @@
 //! that value through the trait contract but cannot construct it or downgrade
 //! the authority check to accepting raw `Resolution`.
 //!
-//! The concrete PostgreSQL transaction must preserve Timeline CAS, Event append,
+//! The concrete `PostgreSQL` transaction must preserve Timeline CAS, Event append,
 //! frozen State Effects, Work mutations and current-Work completion atomically.
 //!
 //! # Query model
