@@ -74,6 +74,30 @@ impl TimelineTarget {
     }
 }
 
+/// Public request to create one empty Loom World and its initial Timeline.
+///
+/// World creation is structural bootstrap, not a domain Event and not a direct
+/// State mutation escape hatch. Runtime allocates the technical World/Timeline
+/// identities and asks its lifecycle persistence port to create them atomically.
+/// The only caller-controlled temporal value is `initial_world_time`, which is
+/// semantic World Time and is never inferred from platform/database time.
+///
+/// After creation, all semantic World mutations still flow through Actions or
+/// Durable Work into Runtime validation and the normal commit authority path.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CreateWorldRequest {
+    /// Semantic time of the new Timeline before any committed Event exists.
+    pub initial_world_time: WorldInstant,
+}
+
+impl CreateWorldRequest {
+    /// Creates a World bootstrap request at an explicit semantic World time.
+    #[must_use]
+    pub const fn new(initial_world_time: WorldInstant) -> Self {
+        Self { initial_world_time }
+    }
+}
+
 /// A public request to resolve one semantic Action on a World Timeline.
 ///
 /// The `ActionInvocation` remains an untrusted Protocol value: it names a
@@ -580,6 +604,26 @@ impl CatalogSnapshot {
     }
 }
 
+/// Creates long-lived World identity through the unified Loom API.
+///
+/// This service exposes only the semantic lifecycle boundary. Callers do not
+/// choose UUID algorithms, access storage transactions or obtain Runtime
+/// authority tokens. A successful creation returns the initial public Timeline
+/// snapshot with an empty version and the requested World semantic time.
+///
+/// World bootstrap itself is not a committed domain Event. Once the World
+/// exists, changing its truth requires the same semantic Action / Durable Work
+/// and Runtime commit path used by every other Timeline.
+pub trait WorldService {
+    /// Creates one World and its initial Timeline atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns a conflict if Runtime-allocated identities already exist, or an
+    /// availability/internal error when lifecycle persistence cannot complete.
+    fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, TimelineSnapshot>;
+}
+
 /// Executes semantic Actions against a World Timeline.
 ///
 /// This is the public Action boundary implemented by Runtime. It accepts one
@@ -621,9 +665,9 @@ pub trait ActionService {
 
 /// Inspects the current version and World time of a Timeline.
 ///
-/// This World-facing service is intentionally limited to observation. It does
-/// not create/fork Timelines or expose Runtime administration; those concerns
-/// belong to separate future contracts.
+/// This service is intentionally limited to observation. Initial World/Timeline
+/// creation belongs to [`WorldService`]; Timeline fork/ancestry remains a separate
+/// future contract rather than an inspection side effect.
 pub trait TimelineService {
     /// Returns one consistent public Timeline snapshot.
     ///
@@ -682,12 +726,17 @@ pub trait CatalogService {
 /// and Catalog contracts. It offers consumers one unified bound without
 /// creating a giant service trait or adding a Runtime implementation type.
 pub trait LoomApi:
-    ActionService + CatalogService + HistoryService + QueryService + TimelineService
+    ActionService + CatalogService + HistoryService + QueryService + TimelineService + WorldService
 {
 }
 
 impl<T> LoomApi for T where
-    T: ActionService + CatalogService + HistoryService + QueryService + TimelineService
+    T: ActionService
+        + CatalogService
+        + HistoryService
+        + QueryService
+        + TimelineService
+        + WorldService
 {
 }
 
@@ -700,8 +749,9 @@ mod tests {
     use super::{
         ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture,
         ApiResult, CapabilityDescriptor, CapabilityId, CatalogService, CatalogSnapshot,
-        CommittedEvent, EventQuery, ExecutionResult, FacetQuery, FacetSnapshot, HistoryService,
-        LoomApi, QueryService, TimelineService, TimelineSnapshot, TimelineTarget,
+        CommittedEvent, CreateWorldRequest, EventQuery, ExecutionResult, FacetQuery, FacetSnapshot,
+        HistoryService, LoomApi, QueryService, TimelineService, TimelineSnapshot, TimelineTarget,
+        WorldService,
     };
     use crate::{
         ActionInvocation, ActionTypeId, FacetOwner, FacetTypeId, Rejection, SchemaRevision,
@@ -719,6 +769,18 @@ mod tests {
 
     #[derive(Default)]
     struct StubApi;
+
+    impl WorldService for StubApi {
+        fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, TimelineSnapshot> {
+            Box::pin(async move {
+                Ok(TimelineSnapshot::new(
+                    target(),
+                    TimelineVersion::default(),
+                    request.initial_world_time,
+                ))
+            })
+        }
+    }
 
     impl ActionService for StubApi {
         fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
@@ -820,6 +882,14 @@ mod tests {
     async fn focused_services_form_one_public_world_api() {
         let api = StubApi;
         assert_complete_api(&api);
+
+        let created = api
+            .create_world(CreateWorldRequest::new(WorldInstant::new(11)))
+            .await
+            .expect("World should be creatable");
+        assert_eq!(created.target, target());
+        assert_eq!(created.version, TimelineVersion::default());
+        assert_eq!(created.world_time.value(), 11);
 
         let result = api
             .invoke_on(

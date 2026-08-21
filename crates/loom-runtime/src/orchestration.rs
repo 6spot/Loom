@@ -8,9 +8,9 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, EventQuery, ExecutionResult, FacetQuery,
-    FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService, TimelineService,
-    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget,
+    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldRequest, EventQuery,
+    ExecutionResult, FacetQuery, FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService,
+    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, ResolutionContext, ResolutionContextError,
@@ -21,9 +21,10 @@ use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
 
 use crate::{
     BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent, EffectEngine,
-    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
-    ResolutionBudget, RuntimeError, TimelineSnapshot, ValidatedResolution, ValidationError,
-    WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
+    IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
+    PlatformTime, ReadError, ResolutionBudget, RuntimeError, TimelineSnapshot,
+    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
+    WorkRecord, WorkStore, WorldLifecycleStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -48,6 +49,7 @@ pub struct Runtime<S> {
     registry: CapabilityRegistry,
     store: S,
     platform_clock: Arc<dyn PlatformClock>,
+    identity_allocator: Arc<dyn IdentityAllocator>,
     resolution_budget: ResolutionBudget,
 }
 
@@ -75,6 +77,7 @@ where
             registry,
             store,
             platform_clock: Arc::new(ManualPlatformClock::default()),
+            identity_allocator: Arc::new(UuidV7IdentityAllocator),
             resolution_budget: ResolutionBudget::unlimited(),
         })
     }
@@ -93,6 +96,21 @@ where
         C: PlatformClock + 'static,
     {
         self.platform_clock = Arc::new(clock);
+        self
+    }
+
+    /// Injects the Runtime-owned technical identity allocator.
+    ///
+    /// Applications normally use the `UUIDv7` default. Tests and deterministic
+    /// composition roots can supply a controlled allocator without exposing it
+    /// through `loom-api` or Capability resolution. The allocator supplies
+    /// identity only; it does not supply World Time or commit authority.
+    #[must_use]
+    pub fn with_identity_allocator<A>(mut self, allocator: A) -> Self
+    where
+        A: IdentityAllocator + 'static,
+    {
+        self.identity_allocator = Arc::new(allocator);
         self
     }
 
@@ -269,6 +287,20 @@ where
     }
 }
 
+impl<T> WorldLifecycleStore for &T
+where
+    T: WorldLifecycleStore + ?Sized,
+{
+    fn create_world(
+        &self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: loom_core::WorldInstant,
+    ) -> PersistenceFuture<'_, Result<crate::WorldCreation, LifecycleError>> {
+        (**self).create_world(world_id, timeline_id, initial_world_time)
+    }
+}
+
 impl<T> WorldStore for &T
 where
     T: WorldStore + ?Sized,
@@ -325,6 +357,34 @@ where
         work_id: WorkId,
     ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
         (**self).work(timeline_id, work_id)
+    }
+}
+
+impl<S> WorldService for Runtime<S>
+where
+    S: WorldStore + CommitStore + WorkStore + WorldLifecycleStore,
+{
+    fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, ApiTimelineSnapshot> {
+        Box::pin(async move {
+            let world_id = self.identity_allocator.allocate_world_id();
+            let timeline_id = self.identity_allocator.allocate_timeline_id();
+            if world_id.is_nil() || timeline_id.is_nil() {
+                return Err(ApiError::internal(
+                    "Runtime identity allocator returned an invalid identity",
+                ));
+            }
+            let created = self
+                .store
+                .create_world(world_id, timeline_id, request.initial_world_time)
+                .await
+                .map_err(|error| map_lifecycle_error(&error))?;
+            let target = TimelineTarget::new(created.world_id(), created.timeline_id());
+            Ok(ApiTimelineSnapshot::new(
+                target,
+                created.version(),
+                created.world_time(),
+            ))
+        })
     }
 }
 
@@ -778,6 +838,20 @@ fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
         causal_links: event.causal_links.clone(),
         payload: event.payload.clone(),
         effects: event.effects.clone(),
+    }
+}
+
+fn map_lifecycle_error(error: &LifecycleError) -> ApiError {
+    match error {
+        LifecycleError::WorldAlreadyExists { world_id } => {
+            ApiError::conflict(format!("World {world_id} already exists"))
+        }
+        LifecycleError::TimelineAlreadyExists { timeline_id } => {
+            ApiError::conflict(format!("Timeline {timeline_id} already exists"))
+        }
+        LifecycleError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Persistence authority is temporarily unavailable")
+        }
     }
 }
 

@@ -425,6 +425,23 @@ impl CountingStore {
     }
 }
 
+impl loom_runtime::WorldLifecycleStore for CountingStore {
+    fn create_world(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: loom_core::WorldInstant,
+    ) -> PersistenceFuture<'_, Result<loom_runtime::WorldCreation, loom_runtime::LifecycleError>>
+    {
+        loom_runtime::WorldLifecycleStore::create_world(
+            &self.inner,
+            world_id,
+            timeline_id,
+            initial_world_time,
+        )
+    }
+}
+
 impl WorldStore for CountingStore {
     fn snapshot(
         &self,

@@ -21,5 +21,9 @@ path = "vertical_slice.rs"
 name = "subresolution"
 path = "subresolution.rs"
 
+[[test]]
+name = "world_creation"
+path = "world_creation.rs"
+
 [lints]
 workspace = true

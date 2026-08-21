@@ -20,8 +20,9 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommittedEvent, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
-    TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldStore,
+    BaseWorldSnapshot, CommittedEvent, LifecycleError, PersistenceFuture, PlatformTime,
+    ProposedEvent, ReadError, TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldCreation,
+    WorldLifecycleStore, WorldStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -371,6 +372,56 @@ impl PgStorage {
     }
 }
 
+impl WorldLifecycleStore for PgStorage {
+    fn create_world(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
+
+            if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+                .bind(world_id.to_string())
+                .execute(&mut *transaction)
+                .await
+            {
+                let _ = transaction.rollback().await;
+                if is_unique_violation(&error) {
+                    return Err(LifecycleError::WorldAlreadyExists { world_id });
+                }
+                return Err(sql_lifecycle_error(error));
+            }
+
+            if let Err(error) = sqlx::query(
+                "INSERT INTO loom_timeline \
+                 (timeline_id, world_id, head_event_seq, state_revision, world_time) \
+                 VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
+            )
+            .bind(timeline_id.to_string())
+            .bind(world_id.to_string())
+            .bind(initial_world_time.value())
+            .execute(&mut *transaction)
+            .await
+            {
+                let _ = transaction.rollback().await;
+                if is_unique_violation(&error) {
+                    return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+                }
+                return Err(sql_lifecycle_error(error));
+            }
+
+            transaction.commit().await.map_err(sql_lifecycle_error)?;
+            Ok(WorldCreation::new(
+                world_id,
+                timeline_id,
+                initial_world_time,
+            ))
+        })
+    }
+}
+
 impl WorldStore for PgStorage {
     fn snapshot(
         &self,
@@ -378,6 +429,19 @@ impl WorldStore for PgStorage {
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.read_snapshot(timeline_id).await })
     }
+}
+
+fn sql_lifecycle_error(error: sqlx::Error) -> LifecycleError {
+    LifecycleError::StorageUnavailable {
+        message: format!("PostgreSQL lifecycle persistence failed: {error}"),
+    }
+}
+
+fn is_unique_violation(error: &sqlx::Error) -> bool {
+    error
+        .as_database_error()
+        .and_then(sqlx::error::DatabaseError::code)
+        .is_some_and(|code| code == "23505")
 }
 
 fn corrupt(message: impl Into<String>) -> ReadError {
