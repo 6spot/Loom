@@ -1,10 +1,10 @@
 ---
 task: M2-T6
 issue: 31
-status: planned
+status: in_progress
 depends_on: [27, 28, 29, 30]
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -58,3 +58,4 @@ Prove on one final `main` baseline that PostgreSQL can replace the in-memory per
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #31; status `planned`.
+- 2026-08-21 — Final serial gate started from `main` baseline `fc7dec3cf4b3305590249e79c8cef0e849bd00ac`, after T2/T3/T4/T5 were merged, audited, and their issues closed completed.
