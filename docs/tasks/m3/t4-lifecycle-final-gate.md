@@ -47,11 +47,12 @@ Revalidate one final M3 candidate proving World creation and Runtime resumabilit
 
 ## Completion evidence
 
-- final candidate SHA: `9f7937ac980cbc000e11af2dd19b182b45fd9bc1`
+- final candidate SHA: `68bf856c7429d63fe2aa621e826c5cea61ebd00b` (PR #57 head)
 - PR: #57
 - merge SHA: `060993b4935dcf92e99226cb50ee22303fda7ecb`
 - CI runs: `32497391524` green for Rust Ubuntu, Rust macOS, and PostgreSQL 18 persistence contract, including the `PostgreSQL Runtime restart/resume vertical slice` step; merged baseline evidence remains `32495546544` / `32495589422`.
-- notes: Final candidate `9f7937ac980cbc000e11af2dd19b182b45fd9bc1` retains the previously accepted Runtime/Storage authority and R-* evidence. This archive commit changes only task-record completion metadata and evidence.
+- archive: PR #58 merged as `eb833caeda4fff2fcd1b76e9030fbf5c56469b12`; required CI run `32498967338` is green for the docs-only archive candidate.
+- notes: Final candidate `68bf856c7429d63fe2aa621e826c5cea61ebd00b` retains the previously accepted Runtime/Storage authority and R-* evidence. The archive candidate is PR #58 merge `eb833caeda4fff2fcd1b76e9030fbf5c56469b12` and changes only task-record completion metadata and evidence.
 
 ## Progress log
 
@@ -59,3 +60,4 @@ Revalidate one final M3 candidate proving World creation and Runtime resumabilit
 - 2026-08-21 — Audited merged M3-T1/T2/T3 baseline `abbd8faa26f671f58bc69dff832469e92ebc3dbf`; architecture, format, workspace check, clippy, workspace tests and rustdoc all pass locally. M3-T1/T2/T3 PostgreSQL 18 evidence is carried by the merged CI history; the restart/resume test passed against the available local PostgreSQL 17 instance.
 - 2026-08-21 — Added the required long-lived CI step `PostgreSQL Runtime restart/resume vertical slice`; final-candidate GitHub Actions and merge evidence remain pending because this Executor run cannot publish a PR.
 - 2026-08-21 — PR #57 merged as `060993b4935dcf92e99226cb50ee22303fda7ecb`; required Actions run `32497391524` passed all jobs, including the PostgreSQL 18 restart/resume step. T4 archive evidence is complete.
+- 2026-08-22 — PR #58 archive merged as `eb833caeda4fff2fcd1b76e9030fbf5c56469b12`; required CI run `32498967338` revalidated the archived task-record provenance.
