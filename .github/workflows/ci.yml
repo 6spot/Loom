@@ -113,6 +113,7 @@ jobs:
             exit 0
           fi
           python3 tools/m2_t3_apply.py
+          python3 tools/m2_t3_fix1.py
           cargo fmt --all
           cargo check --workspace --all-targets --all-features
           cargo clippy --workspace --all-targets --all-features -- -D warnings
