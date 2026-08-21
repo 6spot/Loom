@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
 use loom_api::{
     ActionRequest, ApiErrorCode, EventQuery, ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
 };
@@ -11,7 +16,10 @@ use loom_core::{
     TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId,
 };
 use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
-use loom_runtime::{PlatformTime, ProposedEvent, Resolution, Runtime, WorkRecord, WorkStatus};
+use loom_runtime::{
+    EffectEngine, NewWork, PlatformTime, ProposedEvent, Resolution, Runtime, RuntimeError,
+    SemanticKind, ValidationError, WorkMutation, WorkRecord, WorkSchedule, WorkStatus,
+};
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
 
@@ -139,6 +147,52 @@ impl Capability for CounterCapability {
             },
         )?;
         Ok(())
+    }
+}
+
+struct CountingActionResolver {
+    calls: Arc<AtomicUsize>,
+}
+
+impl ActionResolver for CountingActionResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(ResolveOutcome::Rejected(Rejection::new(
+            "counting.rejected",
+            "test resolver reached",
+        )))
+    }
+}
+
+struct CountingCapability {
+    manifest: CapabilityManifest,
+    calls: Arc<AtomicUsize>,
+}
+
+impl Capability for CountingCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_action(
+            ActionDefinition::new(
+                ActionTypeId::from("counting.action"),
+                SchemaRevision::new(1),
+            )
+            .with_input_schema(json!({
+                "type": "object",
+                "required": ["value"],
+                "properties": {"value": {"type": "integer"}}
+            })),
+            CountingActionResolver {
+                calls: Arc::clone(&self.calls),
+            },
+        )
     }
 }
 
@@ -318,6 +372,181 @@ fn counter_request(action: &str, input: Value) -> ActionRequest {
         counter_target(),
         ActionInvocation::new(ActionTypeId::from(action), input),
     )
+}
+
+fn scheduled_counter_work(
+    work_id: WorkId,
+    handler: &str,
+    schema_revision: SchemaRevision,
+    payload: Value,
+) -> Resolution {
+    Resolution::new(
+        Vec::new(),
+        vec![WorkMutation::Schedule(NewWork::new(
+            work_id,
+            timeline(),
+            WorkHandlerId::from(handler),
+            schema_revision,
+            payload,
+            WorkSchedule::Immediate,
+        ))],
+    )
+}
+
+fn work_validation_error(
+    registry: &CapabilityRegistry,
+    base: &loom_runtime::BaseWorldView,
+    proposer: &str,
+    work_id: WorkId,
+    handler: &str,
+    schema_revision: SchemaRevision,
+    payload: Value,
+) -> RuntimeError {
+    EffectEngine::new(registry)
+        .validate(
+            base,
+            proposer,
+            scheduled_counter_work(work_id, handler, schema_revision, payload),
+        )
+        .expect_err("invalid Work metadata must be rejected")
+}
+
+#[test]
+fn composition_invalid_action_input_is_stopped_before_resolver() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("counting Timeline should be created");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let registry = CapabilityRegistry::assemble([CountingCapability {
+        manifest: CapabilityManifest::parse("counting", "0.1.0")
+            .expect("counting Capability manifest should parse"),
+        calls: Arc::clone(&calls),
+    }])
+    .expect("counting Capability registry should assemble");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    let api: &dyn LoomApi = &runtime;
+
+    let invalid = api
+        .invoke(counter_request(
+            "counting.action",
+            json!({"value": "not-an-integer"}),
+        ))
+        .expect_err("invalid Action input must be a request error");
+    assert_eq!(invalid.code, ApiErrorCode::InvalidRequest);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let valid = api
+        .invoke(counter_request("counting.action", json!({"value": 1})))
+        .expect("valid Action input should reach the resolver");
+    assert!(matches!(valid, ExecutionResult::Rejected(_)));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn composition_work_schedule_validates_identity_and_payload_before_commit() {
+    let store = counter_store();
+    let registry = counter_registry();
+    let base = store
+        .snapshot(timeline())
+        .expect("counter Timeline should exist")
+        .world_view();
+    let valid_payload = json!({"amount": 1, "event_id": event(90).to_string()});
+
+    let unknown = work_validation_error(
+        &registry,
+        &base,
+        COUNTER_CAPABILITY,
+        work(90),
+        "counter.unknown_work",
+        SchemaRevision::new(1),
+        valid_payload.clone(),
+    );
+    assert!(matches!(
+        unknown,
+        RuntimeError::Validation(ValidationError::UnknownSemantic {
+            kind: SemanticKind::WorkHandler,
+            ..
+        })
+    ));
+
+    let owner = work_validation_error(
+        &registry,
+        &base,
+        "another.capability",
+        work(91),
+        COUNTER_WORK_HANDLER,
+        SchemaRevision::new(1),
+        valid_payload.clone(),
+    );
+    assert!(matches!(
+        owner,
+        RuntimeError::Validation(ValidationError::SemanticOwnerMismatch {
+            kind: SemanticKind::WorkHandler,
+            ..
+        })
+    ));
+
+    let revision = work_validation_error(
+        &registry,
+        &base,
+        COUNTER_CAPABILITY,
+        work(92),
+        COUNTER_WORK_HANDLER,
+        SchemaRevision::new(2),
+        valid_payload.clone(),
+    );
+    assert!(matches!(
+        revision,
+        RuntimeError::Validation(ValidationError::SchemaRevisionMismatch {
+            kind: SemanticKind::WorkHandler,
+            ..
+        })
+    ));
+
+    let payload = work_validation_error(
+        &registry,
+        &base,
+        COUNTER_CAPABILITY,
+        work(93),
+        COUNTER_WORK_HANDLER,
+        SchemaRevision::new(1),
+        json!({
+            "amount": "not-an-integer",
+            "event_id": event(93).to_string()
+        }),
+    );
+    assert!(matches!(
+        payload,
+        RuntimeError::Validation(ValidationError::SchemaViolation {
+            kind: SemanticKind::WorkHandler,
+            ..
+        })
+    ));
+
+    let validated = EffectEngine::new(&registry)
+        .validate(
+            &base,
+            COUNTER_CAPABILITY,
+            scheduled_counter_work(
+                work(94),
+                COUNTER_WORK_HANDLER,
+                SchemaRevision::new(1),
+                valid_payload,
+            ),
+        )
+        .expect("valid Work should remain schedulable");
+    store
+        .commit(&validated, None, PlatformTime::new(0))
+        .expect("valid Work should commit");
+    assert_eq!(
+        store
+            .work(timeline(), work(94))
+            .expect("Work lookup should succeed")
+            .expect("scheduled Work should exist")
+            .status,
+        WorkStatus::Pending
+    );
 }
 
 #[test]

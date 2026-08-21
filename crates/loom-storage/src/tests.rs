@@ -116,6 +116,7 @@ const NO_CHANGE_ACTION: &str = "test.no_change_action";
 const SCHEDULE_ACTION: &str = "test.schedule_work";
 const CANCEL_ACTION: &str = "test.cancel_work";
 const EMPTY_WORK_HANDLER: &str = "test.empty_work";
+const TEST_WORK_HANDLER: &str = "test.handler";
 
 struct NoChangeCapability {
     manifest: CapabilityManifest,
@@ -239,7 +240,14 @@ impl Capability for TestCapability {
         registrar.register_event(EventDefinition::new(
             EventTypeId::from("test.changed"),
             SchemaRevision::new(1),
-        ))
+        ))?;
+        registrar.register_work_handler(
+            WorkHandlerDefinition::new(
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+            ),
+            EmptyWorkHandler,
+        )
     }
 }
 
@@ -560,7 +568,7 @@ fn work_creation_and_current_completion_share_zero_event_commit() {
             PlatformTime::new(10),
         )
         .expect("current Work should be claimable");
-    let registry = CapabilityRegistry::new();
+    let registry = registry();
     let validated = validated(
         &store,
         &registry,

@@ -103,12 +103,23 @@ fn register_basic_semantics(
     registrar.register_facet(CapabilityFacetDefinition::new(
         FacetTypeId::from("counter.value"),
         SchemaRevision::new(1),
-        json!({"type": "object"}),
+        json!({
+            "type": "object",
+            "required": ["value"],
+            "properties": {"value": {"type": "integer"}}
+        }),
     ))?;
-    registrar.register_event(CapabilityEventDefinition::new(
-        loom_core::EventTypeId::from("counter.changed"),
-        SchemaRevision::new(1),
-    ))?;
+    registrar.register_event(
+        CapabilityEventDefinition::new(
+            loom_core::EventTypeId::from("counter.changed"),
+            SchemaRevision::new(1),
+        )
+        .with_payload_schema(json!({
+            "type": "object",
+            "required": ["value"],
+            "properties": {"value": {"type": "integer"}}
+        })),
+    )?;
     registrar.register_relationship(
         CapabilityRelationshipDefinition::new(
             RelationshipTypeId::from("counter.pair"),
@@ -492,6 +503,52 @@ fn zero_effect_event_is_valid_when_event_metadata_is_valid() {
         .expect("an Event can record a fact without an Effect");
     assert_eq!(validated.events().len(), 1);
     assert!(validated.events()[0].effects.is_empty());
+}
+
+#[test]
+fn invalid_event_payload_cannot_produce_validated_resolution() {
+    let mut invalid = proposed_event(1);
+    invalid.payload = json!({"value": "not-an-integer"});
+    let registry = registry();
+    let error = EffectEngine::new(&registry)
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![invalid], Vec::new()),
+        )
+        .expect_err("Event payload schema must be enforced");
+    assert!(matches!(
+        error,
+        super::RuntimeError::Validation(ValidationError::SchemaViolation {
+            kind: loom_capability::SemanticKind::Event,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn invalid_facet_candidate_cannot_produce_validated_resolution() {
+    let event = proposed_event(1).with_effect(WorldEffect::PutFacet {
+        owner: FacetOwner::entity(entity(10)),
+        facet_type: FacetTypeId::from("counter.value"),
+        schema_revision: SchemaRevision::new(1),
+        value: json!({"value": "not-an-integer"}),
+    });
+    let registry = registry();
+    let error = EffectEngine::new(&registry)
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect_err("Facet candidate schema must be enforced");
+    assert!(matches!(
+        error,
+        super::RuntimeError::Validation(ValidationError::SchemaViolation {
+            kind: loom_capability::SemanticKind::Facet,
+            ..
+        })
+    ));
 }
 
 #[test]

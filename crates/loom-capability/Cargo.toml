@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+jsonschema = { version = "0.50", default-features = false }
 loom-core = { path = "../loom-core" }
 loom-protocol = { path = "../loom-protocol" }
 semver = { version = "1", features = ["serde"] }

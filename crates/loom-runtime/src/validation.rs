@@ -7,8 +7,8 @@ use std::{
 
 use loom_capability::{CapabilityRegistry, SemanticKind};
 use loom_core::{
-    AssociationRole, EntityId, EventId, FacetOwner, RelationshipId, RelationshipParticipant,
-    SchemaRevision, TimelineId, WorkId, WorldEffect,
+    ActionTypeId, AssociationRole, EntityId, EventId, FacetOwner, RelationshipId,
+    RelationshipParticipant, SchemaRevision, TimelineId, WorkId, WorldEffect,
 };
 use loom_protocol::{ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation};
 use serde_json::Value;
@@ -384,6 +384,43 @@ impl<'registry> EffectEngine<'registry> {
         self.registry
     }
 
+    /// Validates untrusted input against a registered Action schema before
+    /// Runtime dispatches to its resolver.
+    ///
+    /// Action input is an external request boundary, so a schema violation is
+    /// a Runtime validation error and never a Capability-owned semantic
+    /// `Rejection`. The resolver is not invoked when this check fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Runtime validation error when the Action is unknown or its
+    /// input does not satisfy the registered Draft 2020-12 schema.
+    pub fn validate_action_input(
+        &self,
+        action: &ActionTypeId,
+        input: &Value,
+    ) -> Result<(), RuntimeError> {
+        let definition =
+            self.registry
+                .action(action)
+                .ok_or_else(|| ValidationError::UnknownSemantic {
+                    kind: SemanticKind::Action,
+                    key: action.to_string(),
+                })?;
+        validate_json_schema(
+            definition.definition.input_schema.as_ref(),
+            input,
+            SemanticKind::Action,
+            &action.to_string(),
+        )
+        .map_err(|message| ValidationError::SchemaViolation {
+            kind: SemanticKind::Action,
+            key: action.to_string(),
+            message,
+        })?;
+        Ok(())
+    }
+
     /// Validates one untrusted Resolution against a pinned base view.
     ///
     /// `proposer` is the opaque Capability owner key selected by the Runtime
@@ -425,7 +462,7 @@ impl<'registry> EffectEngine<'registry> {
             self.validate_invariants(&candidate, event)?;
             candidate.note_event(event.id);
         }
-        validate_work(&mut candidate, &resolution)?;
+        validate_work(self.registry, &mut candidate, proposer, &resolution)?;
 
         let mut read_set = base.read_set();
         read_set.extend(candidate.read_set());
@@ -921,276 +958,19 @@ fn validate_relationship_structure(
 fn validate_json_schema(
     schema: Option<&Value>,
     value: &Value,
-    kind: SemanticKind,
-    key: &str,
+    _kind: SemanticKind,
+    _key: &str,
 ) -> Result<(), String> {
     let Some(schema) = schema else {
         return Ok(());
     };
-    validate_schema_node(schema, value, "$", kind, key)
-}
-
-fn validate_schema_node(
-    schema: &Value,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(schema_object) = schema.as_object() else {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            "schema declaration must be an object",
-        ));
-    };
-    if schema_object.is_empty() {
-        return Ok(());
-    }
-
-    validate_schema_constraints(schema_object, value, path, kind, key)?;
-    validate_schema_properties(schema_object, value, path, kind, key)?;
-    validate_schema_items(schema_object, value, path, kind, key)?;
-    validate_numeric_bounds(schema_object, value, path, kind, key)?;
-    validate_array_bounds(schema_object, value, path, kind, key)
-}
-
-fn validate_schema_constraints(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    if let Some(type_declaration) = schema.get("type") {
-        let type_matches = type_declaration
-            .as_str()
-            .is_some_and(|type_name| schema_type_matches(type_name, value))
-            || type_declaration.as_array().is_some_and(|types| {
-                types.iter().any(|type_name| {
-                    type_name
-                        .as_str()
-                        .is_some_and(|type_name| schema_type_matches(type_name, value))
-                })
-            });
-        if !type_matches {
-            return Err(schema_error(
-                kind,
-                key,
-                path,
-                &format!("value does not match type {type_declaration}"),
-            ));
-        }
-    }
-    if let Some(enum_values) = schema.get("enum")
-        && !enum_values
-            .as_array()
-            .is_some_and(|values| values.iter().any(|candidate| candidate == value))
-    {
-        return Err(schema_error(kind, key, path, "value is not in enum"));
-    }
-    if let Some(constant) = schema.get("const")
-        && constant != value
-    {
-        return Err(schema_error(kind, key, path, "value does not match const"));
-    }
-    validate_required(schema, value, path, kind, key)
-}
-
-fn validate_required(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(required) = schema.get("required") else {
-        return Ok(());
-    };
-    let Some(required) = required.as_array() else {
-        return Err(schema_error(kind, key, path, "required must be an array"));
-    };
-    let Some(object) = value.as_object() else {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            "required applies only to an object",
-        ));
-    };
-    for property in required {
-        let Some(property) = property.as_str() else {
-            return Err(schema_error(
-                kind,
-                key,
-                path,
-                "required entries must be strings",
-            ));
-        };
-        if !object.contains_key(property) {
-            return Err(schema_error(
-                kind,
-                key,
-                path,
-                &format!("missing required property {property}"),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn validate_schema_properties(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(properties) = schema.get("properties") else {
-        return Ok(());
-    };
-    let Some(properties) = properties.as_object() else {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            "properties must be an object",
-        ));
-    };
-    let Some(object) = value.as_object() else {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            "properties applies only to an object",
-        ));
-    };
-    for (property, property_schema) in properties {
-        if let Some(property_value) = object.get(property) {
-            let property_path = format!("{path}.{property}");
-            validate_schema_node(property_schema, property_value, &property_path, kind, key)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_schema_items(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(items) = schema.get("items") else {
-        return Ok(());
-    };
-    let Some(array) = value.as_array() else {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            "items applies only to an array",
-        ));
-    };
-    for (index, item) in array.iter().enumerate() {
-        let item_path = format!("{path}[{index}]");
-        validate_schema_node(items, item, &item_path, kind, key)?;
-    }
-    Ok(())
-}
-
-fn schema_type_matches(type_name: &str, value: &Value) -> bool {
-    match type_name {
-        "object" => value.is_object(),
-        "array" => value.is_array(),
-        "string" => value.is_string(),
-        "number" => value.is_number(),
-        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
-        "boolean" => value.is_boolean(),
-        "null" => value.is_null(),
-        _ => false,
-    }
-}
-
-fn validate_numeric_bounds(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(number) = value.as_f64() else {
-        return Ok(());
-    };
-    if let Some(minimum) = schema.get("minimum").and_then(Value::as_f64)
-        && number < minimum
-    {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            &format!("number is below minimum {minimum}"),
-        ));
-    }
-    if let Some(maximum) = schema.get("maximum").and_then(Value::as_f64)
-        && number > maximum
-    {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            &format!("number is above maximum {maximum}"),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_array_bounds(
-    schema: &serde_json::Map<String, Value>,
-    value: &Value,
-    path: &str,
-    kind: SemanticKind,
-    key: &str,
-) -> Result<(), String> {
-    let Some(array) = value.as_array() else {
-        return Ok(());
-    };
-    if let Some(minimum) = schema.get("minItems").and_then(Value::as_u64)
-        && match usize::try_from(minimum) {
-            Ok(minimum) => array.len() < minimum,
-            Err(_) => true,
-        }
-    {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            &format!("array has fewer than {minimum} items"),
-        ));
-    }
-    if let Some(maximum) = schema.get("maxItems").and_then(Value::as_u64)
-        && match usize::try_from(maximum) {
-            Ok(maximum) => array.len() > maximum,
-            Err(_) => false,
-        }
-    {
-        return Err(schema_error(
-            kind,
-            key,
-            path,
-            &format!("array has more than {maximum} items"),
-        ));
-    }
-    Ok(())
-}
-
-fn schema_error(kind: SemanticKind, key: &str, path: &str, message: &str) -> String {
-    format!("{kind} {key} at {path}: {message}")
+    loom_capability::validate_json_schema(schema, value)
 }
 
 fn validate_work(
+    registry: &CapabilityRegistry,
     candidate: &mut CandidateWorldView,
+    proposer: &str,
     resolution: &Resolution,
 ) -> Result<(), ValidationError> {
     for mutation in &resolution.work {
@@ -1202,6 +982,35 @@ fn validate_work(
                         id: work.id.to_string(),
                     });
                 }
+                let handler = registry.work_handler(&work.handler).ok_or_else(|| {
+                    ValidationError::UnknownSemantic {
+                        kind: SemanticKind::WorkHandler,
+                        key: work.handler.to_string(),
+                    }
+                })?;
+                ensure_owner(
+                    SemanticKind::WorkHandler,
+                    work.handler.to_string(),
+                    handler.owner.as_str(),
+                    proposer,
+                )?;
+                ensure_revision(
+                    SemanticKind::WorkHandler,
+                    work.handler.to_string(),
+                    handler.definition.schema_revision,
+                    work.schema_revision,
+                )?;
+                validate_json_schema(
+                    handler.definition.payload_schema.as_ref(),
+                    &work.payload,
+                    SemanticKind::WorkHandler,
+                    &work.handler.to_string(),
+                )
+                .map_err(|message| ValidationError::SchemaViolation {
+                    kind: SemanticKind::WorkHandler,
+                    key: work.handler.to_string(),
+                    message,
+                })?;
                 if work.timeline_id != candidate.timeline_id() {
                     return Err(ValidationError::WorkTimelineMismatch {
                         expected: candidate.timeline_id(),
