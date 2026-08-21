@@ -4,6 +4,8 @@
 //! Work execution into the existing Runtime validation and persistence path.
 //! It does not define a second protocol, storage boundary or public endpoint.
 
+use std::sync::Arc;
+
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiResult, CatalogService,
     CatalogSnapshot, CommittedEvent as ApiCommittedEvent, EventQuery, ExecutionResult, FacetQuery,
@@ -17,8 +19,9 @@ use loom_core::{TimelineId, WorkId};
 use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
 
 use crate::{
-    CommitError, CommitStore, CommittedEvent, EffectEngine, PlatformTime, ReadError, RuntimeError,
-    TimelineSnapshot, ValidationOutcome, WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
+    CommitError, CommitStore, CommittedEvent, EffectEngine, ManualPlatformClock, PlatformClock,
+    PlatformTime, ReadError, RuntimeError, TimelineSnapshot, ValidatedResolution,
+    ValidationOutcome, WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
 };
 
 /// A Runtime composition root for one Capability registry and persistence
@@ -40,7 +43,7 @@ use crate::{
 pub struct Runtime<S> {
     registry: CapabilityRegistry,
     store: S,
-    platform_time: PlatformTime,
+    platform_clock: Arc<dyn PlatformClock>,
 }
 
 impl<S> Runtime<S>
@@ -49,11 +52,10 @@ where
 {
     /// Creates a Runtime after validating the assembled Capability registry.
     ///
-    /// `platform_time` defaults to zero for API Action commits because the
-    /// public v0 Action contract does not carry an operational clock. Callers
-    /// that schedule Work can choose a different default with
-    /// [`Self::with_platform_time`]; World semantic time always comes from the
-    /// pinned Timeline snapshot and is never derived from this value.
+    /// API Action commits use a deterministic zero-valued clock until the
+    /// composition root injects an application clock with
+    /// [`Self::with_platform_clock`]. World semantic time always comes from
+    /// the pinned Timeline snapshot and is never derived from this value.
     ///
     /// # Errors
     ///
@@ -67,19 +69,24 @@ where
         Ok(Self {
             registry,
             store,
-            platform_time: PlatformTime::default(),
+            platform_clock: Arc::new(ManualPlatformClock::default()),
         })
     }
 
-    /// Sets the operational platform time used by public Action commits.
+    /// Injects the Runtime-owned operational clock used by public Action
+    /// commits.
     ///
-    /// This value affects only adapter metadata such as newly scheduled
-    /// Work's retry availability. It does not advance World Time or enter a
-    /// committed Event. Explicit Work execution methods receive their own
-    /// platform-time arguments so lease and retry boundaries remain visible.
+    /// Runtime samples the clock once for each Action commit. This value
+    /// affects only adapter metadata such as newly scheduled Work's retry
+    /// availability. It does not advance World Time or enter a committed
+    /// Event. Explicit Work execution methods receive their own platform-time
+    /// arguments so lease and retry boundaries remain visible.
     #[must_use]
-    pub fn with_platform_time(mut self, platform_time: PlatformTime) -> Self {
-        self.platform_time = platform_time;
+    pub fn with_platform_clock<C>(mut self, clock: C) -> Self
+    where
+        C: PlatformClock + 'static,
+    {
+        self.platform_clock = Arc::new(clock);
         self
     }
 
@@ -183,8 +190,9 @@ where
                 }
             }
             ValidationOutcome::Validated(validated) => {
+                let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
                 match self.store.commit(&validated, Some(&claim), now) {
-                    Ok(result) => Ok(execution_result(&result)),
+                    Ok(result) => Ok(execution_result(&result, changes_runtime_state)),
                     Err(error) => {
                         let error = map_commit_error(&error);
                         Err(self.retry_after_failure(&claim, now, retry_available_at, error))
@@ -338,8 +346,8 @@ where
             ValidationOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
             ValidationOutcome::Validated(validated) => self
                 .store
-                .commit(&validated, None, self.platform_time)
-                .map(|result| execution_result(&result))
+                .commit(&validated, None, self.platform_clock.now())
+                .map(|result| execution_result(&result, changes_runtime_state(&validated, None)))
                 .map_err(|error| map_commit_error(&error)),
         }
     }
@@ -453,14 +461,21 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
     }
 }
 
-fn execution_result(result: &crate::CommitResult) -> ExecutionResult {
-    if result.events.is_empty() {
-        ExecutionResult::no_change()
-    } else {
+fn changes_runtime_state(
+    resolution: &ValidatedResolution,
+    current_work: Option<&WorkClaim>,
+) -> bool {
+    !resolution.events().is_empty() || !resolution.work().is_empty() || current_work.is_some()
+}
+
+fn execution_result(result: &crate::CommitResult, changes_runtime_state: bool) -> ExecutionResult {
+    if changes_runtime_state {
         ExecutionResult::committed(
             result.events.iter().map(|event| event.id).collect(),
             result.version,
         )
+    } else {
+        ExecutionResult::no_change()
     }
 }
 
