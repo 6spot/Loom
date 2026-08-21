@@ -91,3 +91,31 @@ jobs:
 
       - name: PostgreSQL persistence contract
         run: cargo test -p loom-storage postgres_18 -- --nocapture
+
+  t3-format-tests:
+    name: Temporary T3 test formatter
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/m2-t3-postgresql-commit-cas' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Install Rustfmt
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component rustfmt
+          rustup default "$RUST_VERSION"
+      - name: Format test
+        run: cargo fmt --all
+      - name: Commit formatting
+        run: |
+          if git diff --quiet -- crates/loom-storage/tests/postgres_commit.rs; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- crates/loom-storage/tests/postgres_commit.rs
+          git commit -m "M2-T3: format PostgreSQL commit tests"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
