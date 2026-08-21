@@ -7,7 +7,7 @@ created_at: 2026-08-21
 started_at: 2026-08-21
 completed_at: 2026-08-21
 completion_pr: 36
-merge_sha:
+merge_sha: 7a8e2c424466268867f68e611a7bafcc0e988f4e
 ---
 
 # M2-T2 — PostgreSQL WorldStore and Snapshot/Read Parity
@@ -38,8 +38,8 @@ Implement PostgreSQL-backed Runtime read ports so pinned Timeline snapshots expo
 ## Completion evidence
 
 - PR: #36
-- merge SHA: pending post-merge audit update
-- CI / verification: GitHub Actions run `32452222573` — PostgreSQL 18 persistence contract success; Rust Ubuntu success; Rust macOS success; Architecture, Format, Check, Clippy, Test and Rustdoc all green on both Rust runners.
+- merge SHA: `7a8e2c424466268867f68e611a7bafcc0e988f4e`
+- CI / verification: implementation CI run `32452222573` and final task-record CI run `32452416780` — PostgreSQL 18 persistence contract success; Rust Ubuntu success; Rust macOS success; Architecture, Format, Check, Clippy, Test and Rustdoc all green on both Rust runners.
 - notes: PostgreSQL snapshot reads use a `REPEATABLE READ READ ONLY` transaction; Event history is ordered by authoritative `EventSeq`, with a fixture whose UUID order intentionally differs; empty Timeline parity is covered by `crates/loom-storage/tests/postgres_read.rs`. Public/Runtime persistence I/O is executor-neutral Future-returning while Capability semantic resolution remains synchronous over pinned in-memory views. The narrow PostgreSQL module lint expectation documents a temporary source-layout hotspot and is to be removed as T3/T4 split the adapter by Runtime persistence port.
 
 ## Progress log
@@ -49,3 +49,4 @@ Implement PostgreSQL-backed Runtime read ports so pinned Timeline snapshots expo
 - 2026-08-21 — PostgreSQL implementation evidence exposed a contract mismatch: SQLx persistence is asynchronous while Milestone 1 Runtime persistence ports/public I/O services were synchronous. T2 migrated only persistence I/O boundaries to object-safe, executor-neutral Future-returning contracts. Capability Resolver/Invariant/ResolutionContext remain synchronous over the already-pinned in-memory World view, so no database I/O or async executor leaks into semantic extension code.
 - 2026-08-21 — Strict clippy review identified PostgreSQL source-layout hotspots. Temporary branch helper workflows were removed before completion; a narrow module expectation records the hotspot until T3/T4 split the concrete adapter by Runtime persistence port.
 - 2026-08-21 — Added explicit empty Timeline PostgreSQL snapshot parity coverage and completed all T2 gates in CI run `32452222573`.
+- 2026-08-21 — PR #36 merged to `main` as `7a8e2c424466268867f68e611a7bafcc0e988f4e`; merge SHA recorded by the required audit update.
