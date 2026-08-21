@@ -1,10 +1,10 @@
 ---
 task: M2-T4
 issue: 29
-status: planned
+status: in_progress
 depends_on: [26]
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -48,3 +48,4 @@ Implement PostgreSQL-backed Durable Work lifecycle operations while preserving R
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #29; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t4-postgresql-work-leases`; `WorkStore` I/O will become executor-neutral Future-returning so SQLx remains confined to `loom-storage` without Runtime-side blocking.
