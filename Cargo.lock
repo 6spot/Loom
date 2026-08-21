@@ -85,6 +85,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "loom-composition-tests"
+version = "0.1.0"
+dependencies = [
+ "loom-api",
+ "loom-capability",
+ "loom-core",
+ "loom-protocol",
+ "loom-runtime",
+ "loom-storage",
+ "serde_json",
+]
+
+[[package]]
 name = "loom-core"
 version = "0.1.0"
 dependencies = [
@@ -117,7 +130,10 @@ dependencies = [
 name = "loom-storage"
 version = "0.1.0"
 dependencies = [
+ "loom-api",
+ "loom-capability",
  "loom-core",
+ "loom-protocol",
  "loom-runtime",
  "serde_json",
 ]

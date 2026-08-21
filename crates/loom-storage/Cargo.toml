@@ -8,5 +8,10 @@ loom-core = { path = "../loom-core" }
 loom-runtime = { path = "../loom-runtime" }
 serde_json = "1"
 
+[dev-dependencies]
+loom-api = { path = "../loom-api" }
+loom-capability = { path = "../loom-capability" }
+loom-protocol = { path = "../loom-protocol" }
+
 [lints]
 workspace = true
