@@ -94,6 +94,9 @@ jobs:
       - name: PostgreSQL schema and migration contract
         run: cargo test -p loom-storage --test postgres_schema -- --nocapture
 
+      - name: PostgreSQL public Runtime/API vertical parity
+        run: cargo test -p loom-storage --test postgres_vertical -- --nocapture
+
       - name: PostgreSQL read parity
         run: cargo test -p loom-storage --test postgres_read -- --nocapture
 
