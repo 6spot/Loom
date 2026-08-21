@@ -148,11 +148,14 @@ where
         let claim = self
             .store
             .claim(target.timeline_id, work_id, now, claimed_until)
+            .await
             .map_err(|error| map_work_error(&error))?;
         let snapshot = match self.snapshot_for_target(target).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
-                return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
+                return Err(self
+                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .await);
             }
         };
         let base = snapshot.world_view();
@@ -166,7 +169,9 @@ where
             Ok(execution) => execution,
             Err(error) => {
                 let error = map_dispatch_error(error);
-                return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
+                return Err(self
+                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .await);
             }
         };
 
@@ -189,7 +194,9 @@ where
             Ok(validated) => validated,
             Err(error) => {
                 let error = map_runtime_error(&error);
-                return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
+                return Err(self
+                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .await);
             }
         };
 
@@ -201,7 +208,9 @@ where
             },
             Err(error) => {
                 let error = map_commit_error(&error);
-                Err(self.retry_after_failure(&claim, now, retry_available_at, error))
+                Err(self
+                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .await)
             }
         }
     }
@@ -216,14 +225,14 @@ where
     ///
     /// Propagates the typed Work-port error without converting it to a public
     /// Action outcome.
-    pub fn retry_work(
+    pub async fn retry_work(
         &self,
         claim: &WorkClaim,
         now: PlatformTime,
         available_at: PlatformTime,
         last_error: Option<String>,
     ) -> Result<WorkRecord, WorkError> {
-        self.store.retry(claim, now, available_at, last_error)
+        self.store.retry(claim, now, available_at, last_error).await
     }
 
     async fn snapshot_for_target(&self, target: TimelineTarget) -> ApiResult<TimelineSnapshot> {
@@ -241,7 +250,7 @@ where
         Ok(snapshot)
     }
 
-    fn retry_after_failure(
+    async fn retry_after_failure(
         &self,
         claim: &WorkClaim,
         now: PlatformTime,
@@ -251,6 +260,7 @@ where
         if self
             .store
             .retry(claim, now, retry_available_at, Some(error.message.clone()))
+            .await
             .is_err()
         {
             return ApiError::internal("Work failure could not be recorded for retry");
@@ -295,17 +305,17 @@ where
         work_id: WorkId,
         now: PlatformTime,
         claimed_until: PlatformTime,
-    ) -> Result<WorkClaim, WorkError> {
+    ) -> PersistenceFuture<'_, Result<WorkClaim, WorkError>> {
         (**self).claim(timeline_id, work_id, now, claimed_until)
     }
 
-    fn retry(
-        &self,
-        claim: &WorkClaim,
+    fn retry<'a>(
+        &'a self,
+        claim: &'a WorkClaim,
         now: PlatformTime,
         available_at: PlatformTime,
         last_error: Option<String>,
-    ) -> Result<WorkRecord, WorkError> {
+    ) -> PersistenceFuture<'a, Result<WorkRecord, WorkError>> {
         (**self).retry(claim, now, available_at, last_error)
     }
 
@@ -313,7 +323,7 @@ where
         &self,
         timeline_id: TimelineId,
         work_id: WorkId,
-    ) -> Result<Option<WorkRecord>, ReadError> {
+    ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
         (**self).work(timeline_id, work_id)
     }
 }
@@ -831,6 +841,9 @@ fn map_work_error(error: &WorkError) -> ApiError {
         | WorkError::LeaseExpired { .. } => ApiError::conflict("Work claim is no longer usable"),
         WorkError::InvalidLease { .. } | WorkError::TimelineMismatch { .. } => {
             ApiError::invalid_request("Work claim has invalid timing or Timeline scope")
+        }
+        WorkError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Persistence authority is temporarily unavailable")
         }
         WorkError::AttemptOverflow { .. }
         | WorkError::DuplicateWork { .. }

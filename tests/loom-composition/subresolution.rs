@@ -458,26 +458,26 @@ impl WorkStore for CountingStore {
         work_id: loom_core::WorkId,
         now: PlatformTime,
         claimed_until: PlatformTime,
-    ) -> Result<WorkClaim, WorkError> {
-        self.inner.claim(timeline_id, work_id, now, claimed_until)
+    ) -> PersistenceFuture<'_, Result<WorkClaim, WorkError>> {
+        WorkStore::claim(&self.inner, timeline_id, work_id, now, claimed_until)
     }
 
-    fn retry(
-        &self,
-        claim: &WorkClaim,
+    fn retry<'a>(
+        &'a self,
+        claim: &'a WorkClaim,
         now: PlatformTime,
         available_at: PlatformTime,
         last_error: Option<String>,
-    ) -> Result<WorkRecord, WorkError> {
-        self.inner.retry(claim, now, available_at, last_error)
+    ) -> PersistenceFuture<'a, Result<WorkRecord, WorkError>> {
+        WorkStore::retry(&self.inner, claim, now, available_at, last_error)
     }
 
     fn work(
         &self,
         timeline_id: TimelineId,
         work_id: loom_core::WorkId,
-    ) -> Result<Option<WorkRecord>, ReadError> {
-        self.inner.work(timeline_id, work_id)
+    ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
+        WorkStore::work(&self.inner, timeline_id, work_id)
     }
 }
 
