@@ -1,13 +1,6 @@
 from pathlib import Path
 
 
-def replace_once(path: Path, old: str, new: str) -> None:
-    text = path.read_text()
-    if old not in text:
-        raise SystemExit(f"expected source block not found in {path}: {old[:80]!r}")
-    path.write_text(text.replace(old, new, 1))
-
-
 POSTGRES_URL_FN = '''fn postgres_url() -> Option<String> {
     match std::env::var("LOOM_TEST_POSTGRES_URL") {
         Ok(url) => Some(url),
@@ -92,10 +85,7 @@ text = text.replace(
     "    Some((database, storage, pool, world_id, timeline_id))\n}",
     1,
 )
-text = text.replace(
-    "let Some((storage, pool,",
-    "let Some((database, storage, pool,",
-)
+text = text.replace("let Some((storage, pool,", "let Some((database, storage, pool,")
 text = text.replace(
     "    storage.close().await;\n}",
     "    storage.close().await;\n    database.cleanup().await;\n}",
@@ -147,15 +137,14 @@ if "postgres_url()" in text:
     raise SystemExit("postgres_work still contains direct shared postgres_url use")
 work.write_text(text)
 
-# Stale-completion regression test gets its own fresh database too.
+# Stale-completion regression test also uses an isolated authority fixture.
 stale = Path("crates/loom-storage/tests/postgres_work_stale_completion.rs")
 text = stale.read_text()
 text = text.replace("use std::str::FromStr;", "mod support;\n\nuse std::str::FromStr;", 1)
 text = text.replace("use sqlx::PgPool;\n", "use sqlx::PgPool;\nuse support::TestDatabase;\n", 1)
 text = text.replace(POSTGRES_URL_FN, "", 1)
-old = '''    let Some(database_url) = postgres_url() else {
-        return;
-    };
+old = '''async fn authority() -> Option<(PgStorage, PgPool, TimelineId, WorkId)> {
+    let database_url = postgres_url()?;
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
@@ -167,18 +156,29 @@ old = '''    let Some(database_url) = postgres_url() else {
         .await
         .expect("test setup should connect independently");
 '''
-new = '''    let Some(database) = TestDatabase::provision("work-stale-completion").await else {
-        return;
-    };
+new = '''async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, TimelineId, WorkId)> {
+    let database = TestDatabase::provision("work-stale-completion").await?;
     let storage = database.storage().await;
     let pool = database.pool().await;
 '''
 if old not in text:
-    raise SystemExit("postgres_work_stale_completion setup block not found")
+    raise SystemExit("postgres_work_stale_completion authority block not found")
 text = text.replace(old, new, 1)
+text = text.replace(
+    "    Some((storage, pool, timeline_id, work_id))\n}",
+    "    Some((database, storage, pool, timeline_id, work_id))\n}",
+    1,
+)
+text = text.replace(
+    "let Some((storage, pool, timeline_id, work_id))",
+    "let Some((database, storage, pool, timeline_id, work_id))",
+    1,
+)
 text = text.replace(
     "    storage.close().await;\n}",
     "    storage.close().await;\n    database.cleanup().await;\n}",
     1,
 )
+if "postgres_url()" in text:
+    raise SystemExit("postgres_work_stale_completion still contains shared postgres_url use")
 stale.write_text(text)
