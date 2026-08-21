@@ -102,9 +102,13 @@ fn unique_database_name(label: &str) -> String {
 }
 
 fn quote_identifier(identifier: &str) -> String {
-    debug_assert!(identifier
-        .chars()
-        .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'));
+    debug_assert!(
+        identifier
+            .chars()
+            .all(|character| character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || character == '_')
+    );
     format!("\"{identifier}\"")
 }
 
