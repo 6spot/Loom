@@ -611,6 +611,7 @@ fn validate_event(
             });
         }
     }
+    candidate.extend_read_set(reference_candidate.read_set());
     Ok(())
 }
 

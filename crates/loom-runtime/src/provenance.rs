@@ -10,18 +10,18 @@ use loom_core::{EntityId, EventId, FacetOwner, FacetTypeId, RelationshipId};
 /// The v0 commit correctness boundary remains the pinned `TimelineVersion`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ReadDependency {
-    /// An Entity existence lookup and whether the candidate contained it.
+    /// A pinned-base Entity existence lookup and whether it was present.
     Entity {
         /// Entity identity inspected by the Runtime view.
         entity_id: EntityId,
-        /// Whether the lookup found the identity in candidate state.
+        /// Whether the lookup found the identity in the pinned base state.
         present: bool,
     },
-    /// A Relationship existence/structure lookup and whether it was active.
+    /// A pinned-base Relationship lookup and whether it was active.
     Relationship {
         /// Relationship identity inspected by the Runtime view.
         relationship_id: RelationshipId,
-        /// Whether the lookup found an active Relationship.
+        /// Whether the pinned base contained an active Relationship.
         present: bool,
     },
     /// A Facet lookup, including the candidate schema revision when present.
@@ -47,8 +47,8 @@ pub enum ReadDependency {
 /// `ReadSet` is produced by Runtime-owned Base/Candidate views and is exposed
 /// only as provenance. Capability code does not supply or edit it, and callers
 /// must not mistake it for a permission grant or a replacement for Timeline
-/// CAS. The entries preserve lookup order so diagnostics can explain how a
-/// candidate result was reached.
+/// CAS. The entries preserve first-observation order and are deduplicated so
+/// diagnostics can explain how a candidate result was reached.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ReadSet {
     entries: Vec<ReadDependency>,
@@ -74,10 +74,14 @@ impl ReadSet {
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        self.entries.extend(other.entries);
+        for dependency in other.entries {
+            self.record(dependency);
+        }
     }
 
     pub(crate) fn record(&mut self, dependency: ReadDependency) {
-        self.entries.push(dependency);
+        if !self.entries.contains(&dependency) {
+            self.entries.push(dependency);
+        }
     }
 }

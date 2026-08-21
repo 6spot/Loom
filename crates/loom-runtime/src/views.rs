@@ -499,13 +499,15 @@ impl CandidateWorldView {
     }
 
     /// Looks up an Entity after applying prior candidate identity creations.
+    ///
+    /// Overlay hits do not record a base dependency; fallback lookups record
+    /// the pinned base result in the candidate `ReadSet`.
     #[must_use]
     pub fn entity(&self, entity_id: EntityId) -> Option<Entity> {
-        let result = self
-            .created_entities
-            .get(&entity_id)
-            .cloned()
-            .or_else(|| self.base.entities.get(&entity_id).cloned());
+        if let Some(entity) = self.created_entities.get(&entity_id).cloned() {
+            return Some(entity);
+        }
+        let result = self.base.entities.get(&entity_id).cloned();
         self.record(ReadDependency::Entity {
             entity_id,
             present: result.is_some(),
@@ -514,24 +516,29 @@ impl CandidateWorldView {
     }
 
     /// Looks up an active Relationship after applying prior lifecycle Effects.
+    ///
+    /// Overlay hits do not record a base dependency; fallback lookups record
+    /// the pinned base result in the candidate `ReadSet`.
     #[must_use]
     pub fn relationship(&self, relationship_id: RelationshipId) -> Option<RelationshipSnapshot> {
-        let result = match self.relationships.get(&relationship_id) {
-            Some(CandidateRelationship::Created(relationship)) => Some(RelationshipSnapshot {
-                relationship: relationship.clone(),
-                active: true,
-            }),
-            Some(CandidateRelationship::Ended) => None,
-            None => self
-                .base
-                .relationships
-                .get(&relationship_id)
-                .filter(|record| record.active)
-                .map(|record| RelationshipSnapshot {
-                    relationship: record.relationship.clone(),
-                    active: record.active,
+        if let Some(relationship) = self.relationships.get(&relationship_id) {
+            return match relationship {
+                CandidateRelationship::Created(relationship) => Some(RelationshipSnapshot {
+                    relationship: relationship.clone(),
+                    active: true,
                 }),
-        };
+                CandidateRelationship::Ended => None,
+            };
+        }
+        let result = self
+            .base
+            .relationships
+            .get(&relationship_id)
+            .filter(|record| record.active)
+            .map(|record| RelationshipSnapshot {
+                relationship: record.relationship.clone(),
+                active: record.active,
+            });
         self.record(ReadDependency::Relationship {
             relationship_id,
             present: result.is_some(),
@@ -589,6 +596,13 @@ impl CandidateWorldView {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
+    }
+
+    pub(crate) fn extend_read_set(&self, reads: ReadSet) {
+        self.reads
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend(reads);
     }
 
     pub(crate) fn note_event(&mut self, event_id: EventId) {

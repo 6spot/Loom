@@ -157,6 +157,26 @@ fn pair_relationship(id: RelationshipId) -> Relationship {
     )
 }
 
+fn base_with_active_pair(relationship_id: RelationshipId) -> BaseWorldView {
+    BaseWorldView::new(
+        BaseWorldSnapshot::new(
+            world(),
+            timeline(),
+            TimelineVersion::new(EventSeq::new(4), StateRevision::new(4)),
+            WorldInstant::new(4),
+        )
+        .with_entity(Entity {
+            id: entity(10),
+            world_id: world(),
+        })
+        .with_entity(Entity {
+            id: entity(11),
+            world_id: world(),
+        })
+        .with_relationship(pair_relationship(relationship_id), true),
+    )
+}
+
 #[test]
 fn candidate_overlay_shadows_base_for_later_validation_reads() {
     let first_id = event(1);
@@ -239,13 +259,28 @@ fn current_event_can_reference_structures_introduced_by_its_effects() {
         .with_effect(WorldEffect::CreateEntity {
             entity_id: created_entity,
         });
-    engine
+    let entity_validated = engine
         .validate(
             &base_view(),
             OWNER,
             Resolution::new(vec![entity_event], Vec::new()),
         )
         .expect("an Event may reference an Entity created by its own Effects");
+    assert!(
+        !entity_validated
+            .read_set()
+            .entries()
+            .iter()
+            .any(|dependency| {
+                matches!(
+                    dependency,
+                    ReadDependency::Entity {
+                        entity_id,
+                        present: true,
+                    } if *entity_id == created_entity
+                )
+            })
+    );
 
     let created_relationship = relationship(20);
     let mut relationship_event = proposed_event(21).with_effect(WorldEffect::CreateRelationship {
@@ -256,46 +291,113 @@ fn current_event_can_reference_structures_introduced_by_its_effects() {
     relationship_event
         .relationship_refs
         .push(EventRelationshipRef::new(created_relationship, "subject"));
-    engine
+    let relationship_validated = engine
         .validate(
             &base_view(),
             OWNER,
             Resolution::new(vec![relationship_event], Vec::new()),
         )
         .expect("an Event may reference a Relationship created by its own Effects");
+    assert!(
+        !relationship_validated
+            .read_set()
+            .entries()
+            .iter()
+            .any(|dependency| {
+                matches!(
+                    dependency,
+                    ReadDependency::Relationship {
+                        relationship_id,
+                        present: true,
+                    } if *relationship_id == created_relationship
+                )
+            })
+    );
 }
 
 #[test]
 fn current_event_can_reference_a_relationship_it_ends() {
     let relationship_id = relationship(60);
-    let base = BaseWorldSnapshot::new(
-        world(),
-        timeline(),
-        TimelineVersion::new(EventSeq::new(4), StateRevision::new(4)),
-        WorldInstant::new(4),
-    )
-    .with_entity(Entity {
-        id: entity(10),
-        world_id: world(),
-    })
-    .with_entity(Entity {
-        id: entity(11),
-        world_id: world(),
-    })
-    .with_relationship(pair_relationship(relationship_id), true);
     let mut event =
         proposed_event(60).with_effect(WorldEffect::EndRelationship { relationship_id });
     event
         .relationship_refs
         .push(EventRelationshipRef::new(relationship_id, "subject"));
 
-    EffectEngine::new(&registry())
+    let validated = EffectEngine::new(&registry())
         .validate(
-            &BaseWorldView::new(base),
+            &base_with_active_pair(relationship_id),
             OWNER,
             Resolution::new(vec![event], Vec::new()),
         )
         .expect("an Event may reference a Relationship it ends");
+    assert!(
+        validated
+            .read_set()
+            .entries()
+            .contains(&ReadDependency::Relationship {
+                relationship_id,
+                present: true,
+            })
+    );
+}
+
+#[test]
+fn envelope_reference_reads_include_base_entity_and_relationship_dependencies() {
+    let relationship_id = relationship(70);
+    let entity_id = entity(10);
+    let mut event =
+        proposed_event(70).with_participant(EventParticipant::new(entity_id, "subject"));
+    event
+        .relationship_refs
+        .push(EventRelationshipRef::new(relationship_id, "subject"));
+
+    let validated = EffectEngine::new(&registry())
+        .validate(
+            &base_with_active_pair(relationship_id),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect("base envelope references should validate");
+    let reads = validated.read_set().entries();
+    assert!(reads.contains(&ReadDependency::Entity {
+        entity_id,
+        present: true,
+    }));
+    assert_eq!(
+        reads
+            .iter()
+            .filter(|dependency| {
+                matches!(
+                    dependency,
+                    ReadDependency::Entity {
+                        entity_id: actual,
+                        present: true,
+                    } if *actual == entity_id
+                )
+            })
+            .count(),
+        1
+    );
+    assert!(reads.contains(&ReadDependency::Relationship {
+        relationship_id,
+        present: true,
+    }));
+    assert_eq!(
+        reads
+            .iter()
+            .filter(|dependency| {
+                matches!(
+                    dependency,
+                    ReadDependency::Relationship {
+                        relationship_id: actual,
+                        present: true,
+                    } if *actual == relationship_id
+                )
+            })
+            .count(),
+        1
+    );
 }
 
 #[test]
