@@ -9,6 +9,7 @@ members = [
     "crates/loom-runtime",
     "crates/loom-storage",
     "crates/loom-boundary",
+    "tests/loom-composition",
 ]
 
 [workspace.package]

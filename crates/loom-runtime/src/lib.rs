@@ -107,29 +107,5 @@ pub use loom_capability::SemanticKind;
 #[doc(hidden)]
 pub use loom_protocol::{NewWork, ProposedEvent, Resolution, WorkMutation, WorkSchedule};
 
-/// Test-only access to existing Capability and API contracts.
-///
-/// This hidden module is used by adapter tests to assemble a real Runtime
-/// registry and exercise the same `loom-api` trait objects without adding
-/// forbidden adapter-to-framework Cargo edges. It introduces no storage or
-/// semantic authority and is not part of the supported application surface.
-#[doc(hidden)]
-pub mod test_support {
-    pub use loom_api::{
-        ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiResult,
-        CatalogService, CatalogSnapshot, CommittedEvent, EventQuery, ExecutionResult, FacetQuery,
-        FacetSnapshot, HistoryService, LoomApi, QueryService, TimelineService, TimelineSnapshot,
-        TimelineTarget,
-    };
-    pub use loom_capability::{
-        ActionDefinition, ActionResolver, BaseWorldView, CandidateWorldView, Capability,
-        CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, CapabilityResult,
-        EventDefinition, FacetDefinition, FacetValue, Invariant, InvariantViolation,
-        RegistrationError, RelationshipDefinition, RelationshipRole, ResolutionContext,
-        ResolutionContextError, ResolverError, WorkHandler, WorkHandlerDefinition,
-    };
-    pub use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
-}
-
 #[cfg(test)]
 mod tests;

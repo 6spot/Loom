@@ -1,0 +1,20 @@
+[package]
+name = "loom-composition-tests"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-api = { path = "../../crates/loom-api" }
+loom-capability = { path = "../../crates/loom-capability" }
+loom-core = { path = "../../crates/loom-core" }
+loom-protocol = { path = "../../crates/loom-protocol" }
+loom-runtime = { path = "../../crates/loom-runtime" }
+loom-storage = { path = "../../crates/loom-storage" }
+serde_json = "1"
+
+[[test]]
+name = "vertical_slice"
+path = "vertical_slice.rs"
+
+[lints]
+workspace = true

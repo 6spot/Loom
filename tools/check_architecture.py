@@ -39,6 +39,14 @@ FRAMEWORK_ALLOWLIST: dict[str, set[str]] = {
     },
     "loom-storage": {"loom-core", "loom-runtime"},
     "loom-boundary": {"loom-api"},
+    "loom-composition-tests": {
+        "loom-api",
+        "loom-capability",
+        "loom-core",
+        "loom-protocol",
+        "loom-runtime",
+        "loom-storage",
+    },
 }
 
 # External crates that would materially violate a layer boundary if they leak
@@ -188,6 +196,11 @@ def is_composition_extension_dependency(package: dict, dependency_name: str, by_
     return bool(parts and parts[0] in {"capabilities", "adapters"})
 
 
+def is_production_dependency(dependency: dict) -> bool:
+    """Return whether Cargo includes the edge in a normal production build."""
+    return dependency.get("kind") in {None, "normal"}
+
+
 def main() -> int:
     metadata = run_metadata()
     workspace_ids = set(metadata["workspace_members"])
@@ -213,6 +226,7 @@ def main() -> int:
             dependency["name"]
             for dependency in package["dependencies"]
             if dependency["name"] in workspace_names
+            and is_production_dependency(dependency)
         }
 
         for dependency_name in sorted(internal_dependencies - allowed):
@@ -227,6 +241,7 @@ def main() -> int:
             dependency["name"]
             for dependency in package["dependencies"]
             if dependency["name"] not in workspace_names
+            and is_production_dependency(dependency)
         }
         for dependency_name in sorted(external_dependencies & forbidden_external):
             errors.append(
