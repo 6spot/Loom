@@ -1,13 +1,13 @@
 ---
 task: M2-T4
 issue: 29
-status: in_progress
+status: completed
 depends_on: [26]
 created_at: 2026-08-21
 started_at: 2026-08-21
-completed_at:
+completed_at: 2026-08-21
 completion_pr: 40
-merge_sha:
+merge_sha: 7236dbcf37288ae8a8d892242a27bf784b583cab
 ---
 
 # M2-T4 — PostgreSQL Durable Work Lease, Claim and Retry Fencing
@@ -40,9 +40,9 @@ Implement PostgreSQL-backed Durable Work lifecycle operations while preserving R
 ## Completion evidence
 
 - PR: #40
-- merge SHA: pending implementation merge; recorded only by the immediate post-merge audit.
+- merge SHA: `7236dbcf37288ae8a8d892242a27bf784b583cab`
 - concurrency verification: PostgreSQL 18 tests cover one-winner concurrent claim, expired-lease reclaim with increasing fence generation, stale retry rejection, stale completion rejection after reclaim, and typed completion/cancellation race.
-- CI / verification: clean implementation CI run `32460351746` passed Ubuntu and macOS Architecture, Format, Check, Clippy, Test and Rustdoc plus the PostgreSQL 18 persistence contract.
+- CI / verification: clean implementation CI run `32460351746` and final task-record CI run `32460630084` both passed Ubuntu and macOS Architecture, Format, Check, Clippy, Test and Rustdoc plus the PostgreSQL 18 persistence contract.
 - notes: `WorkStore` persistence I/O is executor-neutral Future-returning; SQLx and `PgPool` remain confined to `loom-storage`. Claims/retries mutate only platform/lease metadata; successful Work completion remains part of the Runtime-authorized atomic commit.
 
 ## Progress log
@@ -50,4 +50,5 @@ Implement PostgreSQL-backed Durable Work lifecycle operations while preserving R
 - 2026-08-21 — Task record created from issue #29; status `planned`.
 - 2026-08-21 — Implementation started on `feat/m2-t4-postgresql-work-leases`; `WorkStore` I/O will become executor-neutral Future-returning so SQLx remains confined to `loom-storage` without Runtime-side blocking.
 - 2026-08-21 — PostgreSQL Work claim/retry/read adapter, lease fencing, expiry reclaim, Runtime async forwarding and concurrency/race tests implemented; temporary branch-local source-application tooling removed before final review.
-- 2026-08-21 — Clean implementation head passed CI run `32460351746`; acceptance checklist verified. Task remains `in_progress` until PR #40 is merged and the real merge SHA is recorded by the immediate audit PR.
+- 2026-08-21 — Clean implementation head passed CI run `32460351746`; acceptance checklist verified.
+- 2026-08-21 — Final task-record head passed CI run `32460630084`; PR #40 merged as `7236dbcf37288ae8a8d892242a27bf784b583cab` and this post-merge audit marked M2-T4 completed.
