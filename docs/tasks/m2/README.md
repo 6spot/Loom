@@ -21,7 +21,7 @@ Baseline: Milestone 1 completed on `main`; persistence semantics are already pro
 
 | Task | Issue | Status | Record |
 | --- | ---: | --- | --- |
-| M2-T1 PostgreSQL schema + SQLx migrations | #26 | planned | `t1-postgresql-schema.md` |
+| M2-T1 PostgreSQL schema + SQLx migrations | #26 | in_progress | `t1-postgresql-schema.md` |
 | M2-T2 PostgreSQL read parity | #27 | planned | `t2-postgresql-read-parity.md` |
 | M2-T3 PostgreSQL commit/CAS | #28 | planned | `t3-postgresql-commit-cas.md` |
 | M2-T4 PostgreSQL Work leases | #29 | planned | `t4-postgresql-work-leases.md` |
