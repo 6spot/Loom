@@ -2,9 +2,9 @@ name: M3 T1 Apply
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - feat/m3-t1-world-creation-contract
+      - main
 
 permissions:
   contents: write
