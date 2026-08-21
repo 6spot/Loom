@@ -1,3 +1,5 @@
+mod support;
+
 use std::str::FromStr;
 
 use loom_api::{ApiErrorCode, TimelineTarget};
@@ -14,6 +16,7 @@ use loom_runtime::{
 use loom_storage::PgStorage;
 use serde_json::Value;
 use sqlx::PgPool;
+use support::TestDatabase;
 
 const OWNER: &str = "postgres.work.test";
 const HANDLER: &str = "postgres.work.handler";
@@ -26,16 +29,6 @@ where
     format!("00000000-0000-0000-0000-{value:012x}")
         .parse()
         .expect("test identity should parse")
-}
-
-fn postgres_url() -> Option<String> {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-        }
-        Err(_) => None,
-    }
 }
 
 struct WorkCapability {
@@ -75,18 +68,10 @@ fn registry() -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
-async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId)> {
-    let database_url = postgres_url()?;
-    let storage = PgStorage::connect(&database_url)
-        .await
-        .expect("PostgreSQL test database should accept connections");
-    storage
-        .migrate()
-        .await
-        .expect("migrations should be current");
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("test setup should connect independently");
+async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, WorldId, TimelineId)> {
+    let database = TestDatabase::provision("work").await?;
+    let storage = database.storage().await;
+    let pool = database.pool().await;
     let world_id: WorldId = id(seed);
     let timeline_id: TimelineId = id(seed + 1);
     sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")
@@ -103,7 +88,7 @@ async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId
     .execute(&pool)
     .await
     .expect("test Timeline should insert");
-    Some((storage, pool, world_id, timeline_id))
+    Some((database, storage, pool, world_id, timeline_id))
 }
 
 async fn seed_work(
@@ -145,7 +130,7 @@ async fn validated(
 
 #[tokio::test]
 async fn postgres_18_work_concurrent_claims_choose_one_fence_winner() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x2100).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2100).await else {
         return;
     };
     let work_id: WorkId = id(0x2110);
@@ -190,11 +175,12 @@ async fn postgres_18_work_concurrent_claims_choose_one_fence_winner() {
     assert_eq!(snapshot.world_time().value(), 0);
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_work_expiry_reclaim_and_retry_fence_preserve_world_truth() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x2200).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2200).await else {
         return;
     };
     let work_id: WorkId = id(0x2210);
@@ -252,11 +238,12 @@ async fn postgres_18_work_expiry_reclaim_and_retry_fence_preserve_world_truth() 
     assert_eq!(snapshot.world_time().value(), 0);
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_work_future_availability_and_world_due_are_not_claimed_early() {
-    let Some((storage, pool, world_id, timeline_id)) = authority(0x2300).await else {
+    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2300).await else {
         return;
     };
     let unavailable: WorkId = id(0x2310);
@@ -294,11 +281,12 @@ async fn postgres_18_work_future_availability_and_world_due_are_not_claimed_earl
     assert!(work.lease.is_none());
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_work_zero_event_runtime_completion_is_durable() {
-    let Some((storage, pool, world_id, timeline_id)) = authority(0x2400).await else {
+    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2400).await else {
         return;
     };
     let work_id: WorkId = id(0x2410);
@@ -330,11 +318,12 @@ async fn postgres_18_work_zero_event_runtime_completion_is_durable() {
     assert_eq!(snapshot.world_time().value(), 0);
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_work_completion_cancel_race_has_one_typed_winner() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x2500).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2500).await else {
         return;
     };
     let work_id: WorkId = id(0x2510);
@@ -382,4 +371,5 @@ async fn postgres_18_work_completion_cancel_race_has_one_typed_winner() {
     assert!(work.lease.is_none());
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }

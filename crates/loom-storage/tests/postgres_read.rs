@@ -1,37 +1,19 @@
+mod support;
+
 use loom_core::TimelineId;
 use loom_runtime::WorldStore;
-use loom_storage::PgStorage;
+use support::TestDatabase;
 
 const WORLD_ID: &str = "00000000-0000-0000-0000-000000000301";
 const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000302";
 
-fn postgres_url() -> Option<String> {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-        }
-        Err(_) => None,
-    }
-}
-
 #[tokio::test]
 async fn postgres_18_empty_timeline_snapshot_parity() {
-    let Some(database_url) = postgres_url() else {
+    let Some(database) = TestDatabase::provision("read-empty").await else {
         return;
     };
-
-    let storage = PgStorage::connect(&database_url)
-        .await
-        .expect("PostgreSQL test database should accept connections");
-    storage
-        .migrate()
-        .await
-        .expect("migrations should be current");
-
-    let pool = sqlx::PgPool::connect(&database_url)
-        .await
-        .expect("test setup should connect independently");
+    let storage = database.storage().await;
+    let pool = database.pool().await;
     sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")
         .bind(WORLD_ID)
         .execute(&pool)
@@ -61,4 +43,5 @@ async fn postgres_18_empty_timeline_snapshot_parity() {
 
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
