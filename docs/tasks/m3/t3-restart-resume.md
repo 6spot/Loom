@@ -1,13 +1,13 @@
 ---
 task: M3-T3
 issue: 50
-status: in_progress
+status: completed
 depends_on: [49]
 created_at: 2026-08-21
 started_at: 2026-08-21
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-21
+completion_pr: 56
+merge_sha: abbd8faa26f671f58bc69dff832469e92ebc3dbf
 ---
 
 # M3-T3 — PostgreSQL Restart / Reload / Resume Vertical Slice
@@ -29,12 +29,13 @@ Prove a World continues from PostgreSQL authority after Runtime compute stops an
 
 ## Completion evidence
 
-- PR:
-- merge SHA:
-- CI runs:
-- notes: Candidate test `postgres_18_runtime_reconstruction_continues_world_and_pending_work` creates the World through `WorldService`, commits bootstrap state and immediate Work through `ActionService`, drops the first Runtime, reconnects the same isolated `TestDatabase`, reads Event/State/Work through the second Runtime/Storage ports, continues via a second Action, and executes inherited Work through normal claim/fence completion. Local targeted test passed against the available PostgreSQL 17 container; PostgreSQL 18 CI and merge evidence remain pending.
+- PR: #56
+- merge SHA: `abbd8faa26f671f58bc69dff832469e92ebc3dbf`
+- CI runs: `32495546544` (PR checks) and `32495589422` (post-merge main CI), all reported green.
+- notes: `postgres_18_runtime_reconstruction_continues_world_and_pending_work` creates the World through `WorldService`, commits bootstrap state and immediate Work through `ActionService`, drops the first Runtime, reconnects the same isolated `TestDatabase`, reads Event/State/Work through the second Runtime/Storage ports, continues via a second Action, and executes inherited Work through normal claim/fence completion. T4 adds the dedicated restart/resume command to the PostgreSQL CI job because the pre-T4 workflow inventory did not invoke this newly merged test explicitly.
 
 ## Progress log
 
 - 2026-08-21 — Task record created; waits on PostgreSQL lifecycle persistence #49.
 - 2026-08-21 — Added the minimal PostgreSQL restart/resume vertical candidate in `crates/loom-storage/tests/postgres_restart_resume.rs`; no fixture rows, alternate write path, or persistent World lifecycle status are used.
+- 2026-08-21 — PR #56 merged as `abbd8faa26f671f58bc69dff832469e92ebc3dbf`; the post-merge audit records the real merge and CI evidence.
