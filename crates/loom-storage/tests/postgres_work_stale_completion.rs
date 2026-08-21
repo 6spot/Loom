@@ -38,7 +38,10 @@ async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
-    storage.migrate().await.expect("migrations should be current");
+    storage
+        .migrate()
+        .await
+        .expect("migrations should be current");
     let pool = PgPool::connect(&database_url)
         .await
         .expect("test setup should connect independently");
@@ -97,7 +100,11 @@ async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
         .expect("Timeline should be readable");
     let registry = CapabilityRegistry::new();
     let token = EffectEngine::new(&registry)
-        .validate(&snapshot.world_view(), "postgres.work.stale", Resolution::default())
+        .validate(
+            &snapshot.world_view(),
+            "postgres.work.stale",
+            Resolution::default(),
+        )
         .expect("empty completion Resolution should validate");
     let stale = CommitStore::commit(&storage, &token, Some(&first), PlatformTime::new(21))
         .await
@@ -114,7 +121,10 @@ async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
     assert_eq!(after_stale.status, WorkStatus::Pending);
     assert_eq!(after_stale.claim_generation, 2);
     assert_eq!(
-        after_stale.lease.expect("new lease must survive stale commit").fence(),
+        after_stale
+            .lease
+            .expect("new lease must survive stale commit")
+            .fence(),
         2
     );
     let result = CommitStore::commit(&storage, &token, Some(&second), PlatformTime::new(21))
