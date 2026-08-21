@@ -9,7 +9,7 @@ use url::Url;
 
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 
-/// One isolated PostgreSQL database created for an integration-test fixture.
+/// One isolated `PostgreSQL` database created for an integration-test fixture.
 ///
 /// `LOOM_TEST_POSTGRES_URL` is a control-database connection. The configured
 /// role must be allowed to create/drop databases. Each fixture creates a unique
@@ -60,7 +60,7 @@ impl TestDatabase {
             .expect("isolated PostgreSQL storage connection should succeed")
     }
 
-    /// Opens a direct SQLx pool for test fixture setup and schema assertions.
+    /// Opens a direct `SQLx` pool for test fixture setup and schema assertions.
     pub async fn pool(&self) -> PgPool {
         PgPool::connect(&self.database_url)
             .await
@@ -72,19 +72,6 @@ impl TestDatabase {
         drop_database(&self.control_pool, &self.database_name).await;
         self.control_pool.close().await;
     }
-}
-
-/// Asserts that a pool is connected to PostgreSQL major version 18.
-pub async fn assert_postgres_18(pool: &PgPool) {
-    let server_version: i32 =
-        sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
-            .fetch_one(pool)
-            .await
-            .expect("PostgreSQL should report its server version");
-    assert!(
-        (180_000..190_000).contains(&server_version),
-        "PostgreSQL integration gate requires major version 18, got server_version_num={server_version}"
-    );
 }
 
 fn postgres_control_url() -> Option<String> {
@@ -106,7 +93,7 @@ fn child_database_url(control_url: &str, database_name: &str) -> String {
 fn unique_database_name(label: &str) -> String {
     let label = label
         .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .take(20)
         .collect::<String>()
         .to_ascii_lowercase();
