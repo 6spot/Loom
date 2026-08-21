@@ -45,6 +45,7 @@ jobs:
       - name: Apply and verify T5 isolation changes
         run: |
           python3 tools/m2_t5_apply.py
+          python3 tools/m2_t5_followup.py
           cargo fmt --all
           cargo check --workspace --all-targets --all-features
           cargo clippy --workspace --all-targets --all-features -- -D warnings
