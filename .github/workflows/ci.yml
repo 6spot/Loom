@@ -55,6 +55,4 @@ jobs:
         run: cargo test --workspace --all-features
 
       - name: Rustdoc
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps
+        run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
