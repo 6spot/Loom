@@ -233,7 +233,14 @@ fn request(target: TimelineTarget, action: &str, input: Value) -> ActionRequest 
     )
 }
 
-async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, WorldId, TimelineId, EntityId)> {
+async fn authority() -> Option<(
+    TestDatabase,
+    PgStorage,
+    PgPool,
+    WorldId,
+    TimelineId,
+    EntityId,
+)> {
     let database = TestDatabase::provision("vertical").await?;
     let storage = database.storage().await;
     let pool = database.pool().await;
@@ -275,11 +282,13 @@ async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, WorldId, Timeli
 
 #[tokio::test]
 async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
-    let Some((database, storage, pool, world_id, timeline_id, entity_id)) = authority().await else {
+    let Some((database, storage, pool, world_id, timeline_id, entity_id)) = authority().await
+    else {
         return;
     };
     let target = TimelineTarget::new(world_id, timeline_id);
-    let runtime = Runtime::new(storage.clone(), registry(entity_id)).expect("Runtime should assemble");
+    let runtime =
+        Runtime::new(storage.clone(), registry(entity_id)).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
 
     let first = api
@@ -350,7 +359,13 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
         .await
         .expect("public Event history should be readable");
     assert_eq!(history.len(), 3);
-    assert!(history.last().expect("observation should exist").effects.is_empty());
+    assert!(
+        history
+            .last()
+            .expect("observation should exist")
+            .effects
+            .is_empty()
+    );
 
     let before_no_change = WorldStore::snapshot(&storage, timeline_id)
         .await
