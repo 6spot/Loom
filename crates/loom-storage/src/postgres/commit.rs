@@ -253,7 +253,16 @@ async fn validate_event_references(
         }
     }
     for reference in &event.relationship_refs {
-        if !active_relationship_exists(transaction, timeline_id, reference.relationship_id).await? {
+        let active =
+            active_relationship_exists(transaction, timeline_id, reference.relationship_id).await?;
+        let ended_by_this_event = event.effects.iter().any(|effect| {
+            matches!(
+                effect,
+                WorldEffect::EndRelationship { relationship_id }
+                    if *relationship_id == reference.relationship_id
+            )
+        });
+        if !active && !ended_by_this_event {
             return Err(invalid_event(
                 event.id,
                 format!("missing active Relationship {}", reference.relationship_id),
