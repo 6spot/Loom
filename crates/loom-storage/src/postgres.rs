@@ -5,9 +5,11 @@
 //! Runtime-owned persistence traits rather than reaching through the adapter to
 //! issue SQL directly. M2-T1 establishes connection, migration and health
 //! behavior plus the M2-T2 `WorldStore` read path. M2-T3 adds the atomic
-//! `CommitStore` path in a private child module; Durable Work claim/retry remains T4.
+//! `CommitStore` path, and M2-T4 adds Durable Work claim/retry fencing in
+//! private child modules.
 
 mod commit;
+mod work;
 
 use std::{fmt::Display, str::FromStr};
 

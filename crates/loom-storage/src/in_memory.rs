@@ -616,26 +616,28 @@ impl WorkStore for InMemoryStore {
         work_id: loom_core::WorkId,
         now: PlatformTime,
         claimed_until: PlatformTime,
-    ) -> Result<WorkClaim, WorkError> {
-        self.claim(timeline_id, work_id, now, claimed_until)
+    ) -> PersistenceFuture<'_, Result<WorkClaim, WorkError>> {
+        Box::pin(
+            async move { InMemoryStore::claim(self, timeline_id, work_id, now, claimed_until) },
+        )
     }
 
-    fn retry(
-        &self,
-        claim: &WorkClaim,
+    fn retry<'a>(
+        &'a self,
+        claim: &'a WorkClaim,
         now: PlatformTime,
         available_at: PlatformTime,
         last_error: Option<String>,
-    ) -> Result<WorkRecord, WorkError> {
-        self.retry(claim, now, available_at, last_error)
+    ) -> PersistenceFuture<'a, Result<WorkRecord, WorkError>> {
+        Box::pin(async move { InMemoryStore::retry(self, claim, now, available_at, last_error) })
     }
 
     fn work(
         &self,
         timeline_id: TimelineId,
         work_id: loom_core::WorkId,
-    ) -> Result<Option<WorkRecord>, ReadError> {
-        self.work(timeline_id, work_id)
+    ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
+        Box::pin(async move { InMemoryStore::work(self, timeline_id, work_id) })
     }
 }
 

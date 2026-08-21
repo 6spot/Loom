@@ -15,13 +15,13 @@ use super::PgStorage;
 type PgTransaction<'a> = Transaction<'a, Postgres>;
 
 impl WorkStore for PgStorage {
-    fn claim<'a>(
-        &'a self,
+    fn claim(
+        &self,
         timeline_id: TimelineId,
         work_id: WorkId,
         now: PlatformTime,
         claimed_until: PlatformTime,
-    ) -> PersistenceFuture<'a, Result<WorkClaim, WorkError>> {
+    ) -> PersistenceFuture<'_, Result<WorkClaim, WorkError>> {
         Box::pin(async move { claim_work(self, timeline_id, work_id, now, claimed_until).await })
     }
 
@@ -55,9 +55,9 @@ async fn claim_work(
     claimed_until: PlatformTime,
 ) -> Result<WorkClaim, WorkError> {
     let mut transaction = storage.pool.begin().await.map_err(work_sql_error)?;
-    let mut work = locked_work(&mut transaction, timeline_id, work_id)
-        .await?
-        .ok_or_else(|| missing_work(&mut transaction, timeline_id, work_id))?;
+    let Some(mut work) = locked_work(&mut transaction, timeline_id, work_id).await? else {
+        return Err(missing_work_error(&mut transaction, timeline_id, work_id).await);
+    };
 
     if !work.is_pending() {
         return Err(WorkError::NotPending {
@@ -132,9 +132,9 @@ async fn retry_work(
     let timeline_id = claim.timeline_id();
     let work_id = claim.work_id();
     let mut transaction = storage.pool.begin().await.map_err(work_sql_error)?;
-    let mut work = locked_work(&mut transaction, timeline_id, work_id)
-        .await?
-        .ok_or_else(|| missing_work(&mut transaction, timeline_id, work_id))?;
+    let Some(mut work) = locked_work(&mut transaction, timeline_id, work_id).await? else {
+        return Err(missing_work_error(&mut transaction, timeline_id, work_id).await);
+    };
     validate_claim(&work, claim, now)?;
 
     sqlx::query(
@@ -177,7 +177,11 @@ async fn locked_work(
     row.map(|row| work_record(&row, timeline_id)).transpose()
 }
 
-fn validate_claim(work: &WorkRecord, claim: &WorkClaim, now: PlatformTime) -> Result<(), WorkError> {
+fn validate_claim(
+    work: &WorkRecord,
+    claim: &WorkClaim,
+    now: PlatformTime,
+) -> Result<(), WorkError> {
     if !work.is_pending() {
         return Err(WorkError::NotPending {
             work_id: claim.work_id(),
@@ -206,34 +210,31 @@ fn validate_claim(work: &WorkRecord, claim: &WorkClaim, now: PlatformTime) -> Re
     Ok(())
 }
 
-fn missing_work(
+async fn missing_work_error(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
     work_id: WorkId,
 ) -> WorkError {
-    let timeline_exists = futures_lite_block_on_timeline_exists(transaction, timeline_id);
-    match timeline_exists {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM loom_timeline WHERE timeline_id = $1::uuid)",
+    )
+    .bind(timeline_id.to_string())
+    .fetch_one(&mut **transaction)
+    .await;
+    match exists {
         Ok(true) => WorkError::WorkNotFound {
             timeline_id,
             work_id,
         },
         Ok(false) => WorkError::TimelineNotFound { timeline_id },
-        Err(error) => error,
+        Err(error) => work_sql_error(error),
     }
 }
 
-fn futures_lite_block_on_timeline_exists(
-    _transaction: &mut PgTransaction<'_>,
+fn work_record(
+    row: &sqlx::postgres::PgRow,
     timeline_id: TimelineId,
-) -> Result<bool, WorkError> {
-    Err(WorkError::StorageUnavailable {
-        message: format!(
-            "internal PostgreSQL Work lookup bug while distinguishing Timeline {timeline_id}"
-        ),
-    })
-}
-
-fn work_record(row: &sqlx::postgres::PgRow, timeline_id: TimelineId) -> Result<WorkRecord, WorkError> {
+) -> Result<WorkRecord, WorkError> {
     let work_id = parse_identity::<WorkId>(&row_string(row, "work_id")?, "WorkId")?;
     let attempt_count = u32::try_from(row_i64(row, "attempt_count")?)
         .map_err(|_| corrupt("attempt_count exceeds u32"))?;

@@ -8,11 +8,11 @@ use loom_capability::{
 use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
 use loom_protocol::{Resolution, ResolveOutcome, WorkMutation};
 use loom_runtime::{
-    CommitError, CommitStore, EffectEngine, PlatformTime, Runtime, WorkError, WorkStatus, WorkStore,
-    WorldStore,
+    CommitError, CommitStore, EffectEngine, PlatformTime, Runtime, WorkError, WorkStatus,
+    WorkStore, WorldStore,
 };
 use loom_storage::PgStorage;
-use serde_json::{Value, json};
+use serde_json::Value;
 use sqlx::PgPool;
 
 const OWNER: &str = "postgres.work.test";
@@ -80,7 +80,10 @@ async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
-    storage.migrate().await.expect("migrations should be current");
+    storage
+        .migrate()
+        .await
+        .expect("migrations should be current");
     let pool = PgPool::connect(&database_url)
         .await
         .expect("test setup should connect independently");
@@ -372,7 +375,10 @@ async fn postgres_18_work_completion_cancel_race_has_one_typed_winner() {
         .await
         .unwrap()
         .unwrap();
-    assert!(matches!(work.status, WorkStatus::Completed | WorkStatus::Cancelled));
+    assert!(matches!(
+        work.status,
+        WorkStatus::Completed | WorkStatus::Cancelled
+    ));
     assert!(work.lease.is_none());
     pool.close().await;
     storage.close().await;

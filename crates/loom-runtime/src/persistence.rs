@@ -561,6 +561,8 @@ pub enum WorkError {
     DuplicateWork { work_id: WorkId },
     /// A scheduled Work points at an Event absent from the staged ledger.
     MissingCausalEvent { work_id: WorkId, event_id: EventId },
+    /// The persistence authority could not complete a Work I/O operation.
+    StorageUnavailable { message: String },
 }
 
 impl fmt::Display for WorkError {
@@ -635,6 +637,7 @@ impl fmt::Display for WorkError {
                 formatter,
                 "Work {work_id} references missing causal Event {event_id}"
             ),
+            Self::StorageUnavailable { message } => formatter.write_str(message),
         }
     }
 }
@@ -775,19 +778,20 @@ pub trait WorkStore {
     /// Claims one Pending Work until an explicit platform deadline.
     ///
     /// Claiming only updates lease/attempt metadata. It does not change Work
-    /// status or Timeline version.
+    /// status or Timeline version. The returned Future is executor-neutral so
+    /// SQL-backed adapters never need to block inside Runtime.
     ///
     /// # Errors
     ///
     /// Returns [`WorkError::AlreadyClaimed`], [`WorkError::NotAvailable`] or a
-    /// typed identity/status error when the claim cannot linearize.
+    /// typed identity/status/infrastructure error when the claim cannot linearize.
     fn claim(
         &self,
         timeline_id: TimelineId,
         work_id: WorkId,
         now: PlatformTime,
         claimed_until: PlatformTime,
-    ) -> Result<WorkClaim, WorkError>;
+    ) -> PersistenceFuture<'_, Result<WorkClaim, WorkError>>;
 
     /// Records a technical retry without changing World Truth.
     ///
@@ -797,14 +801,14 @@ pub trait WorkStore {
     ///
     /// # Errors
     ///
-    /// Returns a typed stale/expired claim or Work lifecycle error.
-    fn retry(
-        &self,
-        claim: &WorkClaim,
+    /// Returns a typed stale/expired claim, Work lifecycle or infrastructure error.
+    fn retry<'a>(
+        &'a self,
+        claim: &'a WorkClaim,
         now: PlatformTime,
         available_at: PlatformTime,
         last_error: Option<String>,
-    ) -> Result<WorkRecord, WorkError>;
+    ) -> PersistenceFuture<'a, Result<WorkRecord, WorkError>>;
 
     /// Reads one Work record from a Timeline.
     ///
@@ -812,10 +816,11 @@ pub trait WorkStore {
     ///
     /// # Errors
     ///
-    /// Returns [`ReadError::TimelineNotFound`] for an unknown Timeline.
+    /// Returns [`ReadError::TimelineNotFound`] for an unknown Timeline or a
+    /// storage-unavailable error when the authority cannot be read.
     fn work(
         &self,
         timeline_id: TimelineId,
         work_id: WorkId,
-    ) -> Result<Option<WorkRecord>, ReadError>;
+    ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>>;
 }
