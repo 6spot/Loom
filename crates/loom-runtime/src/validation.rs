@@ -458,8 +458,10 @@ impl<'registry> EffectEngine<'registry> {
                 }
                 .into());
             }
-            validate_event(self.registry, &mut candidate, proposer, event)?;
-            self.validate_invariants(&candidate, event)?;
+            let mut event_candidate = candidate.fork();
+            validate_event(self.registry, &mut event_candidate, proposer, event)?;
+            self.validate_invariants(&event_candidate, event)?;
+            candidate = event_candidate;
             candidate.note_event(event.id);
         }
         validate_work(self.registry, &mut candidate, proposer, &resolution)?;
@@ -556,9 +558,32 @@ fn validate_event(
         message,
     })?;
 
+    let mut reference_candidate = candidate.fork();
+
+    for causal_link in &event.causal_links {
+        let cause_event_id = causal_link.event_id();
+        if !candidate.event_exists(cause_event_id) {
+            return Err(ValidationError::InvalidCausalReference {
+                event_id: event.id,
+                cause_event_id,
+            });
+        }
+    }
+
+    for effect in &event.effects {
+        validate_effect(registry, candidate, proposer, effect)?;
+        candidate.apply_effect(effect);
+        if matches!(
+            effect,
+            WorldEffect::CreateEntity { .. } | WorldEffect::CreateRelationship { .. }
+        ) {
+            reference_candidate.apply_effect(effect);
+        }
+    }
+
     for participant in &event.participants {
         validate_event_participant(
-            candidate,
+            &reference_candidate,
             &definition.definition.participant_roles,
             event,
             participant,
@@ -577,7 +602,7 @@ fn validate_event(
                 role: relationship.role.clone(),
             });
         }
-        if candidate
+        if reference_candidate
             .relationship(relationship.relationship_id)
             .is_none()
         {
@@ -586,21 +611,7 @@ fn validate_event(
             });
         }
     }
-
-    for causal_link in &event.causal_links {
-        let cause_event_id = causal_link.event_id();
-        if !candidate.event_exists(cause_event_id) {
-            return Err(ValidationError::InvalidCausalReference {
-                event_id: event.id,
-                cause_event_id,
-            });
-        }
-    }
-
-    for effect in &event.effects {
-        validate_effect(registry, candidate, proposer, effect)?;
-        candidate.apply_effect(effect);
-    }
+    candidate.extend_read_set(reference_candidate.read_set());
     Ok(())
 }
 
