@@ -26,7 +26,7 @@ Baseline: Milestone 1 completed on `main`; persistence semantics are already pro
 | M2-T3 PostgreSQL commit/CAS | #28 | completed | `t3-postgresql-commit-cas.md` |
 | M2-T4 PostgreSQL Work leases | #29 | completed | `t4-postgresql-work-leases.md` |
 | M2-T5 PostgreSQL test/CI infrastructure | #30 | completed | `t5-postgresql-test-infra.md` |
-| M2-T6 PostgreSQL final parity gate | #31 | planned | `t6-postgresql-final-gate.md` |
+| M2-T6 PostgreSQL final parity gate | #31 | in_progress | `t6-postgresql-final-gate.md` |
 
 ## Milestone completion rule
 
@@ -44,3 +44,4 @@ This milestone covers PostgreSQL 18 + SQLx authoritative persistence for the Run
 - 2026-08-21: M2-T3 #28 completed via PR #38, merged as `9480211108790cb41eabf46da7b29577100205c0`; final task-record CI run `32456912832` passed PostgreSQL 18 commit/CAS/concurrency/atomicity parity plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc.
 - 2026-08-21: M2-T4 #29 completed via PR #40, merged as `7236dbcf37288ae8a8d892242a27bf784b583cab`; clean implementation CI run `32460351746` and final task-record CI run `32460630084` passed PostgreSQL 18 Work lease/fence/concurrency parity plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc.
 - 2026-08-21: M2-T5 #30 completed via PR #42, merged as `9f2051d3098b1b321508bff115390541646f1a41`; clean implementation CI run `32463175121` and final task-record CI run `32463486023` passed isolated PostgreSQL 18 schema/migration, read, commit/CAS, Durable Work and stale-fence suites plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc.
+- 2026-08-21: M2-T6 #31 started from the audited all-prerequisite `main` baseline `fc7dec3cf4b3305590249e79c8cef0e849bd00ac` for the final PostgreSQL authority parity gate.
