@@ -1,7 +1,10 @@
-use std::{process, sync::atomic::{AtomicU64, Ordering}};
+use std::{
+    process,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use loom_storage::PgStorage;
-use sqlx::PgPool;
+use sqlx::{AssertSqlSafe, PgPool};
 use url::Url;
 
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
@@ -27,7 +30,7 @@ impl TestDatabase {
             .expect("PostgreSQL test control database should accept connections");
         let database_name = unique_database_name(label);
         let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
-        sqlx::query(&create_sql)
+        sqlx::query(AssertSqlSafe(create_sql))
             .execute(&control_pool)
             .await
             .expect("PostgreSQL test role should create isolated databases");
@@ -62,11 +65,6 @@ impl TestDatabase {
         PgPool::connect(&self.database_url)
             .await
             .expect("isolated PostgreSQL fixture pool should connect")
-    }
-
-    /// Returns the unique database name for diagnostics.
-    pub fn database_name(&self) -> &str {
-        &self.database_name
     }
 
     /// Drops the isolated database, force-closing any leaked test connections.
@@ -128,7 +126,7 @@ async fn drop_database(control_pool: &PgPool, database_name: &str) {
         "DROP DATABASE IF EXISTS {} WITH (FORCE)",
         quote_identifier(database_name)
     );
-    sqlx::query(&drop_sql)
+    sqlx::query(AssertSqlSafe(drop_sql))
         .execute(control_pool)
         .await
         .expect("isolated PostgreSQL test database should be droppable");
