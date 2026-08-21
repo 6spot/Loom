@@ -1,3 +1,5 @@
+mod support;
+
 use std::str::FromStr;
 
 use loom_capability::{
@@ -21,6 +23,7 @@ use loom_runtime::{
 use loom_storage::PgStorage;
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use support::TestDatabase;
 
 const OWNER: &str = "postgres.commit.test";
 const EVENT_TYPE: &str = "postgres.commit.changed";
@@ -36,16 +39,6 @@ where
     format!("00000000-0000-0000-0000-{value:012x}")
         .parse()
         .expect("test identity should parse")
-}
-
-fn postgres_url() -> Option<String> {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-        }
-        Err(_) => None,
-    }
 }
 
 struct CommitTestCapability {
@@ -98,18 +91,10 @@ fn registry() -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
-async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId)> {
-    let database_url = postgres_url()?;
-    let storage = PgStorage::connect(&database_url)
-        .await
-        .expect("PostgreSQL test database should accept connections");
-    storage
-        .migrate()
-        .await
-        .expect("migrations should be current");
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("test setup should connect independently");
+async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, WorldId, TimelineId)> {
+    let database = TestDatabase::provision("commit").await?;
+    let storage = database.storage().await;
+    let pool = database.pool().await;
     let world_id: WorldId = id(seed);
     let timeline_id: TimelineId = id(seed + 1);
     sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")
@@ -126,7 +111,7 @@ async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId
     .execute(&pool)
     .await
     .expect("test Timeline should insert");
-    Some((storage, pool, world_id, timeline_id))
+    Some((database, storage, pool, world_id, timeline_id))
 }
 
 async fn validated(
@@ -179,7 +164,7 @@ fn event(event_id: EventId, occurred_at: i64) -> ProposedEvent {
 
 #[tokio::test]
 async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1000).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1000).await else {
         return;
     };
     let left: EntityId = id(0x1010);
@@ -253,11 +238,12 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
     );
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_relationship_reference_survives_same_event_end() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1100).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1100).await else {
         return;
     };
     let left: EntityId = id(0x1110);
@@ -317,11 +303,12 @@ async fn postgres_18_commit_relationship_reference_survives_same_event_end() {
     assert!(snapshot.world_view().relationship(relationship).is_none());
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_concurrent_cas_has_exactly_one_winner() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1200).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1200).await else {
         return;
     };
     let registry = registry();
@@ -381,11 +368,12 @@ async fn postgres_18_commit_concurrent_cas_has_exactly_one_winner() {
     );
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1300).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1300).await else {
         return;
     };
     let duplicate_work: WorkId = id(0x1310);
@@ -423,11 +411,12 @@ async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
     assert_eq!(after.works[0].status, WorkStatus::Pending);
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_no_change_and_work_only_semantics() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1400).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1400).await else {
         return;
     };
     let empty_registry = CapabilityRegistry::new();
@@ -482,11 +471,12 @@ async fn postgres_18_commit_no_change_and_work_only_semantics() {
     assert_eq!(work.due_world_time, Some(WorldInstant::new(100)));
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_current_work_completion_is_atomic_runtime_state() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1500).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1500).await else {
         return;
     };
     let work_id: WorkId = id(0x1510);
@@ -531,11 +521,12 @@ async fn postgres_18_commit_current_work_completion_is_atomic_runtime_state() {
     assert!(work.lease.is_none());
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
 async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_structure() {
-    let Some((storage, pool, _world_id, timeline_id)) = authority(0x1600).await else {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1600).await else {
         return;
     };
     let registry = registry();
@@ -596,4 +587,5 @@ async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_struct
     assert!(current.world_view().entity(id(0x1612)).is_none());
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }

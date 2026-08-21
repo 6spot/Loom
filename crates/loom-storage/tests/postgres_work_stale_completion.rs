@@ -1,3 +1,5 @@
+mod support;
+
 use std::str::FromStr;
 
 use loom_capability::CapabilityRegistry;
@@ -9,6 +11,7 @@ use loom_runtime::{
 };
 use loom_storage::PgStorage;
 use sqlx::PgPool;
+use support::TestDatabase;
 
 fn id<T>(value: u128) -> T
 where
@@ -20,28 +23,10 @@ where
         .expect("test identity should parse")
 }
 
-fn postgres_url() -> Option<String> {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-        }
-        Err(_) => None,
-    }
-}
-
-async fn authority() -> Option<(PgStorage, PgPool, TimelineId, WorkId)> {
-    let database_url = postgres_url()?;
-    let storage = PgStorage::connect(&database_url)
-        .await
-        .expect("PostgreSQL test database should accept connections");
-    storage
-        .migrate()
-        .await
-        .expect("migrations should be current");
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("test setup should connect independently");
+async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, TimelineId, WorkId)> {
+    let database = TestDatabase::provision("work-stale-completion").await?;
+    let storage = database.storage().await;
+    let pool = database.pool().await;
     let world_id: WorldId = id(0x2600);
     let timeline_id: TimelineId = id(0x2601);
     let work_id: WorkId = id(0x2610);
@@ -70,12 +55,12 @@ async fn authority() -> Option<(PgStorage, PgPool, TimelineId, WorkId)> {
     .execute(&pool)
     .await
     .expect("test Work should insert");
-    Some((storage, pool, timeline_id, work_id))
+    Some((database, storage, pool, timeline_id, work_id))
 }
 
 #[tokio::test]
 async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
-    let Some((storage, pool, timeline_id, work_id)) = authority().await else {
+    let Some((database, storage, pool, timeline_id, work_id)) = authority().await else {
         return;
     };
     let first = WorkStore::claim(
@@ -145,4 +130,5 @@ async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
 
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
 }

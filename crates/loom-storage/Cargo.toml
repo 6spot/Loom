@@ -14,6 +14,7 @@ loom-api = { path = "../loom-api" }
 loom-capability = { path = "../loom-capability" }
 loom-protocol = { path = "../loom-protocol" }
 tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
+url = "2"
 
 [lints]
 workspace = true

@@ -66,16 +66,18 @@ jobs:
         env:
           POSTGRES_USER: loom
           POSTGRES_PASSWORD: loom
-          POSTGRES_DB: loom_test
+          POSTGRES_DB: loom_control
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U loom -d loom_test"
+          --health-cmd "pg_isready -U loom -d loom_control"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
-      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_test
+      # Ephemeral CI-only control connection. Individual tests create/drop their
+      # own migrated databases and never share application state.
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
       LOOM_REQUIRE_POSTGRES_TESTS: "1"
 
     steps:
@@ -89,5 +91,17 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: PostgreSQL persistence contract
-        run: cargo test -p loom-storage postgres_18 -- --nocapture
+      - name: PostgreSQL schema and migration contract
+        run: cargo test -p loom-storage --test postgres_schema -- --nocapture
+
+      - name: PostgreSQL read parity
+        run: cargo test -p loom-storage --test postgres_read -- --nocapture
+
+      - name: PostgreSQL commit and CAS parity
+        run: cargo test -p loom-storage --test postgres_commit -- --nocapture
+
+      - name: PostgreSQL Durable Work parity
+        run: cargo test -p loom-storage --test postgres_work -- --nocapture
+
+      - name: PostgreSQL stale Work fence regression
+        run: cargo test -p loom-storage --test postgres_work_stale_completion -- --nocapture

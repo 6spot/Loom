@@ -1,12 +1,12 @@
 ---
 task: M2-T5
 issue: 30
-status: planned
+status: completed
 depends_on: [26]
 created_at: 2026-08-21
-started_at:
-completed_at:
-completion_pr:
+started_at: 2026-08-21
+completed_at: 2026-08-21
+completion_pr: 42
 merge_sha:
 ---
 
@@ -27,22 +27,27 @@ Make PostgreSQL 18 persistence behavior reproducibly testable in local and CI wo
 
 ## Acceptance checklist
 
-- [ ] clean CI can start/connect to PostgreSQL 18;
-- [ ] migrations run from scratch in CI;
-- [ ] PostgreSQL integration tests detect migration/schema/contract regressions;
-- [ ] local PostgreSQL test instructions are documented;
-- [ ] no credentials/secrets are committed;
-- [ ] architecture, fmt, check, clippy, unit tests and rustdoc remain green;
-- [ ] PostgreSQL integration suite is green on the completion PR.
+- [x] clean CI can start/connect to PostgreSQL 18;
+- [x] migrations run from scratch in CI;
+- [x] PostgreSQL integration tests detect migration/schema/contract regressions;
+- [x] local PostgreSQL test instructions are documented;
+- [x] no credentials/secrets are committed;
+- [x] architecture, fmt, check, clippy, unit tests and rustdoc remain green;
+- [x] PostgreSQL integration suite is green on the completion PR.
 
 ## Completion evidence
 
-- PR:
-- merge SHA:
-- CI runs:
-- local verification:
-- notes:
+- PR: #42
+- merge SHA: pending post-merge audit
+- CI runs: branch-local migration verifier `32462337002`; clean standard read-only CI `32463175121`
+- local verification: `docs/testing-postgresql.md` documents the PostgreSQL 18 Docker control database plus the exact five `cargo test -p loom-storage --test ...` commands used by CI.
+- notes: each PostgreSQL integration fixture provisions a unique child database, runs embedded SQLx migrations from scratch, and drops it after the test. The committed workflow retains `contents: read`; the temporary write-enabled migration verifier and helper scripts were removed before final acceptance. Repository credentials are only disposable local/CI test values, not production secrets.
 
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #30; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t5-postgresql-test-infra`; replacing the shared PostgreSQL integration database with isolated temporary databases created from the explicit `LOOM_TEST_POSTGRES_URL` control connection, with migrations applied from scratch and explicit cleanup.
+- 2026-08-21 — Added the shared `tests/support` harness: each PostgreSQL fixture creates a unique child database, applies embedded SQLx migrations from scratch, and drops the database with forced connection cleanup. Dynamic database DDL is restricted to harness-generated identifiers and explicitly audited with SQLx `AssertSqlSafe`.
+- 2026-08-21 — Migrated read, commit/CAS, Durable Work, and stale-completion integration suites to the isolated harness and added a dedicated PostgreSQL 18 schema/migration contract. Branch-local verifier run `32462337002` passed workspace check/clippy and all five PostgreSQL suites before the temporary write-enabled verifier workflow and transformation helpers were removed.
+- 2026-08-21 — Standard read-only CI now runs schema/migration, read parity, commit/CAS, Durable Work, and stale Work-fence suites as explicit required PostgreSQL 18 steps. Local Docker/test instructions are documented in `docs/testing-postgresql.md`.
+- 2026-08-21 — Clean standard CI run `32463175121` passed PostgreSQL 18 schema/migration, read, commit/CAS, Durable Work and stale-fence suites plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc. Task acceptance is complete; real merge SHA will be recorded immediately after merge via audit PR.
