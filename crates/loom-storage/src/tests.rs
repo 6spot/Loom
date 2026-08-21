@@ -7,8 +7,9 @@ use loom_capability::{
     WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, SchemaRevision, TimelineId,
-    WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
+    RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
+    WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ResolveOutcome};
 use loom_runtime::{
@@ -105,6 +106,34 @@ fn event_with_effect(event_id: EventId, effect: WorldEffect, occurred_at: i64) -
         json!({"event": event_id.to_string()}),
     )
     .with_effect(effect)
+}
+
+fn with_entity_participant(mut event: ProposedEvent, entity_id: EntityId) -> ProposedEvent {
+    event.participants = serde_json::from_value(json!([{
+        "entity_id": entity_id.to_string(),
+        "role": "subject"
+    }]))
+    .expect("test Event participant should deserialize");
+    event
+}
+
+fn with_relationship_ref(
+    mut event: ProposedEvent,
+    relationship_id: loom_core::RelationshipId,
+) -> ProposedEvent {
+    event.relationship_refs = serde_json::from_value(json!([{
+        "relationship_id": relationship_id.to_string(),
+        "role": "subject"
+    }]))
+    .expect("test Event Relationship reference should deserialize");
+    event
+}
+
+fn relationship_participants() -> Vec<RelationshipParticipant> {
+    vec![
+        RelationshipParticipant::new(entity(10), "left"),
+        RelationshipParticipant::new(entity(11), "right"),
+    ]
 }
 
 struct TestCapability {
@@ -237,6 +266,15 @@ impl Capability for TestCapability {
     }
 
     fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_facet(FacetDefinition::new(
+            FacetTypeId::from("test.facet"),
+            SchemaRevision::new(1),
+            json!({"type": "object"}),
+        ))?;
+        registrar.register_relationship(RelationshipDefinition::new(
+            RelationshipTypeId::from("test.relationship"),
+            SchemaRevision::new(1),
+        ))?;
         registrar.register_event(EventDefinition::new(
             EventTypeId::from("test.changed"),
             SchemaRevision::new(1),
@@ -461,6 +499,90 @@ fn commit_assigns_contiguous_event_sequences_and_advances_once() {
     assert_eq!(snapshot.events[1].event_seq, EventSeq::new(2));
     assert_eq!(snapshot.world_time(), WorldInstant::new(5));
     assert!(snapshot.world_view().entity(entity(20)).is_some());
+}
+
+#[test]
+fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effects() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    for entity_id in [entity(10), entity(11)] {
+        store
+            .seed_entity(
+                timeline(),
+                loom_core::Entity {
+                    id: entity_id,
+                    world_id: world(),
+                },
+            )
+            .expect("Relationship participant Entity should be seeded");
+    }
+
+    let created_entity = entity(80);
+    let entity_event = with_entity_participant(
+        event_with_effect(
+            event(80),
+            WorldEffect::CreateEntity {
+                entity_id: created_entity,
+            },
+            1,
+        )
+        .with_effect(WorldEffect::PutFacet {
+            owner: FacetOwner::entity(created_entity),
+            facet_type: FacetTypeId::from("test.facet"),
+            schema_revision: SchemaRevision::new(1),
+            value: json!({"created": true}),
+        }),
+        created_entity,
+    );
+    let created_relationship = loom_core::RelationshipId::from_uuid(
+        "00000000-0000-0000-0000-000000000080"
+            .parse()
+            .expect("test RelationshipId should parse"),
+    );
+    let relationship_event = with_relationship_ref(
+        event_with_effect(
+            event(81),
+            WorldEffect::CreateRelationship {
+                relationship_id: created_relationship,
+                relationship_type: RelationshipTypeId::from("test.relationship"),
+                participants: relationship_participants(),
+            },
+            2,
+        ),
+        created_relationship,
+    );
+
+    let validated = validated(
+        &store,
+        &registry(),
+        Resolution::new(vec![entity_event, relationship_event], Vec::new()),
+    );
+    let result = store
+        .commit(&validated, None, PlatformTime::new(1))
+        .expect("storage hard checks should agree with Runtime validation");
+
+    assert_eq!(result.events.len(), 2);
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert!(snapshot.world_view().entity(created_entity).is_some());
+    assert_eq!(
+        snapshot
+            .world_view()
+            .facet(
+                FacetOwner::entity(created_entity),
+                &FacetTypeId::from("test.facet"),
+            )
+            .expect("created Entity Facet should be readable")
+            .value(),
+        &json!({"created": true})
+    );
+    assert!(
+        snapshot
+            .world_view()
+            .relationship(created_relationship)
+            .is_some()
+    );
 }
 
 #[test]

@@ -463,6 +463,17 @@ impl CandidateWorldView {
         }
     }
 
+    pub(crate) fn fork(&self) -> Self {
+        Self {
+            base: self.base.clone(),
+            created_entities: self.created_entities.clone(),
+            relationships: self.relationships.clone(),
+            facets: self.facets.clone(),
+            available_events: self.available_events.clone(),
+            reads: Mutex::new(self.read_set()),
+        }
+    }
+
     /// Returns the World identity visible in candidate state.
     #[must_use]
     pub const fn world_id(&self) -> WorldId {

@@ -458,8 +458,10 @@ impl<'registry> EffectEngine<'registry> {
                 }
                 .into());
             }
-            validate_event(self.registry, &mut candidate, proposer, event)?;
-            self.validate_invariants(&candidate, event)?;
+            let mut event_candidate = candidate.fork();
+            validate_event(self.registry, &mut event_candidate, proposer, event)?;
+            self.validate_invariants(&event_candidate, event)?;
+            candidate = event_candidate;
             candidate.note_event(event.id);
         }
         validate_work(self.registry, &mut candidate, proposer, &resolution)?;
@@ -556,6 +558,21 @@ fn validate_event(
         message,
     })?;
 
+    for causal_link in &event.causal_links {
+        let cause_event_id = causal_link.event_id();
+        if !candidate.event_exists(cause_event_id) {
+            return Err(ValidationError::InvalidCausalReference {
+                event_id: event.id,
+                cause_event_id,
+            });
+        }
+    }
+
+    for effect in &event.effects {
+        validate_effect(registry, candidate, proposer, effect)?;
+        candidate.apply_effect(effect);
+    }
+
     for participant in &event.participants {
         validate_event_participant(
             candidate,
@@ -585,21 +602,6 @@ fn validate_event(
                 relationship_id: relationship.relationship_id,
             });
         }
-    }
-
-    for causal_link in &event.causal_links {
-        let cause_event_id = causal_link.event_id();
-        if !candidate.event_exists(cause_event_id) {
-            return Err(ValidationError::InvalidCausalReference {
-                event_id: event.id,
-                cause_event_id,
-            });
-        }
-    }
-
-    for effect in &event.effects {
-        validate_effect(registry, candidate, proposer, effect)?;
-        candidate.apply_effect(effect);
     }
     Ok(())
 }

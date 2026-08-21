@@ -229,6 +229,135 @@ fn missing_entity_and_relationship_references_are_rejected() {
 }
 
 #[test]
+fn current_event_can_reference_structures_introduced_by_its_effects() {
+    let registry = registry();
+    let engine = EffectEngine::new(&registry);
+
+    let created_entity = entity(20);
+    let entity_event = proposed_event(20)
+        .with_participant(EventParticipant::new(created_entity, "subject"))
+        .with_effect(WorldEffect::CreateEntity {
+            entity_id: created_entity,
+        });
+    engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![entity_event], Vec::new()),
+        )
+        .expect("an Event may reference an Entity created by its own Effects");
+
+    let created_relationship = relationship(20);
+    let mut relationship_event = proposed_event(21).with_effect(WorldEffect::CreateRelationship {
+        relationship_id: created_relationship,
+        relationship_type: RelationshipTypeId::from("counter.pair"),
+        participants: pair_participants(),
+    });
+    relationship_event
+        .relationship_refs
+        .push(EventRelationshipRef::new(created_relationship, "subject"));
+    engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![relationship_event], Vec::new()),
+        )
+        .expect("an Event may reference a Relationship created by its own Effects");
+}
+
+#[test]
+fn current_event_cannot_see_structures_created_by_a_later_batch_event() {
+    let registry = registry();
+    let engine = EffectEngine::new(&registry);
+
+    let later_entity = entity(30);
+    let first_entity_event =
+        proposed_event(30).with_participant(EventParticipant::new(later_entity, "subject"));
+    let second_entity_event = proposed_event(31).with_effect(WorldEffect::CreateEntity {
+        entity_id: later_entity,
+    });
+    let entity_error = engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![first_entity_event, second_entity_event], Vec::new()),
+        )
+        .expect_err("a participant cannot resolve against a later batch Event");
+    assert!(matches!(
+        entity_error,
+        super::RuntimeError::Validation(ValidationError::MissingEntity { .. })
+    ));
+
+    let later_relationship = relationship(30);
+    let mut first_relationship_event = proposed_event(32);
+    first_relationship_event
+        .relationship_refs
+        .push(EventRelationshipRef::new(later_relationship, "subject"));
+    let second_relationship_event =
+        proposed_event(33).with_effect(WorldEffect::CreateRelationship {
+            relationship_id: later_relationship,
+            relationship_type: RelationshipTypeId::from("counter.pair"),
+            participants: pair_participants(),
+        });
+    let relationship_error = engine
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(
+                vec![first_relationship_event, second_relationship_event],
+                Vec::new(),
+            ),
+        )
+        .expect_err("a Relationship reference cannot resolve against a later batch Event");
+    assert!(matches!(
+        relationship_error,
+        super::RuntimeError::Validation(ValidationError::MissingRelationship { .. })
+    ));
+}
+
+#[test]
+fn ordered_effects_allow_facet_state_after_same_event_entity_creation() {
+    let registry = registry();
+    let entity_id = entity(40);
+    let event = proposed_event(40)
+        .with_effect(WorldEffect::CreateEntity { entity_id })
+        .with_effect(WorldEffect::PutFacet {
+            owner: FacetOwner::entity(entity_id),
+            facet_type: FacetTypeId::from("counter.value"),
+            schema_revision: SchemaRevision::new(1),
+            value: json!({"value": 4}),
+        });
+
+    EffectEngine::new(&registry)
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect("ordered Effects should expose a newly created Entity to PutFacet");
+}
+
+#[test]
+fn duplicate_same_event_entity_creation_is_rejected() {
+    let registry = registry();
+    let entity_id = entity(50);
+    let event = proposed_event(50)
+        .with_effect(WorldEffect::CreateEntity { entity_id })
+        .with_effect(WorldEffect::CreateEntity { entity_id });
+    let error = EffectEngine::new(&registry)
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect_err("duplicate structural identity creation must be rejected");
+    assert!(matches!(
+        error,
+        super::RuntimeError::Validation(ValidationError::DuplicateIdentity { kind: "Entity", .. })
+    ));
+}
+
+#[test]
 fn relationship_structure_is_checked_at_the_effect_boundary() {
     let invalid = proposed_event(1).with_effect(WorldEffect::CreateRelationship {
         relationship_id: relationship(20),

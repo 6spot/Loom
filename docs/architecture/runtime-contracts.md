@@ -697,10 +697,9 @@ Validation 至少包括：
 ```text
 schema validation
 semantic ownership validation
-identity/reference validation
-relationship structure validation
 causal DAG validation
-candidate Effect application
+ordered Effect structural validation/application to the Event-local candidate
+Event participant/Relationship reference validation against that candidate
 Capability invariants
 Runtime invariants
 Work mutation validation
@@ -789,6 +788,15 @@ observer-if-event-semantics-require-it
 
 表达 Event 对某 Relationship 的事实引用，例如“这次 Event 结束了 contract R100”。
 
+Event 的 `participants` 与 `relationship_refs` 在当前 Event 的局部候选状态中解析：
+Runtime 先按 `effects` 列表顺序验证并应用这个 Event 的结构性 Effects，再检查该
+Event 自己的 Entity/Relationship 引用。因此，一个 Event 可以通过自己的有效
+`CreateEntity` 或 `CreateRelationship` Effect 引用刚引入的 identity；依赖同一
+Event 的 `PutFacet` 等后续 Effect 也必须遵守列表顺序。当前 Event 的局部候选不会
+预见 batch 中后续 Event，后续 Event 只能在前一 Event 完成后看到它已经引入的
+结构。Storage hard validation 必须复现同一规则，不能让 Runtime 接受而提交适配器
+拒绝。
+
 ### 11.3 EventScope
 
 表达 population/group/target 范围。Core 只提供引用 mechanism，群体选择器与人口语义由 Capability 定义。
@@ -852,10 +860,9 @@ v0 `PutFacet` 写入完整 candidate Facet value，而不是通用 JSON Patch。
 Effect Engine 属于 `loom-runtime`，负责：
 
 ```text
-apply Effects to candidate overlay
-check ownership
-check references
-validate schemas
+check ownership and schemas
+validate each Event's Effects and apply them in listed order
+check Event participant/Relationship references against the Event-local candidate
 construct CandidateWorldView
 invoke invariants
 produce ValidatedResolution
@@ -1094,13 +1101,11 @@ Event/Action/Work schema validation
 ↓
 semantic ownership validation
 ↓
-identity/reference validation
-↓
-relationship structural validation
-↓
 causal DAG validation
 ↓
-apply Effects to Mutation Overlay
+validate and apply the current Event's Effects in listed order
+↓
+validate current Event participant/Relationship references against its local candidate
 ↓
 CandidateWorldView
 ↓

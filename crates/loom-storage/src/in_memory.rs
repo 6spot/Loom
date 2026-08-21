@@ -412,13 +412,10 @@ impl InMemoryStore {
         let mut seen_events = HashSet::new();
         let mut next_sequence = timeline.version.head_event_seq.value();
         for event in resolution.events() {
-            validate_event(timeline, event, &seen_events)?;
+            *timeline = validate_event(timeline, event, &seen_events)?;
             next_sequence = next_sequence
                 .checked_add(1)
                 .ok_or(CommitError::RevisionOverflow)?;
-            for effect in &event.effects {
-                apply_effect(timeline, event.id, effect)?;
-            }
             let committed = CommittedEvent::from_proposed(
                 timeline.timeline_id,
                 loom_core::EventSeq::new(next_sequence),
@@ -672,7 +669,7 @@ fn validate_event(
     timeline: &TimelineState,
     event: &ProposedEvent,
     seen_events: &HashSet<EventId>,
-) -> Result<(), CommitError> {
+) -> Result<TimelineState, CommitError> {
     if event.id.is_nil() {
         return Err(CommitError::InvalidEvent {
             event_id: event.id,
@@ -682,8 +679,13 @@ fn validate_event(
     if timeline.event_ids.contains(&event.id) || seen_events.contains(&event.id) {
         return Err(CommitError::DuplicateEvent { event_id: event.id });
     }
+    let mut event_timeline = timeline.clone();
+    for effect in &event.effects {
+        apply_effect(&mut event_timeline, event.id, effect)?;
+    }
+
     for participant in &event.participants {
-        if !timeline.entities.contains_key(&participant.entity_id) {
+        if !event_timeline.entities.contains_key(&participant.entity_id) {
             return Err(CommitError::InvalidEvent {
                 event_id: event.id,
                 message: format!("missing participant Entity {}", participant.entity_id),
@@ -691,7 +693,7 @@ fn validate_event(
         }
     }
     for relationship in &event.relationship_refs {
-        if !timeline
+        if !event_timeline
             .relationships
             .get(&relationship.relationship_id)
             .is_some_and(|record| record.active)
@@ -716,7 +718,7 @@ fn validate_event(
             });
         }
     }
-    Ok(())
+    Ok(event_timeline)
 }
 
 fn apply_effect(
@@ -777,6 +779,7 @@ fn apply_effect(
                     "Relationship identity is invalid, duplicated, or has no participants",
                 ));
             }
+            let mut participant_ids = HashSet::new();
             for participant in participants {
                 if participant.entity_id.is_nil()
                     || !timeline.entities.contains_key(&participant.entity_id)
@@ -784,6 +787,12 @@ fn apply_effect(
                     return Err(invalid_effect(
                         event_id,
                         "Relationship participant Entity does not exist",
+                    ));
+                }
+                if !participant_ids.insert(participant.entity_id) {
+                    return Err(invalid_effect(
+                        event_id,
+                        "Relationship contains a duplicate participant Entity",
                     ));
                 }
             }
