@@ -4,7 +4,7 @@
 //! Work execution into the existing Runtime validation and persistence path.
 //! It does not define a second protocol, storage boundary or public endpoint.
 
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiResult, CatalogService,
@@ -13,16 +13,20 @@ use loom_api::{
     TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget,
 };
 use loom_capability::{
-    CapabilityRegistry, DispatchError, ResolutionContext, ResolutionContextError,
+    CapabilityId, CapabilityRegistry, DispatchError, ResolutionContext, ResolutionContextError,
+    ResolverError,
 };
-use loom_core::{TimelineId, WorkId};
+use loom_core::{ActionTypeId, TimelineId, WorkId};
 use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
 
 use crate::{
-    CommitError, CommitStore, CommittedEvent, EffectEngine, ManualPlatformClock, PlatformClock,
-    PlatformTime, ReadError, RuntimeError, TimelineSnapshot, ValidatedResolution, ValidationError,
-    ValidationOutcome, WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
+    BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent, EffectEngine,
+    ManualPlatformClock, PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError,
+    TimelineSnapshot, ValidatedResolution, ValidationError, WorkClaim, WorkError, WorkRecord,
+    WorkStore, WorldStore,
 };
+
+use super::validation::ResolutionSegment;
 
 /// A Runtime composition root for one Capability registry and persistence
 /// adapter.
@@ -44,6 +48,7 @@ pub struct Runtime<S> {
     registry: CapabilityRegistry,
     store: S,
     platform_clock: Arc<dyn PlatformClock>,
+    resolution_budget: ResolutionBudget,
 }
 
 impl<S> Runtime<S>
@@ -70,6 +75,7 @@ where
             registry,
             store,
             platform_clock: Arc::new(ManualPlatformClock::default()),
+            resolution_budget: ResolutionBudget::unlimited(),
         })
     }
 
@@ -87,6 +93,18 @@ where
         C: PlatformClock + 'static,
     {
         self.platform_clock = Arc::new(clock);
+        self
+    }
+
+    /// Injects the Runtime policy limiting one root Resolution execution.
+    ///
+    /// The same policy is applied to every owner-tagged segment produced by a
+    /// root Action/Work call tree. Event, Effect and Work limits therefore
+    /// aggregate across child Capabilities, while subresolution depth/count
+    /// are checked before child dispatch.
+    #[must_use]
+    pub fn with_resolution_budget(mut self, budget: ResolutionBudget) -> Self {
+        self.resolution_budget = budget;
         self
     }
 
@@ -138,66 +156,52 @@ where
             }
         };
         let base = snapshot.world_view();
-        let Some(handler) = self.registry.work_handler(&work.handler) else {
-            let error = ApiError::internal("registered Work handler was not found");
-            return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
-        };
-        let owner = handler.owner.as_str().to_owned();
-        let context = RuntimeResolutionContext {
-            base: &base,
-            registry: &self.registry,
-        };
-        let outcome = match self
-            .registry
-            .handle_work(&work.handler, &context, &work.payload)
-        {
-            Ok(outcome) => outcome,
+        let (outcome, execution) = match dispatch_root_work(
+            &base,
+            &self.registry,
+            self.resolution_budget,
+            &work.handler,
+            &work.payload,
+        ) {
+            Ok(execution) => execution,
             Err(error) => {
                 let error = map_dispatch_error(error);
                 return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
             }
         };
 
-        let engine = EffectEngine::new(&self.registry);
-        let validation = match engine.validate_outcome(&base, &owner, outcome) {
-            Ok(validation) => validation,
+        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+        let rejection = match &outcome {
+            ResolveOutcome::Rejected(rejection) => Some(rejection.clone()),
+            ResolveOutcome::Resolved(_) => None,
+        };
+        let validation = match &outcome {
+            ResolveOutcome::Rejected(_) => {
+                engine.validate_segments(&base, &[], execution.call_provenance.clone())
+            }
+            ResolveOutcome::Resolved(_) => engine.validate_segments(
+                &base,
+                &execution.segments,
+                execution.call_provenance.clone(),
+            ),
+        };
+        let validated = match validation {
+            Ok(validated) => validated,
             Err(error) => {
                 let error = map_runtime_error(&error);
                 return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
             }
         };
 
-        match validation {
-            ValidationOutcome::Rejected(rejection) => {
-                let empty = match engine.validate(&base, &owner, Resolution::default()) {
-                    Ok(empty) => empty,
-                    Err(error) => {
-                        let error = map_runtime_error(&error);
-                        return Err(self.retry_after_failure(
-                            &claim,
-                            now,
-                            retry_available_at,
-                            error,
-                        ));
-                    }
-                };
-                match self.store.commit(&empty, Some(&claim), now) {
-                    Ok(_) => Ok(ExecutionResult::rejected(rejection)),
-                    Err(error) => {
-                        let error = map_commit_error(&error);
-                        Err(self.retry_after_failure(&claim, now, retry_available_at, error))
-                    }
-                }
-            }
-            ValidationOutcome::Validated(validated) => {
-                let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
-                match self.store.commit(&validated, Some(&claim), now) {
-                    Ok(result) => Ok(execution_result(&result, changes_runtime_state)),
-                    Err(error) => {
-                        let error = map_commit_error(&error);
-                        Err(self.retry_after_failure(&claim, now, retry_available_at, error))
-                    }
-                }
+        let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
+        match self.store.commit(&validated, Some(&claim), now) {
+            Ok(result) => match rejection {
+                Some(rejection) => Ok(ExecutionResult::rejected(rejection)),
+                None => Ok(execution_result(&result, changes_runtime_state)),
+            },
+            Err(error) => {
+                let error = map_commit_error(&error);
+                Err(self.retry_after_failure(&claim, now, retry_available_at, error))
             }
         }
     }
@@ -317,42 +321,36 @@ where
     fn invoke(&self, request: ActionRequest) -> ApiResult<ExecutionResult> {
         let snapshot = self.snapshot_for_target(request.target)?;
         let base = snapshot.world_view();
-        let owner = self
-            .registry
-            .action(&request.invocation.action)
-            .map(|action| action.owner.as_str().to_owned())
-            .ok_or_else(|| {
-                ApiError::not_found(format!(
-                    "Action {} was not registered",
-                    request.invocation.action
-                ))
-            })?;
-        let engine = EffectEngine::new(&self.registry);
+        if self.registry.action(&request.invocation.action).is_none() {
+            return Err(ApiError::not_found(format!(
+                "Action {} was not registered",
+                request.invocation.action
+            )));
+        }
+        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
         engine
             .validate_action_input(&request.invocation.action, &request.invocation.input)
             .map_err(|error| map_action_input_error(&error))?;
-        let context = RuntimeResolutionContext {
-            base: &base,
-            registry: &self.registry,
-        };
-        let outcome = self
-            .registry
-            .resolve_action(
-                &request.invocation.action,
-                &context,
-                &request.invocation.input,
-            )
-            .map_err(map_dispatch_error)?;
-        let validation = engine
-            .validate_outcome(&base, &owner, outcome)
-            .map_err(|error| map_runtime_error(&error))?;
-        match validation {
-            ValidationOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
-            ValidationOutcome::Validated(validated) => self
-                .store
-                .commit(&validated, None, self.platform_clock.now())
-                .map(|result| execution_result(&result, changes_runtime_state(&validated, None)))
-                .map_err(|error| map_commit_error(&error)),
+        let (outcome, execution) = dispatch_root_action(
+            &base,
+            &self.registry,
+            self.resolution_budget,
+            &request.invocation,
+        )
+        .map_err(map_dispatch_error)?;
+        match outcome {
+            ResolveOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
+            ResolveOutcome::Resolved(_) => {
+                let validated = engine
+                    .validate_segments(&base, &execution.segments, execution.call_provenance)
+                    .map_err(|error| map_runtime_error(&error))?;
+                self.store
+                    .commit(&validated, None, self.platform_clock.now())
+                    .map(|result| {
+                        execution_result(&result, changes_runtime_state(&validated, None))
+                    })
+                    .map_err(|error| map_commit_error(&error))
+            }
         }
     }
 }
@@ -445,9 +443,103 @@ where
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CallFrame {
+    owner: CapabilityId,
+    action: ActionTypeId,
+}
+
+#[derive(Clone, Debug)]
+struct ExecutionState {
+    budget: ResolutionBudget,
+    usage: BudgetUsage,
+    stack: Vec<CallFrame>,
+    segments: Vec<ResolutionSegment>,
+    call_provenance: CallProvenance,
+    failure: Option<String>,
+}
+
+impl ExecutionState {
+    fn new(budget: ResolutionBudget) -> Self {
+        Self {
+            budget,
+            usage: BudgetUsage::default(),
+            stack: Vec::new(),
+            segments: Vec::new(),
+            call_provenance: CallProvenance::default(),
+            failure: None,
+        }
+    }
+
+    fn enter_root(&mut self, frame: CallFrame) -> Result<(), String> {
+        self.budget
+            .check(self.usage)
+            .map_err(|error| error.to_string())?;
+        self.stack.push(frame);
+        Ok(())
+    }
+
+    fn enter_child(&mut self, caller: &CallFrame, target: CallFrame) -> Result<(), String> {
+        if self.stack.iter().any(|frame| frame == &target) {
+            return Err(format!(
+                "subresolution cycle detected for ({}, {})",
+                target.owner, target.action
+            ));
+        }
+
+        let depth = self.stack.len();
+        let count = self.usage.subresolution_count().saturating_add(1);
+        let usage = self.usage.with_subresolution(depth, count);
+        self.budget
+            .check(usage)
+            .map_err(|error| error.to_string())?;
+
+        self.call_provenance.record(crate::ResolutionCallEdge {
+            caller_capability: caller.owner.clone(),
+            caller_action: caller.action.clone(),
+            target_capability: target.owner.clone(),
+            target_action: target.action.clone(),
+        });
+        self.usage = usage;
+        self.stack.push(target);
+        Ok(())
+    }
+
+    fn leave(&mut self, frame: &CallFrame) {
+        if self.stack.last() == Some(frame) {
+            self.stack.pop();
+        }
+    }
+
+    fn record_segment(
+        &mut self,
+        owner: CapabilityId,
+        resolution: Resolution,
+    ) -> Result<(), String> {
+        let usage = self
+            .usage
+            .combine(BudgetUsage::from_resolution(&resolution));
+        self.budget
+            .check(usage)
+            .map_err(|error| error.to_string())?;
+        self.usage = usage;
+        self.segments
+            .push(ResolutionSegment::new(owner, resolution));
+        Ok(())
+    }
+
+    fn record_failure(&mut self, message: String) {
+        if self.failure.is_none() {
+            self.failure = Some(message);
+        }
+    }
+}
+
 struct RuntimeResolutionContext<'a> {
     base: &'a crate::BaseWorldView,
     registry: &'a CapabilityRegistry,
+    state: Rc<RefCell<ExecutionState>>,
+    frame: CallFrame,
 }
 
 impl ResolutionContext for RuntimeResolutionContext<'_> {
@@ -459,10 +551,177 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
         &self,
         invocation: &ActionInvocation,
     ) -> Result<ResolveOutcome, ResolutionContextError> {
-        self.registry
-            .resolve_action(&invocation.action, self, &invocation.input)
-            .map_err(|error| ResolutionContextError::new(error.to_string()))
+        dispatch_child_action(
+            self.base,
+            self.registry,
+            &self.state,
+            &self.frame,
+            invocation,
+        )
+        .map_err(|error| {
+            let message = error.to_string();
+            self.state.borrow_mut().record_failure(message.clone());
+            ResolutionContextError::new(message)
+        })
     }
+}
+
+fn dispatch_root_action(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    budget: ResolutionBudget,
+    invocation: &ActionInvocation,
+) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
+    let action = registry
+        .action(&invocation.action)
+        .ok_or_else(|| DispatchError::UnknownAction(invocation.action.clone()))?;
+    let frame = CallFrame {
+        owner: action.owner.clone(),
+        action: invocation.action.clone(),
+    };
+    let state = Rc::new(RefCell::new(ExecutionState::new(budget)));
+    state
+        .borrow_mut()
+        .enter_root(frame.clone())
+        .map_err(internal_dispatch_error)?;
+    let outcome = dispatch_action_frame(base, registry, &state, &frame, invocation)?;
+    Ok((outcome, state.borrow().clone()))
+}
+
+fn dispatch_root_work(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    budget: ResolutionBudget,
+    handler_id: &loom_core::WorkHandlerId,
+    payload: &serde_json::Value,
+) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
+    let handler = registry
+        .work_handler(handler_id)
+        .ok_or_else(|| DispatchError::UnknownWorkHandler(handler_id.clone()))?;
+    let frame = CallFrame {
+        owner: handler.owner.clone(),
+        action: ActionTypeId::from(format!("work:{handler_id}")),
+    };
+    let state = Rc::new(RefCell::new(ExecutionState::new(budget)));
+    state
+        .borrow_mut()
+        .enter_root(frame.clone())
+        .map_err(internal_dispatch_error)?;
+    let outcome = dispatch_work_frame(base, registry, &state, &frame, handler_id, payload)?;
+    Ok((outcome, state.borrow().clone()))
+}
+
+fn dispatch_action_frame(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    state: &Rc<RefCell<ExecutionState>>,
+    frame: &CallFrame,
+    invocation: &ActionInvocation,
+) -> Result<ResolveOutcome, DispatchError> {
+    let result = {
+        let context = RuntimeResolutionContext {
+            base,
+            registry,
+            state: Rc::clone(state),
+            frame: frame.clone(),
+        };
+        registry.resolve_action(&invocation.action, &context, &invocation.input)
+    };
+    capture_outcome(state, &frame.owner, result)
+}
+
+fn dispatch_work_frame(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    state: &Rc<RefCell<ExecutionState>>,
+    frame: &CallFrame,
+    handler_id: &loom_core::WorkHandlerId,
+    payload: &serde_json::Value,
+) -> Result<ResolveOutcome, DispatchError> {
+    let result = {
+        let context = RuntimeResolutionContext {
+            base,
+            registry,
+            state: Rc::clone(state),
+            frame: frame.clone(),
+        };
+        registry.handle_work(handler_id, &context, payload)
+    };
+    capture_outcome(state, &frame.owner, result)
+}
+
+fn capture_outcome(
+    state: &Rc<RefCell<ExecutionState>>,
+    owner: &CapabilityId,
+    result: Result<ResolveOutcome, DispatchError>,
+) -> Result<ResolveOutcome, DispatchError> {
+    let outcome = result?;
+    if let Some(failure) = state.borrow().failure.clone() {
+        return Err(internal_dispatch_error(failure));
+    }
+    if let ResolveOutcome::Resolved(resolution) = &outcome {
+        state
+            .borrow_mut()
+            .record_segment(owner.clone(), resolution.clone())
+            .map_err(internal_dispatch_error)?;
+    }
+    if let Some(failure) = state.borrow().failure.clone() {
+        return Err(internal_dispatch_error(failure));
+    }
+    Ok(outcome)
+}
+
+fn dispatch_child_action(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    state: &Rc<RefCell<ExecutionState>>,
+    caller: &CallFrame,
+    invocation: &ActionInvocation,
+) -> Result<ResolveOutcome, DispatchError> {
+    EffectEngine::new(registry)
+        .validate_action_input(&invocation.action, &invocation.input)
+        .map_err(|error| {
+            let message = format!("child Action input rejected: {error}");
+            state.borrow_mut().record_failure(message.clone());
+            internal_dispatch_error(message)
+        })?;
+
+    let action = registry
+        .action(&invocation.action)
+        .ok_or_else(|| DispatchError::UnknownAction(invocation.action.clone()))?;
+    let target = CallFrame {
+        owner: action.owner.clone(),
+        action: invocation.action.clone(),
+    };
+    if caller.owner != target.owner {
+        let authorized = registry.capability(&caller.owner).is_some_and(|manifest| {
+            manifest
+                .dependencies
+                .iter()
+                .any(|dependency| dependency.id == target.owner)
+        });
+        if !authorized {
+            let message = format!(
+                "Capability {} has no direct dependency on {}",
+                caller.owner, target.owner
+            );
+            state.borrow_mut().record_failure(message.clone());
+            return Err(internal_dispatch_error(message));
+        }
+    }
+
+    let enter_error = { state.borrow_mut().enter_child(caller, target.clone()) };
+    if let Err(message) = enter_error {
+        state.borrow_mut().record_failure(message.clone());
+        return Err(internal_dispatch_error(message));
+    }
+    let result = dispatch_action_frame(base, registry, state, &target, invocation);
+    state.borrow_mut().leave(&target);
+    result
+}
+
+fn internal_dispatch_error(message: impl Into<String>) -> DispatchError {
+    DispatchError::Resolver(ResolverError::new(message))
 }
 
 fn changes_runtime_state(
@@ -581,5 +840,162 @@ fn map_commit_error(error: &CommitError) -> ApiError {
         | CommitError::InvalidEvent { .. }
         | CommitError::InvalidEffect { .. }
         | CommitError::RevisionOverflow => ApiError::internal("Timeline commit failed validation"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use loom_capability::{
+        ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityManifest,
+        CapabilityRegistrar, RegistrationError, ResolverError,
+    };
+    use loom_core::{
+        ActionTypeId, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId, WorldInstant,
+    };
+    use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
+    use serde_json::{Value, json};
+
+    use crate::{BaseWorldSnapshot, BaseWorldView};
+
+    use super::*;
+
+    fn id<T>(value: u128) -> T
+    where
+        T: FromStr,
+        T::Err: std::fmt::Debug,
+    {
+        format!("00000000-0000-0000-0000-{value:012x}")
+            .parse()
+            .expect("test identity should parse")
+    }
+
+    struct ParentCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for ParentCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+            registrar.register_action(
+                ActionDefinition::new(
+                    ActionTypeId::from("provenance.parent"),
+                    loom_core::SchemaRevision::new(1),
+                ),
+                ParentResolver,
+            )
+        }
+    }
+
+    struct ChildCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for ChildCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+            registrar.register_action(
+                ActionDefinition::new(
+                    ActionTypeId::from("provenance.child"),
+                    loom_core::SchemaRevision::new(1),
+                ),
+                ChildResolver,
+            )
+        }
+    }
+
+    struct ParentResolver;
+
+    impl ActionResolver for ParentResolver {
+        fn resolve(
+            &self,
+            context: &dyn loom_capability::ResolutionContext,
+            _input: &Value,
+        ) -> Result<ResolveOutcome, ResolverError> {
+            let child = context.subresolve(&ActionInvocation::new(
+                ActionTypeId::from("provenance.child"),
+                json!({}),
+            ))?;
+            assert!(matches!(child, ResolveOutcome::Rejected(_)));
+            Ok(ResolveOutcome::Rejected(Rejection::new(
+                "provenance.parent_rejected",
+                "test parent rejection",
+            )))
+        }
+    }
+
+    struct ChildResolver;
+
+    impl ActionResolver for ChildResolver {
+        fn resolve(
+            &self,
+            _context: &dyn loom_capability::ResolutionContext,
+            _input: &Value,
+        ) -> Result<ResolveOutcome, ResolverError> {
+            Ok(ResolveOutcome::Rejected(Rejection::new(
+                "provenance.child_rejected",
+                "test child rejection",
+            )))
+        }
+    }
+
+    fn registry() -> CapabilityRegistry {
+        CapabilityRegistry::assemble(vec![
+            Box::new(ParentCapability {
+                manifest: CapabilityManifest::parse("provenance.parent", "0.1.0")
+                    .expect("parent manifest should parse")
+                    .requires(
+                        CapabilityDependency::parse("provenance.child", "^0.1.0")
+                            .expect("child dependency should parse"),
+                    ),
+            }) as Box<dyn Capability>,
+            Box::new(ChildCapability {
+                manifest: CapabilityManifest::parse("provenance.child", "0.1.0")
+                    .expect("child manifest should parse"),
+            }),
+        ])
+        .expect("provenance registry should assemble")
+    }
+
+    fn base() -> BaseWorldView {
+        BaseWorldView::new(BaseWorldSnapshot::new(
+            id::<WorldId>(1),
+            id::<TimelineId>(2),
+            TimelineVersion::new(EventSeq::new(0), StateRevision::new(0)),
+            WorldInstant::new(0),
+        ))
+    }
+
+    #[test]
+    fn runtime_call_edge_is_observable_separately_from_world_causality() {
+        let registry = registry();
+        let invocation = ActionInvocation::new(ActionTypeId::from("provenance.parent"), json!({}));
+        let (outcome, execution) = dispatch_root_action(
+            &base(),
+            &registry,
+            ResolutionBudget::unlimited(),
+            &invocation,
+        )
+        .expect("root dispatch should complete with semantic rejection");
+        assert!(matches!(outcome, ResolveOutcome::Rejected(_)));
+        assert_eq!(execution.call_provenance.len(), 1);
+        let edge = &execution.call_provenance.edges()[0];
+        assert_eq!(edge.caller_capability.as_str(), "provenance.parent");
+        assert_eq!(edge.caller_action.as_str(), "provenance.parent");
+        assert_eq!(edge.target_capability.as_str(), "provenance.child");
+        assert_eq!(edge.target_action.as_str(), "provenance.child");
+
+        let validated = EffectEngine::new(&registry)
+            .validate_segments(&base(), &[], execution.call_provenance)
+            .expect("empty Work-like validation should retain provenance");
+        assert_eq!(validated.call_provenance().len(), 1);
+        assert!(validated.events().is_empty());
     }
 }

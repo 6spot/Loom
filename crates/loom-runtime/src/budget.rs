@@ -16,6 +16,10 @@ pub enum BudgetDimension {
     Effects,
     /// Number of proposed Durable Work mutations.
     WorkMutations,
+    /// Maximum nested subresolution depth observed in one root execution.
+    SubresolutionDepth,
+    /// Number of subresolution dispatches attempted in one root execution.
+    SubresolutionCount,
 }
 
 impl std::fmt::Display for BudgetDimension {
@@ -24,6 +28,8 @@ impl std::fmt::Display for BudgetDimension {
             Self::Events => "events",
             Self::Effects => "effects",
             Self::WorkMutations => "work_mutations",
+            Self::SubresolutionDepth => "subresolution_depth",
+            Self::SubresolutionCount => "subresolution_count",
         };
         formatter.write_str(name)
     }
@@ -39,6 +45,8 @@ pub struct BudgetUsage {
     events: usize,
     effects: usize,
     work_mutations: usize,
+    subresolution_depth: usize,
+    subresolution_count: usize,
 }
 
 impl BudgetUsage {
@@ -54,6 +62,8 @@ impl BudgetUsage {
             events: resolution.events.len(),
             effects,
             work_mutations: resolution.work.len(),
+            subresolution_depth: 0,
+            subresolution_count: 0,
         }
     }
 
@@ -74,6 +84,38 @@ impl BudgetUsage {
     pub const fn work_mutations(self) -> usize {
         self.work_mutations
     }
+
+    /// Returns the deepest nested subresolution observed so far.
+    #[must_use]
+    pub const fn subresolution_depth(self) -> usize {
+        self.subresolution_depth
+    }
+
+    /// Returns the number of subresolution dispatches attempted so far.
+    #[must_use]
+    pub const fn subresolution_count(self) -> usize {
+        self.subresolution_count
+    }
+
+    pub(crate) fn combine(self, other: Self) -> Self {
+        Self {
+            events: self.events.saturating_add(other.events),
+            effects: self.effects.saturating_add(other.effects),
+            work_mutations: self.work_mutations.saturating_add(other.work_mutations),
+            subresolution_depth: self.subresolution_depth.max(other.subresolution_depth),
+            subresolution_count: self
+                .subresolution_count
+                .saturating_add(other.subresolution_count),
+        }
+    }
+
+    pub(crate) const fn with_subresolution(self, depth: usize, count: usize) -> Self {
+        Self {
+            subresolution_depth: depth,
+            subresolution_count: count,
+            ..self
+        }
+    }
 }
 
 /// A Runtime policy limiting the amount of protocol data one Resolution may
@@ -88,6 +130,8 @@ pub struct ResolutionBudget {
     events: Option<usize>,
     effects: Option<usize>,
     work_mutations: Option<usize>,
+    subresolution_depth: Option<usize>,
+    subresolution_count: Option<usize>,
 }
 
 impl ResolutionBudget {
@@ -102,6 +146,8 @@ impl ResolutionBudget {
             events: max_events,
             effects: max_effects,
             work_mutations: max_work_mutations,
+            subresolution_depth: None,
+            subresolution_count: None,
         }
     }
 
@@ -152,6 +198,38 @@ impl ResolutionBudget {
         self.work_mutations
     }
 
+    /// Sets the maximum nested subresolution depth for one root execution.
+    ///
+    /// A root Action/Work resolver has depth zero. Its first child
+    /// subresolution has depth one. The limit is checked before the child
+    /// resolver is dispatched.
+    #[must_use]
+    pub const fn with_max_subresolution_depth(mut self, limit: usize) -> Self {
+        self.subresolution_depth = Some(limit);
+        self
+    }
+
+    /// Sets the maximum number of subresolution dispatches for one root
+    /// execution. A rejected child still consumes one dispatch budget because
+    /// it was routed and executed.
+    #[must_use]
+    pub const fn with_max_subresolution_count(mut self, limit: usize) -> Self {
+        self.subresolution_count = Some(limit);
+        self
+    }
+
+    /// Returns the configured nested subresolution depth limit.
+    #[must_use]
+    pub const fn max_subresolution_depth(self) -> Option<usize> {
+        self.subresolution_depth
+    }
+
+    /// Returns the configured subresolution dispatch-count limit.
+    #[must_use]
+    pub const fn max_subresolution_count(self) -> Option<usize> {
+        self.subresolution_count
+    }
+
     pub(crate) fn check(self, usage: BudgetUsage) -> Result<(), BudgetError> {
         let dimensions = [
             (BudgetDimension::Events, self.events, usage.events),
@@ -160,6 +238,16 @@ impl ResolutionBudget {
                 BudgetDimension::WorkMutations,
                 self.work_mutations,
                 usage.work_mutations,
+            ),
+            (
+                BudgetDimension::SubresolutionDepth,
+                self.subresolution_depth,
+                usage.subresolution_depth,
+            ),
+            (
+                BudgetDimension::SubresolutionCount,
+                self.subresolution_count,
+                usage.subresolution_count,
             ),
         ];
 
