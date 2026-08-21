@@ -30,6 +30,7 @@ jobs:
       - name: Apply and verify M3-T1 changes
         run: |
           python3 tools/m3_t1_apply.py
+          python3 tools/m3_t1_followup.py
           cargo fmt --all
           python3 tools/check_architecture.py
           cargo check --workspace --all-targets --all-features
@@ -52,6 +53,7 @@ jobs:
             crates/loom-storage/src/in_memory.rs \
             crates/loom-storage/src/postgres.rs \
             tests/loom-composition/Cargo.toml \
+            tests/loom-composition/subresolution.rs \
             tests/loom-composition/world_creation.rs
           if ! git diff --cached --quiet; then
             git commit -m "M3-T1: add World creation lifecycle contract"
