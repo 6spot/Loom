@@ -266,6 +266,39 @@ fn current_event_can_reference_structures_introduced_by_its_effects() {
 }
 
 #[test]
+fn current_event_can_reference_a_relationship_it_ends() {
+    let relationship_id = relationship(60);
+    let base = BaseWorldSnapshot::new(
+        world(),
+        timeline(),
+        TimelineVersion::new(EventSeq::new(4), StateRevision::new(4)),
+        WorldInstant::new(4),
+    )
+    .with_entity(Entity {
+        id: entity(10),
+        world_id: world(),
+    })
+    .with_entity(Entity {
+        id: entity(11),
+        world_id: world(),
+    })
+    .with_relationship(pair_relationship(relationship_id), true);
+    let mut event =
+        proposed_event(60).with_effect(WorldEffect::EndRelationship { relationship_id });
+    event
+        .relationship_refs
+        .push(EventRelationshipRef::new(relationship_id, "subject"));
+
+    EffectEngine::new(&registry())
+        .validate(
+            &BaseWorldView::new(base),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect("an Event may reference a Relationship it ends");
+}
+
+#[test]
 fn current_event_cannot_see_structures_created_by_a_later_batch_event() {
     let registry = registry();
     let engine = EffectEngine::new(&registry);

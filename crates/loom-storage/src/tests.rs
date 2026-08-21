@@ -586,6 +586,69 @@ fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effec
 }
 
 #[test]
+fn storage_hard_checks_allow_reference_to_relationship_ended_by_same_event() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    for entity_id in [entity(10), entity(11)] {
+        store
+            .seed_entity(
+                timeline(),
+                loom_core::Entity {
+                    id: entity_id,
+                    world_id: world(),
+                },
+            )
+            .expect("Relationship participant Entity should be seeded");
+    }
+    let relationship_id = loom_core::RelationshipId::from_uuid(
+        "00000000-0000-0000-0000-000000000082"
+            .parse()
+            .expect("test RelationshipId should parse"),
+    );
+    store
+        .seed_relationship(
+            timeline(),
+            loom_core::Relationship::new(
+                relationship_id,
+                world(),
+                RelationshipTypeId::from("test.relationship"),
+                relationship_participants(),
+            ),
+            true,
+        )
+        .expect("active Relationship should be seeded");
+
+    let event = with_relationship_ref(
+        event_with_effect(
+            event(82),
+            WorldEffect::EndRelationship { relationship_id },
+            3,
+        ),
+        relationship_id,
+    );
+    let validated = validated(
+        &store,
+        &registry(),
+        Resolution::new(vec![event], Vec::new()),
+    );
+    let result = store
+        .commit(&validated, None, PlatformTime::new(1))
+        .expect("an Event may reference the active Relationship it ends");
+    assert_eq!(result.events.len(), 1);
+
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert!(
+        snapshot
+            .world_view()
+            .relationship(relationship_id)
+            .is_none(),
+        "ended Relationship must not remain active"
+    );
+}
+
+#[test]
 fn stale_cas_leaves_event_state_and_work_unchanged() {
     let store = InMemoryStore::new();
     store

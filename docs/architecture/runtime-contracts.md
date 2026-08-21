@@ -699,7 +699,8 @@ schema validation
 semantic ownership validation
 causal DAG validation
 ordered Effect structural validation/application to the Event-local candidate
-Event participant/Relationship reference validation against that candidate
+derive the envelope reference view from Event-before structures plus successful current Create Effects
+Event participant/Relationship reference validation against that reference view
 Capability invariants
 Runtime invariants
 Work mutation validation
@@ -788,13 +789,14 @@ observer-if-event-semantics-require-it
 
 表达 Event 对某 Relationship 的事实引用，例如“这次 Event 结束了 contract R100”。
 
-Event 的 `participants` 与 `relationship_refs` 在当前 Event 的局部候选状态中解析：
-Runtime 先按 `effects` 列表顺序验证并应用这个 Event 的结构性 Effects，再检查该
-Event 自己的 Entity/Relationship 引用。因此，一个 Event 可以通过自己的有效
-`CreateEntity` 或 `CreateRelationship` Effect 引用刚引入的 identity；依赖同一
-Event 的 `PutFacet` 等后续 Effect 也必须遵守列表顺序。当前 Event 的局部候选不会
-预见 batch 中后续 Event，后续 Event 只能在前一 Event 完成后看到它已经引入的
-结构。Storage hard validation 必须复现同一规则，不能让 Runtime 接受而提交适配器
+Event 的 `participants` 与 `relationship_refs` 使用一个独立的 envelope reference view：
+它包含 Event 前已有效的结构，以及当前 Event 按 `effects` 列表顺序执行且结构校验
+成功的 `CreateEntity`/`CreateRelationship` 所引入的结构。`EndRelationship` 等终止或
+破坏性 Effect 仍作用于 post-Event candidate，但不得回溯取消当前 Event 对 Event
+前有效 Relationship 的引用资格。因此，一个 Event 可以引用自己刚有效创建的
+identity，也可以引用并结束 Event 前已 active 的 Relationship；同一 Event 的
+`PutFacet` 等后续 Effect 仍必须遵守列表顺序。当前 Event 不会预见 batch 中后续
+Event，Storage hard validation 必须复现同一规则，不能让 Runtime 接受而提交适配器
 拒绝。
 
 ### 11.3 EventScope
@@ -862,7 +864,8 @@ Effect Engine 属于 `loom-runtime`，负责：
 ```text
 check ownership and schemas
 validate each Event's Effects and apply them in listed order
-check Event participant/Relationship references against the Event-local candidate
+derive the envelope reference view from Event-before structures plus successful Create Effects
+check Event participant/Relationship references against that reference view
 construct CandidateWorldView
 invoke invariants
 produce ValidatedResolution
@@ -1105,7 +1108,9 @@ causal DAG validation
 ↓
 validate and apply the current Event's Effects in listed order
 ↓
-validate current Event participant/Relationship references against its local candidate
+derive envelope reference view from Event-before structures plus successful Create Effects
+↓
+validate current Event participant/Relationship references against that reference view
 ↓
 CandidateWorldView
 ↓

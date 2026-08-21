@@ -680,12 +680,22 @@ fn validate_event(
         return Err(CommitError::DuplicateEvent { event_id: event.id });
     }
     let mut event_timeline = timeline.clone();
+    let mut reference_timeline = timeline.clone();
     for effect in &event.effects {
         apply_effect(&mut event_timeline, event.id, effect)?;
+        if matches!(
+            effect,
+            WorldEffect::CreateEntity { .. } | WorldEffect::CreateRelationship { .. }
+        ) {
+            apply_effect(&mut reference_timeline, event.id, effect)?;
+        }
     }
 
     for participant in &event.participants {
-        if !event_timeline.entities.contains_key(&participant.entity_id) {
+        if !reference_timeline
+            .entities
+            .contains_key(&participant.entity_id)
+        {
             return Err(CommitError::InvalidEvent {
                 event_id: event.id,
                 message: format!("missing participant Entity {}", participant.entity_id),
@@ -693,7 +703,7 @@ fn validate_event(
         }
     }
     for relationship in &event.relationship_refs {
-        if !event_timeline
+        if !reference_timeline
             .relationships
             .get(&relationship.relationship_id)
             .is_some_and(|record| record.active)
