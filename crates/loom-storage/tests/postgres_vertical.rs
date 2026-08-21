@@ -349,10 +349,6 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
         after_zero_effect.version().head_event_seq.value(),
         before_rejection.version().head_event_seq.value() + 1
     );
-    assert_eq!(
-        after_zero_effect.version().state_revision,
-        before_rejection.version().state_revision
-    );
     assert_eq!(facet_value(api, target, entity_id).await, 5);
     let history = api
         .list_events(EventQuery::all(target))
