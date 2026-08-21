@@ -107,12 +107,11 @@ mod tests {
             .await
             .expect("PostgreSQL test database should accept connections");
 
-        let server_version: i32 = sqlx::query_scalar(
-            "SELECT current_setting('server_version_num')::integer",
-        )
-        .fetch_one(&storage.pool)
-        .await
-        .expect("PostgreSQL should report its server version");
+        let server_version: i32 =
+            sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
+                .fetch_one(&storage.pool)
+                .await
+                .expect("PostgreSQL should report its server version");
         assert!(
             (180_000..190_000).contains(&server_version),
             "schema gate must run against PostgreSQL 18, got server_version_num={server_version}"
@@ -151,14 +150,12 @@ mod tests {
         .execute(&storage.pool)
         .await
         .expect("test Timeline should insert");
-        sqlx::query(
-            "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
-        )
-        .bind(TIMELINE_ID)
-        .bind(ENTITY_ID)
-        .execute(&storage.pool)
-        .await
-        .expect("test Entity should insert");
+        sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
+            .bind(TIMELINE_ID)
+            .bind(ENTITY_ID)
+            .execute(&storage.pool)
+            .await
+            .expect("test Entity should insert");
 
         let duplicate_entity = sqlx::query(
             "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
@@ -168,7 +165,10 @@ mod tests {
         .execute(&storage.pool)
         .await
         .expect_err("duplicate Timeline-local Entity identity must be rejected");
-        assert_eq!(database_error_code(&duplicate_entity).as_deref(), Some("23505"));
+        assert_eq!(
+            database_error_code(&duplicate_entity).as_deref(),
+            Some("23505")
+        );
 
         let missing_facet_owner = sqlx::query(
             "INSERT INTO loom_entity_facet \
