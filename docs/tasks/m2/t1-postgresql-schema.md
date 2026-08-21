@@ -1,10 +1,10 @@
 ---
 task: M2-T1
 issue: 26
-status: planned
+status: in_progress
 depends_on: []
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -44,3 +44,4 @@ Introduce the PostgreSQL 18 + SQLx storage foundation and freeze a human-readabl
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #26; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t1-postgresql-schema`; status `in_progress`. Scope is limited to PostgreSQL schema/migrations plus `PgStorage` connection/health foundation. Runtime read, commit and WorkStore port implementations remain owned by M2-T2/T3/T4.

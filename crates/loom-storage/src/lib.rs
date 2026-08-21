@@ -73,8 +73,10 @@
 #![forbid(unsafe_code)]
 
 mod in_memory;
+mod postgres;
 
 pub use in_memory::{InMemoryStore, SetupError};
+pub use postgres::PgStorage;
 
 #[cfg(test)]
 mod tests;
