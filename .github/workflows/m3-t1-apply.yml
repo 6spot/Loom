@@ -1,0 +1,59 @@
+name: M3 T1 Apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/m3-t1-world-creation-contract
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feat/m3-t1-world-creation-contract
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup default "$RUST_VERSION"
+
+      - name: Apply and verify M3-T1 changes
+        run: |
+          python3 tools/m3_t1_apply.py
+          cargo fmt --all
+          python3 tools/check_architecture.py
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo test --workspace --all-features
+          RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
+
+      - name: Commit verified source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            Cargo.lock \
+            crates/loom-api/src/lib.rs \
+            crates/loom-runtime/Cargo.toml \
+            crates/loom-runtime/src/identity.rs \
+            crates/loom-runtime/src/lib.rs \
+            crates/loom-runtime/src/orchestration.rs \
+            crates/loom-runtime/src/persistence.rs \
+            crates/loom-storage/src/in_memory.rs \
+            crates/loom-storage/src/postgres.rs \
+            tests/loom-composition/Cargo.toml \
+            tests/loom-composition/world_creation.rs
+          if ! git diff --cached --quiet; then
+            git commit -m "M3-T1: add World creation lifecycle contract"
+            git push origin HEAD:feat/m3-t1-world-creation-contract
+          fi
