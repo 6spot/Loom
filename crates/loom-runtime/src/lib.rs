@@ -104,6 +104,18 @@ pub use views::{
 };
 
 pub use loom_capability::SemanticKind;
+/// Frozen proposed Event representation consumed by Runtime persistence adapters.
+///
+/// This explicit export exists because adapters such as `loom-storage` depend on
+/// Runtime rather than directly on Protocol. It carries no validation or commit
+/// authority by itself; only a [`ValidatedResolution`] is commit-eligible.
+pub use loom_protocol::ProposedEvent;
+/// Frozen Durable Work mutation representation consumed by Runtime persistence adapters.
+///
+/// This explicit export is part of the Runtime-owned persistence boundary, not a
+/// general Protocol facade. A mutation becomes commit-eligible only as part of a
+/// [`ValidatedResolution`].
+pub use loom_protocol::WorkMutation;
 
 #[cfg(test)]
 mod tests;
