@@ -1,13 +1,13 @@
 ---
 task: M3-T2
 issue: 49
-status: in_progress
+status: completed
 depends_on: [48]
 created_at: 2026-08-21
 started_at: 2026-08-21
-completed_at:
+completed_at: 2026-08-21
 completion_pr: 54
-merge_sha:
+merge_sha: 2eb260e0eab1d72a2e1384ee7a7ae9ae6580e133
 ---
 
 # M3-T2 — PostgreSQL Lifecycle Persistence
@@ -39,14 +39,15 @@ Harden and prove the Runtime-owned World lifecycle persistence port on PostgreSQ
 ## Completion evidence
 
 - PR: #54
-- merge SHA: pending implementation merge
+- merge SHA: `2eb260e0eab1d72a2e1384ee7a7ae9ae6580e133`
 - clean candidate SHA: `82003c734345e8bb8a01daa56409528acb6be7d9`
-- CI runs: `32490492509` exposed a formatting-only failure and was superseded; clean standard CI `32490627476` passed Ubuntu/macOS plus the PostgreSQL 18 persistence contract including the new World lifecycle gate.
-- notes: `postgres_lifecycle::postgres_18_world_lifecycle_is_atomic_and_immediately_readable` proves scratch migrations, exact zero initial version, exact requested World Time, `WorldStore` readability and public `TimelineService` readability. `postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows` proves typed duplicate-World and duplicate-Timeline conflicts, no orphan Timeline/World rows, reuse of a rolled-back World ID, and preservation of the original Timeline. The audited T1 `PgStorage` implementation required no semantic correction.
+- CI runs: `32490492509` exposed a formatting-only failure and was superseded; clean standard CI `32490627476` passed Ubuntu/macOS plus the PostgreSQL 18 persistence contract including the new World lifecycle gate; final task-record CI `32491281507` passed the same complete standard gate before merge.
+- notes: `postgres_lifecycle::postgres_18_world_lifecycle_is_atomic_and_immediately_readable` proves scratch migrations, exact zero initial version, exact requested World Time, `WorldStore` readability and public `TimelineService` readability. `postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows` proves typed duplicate-World and duplicate-Timeline conflicts, no orphan Timeline/World rows, reuse of a rolled-back World ID, and preservation of the original Timeline. The audited T1 `PgStorage` implementation required no semantic correction. Repository workflow inventory contains only the long-lived read-only `.github/workflows/ci.yml`; no temporary apply/verifier workflow remains.
 
 ## Progress log
 
 - 2026-08-21 — Task record created; waits on M3-T1 #48.
 - 2026-08-21 — Started from T1 completion/audit main `02527ee48a7a08cc4c508c19512fa38155746ea5`. T1 already introduced the minimal `PgStorage` lifecycle implementation; T2 audits transaction/error classification and adds dedicated PostgreSQL 18 lifecycle success/conflict/rollback/readability evidence plus an explicit CI gate.
 - 2026-08-21 — Added isolated `postgres_lifecycle` integration coverage and an explicit `PostgreSQL World lifecycle contract` step to the long-lived read-only CI workflow. First standard run `32490492509` failed only `cargo fmt --check`; runner-provided rustfmt changes were applied without semantic changes.
-- 2026-08-21 — Clean candidate `82003c734345e8bb8a01daa56409528acb6be7d9` passed standard CI `32490627476`: Ubuntu/macOS architecture, format, check, clippy, workspace tests and rustdoc green; PostgreSQL 18 schema, lifecycle, public vertical, read, commit/CAS, Durable Work and stale-fence suites all green. Awaiting final task-record CI, merge and post-merge audit metadata.
+- 2026-08-21 — Clean candidate `82003c734345e8bb8a01daa56409528acb6be7d9` passed standard CI `32490627476`: Ubuntu/macOS architecture, format, check, clippy, workspace tests and rustdoc green; PostgreSQL 18 schema, lifecycle, public vertical, read, commit/CAS, Durable Work and stale-fence suites all green.
+- 2026-08-21 — Final task-record head `414d64750a0659b1d16d289b9b2d51fe0c4d6145` passed standard CI `32491281507`; implementation PR #54 then merged as `2eb260e0eab1d72a2e1384ee7a7ae9ae6580e133`. This post-merge audit records the real merge SHA and marks T2 completed.
