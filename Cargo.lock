@@ -130,8 +130,10 @@ dependencies = [
 name = "loom-storage"
 version = "0.1.0"
 dependencies = [
+ "loom-api",
  "loom-capability",
  "loom-core",
+ "loom-protocol",
  "loom-runtime",
  "serde_json",
 ]

@@ -91,9 +91,9 @@ mod views;
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
 pub use orchestration::Runtime;
 pub use persistence::{
-    CommitError, CommitResult, CommitStore, CommittedEvent, PlatformTime, ReadError,
-    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
-    WorldStore,
+    CommitError, CommitResult, CommitStore, CommittedEvent, ManualPlatformClock, PlatformClock,
+    PlatformTime, ReadError, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord,
+    WorkStatus, WorkStore, WorldStore,
 };
 pub use provenance::{ReadDependency, ReadSet};
 pub use validation::{

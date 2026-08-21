@@ -7,7 +7,13 @@
 //! Runtime authority token [`ValidatedResolution`]; the protocol
 //! [`loom_protocol::Resolution`] never crosses this boundary.
 
-use std::fmt;
+use std::{
+    fmt,
+    sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    },
+};
 
 use loom_core::{
     EventId, EventSeq, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect,
@@ -56,6 +62,64 @@ impl From<PlatformTime> for i64 {
 impl fmt::Display for PlatformTime {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(formatter)
+    }
+}
+
+/// Runtime-owned source of operational platform time.
+///
+/// Platform time is infrastructure metadata for leases, retry availability
+/// and adapter commit metadata. It is not World Time, and this port is
+/// intentionally not part of the Capability resolution context. The
+/// application composition root may inject a system-clock adapter; tests can
+/// inject a deterministic implementation without giving a Capability access
+/// to that clock.
+pub trait PlatformClock {
+    /// Returns the platform time for the current Runtime execution boundary.
+    fn now(&self) -> PlatformTime;
+}
+
+impl<T> PlatformClock for Arc<T>
+where
+    T: PlatformClock + ?Sized,
+{
+    fn now(&self) -> PlatformTime {
+        (**self).now()
+    }
+}
+
+/// A deterministic, Runtime-injectable platform clock for tests and fixtures.
+///
+/// Clones share the same value, so a test can advance the clock after it has
+/// been injected into a Runtime. It never reads wall-clock state.
+#[derive(Clone, Debug)]
+pub struct ManualPlatformClock {
+    value: Arc<AtomicI64>,
+}
+
+impl ManualPlatformClock {
+    /// Creates a manual clock at the supplied platform time.
+    #[must_use]
+    pub fn new(value: PlatformTime) -> Self {
+        Self {
+            value: Arc::new(AtomicI64::new(value.value())),
+        }
+    }
+
+    /// Sets the value returned by subsequent [`PlatformClock::now`] calls.
+    pub fn set(&self, value: PlatformTime) {
+        self.value.store(value.value(), Ordering::Relaxed);
+    }
+}
+
+impl Default for ManualPlatformClock {
+    fn default() -> Self {
+        Self::new(PlatformTime::default())
+    }
+}
+
+impl PlatformClock for ManualPlatformClock {
+    fn now(&self) -> PlatformTime {
+        PlatformTime::new(self.value.load(Ordering::Relaxed))
     }
 }
 
@@ -375,9 +439,11 @@ impl TimelineSnapshot {
 /// Result of a successful atomic Timeline commit.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CommitResult {
-    /// Timeline whose authority state advanced.
+    /// Timeline targeted by the commit.
     pub timeline_id: TimelineId,
-    /// Version after the commit linearization point.
+    /// Version after the commit linearization point. A successful commit with
+    /// no Events, Work mutations or current-Work completion returns the
+    /// unchanged version rather than advancing `state_revision`.
     pub version: TimelineVersion,
     /// Events appended by this commit, in assigned sequence order.
     pub events: Vec<CommittedEvent>,
@@ -643,6 +709,9 @@ pub trait CommitStore {
     /// `current_work` is present, the implementation must verify its Pending
     /// status, live lease and fence at the same linearization point. The
     /// supplied `now` is explicit platform time and is never World Time.
+    /// When the validated Resolution is empty and no current Work claim is
+    /// supplied, a successful no-op must leave the Timeline version and
+    /// observable World/Work state unchanged.
     ///
     /// # Errors
     ///
