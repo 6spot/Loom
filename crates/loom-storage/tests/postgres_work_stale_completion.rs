@@ -30,11 +30,8 @@ fn postgres_url() -> Option<String> {
     }
 }
 
-#[tokio::test]
-async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
-    let Some(database_url) = postgres_url() else {
-        return;
-    };
+async fn authority() -> Option<(PgStorage, PgPool, TimelineId, WorkId)> {
+    let database_url = postgres_url()?;
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
@@ -73,7 +70,14 @@ async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
     .execute(&pool)
     .await
     .expect("test Work should insert");
+    Some((storage, pool, timeline_id, work_id))
+}
 
+#[tokio::test]
+async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
+    let Some((storage, pool, timeline_id, work_id)) = authority().await else {
+        return;
+    };
     let first = WorkStore::claim(
         &storage,
         timeline_id,
