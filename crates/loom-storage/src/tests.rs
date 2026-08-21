@@ -11,10 +11,11 @@ use loom_core::{
     RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
     WorldEffect, WorldId, WorldInstant,
 };
-use loom_protocol::{ActionInvocation, ResolveOutcome};
+use loom_protocol::{
+    ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation, WorkSchedule,
+};
 use loom_runtime::{
-    CommitError, EffectEngine, NewWork, PlatformTime, ProposedEvent, Resolution, Runtime,
-    WorkMutation, WorkRecord, WorkSchedule, WorkStatus,
+    CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus,
 };
 use serde_json::{Value, json};
 
@@ -714,7 +715,7 @@ fn staged_commit_does_not_expose_event_before_work_failure() {
             WorkHandlerId::from("test.handler"),
             SchemaRevision::new(1),
             json!({}),
-            loom_runtime::WorkSchedule::Immediate,
+            WorkSchedule::Immediate,
         ))],
     );
     let validated = validated(&store, &registry, resolution);
@@ -765,7 +766,7 @@ fn work_creation_and_current_completion_share_zero_event_commit() {
                 WorkHandlerId::from("test.handler"),
                 SchemaRevision::new(1),
                 json!({"next": true}),
-                loom_runtime::WorkSchedule::At(WorldInstant::new(100)),
+                WorkSchedule::At(WorldInstant::new(100)),
             ))],
         ),
     );
