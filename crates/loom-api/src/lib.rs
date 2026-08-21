@@ -31,7 +31,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::fmt;
+use std::{fmt, future::Future, pin::Pin};
 
 pub use loom_core::{
     ActionTypeId, AssociationRole, EntityId, EventId, EventSeq, EventTypeId, FacetOwner,
@@ -284,6 +284,14 @@ impl std::error::Error for ApiError {}
 
 /// A convenient result alias for public Loom service methods.
 pub type ApiResult<T> = Result<T, ApiError>;
+
+/// Executor-neutral future returned by public Loom I/O service methods.
+///
+/// The boxed future keeps the focused service traits object-safe, so an
+/// application may continue to consume `&dyn LoomApi` while Runtime awaits
+/// asynchronous persistence. The contract chooses no executor and exposes no
+/// Runtime, database or transaction type.
+pub type ApiFuture<'a, T> = Pin<Box<dyn Future<Output = ApiResult<T>> + 'a>>;
 
 /// The versioned state and World time observed for one Timeline.
 ///
@@ -583,18 +591,16 @@ pub trait ActionService {
     ///
     /// A semantic refusal is returned as `Ok(ExecutionResult::Rejected(_))`.
     /// Request, lookup, concurrency and infrastructure failures use
-    /// `Err(ApiError)` instead.
+    /// `Err(ApiError)` instead. The returned future is executor-neutral and
+    /// keeps persistence latency outside Capability semantic execution.
     ///
     /// # Errors
     ///
     /// Returns an `ApiError` when the request cannot be resolved or committed
     /// through the public service boundary.
-    fn invoke(&self, request: ActionRequest) -> ApiResult<ExecutionResult>;
+    fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult>;
 
     /// Invokes an Action using separate World/Timeline identities.
-    ///
-    /// This convenience method preserves the same public boundary and does
-    /// not create a Capability-specific endpoint.
     ///
     /// # Errors
     ///
@@ -604,7 +610,7 @@ pub trait ActionService {
         world_id: WorldId,
         timeline_id: TimelineId,
         invocation: ActionInvocation,
-    ) -> ApiResult<ExecutionResult> {
+    ) -> ApiFuture<'_, ExecutionResult> {
         self.invoke(ActionRequest::for_timeline(
             world_id,
             timeline_id,
@@ -624,7 +630,7 @@ pub trait TimelineService {
     /// # Errors
     ///
     /// Returns an `ApiError` when the World/Timeline cannot be found or read.
-    fn inspect_timeline(&self, target: TimelineTarget) -> ApiResult<TimelineSnapshot>;
+    fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, TimelineSnapshot>;
 }
 
 /// Reads current materialized World state through the unified API.
@@ -638,7 +644,7 @@ pub trait QueryService {
     /// # Errors
     ///
     /// Returns an `ApiError` when the target cannot be found or read.
-    fn get_facet(&self, query: FacetQuery) -> ApiResult<Option<FacetSnapshot>>;
+    fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<FacetSnapshot>>;
 }
 
 /// Reads committed World history through the unified API.
@@ -652,7 +658,7 @@ pub trait HistoryService {
     ///
     /// Returns an `ApiError` when the target cannot be found or its history
     /// cannot be read.
-    fn list_events(&self, query: EventQuery) -> ApiResult<Vec<CommittedEvent>>;
+    fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<CommittedEvent>>;
 }
 
 /// Discovers centrally registered Capability and semantic Action definitions.
@@ -692,10 +698,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiResult,
-        CapabilityDescriptor, CapabilityId, CatalogService, CatalogSnapshot, CommittedEvent,
-        EventQuery, ExecutionResult, FacetQuery, FacetSnapshot, HistoryService, LoomApi,
-        QueryService, TimelineService, TimelineSnapshot, TimelineTarget,
+        ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture,
+        ApiResult, CapabilityDescriptor, CapabilityId, CatalogService, CatalogSnapshot,
+        CommittedEvent, EventQuery, ExecutionResult, FacetQuery, FacetSnapshot, HistoryService,
+        LoomApi, QueryService, TimelineService, TimelineSnapshot, TimelineTarget,
     };
     use crate::{
         ActionInvocation, ActionTypeId, FacetOwner, FacetTypeId, Rejection, SchemaRevision,
@@ -715,40 +721,46 @@ mod tests {
     struct StubApi;
 
     impl ActionService for StubApi {
-        fn invoke(&self, request: ActionRequest) -> ApiResult<ExecutionResult> {
-            assert_eq!(request.target, target());
-            assert_eq!(request.invocation.action.as_str(), "counter.increment");
-            Ok(ExecutionResult::committed(
-                Vec::new(),
-                TimelineVersion::new(1.into(), 1.into()),
-            ))
+        fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
+            Box::pin(async move {
+                assert_eq!(request.target, target());
+                assert_eq!(request.invocation.action.as_str(), "counter.increment");
+                Ok(ExecutionResult::committed(
+                    Vec::new(),
+                    TimelineVersion::new(1.into(), 1.into()),
+                ))
+            })
         }
     }
 
     impl TimelineService for StubApi {
-        fn inspect_timeline(&self, target: TimelineTarget) -> ApiResult<TimelineSnapshot> {
-            Ok(TimelineSnapshot::new(
-                target,
-                TimelineVersion::new(1.into(), 1.into()),
-                WorldInstant::new(7),
-            ))
+        fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, TimelineSnapshot> {
+            Box::pin(async move {
+                Ok(TimelineSnapshot::new(
+                    target,
+                    TimelineVersion::new(1.into(), 1.into()),
+                    WorldInstant::new(7),
+                ))
+            })
         }
     }
 
     impl QueryService for StubApi {
-        fn get_facet(&self, query: FacetQuery) -> ApiResult<Option<FacetSnapshot>> {
-            Ok(Some(FacetSnapshot::new(
-                query.owner,
-                query.facet_type,
-                SchemaRevision::new(1),
-                json!({"value": 1}),
-            )))
+        fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<FacetSnapshot>> {
+            Box::pin(async move {
+                Ok(Some(FacetSnapshot::new(
+                    query.owner,
+                    query.facet_type,
+                    SchemaRevision::new(1),
+                    json!({"value": 1}),
+                )))
+            })
         }
     }
 
     impl HistoryService for StubApi {
-        fn list_events(&self, _query: EventQuery) -> ApiResult<Vec<CommittedEvent>> {
-            Ok(Vec::new())
+        fn list_events(&self, _query: EventQuery) -> ApiFuture<'_, Vec<CommittedEvent>> {
+            Box::pin(async { Ok(Vec::new()) })
         }
     }
 
@@ -804,8 +816,8 @@ mod tests {
         assert_ne!(conflict.code, ApiErrorCode::InvalidRequest);
     }
 
-    #[test]
-    fn focused_services_form_one_public_world_api() {
+    #[tokio::test]
+    async fn focused_services_form_one_public_world_api() {
         let api = StubApi;
         assert_complete_api(&api);
 
@@ -815,11 +827,13 @@ mod tests {
                 target().timeline_id,
                 ActionInvocation::new(ActionTypeId::from("counter.increment"), json!({})),
             )
+            .await
             .expect("action should execute");
         assert!(result.is_committed());
 
         let snapshot = api
             .inspect_timeline(target())
+            .await
             .expect("timeline should be inspectable");
         assert_eq!(snapshot.world_time.value(), 7);
 
@@ -832,6 +846,7 @@ mod tests {
                 ),
                 FacetTypeId::from("counter.value"),
             ))
+            .await
             .expect("facet should be queryable")
             .expect("stub facet should exist");
         assert_eq!(facet.schema_revision.value(), 1);

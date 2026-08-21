@@ -18,9 +18,9 @@ use loom_core::{
     TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent, PlatformTime,
-    ProposedEvent, ReadError, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError,
-    WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldStore,
+    BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent, PersistenceFuture,
+    PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, ValidatedResolution, WorkClaim,
+    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldStore,
 };
 use serde_json::Value;
 
@@ -590,8 +590,11 @@ impl InMemoryStore {
 }
 
 impl WorldStore for InMemoryStore {
-    fn snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
-        self.snapshot(timeline_id)
+    fn snapshot(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
+        Box::pin(async move { InMemoryStore::snapshot(self, timeline_id) })
     }
 }
 

@@ -9,6 +9,8 @@
 
 use std::{
     fmt,
+    future::Future,
+    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicI64, Ordering},
@@ -16,13 +18,20 @@ use std::{
 };
 
 use loom_core::{
-    EventId, EventSeq, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect,
-    WorldInstant,
+    AssociationRole, EntityId, EventId, EventSeq, RelationshipId, TimelineId, TimelineVersion,
+    WorkHandlerId, WorkId, WorldEffect, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
 use serde_json::Value;
 
 use crate::{BaseWorldSnapshot, BaseWorldView, ValidatedResolution};
+
+/// Executor-neutral future returned by Runtime persistence I/O ports.
+///
+/// Persistence adapters may use SQLx or another asynchronous driver without
+/// choosing an executor for Runtime. Capability code never receives this type:
+/// resolvers operate on the already-pinned in-memory `BaseWorldView`.
+pub type PersistenceFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// An explicit platform-time coordinate used for leases and technical retry.
 ///
@@ -367,6 +376,61 @@ impl CommittedEvent {
         }
     }
 
+    /// Builds a committed read model from persisted scalar/Event data.
+    ///
+    /// Storage adapters may use this constructor while reconstructing history;
+    /// it does not create commit authority or bypass Runtime validation.
+    #[must_use]
+    pub fn from_persisted(
+        id: EventId,
+        timeline_id: TimelineId,
+        event_seq: EventSeq,
+        event_type: loom_core::EventTypeId,
+        schema_revision: loom_core::SchemaRevision,
+        occurred_at: WorldInstant,
+        payload: Value,
+        effects: Vec<WorldEffect>,
+    ) -> Self {
+        Self {
+            id,
+            timeline_id,
+            event_seq,
+            event_type,
+            schema_revision,
+            occurred_at,
+            participants: Vec::new(),
+            relationship_refs: Vec::new(),
+            causal_links: Vec::new(),
+            payload,
+            effects,
+        }
+    }
+
+    /// Adds a persisted direct Entity association while rebuilding history.
+    pub fn push_participant(&mut self, entity_id: EntityId, role: AssociationRole) {
+        self.participants
+            .push(loom_protocol::EventParticipant::new(entity_id, role));
+    }
+
+    /// Adds a persisted Relationship association while rebuilding history.
+    pub fn push_relationship_ref(
+        &mut self,
+        relationship_id: RelationshipId,
+        role: AssociationRole,
+    ) {
+        self.relationship_refs
+            .push(loom_protocol::EventRelationshipRef::new(
+                relationship_id,
+                role,
+            ));
+    }
+
+    /// Adds a persisted causal edge while rebuilding committed history.
+    pub fn push_causal_link(&mut self, cause_event_id: EventId) {
+        self.causal_links
+            .push(loom_protocol::CausalLink::new(cause_event_id));
+    }
+
     /// Returns the assigned sequence using the API-oriented name.
     #[must_use]
     pub const fn sequence(&self) -> EventSeq {
@@ -456,6 +520,8 @@ pub struct CommitResult {
 pub enum ReadError {
     /// The requested Timeline does not exist in the adapter authority.
     TimelineNotFound { timeline_id: TimelineId },
+    /// The persistence authority could not complete a coherent read.
+    StorageUnavailable { message: String },
 }
 
 impl fmt::Display for ReadError {
@@ -464,6 +530,7 @@ impl fmt::Display for ReadError {
             Self::TimelineNotFound { timeline_id } => {
                 write!(formatter, "Timeline {timeline_id} was not found")
             }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
         }
     }
 }
@@ -678,24 +745,28 @@ impl From<WorkError> for CommitError {
 
 /// Runtime read port required by validation and public history projections.
 pub trait WorldStore {
-    /// Reads one coherent Timeline snapshot.
+    /// Reads one coherent Timeline snapshot asynchronously.
     ///
     /// The returned base state, Event ledger and Work records correspond to
     /// one adapter snapshot. Implementations must not expose a mixture of
-    /// revisions.
+    /// revisions. The Future is executor-neutral and must not be exposed to
+    /// Capability semantic code.
     ///
     /// # Errors
     ///
-    /// Returns [`ReadError::TimelineNotFound`] when the Timeline is absent.
-    fn snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError>;
+    /// Returns [`ReadError::TimelineNotFound`] when the Timeline is absent, or
+    /// [`ReadError::StorageUnavailable`] when the authority cannot be read.
+    fn snapshot(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>>;
 
     /// Alias emphasizing the read-side operation for callers that use the
     /// port as a `read_snapshot` dependency.
-    ///
-    /// # Errors
-    ///
-    /// Propagates [`ReadError::TimelineNotFound`] from [`Self::snapshot`].
-    fn read_snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
+    fn read_snapshot(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         self.snapshot(timeline_id)
     }
 }

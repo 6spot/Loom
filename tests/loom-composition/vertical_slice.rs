@@ -414,8 +414,8 @@ fn work_validation_error(
         .expect_err("invalid Work metadata must be rejected")
 }
 
-#[test]
-fn composition_invalid_action_input_is_stopped_before_resolver() {
+#[tokio::test]
+async fn composition_invalid_action_input_is_stopped_before_resolver() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -435,19 +435,21 @@ fn composition_invalid_action_input_is_stopped_before_resolver() {
             "counting.action",
             json!({"value": "not-an-integer"}),
         ))
+        .await
         .expect_err("invalid Action input must be a request error");
     assert_eq!(invalid.code, ApiErrorCode::InvalidRequest);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 
     let valid = api
         .invoke(counter_request("counting.action", json!({"value": 1})))
+        .await
         .expect("valid Action input should reach the resolver");
     assert!(matches!(valid, ExecutionResult::Rejected(_)));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
-#[test]
-fn composition_work_schedule_validates_identity_and_payload_before_commit() {
+#[tokio::test]
+async fn composition_work_schedule_validates_identity_and_payload_before_commit() {
     let store = counter_store();
     let registry = counter_registry();
     let base = store
@@ -552,8 +554,8 @@ fn composition_work_schedule_validates_identity_and_payload_before_commit() {
     );
 }
 
-#[test]
-fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history() {
+#[tokio::test]
+async fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history() {
     let store = counter_store();
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
@@ -563,6 +565,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             COUNTER_INCREMENT,
             json!({"amount": 2, "event_id": event(10).to_string()}),
         ))
+        .await
         .expect("first increment should execute");
     assert!(matches!(first, ExecutionResult::Committed { .. }));
     assert_eq!(
@@ -571,6 +574,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             FacetOwner::entity(entity(10)),
             FacetTypeId::from(COUNTER_FACET),
         ))
+        .await
         .expect("first state query should succeed")
         .expect("counter Facet should exist")
         .value,
@@ -582,6 +586,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             COUNTER_INCREMENT,
             json!({"amount": 3, "event_id": event(11).to_string()}),
         ))
+        .await
         .expect("second increment should execute");
     assert!(matches!(second, ExecutionResult::Committed { .. }));
     assert_eq!(
@@ -590,6 +595,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             FacetOwner::entity(entity(10)),
             FacetTypeId::from(COUNTER_FACET),
         ))
+        .await
         .expect("second state query should succeed")
         .expect("counter Facet should exist")
         .value,
@@ -601,6 +607,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             COUNTER_INCREMENT,
             json!({"amount": 0, "event_id": event(12).to_string()}),
         ))
+        .await
         .expect("invalid amount should be a normal outcome");
     match rejected {
         ExecutionResult::Rejected(rejection) => {
@@ -614,6 +621,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             COUNTER_OBSERVE,
             json!({"event_id": event(13).to_string()}),
         ))
+        .await
         .expect("zero-Effect observation should execute");
     assert!(matches!(zero_effect, ExecutionResult::Committed { .. }));
     assert_eq!(
@@ -622,6 +630,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
             FacetOwner::entity(entity(10)),
             FacetTypeId::from(COUNTER_FACET),
         ))
+        .await
         .expect("post-observation state query should succeed")
         .expect("counter Facet should exist")
         .value,
@@ -630,6 +639,7 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
 
     let history = api
         .list_events(EventQuery::all(counter_target()))
+        .await
         .expect("history query should succeed");
     assert_eq!(history.len(), 3);
     assert_eq!(history[0].sequence.value(), 1);
@@ -648,8 +658,8 @@ fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history
     );
 }
 
-#[test]
-fn vertical_slice_executes_durable_work_and_completes_atomically() {
+#[tokio::test]
+async fn vertical_slice_executes_durable_work_and_completes_atomically() {
     let store = counter_store();
     store
         .seed_work(WorkRecord {
@@ -680,6 +690,7 @@ fn vertical_slice_executes_durable_work_and_completes_atomically() {
             PlatformTime::new(10),
             PlatformTime::new(2),
         )
+        .await
         .expect("Work should commit through Runtime");
     assert!(matches!(result, ExecutionResult::Committed { .. }));
     assert_eq!(
@@ -688,6 +699,7 @@ fn vertical_slice_executes_durable_work_and_completes_atomically() {
             FacetOwner::entity(entity(10)),
             FacetTypeId::from(COUNTER_FACET),
         ))
+        .await
         .expect("Work state query should succeed")
         .expect("counter Facet should exist")
         .value,
@@ -703,8 +715,8 @@ fn vertical_slice_executes_durable_work_and_completes_atomically() {
     );
 }
 
-#[test]
-fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
+#[tokio::test]
+async fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
     let retry_store = counter_store();
     retry_store
         .seed_work(WorkRecord {
@@ -734,6 +746,7 @@ fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
             PlatformTime::new(10),
             PlatformTime::new(3),
         )
+        .await
         .expect_err("technical handler failure should use retry path");
     assert_eq!(retry_error.code, ApiErrorCode::Internal);
     let retry_snapshot = retry_store
