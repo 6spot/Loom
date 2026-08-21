@@ -210,6 +210,43 @@ pub struct CapabilityManifest {
     pub description: String,
 }
 
+/// Compiles one Capability-owned schema as Draft 2020-12 metadata.
+///
+/// Capability registration uses this helper to reject malformed schema
+/// documents before a registry can be handed to Runtime. Runtime may use the
+/// companion [`validate_json_schema`] helper for instance checks, but this
+/// function does not retain a validator, authorize an Effect or grant commit
+/// authority. The raw schema document remains owned by its registered
+/// Capability definition.
+///
+/// # Errors
+///
+/// Returns a deterministic, boundary-safe explanation when `schema` is not a
+/// valid Draft 2020-12 document or a referenced resource cannot be resolved.
+pub fn validate_json_schema_document(schema: &Value) -> Result<(), String> {
+    jsonschema::draft202012::new(schema)
+        .map(|_| ())
+        .map_err(|error| format!("invalid Draft 2020-12 schema: {error}"))
+}
+
+/// Validates one instance against a Capability-owned Draft 2020-12 schema.
+///
+/// This is a focused implementation helper shared by the Capability assembly
+/// and Runtime validation boundaries. It does not change the schema document,
+/// infer a schema revision, invoke a resolver or make the instance commit
+/// eligible; Runtime still owns candidate-state validation and commit
+/// authority.
+///
+/// # Errors
+///
+/// Returns a deterministic validator/compiler explanation when the schema is
+/// malformed or when `value` violates the schema.
+pub fn validate_json_schema(schema: &Value, value: &Value) -> Result<(), String> {
+    let validator = jsonschema::draft202012::new(schema)
+        .map_err(|error| format!("invalid Draft 2020-12 schema: {error}"))?;
+    validator.validate(value).map_err(|error| error.to_string())
+}
+
 impl CapabilityManifest {
     /// Creates a manifest with no Capability dependencies and an unconstrained
     /// Loom contract requirement.
@@ -1280,6 +1317,13 @@ impl CapabilityRegistrar {
                 id: definition.id.to_string(),
             });
         }
+        if let Some(error) = invalid_schema_registration(
+            SemanticKind::Facet,
+            definition.id.to_string(),
+            &definition.schema,
+        ) {
+            return self.record_error(error);
+        }
         self.facets.push(definition);
         Ok(())
     }
@@ -1328,6 +1372,12 @@ impl CapabilityRegistrar {
                 id: definition.id.to_string(),
             });
         }
+        if let Some(schema) = definition.payload_schema.as_ref()
+            && let Some(error) =
+                invalid_schema_registration(SemanticKind::Event, definition.id.to_string(), schema)
+        {
+            return self.record_error(error);
+        }
         self.events.push(definition);
         Ok(())
     }
@@ -1356,6 +1406,12 @@ impl CapabilityRegistrar {
                 id: definition.id.to_string(),
             });
         }
+        if let Some(schema) = definition.input_schema.as_ref()
+            && let Some(error) =
+                invalid_schema_registration(SemanticKind::Action, definition.id.to_string(), schema)
+        {
+            return self.record_error(error);
+        }
         self.actions.push((definition, Arc::new(resolver)));
         Ok(())
     }
@@ -1383,6 +1439,15 @@ impl CapabilityRegistrar {
                 kind: SemanticKind::WorkHandler,
                 id: definition.id.to_string(),
             });
+        }
+        if let Some(schema) = definition.payload_schema.as_ref()
+            && let Some(error) = invalid_schema_registration(
+                SemanticKind::WorkHandler,
+                definition.id.to_string(),
+                schema,
+            )
+        {
+            return self.record_error(error);
         }
         self.work_handlers.push((definition, Arc::new(handler)));
         Ok(())
@@ -1452,6 +1517,16 @@ fn invalid_relationship_reason(definition: &RelationshipDefinition) -> Option<St
         }
     }
     None
+}
+
+fn invalid_schema_registration(
+    kind: SemanticKind,
+    id: String,
+    schema: &Value,
+) -> Option<RegistrationError> {
+    validate_json_schema_document(schema)
+        .err()
+        .map(|reason| RegistrationError::InvalidDefinition { kind, id, reason })
 }
 
 struct RegistrationBatch {
@@ -2181,6 +2256,27 @@ mod tests {
         }
     }
 
+    struct MalformedSchemaCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for MalformedSchemaCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(
+            &self,
+            registrar: &mut CapabilityRegistrar,
+        ) -> Result<(), super::RegistrationError> {
+            registrar.register_facet(FacetDefinition::new(
+                FacetTypeId::from("invalid.facet"),
+                SchemaRevision::new(1),
+                json!({"type": "not-a-json-schema-type"}),
+            ))
+        }
+    }
+
     struct EchoResolver;
 
     impl ActionResolver for EchoResolver {
@@ -2436,6 +2532,45 @@ mod tests {
         let error = CapabilityDependency::parse("provider", "not semver")
             .expect_err("invalid semver must not become metadata");
         assert!(error.to_string().contains("unexpected character"));
+    }
+
+    #[test]
+    fn draft_2020_boolean_and_composition_schemas_are_enforced() {
+        assert!(super::validate_json_schema(&json!(true), &json!({"accepted": true})).is_ok());
+        assert!(super::validate_json_schema(&json!(false), &json!({"accepted": true})).is_err());
+
+        let composed = json!({
+            "oneOf": [
+                {"type": "string"},
+                {"type": "integer"}
+            ]
+        });
+        assert!(super::validate_json_schema(&composed, &json!(42)).is_ok());
+        assert!(super::validate_json_schema(&composed, &json!(true)).is_err());
+    }
+
+    #[test]
+    fn malformed_registered_schema_fails_assembly_deterministically() {
+        let assemble = || {
+            CapabilityRegistry::assemble([MalformedSchemaCapability {
+                manifest: manifest("invalid.schema", "1.0.0"),
+            }])
+            .err()
+            .expect("malformed schema must block registry assembly")
+        };
+        let first = assemble();
+        let second = assemble();
+        assert_eq!(first, second);
+        assert!(matches!(
+            first,
+            super::RegistryError::Registration {
+                source: super::RegistrationError::InvalidDefinition {
+                    kind: super::SemanticKind::Facet,
+                    ..
+                },
+                ..
+            }
+        ));
     }
 
     #[test]

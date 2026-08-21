@@ -20,7 +20,7 @@ use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
 
 use crate::{
     CommitError, CommitStore, CommittedEvent, EffectEngine, ManualPlatformClock, PlatformClock,
-    PlatformTime, ReadError, RuntimeError, TimelineSnapshot, ValidatedResolution,
+    PlatformTime, ReadError, RuntimeError, TimelineSnapshot, ValidatedResolution, ValidationError,
     ValidationOutcome, WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
 };
 
@@ -327,6 +327,10 @@ where
                     request.invocation.action
                 ))
             })?;
+        let engine = EffectEngine::new(&self.registry);
+        engine
+            .validate_action_input(&request.invocation.action, &request.invocation.input)
+            .map_err(|error| map_action_input_error(&error))?;
         let context = RuntimeResolutionContext {
             base: &base,
             registry: &self.registry,
@@ -339,7 +343,7 @@ where
                 &request.invocation.input,
             )
             .map_err(map_dispatch_error)?;
-        let validation = EffectEngine::new(&self.registry)
+        let validation = engine
             .validate_outcome(&base, &owner, outcome)
             .map_err(|error| map_runtime_error(&error))?;
         match validation {
@@ -521,6 +525,20 @@ fn map_runtime_error(error: &RuntimeError) -> ApiError {
         RuntimeError::Validation(_) | RuntimeError::Budget(_) => {
             ApiError::internal("Runtime rejected an invalid resolution")
         }
+    }
+}
+
+fn map_action_input_error(error: &RuntimeError) -> ApiError {
+    if matches!(
+        error,
+        RuntimeError::Validation(ValidationError::SchemaViolation {
+            kind: loom_capability::SemanticKind::Action,
+            ..
+        })
+    ) {
+        ApiError::invalid_request("Action input does not match its registered schema")
+    } else {
+        map_runtime_error(error)
     }
 }
 
