@@ -16,7 +16,7 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommittedEvent, PersistenceFuture, PlatformTime, ReadError,
+    BaseWorldSnapshot, CommittedEvent, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
     TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldStore,
 };
 use serde_json::Value;
@@ -242,16 +242,16 @@ impl PgStorage {
             let effects_value = row_json(&row, "effects")?;
             let effects: Vec<WorldEffect> = serde_json::from_value(effects_value)
                 .map_err(|error| corrupt(format!("invalid persisted Event effects: {error}")))?;
-            let mut event = CommittedEvent::from_persisted(
+            let event_seq = EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?);
+            let mut proposal = ProposedEvent::new(
                 event_id,
-                timeline_id,
-                EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?),
                 EventTypeId::from(row_string(&row, "event_type")?),
                 schema_revision(&row)?,
                 WorldInstant::new(row_i64(&row, "occurred_at")?),
                 row_json(&row, "payload")?,
-                effects,
             );
+            proposal.effects = effects;
+            let mut event = CommittedEvent::from_proposed(timeline_id, event_seq, &proposal);
 
             let participant_rows = sqlx::query(
                 "SELECT entity_id::text AS entity_id, role FROM loom_event_participant \

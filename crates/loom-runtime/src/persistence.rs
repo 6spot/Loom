@@ -28,7 +28,7 @@ use crate::{BaseWorldSnapshot, BaseWorldView, ValidatedResolution};
 
 /// Executor-neutral future returned by Runtime persistence I/O ports.
 ///
-/// Persistence adapters may use SQLx or another asynchronous driver without
+/// Persistence adapters may use `SQLx` or another asynchronous driver without
 /// choosing an executor for Runtime. Capability code never receives this type:
 /// resolvers operate on the already-pinned in-memory `BaseWorldView`.
 pub type PersistenceFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
@@ -373,36 +373,6 @@ impl CommittedEvent {
             causal_links: event.causal_links.clone(),
             payload: event.payload.clone(),
             effects: event.effects.clone(),
-        }
-    }
-
-    /// Builds a committed read model from persisted scalar/Event data.
-    ///
-    /// Storage adapters may use this constructor while reconstructing history;
-    /// it does not create commit authority or bypass Runtime validation.
-    #[must_use]
-    pub fn from_persisted(
-        id: EventId,
-        timeline_id: TimelineId,
-        event_seq: EventSeq,
-        event_type: loom_core::EventTypeId,
-        schema_revision: loom_core::SchemaRevision,
-        occurred_at: WorldInstant,
-        payload: Value,
-        effects: Vec<WorldEffect>,
-    ) -> Self {
-        Self {
-            id,
-            timeline_id,
-            event_seq,
-            event_type,
-            schema_revision,
-            occurred_at,
-            participants: Vec::new(),
-            relationship_refs: Vec::new(),
-            causal_links: Vec::new(),
-            payload,
-            effects,
         }
     }
 
