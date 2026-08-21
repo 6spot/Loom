@@ -21,7 +21,7 @@ Baseline: Milestone 2 completed on `main` at `e9fde033fe375f9e03f20ef82d37f466e4
 | Task | Issue | Status | Record |
 | --- | ---: | --- | --- |
 | M3-T1 World creation contract | #48 | completed | `t1-world-creation-contract.md` |
-| M3-T2 PostgreSQL lifecycle persistence | #49 | planned | `t2-postgresql-lifecycle.md` |
+| M3-T2 PostgreSQL lifecycle persistence | #49 | in_progress | `t2-postgresql-lifecycle.md` |
 | M3-T3 restart/reload/resume | #50 | planned | `t3-restart-resume.md` |
 | M3-T4 final parity gate | #51 | planned | `t4-lifecycle-final-gate.md` |
 
@@ -37,4 +37,6 @@ This milestone creates one World plus its initial Timeline through the unified L
 
 - 2026-08-21: M3 #47 created from the first remaining implementation-baseline gap after M2: public World creation and resumable Runtime authority.
 - 2026-08-21: M3-T1 #48 started from M2 closure baseline `e9fde033fe375f9e03f20ef82d37f466e4ff1db2`.
-- 2026-08-21: M3-T1 implementation candidate `76002e1170b68cf122ff8c9bec409b7ece3bbe85` passed clean standard CI `32488685071`; final task-record head `ca4bb8da00357773f124fdf2040b1b69b20a2af3` passed CI `32489003271`; implementation PR #52 merged as `76f880ce2b24b93eaa723aa3e8351b5aca29becc`. Post-merge audit marks T1 completed.
+- 2026-08-21: M3-T1 implementation candidate `76002e1170b68cf122ff8c9bec409b7ece3bbe85` passed clean standard CI `32488685071`; final task-record head `ca4bb8da00357773f124fdf2040b1b69b20a2af3` passed CI `32489003271`; implementation PR #52 merged as `76f880ce2b24b93eaa723aa3e8351b5aca29becc`; audit PR #53 merged as `02527ee48a7a08cc4c508c19512fa38155746ea5`.
+- 2026-08-21: M3-T2 #49 started from T1 audit main `02527ee48a7a08cc4c508c19512fa38155746ea5`; scope is dedicated PostgreSQL lifecycle hardening/integration and explicit CI coverage.
+- 2026-08-21: M3-T2 clean candidate `82003c734345e8bb8a01daa56409528acb6be7d9` passed standard CI `32490627476`, including the new PostgreSQL 18 World lifecycle contract plus all existing PostgreSQL and Ubuntu/macOS gates. T2 remains `in_progress` until final task-record CI, implementation merge and post-merge audit.
