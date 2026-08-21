@@ -7,8 +7,10 @@ This repository is architecture-first. Before changing code, crate dependencies,
 3. `docs/architecture/implementation.md`
 4. `docs/architecture/runtime-contracts.md`
 5. `docs/architecture/governance.md`
+6. `docs/tasks/README.md`
+7. the active task file under `docs/tasks/<milestone>/` for the work being implemented
 
-`docs/architecture/governance.md` is normative for Rust dependency direction and public capability exposure.
+`docs/architecture/governance.md` is normative for Rust dependency direction and public capability exposure. `docs/tasks/README.md` is normative for repository task status and completion evidence.
 
 ## Non-negotiable rules
 
@@ -25,6 +27,15 @@ This repository is architecture-first. Before changing code, crate dependencies,
 - `ValidatedResolution` is Runtime-owned authority. Do not move it into a shared crate for convenience.
 - World mutation still follows `Resolution -> validation -> ValidatedResolution -> Timeline Commit`.
 - Every public Core/Protocol/API/Runtime/Capability abstraction requires semantic Rust doc comments as defined in `runtime-contracts.md`.
+- Every implementation task must have one repository task file. Set it to `in_progress` when work starts, and do not close the task as completed until the file is `completed` with PR, merge SHA and verification evidence as required by `docs/tasks/README.md`.
+
+## Task records
+
+GitHub issues are the collaboration surface; repository task files are the durable audit trail. Their status must agree.
+
+When starting an implementation task, update its task file in the implementation branch/PR. When completing it, satisfy the task-file acceptance checklist, record completion evidence, mark it `completed`, and close the GitHub issue as completed. If the final merge SHA is only known after merge, record it immediately in a follow-up audit update.
+
+Do not mark duplicate, cancelled or superseded work as completed; record the reason and replacement task instead.
 
 ## Architecture changes
 
