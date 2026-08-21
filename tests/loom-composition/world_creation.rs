@@ -179,4 +179,33 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
         .await
         .expect("existing history should survive failed duplicate bootstrap");
     assert_eq!(history_after_conflict, history);
+
+    let conflicting_world_id = id::<WorldId>(0x3003);
+    let timeline_conflict_runtime = Runtime::new(&store, registry())
+        .expect("Timeline-conflict Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id: conflicting_world_id,
+            timeline_id,
+        });
+    let timeline_conflict = timeline_conflict_runtime
+        .create_world(CreateWorldRequest::new(WorldInstant::new(70)))
+        .await
+        .expect_err("reused Timeline identity must conflict even with a fresh World identity");
+    assert_eq!(timeline_conflict.code, ApiErrorCode::Conflict);
+
+    let recovered_timeline_id = id::<TimelineId>(0x3004);
+    let retry_runtime = Runtime::new(&store, registry())
+        .expect("post-conflict Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id: conflicting_world_id,
+            timeline_id: recovered_timeline_id,
+        });
+    let recovered = retry_runtime
+        .create_world(CreateWorldRequest::new(WorldInstant::new(77)))
+        .await
+        .expect("failed Timeline conflict must not leave a partial World");
+    assert_eq!(recovered.target.world_id, conflicting_world_id);
+    assert_eq!(recovered.target.timeline_id, recovered_timeline_id);
+    assert_eq!(recovered.version, TimelineVersion::default());
+    assert_eq!(recovered.world_time, WorldInstant::new(77));
 }
