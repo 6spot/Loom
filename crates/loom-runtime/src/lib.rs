@@ -104,8 +104,6 @@ pub use views::{
 };
 
 pub use loom_capability::SemanticKind;
-#[doc(hidden)]
-pub use loom_protocol::{NewWork, ProposedEvent, Resolution, WorkMutation, WorkSchedule};
 
 #[cfg(test)]
 mod tests;
