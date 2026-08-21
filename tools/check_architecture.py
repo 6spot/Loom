@@ -198,7 +198,7 @@ def is_composition_extension_dependency(package: dict, dependency_name: str, by_
 
 def is_production_dependency(dependency: dict) -> bool:
     """Return whether Cargo includes the edge in a normal production build."""
-    return dependency.get("kind") in {None, "normal"}
+    return dependency.get("kind") in {None, "normal", "build"}
 
 
 def main() -> int:
