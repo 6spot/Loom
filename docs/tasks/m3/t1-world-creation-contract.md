@@ -1,13 +1,13 @@
 ---
 task: M3-T1
 issue: 48
-status: in_progress
+status: completed
 depends_on: []
 created_at: 2026-08-21
 started_at: 2026-08-21
-completed_at:
+completed_at: 2026-08-21
 completion_pr: 52
-merge_sha:
+merge_sha: 76f880ce2b24b93eaa723aa3e8351b5aca29becc
 ---
 
 # M3-T1 — Public World Creation Contract + Runtime Lifecycle/Identity Ports + InMemory Parity
@@ -43,14 +43,16 @@ Define the unified public and Runtime-owned boundaries for creating one empty Wo
 ## Completion evidence
 
 - PR: #52
-- merge SHA: pending implementation merge
-- clean candidate SHA: `76002e1170b68cf122ff8c9bec409b7ece3bbe85`
-- CI runs: `32469168089` (write-enabled implementation verifier, green before temporary verifier removal); `32488685071` (clean standard CI, Ubuntu/macOS/PostgreSQL 18 all green)
-- notes: T1 includes the minimal `PgStorage` lifecycle-port implementation needed to keep `Runtime<PgStorage>` a complete unified `LoomApi`; dedicated PostgreSQL lifecycle transaction/conflict integration hardening remains serial T2 #49. Task remains `in_progress` until #52 merges and a post-merge audit records the real merge SHA.
+- merge SHA: `76f880ce2b24b93eaa723aa3e8351b5aca29becc`
+- clean implementation candidate SHA: `76002e1170b68cf122ff8c9bec409b7ece3bbe85`
+- final task-record head before merge: `ca4bb8da00357773f124fdf2040b1b69b20a2af3`
+- CI runs: `32469168089` (write-enabled implementation verifier, green before temporary verifier removal); `32488685071` (clean implementation CI, Ubuntu/macOS/PostgreSQL 18 all green); `32489003271` (final task-record CI, Ubuntu/macOS/PostgreSQL 18 all green)
+- notes: T1 includes the minimal `PgStorage` lifecycle-port implementation needed to keep `Runtime<PgStorage>` a complete unified `LoomApi`; dedicated PostgreSQL lifecycle transaction/conflict integration hardening remains serial T2 #49. This post-merge audit records the real implementation merge SHA.
 
 ## Progress log
 
 - 2026-08-21 — Task started from Milestone 2 closure baseline `e9fde033fe375f9e03f20ef82d37f466e4ff1db2`.
 - 2026-08-21 — Implemented public World creation, Runtime-owned identity/lifecycle boundaries, atomic InMemory bootstrap, minimal Pg lifecycle adapter, and composition coverage. Temporary write-enabled verifier `32469168089` passed architecture/check/clippy/tests/rustdoc and committed the verified source changes; temporary workflow/scripts were then removed from the PR.
 - 2026-08-21 — Added independent Timeline-ID conflict rollback coverage so a fresh World ID paired with an existing Timeline ID fails atomically; a subsequent retry with that same World ID and a fresh Timeline succeeds, proving no partial World remained.
-- 2026-08-21 — Clean candidate `76002e1170b68cf122ff8c9bec409b7ece3bbe85` passed standard CI `32488685071`: Ubuntu and macOS architecture/fmt/check/clippy/workspace tests/rustdoc green; PostgreSQL 18 schema, public Runtime/API vertical, read, commit/CAS, Durable Work, and stale-fence suites green. Awaiting merge + post-merge audit for completion metadata.
+- 2026-08-21 — Clean candidate `76002e1170b68cf122ff8c9bec409b7ece3bbe85` passed standard CI `32488685071`: Ubuntu and macOS architecture/fmt/check/clippy/workspace tests/rustdoc green; PostgreSQL 18 schema, public Runtime/API vertical, read, commit/CAS, Durable Work, and stale-fence suites green.
+- 2026-08-21 — Final task-record head `ca4bb8da00357773f124fdf2040b1b69b20a2af3` passed standard CI `32489003271`; PR #52 merged as `76f880ce2b24b93eaa723aa3e8351b5aca29becc`, and this post-merge audit records the real implementation merge SHA.
