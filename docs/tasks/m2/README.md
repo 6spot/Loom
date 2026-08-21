@@ -21,7 +21,7 @@ Baseline: Milestone 1 completed on `main`; persistence semantics are already pro
 
 | Task | Issue | Status | Record |
 | --- | ---: | --- | --- |
-| M2-T1 PostgreSQL schema + SQLx migrations | #26 | in_progress | `t1-postgresql-schema.md` |
+| M2-T1 PostgreSQL schema + SQLx migrations | #26 | completed | `t1-postgresql-schema.md` |
 | M2-T2 PostgreSQL read parity | #27 | planned | `t2-postgresql-read-parity.md` |
 | M2-T3 PostgreSQL commit/CAS | #28 | planned | `t3-postgresql-commit-cas.md` |
 | M2-T4 PostgreSQL Work leases | #29 | planned | `t4-postgresql-work-leases.md` |
@@ -39,3 +39,4 @@ This milestone covers PostgreSQL 18 + SQLx authoritative persistence for the Run
 ## Administrative notes
 
 - 2026-08-21: #32 was accidentally created as a duplicate of M2-T5 #30 and immediately closed with reason `duplicate`. #30 remains the only authoritative T5 issue/task.
+- 2026-08-21: M2-T1 #26 completed via PR #34, merged as `8823b3d9d2f4963bce4a04c31343aeeca7b02ac1`; final implementation CI run `32445927597` passed the Rust matrix and PostgreSQL 18 schema contract.
