@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use loom_capability::{
     Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition,
-    FacetDefinition, RegistrationError, RelationshipDefinition, WorkHandler, WorkHandlerDefinition,
-    ResolutionContext, ResolverError,
+    FacetDefinition, RegistrationError, RelationshipDefinition, ResolutionContext, ResolverError,
+    WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId, RelationshipId,
@@ -84,10 +84,7 @@ impl Capability for CommitTestCapability {
             SchemaRevision::new(1),
         ))?;
         registrar.register_work_handler(
-            WorkHandlerDefinition::new(
-                WorkHandlerId::from(WORK_HANDLER),
-                SchemaRevision::new(1),
-            ),
+            WorkHandlerDefinition::new(WorkHandlerId::from(WORK_HANDLER), SchemaRevision::new(1)),
             EmptyWorkHandler,
         )
     }
@@ -106,7 +103,10 @@ async fn authority(seed: u128) -> Option<(PgStorage, PgPool, WorldId, TimelineId
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
-    storage.migrate().await.expect("migrations should be current");
+    storage
+        .migrate()
+        .await
+        .expect("migrations should be current");
     let pool = PgPool::connect(&database_url)
         .await
         .expect("test setup should connect independently");
@@ -226,7 +226,11 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
         .expect("multi-Event PostgreSQL commit should succeed");
 
     assert_eq!(
-        result.events.iter().map(|item| item.event_seq.value()).collect::<Vec<_>>(),
+        result
+            .events
+            .iter()
+            .map(|item| item.event_seq.value())
+            .collect::<Vec<_>>(),
         vec![1, 2, 3]
     );
     assert_eq!(result.version.head_event_seq, EventSeq::new(3));
@@ -239,8 +243,14 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
     assert!(snapshot.world_view().entity(created).is_some());
     assert!(snapshot.world_view().relationship(relationship).is_some());
     assert_eq!(snapshot.events[0].participants[0].entity_id, created);
-    assert_eq!(snapshot.events[1].relationship_refs[0].relationship_id, relationship);
-    assert_eq!(snapshot.events[2].causal_links[0].event_id(), snapshot.events[1].id);
+    assert_eq!(
+        snapshot.events[1].relationship_refs[0].relationship_id,
+        relationship
+    );
+    assert_eq!(
+        snapshot.events[2].causal_links[0].event_id(),
+        snapshot.events[1].id
+    );
     pool.close().await;
     storage.close().await;
 }
@@ -300,7 +310,10 @@ async fn postgres_18_commit_relationship_reference_survives_same_event_end() {
     let snapshot = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("Timeline should remain readable");
-    assert_eq!(snapshot.events[0].relationship_refs[0].relationship_id, relationship);
+    assert_eq!(
+        snapshot.events[0].relationship_refs[0].relationship_id,
+        relationship
+    );
     assert!(snapshot.world_view().relationship(relationship).is_none());
     pool.close().await;
     storage.close().await;
@@ -379,9 +392,7 @@ async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
     seed_pending_work(&pool, timeline_id, duplicate_work).await;
     let created: EntityId = id(0x1311);
     let resolution = Resolution::new(
-        vec![event(id(0x1320), 9).with_effect(WorldEffect::CreateEntity {
-            entity_id: created,
-        })],
+        vec![event(id(0x1320), 9).with_effect(WorldEffect::CreateEntity { entity_id: created })],
         vec![WorkMutation::Schedule(NewWork::new(
             duplicate_work,
             timeline_id,
@@ -546,7 +557,9 @@ async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_struct
     );
     assert!(matches!(
         rejected,
-        Err(RuntimeError::Validation(ValidationError::MissingEntity { .. }))
+        Err(RuntimeError::Validation(
+            ValidationError::MissingEntity { .. }
+        ))
     ));
 
     let existing: EntityId = id(0x1611);
@@ -558,13 +571,7 @@ async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_struct
         .participants
         .push(EventParticipant::new(existing, "subject"));
     let raced_resolution = Resolution::new(vec![raced_event], Vec::new());
-    let token = validated(
-        &storage,
-        timeline_id,
-        &registry,
-        raced_resolution.clone(),
-    )
-    .await;
+    let token = validated(&storage, timeline_id, &registry, raced_resolution.clone()).await;
     sqlx::query("DELETE FROM loom_entity WHERE timeline_id = $1::uuid AND entity_id = $2::uuid")
         .bind(timeline_id.to_string())
         .bind(existing.to_string())
@@ -581,7 +588,9 @@ async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_struct
         .expect("post-race Timeline should be readable");
     assert!(matches!(
         EffectEngine::new(&registry).validate(&current.world_view(), OWNER, raced_resolution),
-        Err(RuntimeError::Validation(ValidationError::MissingEntity { .. }))
+        Err(RuntimeError::Validation(
+            ValidationError::MissingEntity { .. }
+        ))
     ));
     assert!(current.events.is_empty());
     assert!(current.world_view().entity(id(0x1612)).is_none());
