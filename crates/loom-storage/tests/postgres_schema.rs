@@ -1,6 +1,6 @@
 mod support;
 
-use support::{TestDatabase, assert_postgres_18};
+use support::TestDatabase;
 
 const WORLD_ID: &str = "00000000-0000-0000-0000-00000000a101";
 const TIMELINE_ID: &str = "00000000-0000-0000-0000-00000000a102";
@@ -40,6 +40,18 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     storage.close().await;
     pool.close().await;
     database.cleanup().await;
+}
+
+async fn assert_postgres_18(pool: &sqlx::PgPool) {
+    let server_version: i32 =
+        sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
+            .fetch_one(pool)
+            .await
+            .expect("PostgreSQL should report its server version");
+    assert!(
+        (180_000..190_000).contains(&server_version),
+        "PostgreSQL integration gate requires major version 18, got server_version_num={server_version}"
+    );
 }
 
 async fn verify_identity_and_owner_constraints(pool: &sqlx::PgPool) {
