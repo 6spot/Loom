@@ -1,10 +1,10 @@
 ---
 task: M2-T3
 issue: 28
-status: planned
+status: in_progress
 depends_on: [26]
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -47,3 +47,4 @@ Implement PostgreSQL `CommitStore` so a Runtime-owned `ValidatedResolution` beco
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #28; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t3-postgresql-commit-cas`; status `in_progress`.
