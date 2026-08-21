@@ -46,6 +46,7 @@ jobs:
         run: |
           python3 tools/m2_t4_apply.py
           python3 tools/m2_t4_followup.py
+          python3 tools/m2_t4_clippy_fix.py
           cargo fmt --all
           cargo check --workspace --all-targets --all-features
           cargo clippy --workspace --all-targets --all-features -- -D warnings
