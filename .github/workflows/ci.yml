@@ -91,3 +91,77 @@ jobs:
 
       - name: PostgreSQL persistence contract
         run: cargo test -p loom-storage postgres_18 -- --nocapture
+
+  t2-refactor:
+    name: Temporary T2 persisted Event refactor
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/m2-t2-postgresql-read-parity' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Apply refactor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          persistence = Path('crates/loom-runtime/src/persistence.rs')
+          text = persistence.read_text().replace(
+              'Persistence adapters may use SQLx or another asynchronous driver',
+              'Persistence adapters may use `SQLx` or another asynchronous driver',
+          )
+          text, count = re.subn(
+              r'\n    /// Builds a committed read model from persisted scalar/Event data\..*?\n    /// Adds a persisted direct Entity association while rebuilding history\.',
+              '\n    /// Adds a persisted direct Entity association while rebuilding history.',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit('from_persisted block was not found exactly once')
+          persistence.write_text(text)
+
+          postgres = Path('crates/loom-storage/src/postgres.rs')
+          text = postgres.read_text().replace(
+              'PersistenceFuture, PlatformTime, ReadError,',
+              'PersistenceFuture, PlatformTime, ProposedEvent, ReadError,',
+              1,
+          )
+          text, count = re.subn(
+              r'            let mut event = CommittedEvent::from_persisted\(.*?            \);\n\n            let participant_rows',
+              '''            let event_seq =
+                EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?);
+            let mut proposal = ProposedEvent::new(
+                event_id,
+                EventTypeId::from(row_string(&row, "event_type")?),
+                schema_revision(&row)?,
+                WorldInstant::new(row_i64(&row, "occurred_at")?),
+                row_json(&row, "payload")?,
+            );
+            proposal.effects = effects;
+            let mut event = CommittedEvent::from_proposed(timeline_id, event_seq, &proposal);
+
+            let participant_rows''',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit('PostgreSQL persisted Event construction was not found exactly once')
+          postgres.write_text(text)
+          PY
+          cargo fmt --all
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- crates/loom-runtime/src/persistence.rs crates/loom-storage/src/postgres.rs
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "M2-T2: refactor persisted Event reconstruction"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
