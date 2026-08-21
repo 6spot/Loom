@@ -1,13 +1,13 @@
 ---
 task: M3-T4
 issue: 51
-status: in_progress
+status: completed
 depends_on: [48, 49, 50]
 created_at: 2026-08-21
 started_at: 2026-08-21
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-21
+completion_pr: 57
+merge_sha: 060993b4935dcf92e99226cb50ee22303fda7ecb
 ---
 
 # M3-T4 — World Lifecycle / Resumability Final Parity Gate
@@ -37,7 +37,7 @@ Revalidate one final M3 candidate proving World creation and Runtime resumabilit
 - [x] `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`;
 - [x] PostgreSQL 18 scratch migrations/lifecycle/read/commit/Work suites (merged baseline CI);
 - [x] restart/resume vertical suite (local PostgreSQL integration run; explicit CI step added in this candidate);
-- [ ] required GitHub Actions checks green on final candidate containing the new CI step.
+- [x] required GitHub Actions checks green on final candidate containing the new CI step (`32497391524`; PostgreSQL 18 restart/resume step passed).
 
 ## R-* linearization evidence
 
@@ -48,13 +48,14 @@ Revalidate one final M3 candidate proving World creation and Runtime resumabilit
 ## Completion evidence
 
 - final candidate SHA: `9f7937ac980cbc000e11af2dd19b182b45fd9bc1`
-- PR: pending Leader integration
-- merge SHA: pending Leader integration
-- CI runs: merged baseline `32495546544` / `32495589422` green; final-candidate CI with the explicit restart/resume step pending
-- notes: The only source change is the direct PostgreSQL CI invocation for `postgres_restart_resume`; all other changes are task-index/audit records. Existing WorldService → Runtime → PgStorage, Runtime-owned lifecycle/commit ports, PostgreSQL authority, and M1/M2 contracts remain unchanged.
+- PR: #57
+- merge SHA: `060993b4935dcf92e99226cb50ee22303fda7ecb`
+- CI runs: `32497391524` green for Rust Ubuntu, Rust macOS, and PostgreSQL 18 persistence contract, including the `PostgreSQL Runtime restart/resume vertical slice` step; merged baseline evidence remains `32495546544` / `32495589422`.
+- notes: Final candidate `9f7937ac980cbc000e11af2dd19b182b45fd9bc1` retains the previously accepted Runtime/Storage authority and R-* evidence. This archive commit changes only task-record completion metadata and evidence.
 
 ## Progress log
 
 - 2026-08-21 — Task record created as the serial gate after #48/#49/#50.
 - 2026-08-21 — Audited merged M3-T1/T2/T3 baseline `abbd8faa26f671f58bc69dff832469e92ebc3dbf`; architecture, format, workspace check, clippy, workspace tests and rustdoc all pass locally. M3-T1/T2/T3 PostgreSQL 18 evidence is carried by the merged CI history; the restart/resume test passed against the available local PostgreSQL 17 instance.
 - 2026-08-21 — Added the required long-lived CI step `PostgreSQL Runtime restart/resume vertical slice`; final-candidate GitHub Actions and merge evidence remain pending because this Executor run cannot publish a PR.
+- 2026-08-21 — PR #57 merged as `060993b4935dcf92e99226cb50ee22303fda7ecb`; required Actions run `32497391524` passed all jobs, including the PostgreSQL 18 restart/resume step. T4 archive evidence is complete.

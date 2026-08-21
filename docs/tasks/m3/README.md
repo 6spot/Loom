@@ -23,7 +23,7 @@ Baseline: Milestone 2 completed on `main` at `e9fde033fe375f9e03f20ef82d37f466e4
 | M3-T1 World creation contract | #48 | completed | `t1-world-creation-contract.md` |
 | M3-T2 PostgreSQL lifecycle persistence | #49 | completed | `t2-postgresql-lifecycle.md` |
 | M3-T3 restart/reload/resume | #50 | completed | `t3-restart-resume.md` |
-| M3-T4 final parity gate | #51 | in_progress | `t4-lifecycle-final-gate.md` |
+| M3-T4 final parity gate | #51 | completed | `t4-lifecycle-final-gate.md` |
 
 ## Milestone completion rule
 
