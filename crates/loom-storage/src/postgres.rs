@@ -4,8 +4,10 @@
 //! exposes no `PgPool` accessor: Runtime and higher Loom layers consume
 //! Runtime-owned persistence traits rather than reaching through the adapter to
 //! issue SQL directly. M2-T1 establishes connection, migration and health
-//! behavior plus the M2-T2 `WorldStore` read path. Commit/CAS and Durable Work
-//! mutation ports remain owned by their dedicated Milestone 2 tasks.
+//! behavior plus the M2-T2 `WorldStore` read path. M2-T3 adds the atomic
+//! `CommitStore` path in a private child module; Durable Work claim/retry remains T4.
+
+mod commit;
 
 use std::{fmt::Display, str::FromStr};
 
