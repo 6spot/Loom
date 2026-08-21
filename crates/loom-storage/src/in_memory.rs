@@ -404,6 +404,9 @@ impl InMemoryStore {
         if let Some(claim) = current_work {
             validate_claim(timeline, claim, now)?;
         }
+        let changes_runtime_state = !resolution.events().is_empty()
+            || !resolution.work().is_empty()
+            || current_work.is_some();
 
         let mut committed_events = Vec::with_capacity(resolution.events().len());
         let mut seen_events = HashSet::new();
@@ -439,12 +442,16 @@ impl InMemoryStore {
             None
         };
 
-        let next_state_revision = timeline
-            .version
-            .state_revision
-            .value()
-            .checked_add(1)
-            .ok_or(CommitError::RevisionOverflow)?;
+        let next_state_revision = if changes_runtime_state {
+            timeline
+                .version
+                .state_revision
+                .value()
+                .checked_add(1)
+                .ok_or(CommitError::RevisionOverflow)?
+        } else {
+            timeline.version.state_revision.value()
+        };
         let next_head = if committed_events.is_empty() {
             timeline.version.head_event_seq
         } else {

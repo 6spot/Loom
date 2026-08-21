@@ -6,13 +6,13 @@ use loom_core::{
 };
 use loom_runtime::{
     CommitError, EffectEngine, NewWork, PlatformTime, ProposedEvent, Resolution, Runtime,
-    WorkMutation, WorkRecord, WorkStatus,
+    WorkMutation, WorkRecord, WorkSchedule, WorkStatus,
     test_support::{
-        ActionDefinition, ActionInvocation, ActionRequest, ActionResolver, ApiErrorCode,
-        Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition,
-        EventQuery, ExecutionResult, FacetDefinition, FacetQuery, LoomApi, RegistrationError,
-        Rejection, ResolutionContext, ResolveOutcome, ResolverError, TimelineTarget, WorkHandler,
-        WorkHandlerDefinition,
+        ActionDefinition, ActionInvocation, ActionRequest, ActionResolver, ActionService,
+        ApiErrorCode, Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry,
+        EventDefinition, EventQuery, ExecutionResult, FacetDefinition, FacetQuery, LoomApi,
+        RegistrationError, Rejection, ResolutionContext, ResolveOutcome, ResolverError,
+        TimelineTarget, WorkHandler, WorkHandlerDefinition,
     },
 };
 use serde_json::{Value, json};
@@ -74,10 +74,14 @@ fn validated(
 }
 
 fn pending_work(work_id: WorkId) -> WorkRecord {
+    pending_work_with_handler(work_id, WorkHandlerId::from("test.handler"))
+}
+
+fn pending_work_with_handler(work_id: WorkId, handler: WorkHandlerId) -> WorkRecord {
     WorkRecord {
         id: work_id,
         timeline_id: timeline(),
-        handler: WorkHandlerId::from("test.handler"),
+        handler,
         schema_revision: SchemaRevision::new(1),
         payload: json!({"work": work_id.to_string()}),
         due_world_time: None,
@@ -105,6 +109,125 @@ fn event_with_effect(event_id: EventId, effect: WorldEffect, occurred_at: i64) -
 
 struct TestCapability {
     manifest: CapabilityManifest,
+}
+
+const NO_CHANGE_CAPABILITY: &str = "test.no_change";
+const NO_CHANGE_ACTION: &str = "test.no_change_action";
+const SCHEDULE_ACTION: &str = "test.schedule_work";
+const CANCEL_ACTION: &str = "test.cancel_work";
+const EMPTY_WORK_HANDLER: &str = "test.empty_work";
+
+struct NoChangeCapability {
+    manifest: CapabilityManifest,
+}
+
+impl Capability for NoChangeCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(NO_CHANGE_ACTION), SchemaRevision::new(1)),
+            EmptyResolver,
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(SCHEDULE_ACTION), SchemaRevision::new(1)),
+            ScheduleResolver,
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(CANCEL_ACTION), SchemaRevision::new(1)),
+            CancelResolver,
+        )?;
+        registrar.register_work_handler(
+            WorkHandlerDefinition::new(
+                WorkHandlerId::from(EMPTY_WORK_HANDLER),
+                SchemaRevision::new(1),
+            ),
+            EmptyWorkHandler,
+        )
+    }
+}
+
+fn no_change_registry() -> CapabilityRegistry {
+    CapabilityRegistry::assemble([NoChangeCapability {
+        manifest: CapabilityManifest::parse(NO_CHANGE_CAPABILITY, "0.1.0")
+            .expect("no-change Capability manifest should parse"),
+    }])
+    .expect("no-change Capability registry should assemble")
+}
+
+struct EmptyResolver;
+
+impl ActionResolver for EmptyResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        Ok(ResolveOutcome::Resolved(Resolution::default()))
+    }
+}
+
+struct ScheduleResolver;
+
+impl ActionResolver for ScheduleResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let work_id = input
+            .get("work_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ResolverError::new("work_id must be a UUID string"))?
+            .parse()
+            .map_err(|_| ResolverError::new("work_id must be a UUID string"))?;
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::new(
+                work_id,
+                timeline(),
+                WorkHandlerId::from(EMPTY_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({}),
+                WorkSchedule::Immediate,
+            ))],
+        )))
+    }
+}
+
+struct CancelResolver;
+
+impl ActionResolver for CancelResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let work_id = input
+            .get("work_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ResolverError::new("work_id must be a UUID string"))?
+            .parse()
+            .map_err(|_| ResolverError::new("work_id must be a UUID string"))?;
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Cancel(work_id)],
+        )))
+    }
+}
+
+struct EmptyWorkHandler;
+
+impl WorkHandler for EmptyWorkHandler {
+    fn handle(
+        &self,
+        _context: &dyn ResolutionContext,
+        _payload: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        Ok(ResolveOutcome::Resolved(Resolution::default()))
+    }
 }
 
 impl Capability for TestCapability {
@@ -393,6 +516,168 @@ fn counter_request(action: &str, input: Value) -> ActionRequest {
         counter_target(),
         ActionInvocation::new(ActionTypeId::from(action), input),
     )
+}
+
+#[test]
+fn empty_public_action_returns_no_change_without_advancing_timeline_version() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let runtime = Runtime::new(&store, no_change_registry()).expect("Runtime should assemble");
+    let before = store
+        .snapshot(timeline())
+        .expect("test Timeline should be readable")
+        .version();
+
+    let result = runtime
+        .invoke(ActionRequest::new(
+            TimelineTarget::new(world(), timeline()),
+            ActionInvocation::new(ActionTypeId::from(NO_CHANGE_ACTION), json!({})),
+        ))
+        .expect("empty Action should execute");
+
+    assert_eq!(result, ExecutionResult::NoChange);
+    let after = store
+        .snapshot(timeline())
+        .expect("test Timeline should be readable");
+    assert_eq!(after.version(), before);
+    assert!(after.events.is_empty());
+}
+
+#[test]
+fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_cancel() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let clock = loom_runtime::ManualPlatformClock::new(PlatformTime::new(7));
+    let runtime = Runtime::new(&store, no_change_registry())
+        .expect("Runtime should assemble")
+        .with_platform_clock(clock.clone());
+    let target = TimelineTarget::new(world(), timeline());
+
+    let first = runtime
+        .invoke(ActionRequest::new(
+            target,
+            ActionInvocation::new(
+                ActionTypeId::from(SCHEDULE_ACTION),
+                json!({"work_id": work(30).to_string()}),
+            ),
+        ))
+        .expect("first Work schedule should execute");
+    assert!(matches!(
+        first,
+        ExecutionResult::Committed {
+            ref event_ids,
+            ..
+        } if event_ids.is_empty()
+    ));
+    assert_eq!(
+        store
+            .work(timeline(), work(30))
+            .expect("first Work should be readable")
+            .expect("first Work should exist")
+            .available_at,
+        PlatformTime::new(7)
+    );
+
+    clock.set(11.into());
+    let second = runtime
+        .invoke(ActionRequest::new(
+            target,
+            ActionInvocation::new(
+                ActionTypeId::from(SCHEDULE_ACTION),
+                json!({"work_id": work(31).to_string()}),
+            ),
+        ))
+        .expect("second Work schedule should execute");
+    assert!(matches!(
+        second,
+        ExecutionResult::Committed {
+            ref event_ids,
+            ..
+        } if event_ids.is_empty()
+    ));
+    assert_eq!(
+        store
+            .work(timeline(), work(31))
+            .expect("second Work should be readable")
+            .expect("second Work should exist")
+            .available_at,
+        PlatformTime::new(11)
+    );
+
+    let cancel = runtime
+        .invoke(ActionRequest::new(
+            target,
+            ActionInvocation::new(
+                ActionTypeId::from(CANCEL_ACTION),
+                json!({"work_id": work(31).to_string()}),
+            ),
+        ))
+        .expect("Work cancellation should execute");
+    assert!(matches!(
+        cancel,
+        ExecutionResult::Committed {
+            ref event_ids,
+            ..
+        } if event_ids.is_empty()
+    ));
+    assert_eq!(
+        store
+            .work(timeline(), work(31))
+            .expect("cancelled Work should be readable")
+            .expect("cancelled Work should exist")
+            .status,
+        WorkStatus::Cancelled
+    );
+}
+
+#[test]
+fn zero_event_work_completion_commits_runtime_state_atomically() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work_with_handler(
+            work(40),
+            WorkHandlerId::from(EMPTY_WORK_HANDLER),
+        ))
+        .expect("empty Work fixture should be seeded");
+    let runtime = Runtime::new(&store, no_change_registry()).expect("Runtime should assemble");
+
+    let result = runtime
+        .execute_work(
+            TimelineTarget::new(world(), timeline()),
+            work(40),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(2),
+        )
+        .expect("empty Work resolution should complete");
+
+    assert!(matches!(
+        result,
+        ExecutionResult::Committed {
+            ref event_ids,
+            timeline_version,
+        } if event_ids.is_empty() && timeline_version.state_revision.value() == 1
+    ));
+    let snapshot = store
+        .snapshot(timeline())
+        .expect("completed Timeline should be readable");
+    assert!(snapshot.events.is_empty());
+    assert_eq!(snapshot.version().state_revision.value(), 1);
+    assert_eq!(
+        store
+            .work(timeline(), work(40))
+            .expect("completed Work should be readable")
+            .expect("completed Work should exist")
+            .status,
+        WorkStatus::Completed
+    );
 }
 
 #[test]

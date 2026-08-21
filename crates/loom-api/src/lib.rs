@@ -115,10 +115,10 @@ impl ActionRequest {
 ///
 /// `Committed` means the Runtime commit linearization point accepted the
 /// validated proposal and returned the committed Event identities plus the
-/// resulting Timeline version. `NoChange` means the execution completed
-/// without changing World Truth; a zero-Event Work completion can use this
-/// outcome. `Rejected` is a normal semantic refusal from the Capability, not
-/// an infrastructure failure.
+/// resulting Timeline version. A Work-only commit may therefore be
+/// `Committed` with an empty Event list. `NoChange` means the execution
+/// contained no Event or Work mutation. `Rejected` is a normal semantic
+/// refusal from the Capability, not an infrastructure failure.
 ///
 /// Infrastructure and API failures are returned through `ApiError` instead of
 /// being encoded as an outcome variant. In particular, a Timeline CAS conflict
@@ -126,7 +126,8 @@ impl ActionRequest {
 /// `ValidatedResolution`, overlay, read set, transaction or retry detail.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum ExecutionResult {
-    /// The proposal became committed World history.
+    /// The proposal became committed Runtime state and, when present, World
+    /// history.
     Committed {
         /// Timeline-local identities of Events committed by this execution.
         event_ids: Vec<EventId>,
@@ -161,7 +162,7 @@ impl ExecutionResult {
         Self::Rejected(rejection)
     }
 
-    /// Reports whether the execution committed at least one Event.
+    /// Reports whether the execution reached the atomic Runtime commit.
     #[must_use]
     pub const fn is_committed(&self) -> bool {
         matches!(self, Self::Committed { .. })
