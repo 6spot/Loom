@@ -48,3 +48,4 @@ Implement PostgreSQL `CommitStore` so a Runtime-owned `ValidatedResolution` beco
 
 - 2026-08-21 — Task record created from issue #28; status `planned`.
 - 2026-08-21 — Implementation started on `feat/m2-t3-postgresql-commit-cas`; status `in_progress`.
+- 2026-08-21 — PostgreSQL 18 run `32455635120` passed 6/7 commit parity tests but exposed a same-Event lifecycle ordering mismatch: an Event that references the active Relationship it ends was rejected after materialization marked the Relationship inactive. The storage hard boundary must preserve the Milestone 1 rule that a successfully applied `EndRelationship` in the same Event does not invalidate that Event's frozen Relationship association; already-ended base Relationships remain rejected by the Effect hard check.
