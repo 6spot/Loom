@@ -40,4 +40,4 @@ This milestone covers PostgreSQL 18 + SQLx authoritative persistence for the Run
 
 - 2026-08-21: #32 was accidentally created as a duplicate of M2-T5 #30 and immediately closed with reason `duplicate`. #30 remains the only authoritative T5 issue/task.
 - 2026-08-21: M2-T1 #26 completed via PR #34, merged as `8823b3d9d2f4963bce4a04c31343aeeca7b02ac1`; final implementation CI run `32445927597` passed the Rust matrix and PostgreSQL 18 schema contract.
-- 2026-08-21: M2-T2 #27 implemented via PR #36. Final pre-merge CI run `32452222573` passed PostgreSQL 18 persistence parity plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc. Merge SHA is recorded by the required post-merge audit update.
+- 2026-08-21: M2-T2 #27 completed via PR #36, merged as `7a8e2c424466268867f68e611a7bafcc0e988f4e`; implementation CI run `32452222573` and final task-record CI run `32452416780` passed PostgreSQL 18 persistence parity plus Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc.
