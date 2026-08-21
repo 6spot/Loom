@@ -45,6 +45,7 @@ jobs:
       - name: Apply and verify T4 source changes
         run: |
           python3 tools/m2_t4_apply.py
+          python3 tools/m2_t4_followup.py
           cargo fmt --all
           cargo check --workspace --all-targets --all-features
           cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -54,6 +55,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- crates/loom-runtime/src/persistence.rs crates/loom-runtime/src/orchestration.rs crates/loom-storage/src/in_memory.rs crates/loom-storage/src/postgres.rs crates/loom-storage/src/postgres/work.rs crates/loom-storage/tests/postgres_work.rs
+          git add -- crates/loom-runtime/src/persistence.rs crates/loom-runtime/src/orchestration.rs crates/loom-storage/src/in_memory.rs crates/loom-storage/src/postgres.rs crates/loom-storage/src/postgres/work.rs crates/loom-storage/tests/postgres_work.rs tests/loom-composition/subresolution.rs
           git commit -m "M2-T4: implement PostgreSQL Work lease fencing"
           git push origin "HEAD:${GITHUB_HEAD_REF}"
