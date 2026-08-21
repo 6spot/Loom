@@ -37,6 +37,22 @@ jobs:
               'Entity { entity_id: entity_id, id: entity_id, world_id }',
               'Entity { id: entity_id, world_id }',
           )
+          text = text.replace(
+              'parse_identity::<WorldId>(row_string(&timeline_row, "world_id")?, "WorldId")?',
+              'parse_identity::<WorldId>(&row_string(&timeline_row, "world_id")?, "WorldId")?',
+          )
+          text = text.replace(
+              'WorldStore::snapshot(&storage, timeline)',
+              'loom_runtime::WorldStore::snapshot(&storage, timeline)',
+          )
+          text = text.replace(
+              'WorldStore::snapshot(&storage, missing).await',
+              'loom_runtime::WorldStore::snapshot(&storage, missing).await',
+          )
+          needle = 'async_test_tail(\n    "tests/loom-composition/vertical_slice.rs",'
+          insertion = 'async_test_tail(\n    "crates/loom-storage/src/tests.rs",\n    ["invoke", "execute_work"],\n)\n\n'
+          if insertion not in text:
+              text = text.replace(needle, insertion + needle)
           path.write_text(text)
           PY
           python3 tools/m2_t2_apply.py
