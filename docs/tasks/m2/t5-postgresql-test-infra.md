@@ -1,10 +1,10 @@
 ---
 task: M2-T5
 issue: 30
-status: planned
+status: in_progress
 depends_on: [26]
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -46,3 +46,4 @@ Make PostgreSQL 18 persistence behavior reproducibly testable in local and CI wo
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #30; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t5-postgresql-test-infra`; replacing the shared PostgreSQL integration database with isolated temporary databases created from the explicit `LOOM_TEST_POSTGRES_URL` control connection, with migrations applied from scratch and explicit cleanup.
