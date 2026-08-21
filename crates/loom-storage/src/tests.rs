@@ -289,8 +289,8 @@ impl Capability for TestCapability {
     }
 }
 
-#[test]
-fn empty_public_action_returns_no_change_without_advancing_timeline_version() {
+#[tokio::test]
+async fn empty_public_action_returns_no_change_without_advancing_timeline_version() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -306,6 +306,7 @@ fn empty_public_action_returns_no_change_without_advancing_timeline_version() {
             TimelineTarget::new(world(), timeline()),
             ActionInvocation::new(ActionTypeId::from(NO_CHANGE_ACTION), json!({})),
         ))
+        .await
         .expect("empty Action should execute");
 
     assert_eq!(result, ExecutionResult::NoChange);
@@ -316,8 +317,8 @@ fn empty_public_action_returns_no_change_without_advancing_timeline_version() {
     assert!(after.events.is_empty());
 }
 
-#[test]
-fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_cancel() {
+#[tokio::test]
+async fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_cancel() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -336,6 +337,7 @@ fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_ca
                 json!({"work_id": work(30).to_string()}),
             ),
         ))
+        .await
         .expect("first Work schedule should execute");
     assert!(matches!(
         first,
@@ -362,6 +364,7 @@ fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_ca
                 json!({"work_id": work(31).to_string()}),
             ),
         ))
+        .await
         .expect("second Work schedule should execute");
     assert!(matches!(
         second,
@@ -387,6 +390,7 @@ fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_ca
                 json!({"work_id": work(31).to_string()}),
             ),
         ))
+        .await
         .expect("Work cancellation should execute");
     assert!(matches!(
         cancel,
@@ -405,8 +409,8 @@ fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_and_ca
     );
 }
 
-#[test]
-fn zero_event_work_completion_commits_runtime_state_atomically() {
+#[tokio::test]
+async fn zero_event_work_completion_commits_runtime_state_atomically() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -427,6 +431,7 @@ fn zero_event_work_completion_commits_runtime_state_atomically() {
             PlatformTime::new(10),
             PlatformTime::new(2),
         )
+        .await
         .expect("empty Work resolution should complete");
 
     assert!(matches!(
@@ -451,8 +456,8 @@ fn zero_event_work_completion_commits_runtime_state_atomically() {
     );
 }
 
-#[test]
-fn commit_assigns_contiguous_event_sequences_and_advances_once() {
+#[tokio::test]
+async fn commit_assigns_contiguous_event_sequences_and_advances_once() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -501,8 +506,8 @@ fn commit_assigns_contiguous_event_sequences_and_advances_once() {
     assert!(snapshot.world_view().entity(entity(20)).is_some());
 }
 
-#[test]
-fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effects() {
+#[tokio::test]
+async fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effects() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -585,8 +590,8 @@ fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effec
     );
 }
 
-#[test]
-fn storage_hard_checks_allow_reference_to_relationship_ended_by_same_event() {
+#[tokio::test]
+async fn storage_hard_checks_allow_reference_to_relationship_ended_by_same_event() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -648,8 +653,8 @@ fn storage_hard_checks_allow_reference_to_relationship_ended_by_same_event() {
     );
 }
 
-#[test]
-fn stale_cas_leaves_event_state_and_work_unchanged() {
+#[tokio::test]
+async fn stale_cas_leaves_event_state_and_work_unchanged() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -690,8 +695,8 @@ fn stale_cas_leaves_event_state_and_work_unchanged() {
     assert!(after.works.is_empty());
 }
 
-#[test]
-fn staged_commit_does_not_expose_event_before_work_failure() {
+#[tokio::test]
+async fn staged_commit_does_not_expose_event_before_work_failure() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -736,8 +741,8 @@ fn staged_commit_does_not_expose_event_before_work_failure() {
     assert_eq!(after.works[0].status, WorkStatus::Pending);
 }
 
-#[test]
-fn work_creation_and_current_completion_share_zero_event_commit() {
+#[tokio::test]
+async fn work_creation_and_current_completion_share_zero_event_commit() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -801,8 +806,8 @@ fn work_creation_and_current_completion_share_zero_event_commit() {
     );
 }
 
-#[test]
-fn retry_and_expired_claims_preserve_work_identity_and_fence_winner() {
+#[tokio::test]
+async fn retry_and_expired_claims_preserve_work_identity_and_fence_winner() {
     let store = InMemoryStore::new();
     store
         .create_timeline(world(), timeline())
@@ -889,8 +894,8 @@ fn retry_and_expired_claims_preserve_work_identity_and_fence_winner() {
     );
 }
 
-#[test]
-fn concurrent_cas_and_claim_choose_one_winner() {
+#[tokio::test]
+async fn concurrent_cas_and_claim_choose_one_winner() {
     let store = Arc::new(InMemoryStore::new());
     store
         .create_timeline(world(), timeline())
@@ -969,8 +974,8 @@ fn concurrent_cas_and_claim_choose_one_winner() {
     );
 }
 
-#[test]
-fn concurrent_claims_choose_one_fence_winner() {
+#[tokio::test]
+async fn concurrent_claims_choose_one_fence_winner() {
     let store = Arc::new(InMemoryStore::new());
     store
         .create_timeline(world(), timeline())

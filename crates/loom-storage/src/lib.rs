@@ -73,6 +73,11 @@
 #![forbid(unsafe_code)]
 
 mod in_memory;
+#[expect(
+    clippy::too_many_lines,
+    clippy::needless_pass_by_value,
+    reason = "M2-T2 keeps PostgreSQL read reconstruction colocated while T3/T4 split the adapter by Runtime persistence port"
+)]
 mod postgres;
 
 pub use in_memory::{InMemoryStore, SetupError};

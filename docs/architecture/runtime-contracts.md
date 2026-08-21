@@ -1191,6 +1191,8 @@ loom-storage -> loom-runtime
 
 Application composition root 负责实例化 concrete Storage 并注入 Runtime。
 
+Persistence I/O port 返回 executor-neutral Future；Runtime 可以 await SQLx 等异步 adapter，但不会把 executor、database handle 或 Future 传给 Capability。Resolver/Invariant/WorkHandler 始终只读取 Runtime 已经 pin 好的内存 `BaseWorldView`，因此 Capability semantic execution 不承担数据库 I/O。
+
 ### 16.4 CAS Conflict
 
 CAS conflict 不是 Capability Rejection。

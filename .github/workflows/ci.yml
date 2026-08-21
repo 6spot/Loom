@@ -57,8 +57,8 @@ jobs:
       - name: Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
 
-  postgres-schema:
-    name: PostgreSQL 18 schema contract
+  postgres-contract:
+    name: PostgreSQL 18 persistence contract
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -89,5 +89,5 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: PostgreSQL schema contract
-        run: cargo test -p loom-storage postgres_18_schema_contract -- --nocapture
+      - name: PostgreSQL persistence contract
+        run: cargo test -p loom-storage postgres_18 -- --nocapture

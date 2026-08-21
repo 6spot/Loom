@@ -805,6 +805,7 @@ dependencies = [
  "loom-protocol",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -834,6 +835,7 @@ dependencies = [
  "loom-runtime",
  "loom-storage",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

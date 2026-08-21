@@ -7,7 +7,7 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use loom_api::{
-    ActionDescriptor, ActionRequest, ActionService, ApiError, ApiResult, CatalogService,
+    ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
     CatalogSnapshot, CommittedEvent as ApiCommittedEvent, EventQuery, ExecutionResult, FacetQuery,
     FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService, TimelineService,
     TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget,
@@ -21,9 +21,9 @@ use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
 
 use crate::{
     BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent, EffectEngine,
-    ManualPlatformClock, PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError,
-    TimelineSnapshot, ValidatedResolution, ValidationError, WorkClaim, WorkError, WorkRecord,
-    WorkStore, WorldStore,
+    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
+    ResolutionBudget, RuntimeError, TimelineSnapshot, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -124,7 +124,7 @@ where
     /// Runtime validation failure, or an unsuccessful atomic commit. The
     /// current Work remains Pending after a technical failure when retry
     /// bookkeeping succeeds.
-    pub fn execute_work(
+    pub async fn execute_work(
         &self,
         target: TimelineTarget,
         work_id: WorkId,
@@ -132,7 +132,7 @@ where
         claimed_until: PlatformTime,
         retry_available_at: PlatformTime,
     ) -> ApiResult<ExecutionResult> {
-        let snapshot = self.snapshot_for_target(target)?;
+        let snapshot = self.snapshot_for_target(target).await?;
         let work = snapshot
             .works
             .iter()
@@ -149,7 +149,7 @@ where
             .store
             .claim(target.timeline_id, work_id, now, claimed_until)
             .map_err(|error| map_work_error(&error))?;
-        let snapshot = match self.snapshot_for_target(target) {
+        let snapshot = match self.snapshot_for_target(target).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 return Err(self.retry_after_failure(&claim, now, retry_available_at, error));
@@ -226,10 +226,11 @@ where
         self.store.retry(claim, now, available_at, last_error)
     }
 
-    fn snapshot_for_target(&self, target: TimelineTarget) -> ApiResult<TimelineSnapshot> {
+    async fn snapshot_for_target(&self, target: TimelineTarget) -> ApiResult<TimelineSnapshot> {
         let snapshot = self
             .store
             .snapshot(target.timeline_id)
+            .await
             .map_err(|error| map_read_error(&error))?;
         if snapshot.world_id() != target.world_id {
             return Err(ApiError::not_found(format!(
@@ -262,7 +263,10 @@ impl<T> WorldStore for &T
 where
     T: WorldStore + ?Sized,
 {
-    fn snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
+    fn snapshot(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         (**self).snapshot(timeline_id)
     }
 }
@@ -318,40 +322,42 @@ impl<S> ActionService for Runtime<S>
 where
     S: WorldStore + CommitStore + WorkStore,
 {
-    fn invoke(&self, request: ActionRequest) -> ApiResult<ExecutionResult> {
-        let snapshot = self.snapshot_for_target(request.target)?;
-        let base = snapshot.world_view();
-        if self.registry.action(&request.invocation.action).is_none() {
-            return Err(ApiError::not_found(format!(
-                "Action {} was not registered",
-                request.invocation.action
-            )));
-        }
-        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
-        engine
-            .validate_action_input(&request.invocation.action, &request.invocation.input)
-            .map_err(|error| map_action_input_error(&error))?;
-        let (outcome, execution) = dispatch_root_action(
-            &base,
-            &self.registry,
-            self.resolution_budget,
-            &request.invocation,
-        )
-        .map_err(map_dispatch_error)?;
-        match outcome {
-            ResolveOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
-            ResolveOutcome::Resolved(_) => {
-                let validated = engine
-                    .validate_segments(&base, &execution.segments, execution.call_provenance)
-                    .map_err(|error| map_runtime_error(&error))?;
-                self.store
-                    .commit(&validated, None, self.platform_clock.now())
-                    .map(|result| {
-                        execution_result(&result, changes_runtime_state(&validated, None))
-                    })
-                    .map_err(|error| map_commit_error(&error))
+    fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(request.target).await?;
+            let base = snapshot.world_view();
+            if self.registry.action(&request.invocation.action).is_none() {
+                return Err(ApiError::not_found(format!(
+                    "Action {} was not registered",
+                    request.invocation.action
+                )));
             }
-        }
+            let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+            engine
+                .validate_action_input(&request.invocation.action, &request.invocation.input)
+                .map_err(|error| map_action_input_error(&error))?;
+            let (outcome, execution) = dispatch_root_action(
+                &base,
+                &self.registry,
+                self.resolution_budget,
+                &request.invocation,
+            )
+            .map_err(map_dispatch_error)?;
+            match outcome {
+                ResolveOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
+                ResolveOutcome::Resolved(_) => {
+                    let validated = engine
+                        .validate_segments(&base, &execution.segments, execution.call_provenance)
+                        .map_err(|error| map_runtime_error(&error))?;
+                    self.store
+                        .commit(&validated, None, self.platform_clock.now())
+                        .map(|result| {
+                            execution_result(&result, changes_runtime_state(&validated, None))
+                        })
+                        .map_err(|error| map_commit_error(&error))
+                }
+            }
+        })
     }
 }
 
@@ -359,13 +365,15 @@ impl<S> TimelineService for Runtime<S>
 where
     S: WorldStore + CommitStore + WorkStore,
 {
-    fn inspect_timeline(&self, target: TimelineTarget) -> ApiResult<ApiTimelineSnapshot> {
-        let snapshot = self.snapshot_for_target(target)?;
-        Ok(ApiTimelineSnapshot::new(
-            target,
-            snapshot.version(),
-            snapshot.world_time(),
-        ))
+    fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, ApiTimelineSnapshot> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(target).await?;
+            Ok(ApiTimelineSnapshot::new(
+                target,
+                snapshot.version(),
+                snapshot.world_time(),
+            ))
+        })
     }
 }
 
@@ -373,17 +381,19 @@ impl<S> QueryService for Runtime<S>
 where
     S: WorldStore + CommitStore + WorkStore,
 {
-    fn get_facet(&self, query: FacetQuery) -> ApiResult<Option<ApiFacetSnapshot>> {
-        let snapshot = self.snapshot_for_target(query.target)?;
-        let view = snapshot.world_view();
-        Ok(view.facet(query.owner, &query.facet_type).map(|facet| {
-            ApiFacetSnapshot::new(
-                facet.owner(),
-                facet.facet_type().clone(),
-                facet.schema_revision(),
-                facet.value().clone(),
-            )
-        }))
+    fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<ApiFacetSnapshot>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            let view = snapshot.world_view();
+            Ok(view.facet(query.owner, &query.facet_type).map(|facet| {
+                ApiFacetSnapshot::new(
+                    facet.owner(),
+                    facet.facet_type().clone(),
+                    facet.schema_revision(),
+                    facet.value().clone(),
+                )
+            }))
+        })
     }
 }
 
@@ -391,18 +401,20 @@ impl<S> HistoryService for Runtime<S>
 where
     S: WorldStore + CommitStore + WorkStore,
 {
-    fn list_events(&self, query: EventQuery) -> ApiResult<Vec<ApiCommittedEvent>> {
-        let snapshot = self.snapshot_for_target(query.target)?;
-        let limit = query.limit.map_or(usize::MAX, |limit| {
-            usize::try_from(limit).unwrap_or(usize::MAX)
-        });
-        Ok(snapshot
-            .events
-            .iter()
-            .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
-            .take(limit)
-            .map(api_event)
-            .collect())
+    fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            let limit = query.limit.map_or(usize::MAX, |limit| {
+                usize::try_from(limit).unwrap_or(usize::MAX)
+            });
+            Ok(snapshot
+                .events
+                .iter()
+                .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
+                .take(limit)
+                .map(api_event)
+                .collect())
+        })
     }
 }
 
@@ -762,6 +774,9 @@ fn map_read_error(error: &ReadError) -> ApiError {
     match error {
         ReadError::TimelineNotFound { timeline_id } => {
             ApiError::not_found(format!("Timeline {timeline_id} was not found"))
+        }
+        ReadError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Persistence authority is temporarily unavailable")
         }
     }
 }

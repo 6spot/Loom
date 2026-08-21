@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
 loom-api = { path = "../../crates/loom-api" }
 loom-capability = { path = "../../crates/loom-capability" }
 loom-core = { path = "../../crates/loom-core" }

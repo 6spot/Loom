@@ -17,9 +17,9 @@ use loom_protocol::{
     ActionInvocation, CausalLink, ProposedEvent, Rejection, Resolution, ResolveOutcome,
 };
 use loom_runtime::{
-    CallProvenance, CommitError, CommitResult, CommitStore, PlatformTime, ReadError,
-    ResolutionBudget, Runtime, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError,
-    WorkRecord, WorkStore, WorldStore,
+    CallProvenance, CommitError, CommitResult, CommitStore, PersistenceFuture, PlatformTime,
+    ReadError, ResolutionBudget, Runtime, TimelineSnapshot, ValidatedResolution, WorkClaim,
+    WorkError, WorkRecord, WorkStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -426,8 +426,11 @@ impl CountingStore {
 }
 
 impl WorldStore for CountingStore {
-    fn snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
-        self.inner.snapshot(timeline_id)
+    fn snapshot(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
+        Box::pin(async move { self.inner.snapshot(timeline_id) })
     }
 }
 
@@ -492,12 +495,13 @@ fn normal_input() -> Value {
     })
 }
 
-#[test]
-fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
+#[tokio::test]
+async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
     let result = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
+        .await
         .expect("cross-Capability composition should commit");
     assert!(matches!(result, ExecutionResult::Committed { .. }));
     assert_eq!(store.commit_count(), 1);
@@ -511,6 +515,7 @@ fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
 
     let snapshot = store
         .snapshot(timeline())
+        .await
         .expect("composition Timeline should remain readable");
     assert_eq!(snapshot.events.len(), 2);
     assert_eq!(snapshot.events[0].event_type.as_str(), CHILD_EVENT);
@@ -546,14 +551,15 @@ fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
     );
 }
 
-#[test]
-fn child_rejection_remains_a_semantic_outcome_without_commit() {
+#[tokio::test]
+async fn child_rejection_remains_a_semantic_outcome_without_commit() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
     let mut input = normal_input();
     input["reject_child"] = json!(true);
     let result = (&runtime as &dyn LoomApi)
         .invoke(request(input))
+        .await
         .expect("child rejection should remain an API result");
     match result {
         ExecutionResult::Rejected(rejection) => {
@@ -565,52 +571,57 @@ fn child_rejection_remains_a_semantic_outcome_without_commit() {
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
     );
 }
 
-#[test]
-fn undeclared_child_capability_is_rejected_before_commit() {
+#[tokio::test]
+async fn undeclared_child_capability_is_rejected_before_commit() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(false)).expect("Runtime should assemble");
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
+        .await
         .expect_err("undeclared subresolution must fail before commit");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
     );
 }
 
-#[test]
-fn repeated_pair_is_rejected_as_a_path_cycle() {
+#[tokio::test]
+async fn repeated_pair_is_rejected_as_a_path_cycle() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
     let mut input = normal_input();
     input["cycle"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(input))
+        .await
         .expect_err("A -> B -> A must be rejected deterministically");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
     );
 }
 
-#[test]
-fn depth_budget_stops_nested_dispatch_before_the_leaf_resolver() {
+#[tokio::test]
+async fn depth_budget_stops_nested_dispatch_before_the_leaf_resolver() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true))
         .expect("Runtime should assemble")
@@ -619,78 +630,86 @@ fn depth_budget_stops_nested_dispatch_before_the_leaf_resolver() {
     input["depth"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(input))
+        .await
         .expect_err("depth budget must stop B -> C before dispatch");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
 }
 
-#[test]
-fn subresolution_count_budget_stops_the_first_child_dispatch() {
+#[tokio::test]
+async fn subresolution_count_budget_stops_the_first_child_dispatch() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true))
         .expect("Runtime should assemble")
         .with_resolution_budget(ResolutionBudget::unlimited().with_max_subresolution_count(0));
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
+        .await
         .expect_err("zero child dispatch budget must stop A -> B before dispatch");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
 }
 
-#[test]
-fn aggregate_budget_covers_child_and_root_segments() {
+#[tokio::test]
+async fn aggregate_budget_covers_child_and_root_segments() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true))
         .expect("Runtime should assemble")
         .with_resolution_budget(ResolutionBudget::unlimited().with_max_events(1));
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
+        .await
         .expect_err("two owner segments must exceed one-event aggregate budget");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
     );
 }
 
-#[test]
-fn invalid_child_segment_fails_before_commit_eligibility() {
+#[tokio::test]
+async fn invalid_child_segment_fails_before_commit_eligibility() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
     let mut input = normal_input();
     input["invalid_child"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(input))
+        .await
         .expect_err("invalid child payload must fail validation");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
     );
 }
 
-#[test]
-fn invalid_child_input_fails_before_child_dispatch_and_commit() {
+#[tokio::test]
+async fn invalid_child_input_fails_before_child_dispatch_and_commit() {
     let store = CountingStore::new();
     let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
     let mut input = normal_input();
     input["invalid_child_input"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(input))
+        .await
         .expect_err("invalid child input must fail before child dispatch");
     assert_eq!(error.code, ApiErrorCode::Internal);
     assert_eq!(store.commit_count(), 0);
     assert!(
         store
             .snapshot(timeline())
+            .await
             .expect("Timeline should exist")
             .events
             .is_empty()
