@@ -91,3 +91,91 @@ jobs:
 
       - name: PostgreSQL persistence contract
         run: cargo test -p loom-storage postgres_18 -- --nocapture
+
+  t3-same-event-fix:
+    name: Temporary T3 same-Event semantics fix
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/m2-t3-postgresql-commit-cas' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_test
+      LOOM_REQUIRE_POSTGRES_TESTS: "1"
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component rustfmt --component clippy
+          rustup default "$RUST_VERSION"
+
+      - name: Fix same-Event ended Relationship references
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/loom-storage/src/postgres/commit.rs')
+          text = path.read_text()
+          old = '''    for reference in &event.relationship_refs {
+        if !active_relationship_exists(transaction, timeline_id, reference.relationship_id).await? {
+            return Err(invalid_event(
+                event.id,
+                format!("missing active Relationship {}", reference.relationship_id),
+            ));
+        }
+    }
+'''
+          new = '''    for reference in &event.relationship_refs {
+        let active =
+            active_relationship_exists(transaction, timeline_id, reference.relationship_id).await?;
+        let ended_by_this_event = event.effects.iter().any(|effect| {
+            matches!(
+                effect,
+                WorldEffect::EndRelationship { relationship_id }
+                    if *relationship_id == reference.relationship_id
+            )
+        });
+        if !active && !ended_by_this_event {
+            return Err(invalid_event(
+                event.id,
+                format!("missing active Relationship {}", reference.relationship_id),
+            ));
+        }
+    }
+'''
+          if old not in text:
+              raise SystemExit('relationship reference validation block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo fmt --all
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo test -p loom-storage --test postgres_commit postgres_18_commit_relationship_reference_survives_same_event_end -- --nocapture
+
+      - name: Commit verified fix
+        run: |
+          if git diff --quiet -- crates/loom-storage/src/postgres/commit.rs; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/loom-storage/src/postgres/commit.rs
+          git commit -m "M2-T3: preserve same-Event relationship references"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
