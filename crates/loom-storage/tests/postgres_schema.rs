@@ -73,14 +73,13 @@ async fn verify_identity_and_owner_constraints(pool: &sqlx::PgPool) {
         .await
         .expect("schema fixture Entity should insert");
 
-    let duplicate = sqlx::query(
-        "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
-    )
-    .bind(TIMELINE_ID)
-    .bind(ENTITY_ID)
-    .execute(pool)
-    .await
-    .expect_err("duplicate Timeline-local Entity identity must be rejected");
+    let duplicate =
+        sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
+            .bind(TIMELINE_ID)
+            .bind(ENTITY_ID)
+            .execute(pool)
+            .await
+            .expect_err("duplicate Timeline-local Entity identity must be rejected");
     assert_eq!(database_error_code(&duplicate).as_deref(), Some("23505"));
 
     let missing_owner = sqlx::query(
@@ -92,7 +91,10 @@ async fn verify_identity_and_owner_constraints(pool: &sqlx::PgPool) {
     .execute(pool)
     .await
     .expect_err("Facet owner foreign key must be enforced");
-    assert_eq!(database_error_code(&missing_owner).as_deref(), Some("23503"));
+    assert_eq!(
+        database_error_code(&missing_owner).as_deref(),
+        Some("23503")
+    );
 }
 
 fn database_error_code(error: &sqlx::Error) -> Option<String> {
