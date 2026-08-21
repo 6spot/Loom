@@ -51,8 +51,9 @@ Prove on one final `main` baseline that PostgreSQL can replace the in-memory per
 - final candidate SHA: `af7c1de52a2733e20a8b9285dbc4b0da90e7c188`
 - PR: #44
 - merge SHA: `96622329aa36e37b66ecd63f719fd0e87fa4dd29`
-- CI runs: clean implementation/final-code candidate `32464761591`; final task-record `32465745436`; post-merge audit CI pending
-- PostgreSQL verification: `postgres_schema`, `postgres_vertical`, `postgres_read`, `postgres_commit`, `postgres_work`, and `postgres_work_stale_completion` all passed against PostgreSQL 18 in both final candidate and final task-record CI.
+- post-merge audit: PR #45 merged as `c4becbfeef365b23a6ce8db71301de649bf8235d`
+- CI runs: clean implementation/final-code candidate `32464761591`; final task-record `32465745436`; post-merge audit `32466098087`
+- PostgreSQL verification: `postgres_schema`, `postgres_vertical`, `postgres_read`, `postgres_commit`, `postgres_work`, and `postgres_work_stale_completion` all passed against PostgreSQL 18 in the final candidate, final task-record and post-merge audit gates.
 - notes: the final candidate starts from audited prerequisite baseline `fc7dec3cf4b3305590249e79c8cef0e849bd00ac`. `postgres_vertical` directly exercises the public `LoomApi` through Runtime and Capability validation into `PgStorage`, proves a second invocation reads the first durable commit, proves semantic rejection leaves version/history/state unchanged, proves zero-Effect Events remain World Truth, and proves true NoChange leaves TimelineVersion unchanged. Existing workspace composition/validation tests continue to prove Runtime-owned candidate overlay and pre-commit ownership/schema/causality authority; the PostgreSQL commit suite proves same-Event structural references, one-winner Timeline CAS, rollback atomicity, and Work-only/current-Work commit semantics; the PostgreSQL Work suites prove lease/retry/fencing, technical retry World-Truth isolation, and zero-Event completion. The architecture checker and crate dependency graph keep SQLx/PostgreSQL confined to Storage/test infrastructure and out of public/extension contracts.
 
 ## Progress log
@@ -62,4 +63,5 @@ Prove on one final `main` baseline that PostgreSQL can replace the in-memory per
 - 2026-08-21 — Added `postgres_vertical` as a required PostgreSQL 18 CI step to cover public API/Runtime/PgStorage parity gaps not already directly covered by T2-T5 suites.
 - 2026-08-21 — Initial vertical-gate run exposed an over-strong test assertion that a zero-Effect Event must not advance `StateRevision`; Milestone 1 requires the Event to become World Truth while materialized Facets remain unchanged, not a fixed StateRevision. The assertion was corrected without changing Runtime or Storage behavior.
 - 2026-08-21 — Clean candidate `af7c1de52a2733e20a8b9285dbc4b0da90e7c188` passed CI run `32464761591`: Ubuntu/macOS Architecture, Format, Check, Clippy, Test and Rustdoc plus PostgreSQL 18 scratch migrations, public vertical parity, read parity, commit/CAS/atomicity, Durable Work and stale-fence regression suites.
-- 2026-08-21 — Final task-record head passed CI run `32465745436` with the same complete Rust and PostgreSQL 18 gate set; implementation PR #44 then merged as `96622329aa36e37b66ecd63f719fd0e87fa4dd29`. This post-merge audit records the real merge SHA before issue and milestone closure.
+- 2026-08-21 — Final task-record head passed CI run `32465745436` with the same complete Rust and PostgreSQL 18 gate set; implementation PR #44 then merged as `96622329aa36e37b66ecd63f719fd0e87fa4dd29`.
+- 2026-08-21 — Post-merge audit PR #45 passed CI run `32466098087` with the full gate set and merged as `c4becbfeef365b23a6ce8db71301de649bf8235d`. M2-T6 is fully evidenced and ready for issue/milestone closure.
