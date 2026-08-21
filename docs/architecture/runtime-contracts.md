@@ -915,6 +915,37 @@ observability
 
 v0 默认禁止同一路径重复进入相同 `(Capability, Action)` 所形成的无界递归。Runtime 必须维护 call stack/depth/budget，并检测明显 cycle。
 
+### 13.4 Root execution state and composition
+
+每个 root Action/Work execution 由 Runtime 持有一份内部执行状态，至少包括：
+
+```text
+(Capability, Action) call stack       path-local cycle guard
+subresolution depth/count             Runtime budget usage
+ordered owner-tagged Resolution segments
+independent Resolution call-provenance edges
+```
+
+每次 `ResolutionContext::subresolve` 必须先通过 Runtime 校验 child Action
+input，再根据注册 Action 的 owner 路由；同 owner 调用允许跨语义调用，跨 owner
+调用必须由 caller Capability manifest 直接声明 target owner dependency。重复 pair、
+超出 depth/count budget 或其他 routing/auth failure 都发生在 child dispatch 和
+commit eligibility 之前。
+
+Child `Resolved` 只能由 Runtime 捕获为带 owner 的 untrusted segment；Capability
+不能直接合并或重新标记该 segment。Child `Rejected` 是正常 semantic outcome，原样
+返回父 resolver，不自动升级成 Runtime error，也不产生 segment。
+
+Root 成功后，Effect Engine 按 Runtime 观察到的 segment 顺序在一个共享
+`CandidateWorldView` 上逐段验证，并 flatten 成一个 Runtime-owned
+`ValidatedResolution`。任一 segment validation 或 aggregate budget failure 都不能
+产生 commit token；成功组合最终只调用一次现有 `CommitStore::commit`，Timeline
+`TimelineVersion` CAS 仍是唯一业务线性化点。
+
+Resolution call-provenance edges 只属于 Execution Provenance。它们不能写入
+`ProposedEvent` 的 World causality、participants、Work origin 或其他 Event graph
+结构；World Event causal links 仍只表达世界事实之间的因果关系。
+
 ---
 
 ## 14. Durable Work

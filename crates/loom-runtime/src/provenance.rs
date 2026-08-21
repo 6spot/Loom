@@ -1,6 +1,62 @@
 //! Runtime-owned execution provenance for candidate validation.
 
-use loom_core::{EntityId, EventId, FacetOwner, FacetTypeId, RelationshipId};
+use loom_capability::CapabilityId;
+use loom_core::{ActionTypeId, EntityId, EventId, FacetOwner, FacetTypeId, RelationshipId};
+
+/// One Runtime-mediated edge in a root Resolution call graph.
+///
+/// A `ResolutionCallEdge` records that one resolver invoked another registered
+/// Action during the same root execution. It belongs to Execution Provenance,
+/// not World Truth: it must never be translated into a
+/// `loom_protocol::CausalLink`, Event participant, Work origin or other World
+/// Event association. Runtime creates these edges after Action input and
+/// dependency authorization pass; Capability code cannot forge or edit them.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct ResolutionCallEdge {
+    /// Capability that owned the resolver making the subresolution request.
+    pub caller_capability: CapabilityId,
+    /// Action frame active at the call site.
+    pub caller_action: ActionTypeId,
+    /// Capability that owns the routed child Action.
+    pub target_capability: CapabilityId,
+    /// Registered child Action selected by the request.
+    pub target_action: ActionTypeId,
+}
+
+/// Ordered Runtime provenance for subresolution calls in one root execution.
+///
+/// The edge list is independent from the flattened Resolution and the World
+/// Event causal graph. It is observable through a Runtime-owned
+/// `ValidatedResolution` for tests and operator diagnostics, while it is not a
+/// public Loom API payload or a Capability-provided authorization record.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct CallProvenance {
+    edges: Vec<ResolutionCallEdge>,
+}
+
+impl CallProvenance {
+    /// Returns call edges in the order Runtime observed them.
+    #[must_use]
+    pub fn edges(&self) -> &[ResolutionCallEdge] {
+        &self.edges
+    }
+
+    /// Returns the number of observed subresolution edges.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// Reports whether no subresolution edge was observed.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.edges.is_empty()
+    }
+
+    pub(crate) fn record(&mut self, edge: ResolutionCallEdge) {
+        self.edges.push(edge);
+    }
+}
 
 /// One fact or negative lookup observed while validating a Resolution.
 ///

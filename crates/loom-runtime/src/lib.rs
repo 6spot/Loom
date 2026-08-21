@@ -95,7 +95,7 @@ pub use persistence::{
     PlatformTime, ReadError, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord,
     WorkStatus, WorkStore, WorldStore,
 };
-pub use provenance::{ReadDependency, ReadSet};
+pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
 pub use validation::{
     EffectEngine, RuntimeError, ValidatedResolution, ValidationError, ValidationOutcome,
 };

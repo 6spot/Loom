@@ -5,7 +5,7 @@ use std::{
     fmt,
 };
 
-use loom_capability::{CapabilityRegistry, SemanticKind};
+use loom_capability::{CapabilityId, CapabilityRegistry, SemanticKind};
 use loom_core::{
     ActionTypeId, AssociationRole, EntityId, EventId, FacetOwner, RelationshipId,
     RelationshipParticipant, SchemaRevision, TimelineId, WorkId, WorldEffect,
@@ -13,7 +13,7 @@ use loom_core::{
 use loom_protocol::{ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation};
 use serde_json::Value;
 
-use crate::{BudgetError, BudgetUsage, CandidateWorldView, ResolutionBudget};
+use crate::{BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ResolutionBudget};
 
 /// A typed failure raised while an untrusted Resolution crosses the Runtime
 /// validation boundary.
@@ -253,6 +253,27 @@ pub enum ValidationOutcome {
     Rejected(Rejection),
 }
 
+/// One untrusted Resolution segment together with the Capability owner that
+/// Runtime observed at its dispatch boundary.
+///
+/// Segments are an internal Runtime composition value. Capability code can
+/// return only an untrusted `Resolution`; Runtime records the owner from the
+/// registered Action/Work handler and later validates each segment against its
+/// own semantic owner before flattening the segments into one authority token.
+#[derive(Clone, Debug)]
+pub(crate) struct ResolutionSegment {
+    /// Capability that owns the resolver which produced this segment.
+    pub(crate) owner: CapabilityId,
+    /// Untrusted semantic proposal returned by that resolver.
+    pub(crate) resolution: Resolution,
+}
+
+impl ResolutionSegment {
+    pub(crate) fn new(owner: CapabilityId, resolution: Resolution) -> Self {
+        Self { owner, resolution }
+    }
+}
+
 /// Runtime-owned authority token proving that one Resolution passed candidate
 /// validation.
 ///
@@ -267,6 +288,7 @@ pub struct ValidatedResolution {
     timeline_id: TimelineId,
     base_version: loom_core::TimelineVersion,
     read_set: crate::ReadSet,
+    call_provenance: CallProvenance,
 }
 
 impl ValidatedResolution {
@@ -315,17 +337,30 @@ impl ValidatedResolution {
         &self.read_set
     }
 
+    /// Returns Runtime-observed subresolution call edges for this execution.
+    ///
+    /// These edges belong to Execution Provenance, not the World Event causal
+    /// graph. They are retained on the Runtime authority token for diagnostics
+    /// and tests; they do not grant Capability permission or become public API
+    /// World data.
+    #[must_use]
+    pub const fn call_provenance(&self) -> &CallProvenance {
+        &self.call_provenance
+    }
+
     pub(crate) fn new(
         resolution: Resolution,
         timeline_id: TimelineId,
         base_version: loom_core::TimelineVersion,
         read_set: crate::ReadSet,
+        call_provenance: CallProvenance,
     ) -> Self {
         Self {
             resolution,
             timeline_id,
             base_version,
             read_set,
+            call_provenance,
         }
     }
 }
@@ -439,40 +474,94 @@ impl<'registry> EffectEngine<'registry> {
         proposer: &str,
         resolution: Resolution,
     ) -> Result<ValidatedResolution, RuntimeError> {
-        let usage = BudgetUsage::from_resolution(&resolution);
-        self.budget.check(usage).map_err(RuntimeError::Budget)?;
+        self.validate_segments(
+            base,
+            &[ResolutionSegment::new(
+                CapabilityId::from(proposer),
+                resolution,
+            )],
+            CallProvenance::default(),
+        )
+    }
+
+    /// Validates owner-tagged Resolution segments against one shared candidate
+    /// and flattens them into one Runtime authority token.
+    ///
+    /// Segments are processed in the order Runtime observed them. Each
+    /// segment's Events and Work mutations are checked with that segment's
+    /// semantic owner, while all segments share one candidate overlay and one
+    /// aggregate budget. A failure in any segment returns before a commit token
+    /// can be produced; the caller therefore has one atomic commit input rather
+    /// than one token per Capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RuntimeError::Budget` when the aggregate proposal exceeds a
+    /// configured limit, or `RuntimeError::Validation` for any invalid segment.
+    pub(crate) fn validate_segments(
+        &self,
+        base: &crate::BaseWorldView,
+        segments: &[ResolutionSegment],
+        call_provenance: CallProvenance,
+    ) -> Result<ValidatedResolution, RuntimeError> {
+        let aggregate_usage = segments
+            .iter()
+            .fold(BudgetUsage::default(), |usage, segment| {
+                usage.combine(BudgetUsage::from_resolution(&segment.resolution))
+            });
+        self.budget
+            .check(aggregate_usage)
+            .map_err(RuntimeError::Budget)?;
 
         let mut candidate = CandidateWorldView::from_base(base);
-        for event in &resolution.events {
-            if event.id.is_nil() {
-                return Err(ValidationError::InvalidIdentity {
-                    kind: "Event",
-                    id: event.id.to_string(),
+        let mut flattened = Resolution::default();
+        for segment in segments {
+            for event in &segment.resolution.events {
+                if event.id.is_nil() {
+                    return Err(ValidationError::InvalidIdentity {
+                        kind: "Event",
+                        id: event.id.to_string(),
+                    }
+                    .into());
                 }
-                .into());
-            }
-            if candidate.event_exists(event.id) {
-                return Err(ValidationError::DuplicateIdentity {
-                    kind: "Event",
-                    id: event.id.to_string(),
+                if candidate.event_exists(event.id) {
+                    return Err(ValidationError::DuplicateIdentity {
+                        kind: "Event",
+                        id: event.id.to_string(),
+                    }
+                    .into());
                 }
-                .into());
+                let mut event_candidate = candidate.fork();
+                validate_event(
+                    self.registry,
+                    &mut event_candidate,
+                    segment.owner.as_str(),
+                    event,
+                )?;
+                self.validate_invariants(&event_candidate, event)?;
+                candidate = event_candidate;
+                candidate.note_event(event.id);
+                flattened.events.push(event.clone());
             }
-            let mut event_candidate = candidate.fork();
-            validate_event(self.registry, &mut event_candidate, proposer, event)?;
-            self.validate_invariants(&event_candidate, event)?;
-            candidate = event_candidate;
-            candidate.note_event(event.id);
+            validate_work(
+                self.registry,
+                &mut candidate,
+                segment.owner.as_str(),
+                &segment.resolution,
+            )?;
+            flattened
+                .work
+                .extend(segment.resolution.work.iter().cloned());
         }
-        validate_work(self.registry, &mut candidate, proposer, &resolution)?;
 
         let mut read_set = base.read_set();
         read_set.extend(candidate.read_set());
         Ok(ValidatedResolution::new(
-            resolution,
+            flattened,
             base.timeline_id(),
             base.version(),
             read_set,
+            call_provenance,
         ))
     }
 
