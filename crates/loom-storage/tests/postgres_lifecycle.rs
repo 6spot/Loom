@@ -29,14 +29,10 @@ async fn postgres_18_world_lifecycle_is_atomic_and_immediately_readable() {
     let timeline_id = id::<TimelineId>(0x4102);
     let initial_world_time = WorldInstant::new(321);
 
-    let created = WorldLifecycleStore::create_world(
-        &storage,
-        world_id,
-        timeline_id,
-        initial_world_time,
-    )
-    .await
-    .expect("PostgreSQL lifecycle bootstrap should commit");
+    let created =
+        WorldLifecycleStore::create_world(&storage, world_id, timeline_id, initial_world_time)
+            .await
+            .expect("PostgreSQL lifecycle bootstrap should commit");
     assert_eq!(created.world_id(), world_id);
     assert_eq!(created.timeline_id(), timeline_id);
     assert_eq!(created.version(), TimelineVersion::default());
@@ -54,12 +50,10 @@ async fn postgres_18_world_lifecycle_is_atomic_and_immediately_readable() {
 
     let runtime = Runtime::new(storage.clone(), CapabilityRegistry::new())
         .expect("empty semantic registry should assemble for lifecycle inspection");
-    let public = TimelineService::inspect_timeline(
-        &runtime,
-        TimelineTarget::new(world_id, timeline_id),
-    )
-    .await
-    .expect("public TimelineService should observe committed lifecycle state");
+    let public =
+        TimelineService::inspect_timeline(&runtime, TimelineTarget::new(world_id, timeline_id))
+            .await
+            .expect("public TimelineService should observe committed lifecycle state");
     assert_eq!(public.target, TimelineTarget::new(world_id, timeline_id));
     assert_eq!(public.version, TimelineVersion::default());
     assert_eq!(public.world_time, initial_world_time);
@@ -79,14 +73,9 @@ async fn postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows() 
 
     let world_a = id::<WorldId>(0x4201);
     let timeline_a = id::<TimelineId>(0x4202);
-    WorldLifecycleStore::create_world(
-        &storage,
-        world_a,
-        timeline_a,
-        WorldInstant::new(10),
-    )
-    .await
-    .expect("initial lifecycle fixture should commit");
+    WorldLifecycleStore::create_world(&storage, world_a, timeline_a, WorldInstant::new(10))
+        .await
+        .expect("initial lifecycle fixture should commit");
 
     let unused_timeline = id::<TimelineId>(0x4203);
     let duplicate_world = WorldLifecycleStore::create_world(
@@ -111,14 +100,10 @@ async fn postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows() 
     assert_eq!(unused_timeline_count, 0);
 
     let world_b = id::<WorldId>(0x4204);
-    let duplicate_timeline = WorldLifecycleStore::create_world(
-        &storage,
-        world_b,
-        timeline_a,
-        WorldInstant::new(30),
-    )
-    .await
-    .expect_err("duplicate Timeline identity must roll back the fresh World insert");
+    let duplicate_timeline =
+        WorldLifecycleStore::create_world(&storage, world_b, timeline_a, WorldInstant::new(30))
+            .await
+            .expect_err("duplicate Timeline identity must roll back the fresh World insert");
     assert_eq!(
         duplicate_timeline,
         LifecycleError::TimelineAlreadyExists {
