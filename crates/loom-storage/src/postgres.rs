@@ -1,29 +1,29 @@
-//! PostgreSQL 18 storage foundation for Loom Runtime persistence ports.
+//! `PostgreSQL` 18 storage foundation for Loom Runtime persistence ports.
 //!
-//! This module owns concrete SQLx/PostgreSQL concerns. `PgStorage` deliberately
+//! This module owns concrete `SQLx`/`PostgreSQL` concerns. `PgStorage` deliberately
 //! exposes no `PgPool` accessor: Runtime and higher Loom layers consume
 //! Runtime-owned persistence traits rather than reaching through the adapter to
 //! issue SQL directly. M2-T1 establishes connection, migration and health
-//! behavior only; WorldStore, CommitStore and WorkStore implementations are
+//! behavior only; `WorldStore`, `CommitStore` and `WorkStore` implementations are
 //! introduced by their dedicated Milestone 2 tasks.
 
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
-/// Concrete PostgreSQL persistence adapter owned by `loom-storage`.
+/// Concrete `PostgreSQL` persistence adapter owned by `loom-storage`.
 ///
-/// The contained SQLx pool is intentionally private. Application composition
+/// The contained `SQLx` pool is intentionally private. Application composition
 /// code may construct this adapter and inject it into Runtime-owned persistence
 /// ports, but Core/Protocol/API/Capability/Runtime code must never receive the
-/// underlying pool or SQLx transaction types.
+/// underlying pool or `SQLx` transaction types.
 #[derive(Clone, Debug)]
 pub struct PgStorage {
     pool: PgPool,
 }
 
 impl PgStorage {
-    /// Connects to an existing PostgreSQL database without changing its schema.
+    /// Connects to an existing `PostgreSQL` database without changing its schema.
     ///
     /// Migrations are explicit through [`Self::migrate`] so deployment/startup
     /// policy can decide when schema changes are allowed. This method owns only
@@ -31,28 +31,28 @@ impl PgStorage {
     ///
     /// # Errors
     ///
-    /// Returns [`sqlx::Error`] when SQLx cannot establish the PostgreSQL pool.
+    /// Returns [`sqlx::Error`] when `SQLx` cannot establish the `PostgreSQL` pool.
     pub async fn connect(database_url: &str) -> Result<Self, sqlx::Error> {
         let pool = PgPoolOptions::new().connect(database_url).await?;
         Ok(Self { pool })
     }
 
-    /// Applies the embedded, repository-versioned SQLx migrations.
+    /// Applies the embedded, repository-versioned `SQLx` migrations.
     ///
     /// SQL migrations under `crates/loom-storage/migrations` are the readable
     /// database representation of the already-reviewed Loom persistence
-    /// contract. Re-running this method is safe: SQLx records applied migration
+    /// contract. Re-running this method is safe: `SQLx` records applied migration
     /// checksums and does not replay an unchanged migration.
     ///
     /// # Errors
     ///
     /// Returns [`sqlx::migrate::MigrateError`] if migration metadata is invalid,
-    /// a migration checksum changed, or PostgreSQL rejects a migration.
+    /// a migration checksum changed, or `PostgreSQL` rejects a migration.
     pub async fn migrate(&self) -> Result<(), sqlx::migrate::MigrateError> {
         MIGRATOR.run(&self.pool).await
     }
 
-    /// Checks whether the configured PostgreSQL authority database is reachable.
+    /// Checks whether the configured `PostgreSQL` authority database is reachable.
     ///
     /// This is an operational adapter health check only. A successful result
     /// does not mean migrations are current and does not imply any World commit
@@ -66,7 +66,7 @@ impl PgStorage {
         Ok(())
     }
 
-    /// Gracefully closes the SQLx pool owned by this adapter.
+    /// Gracefully closes the `SQLx` pool owned by this adapter.
     pub async fn close(&self) {
         self.pool.close().await;
     }
