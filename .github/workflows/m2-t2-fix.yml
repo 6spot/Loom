@@ -31,7 +31,10 @@ jobs:
 
           persistence = Path('crates/loom-runtime/src/persistence.rs')
           text = persistence.read_text()
-          text = text.replace('Persistence adapters may use SQLx or another asynchronous driver', 'Persistence adapters may use `SQLx` or another asynchronous driver')
+          text = text.replace(
+              'Persistence adapters may use SQLx or another asynchronous driver',
+              'Persistence adapters may use `SQLx` or another asynchronous driver',
+          )
           text, count = re.subn(
               r'\n    /// Builds a committed read model from persisted scalar/Event data\..*?\n    /// Adds a persisted direct Entity association while rebuilding history\.',
               '\n    /// Adds a persisted direct Entity association while rebuilding history.',
@@ -46,21 +49,13 @@ jobs:
           postgres = Path('crates/loom-storage/src/postgres.rs')
           text = postgres.read_text()
           text = text.replace(
-              'BaseWorldSnapshot, CommittedEvent, PersistenceFuture, PlatformTime, ReadError, TimelineSnapshot,',
-              'BaseWorldSnapshot, CommittedEvent, PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot,',
+              'PersistenceFuture, PlatformTime, ReadError,',
+              'PersistenceFuture, PlatformTime, ProposedEvent, ReadError,',
               1,
           )
-          old = '''            let mut event = CommittedEvent::from_persisted(
-                event_id,
-                timeline_id,
-                EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?),
-                EventTypeId::from(row_string(&row, "event_type")?),
-                schema_revision(&row)?,
-                WorldInstant::new(row_i64(&row, "occurred_at")?),
-                row_json(&row, "payload")?,
-                effects,
-            );'''
-          new = '''            let event_seq =
+          pattern = r'''            let mut event = CommittedEvent::from_persisted\(
+.*?            \);\n\n            let participant_rows'''
+          replacement = '''            let event_seq =
                 EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?);
             let mut proposal = ProposedEvent::new(
                 event_id,
@@ -70,10 +65,13 @@ jobs:
                 row_json(&row, "payload")?,
             );
             proposal.effects = effects;
-            let mut event = CommittedEvent::from_proposed(timeline_id, event_seq, &proposal);'''
-          if old not in text:
-              raise SystemExit('PostgreSQL persisted Event construction was not found')
-          postgres.write_text(text.replace(old, new, 1))
+            let mut event = CommittedEvent::from_proposed(timeline_id, event_seq, &proposal);
+
+            let participant_rows'''
+          text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('PostgreSQL persisted Event construction was not found exactly once')
+          postgres.write_text(text)
           PY
           cargo fmt --all
           cargo check --workspace --all-targets --all-features
