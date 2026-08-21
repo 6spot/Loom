@@ -1,0 +1,44 @@
+name: M2 T3 Apply
+
+on:
+  push:
+    branches:
+      - feat/m2-t3-postgresql-commit-cas
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  apply:
+    if: github.repository == '6spot/Loom'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/m2-t3-postgresql-commit-cas
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup default "$RUST_VERSION"
+      - name: Apply T3 contract migration
+        run: python3 tools/m2_t3_apply.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check
+        run: cargo check --workspace --all-targets --all-features
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Commit generated implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- crates/loom-runtime/src/persistence.rs crates/loom-runtime/src/orchestration.rs crates/loom-storage/src/in_memory.rs crates/loom-storage/src/postgres.rs crates/loom-storage/src/postgres/commit.rs
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "M2-T3: add async PostgreSQL CommitStore foundation"
+          git push origin HEAD:feat/m2-t3-postgresql-commit-cas
