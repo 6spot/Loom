@@ -1,0 +1,117 @@
+name: M2 T3 Same Event Fix
+
+on:
+  push:
+    branches:
+      - feat/m2-t3-postgresql-commit-cas
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_test
+      LOOM_REQUIRE_POSTGRES_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/m2-t3-postgresql-commit-cas
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component rustfmt --component clippy
+          rustup default "$RUST_VERSION"
+      - name: Preserve same-Event relationship reference semantics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/loom-storage/src/postgres/commit.rs')
+          text = path.read_text()
+          old = '''    for effect in &event.effects {
+        apply_effect(transaction, timeline_id, event.id, effect).await?;
+    }
+    validate_event_references(transaction, timeline_id, event).await?;
+'''
+          new = '''    validate_event_references_with_structural_overlay(transaction, timeline_id, event).await?;
+    for effect in &event.effects {
+        apply_effect(transaction, timeline_id, event.id, effect).await?;
+    }
+'''
+          if old not in text:
+              raise SystemExit('apply_event reference-validation block not found')
+          text = text.replace(old, new, 1)
+
+          marker = '''async fn validate_event_references(
+'''
+          helper = '''async fn validate_event_references_with_structural_overlay(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+    event: &ProposedEvent,
+) -> Result<(), CommitError> {
+    sqlx::query("SAVEPOINT loom_event_reference_overlay")
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+
+    let overlay_result = async {
+        for effect in &event.effects {
+            if matches!(
+                effect,
+                WorldEffect::CreateEntity { .. } | WorldEffect::CreateRelationship { .. }
+            ) {
+                apply_effect(transaction, timeline_id, event.id, effect).await?;
+            }
+        }
+        validate_event_references(transaction, timeline_id, event).await
+    }
+    .await;
+
+    sqlx::query("ROLLBACK TO SAVEPOINT loom_event_reference_overlay")
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+    sqlx::query("RELEASE SAVEPOINT loom_event_reference_overlay")
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+
+    overlay_result
+}
+
+'''
+          if marker not in text:
+              raise SystemExit('validate_event_references marker not found')
+          text = text.replace(marker, helper + marker, 1)
+          path.write_text(text)
+          PY
+          cargo fmt --all
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo test -p loom-storage --test postgres_commit postgres_18_commit_relationship_reference_survives_same_event_end -- --nocapture
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/loom-storage/src/postgres/commit.rs
+          git commit -m "M2-T3: preserve same-Event relationship references"
+          git push origin HEAD:feat/m2-t3-postgresql-commit-cas
