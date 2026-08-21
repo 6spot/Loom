@@ -9,7 +9,7 @@ Baseline: Milestone 2 completed on `main` at `e9fde033fe375f9e03f20ef82d37f466e4
 ```text
 #48 M3-T1  Public World creation + Runtime lifecycle/identity ports + InMemory
    ↓
-#49 M3-T2  PostgreSQL lifecycle persistence
+#49 M3-T2  PostgreSQL lifecycle persistence hardening/integration
    ↓
 #50 M3-T3  PostgreSQL restart/reload/resume vertical slice
    ↓
@@ -37,3 +37,4 @@ This milestone creates one World plus its initial Timeline through the unified L
 
 - 2026-08-21: M3 #47 created from the first remaining implementation-baseline gap after M2: public World creation and resumable Runtime authority.
 - 2026-08-21: M3-T1 #48 started from M2 closure baseline `e9fde033fe375f9e03f20ef82d37f466e4ff1db2`.
+- 2026-08-21: M3-T1 implementation candidate `76002e1170b68cf122ff8c9bec409b7ece3bbe85` passed clean standard CI `32488685071` across Ubuntu, macOS and PostgreSQL 18. T1 remains `in_progress` until implementation PR #52 merges and post-merge audit metadata records the real merge SHA.
