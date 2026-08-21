@@ -599,13 +599,13 @@ impl WorldStore for InMemoryStore {
 }
 
 impl CommitStore for InMemoryStore {
-    fn commit(
-        &self,
-        resolution: &ValidatedResolution,
-        current_work: Option<&WorkClaim>,
+    fn commit<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
-    ) -> Result<CommitResult, CommitError> {
-        self.commit(resolution, current_work, now)
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move { InMemoryStore::commit(self, resolution, current_work, now) })
     }
 }
 

@@ -435,19 +435,19 @@ impl WorldStore for CountingStore {
 }
 
 impl CommitStore for CountingStore {
-    fn commit(
-        &self,
-        resolution: &ValidatedResolution,
-        current_work: Option<&WorkClaim>,
+    fn commit<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
-    ) -> Result<CommitResult, CommitError> {
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         self.commits.fetch_add(1, Ordering::SeqCst);
         *self
             .provenance
             .lock()
             .expect("provenance mutex should not be poisoned") =
             Some(resolution.call_provenance().clone());
-        self.inner.commit(resolution, current_work, now)
+        Box::pin(async move { self.inner.commit(resolution, current_work, now) })
     }
 }
 

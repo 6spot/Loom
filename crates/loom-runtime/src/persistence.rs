@@ -664,6 +664,8 @@ pub enum CommitError {
     InvalidEffect { event_id: EventId, message: String },
     /// A Work mutation or current Work claim failed its typed checks.
     Work(WorkError),
+    /// The persistence authority could not complete the atomic transaction.
+    StorageUnavailable { message: String },
     /// The revision or Event sequence cannot be represented by its value type.
     RevisionOverflow,
 }
@@ -698,6 +700,7 @@ impl fmt::Display for CommitError {
                 )
             }
             Self::Work(error) => error.fmt(formatter),
+            Self::StorageUnavailable { message } => formatter.write_str(message),
             Self::RevisionOverflow => {
                 formatter.write_str("Timeline revision or Event sequence overflow")
             }
@@ -759,12 +762,12 @@ pub trait CommitStore {
     /// Returns a typed error before changing observable state. In particular,
     /// [`CommitError::TimelineConflict`] does not partially append Events or
     /// mutate State/Work.
-    fn commit(
-        &self,
-        resolution: &ValidatedResolution,
-        current_work: Option<&WorkClaim>,
+    fn commit<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
-    ) -> Result<CommitResult, CommitError>;
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>>;
 }
 
 /// Runtime Work/claim port for operational metadata and current-Work fences.

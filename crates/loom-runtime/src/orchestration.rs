@@ -194,7 +194,7 @@ where
         };
 
         let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
-        match self.store.commit(&validated, Some(&claim), now) {
+        match self.store.commit(&validated, Some(&claim), now).await {
             Ok(result) => match rejection {
                 Some(rejection) => Ok(ExecutionResult::rejected(rejection)),
                 None => Ok(execution_result(&result, changes_runtime_state)),
@@ -275,12 +275,12 @@ impl<T> CommitStore for &T
 where
     T: CommitStore + ?Sized,
 {
-    fn commit(
-        &self,
-        resolution: &crate::ValidatedResolution,
-        current_work: Option<&WorkClaim>,
+    fn commit<'a>(
+        &'a self,
+        resolution: &'a crate::ValidatedResolution,
+        current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
-    ) -> Result<crate::CommitResult, CommitError> {
+    ) -> PersistenceFuture<'a, Result<crate::CommitResult, CommitError>> {
         (**self).commit(resolution, current_work, now)
     }
 }
@@ -351,6 +351,7 @@ where
                         .map_err(|error| map_runtime_error(&error))?;
                     self.store
                         .commit(&validated, None, self.platform_clock.now())
+                        .await
                         .map(|result| {
                             execution_result(&result, changes_runtime_state(&validated, None))
                         })
@@ -851,6 +852,9 @@ fn map_commit_error(error: &CommitError) -> ApiError {
             ApiError::invalid_request("Commit target does not match the pinned Timeline")
         }
         CommitError::Work(_) => ApiError::conflict("Work state changed before commit"),
+        CommitError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Persistence authority is temporarily unavailable")
+        }
         CommitError::DuplicateEvent { .. }
         | CommitError::InvalidEvent { .. }
         | CommitError::InvalidEffect { .. }
