@@ -3,8 +3,8 @@ use std::{str::FromStr, sync::Arc};
 use loom_api::{ActionRequest, ActionService, ExecutionResult, TimelineTarget};
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
-    CapabilityRegistry, EventDefinition, RegistrationError, ResolutionContext, ResolverError,
-    WorkHandler, WorkHandlerDefinition,
+    CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
+    RelationshipDefinition, ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
