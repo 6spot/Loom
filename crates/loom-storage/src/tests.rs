@@ -12,11 +12,10 @@ use loom_core::{
     WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation, WorkSchedule,
+    ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
+    WorkSchedule,
 };
-use loom_runtime::{
-    CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus,
-};
+use loom_runtime::{CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus};
 use serde_json::{Value, json};
 
 use crate::InMemoryStore;
