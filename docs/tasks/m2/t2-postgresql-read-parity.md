@@ -1,10 +1,10 @@
 ---
 task: M2-T2
 issue: 27
-status: planned
+status: in_progress
 depends_on: [26]
 created_at: 2026-08-21
-started_at:
+started_at: 2026-08-21
 completed_at:
 completion_pr:
 merge_sha:
@@ -45,3 +45,5 @@ Implement PostgreSQL-backed Runtime read ports so pinned Timeline snapshots expo
 ## Progress log
 
 - 2026-08-21 — Task record created from issue #27; status `planned`.
+- 2026-08-21 — Implementation started on `feat/m2-t2-postgresql-read-parity`; status `in_progress`.
+- 2026-08-21 — PostgreSQL implementation evidence exposed a contract mismatch: SQLx persistence is asynchronous while Milestone 1 Runtime persistence ports/public I/O services were synchronous. T2 will migrate only persistence I/O boundaries to object-safe, executor-neutral Future-returning contracts. Capability Resolver/Invariant/ResolutionContext remain synchronous over the already-pinned in-memory World view, so no database I/O or async executor leaks into semantic extension code.
