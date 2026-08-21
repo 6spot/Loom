@@ -18,9 +18,10 @@ use loom_core::{
     TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent, PersistenceFuture,
-    PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, ValidatedResolution, WorkClaim,
-    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldStore,
+    BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent, LifecycleError,
+    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot,
+    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
+    WorkStore, WorldCreation, WorldLifecycleStore, WorldStore,
 };
 use serde_json::Value;
 
@@ -586,6 +587,37 @@ impl InMemoryStore {
         self.state
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+impl WorldLifecycleStore for InMemoryStore {
+    fn create_world(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            let mut guard = self.write_state();
+            let mut staged = guard.clone();
+            if staged.worlds.contains(&world_id) {
+                return Err(LifecycleError::WorldAlreadyExists { world_id });
+            }
+            if staged.timelines.contains_key(&timeline_id) {
+                return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+            }
+
+            let mut timeline = TimelineState::empty(world_id, timeline_id);
+            timeline.world_time = initial_world_time;
+            staged.worlds.insert(world_id);
+            staged.timelines.insert(timeline_id, timeline);
+            *guard = staged;
+            Ok(WorldCreation::new(
+                world_id,
+                timeline_id,
+                initial_world_time,
+            ))
+        })
     }
 }
 

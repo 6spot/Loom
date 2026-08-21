@@ -18,8 +18,8 @@ use std::{
 };
 
 use loom_core::{
-    AssociationRole, EntityId, EventId, EventSeq, RelationshipId, TimelineId, TimelineVersion,
-    WorkHandlerId, WorkId, WorldEffect, WorldInstant,
+    AssociationRole, EntityId, EventId, EventSeq, RelationshipId, StateRevision, TimelineId,
+    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
 use serde_json::Value;
@@ -717,6 +717,110 @@ impl From<WorkError> for CommitError {
     fn from(value: WorkError) -> Self {
         Self::Work(value)
     }
+}
+
+/// Result of atomically creating one World and its initial Timeline.
+///
+/// This is Runtime lifecycle metadata, not a domain Event or mutable World
+/// proposal. A successful value means the persistence adapter has durably
+/// established both identities as one bootstrap operation. The initial
+/// Timeline version is always zero by construction; future truth changes must
+/// use the normal validated commit path.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorldCreation {
+    world_id: WorldId,
+    timeline_id: TimelineId,
+    version: TimelineVersion,
+    world_time: WorldInstant,
+}
+
+impl WorldCreation {
+    /// Creates the canonical empty-Timeline lifecycle result.
+    #[must_use]
+    pub fn new(world_id: WorldId, timeline_id: TimelineId, world_time: WorldInstant) -> Self {
+        Self {
+            world_id,
+            timeline_id,
+            version: TimelineVersion::new(EventSeq::new(0), StateRevision::new(0)),
+            world_time,
+        }
+    }
+
+    /// Returns the newly persisted World identity.
+    #[must_use]
+    pub const fn world_id(self) -> WorldId {
+        self.world_id
+    }
+
+    /// Returns the initial Timeline identity.
+    #[must_use]
+    pub const fn timeline_id(self) -> TimelineId {
+        self.timeline_id
+    }
+
+    /// Returns the authoritative empty Timeline version.
+    #[must_use]
+    pub const fn version(self) -> TimelineVersion {
+        self.version
+    }
+
+    /// Returns the explicit semantic World time selected for bootstrap.
+    #[must_use]
+    pub const fn world_time(self) -> WorldInstant {
+        self.world_time
+    }
+}
+
+/// Typed failures from Runtime-owned World lifecycle persistence.
+///
+/// Identity conflicts are distinct from infrastructure unavailability so the
+/// public service can report a safe conflict without leaking database errors.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LifecycleError {
+    /// The allocated World identity is already authoritative.
+    WorldAlreadyExists { world_id: WorldId },
+    /// The allocated Timeline identity is already authoritative.
+    TimelineAlreadyExists { timeline_id: TimelineId },
+    /// The persistence authority could not finish lifecycle bootstrap.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for LifecycleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WorldAlreadyExists { world_id } => {
+                write!(formatter, "World {world_id} already exists")
+            }
+            Self::TimelineAlreadyExists { timeline_id } => {
+                write!(formatter, "Timeline {timeline_id} already exists")
+            }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for LifecycleError {}
+
+/// Runtime-owned persistence port for structural World bootstrap.
+///
+/// Implementations must create the World identity and its initial Timeline in
+/// one atomic operation. This port is intentionally separate from
+/// [`CommitStore`]: bootstrap establishes the empty authority container and does
+/// not fabricate a domain Event or accept an unvalidated Resolution. Once
+/// created, all semantic mutation uses the normal Runtime commit authority.
+pub trait WorldLifecycleStore {
+    /// Atomically creates one World plus its initial empty Timeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed identity conflict or storage availability error. A
+    /// failure must leave neither a partial World nor a partial Timeline.
+    fn create_world(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>>;
 }
 
 /// Runtime read port required by validation and public history projections.

@@ -82,6 +82,7 @@
 #![forbid(unsafe_code)]
 
 mod budget;
+mod identity;
 mod orchestration;
 mod persistence;
 mod provenance;
@@ -89,11 +90,13 @@ mod validation;
 mod views;
 
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
-    CommitError, CommitResult, CommitStore, CommittedEvent, ManualPlatformClock, PersistenceFuture,
-    PlatformClock, PlatformTime, ReadError, TimelineSnapshot, WorkClaim, WorkError, WorkLease,
-    WorkRecord, WorkStatus, WorkStore, WorldStore,
+    CommitError, CommitResult, CommitStore, CommittedEvent, LifecycleError, ManualPlatformClock,
+    PersistenceFuture, PlatformClock, PlatformTime, ReadError, TimelineSnapshot, WorkClaim,
+    WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore,
+    WorldStore,
 };
 pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
 pub use validation::{
