@@ -47,7 +47,7 @@ Revalidate one final M3 candidate proving World creation and Runtime resumabilit
 
 ## Completion evidence
 
-- final candidate SHA: `94e87851fd909f3af4fd22b5b3cddc81e8fb10f1` (audit source before this record-only normalization commit)
+- final candidate SHA: `9f7937ac980cbc000e11af2dd19b182b45fd9bc1`
 - PR: pending Leader integration
 - merge SHA: pending Leader integration
 - CI runs: merged baseline `32495546544` / `32495589422` green; final-candidate CI with the explicit restart/resume step pending
