@@ -24,7 +24,10 @@ async fn postgres_18_empty_timeline_snapshot_parity() {
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
-    storage.migrate().await.expect("migrations should be current");
+    storage
+        .migrate()
+        .await
+        .expect("migrations should be current");
 
     let pool = sqlx::PgPool::connect(&database_url)
         .await
