@@ -15,10 +15,13 @@ use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
     TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId,
 };
-use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
+use loom_protocol::{
+    ActionInvocation, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation,
+    WorkSchedule,
+};
 use loom_runtime::{
-    EffectEngine, NewWork, PlatformTime, ProposedEvent, Resolution, Runtime, RuntimeError,
-    SemanticKind, ValidationError, WorkMutation, WorkRecord, WorkSchedule, WorkStatus,
+    EffectEngine, PlatformTime, Runtime, RuntimeError, SemanticKind, ValidationError, WorkRecord,
+    WorkStatus,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
