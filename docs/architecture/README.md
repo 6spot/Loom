@@ -58,15 +58,20 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `core.md` | §2.1, §4.3 | Amendment 0001 §8.3 — Actor/Agent are roles over Entity, not required Core persisted subtypes |
 | `core.md` | §7.3 | Amendment 0001 §8.2 — Trigger is an umbrella; Temporal Trigger = `WorkSchedule::At`, Event Trigger = Reaction → Immediate Work |
 | `core.md` | §8.4 | Amendment 0001 §8.1 — no generic Runtime `Intent` protocol type |
+| `core.md` | §9.2 | Amendment 0001 §2 + Amendment 0002 §3 — work/reaction/compute budget reference is concretized by the reconstructable same-World-Time Chronology Budget contract |
 | `world-runtime.md` | §6.4 | Amendment 0001 §5 — Runtime owns authoritative Event occurrence-time stamp |
 | `world-runtime.md` | §8.1 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
 | `world-runtime.md` | §2.4 | Amendment 0002 §3 — chronology-budget consumption is Timeline Logical State |
+| `world-runtime.md` | §13 | Amendment 0002 §7 — status changed: end-of-document hard invariants are navigation/checklist aids, not an independent specification layer |
 | `runtime-contracts.md` | §9.5, §10.1, §16.1 | Amendment 0001 §5 — Capability does not choose authoritative `occurred_at` |
 | `runtime-contracts.md` | §14.11 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
 | `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 — public API includes Ingress service/domain |
 | `runtime-contracts.md` | §20.2 | Amendment 0001 §7 — Runtime owns Template validation / ValidatedWorldBirthPlan authority |
+| `runtime-contracts.md` | §22 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, not an independent specification layer |
+| `governance.md` | §15 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, subordinate to accepted Amendments and detailed governance sections |
 | `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
 | `implementation.md` | §5.1 | Amendment 0001 §6.2 — public API includes Ingress |
+| `implementation.md` | §6.5, §13 | Amendment 0001 §4 — `SKIP LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
 | `implementation.md` | §12.2, §21.5 | Amendment 0001 §5 — Runtime-stamped Event occurrence time |
 | `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
 | `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
