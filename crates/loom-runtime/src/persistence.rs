@@ -20,15 +20,16 @@ use std::{
 
 use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
-    AssociationRole, EntityId, EventId, EventSeq, RelationshipId, StateRevision, TimelineId,
-    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    AssociationRole, EntityId, EventId, EventSeq, ExecutionSessionId, RelationshipId,
+    StateRevision, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId,
+    WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{BaseWorldSnapshot, BaseWorldView, ValidatedResolution};
+use crate::{BaseWorldSnapshot, BaseWorldView, ResolutionBudget, ValidatedResolution};
 
 /// Executor-neutral future returned by Runtime persistence I/O ports.
 ///
@@ -537,6 +538,13 @@ impl RuntimeRevisionAssembly {
     pub const fn capabilities(&self) -> &BTreeMap<CapabilityId, RuntimeRevisionCapability> {
         &self.capabilities
     }
+
+    /// Looks up the exact implementation selected for one semantic Capability
+    /// in this immutable Session assembly.
+    #[must_use]
+    pub fn capability(&self, capability_id: &CapabilityId) -> Option<&RuntimeRevisionCapability> {
+        self.capabilities.get(capability_id)
+    }
 }
 
 /// Typed incompatibility between an active Runtime Revision and a World
@@ -627,6 +635,327 @@ impl RuntimeRevisionSelection {
     pub const fn activated_at(&self) -> PlatformTime {
         self.activated_at
     }
+}
+
+/// The Runtime-visible source of a root execution.
+///
+/// Origin is execution metadata, not a World actor, Event payload or
+/// authorization grant. The value is pinned into one Session before semantic
+/// resolution begins. Work and Template bootstrap roots use `Runtime` until
+/// their later target-specific public contracts provide a richer origin value.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum ExecutionOrigin {
+    /// A direct application/API Action request.
+    Application,
+    /// A durable external envelope. The M8 Ingress contract supplies this
+    /// origin when that boundary is implemented.
+    Ingress,
+    /// An explicitly operator-authorized execution.
+    Operator,
+    /// A Runtime-owned root such as Durable Work or Template bootstrap.
+    Runtime,
+}
+
+/// Immutable exact software and World contract used by one root Session.
+///
+/// This value is constructed only by Runtime after one coherent Timeline read,
+/// one World Runtime Binding read and one active Runtime Revision selection.
+/// It is passed by shared reference to root dispatch and every subresolution;
+/// no child may re-select the active revision or mutate the Binding. The
+/// `ResolutionBudget` is the currently defined v0 execution policy. Entropy,
+/// Agency and provider references are added by their later architecture tasks
+/// when those host contracts exist.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ExecutionAssembly {
+    session_id: ExecutionSessionId,
+    world_id: WorldId,
+    timeline_id: TimelineId,
+    expected_version: TimelineVersion,
+    world_time: WorldInstant,
+    binding: WorldRuntimeBinding,
+    runtime_revision: RuntimeRevisionSelection,
+    implementations: RuntimeRevisionAssembly,
+    execution_policy: ResolutionBudget,
+}
+
+impl ExecutionAssembly {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "constructor mirrors the frozen Execution Assembly fields"
+    )]
+    pub(crate) fn new(
+        session_id: ExecutionSessionId,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        expected_version: TimelineVersion,
+        world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        runtime_revision: RuntimeRevisionSelection,
+        implementations: RuntimeRevisionAssembly,
+        execution_policy: ResolutionBudget,
+    ) -> Self {
+        Self {
+            session_id,
+            world_id,
+            timeline_id,
+            expected_version,
+            world_time,
+            binding,
+            runtime_revision,
+            implementations,
+            execution_policy,
+        }
+    }
+
+    /// Returns the Session identity owning this assembly.
+    #[must_use]
+    pub const fn session_id(&self) -> ExecutionSessionId {
+        self.session_id
+    }
+
+    /// Returns the pinned World identity.
+    #[must_use]
+    pub const fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    /// Returns the pinned Timeline identity.
+    #[must_use]
+    pub const fn timeline_id(&self) -> TimelineId {
+        self.timeline_id
+    }
+
+    /// Returns the `TimelineVersion` used for reads and the later commit CAS.
+    #[must_use]
+    pub const fn expected_version(&self) -> TimelineVersion {
+        self.expected_version
+    }
+
+    /// Returns the World Time observed at Session start.
+    #[must_use]
+    pub const fn world_time(&self) -> WorldInstant {
+        self.world_time
+    }
+
+    /// Returns the immutable World Runtime Binding pinned for this Session.
+    #[must_use]
+    pub const fn binding(&self) -> &WorldRuntimeBinding {
+        &self.binding
+    }
+
+    /// Returns the active Runtime Revision snapshot pinned for this Session.
+    #[must_use]
+    pub const fn runtime_revision(&self) -> &RuntimeRevisionSelection {
+        &self.runtime_revision
+    }
+
+    /// Returns the exact compatible Capability implementations pinned for this
+    /// Session.
+    #[must_use]
+    pub const fn implementations(&self) -> &RuntimeRevisionAssembly {
+        &self.implementations
+    }
+
+    /// Returns the immutable Runtime execution policy pinned for this Session.
+    #[must_use]
+    pub const fn execution_policy(&self) -> ResolutionBudget {
+        self.execution_policy
+    }
+}
+
+/// Lifecycle state of one persisted Runtime execution Session.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum ExecutionSessionStatus {
+    /// The assembly was persisted and semantic execution is in flight.
+    Started,
+    /// The root reached a successful Runtime commit (including no-change
+    /// logical completion where the root had no semantic mutation).
+    Committed,
+    /// The Capability returned a normal semantic rejection.
+    Rejected,
+    /// Runtime or persistence authority rejected the technical execution.
+    Failed,
+}
+
+impl ExecutionSessionStatus {
+    /// Reports whether the Session has reached a terminal lifecycle state.
+    #[must_use]
+    pub const fn is_terminal(self) -> bool {
+        !matches!(self, Self::Started)
+    }
+}
+
+/// Minimum durable Session lifecycle/provenance record.
+///
+/// The record intentionally stores the complete pinned assembly and only the
+/// lifecycle fields required by M4. Rich `ReadSet`, call, entropy and cognition
+/// evidence remains a later M9/M10 concern. A record is Platform History and
+/// never a World Event or Timeline logical state transition.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ExecutionSession {
+    id: ExecutionSessionId,
+    origin: ExecutionOrigin,
+    assembly: ExecutionAssembly,
+    started_at: PlatformTime,
+    status: ExecutionSessionStatus,
+    ended_at: Option<PlatformTime>,
+}
+
+impl ExecutionSession {
+    pub(crate) fn new(
+        id: ExecutionSessionId,
+        origin: ExecutionOrigin,
+        assembly: ExecutionAssembly,
+        started_at: PlatformTime,
+    ) -> Self {
+        Self {
+            id,
+            origin,
+            assembly,
+            started_at,
+            status: ExecutionSessionStatus::Started,
+            ended_at: None,
+        }
+    }
+
+    /// Returns the stable Runtime Session identity.
+    #[must_use]
+    pub const fn id(&self) -> ExecutionSessionId {
+        self.id
+    }
+
+    /// Returns the pinned root origin.
+    #[must_use]
+    pub const fn origin(&self) -> ExecutionOrigin {
+        self.origin
+    }
+
+    /// Returns the immutable Execution Assembly.
+    #[must_use]
+    pub const fn assembly(&self) -> &ExecutionAssembly {
+        &self.assembly
+    }
+
+    /// Returns the platform metadata captured when the Session was persisted.
+    #[must_use]
+    pub const fn started_at(&self) -> PlatformTime {
+        self.started_at
+    }
+
+    /// Returns the current lifecycle state.
+    #[must_use]
+    pub const fn status(&self) -> ExecutionSessionStatus {
+        self.status
+    }
+
+    /// Returns the terminal platform timestamp, when the Session ended.
+    #[must_use]
+    pub const fn ended_at(&self) -> Option<PlatformTime> {
+        self.ended_at
+    }
+
+    /// Returns a terminal copy used by persistence adapters at the lifecycle
+    /// transition linearization point.
+    ///
+    /// # Errors
+    ///
+    /// A terminal Session cannot be transitioned a second time, because doing
+    /// so would hide the first execution outcome in the provenance ledger.
+    pub fn finish(
+        &self,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> Result<Self, SessionError> {
+        if !status.is_terminal() {
+            return Err(SessionError::InvalidTransition {
+                session_id: self.id,
+                from: self.status,
+                to: status,
+            });
+        }
+        if self.status != ExecutionSessionStatus::Started {
+            return Err(SessionError::InvalidTransition {
+                session_id: self.id,
+                from: self.status,
+                to: status,
+            });
+        }
+        let mut finished = self.clone();
+        finished.status = status;
+        finished.ended_at = Some(ended_at);
+        Ok(finished)
+    }
+}
+
+/// Typed failures at the Runtime execution Session persistence boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SessionError {
+    /// A Session identity was already persisted.
+    SessionAlreadyExists { session_id: ExecutionSessionId },
+    /// The requested Session identity is absent.
+    SessionNotFound { session_id: ExecutionSessionId },
+    /// A lifecycle transition would overwrite a terminal outcome.
+    InvalidTransition {
+        session_id: ExecutionSessionId,
+        from: ExecutionSessionStatus,
+        to: ExecutionSessionStatus,
+    },
+    /// The persistence authority could not complete the Session operation.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for SessionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SessionAlreadyExists { session_id } => {
+                write!(formatter, "Execution Session {session_id} already exists")
+            }
+            Self::SessionNotFound { session_id } => {
+                write!(formatter, "Execution Session {session_id} was not found")
+            }
+            Self::InvalidTransition {
+                session_id,
+                from,
+                to,
+            } => write!(
+                formatter,
+                "Execution Session {session_id} cannot transition from {from:?} to {to:?}"
+            ),
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for SessionError {}
+
+/// Runtime-owned Platform History port for Session lifecycle records.
+///
+/// Implementations must persist the immutable assembly supplied at start and
+/// linearize exactly one terminal transition. Session operations never append
+/// World Events, advance World Time or mutate World Runtime Binding.
+pub trait ExecutionSessionStore {
+    /// Persists one newly started Session before semantic dispatch begins.
+    fn start_session(
+        &self,
+        session: ExecutionSession,
+    ) -> PersistenceFuture<'_, Result<(), SessionError>>;
+
+    /// Persists one terminal Session lifecycle transition.
+    fn finish_session(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>>;
+
+    /// Reads one Session record for audit/restart linkage.
+    fn read_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>>;
+
+    /// Reads all Session records in deterministic identity order.
+    fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>>;
 }
 
 /// Errors from the immutable Runtime Revision and active-selection port.

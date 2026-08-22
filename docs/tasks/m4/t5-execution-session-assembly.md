@@ -1,10 +1,10 @@
 ---
 task: M4-T5
 issue: 150
-status: planned
+status: in_review
 depends_on: [147, 149]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-22
 completed_at:
 completion_pr:
 merge_sha:
@@ -41,8 +41,17 @@ Architecture basis: `world-runtime.md` Execution Session; Amendment 0002 §5; Am
 
 ## Verification evidence
 
-Pending.
+- `python3 tools/check_architecture.py` → `Loom architecture dependency policy: OK`.
+- `cargo fmt --all -- --check` → passed.
+- `cargo check --workspace --all-targets --all-features` → passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed.
+- `cargo test --workspace --all-targets --all-features` → passed; PostgreSQL integration fixtures return early when `LOOM_TEST_POSTGRES_URL` is unset.
+- `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps` → passed.
+- InMemory Session/Assembly fixtures → direct Action/subresolution keeps one Application Session, active-revision switching keeps the original revision/implementation, Template bootstrap records Runtime origin, and missing Work software leaves attempt count/lease/session unchanged.
+- PostgreSQL Session/restart fixture → compiles and asserts Template/Action/Work lifecycle records survive adapter restart; live PostgreSQL execution remains pending the configured database URL.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
+- 2026-08-22 — Started Runtime-owned Session/Assembly implementation after M4-T4 revision ledger became available; Ingress remains the later M8 public boundary.
+- 2026-08-22 — Added Runtime-owned immutable Session/Assembly lifecycle, InMemory/PostgreSQL persistence, root wiring, active-revision and missing-Work fixtures; local gates pass and the task is awaiting acceptance.
