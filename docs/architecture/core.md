@@ -1,8 +1,10 @@
 # Loom Core v0 Conceptual Closure
 
-> Status: **closure review passed; Core v0 conceptual boundary frozen by default.**
+> Status: **closure review updated by World Runtime Closure; Core v0 conceptual boundary remains frozen by default after this correction.**
 >
 > 本文定义 Loom Core 的最小概念闭包。它不是实现规格，而是回答：**哪些机制必须属于 Core，哪些语义必须留在 Capability 之外。**
+>
+> World Runtime Binding、World Time progression、Logical Commit 与 software execution binding 的完整交叉契约见 `world-runtime.md`。
 
 ## 1. Admission Rule
 
@@ -32,7 +34,7 @@ Loom Core
 └── 8. Capability Host
 ```
 
-这些职责域内部既包含 **World Primitives**，也包含 **Runtime Facilities / Protocols**。属于 Core 不代表它一定是世界中的一个一等对象。
+这些职责域内部既包含 **World Primitives**，也包含 **Runtime Facilities / Protocols**。属于 Core 不代表它一定是世界中的一个一等对象或一定物理放在 `loom-core` crate。
 
 ### 2.1 World Primitives
 
@@ -56,6 +58,8 @@ World Time
 主要包括：
 
 ```text
+World Runtime Binding mechanism
+Timeline Logical Commit
 Scheduler / Trigger
 Durable Work
 Execution Policy / Strategy
@@ -68,14 +72,19 @@ Execution Session / Provenance
 Capability Host
 ```
 
+`World Runtime Binding` 与 `Timeline Logical Commit` 是 closure mechanism，不代表必须创造一个可被领域代码直接操纵的巨大 Core object。
+
 ## 3. World & Timeline
 
 World 是长期存在的世界身份与运行边界。
 
-Timeline 是一个 World 中的一条权威历史分支。每条 Timeline 只有一份权威 Event Ledger。
+一个 World 除了稳定 identity，还拥有长期的 **World Runtime Binding**：它规定 Runtime 未来允许为该 World 使用哪些 Capability semantic domains。Binding 属于 World-level runtime metadata，不是某条 Timeline 的领域 State，也不是 exact software implementation pin。
+
+Timeline 是一个 World 中的一条权威历史分支。每条 Timeline 只有一份权威 Event Ledger，并拥有自己的 World Time 与 logical future state。
 
 ```text
 World
+├── Runtime Binding        # shared by Timelines
 ├── Main Timeline
 ├── Scenario Timeline
 └── Counterfactual Timeline
@@ -95,17 +104,21 @@ Trajectory 是 Projection / Index，不是第二套 Ledger。
 
 ### 3.2 Fork
 
-Fork Point 之前的 committed history 是共享祖先；Fork 时的逻辑 State 和 Pending Work 被继承到新分支，之后各自独立演化。
+Fork Point 之前的 committed history 是共享祖先；Fork 时的 materialized State、World Time 和 Pending Work 被继承到新分支，之后各自独立演化。
 
 ```text
-Identity       = same existing World identity
-Past           = shared ancestry
-Current State  = initially equivalent
-Pending Future = inherited
-Future Outcome = independent
+World Identity        = same
+World Runtime Binding = same
+Past                  = shared ancestry
+Current State         = initially equivalent
+World Time            = copied from fork point
+Pending Future        = inherited with branch-local Work identity
+Future Outcome        = independent
 ```
 
-Fork 后 Runtime State 必须逻辑隔离，不能让一个 Timeline 对 Work 的取消或修改影响另一个 Timeline。
+Fork 后 Timeline logical state 必须隔离，不能让一个 Timeline 对 Work、World Time 或 State 的变化影响 sibling Timeline。
+
+World Runtime Binding 默认属于 World，不因 Fork 分裂。
 
 ## 4. Identity & Structure
 
@@ -131,7 +144,7 @@ World Entity       # stable identity in one World
 Timeline State     # mutable reality in one Timeline
 ```
 
-> **Identity belongs to World; mutable State belongs to Timeline.**
+> **Identity belongs to World; mutable semantic State belongs to Timeline.**
 
 同一个 World Entity 在不同 Timeline 上仍然是同一个 Identity，只是经历、关系、状态、认知和未来轨迹不同。
 
@@ -165,7 +178,7 @@ Core State 表示某条 Timeline 的当前现实投影。
 
 ```text
 Entity / Relationship
-└── Timeline State
+└── Timeline Materialized State
     ├── Facet A
     ├── Facet B
     └── Facet C
@@ -175,66 +188,113 @@ Capability 定义 Facet schema、语义、校验和领域 transition；Core 负�
 
 Capability 不能直接修改 State。
 
+### 5.1 Do not call every persisted value “World State”
+
+至少区分：
+
+```text
+Materialized World State
+= Entity / Relationship / Facets
+
+Timeline Logical State
+= World Time / logical Durable Work / logical revision / ancestry
+
+Platform Operational State
+= lease / fence / retry / worker bookkeeping
+```
+
+Materialized semantic State、Timeline logical state 和 Platform operational state 具有不同 authority rule，不能用一个通用 mutation API 混在一起。
+
 ## 6. History: Intent / Event / Effect
 
-Core 的第一运行公理：
+Core 的第一运行公理需要精确定义为：
 
-> **No mutation without a committed Event.**
+> **No semantic World State mutation without a committed Event.**
 >
-> 世界状态不能被直接修改；任何真实变化都必须先成为该 Timeline 上的历史。
+> Entity / Relationship / Facet 等世界语义状态不能被直接修改；任何这类真实变化都必须先成为该 Timeline 上的 committed history，并由该 Event 的 frozen Effects 解释。
+
+这条原则**不要求**把 World Time advancement、Durable Work lifecycle、fork metadata、lease/retry 等 Runtime-owned state 伪造成领域 Event。
 
 严格区分：
 
 - **Intent**：Actor 想尝试什么；
 - **Action Attempt**：一次具体尝试，可被追踪；
-- **Event**：Runtime 已承认并提交的历史事实；
-- **Effect**：该 Event 对 Timeline State 的已解析、确定性变化。
+- **Event**：Runtime 已承认并提交的世界历史事实；
+- **Effect**：该 Event 对 materialized semantic State 的已解析、确定性变化；
+- **Logical Transition**：Runtime 对 World Time / logical Work 等 Timeline execution state 的可重建变化；
+- **Operational Mutation**：lease/retry 等只服务平台可靠性的变化。
 
 ```text
 Intent / Proposal
       ↓
     Resolve
       ↓
-Resolved Outcome + Effects
+Resolved Outcome + Effects / Work
       ↓
    Validate
       ↓
-Atomic Commit
-      ↓
-Event Ledger
-      ↓
-Materialized State
+Runtime Logical Commit
+      ├── append Event(s)
+      ├── apply Event Effects
+      ├── mutate logical Work
+      └── optionally advance World Time
 ```
 
 Event Ledger append-only。Commit 后 Replay 直接应用 committed Event / Effects，不重新随机、不重新调用模型、不重新决定历史。
 
 Direct Effect 与 downstream Reaction 分离。后续影响通过新的 Work / Intent / Event 形成因果链。
 
-World Event Ledger 与技术日志、Runtime Audit、Platform Change History 严格分离。
+World Event Ledger、Timeline Logical Journal、技术日志、Runtime Audit、Platform Change History 严格分离。
 
 ## 7. Time: Past / Present / Future
 
-Core 使用 WorldClock，不依赖操作系统当前时间作为世界语义。
+World Time 是 Timeline-local 的显式语义坐标，不依赖操作系统当前时间，也不由 Event timestamp 反推。
 
-Timeline 运行结构分成三类：
+Timeline 运行结构至少分成四类：
 
 ```text
-Event Ledger = determined past
-State        = current reality
-Durable Work = unresolved future execution
+Event Ledger           = determined semantic past
+Materialized State     = current semantic reality
+World Time              = current semantic time coordinate
+Durable Work            = unresolved future execution
 ```
 
 > **A scheduled future is not a future fact.**
 
 Durable Work 只表达“未来需要 Runtime 再处理一次”，不能预先冻结未来结果。
 
-### 7.1 Durable Work
+### 7.1 World Time progression
+
+World Time 必须单调，并通过 Runtime authority 的显式 logical transition 前进：
+
+```text
+AdvanceWorldTime(T_current -> T_next)
+```
+
+不能使用以下隐式模型：
+
+```text
+world_time = max(committed_event.occurred_at)
+```
+
+否则 Future Work 会出现无法自驱到期的闭环缺口。
+
+World Time advancement：
+
+- 不要求伪造领域 Event；
+- 必须持久化为可 replay/fork 的 Timeline logical history；
+- 必须参与 TimelineVersion/CAS；
+- 不得由 PlatformClock、lease expiry 或 retry backoff 偷偷触发。
+
+新 Event 在 Resolver 所读取的 pinned World Time 上发生；Event timestamp 不能“顺便把 clock 推到未来”。领域 source/effective/historical time 若不同，应由明确领域 semantics 表达。
+
+### 7.2 Durable Work
 
 Durable Work 是某条 Timeline 上持久、可恢复的 Runtime 执行义务。它至少应具备：
 
 - stable work identity；
 - Timeline isolation；
-- due time / trigger；
+- due World Time / trigger；
 - handler reference；
 - causal / correlation references；
 - cancellation / supersession；
@@ -245,9 +305,16 @@ Durable Work 是某条 Timeline 上持久、可恢复的 Runtime 执行义务。
 
 Work 可以重复投递，但 world mutation 不能重复。最终一致性防线仍然是 Runtime Commit。
 
-### 7.2 Scheduler / Trigger
+Logical Work transition 属于 Timeline logical history；claim/lease/retry/backoff 属于 Platform operational state。
 
-Scheduler 不理解领域语义，只负责在 World Time 到达时重新产生 Work。
+### 7.3 Scheduler / Trigger
+
+Scheduler 不理解领域语义，但必须同时处理两个不同问题：
+
+```text
+1. current World Time 下是否已有 due Work？
+2. 若没有，当前 Runtime/Application policy 是否应该显式推进 World Time？
+```
 
 Core 至少支持：
 
@@ -255,6 +322,8 @@ Core 至少支持：
 Temporal Trigger  → at/after World Time T
 Event Trigger     → when matching committed Event occurs
 ```
+
+任何自动时间策略最后都必须收敛到同一个 explicit `AdvanceWorldTime` authority transition；不能把 Platform Time 当 WorldClock。
 
 跨时间、多阶段的 `Hiring / Travel / Settlement / Quest / CourtCase` 等 Process 不成为 Core Primitive；Capability 使用 State + Event + Durable Work + Trigger 组合出自己的持续流程。
 
@@ -319,6 +388,18 @@ Hybrid
 
 Cognitive Provider 只能基于 Runtime 准备好的受限 Context 产生 Decision / Intent，不能直接读取 World repository、Commit Event 或修改 State。
 
+v0 标准 mutation path 是：
+
+```text
+Cognition
+  ↓
+Decision::Act(ActionInvocation) / NoAction
+  ↓
+normal Runtime + Capability authority
+```
+
+任意 Capability Resolver 默认不获得 generic network/provider handle；如果未来确实需要外部 inference，必须设计新的 explicit host/provenance/replay contract。
+
 ## 9. Runtime
 
 Loom Runtime 是 **event-driven + demand-driven + world-time-aware** 的可恢复执行器，而不是固定 Tick 扫描器。
@@ -347,11 +428,15 @@ Result / Intent / New Work
 
 一个 World 可以完全确定性运行，也可以直接使用 Cognition，或采用混合、并行、多阶段执行策略。
 
-### 9.2 Runtime Commit Authority
+World 的运行节奏 policy 与 World Time authority mechanism 分离：Policy 可以决定何时请求 time advancement，但不能绕过 explicit logical transition。
 
-只有 Runtime 可以 Commit World Event。
+### 9.2 Runtime Authority
 
-Resolution 可以并行，但 Commit 是 Timeline State mutation 的唯一线性化点。并发冲突必须失败、重试或重新 Resolve，不能产生互相矛盾的双重成功。
+只有 Runtime 可以 Commit World Event，也只有 Runtime authority 可以改变 Timeline logical state。
+
+Resolution 可以并行，但 Commit 是 semantic State mutation 的唯一线性化点。并发冲突必须失败、重试或重新 Resolve，不能产生互相矛盾的双重成功。
+
+Timeline logical state 的 World Time / Work transition 同样必须经过 expected TimelineVersion/CAS 的 Runtime-owned logical commit。
 
 Reaction 不得递归直接修改世界，应产生新的 Work 并重新进入 Runtime，受 work/reaction/compute budgets 控制。
 
@@ -359,7 +444,9 @@ Reaction 不得递归直接修改世界，应产生新的 Work 并重新进入 R
 
 > **World persists; runtime execution is resumable.**
 
-持续 World 不等于永久 `while(true)` 进程。State、Timeline、Durable Work 和 Trigger 持久存在；Runtime Compute 可以停止并稍后继续。
+持续 World 不等于永久 `while(true)` 进程。Materialized State、Timeline logical state、Durable Work 和 Trigger 持久存在；Runtime Compute 可以停止并稍后继续。
+
+World Time advancement 与 Work execution 是可恢复边界：Runtime 可以先持久推进时间，随后崩溃；重启后仍必须从新的 World Time 继续处理 due Work。
 
 ## 10. Rule / Validation Kernel
 
@@ -373,7 +460,18 @@ Law / Policy / Norm
 Enforcement / Reaction
 ```
 
-只有少量 Runtime Invariant 必须阻止 Commit，例如身份一致性、Timeline isolation、event sequencing、schema integrity、atomicity、referential integrity。
+只有少量 Runtime Invariant 必须阻止 Commit，例如：
+
+```text
+identity consistency
+Timeline isolation
+World Runtime Binding enforcement
+World Time monotonicity
+Event sequencing
+schema integrity
+atomicity
+referential integrity
+```
 
 违法、违规、违背政策或社会规范通常仍然可以成为真实 Event。
 
@@ -401,7 +499,9 @@ runtime authorization context
 
 Ingress acceptance 只表示 Runtime 接受了输入，不代表输入内容已经成为 World Truth。
 
-Capability 负责解释领域语义；Runtime 最终仍通过 Event Commit 改变世界。
+Ingress source/platform time metadata 不会自动推进 Timeline World Time。若某种 real-world mirror policy 要将外部时间映射到 World Time，必须通过显式 World Time advancement authority transition。
+
+Capability 负责解释领域语义；Runtime 最终仍通过 Event Commit 改变 semantic World State。
 
 ### 11.2 Feedback / World Change Feed
 
@@ -421,38 +521,58 @@ Feedback 是只读观察边界，不因 subscriber success/failure 改变 World�
 
 ## 12. Explicit nondeterminism
 
-任何可能影响 World Truth 的不确定来源都必须通过明确的 Core execution boundary 进入，不能隐藏在 Capability 实现内部。
+任何可能影响 World Truth 的不确定来源都必须通过明确的 execution boundary 进入，不能隐藏在 Capability 实现内部。
 
 ```text
-world time      → WorldClock
-randomness      → Entropy Source
+world time      → explicit Runtime World-Time transition
+randomness      → Runtime Entropy Source
 external input  → Ingress
-cognition       → Cognitive Executor
+cognition       → Agency Cognitive Executor
 domain logic    → registered Resolver / Evaluator
 ```
 
 Capability 不应通过系统时间、隐藏 `random()`、私自模型调用或外部 API 查询偷偷改变 Resolution。
 
-历史确定性来自 committed Event，而不是要求当初的计算过程绝对可重复。
+Capability 读取 pinned `BaseWorldView.world_time()`，而不是读取 PlatformClock。
+
+历史确定性来自 committed Event/Effects + Timeline logical history，而不是要求当初的计算过程绝对可重复。
 
 > **Historical replay applies committed history; re-simulation recomputes an alternative future.**
 
 ## 13. Execution Session & Provenance
 
-一次 Work 真正开始处理时形成 **Execution Session**，并绑定当时激活的 Runtime Revision / implementation references。
+每一个可能形成 World Truth 的 root execution 都形成 **Execution Session**。
 
-Session 一旦开始不在中途切换 Runtime Revision；未来尚未开始的 Durable Work 在实际执行时使用当时当前引擎。
+Session 开始时至少 pin：
+
+```text
+World / Timeline target
+input TimelineVersion
+World Runtime Binding revision/hash
+active Runtime Revision
+exact compatible Capability implementation refs
+execution policy revision
+controlled entropy/cognition environment where used
+```
+
+这组冻结值构成该 Session 的 Execution Assembly。
+
+Session 一旦开始不在中途切换 Runtime Revision 或 Capability implementation；subresolution 继承同一 execution environment。
+
+尚未开始的 Durable Work 在真正执行时才绑定当时 active 且满足目标 World Runtime Binding 的 compatible implementations。
 
 Execution Provenance 可以记录：
 
 ```text
 execution_session_id
 runtime_revision
+world runtime binding ref/hash
 capability implementation refs
 execution policy revision
 input state revision
 world time
-ingress refs
+ingress / work / agent refs
+ReadSet / call graph
 entropy refs
 cognitive executor refs
 result / event refs
@@ -460,7 +580,7 @@ result / event refs
 
 这些属于 Runtime Audit / operator provenance，默认不进入 Agent Context，也不是 World Event。
 
-软件变化本身记录在独立 Runtime Change Ledger 中。World 不执行“upgrade to revision”；新的执行自然运行在当前已激活引擎上。
+软件变化本身记录在独立 Runtime Change Ledger 中。World 不执行“upgrade to revision”；新的执行自然运行在当前已激活且 compatible 的引擎上。
 
 ## 14. Capability Host
 
@@ -469,12 +589,19 @@ Extensibility 本身属于 Core，具体领域能力不属于 Core。
 Capability Host 最小职责：
 
 ```text
-Discover
-Validate
-Bind
-Invoke
-Identify implementation
+Discover installed implementations
+Validate registry/dependencies
+Bind semantic owner
+Enforce target World Runtime Binding
+Invoke through controlled host context
+Identify exact implementation in Execution Provenance
 ```
+
+必须明确：
+
+> **Installed Capability != enabled Capability for a World.**
+
+Global registry / active Runtime Revision 表示软件 availability；World Runtime Binding 才表示目标 World 是否允许该 semantic domain。
 
 Capability 可以贡献：
 
@@ -488,12 +615,14 @@ Capability 可以贡献：
 
 Capability 可以定义世界语义，但绝不能：
 
-- 直接修改 Timeline State；
+- 直接修改 Timeline semantic State；
+- 直接推进 World Time；
 - 直接写 Event Ledger；
 - 绕过 Runtime Commit；
 - 私自启动另一个 World loop；
 - 越过 Agent cognition boundary；
-- 隐藏影响 World Truth 的 nondeterminism。
+- 隐藏影响 World Truth 的 nondeterminism；
+- 因为“已经安装”就绕过目标 World Binding。
 
 ## 15. Closure Review
 
@@ -508,6 +637,13 @@ Mechanical Market Simulation
 
 结果：四种 World 都可以由当前 Core 闭环，且没有要求把 Human、Institution、Information Model、Goal、Emotion、Combat、Money、Workflow 或 LLM-specific Agent 等领域概念塞进 Kernel。
 
+本次 World Runtime Closure Review 进一步确认：此前缺失的不是新领域 Primitive，而是两个跨领域运行机制必须显式冻结：
+
+```text
+World Runtime Binding
+Timeline Logical Commit / explicit World Time progression
+```
+
 Review 过程中确认的关键边界：
 
 - `Process` 是 Capability semantic pattern；Core 提供 Durable Work / Trigger。
@@ -516,9 +652,14 @@ Review 过程中确认的关键边界：
 - `Fast/Cognitive` 是可选执行策略，不是固定线路。
 - 外部输出使用 Feedback / Change Feed，不在 Core 中直接执行现实副作用。
 - 平台软件历史与 World Timeline 分离，通过 Execution Provenance 关联。
+- Runtime 中安装 Capability 不代表所有 World 启用它；World 持有自己的 Runtime Binding。
+- World Runtime Binding 表达 semantic requirement，不永久 pin exact software implementation。
+- World Time 是 Timeline logical state，必须显式、单调、可重建地推进。
+- Event 不负责隐式推动 World Time；Platform Time 更不能推动 World Time。
+- `No mutation without Event` 精确收窄为 `No semantic World State mutation without Event`；logical time/work transition 使用 Runtime logical commit。
 
 因此：
 
-> **Loom Core v0 Conceptual Closure Review: PASSED.**
+> **Loom Core v0 Conceptual Closure Review: PASSED AFTER WORLD RUNTIME CLOSURE CORRECTION.**
 
 从此 Core 默认冻结。新增 Core 概念必须重新通过 Admission Rule；能通过现有 Core + Capability 表达的能力，默认拒绝进入 Kernel。
