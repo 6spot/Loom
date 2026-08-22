@@ -2,7 +2,7 @@
 
 > Status: **normative document authority map for Loom v0.**
 >
-> 本文不重复具体 Runtime/World 规则。它只回答三个问题：**哪份文档对什么主题有最终解释权、发生冲突时如何裁决、当前有哪些正式 Amendment / deferred decisions。**
+> 本文不重复具体 Runtime/World 规则。它只回答四个问题：**哪份文档对什么主题有最终解释权、发生冲突时如何裁决、哪些 frozen 条款已被 Amendment 取代、当前有哪些 deferred decisions。**
 
 ## 1. Document authority
 
@@ -22,28 +22,56 @@ Loom 不再把多份“规则摘要”视为彼此独立的规范源。每个主
 
 `principles.md` is explanatory philosophy, **not an independent numbered normative rule set**. `AGENTS.md` is an execution guardrail/index, **not an independent architecture specification**. Root `README.md` is a navigation/status surface.
 
+Within a canonical document, end-of-document invariant/acceptance summaries are navigation/checklist aids. They do not outrank that document's detailed topic sections or accepted Amendments.
+
 ## 2. Precedence
 
 When two documents appear inconsistent, apply this order:
 
 1. A later accepted Architecture Amendment overrides the exact baseline clauses it names.
-2. For Rust dependency direction, public exposure and authority type placement, `governance.md` wins.
-3. For a topic owned by one canonical document in the table above, that canonical document wins over summaries elsewhere.
+2. For Rust dependency direction, public exposure and authority type placement, `governance.md` wins unless an accepted Amendment explicitly changes those rules.
+3. For a topic owned by one canonical document in the table above, that canonical detailed topic section wins over summaries elsewhere.
 4. `glossary.md` controls terminology only; it does not create Runtime authority by itself.
 5. `implementation.md` may choose a realization only inside the semantic/authority constraints defined by the architecture documents.
-6. `principles.md`, `AGENTS.md`, README summaries and examples never override canonical contracts.
+6. End-of-document summary/checklist sections do not create another specification layer.
+7. `principles.md`, `AGENTS.md`, README summaries and examples never override canonical contracts.
 
 A conflict must be fixed in documentation before implementation. Do not silently choose whichever sentence is convenient.
 
-## 3. Frozen baseline and amendments
+## 3. Frozen baseline and accepted amendments
 
 The Loom v0 World Runtime baseline was frozen at commit `a2238f05e649dc30ce21da1e1cb321bc2784e895`.
 
-Accepted amendments are part of the baseline from their merge point onward:
+Accepted amendments are part of the current baseline from their merge point onward:
 
 - `amendments/0001-runtime-liveness-and-boundaries.md` — Work failure exit, same-World-Time liveness budget, scheduler driver ownership, `SKIP LOCKED` scope, Event occurrence-time ownership, Ingress contract, Template technical placement and terminology reconciliation.
+- `amendments/0002-supersession-and-authority-linkage.md` — exact supersession mapping, one claimability contract, Chronology Budget authority placement, current CI baseline, missing-implementation observability and Amendment linkage rules.
 
 A frozen document does not mean “never change.” It means changes are explicit, reviewable Amendments rather than silent edits that make history impossible to audit.
+
+### 3.1 Reverse supersession lookup
+
+Before using a frozen baseline section as an implementation requirement, check this table.
+
+| Baseline document | Affected sections | Current authority |
+| --- | --- | --- |
+| `core.md` | §2.1, §4.3 | Amendment 0001 §8.3 — Actor/Agent are roles over Entity, not required Core persisted subtypes |
+| `core.md` | §7.3 | Amendment 0001 §8.2 — Trigger is an umbrella; Temporal Trigger = `WorkSchedule::At`, Event Trigger = Reaction → Immediate Work |
+| `core.md` | §8.4 | Amendment 0001 §8.1 — no generic Runtime `Intent` protocol type |
+| `world-runtime.md` | §6.4 | Amendment 0001 §5 — Runtime owns authoritative Event occurrence-time stamp |
+| `world-runtime.md` | §8.1 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `world-runtime.md` | §2.4 | Amendment 0002 §3 — chronology-budget consumption is Timeline Logical State |
+| `runtime-contracts.md` | §9.5, §10.1, §16.1 | Amendment 0001 §5 — Capability does not choose authoritative `occurred_at` |
+| `runtime-contracts.md` | §14.11 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 — public API includes Ingress service/domain |
+| `runtime-contracts.md` | §20.2 | Amendment 0001 §7 — Runtime owns Template validation / ValidatedWorldBirthPlan authority |
+| `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
+| `implementation.md` | §5.1 | Amendment 0001 §6.2 — public API includes Ingress |
+| `implementation.md` | §12.2, §21.5 | Amendment 0001 §5 — Runtime-stamped Event occurrence time |
+| `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
+
+The full clause-by-clause explanation lives in Amendment 0002 §1. If a row appears here, the frozen text is historical context, **not current executable acceptance criteria by itself**.
 
 ## 4. Open questions registry
 
@@ -64,6 +92,7 @@ These are intentionally not architecture blockers:
 - scheduler poll cadence/worker count;
 - exact public authorization model for Runtime Admin operations;
 - dependency patch/minor versions not required by semantic compatibility;
+- macOS CI restoration timing / exact cross-platform validation matrix;
 - dynamic per-World Capability migration/hot-plug.
 
 If one of these begins to affect semantic authority, replay/fork, deterministic ordering, World Binding or public contract ownership, promote it to an Architecture Amendment before implementation.
@@ -100,13 +129,19 @@ problem / counterexample
         ↓
 Architecture Amendment
         ↓
-update canonical source later when re-baselining is useful
+exact affected-clause index
         ↓
-update glossary/index references if terminology or ownership changed
+update Architecture Index reverse supersession table
+        ↓
+update glossary if terminology/authority meaning changed
         ↓
 re-plan implementation
         ↓
 code
 ```
+
+Every accepted Amendment that supersedes or materially augments frozen text must name the exact document + section locations it affects.
+
+Frozen baseline files may remain unchanged to preserve the historical snapshot; in that case the Amendment + this reverse supersession index are mandatory and must be consulted before converting baseline clauses into tasks.
 
 Do not edit Issues/tasks/code first and backfill architecture later.
