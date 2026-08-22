@@ -642,6 +642,139 @@ impl FacetValue {
 /// state.
 pub type FacetSnapshot = FacetValue;
 
+/// A Runtime-mediated request for a number of entropy bytes.
+///
+/// The request is data in the Capability host contract. It is not a random
+/// number generator, provider client or platform resource. Runtime validates
+/// the requested size against the pinned execution policy before invoking its
+/// configured source.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct EntropyRequest {
+    byte_count: usize,
+}
+
+impl EntropyRequest {
+    /// Creates a request for `byte_count` bytes from the Runtime host.
+    #[must_use]
+    pub const fn new(byte_count: usize) -> Self {
+        Self { byte_count }
+    }
+
+    /// Returns the number of bytes requested from the host.
+    #[must_use]
+    pub const fn byte_count(&self) -> usize {
+        self.byte_count
+    }
+}
+
+/// Opaque-to-the-source result data returned by a mediated entropy request.
+///
+/// A sample contains bytes only. It does not expose the configured source,
+/// its state, a random-number generator or any other platform authority to a
+/// Capability implementation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct EntropySample(Vec<u8>);
+
+impl EntropySample {
+    /// Creates a host-owned sample value.
+    #[must_use]
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    /// Returns the sampled bytes for semantic interpretation by the caller.
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Consumes the sample and returns its byte payload.
+    #[must_use]
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+
+    /// Returns the number of sampled bytes.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Reports whether the sample contains no bytes.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// The Runtime policy dimension that rejected an entropy request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntropyBudgetDimension {
+    /// The root execution has made too many entropy requests.
+    Requests,
+    /// The root execution has requested too many total entropy bytes.
+    Bytes,
+    /// One request exceeds the configured per-request byte limit.
+    RequestBytes,
+}
+
+impl fmt::Display for EntropyBudgetDimension {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Requests => "entropy_requests",
+            Self::Bytes => "entropy_bytes",
+            Self::RequestBytes => "entropy_request_bytes",
+        };
+        formatter.write_str(name)
+    }
+}
+
+/// Typed failure for the Runtime-mediated entropy host boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EntropyError {
+    /// A zero-byte request is not a meaningful entropy sample.
+    InvalidRequest { byte_count: usize },
+    /// The pinned Runtime execution policy rejected the request before source
+    /// invocation.
+    BudgetExceeded {
+        dimension: EntropyBudgetDimension,
+        limit: usize,
+        actual: usize,
+    },
+    /// The configured Runtime source could not provide a sample.
+    SourceUnavailable { message: String },
+    /// A source returned a sample whose length did not match the request.
+    SampleLengthMismatch { requested: usize, actual: usize },
+}
+
+impl fmt::Display for EntropyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRequest { byte_count } => {
+                write!(
+                    formatter,
+                    "entropy request must contain bytes: {byte_count}"
+                )
+            }
+            Self::BudgetExceeded {
+                dimension,
+                limit,
+                actual,
+            } => write!(formatter, "{dimension} budget exceeded: {actual} > {limit}"),
+            Self::SourceUnavailable { message } => {
+                write!(formatter, "entropy source unavailable: {message}")
+            }
+            Self::SampleLengthMismatch { requested, actual } => write!(
+                formatter,
+                "entropy source returned {actual} bytes for a {requested}-byte request"
+            ),
+        }
+    }
+}
+
+impl Error for EntropyError {}
+
 /// Error reported by a host-provided World view or subresolution port.
 ///
 /// The error is an execution-channel value, not a semantic `ResolveOutcome`.
@@ -651,6 +784,16 @@ pub type FacetSnapshot = FacetValue;
 pub struct ResolutionContextError {
     /// Boundary-safe explanation of the unavailable host operation.
     pub message: String,
+    kind: ResolutionContextErrorKind,
+}
+
+/// Classification retained when a host-port error crosses the resolver API.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ResolutionContextErrorKind {
+    /// A normal host-view or subresolution failure.
+    Host,
+    /// A mediated entropy request failed with a typed reason.
+    Entropy(EntropyError),
 }
 
 impl ResolutionContextError {
@@ -659,7 +802,23 @@ impl ResolutionContextError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            kind: ResolutionContextErrorKind::Host,
         }
+    }
+
+    /// Creates a host error retaining the typed entropy failure.
+    #[must_use]
+    pub fn entropy(error: EntropyError) -> Self {
+        Self {
+            message: error.to_string(),
+            kind: ResolutionContextErrorKind::Entropy(error),
+        }
+    }
+
+    /// Returns the typed host-port classification.
+    #[must_use]
+    pub const fn kind(&self) -> &ResolutionContextErrorKind {
+        &self.kind
     }
 }
 
@@ -681,6 +840,16 @@ impl Error for ResolutionContextError {}
 pub struct ResolverError {
     /// Boundary-safe explanation of the resolution failure.
     pub message: String,
+    kind: ResolverErrorKind,
+}
+
+/// Classification retained on a resolver failure caused by a host boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ResolverErrorKind {
+    /// A resolver implementation or non-entropy host failure.
+    Host,
+    /// A typed mediated entropy failure.
+    Entropy(EntropyError),
 }
 
 impl ResolverError {
@@ -689,13 +858,27 @@ impl ResolverError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            kind: ResolverErrorKind::Host,
         }
+    }
+
+    /// Returns the typed resolver failure classification.
+    #[must_use]
+    pub const fn kind(&self) -> &ResolverErrorKind {
+        &self.kind
     }
 }
 
 impl From<ResolutionContextError> for ResolverError {
     fn from(error: ResolutionContextError) -> Self {
-        Self::new(error.message)
+        let kind = match error.kind {
+            ResolutionContextErrorKind::Host => ResolverErrorKind::Host,
+            ResolutionContextErrorKind::Entropy(error) => ResolverErrorKind::Entropy(error),
+        };
+        Self {
+            message: error.message,
+            kind,
+        }
     }
 }
 
@@ -803,6 +986,28 @@ pub trait ResolutionContext {
         &self,
         invocation: &ActionInvocation,
     ) -> Result<ResolveOutcome, ResolutionContextError>;
+
+    /// Requests a Runtime-mediated entropy sample under the pinned Session
+    /// policy.
+    ///
+    /// The returned bytes are a value, not a source or generator handle. The
+    /// default implementation keeps third-party contexts source-free until
+    /// they opt into this explicit host capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed host error when entropy is unavailable or the request
+    /// exceeds the Runtime policy.
+    fn request_entropy(
+        &self,
+        _request: &EntropyRequest,
+    ) -> Result<EntropySample, ResolutionContextError> {
+        Err(ResolutionContextError::entropy(
+            EntropyError::SourceUnavailable {
+                message: "entropy is unavailable in this host context".to_owned(),
+            },
+        ))
+    }
 
     /// Returns the Timeline identity of the pinned view.
     #[must_use]
