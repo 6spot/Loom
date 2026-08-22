@@ -44,7 +44,7 @@ The Loom v0 World Runtime baseline was frozen at commit `a2238f05e649dc30ce21da1
 
 Accepted amendments are part of the current baseline from their merge point onward:
 
-- `amendments/0001-runtime-liveness-and-boundaries.md` — Work failure exit, same-World-Time liveness budget, scheduler driver ownership, `SKIP LOCKED` scope, Event occurrence-time ownership, Ingress contract, Template technical placement and terminology reconciliation.
+- `amendments/0001-runtime-liveness-and-boundaries.md` — Work failure exit, same-World-Time liveness budget, scheduler driver ownership, `SKIP_LOCKED` scope, Event occurrence-time ownership, Ingress contract, Template technical placement and terminology reconciliation.
 - `amendments/0002-supersession-and-authority-linkage.md` — exact supersession mapping, one claimability contract, Chronology Budget authority placement, current CI baseline, missing-implementation observability and Amendment linkage rules.
 - `amendments/0003-agency-execution-and-pinned-read-boundary.md` — autonomous Agent-wake execution closure, target-specific Scheduler admission for Agency Wake, AgentWorldView production authority, scalable pinned-read semantics, explicit Timeline-wide commit serialization and scale-related deferred decisions.
 
@@ -66,6 +66,7 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `world-runtime.md` | §2.4 | Amendment 0002 §3 — chronology-budget consumption is Timeline Logical State |
 | `world-runtime.md` | §13 | Amendment 0002 §7 — status changed: end-of-document hard invariants are navigation/checklist aids, not an independent specification layer |
 | `runtime-contracts.md` | §1, §6.3, §6.5 | Amendment 0003 §3 — closes wake admission/session lifecycle and AgentWorldView production authority |
+| `runtime-contracts.md` | §5.6, §14.1, §14.7 | Amendment 0003 §3.1–§3.5 — Capability Work still uses WorkHandler; Agency Wake is a distinct Scheduler Work target with Agency-specific compatibility and atomic completion semantics |
 | `runtime-contracts.md` | §7.1, §16.3 | Amendment 0003 §5 — successful logical commits serialize at Timeline scope; Scheduler Work still admits only the logical head; fine-grained commit validation remains deferred |
 | `runtime-contracts.md` | §16.5 | Amendment 0003 §4 — pinned `BaseWorldView` is a consistency contract, not a requirement to eagerly materialize the complete World in memory |
 | `runtime-contracts.md` | §9.5, §10.1, §16.1 | Amendment 0001 §5 — Capability does not choose authoritative `occurred_at` |
@@ -76,8 +77,9 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `governance.md` | §15 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, subordinate to accepted Amendments and detailed governance sections |
 | `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
 | `implementation.md` | §5.1 | Amendment 0001 §6.2 — public API includes Ingress |
-| `implementation.md` | §6.5, §13 | Amendment 0001 §4 — `SKIP LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
+| `implementation.md` | §6.5, §13/§13.3 `SKIP LOCKED` statements | Amendment 0001 §4 — `SKIP LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
 | `implementation.md` | §11.5 | Amendment 0003 §5 — optimistic TimelineVersion CAS implies Timeline-wide successful-commit serialization in v0 |
+| `implementation.md` | §13.1, §13.2 | Amendment 0003 §3.2 — logical Work target/compatibility is target-specific for Capability Work vs Agency Wake while due/order/status remain shared |
 | `implementation.md` | §15.2, §16 | Amendment 0003 §3 — Agency cognition tail is preceded by durable wake/session/context orchestration |
 | `implementation.md` | §12.2, §21.5 | Amendment 0001 §5 — Runtime-stamped Event occurrence time |
 | `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common claim/admission contract plus target-specific Agency-Wake compatibility |
