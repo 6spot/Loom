@@ -14,7 +14,7 @@ Frozen baseline documents remain historical snapshots. We do **not** silently re
 
 Instead, any accepted Amendment that changes a frozen clause must name the exact affected location. Readers and planning agents must consult the Architecture Index supersession table before treating a baseline clause as current.
 
-The following baseline clauses are superseded or augmented by Amendment 0001 / this Amendment:
+The following baseline clauses are superseded, materially augmented, or have their specification status changed by Amendment 0001 / this Amendment:
 
 | Baseline location | Baseline meaning | Current authority |
 | --- | --- | --- |
@@ -22,17 +22,22 @@ The following baseline clauses are superseded or augmented by Amendment 0001 / t
 | `core.md` §4.3 `Entity / Actor / Agent` | Persisted-looking Entity → Actor → Agent hierarchy | **Superseded** by Amendment 0001 §8.3 |
 | `core.md` §7.3 `Scheduler / Trigger` | Temporal Trigger / Event Trigger can be read as separate Runtime primitives | **Superseded/clarified** by Amendment 0001 §8.2: Temporal Trigger = `WorkSchedule::At`; Event Trigger = Reaction → Immediate Work; `AdvanceWorldTime` is not a Trigger |
 | `core.md` §8.4 `Decision and cognition` sentence “Core defines Decision / Intent protocol” | Generic Runtime Intent protocol implied | **Superseded** by Amendment 0001 §8.1: Intent is conceptual/Agency terminology; v0 has no generic Runtime `Intent` protocol type |
+| `core.md` §9.2 `Runtime Authority` budget reference | Reaction execution is said to be controlled by work/reaction/compute budgets, but the durable same-World-Time accounting semantics are not defined | **Materially augmented** by Amendment 0001 §2 + Amendment 0002 §3: same-World-Time Chronology Budget is reconstructable Timeline Logical State with a defined minimum consumption unit |
 | `world-runtime.md` §6.4 Event-time example | Capability proposal supplies authoritative `ProposedEvent.occurred_at` | **Superseded** by Amendment 0001 §5: Runtime stamps authoritative occurrence time from the pinned World Time |
 | `world-runtime.md` §8.1 operational claimability list | Partial claimability checklist | **Superseded** by Amendment 0001 §9 and Amendment 0002 §2 |
 | `world-runtime.md` §2.4 Timeline Logical State examples | Does not explicitly name chronology-budget consumption | **Augmented** by Amendment 0002 §3 |
+| `world-runtime.md` §13 `Hard invariants after closure` | End-of-document hard-invariant list can be read as an independent specification layer | **Status changed** by Amendment 0002 §7: navigation/checklist aid subordinate to accepted Amendments and the canonical detailed topic sections |
 | `runtime-contracts.md` §9.5 validation list | Requires `Event occurred_at == pinned World Time` validation on a Capability-supplied field | **Superseded** by Amendment 0001 §5 |
 | `runtime-contracts.md` §10.1 `ProposedEvent` | Lists authoritative `occurred_at World Time` inside proposal | **Superseded** by Amendment 0001 §5 |
 | `runtime-contracts.md` §14.11 operational claimability list | Missing chronology-budget/admission condition | **Superseded** by Amendment 0001 §9 and Amendment 0002 §2 |
 | `runtime-contracts.md` §16.1 validation pipeline | Includes validation of Capability-supplied `occurred_at` | **Superseded** by Amendment 0001 §5 |
 | `runtime-contracts.md` §17.2 public capability domains | Omits Ingress | **Augmented** by Amendment 0001 §6.2: `loom-api` includes Ingress service/domain |
 | `runtime-contracts.md` §20.2 crate placement | Does not place Template/Birth validation authority | **Augmented** by Amendment 0001 §7 |
+| `runtime-contracts.md` §22 `Normative v0 Rules` | End-of-document acceptance summary can be read as an independent specification layer | **Status changed** by Amendment 0002 §7: navigation/checklist aid subordinate to accepted Amendments and the canonical detailed topic sections |
+| `governance.md` §15 `Normative Rules` | End-of-document mandatory acceptance list can be read as an independent specification layer | **Status changed** by Amendment 0002 §7: navigation/checklist aid subordinate to accepted Amendments and the canonical detailed topic sections |
 | `implementation.md` §3 crate responsibilities | Does not place Template/Birth validation authority | **Augmented** by Amendment 0001 §7 |
 | `implementation.md` §5.1 Loom API capability domains | Omits Ingress | **Augmented** by Amendment 0001 §6.2 |
+| `implementation.md` §6.5 Storage and §13 Durable Work | `SKIP LOCKED` is constrained not to redefine the logical head, but the allowed cross-Timeline use vs forbidden same-Timeline skip is not explicit | **Materially augmented** by Amendment 0001 §4: `SKIP LOCKED` may distribute work across independent Timeline heads but may never skip a Timeline's logical head to claim its successor |
 | `implementation.md` §12.2 Event time | Describes Capability-provided `occurred_at` equality contract | **Superseded** by Amendment 0001 §5 |
 | `implementation.md` §12.3 operational claimability list | Partial claimability checklist | **Superseded** by Amendment 0001 §9 and Amendment 0002 §2 |
 | `implementation.md` §19 CI Baseline | Lists both Ubuntu and macOS as current minimum CI environments | **Superseded** by Amendment 0002 §4 |
@@ -205,7 +210,15 @@ During re-planning:
 
 ## 7. Canonical-summary rule
 
-End-of-document invariant/acceptance summaries inside canonical documents are navigation/checklist aids, not additional independent specification layers.
+The following frozen end-of-document sections have their **specification status changed** by this rule:
+
+```text
+world-runtime.md §13 Hard invariants after closure
+runtime-contracts.md §22 Normative v0 Rules
+governance.md §15 Normative Rules
+```
+
+They remain useful navigation/checklist aids, but they are not additional independent specification layers.
 
 If a summary bullet and that document's detailed section differ, use:
 
@@ -217,7 +230,7 @@ canonical detailed topic section
 end-of-document summary/checklist
 ```
 
-This prevents `world-runtime.md` hard-invariant summaries and `runtime-contracts.md` normative-rule summaries from becoming a second pair of competing specifications.
+This prevents end-of-document hard-invariant/normative-rule summaries from becoming another set of competing specifications.
 
 ---
 
@@ -230,6 +243,7 @@ With Amendment 0002 accepted:
 - chronology-budget state belongs to one authority domain;
 - CI documentation matches current required coverage;
 - missing implementation blockage is observable;
+- summary-section status changes and material augmentations are present in the exact affected-clause index;
 - no new architecture blocker is introduced by these corrections.
 
 The next valid phase remains v0 implementation re-planning, followed by rebuilding Issues/tasks before code execution resumes.
