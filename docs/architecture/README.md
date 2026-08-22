@@ -68,6 +68,20 @@ These are intentionally not architecture blockers:
 
 If one of these begins to affect semantic authority, replay/fork, deterministic ordering, World Binding or public contract ownership, promote it to an Architecture Amendment before implementation.
 
+### Dependency adoption evidence
+
+`implementation.md` may name a planned dependency/technology baseline before every item is present in the workspace. A dependency named there means **intended/allowed technical direction**, not proof that the repository already uses it.
+
+Actual adoption is evidenced by the repository itself (`Cargo.toml`, `Cargo.lock`, imports/build integration and relevant acceptance tests). When planning work, distinguish:
+
+```text
+planned / approved dependency
+!=
+already adopted dependency
+```
+
+Do not report a dependency as implemented merely because it appears in architecture documentation.
+
 ## 5. Non-goal taxonomy
 
 Do not maintain one giant duplicated “things we do not do” list.
