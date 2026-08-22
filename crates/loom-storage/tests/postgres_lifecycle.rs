@@ -2,12 +2,23 @@ mod support;
 
 use std::str::FromStr;
 
-use loom_api::{TimelineService, TimelineTarget};
-use loom_capability::{CapabilityDependency, CapabilityId, CapabilityRegistry};
-use loom_core::{TimelineId, TimelineVersion, WorldId, WorldInstant};
+use loom_api::{
+    ActionInvocation, ApiErrorCode, CreateWorldFromTemplateRequest, EventQuery, LoomApi,
+    TimelineService, TimelineTarget, WorldTemplateDescriptor,
+};
+use loom_capability::{
+    ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
+    CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition,
+    RegistrationError, ResolutionContext, ResolverError,
+};
+use loom_core::{
+    ActionTypeId, EventId, EventTypeId, SchemaRevision, TimelineId, TimelineVersion, WorldId,
+    WorldInstant,
+};
+use loom_protocol::{ProposedEvent, Resolution, ResolveOutcome};
 use loom_runtime::{
-    BindingError, LifecycleError, Runtime, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore,
+    BindingError, IdentityAllocator, LifecycleError, Runtime, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use serde_json::json;
 
@@ -21,6 +32,92 @@ where
     format!("00000000-0000-0000-0000-{value:012x}")
         .parse()
         .expect("test identity should parse")
+}
+
+const TEMPLATE_CAPABILITY: &str = "postgres.template";
+const TEMPLATE_ACTION: &str = "postgres.template.birth";
+const TEMPLATE_EVENT: &str = "postgres.template.born";
+
+#[derive(Clone, Copy)]
+struct FixedIdentityAllocator {
+    world_id: WorldId,
+    timeline_id: TimelineId,
+}
+
+impl IdentityAllocator for FixedIdentityAllocator {
+    fn allocate_world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    fn allocate_timeline_id(&self) -> TimelineId {
+        self.timeline_id
+    }
+}
+
+struct TemplateCapability {
+    manifest: CapabilityManifest,
+}
+
+impl Capability for TemplateCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_event(EventDefinition::new(
+            EventTypeId::from(TEMPLATE_EVENT),
+            SchemaRevision::new(1),
+        ))?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(TEMPLATE_ACTION), SchemaRevision::new(1)),
+            TemplateResolver,
+        )?;
+        Ok(())
+    }
+}
+
+struct TemplateResolver;
+
+impl ActionResolver for TemplateResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &serde_json::Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let event_id = input
+            .get("event_id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| ResolverError::new("event_id must be a UUID string"))?
+            .parse::<EventId>()
+            .map_err(|_| ResolverError::new("event_id must be a UUID string"))?;
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            vec![ProposedEvent::new(
+                event_id,
+                EventTypeId::from(TEMPLATE_EVENT),
+                SchemaRevision::new(1),
+                json!({"value": "born"}),
+            )],
+            Vec::new(),
+        )))
+    }
+}
+
+fn template_registry() -> CapabilityRegistry {
+    CapabilityRegistry::assemble([TemplateCapability {
+        manifest: CapabilityManifest::parse(TEMPLATE_CAPABILITY, "0.1.0")
+            .expect("Template Capability manifest should parse"),
+    }])
+    .expect("Template registry should assemble")
+}
+
+fn template(event_id: EventId) -> WorldTemplateDescriptor {
+    WorldTemplateDescriptor::new("postgres-template", 2, WorldInstant::new(321))
+        .requires_capability(TEMPLATE_CAPABILITY, "^0.1.0")
+        .with_configuration(json!({"fixture": "postgres-template"}))
+        .with_bootstrap_action(ActionInvocation::new(
+            ActionTypeId::from(TEMPLATE_ACTION),
+            json!({"event_id": event_id.to_string()}),
+        ))
 }
 
 #[tokio::test]
@@ -63,6 +160,126 @@ async fn postgres_18_world_lifecycle_is_atomic_and_immediately_readable() {
     assert_eq!(public.world_time, initial_world_time);
 
     drop(runtime);
+    storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL Template birth matrix is intentionally linear"
+)]
+async fn postgres_18_template_birth_is_atomic_and_snapshots_binding() {
+    let Some(database) = TestDatabase::provision("template_birth").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let pool = database.pool().await;
+    let world_id = id::<WorldId>(0x4401);
+    let timeline_id = id::<TimelineId>(0x4402);
+    let event_id = id::<EventId>(0x4410);
+
+    {
+        let runtime = Runtime::new(&storage, template_registry())
+            .expect("Template Runtime should assemble")
+            .with_identity_allocator(FixedIdentityAllocator {
+                world_id,
+                timeline_id,
+            });
+        let api: &dyn LoomApi = &runtime;
+        let created = api
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(template(event_id)))
+            .await
+            .expect("PostgreSQL Template birth should commit");
+        assert_eq!(created.target, TimelineTarget::new(world_id, timeline_id));
+        assert_eq!(created.version.head_event_seq.value(), 1);
+        assert_eq!(created.world_time, WorldInstant::new(321));
+
+        let binding = WorldRuntimeBindingStore::read_binding(&storage, world_id)
+            .await
+            .expect("Template Binding should be persisted atomically");
+        assert_eq!(binding.revision(), 2);
+        assert_eq!(binding.template_provenance(), Some("postgres-template@2"));
+        assert_eq!(
+            binding.configuration(),
+            &json!({"fixture": "postgres-template"})
+        );
+        assert!(
+            binding
+                .requirements()
+                .contains_key(&CapabilityId::from(TEMPLATE_CAPABILITY))
+        );
+
+        let history = api
+            .list_events(EventQuery::all(created.target))
+            .await
+            .expect("Template bootstrap history should be readable");
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].id, event_id);
+    }
+
+    let invalid_world_id = id::<WorldId>(0x4421);
+    let invalid_timeline_id = id::<TimelineId>(0x4422);
+    {
+        let runtime = Runtime::new(&storage, template_registry())
+            .expect("invalid Template Runtime should assemble")
+            .with_identity_allocator(FixedIdentityAllocator {
+                world_id: invalid_world_id,
+                timeline_id: invalid_timeline_id,
+            });
+        let api: &dyn LoomApi = &runtime;
+        let rejected = api
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                WorldTemplateDescriptor::new("invalid", 1, WorldInstant::new(7))
+                    .requires_capability(TEMPLATE_CAPABILITY, "^0.1.0")
+                    .with_bootstrap_action(ActionInvocation::new(
+                        ActionTypeId::from("postgres.template.missing"),
+                        json!({}),
+                    )),
+            ))
+            .await
+            .expect_err("unknown Template bootstrap Action must be rejected before persistence");
+        assert_eq!(rejected.code, ApiErrorCode::NotFound);
+    }
+
+    let invalid_world_count: i64 =
+        sqlx::query_scalar("SELECT count(*)::bigint FROM loom_world WHERE world_id = $1::uuid")
+            .bind(invalid_world_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("invalid World row count should be queryable");
+    assert_eq!(invalid_world_count, 0);
+    let invalid_timeline_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)::bigint FROM loom_timeline WHERE timeline_id = $1::uuid",
+    )
+    .bind(invalid_timeline_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("invalid Timeline row count should be queryable");
+    assert_eq!(invalid_timeline_count, 0);
+
+    let conflict_runtime = Runtime::new(&storage, template_registry())
+        .expect("conflict Template Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id,
+            timeline_id,
+        });
+    let conflict_api: &dyn LoomApi = &conflict_runtime;
+    let conflict = conflict_api
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(template(
+            id::<EventId>(0x4411),
+        )))
+        .await
+        .expect_err("duplicate Template World identity must conflict");
+    assert_eq!(conflict.code, ApiErrorCode::Conflict);
+
+    let original = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("Template conflict must preserve the original Timeline");
+    assert_eq!(original.events.len(), 1);
+    assert_eq!(original.events[0].id, event_id);
+
+    pool.close().await;
     storage.close().await;
     database.cleanup().await;
 }
