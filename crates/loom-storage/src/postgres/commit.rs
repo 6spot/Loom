@@ -15,6 +15,40 @@ use super::PgStorage;
 
 type PgTransaction<'a> = Transaction<'a, Postgres>;
 
+const UPDATE_TIMELINE_VERSION_SQL: &str = include_str!("../../sql/timeline/update_version.sql");
+const LOCK_TIMELINE_VERSION_SQL: &str = include_str!("../../sql/timeline/lock_version.sql");
+const INSERT_EVENT_SQL: &str = include_str!("../../sql/event/insert_event.sql");
+const INSERT_EVENT_PARTICIPANT_SQL: &str = include_str!("../../sql/event/insert_participant.sql");
+const INSERT_EVENT_RELATIONSHIP_REF_SQL: &str =
+    include_str!("../../sql/event/insert_relationship_ref.sql");
+const INSERT_EVENT_CAUSAL_LINK_SQL: &str = include_str!("../../sql/event/insert_causal_link.sql");
+const EVENT_EXISTS_SQL: &str = include_str!("../../sql/event/exists.sql");
+const INSERT_ENTITY_SQL: &str = include_str!("../../sql/world/insert_entity.sql");
+const UPSERT_ENTITY_FACET_SQL: &str = include_str!("../../sql/world/upsert_entity_facet.sql");
+const UPSERT_RELATIONSHIP_FACET_SQL: &str =
+    include_str!("../../sql/world/upsert_relationship_facet.sql");
+const DELETE_ENTITY_FACET_SQL: &str = include_str!("../../sql/world/delete_entity_facet.sql");
+const DELETE_RELATIONSHIP_FACET_SQL: &str =
+    include_str!("../../sql/world/delete_relationship_facet.sql");
+const INSERT_RELATIONSHIP_SQL: &str = include_str!("../../sql/world/insert_relationship.sql");
+const INSERT_RELATIONSHIP_PARTICIPANT_SQL: &str =
+    include_str!("../../sql/world/insert_relationship_participant.sql");
+const READ_RELATIONSHIP_ACTIVE_SQL: &str =
+    include_str!("../../sql/world/read_relationship_active.sql");
+const END_RELATIONSHIP_SQL: &str = include_str!("../../sql/world/end_relationship.sql");
+const ENTITY_EXISTS_SQL: &str = include_str!("../../sql/world/entity_exists.sql");
+const RELATIONSHIP_EXISTS_SQL: &str = include_str!("../../sql/world/relationship_exists.sql");
+const ACTIVE_RELATIONSHIP_EXISTS_SQL: &str =
+    include_str!("../../sql/world/active_relationship_exists.sql");
+const INSERT_SCHEDULED_WORK_SQL: &str = include_str!("../../sql/work/insert_scheduled.sql");
+const CANCEL_WORK_SQL: &str = include_str!("../../sql/work/cancel.sql");
+const SELECT_WORK_CLAIM_FOR_UPDATE_SQL: &str =
+    include_str!("../../sql/work/select_claim_for_update.sql");
+const COMPLETE_WORK_SQL: &str = include_str!("../../sql/work/complete.sql");
+const SELECT_WORK_STATUS_FOR_UPDATE_SQL: &str =
+    include_str!("../../sql/work/select_status_for_update.sql");
+const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
+
 #[derive(Clone, Copy)]
 struct LockedTimeline {
     version: TimelineVersion,
@@ -101,16 +135,13 @@ async fn commit_resolution(
     let version = TimelineVersion::new(next_head, StateRevision::new(next_state_revision));
 
     if changes_runtime_state {
-        sqlx::query(
-            "UPDATE loom_timeline SET head_event_seq = $2::numeric, state_revision = $3::numeric \
-             WHERE timeline_id = $1::uuid",
-        )
-        .bind(timeline_id.to_string())
-        .bind(next_head.value().to_string())
-        .bind(next_state_revision.to_string())
-        .execute(&mut *transaction)
-        .await
-        .map_err(storage_error)?;
+        sqlx::query(UPDATE_TIMELINE_VERSION_SQL)
+            .bind(timeline_id.to_string())
+            .bind(next_head.value().to_string())
+            .bind(next_state_revision.to_string())
+            .execute(&mut *transaction)
+            .await
+            .map_err(storage_error)?;
     }
 
     transaction.commit().await.map_err(storage_error)?;
@@ -204,16 +235,13 @@ pub(super) async fn commit_birth_in_transaction(
     let version = TimelineVersion::new(next_head, StateRevision::new(next_state_revision));
 
     if changes_runtime_state {
-        sqlx::query(
-            "UPDATE loom_timeline SET head_event_seq = $2::numeric, state_revision = $3::numeric \
-             WHERE timeline_id = $1::uuid",
-        )
-        .bind(timeline_id.to_string())
-        .bind(next_head.value().to_string())
-        .bind(next_state_revision.to_string())
-        .execute(&mut **transaction)
-        .await
-        .map_err(storage_error)?;
+        sqlx::query(UPDATE_TIMELINE_VERSION_SQL)
+            .bind(timeline_id.to_string())
+            .bind(next_head.value().to_string())
+            .bind(next_state_revision.to_string())
+            .execute(&mut **transaction)
+            .await
+            .map_err(storage_error)?;
     }
 
     Ok(version)
@@ -223,15 +251,12 @@ async fn lock_timeline(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
 ) -> Result<LockedTimeline, CommitError> {
-    let row = sqlx::query(
-        "SELECT head_event_seq::text AS head_event_seq, state_revision::text AS state_revision \
-         FROM loom_timeline WHERE timeline_id = $1::uuid FOR UPDATE",
-    )
-    .bind(timeline_id.to_string())
-    .fetch_optional(&mut **transaction)
-    .await
-    .map_err(storage_error)?
-    .ok_or(CommitError::TimelineNotFound { timeline_id })?;
+    let row = sqlx::query(LOCK_TIMELINE_VERSION_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+        .ok_or(CommitError::TimelineNotFound { timeline_id })?;
     Ok(LockedTimeline {
         version: TimelineVersion::new(
             EventSeq::new(parse_u64(&row, "head_event_seq")?),
@@ -266,66 +291,50 @@ async fn apply_event(
             format!("cannot serialize frozen Effects: {error}"),
         )
     })?;
-    sqlx::query(
-        "INSERT INTO loom_event \
-         (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \
-         VALUES ($1::uuid, $2::uuid, $3::numeric, $4, $5, $6, $7, $8)",
-    )
-    .bind(timeline_id.to_string())
-    .bind(event.id.to_string())
-    .bind(event_seq.value().to_string())
-    .bind(event.event_type.as_str())
-    .bind(i64::from(event.schema_revision.value()))
-    .bind(occurred_at.value())
-    .bind(event.payload.clone())
-    .bind(effects)
-    .execute(&mut **transaction)
-    .await
-    .map_err(|error| event_sql_error(event.id, error))?;
+    sqlx::query(INSERT_EVENT_SQL)
+        .bind(timeline_id.to_string())
+        .bind(event.id.to_string())
+        .bind(event_seq.value().to_string())
+        .bind(event.event_type.as_str())
+        .bind(i64::from(event.schema_revision.value()))
+        .bind(occurred_at.value())
+        .bind(event.payload.clone())
+        .bind(effects)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| event_sql_error(event.id, error))?;
 
     for (order, participant) in event.participants.iter().enumerate() {
-        sqlx::query(
-            "INSERT INTO loom_event_participant \
-             (timeline_id, event_id, participant_order, entity_id, role) \
-             VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5)",
-        )
-        .bind(timeline_id.to_string())
-        .bind(event.id.to_string())
-        .bind(order_i32(order, event.id)?)
-        .bind(participant.entity_id.to_string())
-        .bind(participant.role.as_str())
-        .execute(&mut **transaction)
-        .await
-        .map_err(|error| event_sql_error(event.id, error))?;
+        sqlx::query(INSERT_EVENT_PARTICIPANT_SQL)
+            .bind(timeline_id.to_string())
+            .bind(event.id.to_string())
+            .bind(order_i32(order, event.id)?)
+            .bind(participant.entity_id.to_string())
+            .bind(participant.role.as_str())
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| event_sql_error(event.id, error))?;
     }
     for (order, reference) in event.relationship_refs.iter().enumerate() {
-        sqlx::query(
-            "INSERT INTO loom_event_relationship_ref \
-             (timeline_id, event_id, reference_order, relationship_id, role) \
-             VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5)",
-        )
-        .bind(timeline_id.to_string())
-        .bind(event.id.to_string())
-        .bind(order_i32(order, event.id)?)
-        .bind(reference.relationship_id.to_string())
-        .bind(reference.role.as_str())
-        .execute(&mut **transaction)
-        .await
-        .map_err(|error| event_sql_error(event.id, error))?;
+        sqlx::query(INSERT_EVENT_RELATIONSHIP_REF_SQL)
+            .bind(timeline_id.to_string())
+            .bind(event.id.to_string())
+            .bind(order_i32(order, event.id)?)
+            .bind(reference.relationship_id.to_string())
+            .bind(reference.role.as_str())
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| event_sql_error(event.id, error))?;
     }
     for (order, causal) in event.causal_links.iter().enumerate() {
-        sqlx::query(
-            "INSERT INTO loom_event_causal_link \
-             (timeline_id, event_id, causal_order, cause_event_id) \
-             VALUES ($1::uuid, $2::uuid, $3, $4::uuid)",
-        )
-        .bind(timeline_id.to_string())
-        .bind(event.id.to_string())
-        .bind(order_i32(order, event.id)?)
-        .bind(causal.event_id().to_string())
-        .execute(&mut **transaction)
-        .await
-        .map_err(|error| event_sql_error(event.id, error))?;
+        sqlx::query(INSERT_EVENT_CAUSAL_LINK_SQL)
+            .bind(timeline_id.to_string())
+            .bind(event.id.to_string())
+            .bind(order_i32(order, event.id)?)
+            .bind(causal.event_id().to_string())
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| event_sql_error(event.id, error))?;
     }
 
     Ok(CommittedEvent::from_proposed(
@@ -394,14 +403,12 @@ async fn apply_effect(
                     "Entity identity is nil or already exists",
                 ));
             }
-            sqlx::query(
-                "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
-            )
-            .bind(timeline_id.to_string())
-            .bind(entity_id.to_string())
-            .execute(&mut **transaction)
-            .await
-            .map_err(|error| effect_sql_error(event_id, error))?;
+            sqlx::query(INSERT_ENTITY_SQL)
+                .bind(timeline_id.to_string())
+                .bind(entity_id.to_string())
+                .execute(&mut **transaction)
+                .await
+                .map_err(|error| effect_sql_error(event_id, error))?;
         }
         WorldEffect::PutFacet {
             owner,
@@ -414,38 +421,26 @@ async fn apply_effect(
             }
             match owner {
                 FacetOwner::Entity(entity_id) => {
-                    sqlx::query(
-                        "INSERT INTO loom_entity_facet \
-                         (timeline_id, entity_id, facet_type, schema_revision, value) \
-                         VALUES ($1::uuid, $2::uuid, $3, $4, $5) \
-                         ON CONFLICT (timeline_id, entity_id, facet_type) DO UPDATE \
-                         SET schema_revision = EXCLUDED.schema_revision, value = EXCLUDED.value",
-                    )
-                    .bind(timeline_id.to_string())
-                    .bind(entity_id.to_string())
-                    .bind(facet_type.as_str())
-                    .bind(i64::from(schema_revision.value()))
-                    .bind(value.clone())
-                    .execute(&mut **transaction)
-                    .await
-                    .map_err(|error| effect_sql_error(event_id, error))?;
+                    sqlx::query(UPSERT_ENTITY_FACET_SQL)
+                        .bind(timeline_id.to_string())
+                        .bind(entity_id.to_string())
+                        .bind(facet_type.as_str())
+                        .bind(i64::from(schema_revision.value()))
+                        .bind(value.clone())
+                        .execute(&mut **transaction)
+                        .await
+                        .map_err(|error| effect_sql_error(event_id, error))?;
                 }
                 FacetOwner::Relationship(relationship_id) => {
-                    sqlx::query(
-                        "INSERT INTO loom_relationship_facet \
-                         (timeline_id, relationship_id, facet_type, schema_revision, value) \
-                         VALUES ($1::uuid, $2::uuid, $3, $4, $5) \
-                         ON CONFLICT (timeline_id, relationship_id, facet_type) DO UPDATE \
-                         SET schema_revision = EXCLUDED.schema_revision, value = EXCLUDED.value",
-                    )
-                    .bind(timeline_id.to_string())
-                    .bind(relationship_id.to_string())
-                    .bind(facet_type.as_str())
-                    .bind(i64::from(schema_revision.value()))
-                    .bind(value.clone())
-                    .execute(&mut **transaction)
-                    .await
-                    .map_err(|error| effect_sql_error(event_id, error))?;
+                    sqlx::query(UPSERT_RELATIONSHIP_FACET_SQL)
+                        .bind(timeline_id.to_string())
+                        .bind(relationship_id.to_string())
+                        .bind(facet_type.as_str())
+                        .bind(i64::from(schema_revision.value()))
+                        .bind(value.clone())
+                        .execute(&mut **transaction)
+                        .await
+                        .map_err(|error| effect_sql_error(event_id, error))?;
                 }
             }
         }
@@ -455,28 +450,22 @@ async fn apply_effect(
             }
             match owner {
                 FacetOwner::Entity(entity_id) => {
-                    sqlx::query(
-                        "DELETE FROM loom_entity_facet \
-                         WHERE timeline_id = $1::uuid AND entity_id = $2::uuid AND facet_type = $3",
-                    )
-                    .bind(timeline_id.to_string())
-                    .bind(entity_id.to_string())
-                    .bind(facet_type.as_str())
-                    .execute(&mut **transaction)
-                    .await
-                    .map_err(storage_error)?;
+                    sqlx::query(DELETE_ENTITY_FACET_SQL)
+                        .bind(timeline_id.to_string())
+                        .bind(entity_id.to_string())
+                        .bind(facet_type.as_str())
+                        .execute(&mut **transaction)
+                        .await
+                        .map_err(storage_error)?;
                 }
                 FacetOwner::Relationship(relationship_id) => {
-                    sqlx::query(
-                        "DELETE FROM loom_relationship_facet WHERE timeline_id = $1::uuid \
-                         AND relationship_id = $2::uuid AND facet_type = $3",
-                    )
-                    .bind(timeline_id.to_string())
-                    .bind(relationship_id.to_string())
-                    .bind(facet_type.as_str())
-                    .execute(&mut **transaction)
-                    .await
-                    .map_err(storage_error)?;
+                    sqlx::query(DELETE_RELATIONSHIP_FACET_SQL)
+                        .bind(timeline_id.to_string())
+                        .bind(relationship_id.to_string())
+                        .bind(facet_type.as_str())
+                        .execute(&mut **transaction)
+                        .await
+                        .map_err(storage_error)?;
                 }
             }
         }
@@ -511,43 +500,32 @@ async fn apply_effect(
                     ));
                 }
             }
-            sqlx::query(
-                "INSERT INTO loom_relationship \
-                 (timeline_id, relationship_id, relationship_type, active) \
-                 VALUES ($1::uuid, $2::uuid, $3, TRUE)",
-            )
-            .bind(timeline_id.to_string())
-            .bind(relationship_id.to_string())
-            .bind(relationship_type.as_str())
-            .execute(&mut **transaction)
-            .await
-            .map_err(|error| effect_sql_error(event_id, error))?;
-            for (order, participant) in participants.iter().enumerate() {
-                sqlx::query(
-                    "INSERT INTO loom_relationship_participant \
-                     (timeline_id, relationship_id, participant_order, entity_id, role) \
-                     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5)",
-                )
+            sqlx::query(INSERT_RELATIONSHIP_SQL)
                 .bind(timeline_id.to_string())
                 .bind(relationship_id.to_string())
-                .bind(order_i32(order, event_id)?)
-                .bind(participant.entity_id.to_string())
-                .bind(participant.role.as_str())
+                .bind(relationship_type.as_str())
                 .execute(&mut **transaction)
                 .await
                 .map_err(|error| effect_sql_error(event_id, error))?;
+            for (order, participant) in participants.iter().enumerate() {
+                sqlx::query(INSERT_RELATIONSHIP_PARTICIPANT_SQL)
+                    .bind(timeline_id.to_string())
+                    .bind(relationship_id.to_string())
+                    .bind(order_i32(order, event_id)?)
+                    .bind(participant.entity_id.to_string())
+                    .bind(participant.role.as_str())
+                    .execute(&mut **transaction)
+                    .await
+                    .map_err(|error| effect_sql_error(event_id, error))?;
             }
         }
         WorldEffect::EndRelationship { relationship_id } => {
-            let active: Option<bool> = sqlx::query_scalar(
-                "SELECT active FROM loom_relationship \
-                 WHERE timeline_id = $1::uuid AND relationship_id = $2::uuid",
-            )
-            .bind(timeline_id.to_string())
-            .bind(relationship_id.to_string())
-            .fetch_optional(&mut **transaction)
-            .await
-            .map_err(storage_error)?;
+            let active: Option<bool> = sqlx::query_scalar(READ_RELATIONSHIP_ACTIVE_SQL)
+                .bind(timeline_id.to_string())
+                .bind(relationship_id.to_string())
+                .fetch_optional(&mut **transaction)
+                .await
+                .map_err(storage_error)?;
             match active {
                 None => return Err(invalid_effect(event_id, "Relationship does not exist")),
                 Some(false) => {
@@ -555,15 +533,12 @@ async fn apply_effect(
                 }
                 Some(true) => {}
             }
-            sqlx::query(
-                "UPDATE loom_relationship SET active = FALSE \
-                 WHERE timeline_id = $1::uuid AND relationship_id = $2::uuid",
-            )
-            .bind(timeline_id.to_string())
-            .bind(relationship_id.to_string())
-            .execute(&mut **transaction)
-            .await
-            .map_err(storage_error)?;
+            sqlx::query(END_RELATIONSHIP_SQL)
+                .bind(timeline_id.to_string())
+                .bind(relationship_id.to_string())
+                .execute(&mut **transaction)
+                .await
+                .map_err(storage_error)?;
         }
     }
     Ok(())
@@ -606,26 +581,19 @@ async fn apply_work_mutation(
                 .into());
             }
             let record = loom_runtime::WorkRecord::from_new_work(work, now);
-            sqlx::query(
-                "INSERT INTO loom_work \
-                 (timeline_id, work_id, handler, schema_revision, payload, due_world_time, causal_event_id, \
-                  origin_work_id, status, attempt_count, claim_generation, available_at, last_error, \
-                  lease_claimed_until, lease_fence) \
-                 VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid, $8::uuid, 'pending', 0, 0, $9, \
-                         NULL, NULL, NULL)",
-            )
-            .bind(timeline_id.to_string())
-            .bind(work.id.to_string())
-            .bind(work.handler.as_str())
-            .bind(i64::from(work.schema_revision.value()))
-            .bind(work.payload.clone())
-            .bind(record.due_world_time.map(loom_core::WorldInstant::value))
-            .bind(work.causal_event_id.map(|id| id.to_string()))
-            .bind(work.origin_work_id.map(|id| id.to_string()))
-            .bind(now.value())
-            .execute(&mut **transaction)
-            .await
-            .map_err(storage_error)?;
+            sqlx::query(INSERT_SCHEDULED_WORK_SQL)
+                .bind(timeline_id.to_string())
+                .bind(work.id.to_string())
+                .bind(work.handler.as_str())
+                .bind(i64::from(work.schema_revision.value()))
+                .bind(work.payload.clone())
+                .bind(record.due_world_time.map(loom_core::WorldInstant::value))
+                .bind(work.causal_event_id.map(|id| id.to_string()))
+                .bind(work.origin_work_id.map(|id| id.to_string()))
+                .bind(now.value())
+                .execute(&mut **transaction)
+                .await
+                .map_err(storage_error)?;
             Ok(())
         }
         WorkMutation::Cancel(work_id) => cancel_work(transaction, timeline_id, *work_id).await,
@@ -641,15 +609,12 @@ async fn cancel_work(
     if status != WorkStatus::Pending {
         return Err(WorkError::NotPending { work_id, status }.into());
     }
-    sqlx::query(
-        "UPDATE loom_work SET status = 'cancelled', lease_claimed_until = NULL, lease_fence = NULL \
-         WHERE timeline_id = $1::uuid AND work_id = $2::uuid",
-    )
-    .bind(timeline_id.to_string())
-    .bind(work_id.to_string())
-    .execute(&mut **transaction)
-    .await
-    .map_err(storage_error)?;
+    sqlx::query(CANCEL_WORK_SQL)
+        .bind(timeline_id.to_string())
+        .bind(work_id.to_string())
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
     Ok(())
 }
 
@@ -666,19 +631,16 @@ async fn validate_current_work(
         }
         .into());
     }
-    let row = sqlx::query(
-        "SELECT status, lease_claimed_until, lease_fence::text AS lease_fence \
-         FROM loom_work WHERE timeline_id = $1::uuid AND work_id = $2::uuid FOR UPDATE",
-    )
-    .bind(timeline_id.to_string())
-    .bind(claim.work_id().to_string())
-    .fetch_optional(&mut **transaction)
-    .await
-    .map_err(storage_error)?
-    .ok_or(WorkError::WorkNotFound {
-        timeline_id,
-        work_id: claim.work_id(),
-    })?;
+    let row = sqlx::query(SELECT_WORK_CLAIM_FOR_UPDATE_SQL)
+        .bind(timeline_id.to_string())
+        .bind(claim.work_id().to_string())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+        .ok_or(WorkError::WorkNotFound {
+            timeline_id,
+            work_id: claim.work_id(),
+        })?;
     let status = parse_status(row.try_get("status").map_err(storage_error)?)?;
     if status != WorkStatus::Pending {
         return Err(WorkError::NotPending {
@@ -724,15 +686,12 @@ async fn complete_current_work(
     timeline_id: TimelineId,
     claim: &WorkClaim,
 ) -> Result<(), CommitError> {
-    sqlx::query(
-        "UPDATE loom_work SET status = 'completed', lease_claimed_until = NULL, lease_fence = NULL, \
-         last_error = NULL WHERE timeline_id = $1::uuid AND work_id = $2::uuid",
-    )
-    .bind(timeline_id.to_string())
-    .bind(claim.work_id().to_string())
-    .execute(&mut **transaction)
-    .await
-    .map_err(storage_error)?;
+    sqlx::query(COMPLETE_WORK_SQL)
+        .bind(timeline_id.to_string())
+        .bind(claim.work_id().to_string())
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
     Ok(())
 }
 
@@ -741,18 +700,16 @@ async fn lock_work_status(
     timeline_id: TimelineId,
     work_id: loom_core::WorkId,
 ) -> Result<WorkStatus, CommitError> {
-    let value: String = sqlx::query_scalar(
-        "SELECT status FROM loom_work WHERE timeline_id = $1::uuid AND work_id = $2::uuid FOR UPDATE",
-    )
-    .bind(timeline_id.to_string())
-    .bind(work_id.to_string())
-    .fetch_optional(&mut **transaction)
-    .await
-    .map_err(storage_error)?
-    .ok_or(WorkError::WorkNotFound {
-        timeline_id,
-        work_id,
-    })?;
+    let value: String = sqlx::query_scalar(SELECT_WORK_STATUS_FOR_UPDATE_SQL)
+        .bind(timeline_id.to_string())
+        .bind(work_id.to_string())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+        .ok_or(WorkError::WorkNotFound {
+            timeline_id,
+            work_id,
+        })?;
     parse_status(&value)
 }
 
@@ -776,7 +733,7 @@ async fn entity_exists(
 ) -> Result<bool, CommitError> {
     exists(
         transaction,
-        "SELECT EXISTS (SELECT 1 FROM loom_entity WHERE timeline_id = $1::uuid AND entity_id = $2::uuid)",
+        ENTITY_EXISTS_SQL,
         timeline_id,
         entity_id.to_string(),
     )
@@ -790,7 +747,7 @@ async fn relationship_exists(
 ) -> Result<bool, CommitError> {
     exists(
         transaction,
-        "SELECT EXISTS (SELECT 1 FROM loom_relationship WHERE timeline_id = $1::uuid AND relationship_id = $2::uuid)",
+        RELATIONSHIP_EXISTS_SQL,
         timeline_id,
         relationship_id.to_string(),
     )
@@ -804,7 +761,7 @@ async fn active_relationship_exists(
 ) -> Result<bool, CommitError> {
     exists(
         transaction,
-        "SELECT EXISTS (SELECT 1 FROM loom_relationship WHERE timeline_id = $1::uuid AND relationship_id = $2::uuid AND active)",
+        ACTIVE_RELATIONSHIP_EXISTS_SQL,
         timeline_id,
         relationship_id.to_string(),
     )
@@ -818,7 +775,7 @@ async fn event_exists(
 ) -> Result<bool, CommitError> {
     exists(
         transaction,
-        "SELECT EXISTS (SELECT 1 FROM loom_event WHERE timeline_id = $1::uuid AND event_id = $2::uuid)",
+        EVENT_EXISTS_SQL,
         timeline_id,
         event_id.to_string(),
     )
@@ -832,7 +789,7 @@ async fn work_exists(
 ) -> Result<bool, CommitError> {
     exists(
         transaction,
-        "SELECT EXISTS (SELECT 1 FROM loom_work WHERE timeline_id = $1::uuid AND work_id = $2::uuid)",
+        WORK_EXISTS_SQL,
         timeline_id,
         work_id.to_string(),
     )

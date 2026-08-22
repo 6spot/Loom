@@ -9,28 +9,64 @@
 //! private child modules.
 
 mod commit;
+mod session;
 mod work;
 
 use std::{fmt::Display, str::FromStr};
 
 use loom_core::{
-    AssociationRole, Entity, EntityId, EventId, EventSeq, EventTypeId, ExecutionSessionId,
-    FacetOwner, FacetTypeId, Relationship, RelationshipId, RelationshipParticipant,
-    RelationshipTypeId, SchemaRevision, StateRevision, TimelineId, TimelineVersion, WorkHandlerId,
-    WorkId, WorldEffect, WorldId, WorldInstant,
+    AssociationRole, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
+    Relationship, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
+    StateRevision, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId,
+    WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, ExecutionSession,
-    ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, PersistenceFuture, PlatformTime,
-    ProposedEvent, ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SessionError, TimelineSnapshot,
-    ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
+    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
+
+const HEALTH_SQL: &str = include_str!("../sql/health/check.sql");
+const REPEATABLE_READ_READ_ONLY_SQL: &str =
+    include_str!("../sql/transaction/repeatable_read_read_only.sql");
+const READ_TIMELINE_SQL: &str = include_str!("../sql/world/read_timeline.sql");
+const READ_ENTITIES_SQL: &str = include_str!("../sql/world/read_entities.sql");
+const READ_RELATIONSHIPS_SQL: &str = include_str!("../sql/world/read_relationships.sql");
+const READ_RELATIONSHIP_PARTICIPANTS_SQL: &str =
+    include_str!("../sql/world/read_relationship_participants.sql");
+const READ_ENTITY_FACETS_SQL: &str = include_str!("../sql/world/read_entity_facets.sql");
+const READ_RELATIONSHIP_FACETS_SQL: &str =
+    include_str!("../sql/world/read_relationship_facets.sql");
+const READ_EVENTS_SQL: &str = include_str!("../sql/event/read_events.sql");
+const READ_EVENT_PARTICIPANTS_SQL: &str = include_str!("../sql/event/read_participants.sql");
+const READ_EVENT_RELATIONSHIP_REFS_SQL: &str =
+    include_str!("../sql/event/read_relationship_refs.sql");
+const READ_EVENT_CAUSAL_LINKS_SQL: &str = include_str!("../sql/event/read_causal_links.sql");
+const READ_WORK_SQL: &str = include_str!("../sql/work/read_all_for_timeline.sql");
+const INSERT_WORLD_SQL: &str = include_str!("../sql/world/insert_world.sql");
+const WORLD_EXISTS_SQL: &str = include_str!("../sql/world/exists.sql");
+const LOCK_WORLD_EXISTS_SQL: &str = include_str!("../sql/world/lock_exists.sql");
+const INSERT_BINDING_SQL: &str = include_str!("../sql/binding/insert.sql");
+const INSERT_BINDING_IF_ABSENT_SQL: &str = include_str!("../sql/binding/insert_if_absent.sql");
+const READ_BINDING_SQL: &str = include_str!("../sql/binding/read.sql");
+const INSERT_TIMELINE_SQL: &str = include_str!("../sql/timeline/insert.sql");
+const REGISTER_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/register.sql");
+const READ_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/read.sql");
+const LIST_RUNTIME_REVISIONS_SQL: &str = include_str!("../sql/runtime_revision/list.sql");
+const READ_ACTIVE_RUNTIME_REVISION_SQL: &str =
+    include_str!("../sql/runtime_revision/read_active.sql");
+const LOCK_ACTIVE_RUNTIME_REVISION_SQL: &str =
+    include_str!("../sql/runtime_revision/lock_active.sql");
+const ACTIVATE_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/activate.sql");
+const LOCK_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/lock_world_time.sql");
+const UPDATE_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/update_world_time.sql");
 
 /// Concrete `PostgreSQL` persistence adapter owned by `loom-storage`.
 ///
@@ -83,7 +119,7 @@ impl PgStorage {
     ///
     /// Returns [`sqlx::Error`] when the pool cannot execute a trivial query.
     pub async fn health(&self) -> Result<(), sqlx::Error> {
-        let _: i32 = sqlx::query_scalar("SELECT 1").fetch_one(&self.pool).await?;
+        let _: i32 = sqlx::query_scalar(HEALTH_SQL).fetch_one(&self.pool).await?;
         Ok(())
     }
 
@@ -96,20 +132,16 @@ impl PgStorage {
 impl PgStorage {
     async fn read_snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
         let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
-        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        sqlx::query(REPEATABLE_READ_READ_ONLY_SQL)
             .execute(&mut *transaction)
             .await
             .map_err(sql_read_error)?;
 
-        let timeline_row = sqlx::query(
-            "SELECT world_id::text AS world_id, head_event_seq::text AS head_event_seq, \
-                    state_revision::text AS state_revision, world_time \
-             FROM loom_timeline WHERE timeline_id = $1::uuid",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let timeline_row = sqlx::query(READ_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         let Some(timeline_row) = timeline_row else {
             let _ = transaction.rollback().await;
             return Err(ReadError::TimelineNotFound { timeline_id });
@@ -133,14 +165,11 @@ impl PgStorage {
             world_time,
         );
 
-        let entity_rows = sqlx::query(
-            "SELECT entity_id::text AS entity_id FROM loom_entity \
-             WHERE timeline_id = $1::uuid ORDER BY entity_id",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let entity_rows = sqlx::query(READ_ENTITIES_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         for row in entity_rows {
             let entity_id =
                 parse_identity::<EntityId>(&row_string(&row, "entity_id")?, "EntityId")?;
@@ -150,14 +179,11 @@ impl PgStorage {
             });
         }
 
-        let relationship_rows = sqlx::query(
-            "SELECT relationship_id::text AS relationship_id, relationship_type, active \
-             FROM loom_relationship WHERE timeline_id = $1::uuid ORDER BY relationship_id",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let relationship_rows = sqlx::query(READ_RELATIONSHIPS_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         for row in relationship_rows {
             let relationship_id = parse_identity::<RelationshipId>(
                 &row_string(&row, "relationship_id")?,
@@ -166,17 +192,12 @@ impl PgStorage {
             let relationship_type =
                 RelationshipTypeId::from(row_string(&row, "relationship_type")?);
             let active: bool = row.try_get("active").map_err(sql_read_error)?;
-            let participant_rows = sqlx::query(
-                "SELECT entity_id::text AS entity_id, role \
-                 FROM loom_relationship_participant \
-                 WHERE timeline_id = $1::uuid AND relationship_id = $2::uuid \
-                 ORDER BY participant_order",
-            )
-            .bind(timeline_id.to_string())
-            .bind(relationship_id.to_string())
-            .fetch_all(&mut *transaction)
-            .await
-            .map_err(sql_read_error)?;
+            let participant_rows = sqlx::query(READ_RELATIONSHIP_PARTICIPANTS_SQL)
+                .bind(timeline_id.to_string())
+                .bind(relationship_id.to_string())
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(sql_read_error)?;
             let mut participants = Vec::with_capacity(participant_rows.len());
             for participant in participant_rows {
                 participants.push(RelationshipParticipant::new(
@@ -193,15 +214,11 @@ impl PgStorage {
             );
         }
 
-        let entity_facet_rows = sqlx::query(
-            "SELECT entity_id::text AS owner_id, facet_type, schema_revision, value \
-             FROM loom_entity_facet WHERE timeline_id = $1::uuid \
-             ORDER BY entity_id, facet_type",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let entity_facet_rows = sqlx::query(READ_ENTITY_FACETS_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         for row in entity_facet_rows {
             base.insert_facet(
                 FacetOwner::entity(parse_identity::<EntityId>(
@@ -214,15 +231,11 @@ impl PgStorage {
             );
         }
 
-        let relationship_facet_rows = sqlx::query(
-            "SELECT relationship_id::text AS owner_id, facet_type, schema_revision, value \
-             FROM loom_relationship_facet WHERE timeline_id = $1::uuid \
-             ORDER BY relationship_id, facet_type",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let relationship_facet_rows = sqlx::query(READ_RELATIONSHIP_FACETS_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         for row in relationship_facet_rows {
             base.insert_facet(
                 FacetOwner::relationship(parse_identity::<RelationshipId>(
@@ -235,15 +248,11 @@ impl PgStorage {
             );
         }
 
-        let event_rows = sqlx::query(
-            "SELECT event_id::text AS event_id, event_seq::text AS event_seq, event_type, \
-                    schema_revision, occurred_at, payload, effects \
-             FROM loom_event WHERE timeline_id = $1::uuid ORDER BY event_seq",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let event_rows = sqlx::query(READ_EVENTS_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         let mut events = Vec::with_capacity(event_rows.len());
         for row in event_rows {
             let event_id = parse_identity::<EventId>(&row_string(&row, "event_id")?, "EventId")?;
@@ -265,15 +274,12 @@ impl PgStorage {
                 WorldInstant::new(row_i64(&row, "occurred_at")?),
             );
 
-            let participant_rows = sqlx::query(
-                "SELECT entity_id::text AS entity_id, role FROM loom_event_participant \
-                 WHERE timeline_id = $1::uuid AND event_id = $2::uuid ORDER BY participant_order",
-            )
-            .bind(timeline_id.to_string())
-            .bind(event_id.to_string())
-            .fetch_all(&mut *transaction)
-            .await
-            .map_err(sql_read_error)?;
+            let participant_rows = sqlx::query(READ_EVENT_PARTICIPANTS_SQL)
+                .bind(timeline_id.to_string())
+                .bind(event_id.to_string())
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(sql_read_error)?;
             for participant in participant_rows {
                 event.push_participant(
                     parse_identity::<EntityId>(
@@ -284,16 +290,12 @@ impl PgStorage {
                 );
             }
 
-            let relationship_rows = sqlx::query(
-                "SELECT relationship_id::text AS relationship_id, role \
-                 FROM loom_event_relationship_ref \
-                 WHERE timeline_id = $1::uuid AND event_id = $2::uuid ORDER BY reference_order",
-            )
-            .bind(timeline_id.to_string())
-            .bind(event_id.to_string())
-            .fetch_all(&mut *transaction)
-            .await
-            .map_err(sql_read_error)?;
+            let relationship_rows = sqlx::query(READ_EVENT_RELATIONSHIP_REFS_SQL)
+                .bind(timeline_id.to_string())
+                .bind(event_id.to_string())
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(sql_read_error)?;
             for relationship in relationship_rows {
                 event.push_relationship_ref(
                     parse_identity::<RelationshipId>(
@@ -304,15 +306,12 @@ impl PgStorage {
                 );
             }
 
-            let causal_rows = sqlx::query(
-                "SELECT cause_event_id::text AS cause_event_id FROM loom_event_causal_link \
-                 WHERE timeline_id = $1::uuid AND event_id = $2::uuid ORDER BY causal_order",
-            )
-            .bind(timeline_id.to_string())
-            .bind(event_id.to_string())
-            .fetch_all(&mut *transaction)
-            .await
-            .map_err(sql_read_error)?;
+            let causal_rows = sqlx::query(READ_EVENT_CAUSAL_LINKS_SQL)
+                .bind(timeline_id.to_string())
+                .bind(event_id.to_string())
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(sql_read_error)?;
             for causal in causal_rows {
                 event.push_causal_link(parse_identity::<EventId>(
                     &row_string(&causal, "cause_event_id")?,
@@ -323,17 +322,11 @@ impl PgStorage {
             events.push(event);
         }
 
-        let work_rows = sqlx::query(
-            "SELECT work_id::text AS work_id, handler, schema_revision, payload, due_world_time, \
-                    causal_event_id::text AS causal_event_id, origin_work_id::text AS origin_work_id, \
-                    status, attempt_count, claim_generation::text AS claim_generation, available_at, \
-                    last_error, lease_claimed_until, lease_fence::text AS lease_fence \
-             FROM loom_work WHERE timeline_id = $1::uuid ORDER BY work_id",
-        )
-        .bind(timeline_id.to_string())
-        .fetch_all(&mut *transaction)
-        .await
-        .map_err(sql_read_error)?;
+        let work_rows = sqlx::query(READ_WORK_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
         let mut works = Vec::with_capacity(work_rows.len());
         for row in work_rows {
             let work_id = parse_identity::<WorkId>(&row_string(&row, "work_id")?, "WorkId")?;
@@ -438,7 +431,7 @@ impl PgStorage {
     ) -> Result<WorldCreation, LifecycleError> {
         let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
 
-        if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+        if let Err(error) = sqlx::query(INSERT_WORLD_SQL)
             .bind(world_id.to_string())
             .execute(&mut *transaction)
             .await
@@ -456,30 +449,23 @@ impl PgStorage {
                     message: format!("World Runtime Binding serialization failed: {error}"),
                 }
             })?;
-            if let Err(error) = sqlx::query(
-                "INSERT INTO loom_world_runtime_binding (world_id, binding) \
-                 VALUES ($1::uuid, $2::jsonb)",
-            )
-            .bind(world_id.to_string())
-            .bind(value)
-            .execute(&mut *transaction)
-            .await
+            if let Err(error) = sqlx::query(INSERT_BINDING_SQL)
+                .bind(world_id.to_string())
+                .bind(value)
+                .execute(&mut *transaction)
+                .await
             {
                 let _ = transaction.rollback().await;
                 return Err(sql_lifecycle_error(error));
             }
         }
 
-        if let Err(error) = sqlx::query(
-            "INSERT INTO loom_timeline \
-             (timeline_id, world_id, head_event_seq, state_revision, world_time) \
-             VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
-        )
-        .bind(timeline_id.to_string())
-        .bind(world_id.to_string())
-        .bind(initial_world_time.value())
-        .execute(&mut *transaction)
-        .await
+        if let Err(error) = sqlx::query(INSERT_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .bind(world_id.to_string())
+            .bind(initial_world_time.value())
+            .execute(&mut *transaction)
+            .await
         {
             let _ = transaction.rollback().await;
             if is_unique_violation(&error) {
@@ -511,7 +497,7 @@ impl PgStorage {
             })?;
         let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
 
-        if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+        if let Err(error) = sqlx::query(INSERT_WORLD_SQL)
             .bind(world_id.to_string())
             .execute(&mut *transaction)
             .await
@@ -523,29 +509,22 @@ impl PgStorage {
             return Err(sql_lifecycle_error(error));
         }
 
-        if let Err(error) = sqlx::query(
-            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
-             VALUES ($1::uuid, $2::jsonb)",
-        )
-        .bind(world_id.to_string())
-        .bind(binding_value)
-        .execute(&mut *transaction)
-        .await
+        if let Err(error) = sqlx::query(INSERT_BINDING_SQL)
+            .bind(world_id.to_string())
+            .bind(binding_value)
+            .execute(&mut *transaction)
+            .await
         {
             let _ = transaction.rollback().await;
             return Err(sql_lifecycle_error(error));
         }
 
-        if let Err(error) = sqlx::query(
-            "INSERT INTO loom_timeline \
-             (timeline_id, world_id, head_event_seq, state_revision, world_time) \
-             VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
-        )
-        .bind(timeline_id.to_string())
-        .bind(world_id.to_string())
-        .bind(initial_world_time.value())
-        .execute(&mut *transaction)
-        .await
+        if let Err(error) = sqlx::query(INSERT_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .bind(world_id.to_string())
+            .bind(initial_world_time.value())
+            .execute(&mut *transaction)
+            .await
         {
             let _ = transaction.rollback().await;
             if is_unique_violation(&error) {
@@ -616,12 +595,11 @@ impl WorldRuntimeBindingStore for PgStorage {
 
 impl PgStorage {
     async fn read_binding(&self, world_id: WorldId) -> Result<WorldRuntimeBinding, BindingError> {
-        let row =
-            sqlx::query("SELECT binding FROM loom_world_runtime_binding WHERE world_id = $1::uuid")
-                .bind(world_id.to_string())
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(sql_binding_error)?;
+        let row = sqlx::query(READ_BINDING_SQL)
+            .bind(world_id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sql_binding_error)?;
         if let Some(row) = row {
             let value: Value = row.try_get("binding").map_err(sql_binding_error)?;
             return serde_json::from_value(value).map_err(|error| {
@@ -631,12 +609,11 @@ impl PgStorage {
             });
         }
 
-        let world_exists: Option<i32> =
-            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid")
-                .bind(world_id.to_string())
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(sql_binding_error)?;
+        let world_exists: Option<i32> = sqlx::query_scalar(WORLD_EXISTS_SQL)
+            .bind(world_id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sql_binding_error)?;
         if world_exists.is_none() {
             return Err(BindingError::WorldNotFound { world_id });
         }
@@ -653,24 +630,20 @@ impl PgStorage {
                 message: format!("World Runtime Binding serialization failed: {error}"),
             })?;
         let mut transaction = self.pool.begin().await.map_err(sql_binding_error)?;
-        let world_exists: Option<i32> =
-            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid FOR UPDATE")
-                .bind(world_id.to_string())
-                .fetch_optional(&mut *transaction)
-                .await
-                .map_err(sql_binding_error)?;
+        let world_exists: Option<i32> = sqlx::query_scalar(LOCK_WORLD_EXISTS_SQL)
+            .bind(world_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_binding_error)?;
         if world_exists.is_none() {
             let _ = transaction.rollback().await;
             return Err(BindingError::WorldNotFound { world_id });
         }
-        let result = sqlx::query(
-            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
-             VALUES ($1::uuid, $2::jsonb)",
-        )
-        .bind(world_id.to_string())
-        .bind(value)
-        .execute(&mut *transaction)
-        .await;
+        let result = sqlx::query(INSERT_BINDING_SQL)
+            .bind(world_id.to_string())
+            .bind(value)
+            .execute(&mut *transaction)
+            .await;
         if let Err(error) = result {
             let _ = transaction.rollback().await;
             if is_unique_violation(&error) {
@@ -692,31 +665,26 @@ impl PgStorage {
             }
         })?;
         let mut transaction = self.pool.begin().await.map_err(sql_binding_error)?;
-        let world_exists: Option<i32> =
-            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid FOR UPDATE")
-                .bind(world_id.to_string())
-                .fetch_optional(&mut *transaction)
-                .await
-                .map_err(sql_binding_error)?;
+        let world_exists: Option<i32> = sqlx::query_scalar(LOCK_WORLD_EXISTS_SQL)
+            .bind(world_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_binding_error)?;
         if world_exists.is_none() {
             let _ = transaction.rollback().await;
             return Err(BindingError::WorldNotFound { world_id });
         }
-        sqlx::query(
-            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
-             VALUES ($1::uuid, $2::jsonb) ON CONFLICT (world_id) DO NOTHING",
-        )
-        .bind(world_id.to_string())
-        .bind(value)
-        .execute(&mut *transaction)
-        .await
-        .map_err(sql_binding_error)?;
-        let row =
-            sqlx::query("SELECT binding FROM loom_world_runtime_binding WHERE world_id = $1::uuid")
-                .bind(world_id.to_string())
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(sql_binding_error)?;
+        sqlx::query(INSERT_BINDING_IF_ABSENT_SQL)
+            .bind(world_id.to_string())
+            .bind(value)
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_binding_error)?;
+        let row = sqlx::query(READ_BINDING_SQL)
+            .bind(world_id.to_string())
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(sql_binding_error)?;
         let value: Value = row.try_get("binding").map_err(sql_binding_error)?;
         let binding =
             serde_json::from_value(value).map_err(|error| BindingError::StorageUnavailable {
@@ -774,156 +742,6 @@ impl RuntimeRevisionStore for PgStorage {
     }
 }
 
-impl ExecutionSessionStore for PgStorage {
-    fn start_session(
-        &self,
-        session: ExecutionSession,
-    ) -> PersistenceFuture<'_, Result<(), SessionError>> {
-        Box::pin(async move { self.start_session(session).await })
-    }
-
-    fn finish_session(
-        &self,
-        session_id: ExecutionSessionId,
-        status: ExecutionSessionStatus,
-        ended_at: PlatformTime,
-    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
-        Box::pin(async move { self.finish_session(session_id, status, ended_at).await })
-    }
-
-    fn read_session(
-        &self,
-        session_id: ExecutionSessionId,
-    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
-        Box::pin(async move { self.read_session(session_id).await })
-    }
-
-    fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
-        Box::pin(async move { self.list_sessions().await })
-    }
-}
-
-impl PgStorage {
-    async fn start_session(&self, session: ExecutionSession) -> Result<(), SessionError> {
-        if session.status() != ExecutionSessionStatus::Started {
-            return Err(SessionError::InvalidTransition {
-                session_id: session.id(),
-                from: session.status(),
-                to: ExecutionSessionStatus::Started,
-            });
-        }
-        let record =
-            serde_json::to_value(&session).map_err(|error| SessionError::StorageUnavailable {
-                message: format!("Execution Session serialization failed: {error}"),
-            })?;
-        let result = sqlx::query(
-            "INSERT INTO loom_execution_session \
-             (session_id, world_id, timeline_id, origin, status, started_at, ended_at, record) \
-             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, NULL, $7::jsonb)",
-        )
-        .bind(session.id().to_string())
-        .bind(session.assembly().world_id().to_string())
-        .bind(session.assembly().timeline_id().to_string())
-        .bind(session_origin(session.origin()))
-        .bind(session_status(session.status()))
-        .bind(session.started_at().value())
-        .bind(record)
-        .execute(&self.pool)
-        .await;
-        if let Err(error) = result {
-            if is_unique_violation(&error) {
-                return Err(SessionError::SessionAlreadyExists {
-                    session_id: session.id(),
-                });
-            }
-            return Err(sql_session_error(error));
-        }
-        Ok(())
-    }
-
-    async fn finish_session(
-        &self,
-        session_id: ExecutionSessionId,
-        status: ExecutionSessionStatus,
-        ended_at: PlatformTime,
-    ) -> Result<ExecutionSession, SessionError> {
-        let current = self.read_session(session_id).await?;
-        if current.status() != ExecutionSessionStatus::Started {
-            if current.status() == status {
-                return Ok(current);
-            }
-            return Err(SessionError::InvalidTransition {
-                session_id,
-                from: current.status(),
-                to: status,
-            });
-        }
-        let finished = current.finish(status, ended_at)?;
-        let record =
-            serde_json::to_value(&finished).map_err(|error| SessionError::StorageUnavailable {
-                message: format!("Execution Session serialization failed: {error}"),
-            })?;
-        let result = sqlx::query(
-            "UPDATE loom_execution_session \
-             SET status = $2, ended_at = $3, record = $4::jsonb \
-             WHERE session_id = $1::uuid AND status = 'Started'",
-        )
-        .bind(session_id.to_string())
-        .bind(session_status(status))
-        .bind(ended_at.value())
-        .bind(record)
-        .execute(&self.pool)
-        .await
-        .map_err(sql_session_error)?;
-        if result.rows_affected() == 0 {
-            let actual = self.read_session(session_id).await?;
-            if actual.status() == status {
-                return Ok(actual);
-            }
-            return Err(SessionError::InvalidTransition {
-                session_id,
-                from: actual.status(),
-                to: status,
-            });
-        }
-        Ok(finished)
-    }
-
-    async fn read_session(
-        &self,
-        session_id: ExecutionSessionId,
-    ) -> Result<ExecutionSession, SessionError> {
-        let row =
-            sqlx::query("SELECT record FROM loom_execution_session WHERE session_id = $1::uuid")
-                .bind(session_id.to_string())
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(sql_session_error)?;
-        let Some(row) = row else {
-            return Err(SessionError::SessionNotFound { session_id });
-        };
-        let record: Value = row.try_get("record").map_err(sql_session_error)?;
-        serde_json::from_value(record).map_err(|error| SessionError::StorageUnavailable {
-            message: format!("invalid persisted Execution Session: {error}"),
-        })
-    }
-
-    async fn list_sessions(&self) -> Result<Vec<ExecutionSession>, SessionError> {
-        let rows = sqlx::query("SELECT record FROM loom_execution_session ORDER BY session_id ASC")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(sql_session_error)?;
-        rows.into_iter()
-            .map(|row| {
-                let record: Value = row.try_get("record").map_err(sql_session_error)?;
-                serde_json::from_value(record).map_err(|error| SessionError::StorageUnavailable {
-                    message: format!("invalid persisted Execution Session: {error}"),
-                })
-            })
-            .collect()
-    }
-}
-
 impl PgStorage {
     async fn register_revision(
         &self,
@@ -935,14 +753,11 @@ impl PgStorage {
                 message: format!("Runtime Revision serialization failed: {error}"),
             }
         })?;
-        let result = sqlx::query(
-            "INSERT INTO loom_runtime_revision (revision_id, descriptor) \
-             VALUES ($1, $2::jsonb)",
-        )
-        .bind(revision_id.as_str())
-        .bind(descriptor)
-        .execute(&self.pool)
-        .await;
+        let result = sqlx::query(REGISTER_RUNTIME_REVISION_SQL)
+            .bind(revision_id.as_str())
+            .bind(descriptor)
+            .execute(&self.pool)
+            .await;
         if let Err(error) = result {
             if is_unique_violation(&error) {
                 return Err(RuntimeRevisionError::RevisionAlreadyExists { revision_id });
@@ -987,12 +802,11 @@ impl PgStorage {
         &self,
         revision_id: RuntimeRevisionId,
     ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError> {
-        let row =
-            sqlx::query("SELECT descriptor FROM loom_runtime_revision WHERE revision_id = $1")
-                .bind(revision_id.as_str())
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(sql_revision_error)?;
+        let row = sqlx::query(READ_RUNTIME_REVISION_SQL)
+            .bind(revision_id.as_str())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sql_revision_error)?;
         let Some(row) = row else {
             return Err(RuntimeRevisionError::RevisionNotFound { revision_id });
         };
@@ -1005,11 +819,10 @@ impl PgStorage {
     }
 
     async fn list_revisions(&self) -> Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError> {
-        let rows =
-            sqlx::query("SELECT descriptor FROM loom_runtime_revision ORDER BY revision_id ASC")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(sql_revision_error)?;
+        let rows = sqlx::query(LIST_RUNTIME_REVISIONS_SQL)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql_revision_error)?;
         rows.into_iter()
             .map(|row| {
                 let descriptor: Value = row.try_get("descriptor").map_err(sql_revision_error)?;
@@ -1025,17 +838,10 @@ impl PgStorage {
     async fn read_active_revision(
         &self,
     ) -> Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError> {
-        let row = sqlx::query(
-            "SELECT active.revision_id, active.activation_generation::text AS activation_generation, \
-                    active.activated_at, revision.descriptor \
-             FROM loom_runtime_active_revision AS active \
-             LEFT JOIN loom_runtime_revision AS revision \
-               ON revision.revision_id = active.revision_id \
-             WHERE active.singleton = TRUE",
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(sql_revision_error)?;
+        let row = sqlx::query(READ_ACTIVE_RUNTIME_REVISION_SQL)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(sql_revision_error)?;
         let Some(row) = row else {
             return Err(RuntimeRevisionError::StorageUnavailable {
                 message: "Runtime active-revision anchor is missing".to_owned(),
@@ -1073,16 +879,13 @@ impl PgStorage {
         activated_at: PlatformTime,
     ) -> Result<RuntimeRevisionSelection, RuntimeRevisionError> {
         let mut transaction = self.pool.begin().await.map_err(sql_revision_error)?;
-        let active_row = sqlx::query(
-            "SELECT revision_id, activation_generation::text AS activation_generation \
-             FROM loom_runtime_active_revision WHERE singleton = TRUE FOR UPDATE",
-        )
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(sql_revision_error)?
-        .ok_or_else(|| RuntimeRevisionError::StorageUnavailable {
-            message: "Runtime active-revision anchor is missing".to_owned(),
-        })?;
+        let active_row = sqlx::query(LOCK_ACTIVE_RUNTIME_REVISION_SQL)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_revision_error)?
+            .ok_or_else(|| RuntimeRevisionError::StorageUnavailable {
+                message: "Runtime active-revision anchor is missing".to_owned(),
+            })?;
         let current_revision_id: Option<String> = active_row
             .try_get("revision_id")
             .map_err(sql_revision_error)?;
@@ -1101,15 +904,14 @@ impl PgStorage {
             });
         }
 
-        let descriptor_row =
-            sqlx::query("SELECT descriptor FROM loom_runtime_revision WHERE revision_id = $1")
-                .bind(revision_id.as_str())
-                .fetch_optional(&mut *transaction)
-                .await
-                .map_err(sql_revision_error)?
-                .ok_or_else(|| RuntimeRevisionError::RevisionNotFound {
-                    revision_id: revision_id.clone(),
-                })?;
+        let descriptor_row = sqlx::query(READ_RUNTIME_REVISION_SQL)
+            .bind(revision_id.as_str())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_revision_error)?
+            .ok_or_else(|| RuntimeRevisionError::RevisionNotFound {
+                revision_id: revision_id.clone(),
+            })?;
         let descriptor: Value = descriptor_row
             .try_get("descriptor")
             .map_err(sql_revision_error)?;
@@ -1122,17 +924,13 @@ impl PgStorage {
         let generation = stored_generation
             .checked_add(1)
             .ok_or(RuntimeRevisionError::ActivationGenerationOverflow)?;
-        sqlx::query(
-            "UPDATE loom_runtime_active_revision \
-             SET revision_id = $1, activation_generation = $2::numeric, activated_at = $3 \
-             WHERE singleton = TRUE",
-        )
-        .bind(revision_id.as_str())
-        .bind(generation.to_string())
-        .bind(activated_at.value())
-        .execute(&mut *transaction)
-        .await
-        .map_err(sql_revision_error)?;
+        sqlx::query(ACTIVATE_RUNTIME_REVISION_SQL)
+            .bind(revision_id.as_str())
+            .bind(generation.to_string())
+            .bind(activated_at.value())
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_revision_error)?;
         transaction.commit().await.map_err(sql_revision_error)?;
         Ok(RuntimeRevisionSelection::new(
             revision,
@@ -1155,19 +953,16 @@ impl WorldTimeStore for PgStorage {
                     .map_err(|error| WorldTimeError::StorageUnavailable {
                         message: format!("PostgreSQL World-Time persistence failed: {error}"),
                     })?;
-            let row = sqlx::query(
-                "SELECT head_event_seq::text AS head_event_seq, state_revision::text AS state_revision, \
-                 world_time FROM loom_timeline WHERE timeline_id = $1::uuid FOR UPDATE",
-            )
-            .bind(transition.timeline_id().to_string())
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(|error| WorldTimeError::StorageUnavailable {
-                message: format!("PostgreSQL World-Time read failed: {error}"),
-            })?
-            .ok_or(WorldTimeError::TimelineNotFound {
-                timeline_id: transition.timeline_id(),
-            })?;
+            let row = sqlx::query(LOCK_WORLD_TIME_SQL)
+                .bind(transition.timeline_id().to_string())
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(|error| WorldTimeError::StorageUnavailable {
+                    message: format!("PostgreSQL World-Time read failed: {error}"),
+                })?
+                .ok_or(WorldTimeError::TimelineNotFound {
+                    timeline_id: transition.timeline_id(),
+                })?;
             let actual = TimelineVersion::new(
                 EventSeq::new(
                     row.try_get::<String, _>("head_event_seq")
@@ -1214,18 +1009,15 @@ impl WorldTimeStore for PgStorage {
                 .ok_or(WorldTimeError::RevisionOverflow)?;
             let next =
                 TimelineVersion::new(actual.head_event_seq, StateRevision::new(next_revision));
-            sqlx::query(
-                "UPDATE loom_timeline SET state_revision = $2::numeric, world_time = $3 \
-                 WHERE timeline_id = $1::uuid",
-            )
-            .bind(transition.timeline_id().to_string())
-            .bind(next_revision.to_string())
-            .bind(transition.next().value())
-            .execute(&mut *transaction)
-            .await
-            .map_err(|error| WorldTimeError::StorageUnavailable {
-                message: format!("PostgreSQL World-Time write failed: {error}"),
-            })?;
+            sqlx::query(UPDATE_WORLD_TIME_SQL)
+                .bind(transition.timeline_id().to_string())
+                .bind(next_revision.to_string())
+                .bind(transition.next().value())
+                .execute(&mut *transaction)
+                .await
+                .map_err(|error| WorldTimeError::StorageUnavailable {
+                    message: format!("PostgreSQL World-Time write failed: {error}"),
+                })?;
             transaction
                 .commit()
                 .await
@@ -1258,30 +1050,6 @@ fn sql_binding_error(error: sqlx::Error) -> BindingError {
 fn sql_revision_error(error: sqlx::Error) -> RuntimeRevisionError {
     RuntimeRevisionError::StorageUnavailable {
         message: format!("PostgreSQL Runtime Revision persistence failed: {error}"),
-    }
-}
-
-fn sql_session_error(error: sqlx::Error) -> SessionError {
-    SessionError::StorageUnavailable {
-        message: format!("PostgreSQL Execution Session persistence failed: {error}"),
-    }
-}
-
-fn session_origin(origin: loom_runtime::ExecutionOrigin) -> &'static str {
-    match origin {
-        loom_runtime::ExecutionOrigin::Application => "Application",
-        loom_runtime::ExecutionOrigin::Ingress => "Ingress",
-        loom_runtime::ExecutionOrigin::Operator => "Operator",
-        loom_runtime::ExecutionOrigin::Runtime => "Runtime",
-    }
-}
-
-fn session_status(status: ExecutionSessionStatus) -> &'static str {
-    match status {
-        ExecutionSessionStatus::Started => "Started",
-        ExecutionSessionStatus::Committed => "Committed",
-        ExecutionSessionStatus::Rejected => "Rejected",
-        ExecutionSessionStatus::Failed => "Failed",
     }
 }
 
@@ -1370,343 +1138,4 @@ fn parse_work_status(value: &str) -> Result<WorkStatus, ReadError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::PgStorage;
-
-    const WORLD_ID: &str = "00000000-0000-0000-0000-000000000101";
-    const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000102";
-    const ENTITY_ID: &str = "00000000-0000-0000-0000-000000000103";
-
-    fn postgres_url() -> Option<String> {
-        match std::env::var("LOOM_TEST_POSTGRES_URL") {
-            Ok(url) => Some(url),
-            Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-                panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-            }
-            Err(_) => None,
-        }
-    }
-
-    fn database_error_code(error: &sqlx::Error) -> Option<String> {
-        error
-            .as_database_error()
-            .and_then(sqlx::error::DatabaseError::code)
-            .map(std::borrow::Cow::into_owned)
-    }
-
-    #[tokio::test]
-    async fn postgres_18_schema_contract() {
-        let Some(database_url) = postgres_url() else {
-            return;
-        };
-
-        let storage = PgStorage::connect(&database_url)
-            .await
-            .expect("PostgreSQL test database should accept connections");
-
-        let server_version: i32 =
-            sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
-                .fetch_one(&storage.pool)
-                .await
-                .expect("PostgreSQL should report its server version");
-        assert!(
-            (180_000..190_000).contains(&server_version),
-            "schema gate must run against PostgreSQL 18, got server_version_num={server_version}"
-        );
-
-        storage
-            .migrate()
-            .await
-            .expect("migrations should apply to an empty PostgreSQL 18 database");
-        storage
-            .migrate()
-            .await
-            .expect("re-running unchanged migrations should be deterministic");
-        storage.health().await.expect("health query should succeed");
-
-        let loom_table_count: i64 = sqlx::query_scalar(
-            "SELECT count(*)::bigint \
-             FROM information_schema.tables \
-             WHERE table_schema = 'public' AND table_name LIKE 'loom_%'",
-        )
-        .fetch_one(&storage.pool)
-        .await
-        .expect("schema tables should be inspectable");
-        assert_eq!(loom_table_count, 16);
-
-        sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
-            .bind(WORLD_ID)
-            .execute(&storage.pool)
-            .await
-            .expect("test World should insert");
-        sqlx::query(
-            "INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)",
-        )
-        .bind(TIMELINE_ID)
-        .bind(WORLD_ID)
-        .execute(&storage.pool)
-        .await
-        .expect("test Timeline should insert");
-        sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
-            .bind(TIMELINE_ID)
-            .bind(ENTITY_ID)
-            .execute(&storage.pool)
-            .await
-            .expect("test Entity should insert");
-
-        let duplicate_entity = sqlx::query(
-            "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
-        )
-        .bind(TIMELINE_ID)
-        .bind(ENTITY_ID)
-        .execute(&storage.pool)
-        .await
-        .expect_err("duplicate Timeline-local Entity identity must be rejected");
-        assert_eq!(
-            database_error_code(&duplicate_entity).as_deref(),
-            Some("23505")
-        );
-
-        let missing_facet_owner = sqlx::query(
-            "INSERT INTO loom_entity_facet \
-             (timeline_id, entity_id, facet_type, schema_revision, value) \
-             VALUES ($1::uuid, $2::uuid, 'test.missing', 1, '{}'::jsonb)",
-        )
-        .bind(TIMELINE_ID)
-        .bind("00000000-0000-0000-0000-000000000199")
-        .execute(&storage.pool)
-        .await
-        .expect_err("Facet owner foreign key must be enforced");
-        assert_eq!(
-            database_error_code(&missing_facet_owner).as_deref(),
-            Some("23503")
-        );
-
-        let invalid_u64_range = sqlx::query(
-            "INSERT INTO loom_timeline \
-             (timeline_id, world_id, head_event_seq) \
-             VALUES ('00000000-0000-0000-0000-000000000198'::uuid, $1::uuid, -1)",
-        )
-        .bind(WORLD_ID)
-        .execute(&storage.pool)
-        .await
-        .expect_err("negative EventSeq representation must be rejected");
-        assert_eq!(
-            database_error_code(&invalid_u64_range).as_deref(),
-            Some("23514")
-        );
-
-        storage.close().await;
-    }
-
-    #[tokio::test]
-    async fn postgres_18_read_snapshot_parity() {
-        let Some(database_url) = postgres_url() else {
-            return;
-        };
-        let storage = PgStorage::connect(&database_url)
-            .await
-            .expect("PostgreSQL test database should accept connections");
-        storage
-            .migrate()
-            .await
-            .expect("migrations should be current");
-
-        let world_id = "00000000-0000-0000-0000-000000000201";
-        let timeline_id = "00000000-0000-0000-0000-000000000202";
-        let entity_a = "00000000-0000-0000-0000-000000000203";
-        let entity_b = "00000000-0000-0000-0000-000000000204";
-        let relationship_id = "00000000-0000-0000-0000-000000000205";
-        let event_first = "00000000-0000-0000-0000-000000000299";
-        let event_second = "00000000-0000-0000-0000-000000000210";
-        let work_id = "00000000-0000-0000-0000-000000000211";
-
-        sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")
-            .bind(world_id)
-            .execute(&storage.pool)
-            .await
-            .expect("read fixture World should insert");
-        sqlx::query(
-            "INSERT INTO loom_timeline \
-             (timeline_id, world_id, head_event_seq, state_revision, world_time) \
-             VALUES ($1::uuid, $2::uuid, 2, 3, 42) ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(world_id)
-        .execute(&storage.pool)
-        .await
-        .expect("read fixture Timeline should insert");
-        for entity_id in [entity_a, entity_b] {
-            sqlx::query(
-                "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid) \
-                 ON CONFLICT DO NOTHING",
-            )
-            .bind(timeline_id)
-            .bind(entity_id)
-            .execute(&storage.pool)
-            .await
-            .expect("read fixture Entity should insert");
-        }
-        sqlx::query(
-            "INSERT INTO loom_relationship \
-             (timeline_id, relationship_id, relationship_type, active) \
-             VALUES ($1::uuid, $2::uuid, 'test.membership', FALSE) ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(relationship_id)
-        .execute(&storage.pool)
-        .await
-        .expect("read fixture Relationship should insert");
-        sqlx::query(
-            "INSERT INTO loom_relationship_participant \
-             (timeline_id, relationship_id, participant_order, entity_id, role) \
-             VALUES ($1::uuid, $2::uuid, 0, $3::uuid, 'member') ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(relationship_id)
-        .bind(entity_a)
-        .execute(&storage.pool)
-        .await
-        .expect("Relationship participant should insert");
-        sqlx::query(
-            "INSERT INTO loom_entity_facet \
-             (timeline_id, entity_id, facet_type, schema_revision, value) \
-             VALUES ($1::uuid, $2::uuid, 'test.counter', 1, '{\"value\":7}'::jsonb) \
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(entity_a)
-        .execute(&storage.pool)
-        .await
-        .expect("Entity Facet should insert");
-        sqlx::query(
-            "INSERT INTO loom_relationship_facet \
-             (timeline_id, relationship_id, facet_type, schema_revision, value) \
-             VALUES ($1::uuid, $2::uuid, 'test.relationship_state', 2, '{\"ended\":true}'::jsonb) \
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(relationship_id)
-        .execute(&storage.pool)
-        .await
-        .expect("Relationship Facet should insert");
-
-        // Insert EventSeq 2 first and give EventSeq 1 the lexicographically larger UUID.
-        // A correct adapter must still return [1, 2].
-        for (event_id, sequence, event_type, occurred_at) in [
-            (event_second, 2_i64, "test.second", 42_i64),
-            (event_first, 1_i64, "test.first", 40_i64),
-        ] {
-            sqlx::query(
-                "INSERT INTO loom_event \
-                 (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \
-                 VALUES ($1::uuid, $2::uuid, $3, $4, 1, $5, '{}'::jsonb, '[]'::jsonb) \
-                 ON CONFLICT DO NOTHING",
-            )
-            .bind(timeline_id)
-            .bind(event_id)
-            .bind(sequence)
-            .bind(event_type)
-            .bind(occurred_at)
-            .execute(&storage.pool)
-            .await
-            .expect("Event fixture should insert");
-        }
-        sqlx::query(
-            "INSERT INTO loom_event_participant \
-             (timeline_id, event_id, participant_order, entity_id, role) \
-             VALUES ($1::uuid, $2::uuid, 0, $3::uuid, 'actor') ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(event_first)
-        .bind(entity_a)
-        .execute(&storage.pool)
-        .await
-        .expect("Event participant should insert");
-        sqlx::query(
-            "INSERT INTO loom_event_relationship_ref \
-             (timeline_id, event_id, reference_order, relationship_id, role) \
-             VALUES ($1::uuid, $2::uuid, 0, $3::uuid, 'subject') ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(event_first)
-        .bind(relationship_id)
-        .execute(&storage.pool)
-        .await
-        .expect("Event Relationship reference should insert");
-        sqlx::query(
-            "INSERT INTO loom_event_causal_link \
-             (timeline_id, event_id, causal_order, cause_event_id) \
-             VALUES ($1::uuid, $2::uuid, 0, $3::uuid) ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(event_second)
-        .bind(event_first)
-        .execute(&storage.pool)
-        .await
-        .expect("Event causal link should insert");
-        sqlx::query(
-            "INSERT INTO loom_work \
-             (timeline_id, work_id, handler, schema_revision, payload, due_world_time, status, \
-              attempt_count, claim_generation, available_at) \
-             VALUES ($1::uuid, $2::uuid, 'test.handler', 1, '{}'::jsonb, 50, 'pending', 2, 4, 9) \
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(timeline_id)
-        .bind(work_id)
-        .execute(&storage.pool)
-        .await
-        .expect("Work fixture should insert");
-
-        let timeline: loom_core::TimelineId = timeline_id.parse().expect("TimelineId should parse");
-        let snapshot = loom_runtime::WorldStore::snapshot(&storage, timeline)
-            .await
-            .expect("PostgreSQL snapshot should reconstruct the fixture");
-        assert_eq!(snapshot.version().head_event_seq.value(), 2);
-        assert_eq!(snapshot.version().state_revision.value(), 3);
-        assert_eq!(snapshot.world_time().value(), 42);
-        assert_eq!(snapshot.events.len(), 2);
-        assert_eq!(snapshot.events[0].event_seq.value(), 1);
-        assert_eq!(snapshot.events[1].event_seq.value(), 2);
-        assert_eq!(snapshot.events[0].id.to_string(), event_first);
-        assert_eq!(snapshot.events[0].participants.len(), 1);
-        assert_eq!(snapshot.events[0].relationship_refs.len(), 1);
-        assert_eq!(
-            snapshot.events[1].causal_links[0].event_id(),
-            snapshot.events[0].id
-        );
-        assert_eq!(snapshot.works.len(), 1);
-        assert_eq!(snapshot.works[0].attempt_count, 2);
-        assert_eq!(snapshot.works[0].claim_generation, 4);
-        assert_eq!(snapshot.works[0].available_at.value(), 9);
-
-        let view = snapshot.world_view();
-        let entity: loom_core::EntityId = entity_a.parse().expect("EntityId should parse");
-        assert!(view.entity(entity).is_some());
-        let relationship: loom_core::RelationshipId = relationship_id
-            .parse()
-            .expect("RelationshipId should parse");
-        assert!(
-            view.relationship(relationship).is_none(),
-            "ended Relationship must not be active"
-        );
-        assert_eq!(
-            view.facet(
-                loom_core::FacetOwner::entity(entity),
-                &loom_core::FacetTypeId::from("test.counter"),
-            )
-            .expect("Entity Facet should be reconstructed")
-            .value(),
-            &serde_json::json!({"value": 7}),
-        );
-
-        let missing: loom_core::TimelineId = "00000000-0000-0000-0000-000000000298"
-            .parse()
-            .expect("missing TimelineId should parse");
-        assert!(matches!(
-            loom_runtime::WorldStore::snapshot(&storage, missing).await,
-            Err(loom_runtime::ReadError::TimelineNotFound { .. })
-        ));
-        storage.close().await;
-    }
-}
+mod tests;

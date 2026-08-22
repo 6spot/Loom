@@ -14,6 +14,7 @@ This roadmap supersedes the unmerged historical M4–M13 planning from issues #6
 4. Each implementation task has one GitHub Issue and one `docs/tasks/<milestone>/...` record.
 5. A task is complete only with acceptance, PR, merge SHA and verification/CI evidence in both the task ledger and Issue state.
 6. Required current CI/deployment baseline is Ubuntu/Linux. macOS is not a mandatory v0 gate.
+7. PostgreSQL is a `loom-storage` implementation detail: schema DDL lives under `crates/loom-storage/migrations/`, runtime SQL under `crates/loom-storage/sql/`, and other crates/applications must not own SQLx/PostgreSQL access. Infrastructure prerequisite #209 enforces this before M5 expands the persistence surface.
 
 ## Historical baseline
 
@@ -31,6 +32,8 @@ M4 #136  Architecture reconciliation foundation
         │   World Runtime Binding
         │   Template birth
         │   minimum Runtime Revision + root Session/Assembly
+        ↓
+#209      Storage SQL ownership / centralized PostgreSQL implementation baseline
         ↓
 M5 #137  Timeline Logical Runtime + deterministic Scheduler
         │   Work target/due/order
@@ -69,8 +72,9 @@ The previous roadmap placed Scheduler correctness, World Binding, Runtime Revisi
 - Replay/fork cannot be defined from Event rows alone because World Time, logical Work/order and chronology-budget position live in Timeline Logical State.
 - Scheduler must select one Timeline logical head before operational claimability; it cannot scan for any claimable due row.
 - Agency Wake is a distinct Scheduler Work target, not a Capability WorkHandler exception.
+- M5–M10 add substantial PostgreSQL surface, so the storage implementation boundary must be mechanically enforced before those tasks begin rather than cleaned up after V0.
 
-Therefore M4/M5 precede replay/fork and all server/Agency work.
+Therefore M4/M5 precede replay/fork and all server/Agency work, and #209 closes the storage-SQL organization prerequisite before M5's serial root.
 
 ## Milestone map
 
@@ -83,10 +87,13 @@ Therefore M4/M5 precede replay/fork and all server/Agency work.
 - #150 M4-T5 — root Execution Session + exact Execution Assembly
 - #151 M4-T6 — neutral Template/Binding fixtures
 - #152 M4-T7 — reconciliation gate
+- #209 M4-I1 — centralized PostgreSQL SQL ownership baseline (infrastructure prerequisite for M5)
 
-**Exit:** existing M1–M3 execution/persistence/restart assets work under Runtime-stamped Event time, explicit World Time, immutable Binding and pinned Session/Revision assembly.
+**Exit:** existing M1–M3 execution/persistence/restart assets work under Runtime-stamped Event time, explicit World Time, immutable Binding and pinned Session/Revision assembly; PostgreSQL implementation ownership is centralized in `loom-storage` before M5 extends it.
 
 ### M5 — Timeline logical runtime + deterministic scheduler (#137)
+
+Prerequisites: M4 gate #152 and storage SQL ownership #209.
 
 - #153 M5-T1 — Work target/effective due/logical order
 - #154 M5-T2 — Timeline Logical Journal
@@ -207,4 +214,4 @@ The previous standalone generic `Event Scope` proposal is intentionally excluded
 
 ## Execution order
 
-Default to the dependency graph, not issue number. Parallel work is allowed only when task dependencies and file/contract ownership are disjoint. A milestone final gate runs after all blocking children are merged on one common baseline.
+Default to the dependency graph, not issue number. Parallel work is allowed only when task dependencies and file/contract ownership are disjoint. A milestone final gate runs after all blocking children are merged on one common baseline. PostgreSQL-bearing tasks must preserve the #209 storage ownership boundary.
