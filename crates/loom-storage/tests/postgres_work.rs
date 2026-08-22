@@ -8,10 +8,11 @@ use loom_capability::{
     ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
-use loom_protocol::{Resolution, ResolveOutcome, WorkMutation};
+use loom_protocol::{NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule};
 use loom_runtime::{
-    CommitError, CommitStore, EffectEngine, PlatformTime, Runtime, WorkError, WorkStatus,
-    WorkStore, WorldStore,
+    CommitError, CommitStore, EffectEngine, LogicalJournalStore, LogicalWorkTransition,
+    PlatformTime, Runtime, RuntimeControlStore, WorkError, WorkStatus, WorkStore,
+    WorkTerminalState, WorkTerminalization, WorldStore,
 };
 use loom_storage::PgStorage;
 use serde_json::Value;
@@ -116,6 +117,218 @@ async fn seed_work(
     .execute(pool)
     .await
     .expect("test Work should insert");
+}
+
+#[tokio::test]
+async fn postgres_18_runtime_terminalization_survives_restart() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2600).await else {
+        return;
+    };
+    let work_id: WorkId = id(0x2610);
+    seed_work(&pool, timeline_id, work_id, 0, None).await;
+    let before = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("initial Timeline should be readable");
+    let terminalized = RuntimeControlStore::terminalize_work(
+        &storage,
+        &WorkTerminalization::new(
+            timeline_id,
+            before.version(),
+            work_id,
+            WorkTerminalState::Cancelled,
+            PlatformTime::new(1),
+        ),
+    )
+    .await
+    .expect("Runtime Control cancellation should commit");
+    assert_eq!(terminalized.state_revision.value(), 1);
+    let journal_before_restart = LogicalJournalStore::read_logical_journal(&storage, timeline_id)
+        .await
+        .expect("terminalization journal should be readable");
+    assert!(matches!(
+        journal_before_restart.as_slice(),
+        [commit] if matches!(
+            commit.work_transitions.as_slice(),
+            [LogicalWorkTransition::Cancel { work_id: cancelled_id }] if *cancelled_id == work_id
+        )
+    ));
+
+    pool.close().await;
+    storage.close().await;
+    let restarted = database.storage().await;
+    let after = WorldStore::snapshot(&restarted, timeline_id)
+        .await
+        .expect("terminalized Timeline should survive restart");
+    assert_eq!(after.version().state_revision.value(), 1);
+    assert!(after.events.is_empty());
+    assert_eq!(
+        LogicalJournalStore::read_logical_journal(&restarted, timeline_id)
+            .await
+            .expect("terminalization journal should survive restart"),
+        journal_before_restart
+    );
+    let work = after
+        .works
+        .iter()
+        .find(|work| work.id == work_id)
+        .expect("cancelled Work should survive restart");
+    assert_eq!(work.status, WorkStatus::Cancelled);
+    assert!(work.lease.is_none());
+    let claim = WorkStore::claim(
+        &restarted,
+        timeline_id,
+        work_id,
+        PlatformTime::new(2),
+        PlatformTime::new(3),
+    )
+    .await
+    .expect_err("terminal Work must remain non-claimable after restart");
+    assert!(matches!(claim, WorkError::NotPending { .. }));
+
+    restarted.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_18_runtime_terminalization_rejects_cross_work_claim_without_mutation() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2700).await else {
+        return;
+    };
+    let claimed_work: WorkId = id(0x2710);
+    let target_work: WorkId = id(0x2711);
+    seed_work(&pool, timeline_id, claimed_work, 0, None).await;
+    seed_work(&pool, timeline_id, target_work, 0, None).await;
+    let claim = WorkStore::claim(
+        &storage,
+        timeline_id,
+        claimed_work,
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect("the claimed Work should have a live fence");
+    let before = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("the pre-terminalization Timeline should be readable");
+
+    let error = RuntimeControlStore::terminalize_work(
+        &storage,
+        &WorkTerminalization::new(
+            timeline_id,
+            before.version(),
+            target_work,
+            WorkTerminalState::Dead,
+            PlatformTime::new(1),
+        )
+        .with_claim(claim),
+    )
+    .await
+    .expect_err("a claim for another Work must be rejected");
+    assert!(matches!(
+        error,
+        CommitError::Work(WorkError::WorkMismatch { expected, actual })
+            if expected == target_work && actual == claimed_work
+    ));
+
+    let after = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("the post-rejection Timeline should be readable");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.events, before.events);
+    assert_eq!(after.journal, before.journal);
+    assert_eq!(after.works, before.works);
+
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_18_runtime_failure_terminalization_recovers_stale_cas_without_reclaim() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2800).await else {
+        return;
+    };
+    let work_id: WorkId = id(0x2810);
+    let concurrent_work: WorkId = id(0x2811);
+    seed_work(&pool, timeline_id, work_id, 0, None).await;
+    let initial = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("the initial Timeline should be readable");
+    let claim = WorkStore::claim(
+        &storage,
+        timeline_id,
+        work_id,
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect("the failure Work should have a live fence");
+
+    let concurrent = validated(
+        &storage,
+        timeline_id,
+        &registry(),
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::new(
+                concurrent_work,
+                timeline_id,
+                WorkHandlerId::from(HANDLER),
+                SchemaRevision::new(1),
+                serde_json::json!({}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    )
+    .await;
+    CommitStore::commit(&storage, &concurrent, None, PlatformTime::new(1))
+        .await
+        .expect("the concurrent logical commit should advance the Timeline");
+
+    let terminalization = WorkTerminalization::new(
+        timeline_id,
+        initial.version(),
+        work_id,
+        WorkTerminalState::Dead,
+        PlatformTime::new(2),
+    )
+    .with_claim(claim)
+    .with_last_error("handler failed");
+    let stale = RuntimeControlStore::terminalize_work(&storage, &terminalization)
+        .await
+        .expect_err("the execution snapshot must be stale after the concurrent commit");
+    assert!(matches!(stale, CommitError::TimelineConflict { .. }));
+
+    let before_recovery = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("the current Timeline should be readable");
+    let recovered = RuntimeControlStore::terminalize_current_work(&storage, &terminalization)
+        .await
+        .expect("bounded stale-CAS recovery should read the current version atomically");
+    let after = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("the terminalized Timeline should be readable");
+    assert_eq!(recovered, after.version());
+    assert_eq!(after.version().state_revision.value(), 2);
+    assert_eq!(after.journal.len(), 2);
+    assert_eq!(after.events.len(), 0);
+    assert_eq!(after.journal[1].before_version, before_recovery.version());
+    assert!(matches!(
+        after.journal[1].work_transitions.as_slice(),
+        [LogicalWorkTransition::Dead { work_id: dead_id }] if *dead_id == work_id
+    ));
+    let terminal = after
+        .works
+        .iter()
+        .find(|work| work.id == work_id)
+        .expect("terminalized Work should remain readable");
+    assert_eq!(terminal.status, WorkStatus::Dead);
+    assert_eq!(terminal.attempt_count, 1);
+    assert!(terminal.lease.is_none());
+
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
 }
 
 async fn validated(

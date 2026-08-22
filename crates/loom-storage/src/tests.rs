@@ -18,9 +18,10 @@ use loom_protocol::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BindingError, CommitError, EffectEngine, LogicalWorkTransition, PlatformTime,
-    Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord, WorkStatus, WorkTarget,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord,
+    WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -1707,6 +1708,223 @@ async fn retry_and_expired_claims_preserve_work_identity_and_fence_winner() {
             .status,
         WorkStatus::Completed
     );
+}
+
+#[tokio::test]
+async fn runtime_control_terminalization_is_cas_journaled_and_not_resurrectable() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let work_id = work(61);
+    store
+        .seed_work(pending_work(work_id))
+        .expect("Work fixture should be seeded");
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let terminalized = RuntimeControlStore::terminalize_work(
+        &store,
+        &WorkTerminalization::new(
+            timeline(),
+            initial.version(),
+            work_id,
+            WorkTerminalState::Cancelled,
+            PlatformTime::new(1),
+        ),
+    )
+    .await
+    .expect("authorized cancellation should commit");
+    assert_eq!(terminalized.state_revision.value(), 1);
+
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    let cancelled = after
+        .works
+        .iter()
+        .find(|item| item.id == work_id)
+        .expect("cancelled Work should remain readable");
+    assert_eq!(cancelled.status, WorkStatus::Cancelled);
+    assert!(cancelled.lease.is_none());
+    assert_eq!(after.events.len(), 0);
+    assert_eq!(after.journal.len(), 1);
+    assert!(matches!(
+        after.journal[0].work_transitions.as_slice(),
+        [LogicalWorkTransition::Cancel { work_id: cancelled_id }] if *cancelled_id == work_id
+    ));
+
+    let stale = RuntimeControlStore::terminalize_work(
+        &store,
+        &WorkTerminalization::new(
+            timeline(),
+            initial.version(),
+            work_id,
+            WorkTerminalState::Dead,
+            PlatformTime::new(2),
+        ),
+    )
+    .await
+    .expect_err("a stale control CAS must not rewrite terminal Work");
+    assert!(matches!(stale, CommitError::TimelineConflict { .. }));
+    let claim = store
+        .claim(
+            timeline(),
+            work_id,
+            PlatformTime::new(3),
+            PlatformTime::new(4),
+        )
+        .expect_err("terminal Work must not be claimed again");
+    assert!(matches!(claim, WorkError::NotPending { .. }));
+}
+
+#[tokio::test]
+async fn runtime_failure_terminalization_recovers_stale_cas_without_reclaim() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let work_id = work(62);
+    store
+        .seed_work(pending_work(work_id))
+        .expect("failure Work fixture should be seeded");
+
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let claim = store
+        .claim(
+            timeline(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect("failure Work should be claimed once");
+
+    let concurrent = validated(
+        &store,
+        &registry(),
+        Resolution::new(
+            vec![event_with_effect(
+                event(63),
+                WorldEffect::CreateEntity {
+                    entity_id: entity(64),
+                },
+                1,
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&concurrent, None, PlatformTime::new(1))
+        .expect("the concurrent logical commit should advance the Timeline");
+
+    let terminalization = WorkTerminalization::new(
+        timeline(),
+        initial.version(),
+        work_id,
+        WorkTerminalState::Dead,
+        PlatformTime::new(2),
+    )
+    .with_claim(claim)
+    .with_last_error("handler failed");
+    let stale = RuntimeControlStore::terminalize_work(&store, &terminalization)
+        .await
+        .expect_err("the execution snapshot must be stale after the concurrent commit");
+    assert!(matches!(stale, CommitError::TimelineConflict { .. }));
+
+    let before_recovery = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(before_recovery.journal.len(), 1);
+    assert_eq!(before_recovery.version().state_revision.value(), 1);
+    let recovered = RuntimeControlStore::terminalize_current_work(&store, &terminalization)
+        .await
+        .expect("bounded stale-CAS recovery should read the current version atomically");
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+
+    assert_eq!(recovered, after.version());
+    assert_eq!(after.version().head_event_seq.value(), 1);
+    assert_eq!(after.version().state_revision.value(), 2);
+    assert_eq!(after.journal.len(), 2);
+    assert_eq!(after.events.len(), 1);
+    assert_eq!(after.journal[1].before_version, before_recovery.version());
+    assert_eq!(after.journal[1].after_version, after.version());
+    assert!(matches!(
+        after.journal[1].work_transitions.as_slice(),
+        [LogicalWorkTransition::Dead { work_id: dead_id }] if *dead_id == work_id
+    ));
+
+    let terminal = after
+        .works
+        .iter()
+        .find(|item| item.id == work_id)
+        .expect("terminalized Work should remain readable");
+    assert_eq!(terminal.status, WorkStatus::Dead);
+    assert_eq!(terminal.attempt_count, 1);
+    assert!(terminal.lease.is_none());
+    assert_eq!(terminal.last_error.as_deref(), Some("handler failed"));
+    assert!(matches!(
+        store.claim(
+            timeline(),
+            work_id,
+            PlatformTime::new(3),
+            PlatformTime::new(4),
+        ),
+        Err(WorkError::NotPending { .. })
+    ));
+    let duplicate = RuntimeControlStore::terminalize_current_work(&store, &terminalization)
+        .await
+        .expect_err("a recovered terminalization must not append a second revision");
+    assert!(matches!(
+        duplicate,
+        CommitError::Work(WorkError::NotPending { .. })
+    ));
+    let after_duplicate = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_duplicate.version(), after.version());
+    assert_eq!(after_duplicate.journal, after.journal);
+}
+
+#[tokio::test]
+async fn runtime_terminalization_rejects_cross_work_claim_without_mutation() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let claimed_work = work(65);
+    let target_work = work(66);
+    store
+        .seed_work(pending_work(claimed_work))
+        .expect("claimed Work fixture should be seeded");
+    store
+        .seed_work(pending_work(target_work))
+        .expect("target Work fixture should be seeded");
+    let claim = store
+        .claim(
+            timeline(),
+            claimed_work,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect("claimed Work should have a live fence");
+    let before = store.snapshot(timeline()).expect("snapshot should exist");
+
+    let error = RuntimeControlStore::terminalize_work(
+        &store,
+        &WorkTerminalization::new(
+            timeline(),
+            before.version(),
+            target_work,
+            WorkTerminalState::Dead,
+            PlatformTime::new(1),
+        )
+        .with_claim(claim),
+    )
+    .await
+    .expect_err("a claim for another Work must be rejected");
+    assert!(matches!(
+        error,
+        CommitError::Work(WorkError::WorkMismatch { expected, actual })
+            if expected == target_work && actual == claimed_work
+    ));
+
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.events, before.events);
+    assert_eq!(after.journal, before.journal);
+    assert_eq!(after.works, before.works);
 }
 
 #[tokio::test]

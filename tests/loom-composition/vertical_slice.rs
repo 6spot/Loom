@@ -7,9 +7,9 @@ use loom_api::{
     ActionRequest, ApiErrorCode, EventQuery, ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
 };
 use loom_capability::{
-    ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
-    CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError, ResolutionContext,
-    ResolverError, WorkHandler, WorkHandlerDefinition,
+    ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
+    CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
+    ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
@@ -20,11 +20,13 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    EffectEngine, ExecutionSessionStore, PlatformTime, Runtime, RuntimeError,
-    RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind, ValidationError, WorkRecord,
-    WorkStatus, WorkTarget,
+    EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
+    Runtime, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    SemanticKind, ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
+    WorldRuntimeBindingStore,
 };
 use loom_storage::InMemoryStore;
+use semver::{Version, VersionReq};
 use serde_json::{Value, json};
 
 const COUNTER_CAPABILITY: &str = "counter.basic";
@@ -34,6 +36,7 @@ const COUNTER_OBSERVE: &str = "counter.observe";
 const COUNTER_INCREMENTED: &str = "counter.incremented";
 const COUNTER_OBSERVED: &str = "counter.observed";
 const COUNTER_WORK_HANDLER: &str = "counter.increment_work";
+const SECONDARY_CAPABILITY: &str = "counter.secondary";
 
 fn id<T>(value: u128) -> T
 where
@@ -150,6 +153,20 @@ impl Capability for CounterCapability {
                 entity_id: self.entity_id,
             },
         )?;
+        Ok(())
+    }
+}
+
+struct SecondaryCapability {
+    manifest: CapabilityManifest,
+}
+
+impl Capability for SecondaryCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, _registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
         Ok(())
     }
 }
@@ -367,6 +384,22 @@ fn counter_registry() -> CapabilityRegistry {
         entity_id: entity(10),
     }])
     .expect("counter Capability registry should assemble")
+}
+
+fn counter_registry_with_secondary() -> CapabilityRegistry {
+    CapabilityRegistry::assemble(vec![
+        Box::new(CounterCapability {
+            manifest: CapabilityManifest::parse(COUNTER_CAPABILITY, "0.1.0")
+                .expect("counter Capability manifest should parse")
+                .with_description("A neutral counter test Capability."),
+            entity_id: entity(10),
+        }) as Box<dyn Capability>,
+        Box::new(SecondaryCapability {
+            manifest: CapabilityManifest::parse(SECONDARY_CAPABILITY, "0.1.0")
+                .expect("secondary Capability manifest should parse"),
+        }),
+    ])
+    .expect("counter and secondary Capability registry should assemble")
 }
 
 fn counter_request(action: &str, input: Value) -> ActionRequest {
@@ -772,6 +805,28 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
         .await
         .expect("missing revision should activate for the negative test");
 
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work(22))
+        .await
+        .expect("missing implementation observation should succeed")
+        .expect("due Work should expose a typed blockage");
+    assert_eq!(blocked.world_id, world());
+    assert_eq!(blocked.timeline_id, timeline());
+    assert_eq!(blocked.work_id, work(22));
+    assert_eq!(
+        blocked.active_runtime_revision,
+        RuntimeRevisionId::from("missing-counter")
+    );
+    assert_eq!(blocked.last_observed_platform_time, PlatformTime::new(0));
+    assert_eq!(
+        blocked.first_observed_platform_time,
+        Some(PlatformTime::new(0))
+    );
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
     let error = runtime
         .execute_work(
             counter_target(),
@@ -796,6 +851,262 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
             .expect("Session ledger should remain readable")
             .is_empty(),
         "unavailable software must not start a Session"
+    );
+}
+
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the D-2 fixture covers full Binding compatibility, blockage observability and recovery"
+)]
+async fn missing_observer_matches_full_assembly_compatibility_predicate() {
+    let store = counter_store();
+    let work_id = work(24);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"amount": 4, "event_id": event(24).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("loom-compatibility Work should be seeded");
+    let binding = WorldRuntimeBinding::new(
+        [
+            (
+                CapabilityId::from(COUNTER_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("counter Binding requirement should parse"),
+            ),
+            (
+                CapabilityId::from(SECONDARY_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("secondary Binding requirement should parse"),
+            ),
+        ],
+        json!({"fixture": "full-compatibility"}),
+        1,
+        Some("full-compatibility-test".to_owned()),
+    );
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding)
+        .await
+        .expect("the A+B Binding should persist");
+
+    let registry = counter_registry_with_secondary();
+    let loom_version = registry.loom_version().clone();
+    let incompatible_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("full-compatibility-mismatch"),
+        PlatformTime::new(1),
+        "full-compatibility-mismatch-build",
+        loom_version.clone(),
+        [
+            RuntimeRevisionCapability::new(
+                COUNTER_CAPABILITY,
+                "counter-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+            RuntimeRevisionCapability::new(
+                SECONDARY_CAPABILITY,
+                "secondary-build-mismatch",
+                Version::new(0, 1, 0),
+                VersionReq::parse(">=0.1.0")
+                    .expect("a valid alternate Loom compatibility requirement should parse"),
+            ),
+        ],
+    )
+    .expect("the active A+B revision metadata should be structurally valid");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    runtime
+        .register_runtime_revision(incompatible_revision)
+        .await
+        .expect("the revision should register");
+    runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("full-compatibility-mismatch"),
+            None,
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("the revision should activate");
+
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work_id)
+        .await
+        .expect("missing implementation observation should succeed")
+        .expect("the mismatched Loom compatibility must produce a blockage");
+    assert_eq!(blocked.world_id, world());
+    assert_eq!(blocked.timeline_id, timeline());
+    assert_eq!(blocked.work_id, work_id);
+    assert_eq!(
+        blocked.active_runtime_revision,
+        RuntimeRevisionId::from("full-compatibility-mismatch")
+    );
+    assert_eq!(
+        blocked.first_observed_platform_time,
+        Some(PlatformTime::new(0))
+    );
+    assert_eq!(blocked.last_observed_platform_time, PlatformTime::new(0));
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
+    let error = runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(3),
+        )
+        .await
+        .expect_err("assembly-incompatible software must stop before claim");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    let work = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should remain persisted");
+    assert_eq!(work.attempt_count, 0);
+    assert_eq!(work.claim_generation, 0);
+    assert!(work.lease.is_none());
+    assert!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("Session ledger should remain readable")
+            .is_empty(),
+        "assembly-incompatible software must not start a Session"
+    );
+
+    let compatible_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("full-compatibility-match"),
+        PlatformTime::new(3),
+        "full-compatibility-match-build",
+        loom_version,
+        [
+            RuntimeRevisionCapability::new(
+                COUNTER_CAPABILITY,
+                "counter-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+            RuntimeRevisionCapability::new(
+                SECONDARY_CAPABILITY,
+                "secondary-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+        ],
+    )
+    .expect("the fully compatible A+B revision should be valid");
+    runtime
+        .register_runtime_revision(compatible_revision)
+        .await
+        .expect("the compatible revision should register");
+    runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("full-compatibility-match"),
+            Some(1),
+            PlatformTime::new(4),
+        )
+        .await
+        .expect("the compatible revision should activate");
+    assert!(
+        runtime
+            .missing_implementation_block(counter_target(), work_id)
+            .await
+            .expect("compatible implementation observation should succeed")
+            .is_none()
+    );
+    assert!(
+        runtime
+            .execute_work(
+                counter_target(),
+                work_id,
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(3),
+            )
+            .await
+            .expect("the fully compatible A+B assembly should execute the Work")
+            .is_committed()
+    );
+}
+
+#[tokio::test]
+async fn work_schema_revision_mismatch_blocks_before_claim() {
+    let store = counter_store();
+    let work_id = work(25);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(2),
+            payload: json!({"amount": 4, "event_id": event(25).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("schema-mismatch Work should be seeded");
+    let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
+
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work_id)
+        .await
+        .expect("schema compatibility observation should succeed")
+        .expect("a handler schema mismatch must produce a typed blockage");
+    assert_eq!(blocked.work_id, work_id);
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
+    let error = runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(3),
+        )
+        .await
+        .expect_err("schema-incompatible Work must stop before claim");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    let work = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should remain persisted");
+    assert_eq!(work.attempt_count, 0);
+    assert_eq!(work.claim_generation, 0);
+    assert!(work.lease.is_none());
+    assert!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("Session ledger should remain readable")
+            .is_empty(),
+        "schema-incompatible Work must not start a Session"
     );
 }
 
@@ -859,4 +1170,115 @@ async fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
     assert_eq!(retried_work.status, WorkStatus::Pending);
     assert_eq!(retried_work.available_at, PlatformTime::new(3));
     assert!(retried_work.lease.is_none());
+}
+
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded retry scenario asserts each terminalization invariant"
+)]
+async fn bounded_failure_policy_terminalizes_after_configured_attempts() {
+    let store = counter_store();
+    let work_id = work(23);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"event_id": event(23).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("bounded-failure Work should be seeded");
+    let before = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should exist");
+    let runtime = Runtime::new(&store, counter_registry())
+        .expect("Runtime should assemble")
+        .with_failure_policy(FailurePolicy::new(2, 5).expect("test FailurePolicy should be valid"));
+
+    runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(1),
+        )
+        .await
+        .expect_err("first technical failure should return the handler error");
+    let retried = store
+        .work(timeline(), work_id)
+        .expect("retried Work lookup should succeed")
+        .expect("retried Work should exist");
+    assert_eq!(retried.status, WorkStatus::Pending);
+    assert_eq!(retried.attempt_count, 1);
+    assert_eq!(retried.available_at, PlatformTime::new(5));
+    assert_eq!(
+        retried.effective_due_world_time,
+        before.effective_due_world_time
+    );
+    assert_eq!(
+        retried.logical_schedule_order,
+        before.logical_schedule_order
+    );
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("snapshot should exist")
+            .journal
+            .len(),
+        0
+    );
+
+    runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(5),
+            PlatformTime::new(15),
+            PlatformTime::new(6),
+        )
+        .await
+        .expect_err("attempt exhaustion should still return the technical failure");
+    let after = store
+        .snapshot(timeline())
+        .expect("terminalized Timeline should remain readable");
+    let terminal = after
+        .works
+        .iter()
+        .find(|work| work.id == work_id)
+        .expect("terminalized Work should remain inspectable");
+    assert_eq!(terminal.status, WorkStatus::Dead);
+    assert_eq!(terminal.attempt_count, 2);
+    assert_eq!(
+        terminal.effective_due_world_time,
+        before.effective_due_world_time
+    );
+    assert_eq!(
+        terminal.logical_schedule_order,
+        before.logical_schedule_order
+    );
+    assert!(terminal.lease.is_none());
+    assert!(after.events.is_empty());
+    assert_eq!(after.world_time(), WorldInstant::new(0));
+    assert_eq!(after.version().state_revision.value(), 1);
+    assert_eq!(after.journal.len(), 1);
+    assert!(matches!(
+        after.journal[0].work_transitions.as_slice(),
+        [LogicalWorkTransition::Dead { work_id: dead_id }] if *dead_id == work_id
+    ));
 }

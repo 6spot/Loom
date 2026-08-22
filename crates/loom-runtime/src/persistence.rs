@@ -198,6 +198,119 @@ impl fmt::Display for PlatformTime {
     }
 }
 
+/// Runtime policy for bounded automatic technical Work failure handling.
+///
+/// The attempt limit and backoff are platform policy. They never become
+/// Timeline logical state: a retry keeps the Work identity, semantic due time
+/// and logical schedule order, while only the Work's operational metadata is
+/// changed. A zero attempt limit disables automatic retry and terminalizes the
+/// first claimed technical failure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FailurePolicy {
+    max_automatic_attempts: u32,
+    retry_backoff: i64,
+}
+
+/// Invalid Runtime `FailurePolicy` configuration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FailurePolicyError {
+    /// Backoff must not move a Work's platform availability into the past.
+    NegativeBackoff,
+    /// Adding the configured backoff to the supplied platform coordinate
+    /// cannot be represented by [`PlatformTime`].
+    PlatformTimeOverflow,
+}
+
+impl fmt::Display for FailurePolicyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NegativeBackoff => {
+                formatter.write_str("FailurePolicy backoff cannot be negative")
+            }
+            Self::PlatformTimeOverflow => {
+                formatter.write_str("FailurePolicy backoff overflowed PlatformTime")
+            }
+        }
+    }
+}
+
+impl std::error::Error for FailurePolicyError {}
+
+impl FailurePolicy {
+    /// Creates a bounded policy with an attempt limit and fixed Platform-Time
+    /// backoff in the adapter's platform-time units.
+    ///
+    /// The caller may set `max_automatic_attempts` to zero when every
+    /// technical failure must go directly through Runtime terminalization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FailurePolicyError::NegativeBackoff`] when the retry backoff
+    /// is negative.
+    pub fn new(
+        max_automatic_attempts: u32,
+        retry_backoff: i64,
+    ) -> Result<Self, FailurePolicyError> {
+        if retry_backoff < 0 {
+            return Err(FailurePolicyError::NegativeBackoff);
+        }
+        Ok(Self {
+            max_automatic_attempts,
+            retry_backoff,
+        })
+    }
+
+    /// Returns the maximum number of claims allowed before automatic
+    /// technical failure handling terminalizes the Work.
+    #[must_use]
+    pub const fn max_automatic_attempts(self) -> u32 {
+        self.max_automatic_attempts
+    }
+
+    /// Returns the fixed Platform-Time backoff.
+    #[must_use]
+    pub const fn retry_backoff(self) -> i64 {
+        self.retry_backoff
+    }
+
+    /// Reports whether the claimed attempt may be retried automatically.
+    #[must_use]
+    pub const fn allows_retry(self, attempt_count: u32) -> bool {
+        attempt_count < self.max_automatic_attempts
+    }
+
+    /// Resolves the next platform availability without allowing a caller's
+    /// legacy retry hint to bypass the configured backoff.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FailurePolicyError::PlatformTimeOverflow`] when adding the
+    /// configured backoff to `now` exceeds the Platform-Time coordinate.
+    pub fn next_available_at(
+        self,
+        now: PlatformTime,
+        requested: PlatformTime,
+    ) -> Result<PlatformTime, FailurePolicyError> {
+        let policy_value = now
+            .value()
+            .checked_add(self.retry_backoff)
+            .ok_or(FailurePolicyError::PlatformTimeOverflow)?;
+        Ok(PlatformTime::new(policy_value.max(requested.value())))
+    }
+}
+
+impl Default for FailurePolicy {
+    fn default() -> Self {
+        // Defaults are deliberately conservative policy values, not
+        // architectural constants. Applications can replace them at Runtime
+        // construction time through `with_failure_policy`.
+        Self {
+            max_automatic_attempts: 3,
+            retry_backoff: 0,
+        }
+    }
+}
+
 /// Stable identity of one immutable Runtime software revision.
 ///
 /// This is Platform History metadata. It is deliberately not a Core identity,
@@ -1280,6 +1393,7 @@ pub struct WorkClaim {
     work_id: WorkId,
     claimed_until: PlatformTime,
     fence: u64,
+    attempt_count: u32,
 }
 
 impl WorkClaim {
@@ -1291,11 +1405,25 @@ impl WorkClaim {
         claimed_until: PlatformTime,
         fence: u64,
     ) -> Self {
+        Self::with_attempt_count(timeline_id, work_id, claimed_until, fence, 0)
+    }
+
+    /// Creates claim evidence including the authoritative attempt number
+    /// assigned by the successful claim linearization point.
+    #[must_use]
+    pub const fn with_attempt_count(
+        timeline_id: TimelineId,
+        work_id: WorkId,
+        claimed_until: PlatformTime,
+        fence: u64,
+        attempt_count: u32,
+    ) -> Self {
         Self {
             timeline_id,
             work_id,
             claimed_until,
             fence,
+            attempt_count,
         }
     }
 
@@ -1322,6 +1450,160 @@ impl WorkClaim {
     pub const fn fence(self) -> u64 {
         self.fence
     }
+
+    /// Returns the authoritative attempt number associated with this claim.
+    ///
+    /// The value is operational metadata and is never part of Timeline logical
+    /// journal history. It is carried in the claim so `FailurePolicy` decisions
+    /// do not need a second, non-linearized Work read.
+    #[must_use]
+    pub const fn attempt_count(self) -> u32 {
+        self.attempt_count
+    }
+}
+
+/// The two Runtime-authorized terminal logical states for a Pending Work.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum WorkTerminalState {
+    /// Runtime `FailurePolicy` or authorized control permanently stopped Work.
+    Dead,
+    /// Authorized Runtime control cancelled Work.
+    Cancelled,
+}
+
+impl WorkTerminalState {
+    /// Converts the control state to the durable Work lifecycle status.
+    #[must_use]
+    pub const fn as_work_status(self) -> WorkStatus {
+        match self {
+            Self::Dead => WorkStatus::Dead,
+            Self::Cancelled => WorkStatus::Cancelled,
+        }
+    }
+}
+
+/// Runtime-owned authority input for a Pending -> Dead/Cancelled transition.
+///
+/// The expected Timeline version is checked together with the Work lifecycle
+/// mutation and logical journal append by the persistence adapter. Automatic
+/// `FailurePolicy` terminalization carries its claim/fence; explicit control may
+/// omit the claim and invalidates any existing lease as part of the same
+/// logical transition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkTerminalization {
+    timeline_id: TimelineId,
+    expected_version: TimelineVersion,
+    work_id: WorkId,
+    terminal_state: WorkTerminalState,
+    claim: Option<WorkClaim>,
+    now: PlatformTime,
+    last_error: Option<String>,
+}
+
+impl WorkTerminalization {
+    /// Creates an explicitly authorized terminalization request.
+    #[must_use]
+    pub const fn new(
+        timeline_id: TimelineId,
+        expected_version: TimelineVersion,
+        work_id: WorkId,
+        terminal_state: WorkTerminalState,
+        now: PlatformTime,
+    ) -> Self {
+        Self {
+            timeline_id,
+            expected_version,
+            work_id,
+            terminal_state,
+            claim: None,
+            now,
+            last_error: None,
+        }
+    }
+
+    /// Attaches the claim/fence that authorizes automatic terminalization of
+    /// the currently executing Work.
+    #[must_use]
+    pub const fn with_claim(mut self, claim: WorkClaim) -> Self {
+        self.claim = Some(claim);
+        self
+    }
+
+    /// Retains an operational terminal error for operator inspection without
+    /// representing that error in the logical journal.
+    #[must_use]
+    pub fn with_last_error(mut self, last_error: impl Into<String>) -> Self {
+        self.last_error = Some(last_error.into());
+        self
+    }
+
+    /// Returns the targeted Timeline.
+    #[must_use]
+    pub const fn timeline_id(&self) -> TimelineId {
+        self.timeline_id
+    }
+
+    /// Returns the expected Timeline CAS version.
+    #[must_use]
+    pub const fn expected_version(&self) -> TimelineVersion {
+        self.expected_version
+    }
+
+    /// Returns the targeted Work identity.
+    #[must_use]
+    pub const fn work_id(&self) -> WorkId {
+        self.work_id
+    }
+
+    /// Returns the requested terminal logical state.
+    #[must_use]
+    pub const fn terminal_state(&self) -> WorkTerminalState {
+        self.terminal_state
+    }
+
+    /// Returns the optional automatic-failure claim/fence.
+    #[must_use]
+    pub const fn claim(&self) -> Option<WorkClaim> {
+        self.claim
+    }
+
+    /// Returns the Platform-Time coordinate used for lease validation.
+    #[must_use]
+    pub const fn now(&self) -> PlatformTime {
+        self.now
+    }
+
+    /// Returns the optional operational terminal error.
+    #[must_use]
+    pub fn last_error(&self) -> Option<&str> {
+        self.last_error.as_deref()
+    }
+}
+
+/// Operator-visible liveness condition for a due Pending Work whose target
+/// cannot be assembled by the active Runtime Revision.
+///
+/// This is derived from the coherent Timeline snapshot, immutable World
+/// Binding and current installed/active Runtime metadata. It is not World
+/// Truth, does not consume a technical attempt and does not advance the
+/// Timeline logical revision.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TimelineBlockedOnMissingImplementation {
+    /// World containing the blocked Timeline.
+    pub world_id: WorldId,
+    /// Timeline whose logical head remains blocked.
+    pub timeline_id: TimelineId,
+    /// Due Pending Work that prevents later scheduler progression.
+    pub work_id: WorkId,
+    /// Semantic Capability handler or Agency cognition requirement.
+    pub semantic_requirement: WorkTarget,
+    /// Active Runtime Revision considered by the observation.
+    pub active_runtime_revision: RuntimeRevisionId,
+    /// First observation is optional because this condition is derived rather
+    /// than persisted as semantic state.
+    pub first_observed_platform_time: Option<PlatformTime>,
+    /// Platform time at which this observation was produced.
+    pub last_observed_platform_time: PlatformTime,
 }
 
 /// A read model of one Durable Work item and its independent runtime metadata.
@@ -1869,6 +2151,8 @@ pub enum WorkError {
         expected: TimelineId,
         actual: TimelineId,
     },
+    /// A claim token targets a different Work than the terminalization request.
+    WorkMismatch { expected: WorkId, actual: WorkId },
     /// Claiming/completing is only valid for Pending Work.
     NotPending { work_id: WorkId, status: WorkStatus },
     /// A live lease already owns this Pending Work.
@@ -1932,6 +2216,10 @@ impl fmt::Display for WorkError {
             Self::TimelineMismatch { expected, actual } => write!(
                 formatter,
                 "Work claim targets Timeline {actual}, expected {expected}"
+            ),
+            Self::WorkMismatch { expected, actual } => write!(
+                formatter,
+                "Work claim targets Work {actual}, expected {expected}"
             ),
             Self::NotPending { work_id, status } => {
                 write!(formatter, "Work {work_id} is {status}, not Pending")
@@ -2415,4 +2703,29 @@ pub trait WorkStore {
         timeline_id: TimelineId,
         work_id: WorkId,
     ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>>;
+}
+
+/// Runtime-owned persistence port for authorized logical Work terminalization.
+///
+/// Implementations must linearize the Timeline CAS, Pending-state check, lease
+/// invalidation and Logical Journal append atomically. This port is distinct
+/// from the untrusted Protocol `WorkMutation` surface so a Capability cannot
+/// mark its own current Work `Dead` or `Cancelled`.
+pub trait RuntimeControlStore {
+    /// Applies one Pending -> Dead/Cancelled transition.
+    fn terminalize_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>>;
+
+    /// Applies the bounded Runtime failure-recovery transition against the
+    /// current Timeline version read at the storage linearization point.
+    ///
+    /// This is not the public operator CAS path: it is used only after the
+    /// Runtime observes a stale execution snapshot while terminalizing a
+    /// currently claimed Work.
+    fn terminalize_current_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>>;
 }
