@@ -27,6 +27,10 @@ name = "world_creation"
 path = "world_creation.rs"
 
 [[test]]
+name = "entropy_finish"
+path = "entropy_finish.rs"
+
+[[test]]
 name = "neutral_templates"
 path = "neutral_templates.rs"
 
