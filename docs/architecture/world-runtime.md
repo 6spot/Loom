@@ -1,15 +1,18 @@
 # Loom World Runtime Closure
 
-> Status: **architecture closure candidate; normative for the current review branch.**
+> Status: **FROZEN — Loom v0 World Runtime architecture baseline.**
 >
-> 本文补全 Loom 在 `Core -> Capability -> World Template -> World <- Application` 之间缺失的运行契约，重点冻结四个此前没有闭环的边界：
+> 本文补全 Loom 在 `Core -> Capability -> World Template -> World <- Application` 之间缺失的运行契约，并冻结五个 v0 边界：
 >
 > 1. **一个 World 到底启用了哪些语义能力；**
 > 2. **World Time 如何前进；**
 > 3. **一次执行如何绑定当前软件实现而不把 World 永久钉死在旧代码；**
-> 4. **World Truth、Timeline logical state、Platform operational state 与 Execution Provenance 如何分离。**
+> 4. **World Truth、Timeline logical state、Platform operational state 与 Execution Provenance 如何分离；**
+> 5. **Durable Work 如何形成不受 retry/lease/数据库偶然顺序影响的 Timeline chronology。**
 >
 > 本文不增加第六个产品架构层，也不改变既有 Cargo dependency DAG。它定义的是 **World 自身持有的持久执行契约** 以及 Runtime 执行它时必须遵守的 authority boundary。
+>
+> 本文通过后，改变 World Runtime Binding、World Time、Logical Commit、scheduler chronology 或 Execution Assembly 语义，必须先重新进行 architecture review；普通实现任务不得隐式改变这些规则。
 
 ---
 
@@ -110,7 +113,8 @@ Entity / Relationship Facets
 ```text
 World Time
 TimelineVersion
-logical Pending / Completed / Cancelled Work state
+logical Pending / Completed / Cancelled / Dead Work state
+Durable Work effective due instant / logical schedule order
 fork ancestry / fork position
 other reconstructable Timeline control state
 ```
@@ -136,7 +140,8 @@ worker/process bookkeeping
 - 不属于 Timeline logical history；
 - 不推动 World Time；
 - 不改变 TimelineVersion；
-- fork/replay 不复制它作为语义未来。
+- fork/replay 不复制它作为语义未来；
+- **不能改变 Durable Work 在同一 Timeline 上的逻辑先后顺序。**
 
 ### 2.6 Platform History and Execution Provenance
 
@@ -374,6 +379,8 @@ Runtime 不得：
 - 忽略 compatibility requirement；
 - 修改 World State 来“修复”软件缺失。
 
+如果缺失的 implementation 对应当前 Timeline 的 head due Work，Scheduler 不得跳过该 Work；该 Timeline 的 scheduler progression 必须保持 blocked，直到实现恢复或该 Work 经显式 Runtime logical transition 离开 `Pending`。
+
 ---
 
 ## 6. World Time is Timeline logical state
@@ -432,7 +439,8 @@ to:   T20
 4. 必须产生新的 Timeline logical revision/version；
 5. 不要求伪造领域 Event；
 6. PlatformClock 不能直接或隐式执行该 transition；
-7. replay/fork 必须能精确恢复该 transition 的结果。
+7. replay/fork 必须能精确恢复该 transition 的结果；
+8. **存在 semantically due 的 Pending Work 时禁止推进。**
 
 ### 6.4 Event time does not advance the clock
 
@@ -548,32 +556,175 @@ Platform Operational State
 
 ---
 
-## 8. Scheduler and time progression
+## 8. Scheduler, quiescence and time progression
 
-Scheduler 的职责必须拆成两个独立问题：
+Scheduler 必须把 **World chronology** 与 **platform execution eligibility** 分开。
+
+它依次回答四个问题：
 
 ```text
-1. Is some Work already due at current World Time?
-2. If not, should policy explicitly advance World Time?
+1. Which Pending Work is semantically due at current World Time?
+2. Which one is the deterministic logical head?
+3. Is that head operationally claimable right now?
+4. Only when no semantically due Pending Work exists: should policy advance World Time?
 ```
 
-### 8.1 Due-work execution
+### 8.1 Semantic due-ness vs operational claimability
 
-Work eligibility 至少要求：
+`semantically due` 只由 Timeline logical state 决定：
 
 ```text
 logical status = Pending
-due_world_time <= Timeline.world_time
-available_at <= PlatformTime.now
-no unexpired valid lease
+AND
+effective_due_world_time <= Timeline.world_time
 ```
 
-其中：
+它**不**取决于：
 
-- `due_world_time` 使用 World Time；
-- `available_at` 使用 Platform Time。
+```text
+retry available_at
+lease expiration
+worker availability
+current process health
+current compatible implementation availability
+```
 
-### 8.2 Time advancement policy
+`operationally claimable` 则是在 semantically due 的基础上再要求：
+
+```text
+available_at <= PlatformTime.now
+no unexpired valid lease
+compatible handler implementation available in current Runtime Revision
+other purely operational claim/fence conditions satisfied
+```
+
+因此一个 Work 可以：
+
+```text
+semantically due = true
+operationally claimable = false
+```
+
+这时它仍然是 Timeline chronology 上尚未解决的当前义务。
+
+> **Platform ineligibility may delay execution; it may not erase or reorder semantic due-ness.**
+
+### 8.2 Effective due World Time
+
+为了形成统一逻辑顺序，所有 Pending Work 都必须有可比较的 **effective due World Time**。
+
+概念上：
+
+```text
+Immediate
+→ effective_due_world_time = World Time of the logical commit that schedules it
+
+At(T)
+→ effective_due_world_time = T
+```
+
+是否物理存储为一个字段由实现决定；语义必须可持久、可 replay、可 fork。
+
+### 8.3 Deterministic logical Work order
+
+同一 Timeline 的 Scheduler 不得使用以下因素决定 Work 先后：
+
+```text
+PostgreSQL natural row order
+UUID / UUIDv7 generation time
+worker race
+wall-clock arrival race
+HashMap iteration order
+lease acquisition speed
+```
+
+v0 必须为每个 scheduled Work 建立持久、Timeline-local 的 **logical schedule order**。
+
+概念排序键冻结为：
+
+```text
+(effective_due_world_time, logical_schedule_order)
+```
+
+规则：
+
+1. `logical_schedule_order` 在 Schedule 所属 Logical Commit 中确定；
+2. 同一个 Logical Commit 创建多个 Work 时，按 validated `WorkMutation` 的稳定顺序分配；
+3. 新 Immediate Work 在当前 World Time 获得新的后续 order，不插到已经存在的同一时刻 Work 前面；
+4. Fork 克隆 Pending Work 时可以分配新的 branch-local `WorkId`，但必须保持 inherited Work 的相对 logical order；
+5. child Timeline 后续新 Work 的 order 必须位于其已继承 logical order high-water mark 之后；
+6. replay 必须恢复同一顺序。
+
+这意味着 Reaction 产生的 Immediate Work 如果要与当前事实**原子同时成立**，就不应依赖 scheduler 插队；该语义应使用 atomic subresolution。Reaction Work 本来就是“事实已成立之后的后续处理”。
+
+### 8.4 Head-of-line rule
+
+在某个 Timeline 上，Scheduler-managed Durable Work 的 logical head 是排序键最小的 `Pending` Work。
+
+当 logical head 已经 semantically due：
+
+- 只有该 head 可以被 Scheduler admission/claim；
+- 后面的同时间 Work 不能先执行；
+- 更晚 World Time 的 Work 更不能越过它；
+- head 正被有效 lease 持有时，后面的 Work 仍不得被 claim；
+- head 处于 retry backoff 时，后面的 Work 仍不得被 claim；
+- head 暂时缺少 compatible implementation 时，后面的 Work 仍不得被 claim。
+
+这形成一个明确的 **head-of-line chronology barrier**。
+
+不同 Timeline 之间没有这个共享顺序，可以独立、并行推进。
+
+### 8.5 Due-work quiescence barrier
+
+只要当前 Timeline 存在任何 semantically due 的 `Pending` Work：
+
+> **World Time advancement is forbidden.**
+
+因此：
+
+```text
+World Time = T20
+W1 due T20, retry available_at = platform P200
+W2 due T30
+current platform time = P100
+```
+
+合法状态是：
+
+```text
+Timeline remains at T20
+W1 remains logical head / semantically due
+Scheduler waits for operational eligibility or explicit logical resolution
+W2 remains future
+```
+
+禁止：
+
+```text
+skip W1
+AdvanceWorldTime T20 -> T30
+run W2
+```
+
+否则一次纯技术 retry/backoff 就会改变 World chronology。
+
+### 8.6 Leaving the barrier
+
+一个 head Work 只有在 Runtime-owned Logical Commit 后离开 `Pending`，例如：
+
+```text
+Completed
+Cancelled
+Dead
+```
+
+技术 retry 本身不会改变 logical status，因此不会解除 barrier。
+
+如果 retry/failure policy 最终决定把 Work 标记为 `Dead`，`Dead` 必须作为明确的 logical Work transition 持久化并推进 TimelineVersion；不能通过删除行或只写 operational error 偷偷消失。
+
+如果某个世界需要把“任务失败/取消”本身变成 Agent 可知的世界事实，Capability 仍必须显式产生对应 Event；Runtime logical status 不自动成为 World Event。
+
+### 8.7 Time advancement policy
 
 Core 定义显式 advancement mechanism，但不写死“世界应该多快运行”。
 
@@ -587,17 +738,51 @@ real-world mirror mapping
 custom policy
 ```
 
-无论 policy 怎样决定，真正改变 Timeline 的动作都必须收敛到同一个 `AdvanceWorldTime` logical authority transition。
+但调用 `AdvanceWorldTime` 前必须先证明当前 Timeline **scheduler-quiescent**：
 
-### 8.3 Auto-advance safety
+```text
+no semantically due Pending Work
+```
+
+若采用 next-due policy，目标应是最小 future `effective_due_world_time`。
+
+### 8.8 Auto-advance safety
 
 自动推进策略至少必须遵守：
 
-1. 当前已经存在 due Work 时，不能为了找未来 Work 而先跳过当前时间；
-2. 默认跳转目标应是 next due WorldInstant，而不是任意大幅越过；
-3. advance commit 与之后 Work execution 是两个可恢复边界；
-4. Runtime 在 advance 成功后崩溃，重启后仍应看到新的 World Time，并继续处理已经 due 的 Work；
-5. worker crash/retry 的 Platform Time 变化不能触发 world-time transition。
+1. 当前存在 semantically due Pending Work 时绝不推进 World Time；
+2. operationally unclaimable 的 due head 会阻塞 scheduler progression，而不是被跳过；
+3. 默认跳转目标是最小 future effective due WorldInstant，不任意越过；
+4. advance commit 与之后 Work execution 是两个可恢复边界；
+5. Runtime 在 advance 成功后崩溃，重启后仍应看到新的 World Time，并从 deterministic logical head 继续；
+6. worker crash/retry、lease expiry、PlatformClock passage 不能触发 world-time transition；
+7. 同一 Timeline 的 Scheduler Work admission 不允许用 worker concurrency 打乱 logical order。
+
+### 8.9 Scope of this ordering law
+
+本节冻结的是：
+
+```text
+Scheduler-managed Durable Work ordering
++
+automatic World Time advancement barrier
+```
+
+它**不**在 v0 强行定义“所有外部 Action / Ingress / Operator command / scheduler Work 共享一个全局 total-order input queue”。这些其他 root inputs 仍通过各自显式边界进入 Runtime，并最终由 Timeline CAS 线性化；其来源/执行必须进入 provenance。
+
+因此：
+
+- Scheduler 不能因为平台偶然性重排自己的 Work；
+- Platform failure 不能让 Scheduler 跳到更晚 Work/World Time；
+- 外部输入在同一 World Time 的 admission policy 是独立问题，不隐式伪装成 scheduler ordering。
+
+如果未来需要完全 deterministic 的“所有 root inputs 单一序列”，必须单独进行 architecture review。
+
+### 8.10 Priority
+
+v0 不允许一个未持久、仅供 worker 使用的 `priority` 改变同一 Timeline 的 logical Work chronology。
+
+未来如果需要 semantic scheduling priority，它必须成为明确、持久、可 replay/fork 的 logical ordering contract，并重新评审其与 `(effective_due_world_time, logical_schedule_order)` 的关系。
 
 ---
 
@@ -624,7 +809,8 @@ Replay 不能：
 - 重新调用 Cognitive Executor；
 - 用 Platform timestamps 猜 World Time；
 - 用当前 Work table 假装历史 Work 状态；
-- 通过 `max(event.occurred_at)` 推导历史 World Time。
+- 通过 `max(event.occurred_at)` 推导历史 World Time；
+- 用数据库当前行序重新决定 historical Work ordering。
 
 ### 9.2 Fork
 
@@ -637,6 +823,7 @@ new Timeline identity
 reconstructed materialized State
 reconstructed World Time
 cloned logical Pending Work with new branch-local WorkId
+preserved effective due time + relative logical schedule order
 reset Platform operational claim/retry state
 ```
 
@@ -830,6 +1017,11 @@ Logical Work                            Logical Work
              ▼         ▼          ▼
           Events     Work       World Time
           Effects  transitions  transition
+                       │
+                       ▼
+             deterministic scheduler head
+                       │
+           due-work quiescence barrier
 ```
 
 ---
@@ -847,24 +1039,30 @@ Logical Work                            Logical Work
 7. **World Time is explicit, Timeline-local, monotonic logical state.**
 8. **Event occurrence does not implicitly advance World Time.**
 9. **Platform Time never implicitly advances World Time.**
-10. **Replay reconstructs World State from frozen Event Effects and World Time/Work from logical history.**
-11. **Fork inherits World binding, fork-point World Time and logical future, but resets branch-local operational state.**
-12. **Every root world-affecting execution pins one Execution Assembly for its Session.**
-13. **Capability receives host-controlled boundaries, never raw platform authority/resources.**
-14. **Exact implementation versions belong to Execution Provenance.**
-15. **Runtime Revision activation changes future software execution, never past World history.**
+10. **Semantic Work due-ness is Timeline logical state; retry/lease/platform eligibility cannot erase it.**
+11. **A semantically due Pending Work is a World-Time advancement barrier.**
+12. **Scheduler-managed Work in one Timeline follows persistent `(effective due World Time, logical schedule order)` chronology.**
+13. **Database row order, UUID order, worker race, lease speed and wall-clock race never define same-Timeline Work order.**
+14. **A due logical head cannot be skipped because it is retrying, leased, temporarily unavailable or missing a compatible implementation.**
+15. **Replay reconstructs World State from frozen Event Effects and World Time/Work/order from logical history.**
+16. **Fork inherits World binding, fork-point World Time and logical future/order, but resets branch-local operational state.**
+17. **Every root world-affecting execution pins one Execution Assembly for its Session.**
+18. **Capability receives host-controlled boundaries, never raw platform authority/resources.**
+19. **Exact implementation versions belong to Execution Provenance.**
+20. **Runtime Revision activation changes future software execution, never past World history.**
 
 ---
 
 ## 14. Consequences for existing architecture documents
 
-本文通过后，其他 normative documents 必须按以下解释同步：
+本文冻结后，其他 normative documents 必须按以下解释同步：
 
 ### `core.md`
 
 - 将 `No mutation without a committed Event` 收窄为 semantic World State mutation；
 - 明确 World Time 是 Timeline logical state；
-- Scheduler 同时依赖 explicit time advancement + due Work，而不是等待 Event 自己把时间推过去。
+- Scheduler 同时依赖 explicit time advancement + due Work，而不是等待 Event 自己把时间推过去；
+- semantically due Pending Work 构成 World-Time advancement barrier。
 
 ### `layers.md`
 
@@ -877,7 +1075,9 @@ Logical Work                            Logical Work
 - World creation / dispatch / Work / Reaction / Catalog 都必须 world-binding-aware；
 - Logical Commit 包含 World Time transition；
 - Event `occurred_at` 不再是推进 clock 的机制；
-- ResolutionContext 不承诺 raw clock/network/provider access。
+- ResolutionContext 不承诺 raw clock/network/provider access；
+- Durable Work 必须区分 semantic due-ness 与 operational claimability；
+- same-Timeline scheduler ordering 必须持久、确定、可 replay/fork。
 
 ### `evolution.md`
 
@@ -888,12 +1088,13 @@ Logical Work                            Logical Work
 
 - Runtime 的 global registry 只能表示 installed implementations；
 - World execution 必须额外加载/强制 World Runtime Binding；
-- replay storage 需要 logical time transition history；
-- persistence authority 要区分 World history、logical timeline state、operational state、platform provenance。
+- replay storage 需要 logical time/work/order transition history；
+- persistence authority 要区分 World history、logical timeline state、operational state、platform provenance；
+- Work claim/query 不能把 `available_at` 误当成 semantic due-ness，也不能跳过 logical head。
 
 ### `governance.md`
 
-现有 Cargo DAG 不需要因本文改变。新增 contract/type 仍按“port belongs to the abstraction that requires it”的规则落位，禁止为了 World Binding 或 Time progression 反向引入 Storage/Runtime dependencies。
+现有 Cargo DAG 不需要因本文改变。新增 contract/type 仍按“port belongs to the abstraction that requires it”的规则落位，禁止为了 World Binding、Time progression 或 scheduler ordering 反向引入 Storage/Runtime dependencies。
 
 ---
 
@@ -901,34 +1102,39 @@ Logical Work                            Logical Work
 
 本文现在**不**决定：
 
-- 具体 Rust struct/function 名称；
-- PostgreSQL table/schema；
+- 具体 Rust struct/function/field 名称；
+- PostgreSQL table/schema/index；
 - Scheduler polling interval；
 - World Time 自动推进 policy 的默认产品配置；
+- 所有外部 root input 的全局 total ordering；
 - dynamic Capability hot-plug/migration；
 - 生产 LLM/provider 实现；
 - Runtime Change Ledger 的完整 Admin API；
 - Issue/Milestone 顺序。
 
-这些都必须在架构确认后再进入实现规划。
+这些都必须在本架构 baseline 下重新规划，而不能继续沿用旧实现假设。
 
 ---
 
 ## 16. Closure statement
 
-Loom 的持续 World 闭环现在定义为：
+Loom 的持续 World 闭环现在冻结为：
 
 ```text
 World identity
 + World Runtime Binding
 + Timeline History
 + Materialized World State
-+ Timeline Logical State (World Time + Future Work)
++ Timeline Logical State
+    - World Time
+    - logical Durable Work
+    - persistent Work chronology
 + explicit Runtime execution boundaries
++ due-work quiescence before time advancement
 + separate Platform Operational State
 + separate Execution Provenance / Runtime Change History
 ```
 
 最终原则：
 
-> **A World owns its semantic execution contract; Runtime owns authority; a Session owns the exact software binding; Events own the determined past; Logical Commits own reconstructable time/future transitions; Platform state owns only operational reliability.**
+> **A World owns its semantic execution contract; Runtime owns authority; a Session owns the exact software binding; Events own the determined past; Logical Commits own reconstructable time/future transitions; the Scheduler preserves logical chronology; Platform state owns only operational reliability.**
