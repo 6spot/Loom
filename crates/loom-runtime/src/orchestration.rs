@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
     CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
-    CreateWorldFromTemplateResult, CreateWorldRequest, EventQuery, ExecutionResult, FacetQuery,
+    CreateWorldFromTemplateResult, EventQuery, ExecutionResult, FacetQuery,
     FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService, TimelineService,
     TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService, WorldTemplateDescriptor,
 };
@@ -725,34 +725,6 @@ impl<S> WorldService for Runtime<S>
 where
     S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore + WorldLifecycleStore,
 {
-    fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, ApiTimelineSnapshot> {
-        Box::pin(async move {
-            let world_id = self.identity_allocator.allocate_world_id();
-            let timeline_id = self.identity_allocator.allocate_timeline_id();
-            if world_id.is_nil() || timeline_id.is_nil() {
-                return Err(ApiError::internal(
-                    "Runtime identity allocator returned an invalid identity",
-                ));
-            }
-            let created = self
-                .store
-                .create_world_with_binding(
-                    world_id,
-                    timeline_id,
-                    request.initial_world_time,
-                    legacy_binding(),
-                )
-                .await
-                .map_err(|error| map_lifecycle_error(&error))?;
-            let target = TimelineTarget::new(created.world_id(), created.timeline_id());
-            Ok(ApiTimelineSnapshot::new(
-                target,
-                created.version(),
-                created.world_time(),
-            ))
-        })
-    }
-
     fn create_world_from_template(
         &self,
         request: CreateWorldFromTemplateRequest,

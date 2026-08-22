@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use loom_api::{
-    ActionRequest, ApiErrorCode, CreateWorldFromTemplateRequest, CreateWorldRequest, EventQuery,
-    LoomApi, WorldService, WorldTemplateDescriptor,
+    ActionRequest, ApiErrorCode, CreateWorldFromTemplateRequest, EventQuery, LoomApi, WorldService,
+    WorldTemplateDescriptor,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
@@ -114,8 +114,15 @@ fn registry() -> CapabilityRegistry {
     .expect("bootstrap registry should assemble")
 }
 
+fn template_request(initial_world_time: WorldInstant) -> CreateWorldFromTemplateRequest {
+    CreateWorldFromTemplateRequest::new(
+        WorldTemplateDescriptor::new("bootstrap", 1, initial_world_time)
+            .requires_capability(CAPABILITY, "^0.1.0"),
+    )
+}
+
 #[tokio::test]
-async fn public_world_creation_is_atomic_and_immediately_usable() {
+async fn template_world_creation_is_atomic_and_immediately_usable() {
     let store = InMemoryStore::new();
     let world_id = id::<WorldId>(0x3001);
     let timeline_id = id::<TimelineId>(0x3002);
@@ -128,9 +135,9 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
     let api: &dyn LoomApi = &runtime;
 
     let created = api
-        .create_world(CreateWorldRequest::new(WorldInstant::new(42)))
+        .create_world_from_template(template_request(WorldInstant::new(42)))
         .await
-        .expect("public World creation should succeed");
+        .expect("Template World creation should succeed");
     assert_eq!(created.target.world_id, world_id);
     assert_eq!(created.target.timeline_id, timeline_id);
     assert_eq!(created.version, TimelineVersion::default());
@@ -165,7 +172,8 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
         [WorldEffect::CreateEntity { entity_id: actual }] if *actual == entity_id
     ));
 
-    let duplicate = WorldService::create_world(api, CreateWorldRequest::new(WorldInstant::new(99)))
+    let duplicate = api
+        .create_world_from_template(template_request(WorldInstant::new(99)))
         .await
         .expect_err("deterministically reused World identity must conflict");
     assert_eq!(duplicate.code, ApiErrorCode::Conflict);
@@ -189,7 +197,7 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
             timeline_id,
         });
     let timeline_conflict = timeline_conflict_runtime
-        .create_world(CreateWorldRequest::new(WorldInstant::new(70)))
+        .create_world_from_template(template_request(WorldInstant::new(70)))
         .await
         .expect_err("reused Timeline identity must conflict even with a fresh World identity");
     assert_eq!(timeline_conflict.code, ApiErrorCode::Conflict);
@@ -202,7 +210,7 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
             timeline_id: recovered_timeline_id,
         });
     let recovered = retry_runtime
-        .create_world(CreateWorldRequest::new(WorldInstant::new(77)))
+        .create_world_from_template(template_request(WorldInstant::new(77)))
         .await
         .expect("failed Timeline conflict must not leave a partial World");
     assert_eq!(recovered.target.world_id, conflicting_world_id);

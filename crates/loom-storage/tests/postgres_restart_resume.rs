@@ -3,7 +3,10 @@ mod support;
 
 use std::str::FromStr;
 
-use loom_api::{ActionRequest, CreateWorldRequest, EventQuery, FacetQuery, LoomApi};
+use loom_api::{
+    ActionRequest, CreateWorldFromTemplateRequest, EventQuery, FacetQuery, LoomApi,
+    WorldTemplateDescriptor,
+};
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
     CapabilityRegistry, EventDefinition, RegistrationError, ResolutionContext, ResolverError,
@@ -295,9 +298,12 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     let first_runtime = Runtime::new(first_storage, registry()).expect("Runtime should assemble");
     let first_api: &dyn LoomApi = &first_runtime;
     let created = first_api
-        .create_world(CreateWorldRequest::new(WorldInstant::new(7)))
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new(OWNER, 1, WorldInstant::new(7))
+                .requires_capability(OWNER, "^0.1.0"),
+        ))
         .await
-        .expect("public WorldService creation should succeed");
+        .expect("Template WorldService creation should succeed");
     assert_eq!(created.version, loom_core::TimelineVersion::default());
     assert_eq!(created.world_time, WorldInstant::new(7));
 

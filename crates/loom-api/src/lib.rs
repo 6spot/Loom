@@ -74,30 +74,6 @@ impl TimelineTarget {
     }
 }
 
-/// Public request to create one empty Loom World and its initial Timeline.
-///
-/// World creation is structural bootstrap, not a domain Event and not a direct
-/// State mutation escape hatch. Runtime allocates the technical World/Timeline
-/// identities and asks its lifecycle persistence port to create them atomically.
-/// The only caller-controlled temporal value is `initial_world_time`, which is
-/// semantic World Time and is never inferred from platform/database time.
-///
-/// After creation, all semantic World mutations still flow through Actions or
-/// Durable Work into Runtime validation and the normal commit authority path.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-pub struct CreateWorldRequest {
-    /// Semantic time of the new Timeline before any committed Event exists.
-    pub initial_world_time: WorldInstant,
-}
-
-impl CreateWorldRequest {
-    /// Creates a World bootstrap request at an explicit semantic World time.
-    #[must_use]
-    pub const fn new(initial_world_time: WorldInstant) -> Self {
-        Self { initial_world_time }
-    }
-}
-
 /// Stable public identity of a World Template revision source.
 ///
 /// A Template ID is birth metadata, not a subscription key. Runtime copies the
@@ -801,23 +777,13 @@ impl CatalogSnapshot {
 
 /// Creates long-lived World identity through the unified Loom API.
 ///
-/// This service exposes only the semantic lifecycle boundary. Callers do not
-/// choose UUID algorithms, access storage transactions or obtain Runtime
-/// authority tokens. A successful creation returns the initial public Timeline
-/// snapshot with an empty version and the requested World semantic time.
-///
-/// World bootstrap itself is not a committed domain Event. Once the World
-/// exists, changing its truth requires the same semantic Action / Durable Work
-/// and Runtime commit path used by every other Timeline.
+/// This service exposes only Template-based birth. Callers do not choose UUID
+/// algorithms, access storage transactions or obtain Runtime authority tokens.
+/// Runtime validates the complete descriptor and atomically snapshots its
+/// provenance, semantic Binding and ordered bootstrap recipe into the new
+/// World. Once the World exists, changing its truth requires the same semantic
+/// Action / Durable Work and Runtime commit path used by every other Timeline.
 pub trait WorldService {
-    /// Creates one World and its initial Timeline atomically.
-    ///
-    /// # Errors
-    ///
-    /// Returns a conflict if Runtime-allocated identities already exist, or an
-    /// availability/internal error when lifecycle persistence cannot complete.
-    fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, TimelineSnapshot>;
-
     /// Creates one World by validating and atomically applying a Template birth
     /// recipe.
     ///
@@ -962,9 +928,9 @@ mod tests {
     use super::{
         ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture,
         ApiResult, CapabilityDescriptor, CapabilityId, CatalogService, CatalogSnapshot,
-        CommittedEvent, CreateWorldRequest, EventQuery, ExecutionResult, FacetQuery, FacetSnapshot,
-        HistoryService, LoomApi, QueryService, TimelineService, TimelineSnapshot, TimelineTarget,
-        WorldService,
+        CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventQuery,
+        ExecutionResult, FacetQuery, FacetSnapshot, HistoryService, LoomApi, QueryService,
+        TimelineService, TimelineSnapshot, TimelineTarget, WorldService, WorldTemplateDescriptor,
     };
     use crate::{
         ActionInvocation, ActionTypeId, FacetOwner, FacetTypeId, Rejection, SchemaRevision,
@@ -984,12 +950,15 @@ mod tests {
     struct StubApi;
 
     impl WorldService for StubApi {
-        fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, TimelineSnapshot> {
+        fn create_world_from_template(
+            &self,
+            request: CreateWorldFromTemplateRequest,
+        ) -> ApiFuture<'_, CreateWorldFromTemplateResult> {
             Box::pin(async move {
                 Ok(TimelineSnapshot::new(
                     target(),
                     TimelineVersion::default(),
-                    request.initial_world_time,
+                    request.template.initial_world_time,
                 ))
             })
         }
@@ -1097,7 +1066,9 @@ mod tests {
         assert_complete_api(&api);
 
         let created = api
-            .create_world(CreateWorldRequest::new(WorldInstant::new(11)))
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                WorldTemplateDescriptor::new("test", 1, WorldInstant::new(11)),
+            ))
             .await
             .expect("World should be creatable");
         assert_eq!(created.target, target());
