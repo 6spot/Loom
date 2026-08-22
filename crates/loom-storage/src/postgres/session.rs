@@ -2,8 +2,8 @@
 
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
-    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, PersistenceFuture, PlatformTime,
-    SessionError,
+    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, PersistenceFuture,
+    PlatformTime, SessionError,
 };
 use serde_json::Value;
 use sqlx::Row;
@@ -52,9 +52,10 @@ async fn start_session(storage: &PgStorage, session: ExecutionSession) -> Result
             to: ExecutionSessionStatus::Started,
         });
     }
-    let record = serde_json::to_value(&session).map_err(|error| SessionError::StorageUnavailable {
-        message: format!("Execution Session serialization failed: {error}"),
-    })?;
+    let record =
+        serde_json::to_value(&session).map_err(|error| SessionError::StorageUnavailable {
+            message: format!("Execution Session serialization failed: {error}"),
+        })?;
     let result = sqlx::query(START_SESSION_SQL)
         .bind(session.id().to_string())
         .bind(session.assembly().world_id().to_string())
@@ -94,9 +95,10 @@ async fn finish_session(
         });
     }
     let finished = current.finish(status, ended_at)?;
-    let record = serde_json::to_value(&finished).map_err(|error| SessionError::StorageUnavailable {
-        message: format!("Execution Session serialization failed: {error}"),
-    })?;
+    let record =
+        serde_json::to_value(&finished).map_err(|error| SessionError::StorageUnavailable {
+            message: format!("Execution Session serialization failed: {error}"),
+        })?;
     let result = sqlx::query(FINISH_SESSION_SQL)
         .bind(session_id.to_string())
         .bind(session_status(status))
