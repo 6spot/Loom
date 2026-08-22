@@ -1,13 +1,13 @@
 ---
 task: M4-T1
 issue: 146
-status: planned
+status: completed
 depends_on: []
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-22
+completed_at: 2026-08-22
+completion_pr: 205
+merge_sha: fe535892c5f6ba9abff1447d990f719b4e89161c
 ---
 
 # M4-T1 — Event occurrence authority and explicit World Time
@@ -31,18 +31,21 @@ No Capability-controlled default timestamp, DB `NOW()` as World Time, synthetic 
 
 ## Acceptance
 
-- [ ] Event occurrence equals pinned World Time.
-- [ ] Event commit does not move World Time.
-- [ ] Explicit stale-CAS time transition loses atomically.
-- [ ] Platform retry/lease/clock operations never alter World Time.
-- [ ] Architecture/fmt/check/clippy/tests/rustdoc + PostgreSQL parity pass.
+- [x] Event occurrence equals pinned World Time.
+- [x] Event commit does not move World Time.
+- [x] Explicit stale-CAS time transition loses atomically.
+- [x] Platform retry/lease/clock operations never alter World Time.
+- [x] Architecture/fmt/check/clippy/tests/rustdoc + PostgreSQL parity pass.
 
 Architecture basis: Architecture Index supersession rows for Event occurrence time; Amendment 0001 §5.
 
 ## Verification evidence
 
-Record PR, merge SHA and CI/test runs here on completion.
+- PR #205 merged as `fe535892c5f6ba9abff1447d990f719b4e89161c`.
+- Post-merge CI run `32566321119` passed the Rust and PostgreSQL 18 jobs.
+- Reconciliation rerun: `postgres_commit`, `postgres_vertical`, `postgres_restart_resume`, and the neutral template gate all pass against PostgreSQL 18 or InMemory authority as applicable.
 
 ## Progress Log
 
 - 2026-08-22 — Planned during post-Amendment V0 replan.
+- 2026-08-22 — Accepted and merged as PR #205; post-merge CI run `32566321119` passed.

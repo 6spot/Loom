@@ -1,13 +1,13 @@
 ---
 task: M4-T5
 issue: 150
-status: in_review
+status: completed
 depends_on: [147, 149]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-22
+completion_pr: 212
+merge_sha: dc3543f22454c133da7ce9958031c7a6fd2df1db
 ---
 
 # M4-T5 — Root Execution Session and exact Execution Assembly
@@ -31,11 +31,11 @@ No process-global mutable current Session, mid-subresolution registry rebinding,
 
 ## Acceptance
 
-- [ ] Direct Action/subresolution stays in one assembly.
-- [ ] Concurrent activation cannot change running Session.
-- [ ] Work/Ingress/bootstrap roots use same Session contract.
-- [ ] Missing software starts no execution/attempt.
-- [ ] Minimum Session records survive restart and standard gates pass.
+- [x] Direct Action/subresolution stays in one assembly.
+- [x] Concurrent activation cannot change running Session.
+- [x] Work/Ingress/bootstrap roots use same Session contract.
+- [x] Missing software starts no execution/attempt.
+- [x] Minimum Session records survive restart and standard gates pass.
 
 Architecture basis: `world-runtime.md` Execution Session; Amendment 0002 §5; Amendment 0003 §3.
 
@@ -48,10 +48,12 @@ Architecture basis: `world-runtime.md` Execution Session; Amendment 0002 §5; Am
 - `cargo test --workspace --all-targets --all-features` → passed; PostgreSQL integration fixtures return early when `LOOM_TEST_POSTGRES_URL` is unset.
 - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps` → passed.
 - InMemory Session/Assembly fixtures → direct Action/subresolution keeps one Application Session, active-revision switching keeps the original revision/implementation, Template bootstrap records Runtime origin, and missing Work software leaves attempt count/lease/session unchanged.
-- PostgreSQL Session/restart fixture → compiles and asserts Template/Action/Work lifecycle records survive adapter restart; live PostgreSQL execution remains pending the configured database URL.
+- PostgreSQL Session/restart fixture → passes live against PostgreSQL 18 and asserts Template/Action/Work lifecycle records survive adapter restart.
+- PR #212 merged as `dc3543f22454c133da7ce9958031c7a6fd2df1db`; post-merge CI run `32579121710` passed the Rust and PostgreSQL 18 jobs.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
 - 2026-08-22 — Started Runtime-owned Session/Assembly implementation after M4-T4 revision ledger became available; Ingress remains the later M8 public boundary.
 - 2026-08-22 — Added Runtime-owned immutable Session/Assembly lifecycle, InMemory/PostgreSQL persistence, root wiring, active-revision and missing-Work fixtures; local gates pass and the task is awaiting acceptance.
+- 2026-08-22 — Accepted and merged as PR #212; post-merge CI run `32579121710` passed.
