@@ -964,6 +964,55 @@ async fn logical_journal_tracks_semantic_commits_and_excludes_operational_noise(
 }
 
 #[tokio::test]
+async fn logical_journal_event_and_work_share_one_revision() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let registry = registry();
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let event_id = event(86);
+    let work_id = work(87);
+    let token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event_id,
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"kind": "event-and-work"}),
+            )],
+            vec![WorkMutation::Schedule(NewWork::new(
+                work_id,
+                timeline(),
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"kind": "event-and-work"}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+
+    let result = store
+        .commit(&token, None, PlatformTime::new(1))
+        .expect("combined Event and Work commit should succeed");
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+
+    assert_eq!(result.version, after.version());
+    assert_eq!(after.version().head_event_seq.value(), 1);
+    assert_eq!(after.version().state_revision.value(), 1);
+    assert_eq!(after.journal.len(), 1);
+    assert_eq!(after.journal[0].before_version, initial.version());
+    assert_eq!(after.journal[0].after_version, after.version());
+    assert_eq!(after.journal[0].event_ids, vec![event_id]);
+    assert!(matches!(
+        &after.journal[0].work_transitions[0],
+        LogicalWorkTransition::Schedule { work_id: id, .. } if *id == work_id
+    ));
+}
+
+#[tokio::test]
 async fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effects() {
     let store = InMemoryStore::new();
     store
