@@ -22,11 +22,12 @@ use loom_runtime::{
     CommitResult, CommitStore, CommittedEvent, EntropyEvidence, ExecutionSession,
     ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
     LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
-    ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SessionError, TimelineSnapshot,
-    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
-    WorkStore, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
+    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
+    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -993,7 +994,13 @@ impl InMemoryStore {
             .ok_or(WorkError::AttemptOverflow { work_id })?;
         work.claim_generation = next_fence;
         work.lease = Some(WorkLease::new(claimed_until, next_fence));
-        let claim = WorkClaim::new(timeline_id, work_id, claimed_until, next_fence);
+        let claim = WorkClaim::with_attempt_count(
+            timeline_id,
+            work_id,
+            claimed_until,
+            next_fence,
+            work.attempt_count,
+        );
         *guard = staged;
         Ok(claim)
     }
@@ -1034,6 +1041,86 @@ impl InMemoryStore {
         let result = work.clone();
         *guard = staged;
         Ok(result)
+    }
+
+    /// Applies one CAS/journal-backed Runtime terminalization without creating
+    /// a World Event or changing chronology-budget state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a commit error when the Timeline/Work is missing, the expected
+    /// version is stale, or an automatic claim no longer owns the lease.
+    pub fn terminalize_work(
+        &self,
+        terminalization: &WorkTerminalization,
+    ) -> Result<TimelineVersion, CommitError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let timeline_id = terminalization.timeline_id();
+        let timeline = staged
+            .timelines
+            .get_mut(&timeline_id)
+            .ok_or(CommitError::TimelineNotFound { timeline_id })?;
+        if timeline.version != terminalization.expected_version() {
+            return Err(CommitError::TimelineConflict {
+                expected: terminalization.expected_version(),
+                actual: timeline.version,
+            });
+        }
+        if let Some(claim) = terminalization.claim() {
+            validate_claim(timeline, &claim, terminalization.now())?;
+        }
+        let work =
+            timeline
+                .works
+                .get_mut(&terminalization.work_id())
+                .ok_or(WorkError::WorkNotFound {
+                    timeline_id,
+                    work_id: terminalization.work_id(),
+                })?;
+        if !work.is_pending() {
+            return Err(WorkError::NotPending {
+                work_id: work.id,
+                status: work.status,
+            }
+            .into());
+        }
+        work.status = terminalization.terminal_state().as_work_status();
+        work.lease = None;
+        if let Some(last_error) = terminalization.last_error() {
+            work.last_error = Some(last_error.to_owned());
+        }
+
+        let before_version = timeline.version;
+        let next_state_revision = before_version
+            .state_revision
+            .value()
+            .checked_add(1)
+            .ok_or(CommitError::RevisionOverflow)?;
+        timeline.version = TimelineVersion::new(
+            before_version.head_event_seq,
+            loom_core::StateRevision::new(next_state_revision),
+        );
+        let transition = match terminalization.terminal_state() {
+            loom_runtime::WorkTerminalState::Dead => LogicalWorkTransition::Dead {
+                work_id: terminalization.work_id(),
+            },
+            loom_runtime::WorkTerminalState::Cancelled => LogicalWorkTransition::Cancel {
+                work_id: terminalization.work_id(),
+            },
+        };
+        timeline.journal.push(LogicalCommit {
+            timeline_id,
+            before_version,
+            after_version: timeline.version,
+            world_time: None,
+            event_ids: Vec::new(),
+            work_transitions: vec![transition],
+            chronology_budget: None,
+        });
+        let version = timeline.version;
+        *guard = staged;
+        Ok(version)
     }
 
     fn read_state(&self) -> std::sync::RwLockReadGuard<'_, StoreState> {
@@ -1413,6 +1500,15 @@ impl WorkStore for InMemoryStore {
         work_id: loom_core::WorkId,
     ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
         Box::pin(async move { InMemoryStore::work(self, timeline_id, work_id) })
+    }
+}
+
+impl RuntimeControlStore for InMemoryStore {
+    fn terminalize_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
+        Box::pin(async move { InMemoryStore::terminalize_work(self, terminalization) })
     }
 }
 

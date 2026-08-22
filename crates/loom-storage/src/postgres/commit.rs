@@ -8,7 +8,8 @@ use loom_core::{
 use loom_runtime::{
     ChronologyBudgetConsumption, CommitError, CommitResult, CommitStore, CommittedEvent,
     LogicalCommit, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
-    ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
+    RuntimeControlStore, ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
+    WorkTerminalState, WorkTerminalization,
 };
 use sqlx::{Postgres, Row, Transaction};
 
@@ -48,6 +49,7 @@ const CANCEL_WORK_SQL: &str = include_str!("../../sql/work/cancel.sql");
 const SELECT_WORK_CLAIM_FOR_UPDATE_SQL: &str =
     include_str!("../../sql/work/select_claim_for_update.sql");
 const COMPLETE_WORK_SQL: &str = include_str!("../../sql/work/complete.sql");
+const TERMINALIZE_WORK_SQL: &str = include_str!("../../sql/work/terminalize.sql");
 const SELECT_WORK_STATUS_FOR_UPDATE_SQL: &str =
     include_str!("../../sql/work/select_status_for_update.sql");
 const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
@@ -70,6 +72,100 @@ impl CommitStore for PgStorage {
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move { commit_resolution(self, resolution, current_work, now).await })
     }
+}
+
+impl RuntimeControlStore for PgStorage {
+    fn terminalize_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
+        Box::pin(async move { terminalize_work(self, terminalization).await })
+    }
+}
+
+async fn terminalize_work(
+    storage: &PgStorage,
+    terminalization: &WorkTerminalization,
+) -> Result<TimelineVersion, CommitError> {
+    let timeline_id = terminalization.timeline_id();
+    let mut transaction = storage.pool.begin().await.map_err(storage_error)?;
+    let locked = lock_timeline(&mut transaction, timeline_id).await?;
+    if locked.version != terminalization.expected_version() {
+        return Err(CommitError::TimelineConflict {
+            expected: terminalization.expected_version(),
+            actual: locked.version,
+        });
+    }
+
+    if let Some(claim) = terminalization.claim() {
+        validate_current_work(&mut transaction, timeline_id, &claim, terminalization.now()).await?;
+    } else {
+        let status =
+            lock_work_status(&mut transaction, timeline_id, terminalization.work_id()).await?;
+        if status != WorkStatus::Pending {
+            return Err(WorkError::NotPending {
+                work_id: terminalization.work_id(),
+                status,
+            }
+            .into());
+        }
+    }
+
+    sqlx::query(TERMINALIZE_WORK_SQL)
+        .bind(timeline_id.to_string())
+        .bind(terminalization.work_id().to_string())
+        .bind(match terminalization.terminal_state() {
+            WorkTerminalState::Dead => "dead",
+            WorkTerminalState::Cancelled => "cancelled",
+        })
+        .bind(terminalization.last_error())
+        .execute(&mut *transaction)
+        .await
+        .map_err(storage_error)?;
+
+    let before_version = locked.version;
+    let next_state_revision = before_version
+        .state_revision
+        .value()
+        .checked_add(1)
+        .ok_or(CommitError::RevisionOverflow)?;
+    let version = TimelineVersion::new(
+        before_version.head_event_seq,
+        StateRevision::new(next_state_revision),
+    );
+    sqlx::query(UPDATE_TIMELINE_VERSION_SQL)
+        .bind(timeline_id.to_string())
+        .bind(version.head_event_seq.value().to_string())
+        .bind(version.state_revision.value().to_string())
+        .bind(locked.chronology_budget_world_time.value())
+        .bind(locked.chronology_budget_consumed.to_string())
+        .execute(&mut *transaction)
+        .await
+        .map_err(storage_error)?;
+
+    let work_transition = match terminalization.terminal_state() {
+        WorkTerminalState::Dead => LogicalWorkTransition::Dead {
+            work_id: terminalization.work_id(),
+        },
+        WorkTerminalState::Cancelled => LogicalWorkTransition::Cancel {
+            work_id: terminalization.work_id(),
+        },
+    };
+    insert_logical_commit(
+        &mut transaction,
+        &LogicalCommit {
+            timeline_id,
+            before_version,
+            after_version: version,
+            world_time: None,
+            event_ids: Vec::new(),
+            work_transitions: vec![work_transition],
+            chronology_budget: None,
+        },
+    )
+    .await?;
+    transaction.commit().await.map_err(storage_error)?;
+    Ok(version)
 }
 
 async fn commit_resolution(

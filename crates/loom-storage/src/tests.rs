@@ -18,9 +18,10 @@ use loom_protocol::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BindingError, CommitError, EffectEngine, LogicalWorkTransition, PlatformTime,
-    Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord, WorkStatus, WorkTarget,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord,
+    WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -1707,6 +1708,70 @@ async fn retry_and_expired_claims_preserve_work_identity_and_fence_winner() {
             .status,
         WorkStatus::Completed
     );
+}
+
+#[tokio::test]
+async fn runtime_control_terminalization_is_cas_journaled_and_not_resurrectable() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let work_id = work(61);
+    store
+        .seed_work(pending_work(work_id))
+        .expect("Work fixture should be seeded");
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let terminalized = RuntimeControlStore::terminalize_work(
+        &store,
+        &WorkTerminalization::new(
+            timeline(),
+            initial.version(),
+            work_id,
+            WorkTerminalState::Cancelled,
+            PlatformTime::new(1),
+        ),
+    )
+    .await
+    .expect("authorized cancellation should commit");
+    assert_eq!(terminalized.state_revision.value(), 1);
+
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    let cancelled = after
+        .works
+        .iter()
+        .find(|item| item.id == work_id)
+        .expect("cancelled Work should remain readable");
+    assert_eq!(cancelled.status, WorkStatus::Cancelled);
+    assert!(cancelled.lease.is_none());
+    assert_eq!(after.events.len(), 0);
+    assert_eq!(after.journal.len(), 1);
+    assert!(matches!(
+        after.journal[0].work_transitions.as_slice(),
+        [LogicalWorkTransition::Cancel { work_id: cancelled_id }] if *cancelled_id == work_id
+    ));
+
+    let stale = RuntimeControlStore::terminalize_work(
+        &store,
+        &WorkTerminalization::new(
+            timeline(),
+            initial.version(),
+            work_id,
+            WorkTerminalState::Dead,
+            PlatformTime::new(2),
+        ),
+    )
+    .await
+    .expect_err("a stale control CAS must not rewrite terminal Work");
+    assert!(matches!(stale, CommitError::TimelineConflict { .. }));
+    let claim = store
+        .claim(
+            timeline(),
+            work_id,
+            PlatformTime::new(3),
+            PlatformTime::new(4),
+        )
+        .expect_err("terminal Work must not be claimed again");
+    assert!(matches!(claim, WorkError::NotPending { .. }));
 }
 
 #[tokio::test]

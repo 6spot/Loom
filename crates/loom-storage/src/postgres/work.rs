@@ -115,11 +115,12 @@ async fn claim_work(
     work.attempt_count = next_attempt;
     work.claim_generation = next_fence;
     work.lease = Some(WorkLease::new(claimed_until, next_fence));
-    Ok(WorkClaim::new(
+    Ok(WorkClaim::with_attempt_count(
         timeline_id,
         work_id,
         claimed_until,
         next_fence,
+        next_attempt,
     ))
 }
 
