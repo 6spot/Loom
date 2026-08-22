@@ -13,6 +13,7 @@ sqlx = { version = "0.9", default-features = false, features = ["json", "macros"
 loom-api = { path = "../loom-api" }
 loom-capability = { path = "../loom-capability" }
 loom-protocol = { path = "../loom-protocol" }
+semver = "1"
 tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
 url = "2"
 

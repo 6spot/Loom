@@ -8,7 +8,7 @@
 //! leaves the observable adapter state unchanged.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     sync::RwLock,
 };
@@ -20,9 +20,10 @@ use loom_core::{
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommitError, CommitResult, CommitStore,
     CommittedEvent, LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
-    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
-    WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease,
+    WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -76,6 +77,8 @@ struct StoreState {
     worlds: HashSet<WorldId>,
     world_bindings: HashMap<WorldId, WorldRuntimeBinding>,
     timelines: HashMap<TimelineId, TimelineState>,
+    runtime_revisions: BTreeMap<RuntimeRevisionId, RuntimeRevisionDescriptor>,
+    active_runtime_revision: Option<RuntimeRevisionSelection>,
 }
 
 /// Errors raised while creating or seeding an in-memory World fixture.
@@ -428,6 +431,141 @@ impl InMemoryStore {
             .insert(world_id, legacy_binding.clone());
         *guard = staged;
         Ok(legacy_binding)
+    }
+
+    /// Publishes one immutable Runtime Revision descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RuntimeRevisionError::RevisionAlreadyExists`] when the stable
+    /// identity has already been published.
+    pub fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<(), RuntimeRevisionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let revision_id = revision.id().clone();
+        if staged
+            .runtime_revisions
+            .insert(revision_id.clone(), revision)
+            .is_some()
+        {
+            return Err(RuntimeRevisionError::RevisionAlreadyExists { revision_id });
+        }
+        *guard = staged;
+        Ok(())
+    }
+
+    /// Confirms an existing immutable descriptor or registers it when absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RuntimeRevisionError::RevisionDescriptorMismatch`] when the
+    /// supplied descriptor differs from the immutable publication.
+    pub fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let revision_id = revision.id().clone();
+        if let Some(existing) = staged.runtime_revisions.get(&revision_id) {
+            if existing != &revision {
+                return Err(RuntimeRevisionError::RevisionDescriptorMismatch { revision_id });
+            }
+            return Ok(existing.clone());
+        }
+        staged
+            .runtime_revisions
+            .insert(revision_id, revision.clone());
+        *guard = staged;
+        Ok(revision)
+    }
+
+    /// Reads one immutable Runtime Revision descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RuntimeRevisionError::RevisionNotFound`] when the identity is
+    /// absent.
+    pub fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError> {
+        let guard = self.read_state();
+        guard
+            .runtime_revisions
+            .get(&revision_id)
+            .cloned()
+            .ok_or(RuntimeRevisionError::RevisionNotFound { revision_id })
+    }
+
+    /// Reads all immutable Runtime Revision descriptors in stable ID order.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed Runtime Revision persistence error.
+    pub fn list_revisions(&self) -> Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError> {
+        let guard = self.read_state();
+        Ok(guard.runtime_revisions.values().cloned().collect())
+    }
+
+    /// Reads the active Runtime Revision selection without touching World data.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed Runtime Revision persistence error.
+    pub fn read_active_revision(
+        &self,
+    ) -> Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError> {
+        let guard = self.read_state();
+        Ok(guard.active_runtime_revision.clone())
+    }
+
+    /// Activates a known revision through an in-memory generation CAS.
+    ///
+    /// # Errors
+    ///
+    /// Returns a missing-revision, stale-generation or generation-overflow
+    /// error without changing the active pointer.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "matches the owned RuntimeRevisionStore activation port"
+    )]
+    pub fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> Result<RuntimeRevisionSelection, RuntimeRevisionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let revision = staged
+            .runtime_revisions
+            .get(&revision_id)
+            .cloned()
+            .ok_or_else(|| RuntimeRevisionError::RevisionNotFound {
+                revision_id: revision_id.clone(),
+            })?;
+        let actual_generation = staged
+            .active_runtime_revision
+            .as_ref()
+            .map(RuntimeRevisionSelection::generation);
+        if actual_generation != expected_generation {
+            return Err(RuntimeRevisionError::ActiveRevisionConflict {
+                expected_generation,
+                actual_generation,
+            });
+        }
+        let generation = actual_generation
+            .unwrap_or_default()
+            .checked_add(1)
+            .ok_or(RuntimeRevisionError::ActivationGenerationOverflow)?;
+        let selection = RuntimeRevisionSelection::new(revision, generation, activated_at);
+        staged.active_runtime_revision = Some(selection.clone());
+        *guard = staged;
+        Ok(selection)
     }
 
     /// Reads one Work record without exposing the mutable adapter state.
@@ -794,6 +932,52 @@ impl WorldRuntimeBindingStore for InMemoryStore {
         legacy_binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
         Box::pin(async move { InMemoryStore::ensure_binding(self, world_id, legacy_binding) })
+    }
+}
+
+impl RuntimeRevisionStore for InMemoryStore {
+    fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<(), RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::register_revision(self, revision) })
+    }
+
+    fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::confirm_revision(self, revision) })
+    }
+
+    fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::read_revision(self, revision_id) })
+    }
+
+    fn list_revisions(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::list_revisions(self) })
+    }
+
+    fn read_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::read_active_revision(self) })
+    }
+
+    fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionSelection, RuntimeRevisionError>> {
+        Box::pin(async move {
+            InMemoryStore::activate_revision(self, revision_id, expected_generation, activated_at)
+        })
     }
 }
 

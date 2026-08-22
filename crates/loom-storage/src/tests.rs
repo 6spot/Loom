@@ -17,9 +17,12 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord,
-    WorkStatus, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    AdvanceWorldTime, BindingError, CommitError, EffectEngine, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionStore, WorkRecord, WorkStatus, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldTimeError,
 };
+use semver::{Version, VersionReq};
 use serde_json::{Value, json};
 
 use crate::InMemoryStore;
@@ -66,6 +69,86 @@ fn registry() -> CapabilityRegistry {
             .expect("test Capability manifest should parse"),
     }])
     .expect("test Capability registry should assemble")
+}
+
+fn runtime_revision() -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("r1"),
+        PlatformTime::new(10),
+        "loom-core-build-1",
+        Version::new(0, 1, 0),
+        [RuntimeRevisionCapability::new(
+            OWNER,
+            "test-build-1",
+            Version::new(1, 0, 0),
+            VersionReq::parse("^0.1.0").expect("Loom compatibility should parse"),
+        )],
+    )
+    .expect("Runtime Revision descriptor should be valid")
+}
+
+#[tokio::test]
+async fn runtime_revision_history_is_immutable_and_activation_uses_generation_cas() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("World fixture should be created");
+    let revision = runtime_revision();
+
+    RuntimeRevisionStore::register_revision(&store, revision.clone())
+        .await
+        .expect("revision should publish once");
+    assert_eq!(
+        RuntimeRevisionStore::register_revision(&store, revision.clone()).await,
+        Err(RuntimeRevisionError::RevisionAlreadyExists {
+            revision_id: RuntimeRevisionId::from("r1")
+        })
+    );
+    assert_eq!(
+        RuntimeRevisionStore::confirm_revision(&store, revision.clone()).await,
+        Ok(revision.clone())
+    );
+    assert_eq!(
+        RuntimeRevisionStore::read_active_revision(&store)
+            .await
+            .expect("active selection should be readable before activation"),
+        None
+    );
+
+    let before = store
+        .snapshot(timeline())
+        .expect("Timeline should be readable before activation");
+    let selection = RuntimeRevisionStore::activate_revision(
+        &store,
+        RuntimeRevisionId::from("r1"),
+        None,
+        PlatformTime::new(20),
+    )
+    .await
+    .expect("first activation should win the empty-selection CAS");
+    assert_eq!(selection.revision(), &revision);
+    assert_eq!(selection.generation(), 1);
+    assert_eq!(selection.activated_at(), PlatformTime::new(20));
+    assert_eq!(
+        RuntimeRevisionStore::activate_revision(
+            &store,
+            RuntimeRevisionId::from("r1"),
+            None,
+            PlatformTime::new(21),
+        )
+        .await,
+        Err(RuntimeRevisionError::ActiveRevisionConflict {
+            expected_generation: None,
+            actual_generation: Some(1),
+        })
+    );
+    let after = store
+        .snapshot(timeline())
+        .expect("Timeline should be readable after activation");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.world_time(), before.world_time());
+    assert!(after.events.is_empty());
+    assert!(after.works.is_empty());
 }
 
 #[tokio::test]

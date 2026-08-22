@@ -1,10 +1,10 @@
 ---
 task: M4-T4
 issue: 149
-status: planned
+status: in_progress
 depends_on: [147]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-22
 completed_at:
 completion_pr:
 merge_sha:
@@ -39,8 +39,18 @@ Architecture basis: `evolution.md`, `world-runtime.md` Execution Session/Assembl
 
 ## Verification evidence
 
-Pending.
+- `python3 tools/check_architecture.py` → `Loom architecture dependency policy: OK`.
+- `cargo fmt --all -- --check` → passed.
+- `cargo check --workspace --all-targets --all-features` → passed.
+- `cargo clippy -p loom-runtime -p loom-storage --all-targets -- -D warnings` → passed.
+- `cargo test --workspace --all-features` → passed; PostgreSQL fixtures skip when `LOOM_TEST_POSTGRES_URL` is unset.
+- `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` → passed.
+- Runtime revision compatibility fixture → exact Capability identity/version selection and typed missing/version mismatch behavior pass.
+- InMemory revision fixture → immutable publication, explicit first activation, stale generation rejection, and unchanged Timeline snapshot pass.
+- PostgreSQL revision fixture → fresh migration, restart persistence, active selection, and World/Event neutrality are covered; live execution awaits configured PostgreSQL.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
+- 2026-08-22 — Implementing the Runtime-owned immutable revision descriptor and explicit Platform History registration/activation seam; Session pinning remains the dependent M4-T5 boundary.
+- 2026-08-22 — Local implementation gates pass; awaiting review/merge for completion metadata.

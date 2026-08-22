@@ -21,7 +21,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     .fetch_one(&pool)
     .await
     .expect("migrated Loom tables should be inspectable");
-    assert_eq!(table_count, 13);
+    assert_eq!(table_count, 15);
 
     let migration_count: i64 = sqlx::query_scalar("SELECT count(*)::bigint FROM _sqlx_migrations")
         .fetch_one(&pool)
