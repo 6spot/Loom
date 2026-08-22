@@ -14,6 +14,11 @@ use super::PgStorage;
 
 type PgTransaction<'a> = Transaction<'a, Postgres>;
 
+const CLAIM_WORK_SQL: &str = include_str!("../../sql/work/claim.sql");
+const RETRY_WORK_SQL: &str = include_str!("../../sql/work/retry.sql");
+const SELECT_WORK_FOR_UPDATE_SQL: &str = include_str!("../../sql/work/select_for_update.sql");
+const TIMELINE_EXISTS_SQL: &str = include_str!("../../sql/work/timeline_exists.sql");
+
 impl WorkStore for PgStorage {
     fn claim(
         &self,
@@ -96,19 +101,15 @@ async fn claim_work(
         .attempt_count
         .checked_add(1)
         .ok_or(WorkError::AttemptOverflow { work_id })?;
-    sqlx::query(
-        "UPDATE loom_work SET attempt_count = $3, claim_generation = $4::numeric, \
-         lease_claimed_until = $5, lease_fence = $4::numeric \
-         WHERE timeline_id = $1::uuid AND work_id = $2::uuid",
-    )
-    .bind(timeline_id.to_string())
-    .bind(work_id.to_string())
-    .bind(i64::from(next_attempt))
-    .bind(next_fence.to_string())
-    .bind(claimed_until.value())
-    .execute(&mut *transaction)
-    .await
-    .map_err(work_sql_error)?;
+    sqlx::query(CLAIM_WORK_SQL)
+        .bind(timeline_id.to_string())
+        .bind(work_id.to_string())
+        .bind(i64::from(next_attempt))
+        .bind(next_fence.to_string())
+        .bind(claimed_until.value())
+        .execute(&mut *transaction)
+        .await
+        .map_err(work_sql_error)?;
     transaction.commit().await.map_err(work_sql_error)?;
 
     work.attempt_count = next_attempt;
@@ -137,18 +138,14 @@ async fn retry_work(
     };
     validate_claim(&work, claim, now)?;
 
-    sqlx::query(
-        "UPDATE loom_work SET available_at = $3, last_error = $4, \
-         lease_claimed_until = NULL, lease_fence = NULL \
-         WHERE timeline_id = $1::uuid AND work_id = $2::uuid",
-    )
-    .bind(timeline_id.to_string())
-    .bind(work_id.to_string())
-    .bind(available_at.value())
-    .bind(last_error.clone())
-    .execute(&mut *transaction)
-    .await
-    .map_err(work_sql_error)?;
+    sqlx::query(RETRY_WORK_SQL)
+        .bind(timeline_id.to_string())
+        .bind(work_id.to_string())
+        .bind(available_at.value())
+        .bind(last_error.clone())
+        .execute(&mut *transaction)
+        .await
+        .map_err(work_sql_error)?;
     transaction.commit().await.map_err(work_sql_error)?;
 
     work.available_at = available_at;
@@ -162,18 +159,12 @@ async fn locked_work(
     timeline_id: TimelineId,
     work_id: WorkId,
 ) -> Result<Option<WorkRecord>, WorkError> {
-    let row = sqlx::query(
-        "SELECT work_id::text AS work_id, handler, schema_revision, payload, due_world_time, \
-                causal_event_id::text AS causal_event_id, origin_work_id::text AS origin_work_id, \
-                status, attempt_count, claim_generation::text AS claim_generation, available_at, \
-                last_error, lease_claimed_until, lease_fence::text AS lease_fence \
-         FROM loom_work WHERE timeline_id = $1::uuid AND work_id = $2::uuid FOR UPDATE",
-    )
-    .bind(timeline_id.to_string())
-    .bind(work_id.to_string())
-    .fetch_optional(&mut **transaction)
-    .await
-    .map_err(work_sql_error)?;
+    let row = sqlx::query(SELECT_WORK_FOR_UPDATE_SQL)
+        .bind(timeline_id.to_string())
+        .bind(work_id.to_string())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(work_sql_error)?;
     row.map(|row| work_record(&row, timeline_id)).transpose()
 }
 
@@ -215,12 +206,10 @@ async fn missing_work_error(
     timeline_id: TimelineId,
     work_id: WorkId,
 ) -> WorkError {
-    let exists = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM loom_timeline WHERE timeline_id = $1::uuid)",
-    )
-    .bind(timeline_id.to_string())
-    .fetch_one(&mut **transaction)
-    .await;
+    let exists = sqlx::query_scalar::<_, bool>(TIMELINE_EXISTS_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_one(&mut **transaction)
+        .await;
     match exists {
         Ok(true) => WorkError::WorkNotFound {
             timeline_id,
