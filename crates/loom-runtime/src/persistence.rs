@@ -21,7 +21,8 @@ use std::{
 use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
     AssociationRole, EntityId, EventId, EventSeq, ExecutionSessionId, RelationshipId,
-    StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
+    SchemaRevision, StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId,
+    WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule, WorkTarget};
 use semver::{Version, VersionReq};
@@ -1349,6 +1350,10 @@ pub enum LogicalWorkTransition {
         work_id: WorkId,
         /// Explicit logical execution target.
         target: WorkTarget,
+        /// Schema revision for the serialized Work payload.
+        schema_revision: SchemaRevision,
+        /// Serialized logical Work input required for historical reconstruction.
+        payload: Value,
         /// World-semantic due coordinate resolved by the scheduling commit.
         effective_due_world_time: WorldInstant,
         /// Timeline-local persistent chronology order.

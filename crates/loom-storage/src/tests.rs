@@ -837,6 +837,8 @@ async fn logical_journal_tracks_semantic_commits_and_excludes_operational_noise(
     assert!(after_event.journal[0].chronology_budget.is_none());
 
     let scheduled = work(81);
+    let schedule_schema_revision = SchemaRevision::new(1);
+    let schedule_payload = json!({"kind": "work-only", "value": 81});
     let schedule_token = validated(
         &store,
         &registry,
@@ -846,8 +848,8 @@ async fn logical_journal_tracks_semantic_commits_and_excludes_operational_noise(
                 scheduled,
                 timeline(),
                 WorkHandlerId::from(TEST_WORK_HANDLER),
-                SchemaRevision::new(1),
-                json!({"kind": "work-only"}),
+                schedule_schema_revision,
+                schedule_payload.clone(),
                 WorkSchedule::Immediate,
             ))],
         ),
@@ -866,13 +868,24 @@ async fn logical_journal_tracks_semantic_commits_and_excludes_operational_noise(
         &after_schedule.journal[1].work_transitions[0],
         LogicalWorkTransition::Schedule {
             work_id,
+            schema_revision,
+            payload,
             effective_due_world_time,
             logical_schedule_order,
             ..
         } if *work_id == scheduled
+            && *schema_revision == schedule_schema_revision
+            && payload == &schedule_payload
             && *effective_due_world_time == WorldInstant::new(0)
             && *logical_schedule_order == 1
     ));
+    assert_ne!(schedule_schema_revision, SchemaRevision::default());
+    assert_eq!(
+        store
+            .read_logical_journal(timeline())
+            .expect("logical journal should be readable after scheduling"),
+        after_schedule.journal
+    );
 
     let journal_before_retry = after_schedule.journal.clone();
     let claim = store

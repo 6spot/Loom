@@ -789,6 +789,8 @@ async fn apply_work_mutation(
             Ok(LogicalWorkTransition::Schedule {
                 work_id: work.id,
                 target: work.target.clone(),
+                schema_revision: work.schema_revision,
+                payload: work.payload.clone(),
                 effective_due_world_time,
                 logical_schedule_order: next_order,
                 causal_event_id: work.causal_event_id,

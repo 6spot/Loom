@@ -21,8 +21,8 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, Runtime,
-    WorkStatus, WorldRuntimeBindingStore, WorldStore,
+    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, LogicalJournalStore,
+    LogicalWorkTransition, PlatformTime, Runtime, WorkStatus, WorldRuntimeBindingStore, WorldStore,
 };
 use serde_json::{Value, json};
 
@@ -328,6 +328,24 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
         .expect("initial semantic Action should commit through Runtime");
     assert!(bootstrap.is_committed());
     assert_eq!(public_counter(first_api, target).await, 1);
+    let journal_before_restart =
+        LogicalJournalStore::read_logical_journal(&first_storage, target.timeline_id)
+            .await
+            .expect("logical journal should be readable before restart");
+    assert_eq!(journal_before_restart.len(), 1);
+    assert!(matches!(
+        &journal_before_restart[0].work_transitions[0],
+        LogicalWorkTransition::Schedule {
+            schema_revision,
+            payload,
+            ..
+        } if *schema_revision == SchemaRevision::new(1)
+            && *schema_revision != SchemaRevision::default()
+            && payload == &json!({
+                "event_id": id::<EventId>(WORK_EVENT_ID).to_string(),
+                "entity_id": id::<EntityId>(ENTITY_ID).to_string()
+            })
+    ));
     assert_eq!(
         first_api
             .list_events(EventQuery::all(target))
@@ -391,6 +409,12 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     let durable_before_continue = WorldStore::snapshot(&read_storage, target.timeline_id)
         .await
         .expect("reconstructed Runtime read port should return durable state");
+    assert_eq!(
+        LogicalJournalStore::read_logical_journal(&second_storage, target.timeline_id)
+            .await
+            .expect("logical journal should survive restart"),
+        journal_before_restart
+    );
     assert_eq!(durable_before_continue.events.len(), 1);
     assert_eq!(durable_before_continue.events[0].id, bootstrap_event_id);
     assert_eq!(durable_before_continue.works.len(), 1);
