@@ -66,14 +66,12 @@ async fn postgres_18_schema_contract() {
         .execute(&storage.pool)
         .await
         .expect("test World should insert");
-    sqlx::query(
-        "INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)",
-    )
-    .bind(TIMELINE_ID)
-    .bind(WORLD_ID)
-    .execute(&storage.pool)
-    .await
-    .expect("test Timeline should insert");
+    sqlx::query("INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)")
+        .bind(TIMELINE_ID)
+        .bind(WORLD_ID)
+        .execute(&storage.pool)
+        .await
+        .expect("test Timeline should insert");
     sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
         .bind(TIMELINE_ID)
         .bind(ENTITY_ID)
@@ -81,14 +79,13 @@ async fn postgres_18_schema_contract() {
         .await
         .expect("test Entity should insert");
 
-    let duplicate_entity = sqlx::query(
-        "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)",
-    )
-    .bind(TIMELINE_ID)
-    .bind(ENTITY_ID)
-    .execute(&storage.pool)
-    .await
-    .expect_err("duplicate Timeline-local Entity identity must be rejected");
+    let duplicate_entity =
+        sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
+            .bind(TIMELINE_ID)
+            .bind(ENTITY_ID)
+            .execute(&storage.pool)
+            .await
+            .expect_err("duplicate Timeline-local Entity identity must be rejected");
     assert_eq!(
         database_error_code(&duplicate_entity).as_deref(),
         Some("23505")
