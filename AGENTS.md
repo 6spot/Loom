@@ -4,21 +4,23 @@ This repository is architecture-first. `AGENTS.md` is an execution index, **not 
 
 Before changing code, crate dependencies, public APIs, Capability contracts or Runtime behavior, read:
 
-1. `docs/architecture/README.md` — document authority / precedence / amendments / open questions
+1. `docs/architecture/README.md` — document authority / precedence / reverse supersession / amendments / open questions
 2. `docs/architecture/glossary.md` — canonical terminology
 3. `docs/vision.md`
 4. `docs/principles.md`
 5. the canonical architecture documents required by the task (`core.md`, `layers.md`, `world-runtime.md`, `runtime-contracts.md`, `evolution.md`, `implementation.md`, `governance.md`)
-6. all accepted `docs/architecture/amendments/*.md` that affect the task
+6. **all accepted `docs/architecture/amendments/*.md` that affect the cited baseline sections**
 7. `docs/tasks/README.md` and the active task file only after the post-architecture implementation plan is rebuilt and activated
 
 Do not treat a summary in README, Principles, AGENTS or an old Issue as authority when the Architecture Index points to a canonical source.
+
+Before converting any frozen baseline section into an implementation task, **resolve it against the Architecture Index reverse supersession table**. If that section is amended, the task must cite the overriding Amendment as part of its acceptance basis.
 
 ## Current architecture status
 
 The Loom v0 architecture baseline is frozen and may be changed only through explicit Architecture Amendments.
 
-Accepted Amendment 0001 closes the remaining pre-replanning gaps around:
+Accepted Amendment 0001 closes runtime liveness/boundary gaps around:
 
 - bounded Runtime Work failure policy and terminal exit;
 - same-World-Time chronology budget;
@@ -28,6 +30,15 @@ Accepted Amendment 0001 closes the remaining pre-replanning gaps around:
 - Ingress as a reliable external envelope around the normal Action path;
 - World Template technical placement / `ValidatedWorldBirthPlan` authority;
 - Intent / Trigger / Reaction / Actor / Agent terminology reconciliation.
+
+Accepted Amendment 0002 closes amendment/linkage gaps around:
+
+- exact baseline-clause supersession mapping;
+- one complete Scheduler claim/admission checklist;
+- Chronology Budget consumption as Timeline Logical State;
+- current mandatory CI baseline (Ubuntu; macOS currently deferred);
+- `TimelineBlockedOnMissingImplementation` observability;
+- mandatory exact affected-clause indexes for future Amendments.
 
 The next phase is **re-planning**, not resuming the old roadmap by inertia.
 
@@ -46,7 +57,8 @@ Rather than duplicating every architecture invariant here, follow these canonica
 - Semantic layers: `docs/architecture/layers.md`
 - World Binding / World Time / Logical Commit / Session / baseline Work chronology: `docs/architecture/world-runtime.md`
 - Detailed Runtime/Capability execution protocol: `docs/architecture/runtime-contracts.md`
-- Runtime liveness / failure / scheduler driver / Ingress / Template amendment: `docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`
+- Runtime liveness / failure / Scheduler / Ingress / Template semantics: `docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`
+- Supersession mapping / chronology-budget authority / current CI / blocked-state observability: `docs/architecture/amendments/0002-supersession-and-authority-linkage.md`
 - Software evolution: `docs/architecture/evolution.md`
 - Cargo DAG / public exposure / authority type placement: `docs/architecture/governance.md`
 - Technical realization / persistence / dependency choices: `docs/architecture/implementation.md`
@@ -65,6 +77,8 @@ A few repository-wide guardrails are worth repeating because violating them is a
 
 For exact terminology such as semantic due-ness, operational claimability, Logical Head, Chronology Budget, Ingress, Intent, Trigger, Reaction, Actor and Agent, use `docs/architecture/glossary.md` instead of inventing local meanings.
 
+For Scheduler claim/admission, do **not** reconstruct a checklist from older baseline summaries. Use Amendment 0001 §9 + Amendment 0002 §2.
+
 ## Task records
 
 GitHub Issues are the collaboration surface; repository task files are the durable audit trail **once the rebuilt implementation plan is active**.
@@ -79,7 +93,8 @@ If an implementation requirement cannot be expressed by the frozen baseline + ac
 
 1. stop implementation of that violating design;
 2. write/review an Architecture Amendment with the concrete counterexample;
-3. update the Architecture Index/glossary/canonical sources as required;
-4. only then re-plan and implement.
+3. include the exact affected document + section index;
+4. update the Architecture Index reverse supersession table and glossary as required;
+5. only then re-plan and implement.
 
 Do not make architecture documentation conform to already-written violating code.
