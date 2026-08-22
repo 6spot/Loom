@@ -1,13 +1,13 @@
 ---
 task: M4-T6
 issue: 151
-status: in_review
+status: completed
 depends_on: [148, 150]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-22
+completion_pr: 213
+merge_sha: b876e8ec8e3cce83889da5bfc4484c950cef20c7
 ---
 
 # M4-T6 — Neutral Template / Binding fixtures
@@ -27,11 +27,11 @@ Provide small non-domain-specific fixtures that exercise birth, Binding and Sess
 
 ## Acceptance
 
-- [ ] Templates create distinct immutable bindings.
-- [ ] Disabled Action cannot execute.
-- [ ] New Template revision does not mutate existing World.
-- [ ] Bootstrap Session/Revision evidence is observable internally.
-- [ ] Architecture + standard gates pass.
+- [x] Templates create distinct immutable bindings.
+- [x] Disabled Action cannot execute.
+- [x] New Template revision does not mutate existing World.
+- [x] Bootstrap Session/Revision evidence is observable internally.
+- [x] Architecture + standard gates pass.
 
 ## Verification evidence
 
@@ -48,3 +48,4 @@ Provide small non-domain-specific fixtures that exercise birth, Binding and Sess
 
 - 2026-08-22 — Planned.
 - 2026-08-22 — Added reusable composition-boundary counter/observer Capabilities, two immutable Template revisions, target-World Binding coverage, bootstrap provenance assertions, and Work/Reaction declarations.
+- 2026-08-22 — Accepted and merged as PR #213 (`b876e8ec8e3cce83889da5bfc4484c950cef20c7`).
