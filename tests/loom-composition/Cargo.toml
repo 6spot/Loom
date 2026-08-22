@@ -12,6 +12,7 @@ loom-protocol = { path = "../../crates/loom-protocol" }
 loom-runtime = { path = "../../crates/loom-runtime" }
 loom-storage = { path = "../../crates/loom-storage" }
 serde_json = "1"
+semver = "1"
 
 [[test]]
 name = "vertical_slice"
@@ -24,6 +25,10 @@ path = "subresolution.rs"
 [[test]]
 name = "world_creation"
 path = "world_creation.rs"
+
+[[test]]
+name = "neutral_templates"
+path = "neutral_templates.rs"
 
 [lints]
 workspace = true

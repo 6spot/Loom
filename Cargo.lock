@@ -834,6 +834,7 @@ dependencies = [
  "loom-protocol",
  "loom-runtime",
  "loom-storage",
+ "semver",
  "serde_json",
  "tokio",
 ]
