@@ -1,10 +1,10 @@
 # Loom v0 Runtime Contracts
 
-> Status: normative technical contract for the first Rust implementation.
+> Status: **normative technical contract after World Runtime Closure review. Further implementation planning is intentionally paused until this architecture is approved.**
 >
-> 本文详细定义 Loom v0 从“请求一个世界行为”到“世界事实被提交”的运行契约。`core.md` 定义概念边界，`implementation.md` 定义技术基线，`governance.md` 强制约束 Rust crate 依赖与统一对外暴露；本文负责把这些原则落实为可编码、可测试、可审计的 Runtime/Capability 协议。
+> 本文详细定义 Loom v0 从“请求一个世界行为”到“世界事实或 Timeline logical state 被提交”的运行契约。`core.md` 定义概念边界，`world-runtime.md` 定义 World Runtime Binding / World Time / Execution Session 的交叉闭环，`implementation.md` 定义技术基线，`governance.md` 强制约束 Rust crate 依赖与统一对外暴露；本文负责把这些原则落实为可编码、可测试、可审计的 Runtime/Capability 协议。
 >
-> 本文优先解释**概念语义和所有权**。Rust 代码片段是接口草图，不代表最终语法必须一字不差。若实现细节需要调整，不能静默改变本文已经锁定的 authority、truth、ownership、dependency 或 transaction boundary。
+> 本文优先解释**概念语义和所有权**。Rust 代码片段是接口草图，不代表最终语法必须一字不差。若实现细节需要调整，不能静默改变本文已经锁定的 authority、truth、ownership、dependency、binding、time 或 transaction boundary。
 
 ## 0. Documentation Contract
 
@@ -12,7 +12,7 @@ Loom 的核心抽象不能只靠名字表达语义。每一个公开的 Core/Pro
 
 1. **Meaning**：它在 Loom 世界模型或执行模型中代表什么；
 2. **Owner**：哪个 crate / Runtime component 拥有它的解释权；
-3. **Truth domain**：它属于 World Truth、Runtime State、Execution Provenance、Agent Knowledge、public API contract 还是 software metadata；
+3. **Truth domain**：它属于 World History、Materialized World State、Timeline Logical State、Platform Operational State、Execution Provenance、Agent Knowledge、public API contract 还是 software metadata；
 4. **Input / output boundary**：谁可以创建、读取、修改或消费它；
 5. **Forbidden use**：它明确不能被用来做什么；
 6. **Relationship**：它与最容易混淆的相邻概念有什么区别；
@@ -49,7 +49,7 @@ pub struct Resolution { /* ... */ }
 
 ## 1. Runtime Contract Map
 
-Loom v0 的主执行链只有一条权威收敛路径：
+Loom v0 的 root semantic execution 必须先建立一套 pinned Execution Assembly，再进入唯一的 Resolution authority path：
 
 ```text
 Stimulus / Application / Ingress / Durable Work
@@ -59,6 +59,14 @@ Stimulus / Application / Ingress / Durable Work
                  Decision
                     │
             ActionInvocation
+                    │
+       Runtime starts Execution Session
+                    │
+          load World Runtime Binding
+                    │
+         bind active Runtime Revision
+                    │
+ resolve exact compatible implementations
                     │
               Runtime Router
                     │
@@ -74,20 +82,22 @@ Stimulus / Application / Ingress / Durable Work
                     │
           ValidatedResolution
                     │
-          Timeline Commit CAS
+       Timeline Logical Commit CAS
                     │
-            PostgreSQL COMMIT
+            persistence COMMIT
                     │
               ExecutionResult
 ```
 
-Durable Work 不一定通过 `ActionInvocation`；WorkHandler 可以直接产生同一种 `ResolveOutcome`。无论入口来自哪里，World mutation 最终都必须汇聚到：
+Durable Work 不一定通过 `ActionInvocation`；WorkHandler 可以直接产生同一种 `ResolveOutcome`。无论入口来自哪里，**semantic World State mutation** 最终都必须汇聚到：
 
 ```text
-Resolution -> Runtime Validation -> ValidatedResolution -> Commit
+Resolution -> Runtime Validation -> ValidatedResolution -> Logical Commit
 ```
 
-没有 Capability、Agent、Application、Ingress adapter、Boundary、Storage 或 WorkHandler 可以绕过这条路径。
+World Time advancement 是另一种 Runtime-owned logical transition，不要求先伪造一个 Capability Resolution，但仍必须经过同一 TimelineVersion/CAS authority boundary。
+
+没有 Capability、Agent、Application、Ingress adapter、Boundary、Storage 或 WorkHandler 可以绕过这些 Runtime authority paths。
 
 ### 1.1 Execution flow is not Cargo dependency flow
 
@@ -114,9 +124,35 @@ loom-boundary -> loom-api
 
 其中 `A -> B` 在治理文档中明确表示 A depends on B。
 
+### 1.2 Six authority domains
+
+所有 Runtime contract 必须先判断数据属于哪个 domain：
+
+```text
+World-level Runtime Metadata
+= World identity + World Runtime Binding + Template provenance
+
+World History
+= committed Events + frozen Effects
+
+Materialized World State
+= Entity / Relationship / Facets
+
+Timeline Logical State
+= World Time / logical Work / TimelineVersion / ancestry
+
+Platform Operational State
+= lease / fence / retry / process bookkeeping
+
+Platform History / Execution Provenance
+= Runtime Revision / Session / ReadSet / implementation evidence
+```
+
+不同 domain 不能为了“统一”而共享一个万能 mutation/event/history abstraction。
+
 ---
 
-## 2. Identity and Version Value Types
+## 2. Identity, Time, Version and Binding Values
 
 ### 2.1 Strong IDs
 
@@ -147,11 +183,28 @@ WorldInstant(i64)
 WorldDuration(i64)
 ```
 
-`WorldInstant` 是 Timeline 语义时间，不是 UTC timestamp。
+`WorldInstant` 是 Timeline-local 语义时间，不是 UTC timestamp。
 
 - 可以表示现实时间世界、加速世界、tick 世界或虚构历法世界的底层单调坐标；
 - `committed_at`、`received_at`、retry backoff 等平台时间不能使用 `WorldInstant`；
-- calendar/date/timezone 是 Capability/Application projection，不进入 Core primitive。
+- calendar/date/timezone 是 Capability/Application projection，不进入 Core primitive；
+- sibling fork Timeline 可以独立推进到不同 `WorldInstant`；
+- World Time **不从 Event timestamps 推导**。
+
+World Time 只通过 Runtime authority 的 explicit logical transition 前进：
+
+```text
+AdvanceWorldTime(T_current -> T_next)
+```
+
+该 transition：
+
+- 必须 monotonic；
+- 必须检查 expected TimelineVersion；
+- 必须持久化为 reconstructable logical history；
+- 必须推进 Timeline logical revision；
+- 不需要伪造领域 Event；
+- 不能由 PlatformClock / DB NOW / retry / lease 隐式触发。
 
 ### 2.3 Timeline Version
 
@@ -162,12 +215,61 @@ struct TimelineVersion {
 }
 ```
 
-`TimelineVersion` 是一次 Resolution 所依赖的权威 Snapshot 版本标识。
+`TimelineVersion` 是一次 Resolution / logical transition 所依赖的权威 snapshot position。
+
+`state_revision` 的语义必须理解为 **Timeline logical state revision**，而不只是 Facet table revision。
+
+至少以下成功 logical commit 会推进它：
+
+```text
+Event / Effect commit
+logical Work mutation / current Work completion
+World Time advancement
+other future reconstructable Timeline logical transitions
+```
+
+Platform claim/lease/retry bookkeeping 不推进 TimelineVersion。
 
 - Resolver 读取一个 pinned Base World；
 - Commit 使用 expected version 做 CAS；
 - 若 Timeline 已变化，ValidatedResolution 不能直接盲写；
-- v0 默认重新读取并按策略 revalidate/re-resolve。
+- Runtime 按 policy 重新读取并 revalidate/re-resolve，不能把 CAS conflict 冒充 Capability Rejection。
+
+### 2.4 World Runtime Binding
+
+World 必须持有一个持久 execution binding，概念上至少包含：
+
+```text
+Capability semantic IDs enabled for this World
+compatible version requirements
+immutable World-level Capability configuration where genuinely required
+binding revision/hash
+Template/birth provenance
+```
+
+它属于 World-level runtime metadata，并由该 World 所有 Timeline 共享。
+
+必须区分：
+
+```text
+Installed Capability
+= active software environment contains an implementation
+
+Enabled Capability
+= target World Runtime Binding permits the semantic domain
+```
+
+以及：
+
+```text
+World Runtime Binding
+= semantic requirements / permission to execute
+
+Execution Assembly
+= exact implementations chosen for one Session
+```
+
+World Runtime Binding v0 创建后不可静默修改，也不永久 pin Runtime Revision / exact implementation binary。
 
 ---
 
@@ -204,7 +306,7 @@ v0 规则：
 
 ### 3.3 Facet
 
-Facet 是 Capability-owned 的 timeline-local composable state。
+Facet 是 Capability-owned 的 timeline-local composable semantic state。
 
 Rust API 可以统一 owner：
 
@@ -220,14 +322,16 @@ pub enum FacetOwner {
 Facet 原则：
 
 - Facet Definition 属于 software/Capability metadata；
-- Facet instance value 属于 Timeline State；
+- Facet instance value 属于 Materialized World State；
 - v0 Effect 使用完整 Facet replacement，不使用通用 JSON Patch；
 - 一个 Facet 应保持合理语义边界，不能成为 `everything_about_entity.json`；
 - 大型 blob 使用 Object Storage reference，不塞进 Facet。
 
+所有 Entity / Relationship / Facet semantic mutation 必须由 committed Event 的 frozen Effect 解释。
+
 ---
 
-## 4. Capability Ownership Contract
+## 4. Capability Ownership and World Enablement Contract
 
 > **Capability has semantic power, but never Runtime authority.**
 
@@ -245,6 +349,8 @@ required Capability dependencies
 ```
 
 `provides` 不需要重复手写，可从实际注册项推导，避免 manifest 与代码漂移。
+
+Manifest/registry 表示 installed software metadata；它不自动赋予所有 World enablement。
 
 ### 4.2 Semantic Keys
 
@@ -274,22 +380,47 @@ WorkHandlerId
 
 每一个 semantic type 必须有且只有一个 owning Capability。
 
-World Template 装配时 Runtime 必须拒绝：
+Capability registry assembly 时 Runtime 必须拒绝：
 
 - 两个 Capability 注册同一 Facet/Event/Action/Relationship/Handler；
 - 缺失 required Capability；
 - semantic dependency version 不兼容；
 - handler/definition 没有明确 owner。
 
-### 4.4 Read Other, Mutate Own
+World Template / Birth Plan 还必须验证目标 World 的 enabled Capability set 对 dependency closure 是完整且 compatible 的。
 
-Capability 可以读取已声明依赖的其他 Capability 语义，但只能**直接产生自己拥有语义的 mutation**。
+### 4.4 Installed vs enabled
+
+Runtime 对任何 target-World semantic dispatch 都必须同时满足：
+
+```text
+semantic owner exists in installed Execution Assembly
+AND
+semantic owner is enabled by target World Runtime Binding
+```
+
+该检查至少覆盖：
+
+```text
+root Action
+WorkHandler
+Reaction expansion
+subresolution
+Capability-owned semantic index/retrieval
+World-scoped Catalog/discovery
+```
+
+> **Registry presence never implies World enablement.**
+
+### 4.5 Read Other, Mutate Own
+
+Capability 可以读取已声明依赖且目标 World 启用的其他 Capability 语义，但只能**直接产生自己拥有语义的 mutation**。
 
 例如：
 
 ```text
 employment.basic
-read finance.account                allowed
+read finance.account                allowed if dependency + World binding permit
 PutFacet employment.*               allowed
 Create employment.* relationship    allowed
 PutFacet finance.account            forbidden
@@ -297,7 +428,7 @@ PutFacet finance.account            forbidden
 
 跨 Capability mutation 必须通过 Runtime-mediated subresolution 让目标 semantic owner 自己解释并产生 Effects。
 
-### 4.5 Capability exposes semantics, not transport
+### 4.6 Capability exposes semantics, not transport
 
 Capability 可以注册语义：
 
@@ -325,6 +456,12 @@ public SDK service
 `finance.basic` 可以拥有 `finance.transfer`，但不能拥有一个绕过 Loom 的 `POST /finance/transfer` public engine API。
 
 > **Extension defines semantics; Loom owns exposure.**
+
+### 4.7 Binding configuration is not hidden domain state
+
+World Runtime Binding 中只有 assembly 所需、World-level immutable、可版本化审计的配置可以存在。
+
+任何希望随世界历史变化的规则、法律、价格、技术状态、角色权限或领域 policy，应进入 normal Event + State semantics，不能藏在 binding config 里绕过 World History。
 
 ---
 
@@ -378,17 +515,27 @@ Action 表示“请求世界规则尝试做什么”。
 
 Resolver：
 
-- 读取 `BaseWorldView`；
-- 可以通过 host `ResolutionContext` 发起声明过依赖的 subresolution；
-- 可以请求 Runtime-controlled Entropy/Cognition boundary；
+- 读取 pinned `BaseWorldView`；
+- 可以通过 host `ResolutionContext` 发起声明过依赖且 target World enabled 的 subresolution；
+- 可以请求 Runtime-controlled Entropy boundary where allowed；
 - 返回 `loom-protocol` 的 `ResolveOutcome`；
-- 不能写 Storage、Commit、直接修改 Event Ledger。
+- 不能写 Storage、Commit、直接修改 Event Ledger；
+- 不能推进 World Time；
+- 默认不能拿 generic Cognitive/Network/Provider handle。
+
+v0 cognition 的标准路径属于 Agency：
+
+```text
+AgentWorldView -> CognitiveExecutor -> Decision -> ActionInvocation
+```
+
+而不是把任意 LLM/provider 变成普通 Resolver 的网络依赖。
 
 ### 5.5 Invariant
 
 Invariant 只做 read-only validation。
 
-它可以检查自己的 semantic state，也可以读取已声明 dependency 的 candidate state，但：
+它可以检查自己的 semantic state，也可以读取已声明 dependency 且 World enabled 的 candidate state，但：
 
 - 不能产生 Effect；
 - 不能“顺手修正”非法值；
@@ -401,13 +548,15 @@ WorkHandler 是 Durable Work 到期后的 resolution entrypoint，不是自主�
 
 它与 ActionResolver 一样：
 
+- 只能在 owning Capability 对目标 World enabled 且当前 Execution Assembly 提供 compatible implementation 时执行；
 - 读取 BaseWorldView；
 - 返回 ResolveOutcome；
 - 无数据库句柄；
 - 无 Commit 权限；
-- 无权把当前 Work 自己标 Completed/Cancelled/Dead。
+- 无权把当前 Work 自己标 Completed/Cancelled/Dead；
+- 无权推进 World Time。
 
-当前 Work 生命周期由 Runtime 控制。
+当前 Work lifecycle 由 Runtime 控制。
 
 ### 5.7 Reaction Registration
 
@@ -415,13 +564,15 @@ Reaction 表达“某类已提交 Event 出现后，需要继续评估什么”�
 
 v0 Reaction 不直接产生 Event/Effect。它只能请求 Runtime 创建 Immediate Durable Work，再由正常 Work execution 产生后续 Resolution。
 
+Reaction 只有在 owning/target Capability 对该 World enabled 时才可以扩展；global registry 中有 Reaction 不代表每个 World 都执行它。
+
 这样避免 commit hook 中出现隐形递归事务，并保持 World causal chain 可追踪。
 
 ---
 
-## 6. World Views and Resolution Context
+## 6. World Views, Resolution Context and Execution Assembly
 
-Capability 能读取 World Truth，不等于 Agent 可以全知。Loom 必须区分三个 View。
+Capability 能读取 World Truth，不等于 Agent 可以全知。Loom 必须区分三个 View，并把它们放在一个 pinned Execution Session 内。
 
 ### 6.1 BaseWorldView
 
@@ -429,15 +580,18 @@ Capability 能读取 World Truth，不等于 Agent 可以全知。Loom 必须区
 
 主要消费者：ActionResolver / WorkHandler。
 
-它可以提供受控查询协议，例如：
+它至少提供：
 
 ```text
+World / Timeline identity
+TimelineVersion
+current World Time
 entity existence
 entity facet
 relationship + participants + facet
 relationship query
 Event lookup / causality lookup
-semantic retrieval
+semantic retrieval through controlled boundary when defined
 ```
 
 它不能暴露：
@@ -447,9 +601,13 @@ PgPool
 SQL
 Storage transaction
 raw repository implementation
+PlatformClock
+mutable registry
 ```
 
 一次 Resolution 期间不能混读 revision 108、109、110 的“拼接世界”。
+
+World Time 对 Capability 是 pinned read-only semantic coordinate。
 
 ### 6.2 CandidateWorldView
 
@@ -460,6 +618,8 @@ raw repository implementation
 若同一 Resolution 中先把 Alice.balance 从 100 改到 70，后续 validator 读取 Alice.balance 必须看到 70，而不是数据库旧值 100。
 
 > **Candidate state shadows base state.**
+
+World Time 不由 WorldEffect mutation overlay 修改；time advancement 是独立 Runtime logical transition。
 
 ### 6.3 AgentWorldView
 
@@ -480,15 +640,56 @@ Agent/LLM 永远不能直接收到 authoritative BaseWorldView。
 ```text
 Timeline identity
 pinned base version
+pinned World Time via BaseWorldView
 BaseWorldView query boundary
 Resolution budget
 Runtime-mediated subresolution gateway
-explicit Entropy/Cognition access where policy allows
+explicit Entropy request/sample boundary where policy allows
+read-only current Work execution metadata where later required
 ```
 
 ReadSet recorder 可以由 Runtime implementation 在背后自动记录，不要求 Capability 直接管理 recorder。
 
 `ResolutionContext` 不是数据库 context，也不是 transaction；它属于 `loom-capability` contract，而不是为了方便让 Capability import `loom-runtime`。
+
+它不能提供：
+
+```text
+PlatformClock
+AdvanceWorldTime authority
+raw RNG
+raw network/provider client
+generic CognitiveExecutor handle
+CommitStore / transaction
+```
+
+如果未来某类 Resolver 真的需要 external inference，必须新增 architecture-reviewed explicit host service，并定义 provenance/failure/replay/budget semantics。
+
+### 6.5 Execution Session and Execution Assembly
+
+每一个可能形成 World Truth 的 root execution 都必须有一个 Execution Session。
+
+Session 开始时 Runtime 一次性 pin：
+
+```text
+target World / Timeline
+input TimelineVersion
+World Runtime Binding revision/hash
+active Runtime Revision
+exact compatible Capability implementation set
+Execution Policy revision/config
+controlled Entropy / Agency services where relevant
+```
+
+这些值组成该 Session 的 Execution Assembly。
+
+同一 Session 中：
+
+- root resolver / WorkHandler 与所有 subresolution 使用同一 Runtime Revision；
+- exact Capability implementation 不得中途切换；
+- registry refresh 不得改变已经开始的 call graph；
+- Capability enablement 以 pinned World Runtime Binding 判断；
+- 如果 current active software 无法满足 Binding，Session 在产生 World mutation 前失败为 unavailable/incompatible。
 
 ---
 
@@ -509,6 +710,7 @@ relationship read
 negative read
 predicate/range dependency
 semantic retrieval dependency
+World Time read through pinned snapshot
 ```
 
 v0 正确性仍由 Timeline-level CAS 保证；ReadSet 第一阶段主要用于：
@@ -519,17 +721,22 @@ v0 正确性仍由 Timeline-level CAS 保证；ReadSet 第一阶段主要用于�
 
 不能把 ReadSet 永久定义成“若干 object IDs”，否则无法表达“查询 active employment，结果为空”这种 negative/predicate dependency。
 
-### 7.2 Capability Dependency vs ReadSet
+### 7.2 Capability Dependency vs World Binding vs ReadSet
 
-两者不能混：
+三者不能混：
 
 ```text
 Capability Manifest dependency
-= 这个 Capability 可能依赖哪些 semantic domains
+= 这个 Capability implementation/semantic contract 需要哪些 semantic domains
+
+World Runtime Binding
+= 这个 World 允许哪些 semantic domains / compatibility requirements
 
 ReadSet
 = 这一次 Resolution 实际读了哪些 World facts/query results
 ```
+
+一个 dependency 存在不代表目标 World enabled；一个 World enabled 也不表示本次执行实际读取了该 domain。
 
 ### 7.3 Resolution Budget
 
@@ -546,6 +753,7 @@ max semantic results
 max bytes
 deadline
 subresolution depth
+entropy calls/bytes where applicable
 ```
 
 具体数值属于 Runtime Policy，不写死进 Core semantic types。
@@ -573,7 +781,7 @@ pub enum Decision {
 
 Decision 属于 `loom-agency`，不是 World Truth。
 
-Cognitive Executor 不能返回 Event、Effect 或 Resolution。
+Cognitive Executor 不能返回 Event、Effect、Resolution 或 World Time transition。
 
 > **Cognition decides what to attempt; Capability decides what that attempt means.**
 
@@ -678,13 +886,14 @@ Resolution 是 **untrusted semantic output**：
 - 可以创建/取消未来 Work；
 - 不能直接 Commit；
 - 不能被 Storage 作为裸 persistence commit input；
-- 不属于 public Loom API authority contract。
+- 不属于 public Loom API authority contract；
+- **不能直接 Advance World Time**。
 
 成功 Resolution 可以是空变化。比如 Work 执行后发现无需改变世界，但当前 Work 仍需要被 Runtime 原子标记 Completed。
 
 ### 9.5 ValidatedResolution
 
-`ValidatedResolution` 属于 `loom-runtime`，是 Runtime authority gate 的结果。
+`ValidatedResolution` 属于 `loom-runtime`，是 semantic Resolution authority gate 的结果。
 
 只有 Runtime Effect Engine / validation pipeline 能创建它；Capability/Protocol/API 不提供 constructor。
 
@@ -695,6 +904,7 @@ Runtime-owned persistence port 可以接受 `ValidatedResolution`；`loom-storag
 Validation 至少包括：
 
 ```text
+World Runtime Binding / owner enablement validation
 schema validation
 semantic ownership validation
 causal DAG validation
@@ -704,9 +914,10 @@ Event participant/Relationship reference validation against that reference view
 Capability invariants
 Runtime invariants
 Work mutation validation
+Event occurred_at == pinned World Time validation for v0
 ```
 
-它表示“有资格尝试 Commit”，不表示 Commit 一定成功；Timeline CAS 仍可能冲突。
+它表示“有资格尝试 semantic logical Commit”，不表示 Commit 一定成功；Timeline CAS 仍可能冲突。
 
 ### 9.6 ExecutionResult and public mapping
 
@@ -722,6 +933,8 @@ Rejected(code/details)
 
 CAS conflict 通常属于 Runtime retry/re-resolution 流程，不应冒充领域 Rejection。
 
+World Time-only logical transition 的 public/admin result contract 可以与 Action `ExecutionResult` 分离；不要为了复用 DTO 把时间推进伪装成 Capability Action。
+
 ---
 
 ## 10. ProposedEvent and CommittedEvent
@@ -733,7 +946,7 @@ CAS conflict 通常属于 Runtime retry/re-resolution 流程，不应冒充领�
 ```text
 EventId
 event type + schema revision
-occurred/effective World Time
+occurred_at World Time
 participants
 relationship references
 causal references
@@ -742,6 +955,16 @@ payload
 resolved World Effects
 ```
 
+v0 `occurred_at` 表示该事实发生时的 pinned Timeline World Time。
+
+它不是：
+
+- WorldClock advancement request；
+- source system wall-clock timestamp；
+- arbitrary future effective date。
+
+若领域需要 source/effective/historical timestamp，必须使用明确 payload/scope/domain schema 表达。
+
 ### 10.2 Committed Event
 
 只有 Timeline transaction 成功以后 Event 才成为 World Truth，并获得 authoritative：
@@ -749,21 +972,25 @@ resolved World Effects
 ```text
 TimelineId
 EventSeq
-commit provenance
-platform committed_at
+Execution Session / commit provenance link
+platform committed_at metadata
 ```
 
 具体 persisted record/Rust read model 不要求和 ProposedEvent 一一同型。
+
+Committed Event 不负责决定 Timeline 当前 World Time；它记录自己在什么 World Time 成为该 Timeline 的事实。
 
 ### 10.3 Event Can Have Zero Effects
 
 Event 是事实，不是“State update wrapper”。一个事实可能值得进入 Ledger，但不需要 materialized state mutation。
 
-### 10.4 No Standalone World Effect
+### 10.4 No Standalone Semantic World Effect
 
 反方向不成立：WorldEffect 不能独立 Commit。
 
-所有 World State mutation 必须隶属于 committed Event，保证任何当前状态变化都能追溯“什么事实导致了它”。
+所有 Entity / Relationship / Facet semantic mutation 必须隶属于 committed Event，保证任何当前 materialized State 变化都能追溯“什么事实导致了它”。
+
+注意：World Time / logical Work 等 Timeline logical transition 不是 `WorldEffect`，它们由 Runtime-owned logical commit contract 管理。
 
 ---
 
@@ -814,7 +1041,7 @@ v0 约束：一个 Event 只能引用：
 
 不能形成 causal cycle。
 
-World Event Graph 只描述世界事实因果；Resolution call graph / Work / Session 属于 Execution Provenance，不混入 World causal graph。
+World Event Graph 只描述世界事实因果；Resolution call graph / Work / Session / World Time logical transitions 属于其他 execution/history domain，不混入 World causal graph。
 
 ---
 
@@ -842,9 +1069,12 @@ DamageCharacter
 FireEmployee
 FallInLove
 PublishNews
+AdvanceWorldTime
+LeaseWork
+RetryWork
 ```
 
-这些是 Capability semantics，Resolver 把它们解算成 Event + mechanical Effects。
+前五类是 Capability semantics，Resolver 把它们解算成 Event + mechanical Effects；后三类属于 Runtime logical/operational authority，不是 semantic WorldEffect。
 
 ### 12.2 Full Facet Replacement
 
@@ -862,6 +1092,7 @@ v0 `PutFacet` 写入完整 candidate Facet value，而不是通用 JSON Patch。
 Effect Engine 属于 `loom-runtime`，负责：
 
 ```text
+check target World Binding / semantic enablement
 check ownership and schemas
 validate each Event's Effects and apply them in listed order
 derive the envelope reference view from Event-before structures plus successful Create Effects
@@ -889,6 +1120,8 @@ Capability A Resolver
         └─ request Action B through ResolutionContext
                     │
                  Runtime host
+                    │
+     check World Binding + dependency + budget
                     │
             Capability B Resolver
                     │
@@ -920,35 +1153,36 @@ v0 默认禁止同一路径重复进入相同 `(Capability, Action)` 所形成�
 每个 root Action/Work execution 由 Runtime 持有一份内部执行状态，至少包括：
 
 ```text
+ExecutionSessionId
+pinned World Runtime Binding ref/hash
+pinned Runtime Revision / exact implementation assembly
 (Capability, Action) call stack       path-local cycle guard
 subresolution depth/count             Runtime budget usage
 ordered owner-tagged Resolution segments
 independent Resolution call-provenance edges
 ```
 
-每次 `ResolutionContext::subresolve` 必须先通过 Runtime 校验 child Action
-input，再根据注册 Action 的 owner 路由；同 owner 调用允许跨语义调用，跨 owner
-调用必须由 caller Capability manifest 直接声明 target owner dependency。重复 pair、
-超出 depth/count budget 或其他 routing/auth failure 都发生在 child dispatch 和
-commit eligibility 之前。
+每次 `ResolutionContext::subresolve` 必须先通过 Runtime 校验：
 
-Child `Resolved` 只能由 Runtime 捕获为带 owner 的 untrusted segment；Capability
-不能直接合并或重新标记该 segment。Child `Rejected` 是正常 semantic outcome，原样
-返回父 resolver，不自动升级成 Runtime error，也不产生 segment。
+```text
+child Action input
+semantic owner is enabled by target World Binding
+child implementation exists in pinned Execution Assembly
+manifest dependency authorization
+depth/count/cycle budget
+```
 
-Root 成功后，Effect Engine 按 Runtime 观察到的 segment 顺序在一个共享
-`CandidateWorldView` 上逐段验证，并 flatten 成一个 Runtime-owned
-`ValidatedResolution`。任一 segment validation 或 aggregate budget failure 都不能
-产生 commit token；成功组合最终只调用一次现有 `CommitStore::commit`，Timeline
-`TimelineVersion` CAS 仍是唯一业务线性化点。
+同 owner 调用允许跨语义调用，跨 owner 调用必须由 caller Capability manifest 直接声明 target owner dependency。重复 pair、超出 depth/count budget 或其他 routing/auth failure 都发生在 child dispatch 和 commit eligibility 之前。
 
-Resolution call-provenance edges 只属于 Execution Provenance。它们不能写入
-`ProposedEvent` 的 World causality、participants、Work origin 或其他 Event graph
-结构；World Event causal links 仍只表达世界事实之间的因果关系。
+Child `Resolved` 只能由 Runtime 捕获为带 owner 的 untrusted segment；Capability 不能直接合并或重新标记该 segment。Child `Rejected` 是正常 semantic outcome，原样返回父 resolver，不自动升级成 Runtime error，也不产生 segment。
+
+Root 成功后，Effect Engine 按 Runtime 观察到的 segment 顺序在一个共享 `CandidateWorldView` 上逐段验证，并 flatten 成一个 Runtime-owned `ValidatedResolution`。任一 segment validation 或 aggregate budget failure 都不能产生 commit token；成功组合最终只调用一次 Runtime-owned logical commit persistence boundary，Timeline `TimelineVersion` CAS 仍是唯一业务线性化点。
+
+Resolution call-provenance edges 只属于 Execution Provenance。它们不能写入 `ProposedEvent` 的 World causality、participants、Work origin 或其他 Event graph 结构；World Event causal links 仍只表达世界事实之间的因果关系。
 
 ---
 
-## 14. Durable Work
+## 14. Durable Work, Scheduler and World Time
 
 > **Durable Work represents unresolved future execution, not future truth.**
 
@@ -964,8 +1198,7 @@ payload + payload schema revision
 optional due_world_time
 causal Event reference
 origin Work reference
-status
-attempt_count
+logical status
 ```
 
 平台调度 metadata 另外包含：
@@ -974,16 +1207,18 @@ attempt_count
 available_at
 claimed_by
 claimed_until
+claim fence
+attempt_count
 last_error
 created_at
 updated_at
 ```
 
-这些不是 World State。
+这些不是 Materialized World State。
 
 ### 14.2 WorkStatus
 
-v0 持久状态只有：
+v0 持久 logical status 只有：
 
 ```rust
 Pending
@@ -996,7 +1231,7 @@ Dead
 
 ### 14.3 Claim Lease
 
-Worker claim 是 lease，不是 semantic status transition。
+Worker claim 是 lease，不是 semantic/logical status transition。
 
 ```text
 Pending
@@ -1008,6 +1243,13 @@ Pending
 ```
 
 这使 Runtime 可以使用 at-least-once worker execution，同时把 exactly-once world mutation 交给 Timeline Commit/idempotency boundary。
+
+Claim/lease/fence/retry：
+
+- 不推进 TimelineVersion；
+- 不进入 logical Work history；
+- 不推进 World Time；
+- fork 不复制为 semantic future。
 
 ### 14.4 WorkMutation
 
@@ -1060,11 +1302,14 @@ Technical retry
 
 ```text
 verify Timeline CAS + Work claim
+verify Work owner Capability is enabled in target World Binding
 append Events
 apply Effects
 schedule/cancel Work
-mark W100 Completed
-advance Timeline
+mark W100 Completed logically
+append logical commit / transitions
+advance Timeline version
+persist Session/Event provenance linkage as required by provenance contract
 COMMIT
 ```
 
@@ -1072,7 +1317,7 @@ COMMIT
 
 ### 14.8 Dead and Cancelled
 
-`Dead` / `Cancelled` 是 Runtime Future State，不自动成为 World Event。
+`Dead` / `Cancelled` 是 Timeline Runtime Future State，不自动成为 World Event。
 
 如果“调度失败/取消”在某个世界中本身需要被主体知道，那必须由明确 Capability Event 表达，不能把平台状态偷偷映射成 World Truth。
 
@@ -1084,9 +1329,74 @@ Fork 时 Pending Work 被克隆为 child Timeline 的新 Work identity：
 parent W100 -> child W200
 ```
 
-保留 origin/provenance reference，但后续状态完全 branch-local。
+保留 semantic/origin provenance reference，但后续 logical status 完全 branch-local，lease/fence/retry metadata reset。
+
+Fork 同时复制 fork-point World Time；World Runtime Binding 因属于 World 而继续共享。
 
 > **Pending Work is inherited on fork, but future outcomes are not.**
+
+### 14.10 Work due-ness
+
+Work 可执行至少要求：
+
+```text
+status = Pending
+due_world_time is None OR due_world_time <= Timeline.world_time
+available_at <= PlatformTime.now
+no unexpired valid lease
+owning Capability enabled by World Runtime Binding
+compatible handler implementation exists in current Execution Assembly
+```
+
+`due_world_time` 与 `available_at` 永远不能混成一个 timestamp。
+
+### 14.11 World Time advancement
+
+Scheduler 不能只“等待 World Time 到达”，否则 future Work 可能永远无法变成 due。
+
+Runtime 必须提供 explicit logical authority transition：
+
+```text
+AdvanceWorldTime {
+    timeline,
+    expected_version,
+    from,
+    to
+}
+```
+
+概念规则：
+
+- `to >= from`，实际 advancement 必须 `to > from`；
+- success 形成 Timeline logical commit；
+- TimelineVersion 递增；
+- EventSeq 不因纯时间推进而增加；
+- 不创建 fake World Event；
+- crash after advance/before Work execution 是合法可恢复状态；
+- Replay/Fork 必须从 logical history 恢复 World Time。
+
+### 14.12 Time advancement policy
+
+Core/Runtime contract 定义 advancement mechanism，但不写死世界“多快运行”。
+
+Runtime/Application policy 可以选择：
+
+```text
+manual/external advance
+jump to next due Work
+paced simulation
+real-world mirror mapping
+custom policy
+```
+
+任何 policy 最后都必须调用同一个 explicit authority transition。
+
+自动推进至少遵守：
+
+1. 当前已经有 due Work 时，不先跳过它去找更远的 future Work；
+2. 默认 next-due policy 跳到最小 future `due_world_time`；
+3. PlatformClock passage 本身永远不是 advancement commit；
+4. advance 与之后 Work execution 是两个 durable/restart-safe authority boundaries。
 
 ---
 
@@ -1106,6 +1416,8 @@ sign_contract
 
 通过 subresolution 组合为同一个 atomic Commit。
 
+所有参与的 owning Capability 都必须在目标 World Runtime Binding 中 enabled。
+
 ### Reaction / Future Work
 
 “事实已经发生以后才继续处理”的行为：
@@ -1118,22 +1430,28 @@ reaction schedules Immediate onboarding Work
 future execution
 ```
 
+Reaction expansion 仍必须检查 target World Binding；globally installed Reaction 不自动作用于所有 World。
+
 > **Must become real together -> Resolution composition.**
 >
 > **Handle after reality exists -> Reaction / Durable Work.**
 
 ---
 
-## 16. Runtime Validation and Commit
+## 16. Runtime Validation, Logical Commit and Persistence
 
 ### 16.1 Validation Pipeline
 
 ```text
 Resolution
 ↓
+World Runtime Binding / enabled-owner validation
+↓
 Event/Action/Work schema validation
 ↓
 semantic ownership validation
+↓
+Event occurred_at == pinned World Time validation
 ↓
 causal DAG validation
 ↓
@@ -1152,26 +1470,92 @@ Runtime invariants
 ValidatedResolution
 ```
 
-### 16.2 Commit Is the Linearization Point
+### 16.2 Corrected mutation law
+
+必须同时保留两条不同规则：
+
+> **No semantic World State mutation without a committed Event.**
+
+> **No Timeline logical-state mutation without a Runtime-owned logical commit.**
+
+因此以下都是合法 logical commit：
+
+```text
+Event-only
+Event + Work
+Work-only
+World-Time-only
+World Time + other Runtime-owned logical transition where explicitly allowed
+```
+
+真正无 Event、无 Work、无 Time、无其他 logical transition 的 `NoChange` 不创建 logical commit，也不推进 TimelineVersion。
+
+### 16.3 Commit Is the Linearization Point
 
 Resolve/Cognition 可以并行且耗时；Commit transaction 必须短。
+
+Semantic Resolution commit：
 
 ```text
 BEGIN
 verify expected TimelineVersion
+verify target World Runtime Binding revision/identity as required
 verify current Work claim if present
 allocate EventSeq(s)
 append committed Events + normalized associations
 apply frozen Effects
-apply Work mutations
+apply logical Work mutations
 complete current Work if applicable
-advance Timeline head/revision/world time if required
+append logical commit / logical transitions
+advance Timeline version
+persist required Event -> Execution Session provenance links atomically enough to avoid orphan history
 COMMIT
 ```
 
+World-Time-only logical commit：
+
+```text
+BEGIN
+verify expected TimelineVersion
+verify current World Time == expected from
+validate monotonic target
+append logical time transition / commit record
+advance Timeline logical revision
+update materialized Timeline world_time
+COMMIT
+```
+
+EventSeq 不因 pure time/work-only commit 自动增加。
+
 任一失败全部 rollback。
 
-### 16.3 Persistence Port Ownership
+### 16.4 Logical history authority
+
+Replay/Fork 需要两类 reconstructable authority：
+
+```text
+Event Ledger + frozen Effects
+→ semantic materialized World State
+
+Timeline Logical Commit Journal
+→ World Time + logical Work + logical snapshot position
+```
+
+Platform lease/fence/retry/backoff 不进入 logical journal。
+
+Replay 禁止通过：
+
+```text
+max(event.occurred_at)
+current Work table
+Platform timestamps
+current Capability resolver
+Entropy/Cognition resampling
+```
+
+来猜历史 snapshot。
+
+### 16.5 Persistence Port Ownership
 
 Runtime 定义完成上述闭环所需的 persistence ports；`loom-storage` 实现这些 ports。
 
@@ -1193,11 +1577,15 @@ Application composition root 负责实例化 concrete Storage 并注入 Runtime�
 
 Persistence I/O port 返回 executor-neutral Future；Runtime 可以 await SQLx 等异步 adapter，但不会把 executor、database handle 或 Future 传给 Capability。Resolver/Invariant/WorkHandler 始终只读取 Runtime 已经 pin 好的内存 `BaseWorldView`，因此 Capability semantic execution 不承担数据库 I/O。
 
-### 16.4 CAS Conflict
+World Runtime Binding persistence/read port 同样应由 Runtime 抽象侧定义，Storage 实现；不要为了存 binding 反向让 Runtime import concrete Storage。
+
+### 16.6 CAS Conflict
 
 CAS conflict 不是 Capability Rejection。
 
-它表示 Resolution 基于旧 World snapshot。Runtime 应按 policy 重新读取、revalidate 或 re-resolve，而不是把 stale Resolution 强行提交。
+它表示 Resolution 或 logical transition 基于旧 Timeline snapshot。Runtime 应按 policy 重新读取、revalidate 或 re-resolve，而不是把 stale proposal 强行提交。
+
+若 re-resolution 发生，Entropy reuse/resample policy 必须由显式 Runtime contract 决定并可进入 provenance；不能依赖隐藏 RNG 行为。
 
 ---
 
@@ -1216,7 +1604,9 @@ HTTP / GPUI / CLI / SDK
           ↓
    Runtime implementation
           ↓
- Capability Registry
+ load target World Runtime Binding
+          ↓
+ pinned Execution Assembly / Capability routing
 ```
 
 Boundary 将 HTTP/SSE/WebSocket 映射到 API；Studio/CLI 消费 API；Capability 只向 Runtime Registry 注册语义。
@@ -1233,10 +1623,12 @@ Query
 History
 Subscription
 Catalog / Discovery
-Admin
+Admin / Runtime Control
 ```
 
 统一 API 不等于一个 God Trait。应按职责拆小 contract。
+
+World Time advancement 是 Runtime/Timeline control，不应伪装成某个领域 Action。具体 public trait/authorization placement 在 API design 中决定，但必须与 ordinary semantic Action authority 分离。
 
 ### 17.3 World API vs Admin API
 
@@ -1246,8 +1638,8 @@ World API 和 Runtime Admin API 都属于 Loom public contract，但必须分开
 World API
 = interact with / observe World and Timeline
 
-Admin API
-= operate Runtime/platform lifecycle
+Admin / Runtime Control API
+= operate platform/runtime/time/lifecycle according to policy
 ```
 
 ### 17.4 No capability-specific bypass
@@ -1259,13 +1651,24 @@ HTTP -> finance resolver
 GPUI -> employment crate
 CLI -> storage repository
 SDK -> ValidatedResolution/CommitStore
+Application -> raw world_time column update
 ```
 
 即使某个 Capability 很常用，也不能因此获得第二套 public surface。
 
 ### 17.5 Catalog and discovery
 
-Loom API 统一暴露 Capability/semantic catalog，使消费者可以发现：
+必须区分：
+
+```text
+Global Installed Catalog
+= active/available software semantics
+
+World-Scoped Catalog
+= target World Runtime Binding enabled semantics that current compatible Runtime can expose
+```
+
+Loom API 可以统一暴露 Capability/semantic descriptors，使消费者发现：
 
 ```text
 semantic id
@@ -1276,15 +1679,16 @@ facets
 relationships
 events
 dependencies
+World enablement where target-scoped
 ```
 
 Schema-driven generic UI/CLI 可以建立在 Catalog 上；定制 UI 仍然通过相同 API 调用。
 
 ---
 
-## 18. Provenance Domains
+## 18. Provenance Domains and Software Binding
 
-Loom 至少区分三类“为什么”：
+Loom 至少区分四类“为什么/依据”：
 
 ### 18.1 World Causality
 
@@ -1294,35 +1698,63 @@ Event E100 -> Event E200
 
 回答“世界里的什么事实导致了后续事实”。属于 World Truth graph。
 
-### 18.2 Execution Provenance
+### 18.2 World Runtime Binding
+
+回答：
+
+```text
+这个 World 允许哪些 semantic capability？
+需要什么 compatibility/configuration？
+哪个 Template/revision 产生了这个 birth contract？
+```
+
+它不是 Event causal graph，也不是 exact software provenance。
+
+### 18.3 Execution Provenance
 
 ```text
 Execution Session
+→ target World Runtime Binding hash/revision
+→ Runtime Revision
+→ exact Capability implementation refs
 → Resolution call graph
 → ReadSet
-→ Runtime Revision
-→ Work
-→ provider/entropy references
+→ Work / Ingress / Agent origin
+→ Entropy/Cognitive references
 → committed Event IDs
 ```
 
 回答“软件当时如何计算并提交了这些事实”。不属于 World Truth。
 
-### 18.3 Agent Knowledge / Memory Provenance
+### 18.4 Agent Knowledge / Memory Provenance
 
 回答“某 Agent 为什么知道/相信/记住某件事”。属于 Information/Memory Capability domain。
 
-三者不能用一张万能 graph 混在一起。
+这些 graph/domain 不能用一张万能 graph 混在一起。
+
+### 18.5 Runtime Revision activation
+
+Runtime Revision activation：
+
+- 不创建 World Event；
+- 不推进 World Time；
+- 不修改 World Runtime Binding；
+- 只改变未来 Session 可以绑定的 software implementations。
+
+新 Session 必须满足目标 World Binding compatibility；如果不满足则 execution unavailable，而不是 silently upgrade World。
 
 ---
 
 ## 19. Persistence Mapping Guidance
 
-本文定义语义，不把 Rust 类型机械映射成一表一类型。v0 数据库仍遵循：
+本文定义语义，不把 Rust 类型机械映射成一表一类型。v0 数据库至少要能独立表达：
 
 ```text
 world
+world_runtime_binding / equivalent world-level binding metadata
+
 timeline
+Timeline logical commit / logical transition history
 
 entity
 entity_state / entity_facet
@@ -1337,11 +1769,15 @@ event_relationship
 event_causality
 event_scope
 
-durable_work
+durable_work logical state
+work operational lease/retry metadata
 
 execution_session
 runtime_revision
+execution provenance relations
 ```
+
+具体 table name/normalization 在实现阶段决定；这里冻结的是 authority separation。
 
 原则：
 
@@ -1349,6 +1785,9 @@ runtime_revision
 - flexible Capability payload/state 使用 JSONB；
 - large immutable content 放 Object Storage；
 - embedding 是 pgvector retrieval projection，不是 Event Truth；
+- World Time advancement 必须可从 logical history 重建；
+- logical Work history 与 operational claim/retry metadata 分离；
+- World Runtime Binding 与 exact Runtime implementation provenance 分离；
 - Storage schema 可以因性能调整，但不能改变 authority semantics；
 - public API 不直接暴露数据库 schema/repository model。
 
@@ -1385,11 +1824,11 @@ Reaction
 
 ### 20.2 Crate placement
 
-强制归属：
+强制归属保持：
 
 ```text
 loom-core
-    stable World mechanism / WorldEffect / IDs / World Time
+    stable World mechanism / WorldEffect / IDs / World Time values
 
 loom-protocol
     ActionInvocation / Resolution / ResolveOutcome / Rejection
@@ -1407,7 +1846,8 @@ loom-agency
 
 loom-runtime
     Runtime WorldView implementations / ReadSet / Overlay / EffectEngine
-    ValidatedResolution / commit orchestration / Runtime persistence ports
+    ValidatedResolution / World Binding enforcement / Execution Assembly
+    World-Time logical authority / commit orchestration / Runtime persistence ports
 
 loom-storage
     SQLx/PostgreSQL/pgvector/object-store implementations of Runtime ports
@@ -1416,16 +1856,20 @@ loom-boundary
     HTTP/SSE/WebSocket mapping over loom-api
 ```
 
-### 20.3 Type-System Authority Gate
+`World Runtime Binding` 的 exact Rust value placement 在实现前按 dependency DAG 决定；不得为了让 API/Storage“方便引用”把 `loom-capability` SPI 或 Runtime authority 移到错误 crate。稳定 public descriptor 与 Runtime internal authority model 可以是不同类型。
+
+### 20.3 Type-System Authority Gates
 
 尽可能让 Rust 类型系统表达权限：
 
 ```text
 Capability can construct Resolution
 Capability cannot construct ValidatedResolution
-Storage can consume ValidatedResolution through Runtime-owned port
-Storage cannot construct ValidatedResolution
-Public API cannot expose ValidatedResolution
+Capability can read World Time
+Capability cannot construct/commit World-Time transition
+Storage can consume Runtime authority values through Runtime-owned ports
+Storage cannot invent semantic authority
+Public API cannot expose ValidatedResolution / raw persistence authority
 ```
 
 不要只靠注释约定“请不要直接 commit”。
@@ -1451,11 +1895,11 @@ Runtime 在调用层可以使用 Storage/Capability/Agency，但物理依赖通�
 实现以上类型时，`///` 必须包含语义而非翻译字段名。关键字段也应说明，例如：
 
 ```rust
-/// Timeline revision observed when this resolution started.
+/// Timeline logical version observed when this execution started.
 ///
-/// Commit must revalidate this value. A mismatch means the resolution may be
-/// based on stale World Truth and cannot be persisted without Runtime policy
-/// deciding to revalidate or resolve again.
+/// Commit must revalidate this value. A mismatch may reflect an Event, Work,
+/// or World-Time transition and therefore cannot be ignored merely because the
+/// Event head did not change.
 pub base_version: TimelineVersion,
 ```
 
@@ -1484,6 +1928,9 @@ automatic rejected-action Event
 Capability-specific public transport API
 per-module controller/service exposure
 Runtime coupled to concrete Storage/HTTP/provider implementation
+dynamic per-World Capability hot-plug/migration
+generic Cognitive/Network handle in Capability ResolutionContext
+implicit Event-derived or PlatformClock-derived World Time
 ```
 
 这些只有在真实用例证明现有机制不足时再进入架构评审。
@@ -1499,74 +1946,84 @@ Runtime coupled to concrete Storage/HTTP/provider implementation
 3. **Resolution reads pinned BaseWorldView; invariant validation reads CandidateWorldView.**
 4. **ReadSet records actual dependencies; Timeline CAS remains v0 correctness boundary.**
 5. **Every semantic type has one owning Capability.**
-6. **Capability may read declared dependencies but directly mutates only semantics it owns.**
-7. **Cross-Capability mutation is Runtime-mediated and can join one atomic Commit.**
-8. **Decision chooses what to attempt; Resolution determines what the attempt means.**
-9. **Intent is not a generic Runtime protocol type.**
-10. **Resolution is untrusted; ValidatedResolution is Runtime-approved commit input.**
-11. **Invariant validates only; it cannot produce or repair Effects.**
-12. **Event may have zero Effects; WorldEffect may never commit without Event.**
-13. **Event causality is a DAG and is separate from execution call/provenance graphs.**
-14. **Durable Work is unresolved future execution, not future World Truth.**
-15. **Claim is a lease, not a persistent Work state.**
-16. **World rescheduling creates new Work; technical retry reuses the same Work.**
-17. **World schedule uses World Time; retry backoff uses Platform Time.**
-18. **Current Work completion is Runtime-owned and atomic with resulting World Commit.**
-19. **v0 WorkMutation only needs Schedule and Cancel.**
-20. **Fork clones pending future obligations into branch-local Work identities.**
-21. **Capability never receives raw Storage, Network, System Clock, Random or Commit handles.**
-22. **Every new public Core/Protocol/API/Runtime abstraction carries semantic Rust docs sufficient to recover design intent without chat history.**
-23. **Semantic ownership, runtime call flow and Cargo dependency direction are different graphs.**
-24. **Capability/Agency depend on Core/Protocol, never Runtime.**
-25. **Runtime never depends on concrete Storage/Boundary/Capability/provider implementations.**
-26. **Storage implements Runtime-owned persistence ports; Boundary adapts only `loom-api`.**
-27. **`loom-protocol` contains untrusted shared execution language, never Runtime authority.**
-28. **`loom-api` is the single public Loom consumption contract.**
-29. **Capability defines semantics and cannot define its own public HTTP/CLI/UI/SDK exposure.**
-30. **ValidatedResolution remains Runtime-owned even when another crate needs to consume it.**
-31. **Architecture changes update governance/contracts before violating implementation is written.**
-32. **Architecture CI violations are build failures.**
+6. **Installed Capability != enabled Capability for a World.**
+7. **World Runtime Binding is World-level, shared by Timelines, and immutable in v0.**
+8. **World Runtime Binding stores semantic compatibility/config requirements, not a permanent exact implementation pin.**
+9. **Every root semantic execution pins one Execution Session / Execution Assembly.**
+10. **A Session never switches Runtime Revision or exact Capability implementation mid-flight.**
+11. **Capability may read declared, World-enabled dependencies but directly mutates only semantics it owns.**
+12. **Cross-Capability mutation is Runtime-mediated, World-binding-aware and can join one atomic Commit.**
+13. **Decision chooses what to attempt; Resolution determines what the attempt means.**
+14. **Intent is not a generic Runtime protocol type.**
+15. **Resolution is untrusted; ValidatedResolution is Runtime-approved semantic commit input.**
+16. **Invariant validates only; it cannot produce or repair Effects.**
+17. **Event may have zero Effects; semantic WorldEffect may never commit without Event.**
+18. **No semantic World State mutation without a committed Event.**
+19. **No Timeline logical-state mutation without a Runtime-owned logical commit.**
+20. **World Time is explicit, Timeline-local, monotonic logical state.**
+21. **Event occurred_at does not advance World Time; v0 Events occur at pinned World Time.**
+22. **Platform Time never implicitly advances World Time.**
+23. **TimelineVersion changes for reconstructable logical transitions even when Event head does not.**
+24. **Durable Work is unresolved future execution, not future World Truth.**
+25. **Claim is a lease, not a persistent logical Work state.**
+26. **World rescheduling creates new Work; technical retry reuses the same Work.**
+27. **World schedule uses World Time; retry backoff uses Platform Time.**
+28. **Current Work completion is Runtime-owned and atomic with resulting logical Commit.**
+29. **v0 WorkMutation only needs Schedule and Cancel.**
+30. **Scheduler must have an explicit World-Time advancement mechanism; waiting for Events is not a complete time model.**
+31. **Replay reconstructs semantic State from frozen Event Effects and World Time/logical Work from logical history.**
+32. **Fork clones fork-point World Time and pending future obligations into branch-local logical state while retaining the same World Runtime Binding.**
+33. **Event causality is a DAG and is separate from execution call/provenance/time-transition graphs.**
+34. **Capability never receives raw Storage, Network, PlatformClock, Random or Commit handles.**
+35. **Entropy is host-controlled and provenance-ready; replay never resamples it.**
+36. **v0 Cognition is an Agency boundary producing Decision, not a generic Capability Resolver provider handle.**
+37. **Every new public Core/Protocol/API/Runtime abstraction carries semantic Rust docs sufficient to recover design intent without chat history.**
+38. **Semantic ownership, runtime call flow and Cargo dependency direction are different graphs.**
+39. **Capability/Agency depend on Core/Protocol, never Runtime.**
+40. **Runtime never depends on concrete Storage/Boundary/Capability/provider implementations.**
+41. **Storage implements Runtime-owned persistence ports; Boundary adapts only `loom-api`.**
+42. **`loom-protocol` contains untrusted shared execution language, never Runtime authority.**
+43. **`loom-api` is the single public Loom consumption contract.**
+44. **Capability defines semantics and cannot define its own public HTTP/CLI/UI/SDK exposure.**
+45. **ValidatedResolution remains Runtime-owned even when another crate needs to consume it.**
+46. **Exact Capability implementation versions belong to Execution Provenance.**
+47. **Runtime Revision activation never mutates World History, World Time or World Runtime Binding.**
+48. **Architecture changes update governance/contracts before violating implementation is written.**
+49. **Architecture CI violations are build failures.**
 
 ---
 
-## 23. First Implementation Order
+## 23. Architecture Closure Gate Before Further Implementation
 
-实现不再继续扩充抽象，按最短闭环推进：
+当前不再用本文定义新的 implementation order，也不根据旧 Milestone 顺序继续写代码。
+
+在恢复实现规划之前，必须先完成并人工确认以下文档闭包：
 
 ```text
-1. loom-core value/structural types
-   IDs / WorldInstant / EventSeq / TimelineVersion
-   FacetOwner / RelationshipParticipant / Event associations / WorldEffect
-
-2. loom-protocol
-   ActionInvocation / ResolveOutcome / Resolution / Rejection
-   ProposedEvent / NewWork / WorkMutation
-
-3. contract crates
-   loom-capability: Manifest / definitions / Resolver / Invariant / Handler / Reaction / ResolutionContext
-   loom-agency: Decision / CognitiveExecutor contracts
-   loom-api: minimal World / Action / Query / History / Catalog service boundaries
-
-4. loom-runtime authority
-   Base/Candidate view implementations / ReadSet / budget / Effect Engine
-   ValidatedResolution constructor kept Runtime-private
-   persistence ports + Timeline commit orchestration
-
-5. in-memory validation tests
-   ownership / causal DAG / candidate overlay / rejection semantics
-   architecture dependency tests/checker
-
-6. loom-storage
-   PostgreSQL Timeline CAS + Event/State/Work atomic commit
-   PostgreSQL 18 + pgvector integration tests
-
-7. loom-boundary
-   minimal HTTP/JSON + SSE adapter over loom-api
-
-8. first minimal Capability vertical slice
-   registered through Capability SPI, externally invoked only through Loom API
+core.md
+layers.md
+world-runtime.md
+runtime-contracts.md
+evolution.md
+implementation.md
+governance.md
+principles.md
 ```
 
-第一批实现的目标不是覆盖社会世界，而是证明：
+确认项至少包括：
 
-> **一个没有领域硬编码、没有 crate cycle、没有模块私有公开接口的 Runtime，能够让 Capability 在受控读取、受控解算、受控验证、统一 API 和唯一 Commit Authority 下安全改变一个持久 World。**
+```text
+World Runtime Binding ownership is unambiguous
+Installed vs enabled Capability is unambiguous
+World Time progression is closed and replayable
+Logical Commit vs World Event vs Platform operational mutation is unambiguous
+Execution Session vs World software binding is unambiguous
+Template birth semantics do not conflict with Runtime evolution
+Capability host nondeterminism boundary is explicit
+Replay/Fork reconstruct the same authority domains
+Cargo dependency DAG remains valid
+```
+
+只有这些架构文档互相一致后，才重新设计 Issues / Milestones / implementation order。
+
+> **The next step after architecture approval is re-planning, not continuing from the old roadmap by inertia.**
