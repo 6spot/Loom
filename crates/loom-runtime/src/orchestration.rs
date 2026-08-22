@@ -134,7 +134,7 @@ where
         world_id: loom_core::WorldId,
     ) -> ApiResult<WorldRuntimeBinding> {
         self.store
-            .ensure_binding(world_id, legacy_binding(&self.registry))
+            .ensure_binding(world_id, legacy_binding())
             .await
             .map_err(|error| map_binding_error(&error))
     }
@@ -439,7 +439,7 @@ where
                     world_id,
                     timeline_id,
                     request.initial_world_time,
-                    legacy_binding(&self.registry),
+                    legacy_binding(),
                 )
                 .await
                 .map_err(|error| map_lifecycle_error(&error))?;
@@ -927,18 +927,44 @@ fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
     }
 }
 
-fn legacy_binding(registry: &CapabilityRegistry) -> WorldRuntimeBinding {
+/// Returns the repository-owned compatibility descriptor used while migrating
+/// M3 Worlds that predate World Runtime Binding.
+///
+/// This is deliberately a checked-in fixture rather than a projection of the
+/// process-local registry. The registry describes installed software; using it
+/// here would make the first Runtime process silently decide a World's
+/// permanent semantic enablement. M4-T3 replaces this interim birth baseline
+/// with the validated Template binding path.
+fn legacy_binding() -> WorldRuntimeBinding {
+    const M3_COMPATIBILITY_CAPABILITIES: &[&str] = &[
+        "bootstrap.basic",
+        "composition.child",
+        "composition.leaf",
+        "composition.root",
+        "counter",
+        "counter.basic",
+        "counting",
+        "postgres.commit.test",
+        "postgres.restart_resume",
+        "postgres.vertical.counter",
+        "postgres.work.test",
+        "provenance.child",
+        "provenance.parent",
+        "test",
+        "test.no_change",
+    ];
+
     WorldRuntimeBinding::new(
-        registry.capabilities().map(|manifest| {
+        M3_COMPATIBILITY_CAPABILITIES.iter().map(|capability_id| {
             (
-                manifest.id.clone(),
-                VersionReq::parse(&format!("^{}", manifest.version))
-                    .expect("a Capability version must produce a valid semver requirement"),
+                CapabilityId::from(*capability_id),
+                VersionReq::parse("^0.1.0")
+                    .expect("the checked-in M3 baseline requirement should parse"),
             )
         }),
-        json!({}),
+        json!({"baseline": "m3-compatibility-baseline-v1"}),
         1,
-        Some("m3-compatibility-baseline".to_owned()),
+        Some("m3-compatibility-baseline-v1".to_owned()),
     )
 }
 
@@ -1203,7 +1229,7 @@ mod tests {
     #[test]
     fn runtime_call_edge_is_observable_separately_from_world_causality() {
         let registry = registry();
-        let binding = legacy_binding(&registry);
+        let binding = legacy_binding();
         let invocation = ActionInvocation::new(ActionTypeId::from("provenance.parent"), json!({}));
         let (outcome, execution) = dispatch_root_action(
             &base(),
@@ -1226,5 +1252,21 @@ mod tests {
             .expect("empty Work-like validation should retain provenance");
         assert_eq!(validated.call_provenance().len(), 1);
         assert!(validated.events().is_empty());
+    }
+
+    #[test]
+    fn m3_compatibility_baseline_is_stable_across_runtime_registries() {
+        let first = legacy_binding();
+        let second = legacy_binding();
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.template_provenance(),
+            Some("m3-compatibility-baseline-v1")
+        );
+        assert_eq!(
+            first.requirement(&CapabilityId::from("not-in-the-baseline")),
+            None
+        );
     }
 }
