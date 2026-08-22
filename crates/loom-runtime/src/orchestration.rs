@@ -18,7 +18,7 @@ use loom_capability::{
     ResolverError,
 };
 use loom_core::{ActionTypeId, TimelineId, WorkId};
-use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
+use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome, WorkTarget};
 use semver::VersionReq;
 use serde_json::json;
 
@@ -535,16 +535,22 @@ where
             .find(|work| work.id == work_id)
             .cloned()
             .ok_or_else(|| ApiError::not_found(format!("Work {work_id} was not found")))?;
-        if work
-            .due_world_time
-            .is_some_and(|due| due > snapshot.world_time())
-        {
+        if work.effective_due_world_time > snapshot.world_time() {
             return Err(ApiError::unavailable("Work is not due in World Time"));
         }
 
+        let handler_id = match &work.target {
+            WorkTarget::CapabilityWork { handler, .. } => handler,
+            WorkTarget::AgencyWake { .. } => {
+                return Err(ApiError::unavailable(
+                    "Agency Wake execution is not available in this Runtime",
+                ));
+            }
+        };
+
         let binding = self.binding_for_world(snapshot.world_id()).await?;
         let assembly = self.execution_assembly(&snapshot, binding).await?;
-        validate_work_target(&self.registry, &assembly, &work.handler)?;
+        validate_work_target(&self.registry, &assembly, &work.target)?;
 
         // Compatibility and exact handler assembly are checked before claim.
         // A missing software implementation therefore cannot consume the
@@ -566,21 +572,16 @@ where
             }
         };
         let base = snapshot.world_view();
-        let (outcome, execution) = match dispatch_root_work(
-            &base,
-            &self.registry,
-            &assembly,
-            &work.handler,
-            &work.payload,
-        ) {
-            Ok(execution) => execution,
-            Err(error) => {
-                let error = map_dispatch_error(error);
-                return Err(self
-                    .finish_failure_and_retry(&session, &claim, now, retry_available_at, error)
-                    .await);
-            }
-        };
+        let (outcome, execution) =
+            match dispatch_root_work(&base, &self.registry, &assembly, handler_id, &work.payload) {
+                Ok(execution) => execution,
+                Err(error) => {
+                    let error = map_dispatch_error(error);
+                    return Err(self
+                        .finish_failure_and_retry(&session, &claim, now, retry_available_at, error)
+                        .await);
+                }
+            };
 
         let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
         let rejection = match &outcome {
@@ -1511,13 +1512,27 @@ fn enabled_action<'a>(
 fn validate_work_target(
     registry: &CapabilityRegistry,
     assembly: &ExecutionAssembly,
-    handler_id: &loom_core::WorkHandlerId,
+    target: &WorkTarget,
 ) -> ApiResult<()> {
+    let WorkTarget::CapabilityWork { owner, handler } = target else {
+        return Err(ApiError::unavailable(
+            "Agency Wake execution requires the Agency runtime path",
+        ));
+    };
+    let handler_id = handler;
     let Some(handler) = registry.work_handler(handler_id) else {
         return Err(ApiError::not_found(format!(
             "Work handler {handler_id} was not registered"
         )));
     };
+    if owner
+        .as_deref()
+        .is_some_and(|owner| owner != handler.owner.as_str())
+    {
+        return Err(ApiError::unavailable(
+            "Work target owner does not match its registered handler",
+        ));
+    }
     let Some(manifest) = registry.capability(&handler.owner) else {
         return Err(ApiError::unavailable(
             "Work handler owner is not installed in the active Runtime Revision",
@@ -1746,6 +1761,7 @@ fn map_work_error(error: &WorkError) -> ApiError {
         }
         WorkError::AttemptOverflow { .. }
         | WorkError::DuplicateWork { .. }
+        | WorkError::LogicalScheduleOrderOverflow { .. }
         | WorkError::MissingCausalEvent { .. } => {
             ApiError::internal("Work adapter rejected the execution metadata")
         }

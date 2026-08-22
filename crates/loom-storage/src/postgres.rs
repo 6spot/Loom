@@ -17,16 +17,15 @@ use std::{fmt::Display, str::FromStr};
 use loom_core::{
     AssociationRole, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
     Relationship, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
-    StateRevision, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId,
-    WorldInstant,
+    StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
     PersistenceFuture, PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore,
+    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorkTarget,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -346,13 +345,17 @@ impl PgStorage {
             works.push(WorkRecord {
                 id: work_id,
                 timeline_id,
-                handler: WorkHandlerId::from(row_string(&row, "handler")?),
+                target: work_target(&row)?,
                 schema_revision: schema_revision(&row)?,
                 payload: row_json(&row, "payload")?,
-                due_world_time: row
-                    .try_get::<Option<i64>, _>("due_world_time")
-                    .map_err(sql_read_error)?
-                    .map(WorldInstant::new),
+                effective_due_world_time: WorldInstant::new(row_i64(
+                    &row,
+                    "effective_due_world_time",
+                )?),
+                logical_schedule_order: parse_u64(
+                    &row_string(&row, "logical_schedule_order")?,
+                    "logical_schedule_order",
+                )?,
                 causal_event_id: optional_identity::<EventId>(&row, "causal_event_id", "EventId")?,
                 origin_work_id: optional_identity::<WorkId>(&row, "origin_work_id", "WorkId")?,
                 status: parse_work_status(&row_string(&row, "status")?)?,
@@ -1104,6 +1107,38 @@ fn row_i64(row: &sqlx::postgres::PgRow, column: &str) -> Result<i64, ReadError> 
 
 fn row_json(row: &sqlx::postgres::PgRow, column: &str) -> Result<Value, ReadError> {
     row.try_get(column).map_err(sql_read_error)
+}
+
+fn work_target(row: &sqlx::postgres::PgRow) -> Result<WorkTarget, ReadError> {
+    match row_string(row, "target_kind")?.as_str() {
+        "capability_work" => Ok(WorkTarget::CapabilityWork {
+            owner: row
+                .try_get::<Option<String>, _>("target_owner")
+                .map_err(sql_read_error)?,
+            handler: row_string(row, "target_handler")?.into(),
+        }),
+        "agency_wake" => {
+            let agent = row
+                .try_get::<Option<String>, _>("target_agent_id")
+                .map_err(sql_read_error)?
+                .ok_or_else(|| corrupt("Agency Wake target has no Agent Entity"))?
+                .parse::<EntityId>()
+                .map_err(|error| corrupt(format!("invalid Agency Wake Agent Entity: {error}")))?;
+            let cognition = row
+                .try_get::<Option<String>, _>("target_cognition")
+                .map_err(sql_read_error)?
+                .ok_or_else(|| corrupt("Agency Wake target has no cognition requirement"))?;
+            if cognition.is_empty() {
+                return Err(corrupt(
+                    "Agency Wake target has an empty cognition requirement",
+                ));
+            }
+            Ok(WorkTarget::AgencyWake { agent, cognition })
+        }
+        other => Err(corrupt(format!(
+            "invalid persisted Work target kind {other}"
+        ))),
+    }
 }
 
 fn schema_revision(row: &sqlx::postgres::PgRow) -> Result<SchemaRevision, ReadError> {

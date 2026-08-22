@@ -125,6 +125,10 @@ pub use loom_protocol::ProposedEvent;
 /// general Protocol facade. A mutation becomes commit-eligible only as part of a
 /// [`ValidatedResolution`].
 pub use loom_protocol::WorkMutation;
+/// World-semantic schedule representation used by Runtime-owned Work ports.
+pub use loom_protocol::WorkSchedule;
+/// Frozen Durable Work target representation shared by Runtime and Storage.
+pub use loom_protocol::WorkTarget;
 
 #[cfg(test)]
 mod tests;

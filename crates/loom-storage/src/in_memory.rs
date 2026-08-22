@@ -23,9 +23,9 @@ use loom_runtime::{
     LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim,
-    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore,
+    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -55,6 +55,7 @@ struct TimelineState {
     events: Vec<CommittedEvent>,
     event_ids: HashSet<EventId>,
     works: HashMap<loom_core::WorkId, WorkRecord>,
+    logical_schedule_order: u64,
 }
 
 impl TimelineState {
@@ -70,6 +71,7 @@ impl TimelineState {
             events: Vec::new(),
             event_ids: HashSet::new(),
             works: HashMap::new(),
+            logical_schedule_order: 0,
         }
     }
 }
@@ -438,6 +440,9 @@ impl InMemoryStore {
         if timeline.works.contains_key(&work.id) {
             return Err(SetupError::WorkAlreadyExists { work_id: work.id });
         }
+        timeline.logical_schedule_order = timeline
+            .logical_schedule_order
+            .max(work.logical_schedule_order);
         timeline.works.insert(work.id, work);
         *guard = staged;
         Ok(())
@@ -733,7 +738,12 @@ impl InMemoryStore {
             committed_events.push(committed);
         }
 
-        apply_work_mutations(timeline, resolution.work(), now)?;
+        apply_work_mutations(
+            timeline,
+            resolution.work(),
+            resolution.pinned_world_time(),
+            now,
+        )?;
 
         let completed_work = if let Some(claim) = current_work {
             complete_current_work(timeline, claim)?;
@@ -1074,7 +1084,7 @@ impl InMemoryStore {
                 seen_events.insert(event.id);
                 changes_runtime_state = true;
             }
-            apply_work_mutations(timeline, resolution.work(), now)
+            apply_work_mutations(timeline, resolution.work(), initial_world_time, now)
                 .map_err(|error| birth_commit_error(&error))?;
             changes_runtime_state |= !resolution.work().is_empty();
         }
@@ -1288,7 +1298,7 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
         base.insert_event(event.id);
     }
     let mut works: Vec<_> = timeline.works.values().cloned().collect();
-    works.sort_by_key(|work| work.id.to_string());
+    works.sort_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order));
     TimelineSnapshot::new(base, timeline.events.clone(), works)
 }
 
@@ -1463,6 +1473,7 @@ fn apply_effect(
 fn apply_work_mutations(
     timeline: &mut TimelineState,
     mutations: &[WorkMutation],
+    world_time: WorldInstant,
     now: PlatformTime,
 ) -> Result<(), CommitError> {
     for mutation in mutations {
@@ -1487,9 +1498,36 @@ fn apply_work_mutations(
                     }
                     .into());
                 }
-                timeline
-                    .works
-                    .insert(work.id, WorkRecord::from_new_work(work, now));
+                if let WorkTarget::AgencyWake { agent, .. } = &work.target
+                    && !timeline.entities.contains_key(agent)
+                {
+                    return Err(WorkError::StorageUnavailable {
+                        message: format!(
+                            "Agency Wake Agent Entity {agent} was not found in Timeline {}",
+                            timeline.timeline_id
+                        ),
+                    }
+                    .into());
+                }
+                let logical_schedule_order = timeline.logical_schedule_order.checked_add(1).ok_or(
+                    WorkError::LogicalScheduleOrderOverflow {
+                        timeline_id: timeline.timeline_id,
+                    },
+                )?;
+                timeline.logical_schedule_order = logical_schedule_order;
+                let effective_due_world_time = match work.schedule {
+                    loom_runtime::WorkSchedule::Immediate => world_time,
+                    loom_runtime::WorkSchedule::At(instant) => instant,
+                };
+                timeline.works.insert(
+                    work.id,
+                    WorkRecord::from_scheduled_work(
+                        work,
+                        effective_due_world_time,
+                        logical_schedule_order,
+                        now,
+                    ),
+                );
             }
             WorkMutation::Cancel(work_id) => {
                 let work = timeline

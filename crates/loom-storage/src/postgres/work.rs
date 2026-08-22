@@ -2,10 +2,10 @@
 
 use std::{fmt::Display, str::FromStr};
 
-use loom_core::{EventId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldInstant};
+use loom_core::{EntityId, EventId, SchemaRevision, TimelineId, WorkId, WorldInstant};
 use loom_runtime::{
     PersistenceFuture, PlatformTime, ReadError, WorkClaim, WorkError, WorkLease, WorkRecord,
-    WorkStatus, WorkStore, WorldStore,
+    WorkStatus, WorkStore, WorkTarget, WorldStore,
 };
 use serde_json::Value;
 use sqlx::{Postgres, Row, Transaction};
@@ -240,16 +240,17 @@ fn work_record(
     Ok(WorkRecord {
         id: work_id,
         timeline_id,
-        handler: WorkHandlerId::from(row_string(row, "handler")?),
+        target: work_target(row)?,
         schema_revision: SchemaRevision::new(
             u32::try_from(row_i64(row, "schema_revision")?)
                 .map_err(|_| corrupt("schema_revision exceeds u32"))?,
         ),
         payload: row_json(row, "payload")?,
-        due_world_time: row
-            .try_get::<Option<i64>, _>("due_world_time")
-            .map_err(work_sql_error)?
-            .map(WorldInstant::new),
+        effective_due_world_time: WorldInstant::new(row_i64(row, "effective_due_world_time")?),
+        logical_schedule_order: parse_u64(
+            &row_string(row, "logical_schedule_order")?,
+            "logical_schedule_order",
+        )?,
         causal_event_id: optional_identity::<EventId>(row, "causal_event_id", "EventId")?,
         origin_work_id: optional_identity::<WorkId>(row, "origin_work_id", "WorkId")?,
         status: parse_status(&row_string(row, "status")?)?,
@@ -259,6 +260,38 @@ fn work_record(
         last_error: row.try_get("last_error").map_err(work_sql_error)?,
         lease,
     })
+}
+
+fn work_target(row: &sqlx::postgres::PgRow) -> Result<WorkTarget, WorkError> {
+    match row_string(row, "target_kind")?.as_str() {
+        "capability_work" => Ok(WorkTarget::CapabilityWork {
+            owner: row
+                .try_get::<Option<String>, _>("target_owner")
+                .map_err(work_sql_error)?,
+            handler: row_string(row, "target_handler")?.into(),
+        }),
+        "agency_wake" => {
+            let agent = row
+                .try_get::<Option<String>, _>("target_agent_id")
+                .map_err(work_sql_error)?
+                .ok_or_else(|| corrupt("Agency Wake target has no Agent Entity"))?
+                .parse::<EntityId>()
+                .map_err(|error| corrupt(format!("invalid Agency Wake Agent Entity: {error}")))?;
+            let cognition = row
+                .try_get::<Option<String>, _>("target_cognition")
+                .map_err(work_sql_error)?
+                .ok_or_else(|| corrupt("Agency Wake target has no cognition requirement"))?;
+            if cognition.is_empty() {
+                return Err(corrupt(
+                    "Agency Wake target has an empty cognition requirement",
+                ));
+            }
+            Ok(WorkTarget::AgencyWake { agent, cognition })
+        }
+        other => Err(corrupt(format!(
+            "invalid persisted Work target kind {other}"
+        ))),
+    }
 }
 
 fn parse_status(value: &str) -> Result<WorkStatus, WorkError> {

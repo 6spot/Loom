@@ -41,6 +41,8 @@ const RELATIONSHIP_EXISTS_SQL: &str = include_str!("../../sql/world/relationship
 const ACTIVE_RELATIONSHIP_EXISTS_SQL: &str =
     include_str!("../../sql/world/active_relationship_exists.sql");
 const INSERT_SCHEDULED_WORK_SQL: &str = include_str!("../../sql/work/insert_scheduled.sql");
+const NEXT_LOGICAL_SCHEDULE_ORDER_SQL: &str =
+    include_str!("../../sql/work/next_logical_schedule_order.sql");
 const CANCEL_WORK_SQL: &str = include_str!("../../sql/work/cancel.sql");
 const SELECT_WORK_CLAIM_FOR_UPDATE_SQL: &str =
     include_str!("../../sql/work/select_claim_for_update.sql");
@@ -89,6 +91,8 @@ async fn commit_resolution(
     let mut committed_events = Vec::with_capacity(resolution.events().len());
     let mut next_sequence = locked.version.head_event_seq.value();
     let mut seen_events = HashSet::new();
+    let mut logical_schedule_order =
+        next_logical_schedule_order(&mut transaction, timeline_id).await?;
 
     for event in resolution.events() {
         next_sequence = next_sequence
@@ -108,7 +112,15 @@ async fn commit_resolution(
     }
 
     for mutation in resolution.work() {
-        apply_work_mutation(&mut transaction, timeline_id, mutation, now).await?;
+        apply_work_mutation(
+            &mut transaction,
+            timeline_id,
+            mutation,
+            resolution.pinned_world_time(),
+            now,
+            &mut logical_schedule_order,
+        )
+        .await?;
     }
     let completed_work = if let Some(claim) = current_work {
         complete_current_work(&mut transaction, timeline_id, claim).await?;
@@ -175,6 +187,7 @@ pub(super) async fn commit_birth_in_transaction(
     let mut next_sequence = locked.version.head_event_seq.value();
     let mut seen_events = HashSet::new();
     let mut changes_runtime_state = false;
+    let mut logical_schedule_order = next_logical_schedule_order(transaction, timeline_id).await?;
 
     for resolution in bootstrap {
         if resolution.timeline_id() != timeline_id {
@@ -212,7 +225,15 @@ pub(super) async fn commit_birth_in_transaction(
             changes_runtime_state = true;
         }
         for mutation in resolution.work() {
-            apply_work_mutation(transaction, timeline_id, mutation, now).await?;
+            apply_work_mutation(
+                transaction,
+                timeline_id,
+                mutation,
+                initial_world_time,
+                now,
+                &mut logical_schedule_order,
+            )
+            .await?;
             changes_runtime_state = true;
         }
     }
@@ -263,6 +284,18 @@ async fn lock_timeline(
             StateRevision::new(parse_u64(&row, "state_revision")?),
         ),
     })
+}
+
+async fn next_logical_schedule_order(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+) -> Result<u64, CommitError> {
+    let row = sqlx::query(NEXT_LOGICAL_SCHEDULE_ORDER_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+    parse_u64(&row, "logical_schedule_order")
 }
 
 async fn apply_event(
@@ -548,7 +581,9 @@ async fn apply_work_mutation(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
     mutation: &WorkMutation,
+    world_time: loom_core::WorldInstant,
     now: PlatformTime,
+    logical_schedule_order: &mut u64,
 ) -> Result<(), CommitError> {
     match mutation {
         WorkMutation::Schedule(work) => {
@@ -580,20 +615,55 @@ async fn apply_work_mutation(
                 }
                 .into());
             }
-            let record = loom_runtime::WorkRecord::from_new_work(work, now);
+            let next_order = logical_schedule_order
+                .checked_add(1)
+                .ok_or(WorkError::LogicalScheduleOrderOverflow { timeline_id })?;
+            let effective_due_world_time = match work.schedule {
+                loom_runtime::WorkSchedule::Immediate => world_time,
+                loom_runtime::WorkSchedule::At(instant) => instant,
+            };
+            let record = loom_runtime::WorkRecord::from_scheduled_work(
+                work,
+                effective_due_world_time,
+                next_order,
+                now,
+            );
+            let (target_kind, target_owner, target_handler, target_agent_id, target_cognition) =
+                match &record.target {
+                    loom_runtime::WorkTarget::CapabilityWork { owner, handler } => (
+                        "capability_work",
+                        owner.clone(),
+                        Some(handler.as_str().to_owned()),
+                        None,
+                        None,
+                    ),
+                    loom_runtime::WorkTarget::AgencyWake { agent, cognition } => (
+                        "agency_wake",
+                        None,
+                        None,
+                        Some(agent.to_string()),
+                        Some(cognition.clone()),
+                    ),
+                };
             sqlx::query(INSERT_SCHEDULED_WORK_SQL)
                 .bind(timeline_id.to_string())
                 .bind(work.id.to_string())
-                .bind(work.handler.as_str())
-                .bind(i64::from(work.schema_revision.value()))
-                .bind(work.payload.clone())
-                .bind(record.due_world_time.map(loom_core::WorldInstant::value))
+                .bind(target_kind)
+                .bind(target_owner)
+                .bind(target_handler)
+                .bind(target_agent_id)
+                .bind(target_cognition)
+                .bind(i64::from(record.schema_revision.value()))
+                .bind(record.payload.clone())
+                .bind(record.effective_due_world_time.value())
+                .bind(next_order.to_string())
                 .bind(work.causal_event_id.map(|id| id.to_string()))
                 .bind(work.origin_work_id.map(|id| id.to_string()))
                 .bind(now.value())
                 .execute(&mut **transaction)
                 .await
                 .map_err(storage_error)?;
+            *logical_schedule_order = next_order;
             Ok(())
         }
         WorkMutation::Cancel(work_id) => cancel_work(transaction, timeline_id, *work_id).await,

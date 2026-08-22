@@ -21,10 +21,9 @@ use std::{
 use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
     AssociationRole, EntityId, EventId, EventSeq, ExecutionSessionId, RelationshipId,
-    StateRevision, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId,
-    WorldInstant,
+    StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
 };
-use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
+use loom_protocol::{NewWork, ProposedEvent, WorkSchedule, WorkTarget};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1248,23 +1247,27 @@ impl WorkClaim {
 
 /// A read model of one Durable Work item and its independent runtime metadata.
 ///
-/// `due_world_time` is semantic scheduling data. `available_at`, `lease`,
-/// `attempt_count` and `last_error` are platform/runtime metadata and do not
-/// belong to the World Event ledger.
+/// `target`, `effective_due_world_time` and `logical_schedule_order` are
+/// persistent logical Work state. `available_at`, `lease`, `attempt_count` and
+/// `last_error` are platform/runtime metadata and do not belong to the World
+/// Event ledger. Technical retry/reclaim must not alter the three logical
+/// fields.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkRecord {
     /// Stable Work identity reused across technical retries.
     pub id: WorkId,
     /// Timeline-local scope of the Work obligation.
     pub timeline_id: TimelineId,
-    /// Capability-owned handler key used when the Work executes.
-    pub handler: WorkHandlerId,
+    /// Explicit Capability Work or Agency Wake execution target.
+    pub target: WorkTarget,
     /// Schema revision for the serialized handler payload.
     pub schema_revision: loom_core::SchemaRevision,
     /// Serialized handler input, not a precomputed future result.
     pub payload: Value,
-    /// Optional World-semantic time at which the Work becomes due.
-    pub due_world_time: Option<WorldInstant>,
+    /// Non-null World-semantic time at which the Work becomes due.
+    pub effective_due_world_time: WorldInstant,
+    /// Timeline-local persistent order assigned by the scheduling commit.
+    pub logical_schedule_order: u64,
     /// Optional causal Event that scheduled the Work.
     pub causal_event_id: Option<EventId>,
     /// Optional preceding Work from which this Work was derived.
@@ -1287,17 +1290,33 @@ impl WorkRecord {
     /// Builds a pending Work record from a validated `NewWork` proposal.
     #[must_use]
     pub fn from_new_work(work: &NewWork, available_at: PlatformTime) -> Self {
-        let due_world_time = match work.schedule {
-            WorkSchedule::Immediate => None,
-            WorkSchedule::At(instant) => Some(instant),
+        let effective_due_world_time = match work.schedule {
+            // This compatibility constructor has no pinned Timeline World
+            // Time. Commit adapters must use `from_scheduled_work` for
+            // authoritative scheduling and replace this placeholder.
+            WorkSchedule::Immediate => WorldInstant::default(),
+            WorkSchedule::At(instant) => instant,
         };
+        Self::from_scheduled_work(work, effective_due_world_time, 0, available_at)
+    }
+
+    /// Builds a pending Work record with the logical position assigned by its
+    /// scheduling Logical Commit.
+    #[must_use]
+    pub fn from_scheduled_work(
+        work: &NewWork,
+        effective_due_world_time: WorldInstant,
+        logical_schedule_order: u64,
+        available_at: PlatformTime,
+    ) -> Self {
         Self {
             id: work.id,
             timeline_id: work.timeline_id,
-            handler: work.handler.clone(),
+            target: work.target.clone(),
             schema_revision: work.schema_revision,
             payload: work.payload.clone(),
-            due_world_time,
+            effective_due_world_time,
+            logical_schedule_order,
             causal_event_id: work.causal_event_id,
             origin_work_id: work.origin_work_id,
             status: WorkStatus::Pending,
@@ -1670,6 +1689,8 @@ pub enum WorkError {
     AttemptOverflow { work_id: WorkId },
     /// A Work identity would be scheduled twice in one atomic commit.
     DuplicateWork { work_id: WorkId },
+    /// A Timeline cannot allocate another persistent logical Work order.
+    LogicalScheduleOrderOverflow { timeline_id: TimelineId },
     /// A scheduled Work points at an Event absent from the staged ledger.
     MissingCausalEvent { work_id: WorkId, event_id: EventId },
     /// The persistence authority could not complete a Work I/O operation.
@@ -1744,6 +1765,10 @@ impl fmt::Display for WorkError {
             Self::DuplicateWork { work_id } => {
                 write!(formatter, "Work {work_id} is scheduled more than once")
             }
+            Self::LogicalScheduleOrderOverflow { timeline_id } => write!(
+                formatter,
+                "Timeline {timeline_id} logical Work schedule order overflowed"
+            ),
             Self::MissingCausalEvent { work_id, event_id } => write!(
                 formatter,
                 "Work {work_id} references missing causal Event {event_id}"

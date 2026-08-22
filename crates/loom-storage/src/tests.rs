@@ -8,7 +8,7 @@ use loom_capability::{
     WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
+    ActionTypeId, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
     RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
     WorldEffect, WorldId, WorldInstant,
 };
@@ -19,8 +19,8 @@ use loom_protocol::{
 use loom_runtime::{
     AdvanceWorldTime, BindingError, CommitError, EffectEngine, PlatformTime, Runtime,
     RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionStore, WorkRecord, WorkStatus, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldTimeError,
+    RuntimeRevisionStore, WorkError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -320,10 +320,14 @@ fn pending_work_with_handler(work_id: WorkId, handler: WorkHandlerId) -> WorkRec
     WorkRecord {
         id: work_id,
         timeline_id: timeline(),
-        handler,
+        target: WorkTarget::CapabilityWork {
+            owner: None,
+            handler,
+        },
         schema_revision: SchemaRevision::new(1),
         payload: json!({"work": work_id.to_string()}),
-        due_world_time: None,
+        effective_due_world_time: WorldInstant::new(0),
+        logical_schedule_order: 1,
         causal_event_id: None,
         origin_work_id: None,
         status: WorkStatus::Pending,
@@ -1091,6 +1095,301 @@ async fn work_creation_and_current_completion_share_zero_event_commit() {
             .expect("new Work should be readable")
             .status,
         WorkStatus::Pending
+    );
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the M5-T1 fixture keeps scheduling, restart-visible order and retry invariants together"
+)]
+async fn logical_work_target_due_and_order_survive_commits_and_retry() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Wake Agent Entity should be seeded");
+    let registry = registry();
+    let first = work(70);
+    let second = work(71);
+    let agency = work(72);
+    let first_resolution = Resolution::new(
+        Vec::new(),
+        vec![
+            WorkMutation::Schedule(NewWork::new(
+                first,
+                timeline(),
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"first": true}),
+                WorkSchedule::Immediate,
+            )),
+            WorkMutation::Schedule(NewWork::new(
+                second,
+                timeline(),
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"second": true}),
+                WorkSchedule::Immediate,
+            )),
+        ],
+    );
+    let first_token = validated(&store, &registry, first_resolution);
+    store
+        .commit(&first_token, None, PlatformTime::new(10))
+        .expect("first scheduling commit should succeed");
+
+    let second_token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::agency_wake(
+                agency,
+                timeline(),
+                entity(10),
+                "cognition.default",
+                json!({"wake": true}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+    store
+        .commit(&second_token, None, PlatformTime::new(11))
+        .expect("second scheduling commit should succeed");
+
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(snapshot.works.len(), 3);
+    assert_eq!(
+        snapshot
+            .works
+            .iter()
+            .map(|work| work.logical_schedule_order)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert!(
+        snapshot
+            .works
+            .iter()
+            .all(|work| work.effective_due_world_time == WorldInstant::new(0))
+    );
+    assert!(matches!(
+        snapshot
+            .works
+            .iter()
+            .find(|work| work.id == agency)
+            .expect("Agency Wake should be readable")
+            .target,
+        WorkTarget::AgencyWake { .. }
+    ));
+
+    let before_retry = snapshot
+        .works
+        .iter()
+        .find(|work| work.id == first)
+        .expect("first Work should be readable")
+        .clone();
+    let claim = store
+        .claim(
+            timeline(),
+            first,
+            PlatformTime::new(20),
+            PlatformTime::new(30),
+        )
+        .expect("first Work should be claimable");
+    let retried = store
+        .retry(
+            &claim,
+            PlatformTime::new(21),
+            PlatformTime::new(100),
+            Some("temporary failure".to_owned()),
+        )
+        .expect("retry should be recorded");
+    assert_eq!(retried.target, before_retry.target);
+    assert_eq!(
+        retried.effective_due_world_time,
+        before_retry.effective_due_world_time
+    );
+    assert_eq!(
+        retried.logical_schedule_order,
+        before_retry.logical_schedule_order
+    );
+    assert_eq!(retried.available_at, PlatformTime::new(100));
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the D-1 fixture keeps invalid, duplicate, valid, reclaim and retry boundaries together"
+)]
+async fn agency_wake_requires_existing_agent_before_order_allocation() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let registry = registry();
+    let invalid = work(73);
+    let invalid_token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::agency_wake(
+                invalid,
+                timeline(),
+                entity(99),
+                "cognition.default",
+                json!({"wake": "invalid-agent"}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let error = store
+        .commit(&invalid_token, None, PlatformTime::new(10))
+        .expect_err("an Agency Wake for a missing Agent Entity must be rejected");
+    assert!(matches!(
+        error,
+        CommitError::Work(WorkError::StorageUnavailable { message })
+            if message.contains("Agent Entity")
+    ));
+    let after_invalid = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_invalid.version(), initial.version());
+    assert!(after_invalid.works.is_empty());
+
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("valid Agency Wake Agent Entity should be seeded");
+    let valid = work(74);
+    let valid_resolution = Resolution::new(
+        Vec::new(),
+        vec![WorkMutation::Schedule(NewWork::agency_wake(
+            valid,
+            timeline(),
+            entity(10),
+            "cognition.default",
+            json!({"wake": "valid-agent"}),
+            WorkSchedule::Immediate,
+        ))],
+    );
+    let valid_token = validated(&store, &registry, valid_resolution.clone());
+    store
+        .commit(&valid_token, None, PlatformTime::new(11))
+        .expect("valid Agency Wake should commit");
+    let after_valid = store.snapshot(timeline()).expect("snapshot should exist");
+    let valid_before_duplicate = after_valid
+        .works
+        .iter()
+        .find(|work| work.id == valid)
+        .expect("valid Agency Wake should be readable")
+        .clone();
+    assert_eq!(valid_before_duplicate.logical_schedule_order, 1);
+    assert_eq!(
+        valid_before_duplicate.effective_due_world_time,
+        WorldInstant::new(0)
+    );
+    assert!(matches!(
+        &valid_before_duplicate.target,
+        WorkTarget::AgencyWake { agent, cognition }
+            if *agent == entity(10) && cognition == "cognition.default"
+    ));
+
+    let duplicate_token = validated(&store, &registry, valid_resolution);
+    let duplicate = store
+        .commit(&duplicate_token, None, PlatformTime::new(12))
+        .expect_err("duplicate Agency Wake identity must be rejected");
+    assert!(matches!(
+        duplicate,
+        CommitError::Work(WorkError::DuplicateWork { work_id }) if work_id == valid
+    ));
+    let after_duplicate = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_duplicate.version(), after_valid.version());
+    assert_eq!(
+        after_duplicate
+            .works
+            .iter()
+            .find(|work| work.id == valid)
+            .expect("valid Agency Wake should remain readable")
+            .logical_schedule_order,
+        1
+    );
+
+    let second = work(75);
+    let second_token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::agency_wake(
+                second,
+                timeline(),
+                entity(10),
+                "cognition.default",
+                json!({"wake": "second-valid-agent"}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+    store
+        .commit(&second_token, None, PlatformTime::new(13))
+        .expect("second valid Agency Wake should commit");
+    let before_reclaim = store
+        .snapshot(timeline())
+        .expect("snapshot should exist")
+        .works
+        .into_iter()
+        .find(|work| work.id == valid)
+        .expect("valid Agency Wake should remain readable");
+    assert_eq!(before_reclaim.logical_schedule_order, 1);
+
+    let first_claim = store
+        .claim(
+            timeline(),
+            valid,
+            PlatformTime::new(20),
+            PlatformTime::new(30),
+        )
+        .expect("valid Agency Wake should be claimable");
+    let reclaimed = store
+        .claim(
+            timeline(),
+            valid,
+            PlatformTime::new(30),
+            PlatformTime::new(40),
+        )
+        .expect("expired Agency Wake lease should be reclaimable");
+    assert_ne!(first_claim.fence(), reclaimed.fence());
+    let retried = store
+        .retry(
+            &reclaimed,
+            PlatformTime::new(31),
+            PlatformTime::new(100),
+            Some("temporary agency failure".to_owned()),
+        )
+        .expect("reclaimed Agency Wake should be retryable");
+    assert_eq!(retried.target, before_reclaim.target);
+    assert_eq!(
+        retried.effective_due_world_time,
+        before_reclaim.effective_due_world_time
+    );
+    assert_eq!(
+        retried.logical_schedule_order,
+        before_reclaim.logical_schedule_order
     );
 }
 

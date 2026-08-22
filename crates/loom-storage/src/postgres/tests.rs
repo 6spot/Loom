@@ -271,9 +271,11 @@ async fn postgres_18_read_snapshot_parity() {
     .expect("Event causal link should insert");
     sqlx::query(
         "INSERT INTO loom_work \
-         (timeline_id, work_id, handler, schema_revision, payload, due_world_time, status, \
-          attempt_count, claim_generation, available_at) \
-         VALUES ($1::uuid, $2::uuid, 'test.handler', 1, '{}'::jsonb, 50, 'pending', 2, 4, 9) \
+         (timeline_id, work_id, target_kind, target_handler, schema_revision, payload, \
+          effective_due_world_time, logical_schedule_order, status, attempt_count, \
+          claim_generation, available_at) \
+         VALUES ($1::uuid, $2::uuid, 'capability_work', 'test.handler', 1, '{}'::jsonb, 50, 1, \
+          'pending', 2, 4, 9) \
          ON CONFLICT DO NOTHING",
     )
     .bind(timeline_id)
