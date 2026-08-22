@@ -40,6 +40,16 @@ Accepted Amendment 0002 closes amendment/linkage gaps around:
 - `TimelineBlockedOnMissingImplementation` observability;
 - mandatory exact affected-clause indexes for future Amendments.
 
+Accepted Amendment 0003 closes the remaining Agency/read-path execution gaps around:
+
+- Agent Wake as a Scheduler-managed durable execution obligation rather than a hidden timer/provider callback;
+- Runtime-owned Agent-wake Session/claim/provenance/commit orchestration while `loom-agency` owns subjective context/cognition contracts;
+- AgentWorldView production through Runtime-mediated, World-Binding-checked reads;
+- target-specific Capability Work vs Agency Wake compatibility at Scheduler admission;
+- pinned `BaseWorldView` semantics without requiring eager complete World materialization;
+- explicit v0 Timeline-wide successful-commit serialization and deferred fine-grained validation;
+- explicit deferral of worker executor/`Send`-`Sync` topology and historical checkpoint acceleration.
+
 The next phase is **re-planning**, not resuming the old roadmap by inertia.
 
 Until the rebuilt V0 implementation plan, Issues and task records are activated:
@@ -59,6 +69,7 @@ Rather than duplicating every architecture invariant here, follow these canonica
 - Detailed Runtime/Capability execution protocol: `docs/architecture/runtime-contracts.md`
 - Runtime liveness / failure / Scheduler / Ingress / Template semantics: `docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`
 - Supersession mapping / chronology-budget authority / current CI / blocked-state observability: `docs/architecture/amendments/0002-supersession-and-authority-linkage.md`
+- Agent Wake orchestration / pinned-read semantics / Timeline commit-serialization clarification: `docs/architecture/amendments/0003-agency-execution-and-pinned-read-boundary.md`
 - Software evolution: `docs/architecture/evolution.md`
 - Cargo DAG / public exposure / authority type placement: `docs/architecture/governance.md`
 - Technical realization / persistence / dependency choices: `docs/architecture/implementation.md`
@@ -73,11 +84,14 @@ A few repository-wide guardrails are worth repeating because violating them is a
 - Semantic World State mutation requires committed Event + frozen Effects.
 - Timeline logical mutation requires Runtime-owned Logical Commit.
 - PlatformClock/lease/retry/DB order must not become World Time or same-Timeline chronology.
+- Capability `WorkHandler` / `ResolutionContext` must not gain a generic CognitiveExecutor/provider/network handle to implement Agent autonomy; Agent Wake follows Amendment 0003.
+- A pinned `BaseWorldView` means one logical snapshot position, **not** mandatory full-World eager loading. Any scalable read path must still prevent mixed-revision observations and persistence-authority leakage.
+- Successful v0 Logical Commits serialize at Timeline scope; do not claim fine-grained same-Timeline write concurrency until an accepted Amendment changes that authority model.
 - Public Core/Protocol/API/Runtime/Capability abstractions require semantic Rust documentation sufficient to recover ownership/authority without chat history.
 
-For exact terminology such as semantic due-ness, operational claimability, Logical Head, Chronology Budget, Ingress, Intent, Trigger, Reaction, Actor and Agent, use `docs/architecture/glossary.md` instead of inventing local meanings.
+For exact terminology such as semantic due-ness, operational claimability, Logical Head, Chronology Budget, Agent Wake, Pinned Read Boundary, Timeline-wide Commit Serialization, Ingress, Intent, Trigger, Reaction, Actor and Agent, use `docs/architecture/glossary.md` instead of inventing local meanings.
 
-For Scheduler claim/admission, do **not** reconstruct a checklist from older baseline summaries. Use Amendment 0001 §9 + Amendment 0002 §2.
+For Scheduler claim/admission, do **not** reconstruct a checklist from older baseline summaries. Use Amendment 0001 §9 + Amendment 0002 §2; when the logical head is Agency Wake, also apply Amendment 0003 §3.2 target-specific compatibility.
 
 ## Task records
 
