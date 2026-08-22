@@ -16,20 +16,37 @@ ROOT = Path(__file__).resolve().parents[1]
 STORAGE = ROOT / "crates" / "loom-storage"
 ALLOWED_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
 
-# Implementation-level PostgreSQL/SQLx symbols that must not cross the storage
-# adapter boundary. Keep this list intentionally concrete to avoid banning
-# architecture prose that merely discusses persistence.
+# Existing inline-SQL debt is intentionally explicit and may only shrink. New
+# PostgreSQL modules must start with centralized SQL files. #209 removes these
+# final exemptions once their statements have been extracted without changing
+# persistence behavior.
+INLINE_SQL_DEBT_ALLOWLIST = {
+    Path("crates/loom-storage/src/postgres.rs"),
+    Path("crates/loom-storage/src/postgres/commit.rs"),
+}
+
 FORBIDDEN_RUST_PATTERNS = {
     "sqlx path": re.compile(r"\bsqlx::"),
     "PgPool": re.compile(r"\bPgPool\b"),
     "PgConnection": re.compile(r"\bPgConnection\b"),
     "PgTransaction": re.compile(r"\bPgTransaction\b"),
     "SQLx Postgres type": re.compile(r"\bsqlx\s*::[^\n;]*\bPostgres\b"),
+    "tokio-postgres path": re.compile(r"\btokio_postgres::"),
+    "postgres client path": re.compile(r"\bpostgres::(?:Client|Config|Transaction)\b"),
 }
 
 FORBIDDEN_CARGO_PATTERNS = {
     "sqlx dependency": re.compile(r"(?m)^\s*sqlx\s*="),
+    "tokio-postgres dependency": re.compile(r"(?m)^\s*tokio-postgres\s*="),
+    "postgres dependency": re.compile(r"(?m)^\s*postgres\s*="),
+    "pgvector dependency": re.compile(r"(?m)^\s*pgvector\s*="),
+    "diesel dependency": re.compile(r"(?m)^\s*diesel\s*="),
 }
+
+INLINE_SQL_PATTERN = re.compile(
+    r"sqlx::(?:query|query_scalar)(?:\s*::<[^)]*>)?\s*\(\s*\"",
+    re.MULTILINE,
+)
 
 
 def is_under(path: Path, parent: Path) -> bool:
@@ -40,11 +57,17 @@ def is_under(path: Path, parent: Path) -> bool:
     return True
 
 
-def production_roots() -> list[Path]:
-    roots = [ROOT / "crates"]
+def checked_roots() -> list[Path]:
+    roots = [ROOT / "crates", ROOT / "tests"]
     apps = ROOT / "apps"
     if apps.exists():
         roots.append(apps)
+    capabilities = ROOT / "capabilities"
+    if capabilities.exists():
+        roots.append(capabilities)
+    adapters = ROOT / "adapters"
+    if adapters.exists():
+        roots.append(adapters)
     return roots
 
 
@@ -58,7 +81,7 @@ def check_sql_file_locations(errors: list[str]) -> None:
 
 
 def check_non_storage_rust(errors: list[str]) -> None:
-    for root in production_roots():
+    for root in checked_roots():
         if not root.exists():
             continue
         for path in root.rglob("*.rs"):
@@ -73,7 +96,7 @@ def check_non_storage_rust(errors: list[str]) -> None:
 
 
 def check_non_storage_cargo(errors: list[str]) -> None:
-    for root in production_roots():
+    for root in checked_roots():
         if not root.exists():
             continue
         for path in root.rglob("Cargo.toml"):
@@ -87,11 +110,27 @@ def check_non_storage_cargo(errors: list[str]) -> None:
                     )
 
 
+def check_storage_inline_sql(errors: list[str]) -> None:
+    source_root = STORAGE / "src"
+    for path in source_root.rglob("*.rs"):
+        relative = path.relative_to(ROOT)
+        text = path.read_text(encoding="utf-8")
+        if not INLINE_SQL_PATTERN.search(text):
+            continue
+        if relative in INLINE_SQL_DEBT_ALLOWLIST:
+            continue
+        errors.append(
+            f"inline production SQL in {relative}; move the statement to "
+            "crates/loom-storage/sql/<domain>/ and load it with include_str!"
+        )
+
+
 def main() -> int:
     errors: list[str] = []
     check_sql_file_locations(errors)
     check_non_storage_rust(errors)
     check_non_storage_cargo(errors)
+    check_storage_inline_sql(errors)
 
     if errors:
         print("storage SQL ownership check failed:", file=sys.stderr)
