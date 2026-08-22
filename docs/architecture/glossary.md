@@ -2,7 +2,7 @@
 
 > Status: **canonical terminology reference for Loom v0.**
 >
-> 本文只定义术语。它不单独赋予 Runtime authority；具体行为仍由 `core.md`、`world-runtime.md`、`runtime-contracts.md`、`governance.md` 与 accepted Amendments 决定。
+> 本文只定义术语。它不单独赋予 Runtime authority；具体行为仍由 `core.md`、`world-runtime.md`、`runtime-contracts.md`、`governance.md` 与 accepted Amendments 决定。若 frozen baseline 与 Amendment 冲突，先查 `docs/architecture/README.md` 的 reverse supersession table。
 
 ## World and execution
 
@@ -39,13 +39,13 @@ Committed Event Ledger + frozen Event Effects + Event associations/causality。�
 某条 Timeline 当前的 Entity / Relationship / Facet 现实投影。
 
 ### Timeline Logical State
-会影响未来 Runtime 执行、且必须可 replay/fork 的 Timeline state，例如 World Time、logical Durable Work、logical schedule order、TimelineVersion、ancestry/fork position。
+会影响未来 Runtime 执行、且必须可 replay/fork 的 Timeline state，例如 World Time、logical Durable Work、logical schedule order、TimelineVersion、ancestry/fork position，以及 **same-World-Time Chronology Budget consumption**。这些变化只能通过 Runtime-owned Logical Commit 获得权威位置。
 
 ### Platform Operational State
 只服务运行可靠性的状态，例如 lease、fence、retry `available_at`、attempt count、last technical error、worker bookkeeping。它不是 World History，也不是 Timeline logical history。
 
 ### Logical Commit
-Runtime-owned 的 Timeline logical-state linearization boundary。它可以包含 committed Events/Effects、logical Work transitions、World Time advancement 或这些变化的合法组合。
+Runtime-owned 的 Timeline logical-state linearization boundary。它可以包含 committed Events/Effects、logical Work transitions、World Time advancement、chronology-budget consumption 或这些变化的合法组合。
 
 ### WorldEffect
 由 committed Event 解释的最小 materialized semantic mutation primitive。World Time、Work lifecycle、lease/retry 都不是 WorldEffect。
@@ -65,7 +65,7 @@ Durable Work 在 Timeline chronology 上被视为到期的 World Time。`Immedia
 Work 的逻辑到期条件：`Pending && effective_due_world_time <= Timeline.world_time`。不依赖 retry backoff、lease、worker availability 或 implementation availability。
 
 ### Operational Claimability
-在 semantically due 的基础上，平台当前是否允许真正 claim/execute 该 Work。它受 `available_at`、lease/fence、World Binding authorization、compatible handler availability 等控制。
+在 semantically due 的基础上，平台/Runtime 当前是否允许真正 claim/admit/execute 该 Work。完整 v0 checklist 只以 Amendment 0001 §9 + Amendment 0002 §2 为准；本 glossary 不维护第二份条件清单。
 
 ### Logical Schedule Order
 Timeline-local、persistent、replayable 的 Work tie-break order。v0 Scheduler order 为 `(effective_due_world_time, logical_schedule_order)`。
@@ -80,7 +80,10 @@ Timeline-local、persistent、replayable 的 Work tie-break order。v0 Scheduler
 当前 Timeline 不存在 semantically due `Pending` Work。只有 scheduler-quiescent 时，automatic World Time advancement 才可能发生。
 
 ### Chronology Budget
-限制同一 WorldInstant 上自动 Scheduler/Reaction execution 无限展开的 Runtime policy budget。它是 liveness guard，不是强制推进 World Time 的借口。
+限制同一 Timeline / WorldInstant 上自动 Scheduler execution 无限展开的 Runtime liveness budget。**其 canonical consumption position属于 Timeline Logical State**，必须可 restart/replay/fork reconstruct。v0 最小 consumption unit 是一次 Scheduler-managed Work 的成功 Logical Commit/completion；technical retry attempts 仍属于 Platform Operational State，由 FailurePolicy 单独约束。Budget exhausted 不是强制推进 World Time 的借口。
+
+### TimelineBlockedOnMissingImplementation
+当 semantically due logical head 因 active Runtime Revision 无法组装 compatible handler 而不能执行时，Runtime 对外暴露的 operator-visible liveness condition。它不消耗 technical attempt、不解除 chronology barrier、也不是 World Truth；恢复方式是提供 compatible software 或走受控 logical terminalization。
 
 ## Work and failure
 
