@@ -25,6 +25,7 @@ Loom 不以 MiroFish 的工程结构为基础，也不追求对其实现兼容�
 - [`docs/architecture/implementation.md`](docs/architecture/implementation.md) — technical realization baseline
 - [`docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`](docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md) — runtime liveness/boundary closure
 - [`docs/architecture/amendments/0002-supersession-and-authority-linkage.md`](docs/architecture/amendments/0002-supersession-and-authority-linkage.md) — exact supersession mapping / authority linkage cleanup
+- [`docs/architecture/amendments/0003-agency-execution-and-pinned-read-boundary.md`](docs/architecture/amendments/0003-agency-execution-and-pinned-read-boundary.md) — Agent Wake execution closure / scalable pinned-read semantics / Timeline concurrency clarification
 
 建议阅读顺序：
 
@@ -89,9 +90,11 @@ Execution Provenance
 
 World Time 是显式 Timeline logical state；PlatformClock、Event timestamp、retry/backoff 都不能隐式推动它。
 
+`BaseWorldView` 的 pinned 语义现在明确指“同一个 Timeline logical snapshot position”，而不是“每次 Resolution 必须把整个 World 全量装进一份新内存快照”。实现仍可先使用 eager snapshot，但大世界读路径允许通过 revision-keyed cache、bounded prefetch、version-fenced lazy read 或 miss/refill/restart 等方式演进，只要不混读 revision、不把 persistence authority 泄漏给 Capability/Agency。
+
 ## Accepted amendment closure
 
-Amendment 0001 + 0002 已把冻结后审查发现的 runtime/document closure 纳入当前 v0 contract：
+Amendment 0001 + 0002 + 0003 已把冻结后审查发现的 runtime/document/Agency execution closure 纳入当前 v0 contract：
 
 ```text
 bounded Runtime FailurePolicy
@@ -100,7 +103,7 @@ Chronology Budget consumption = Timeline Logical State
 Runtime-owned Scheduler / Timeline Driver
 single logical authority with multi-worker CAS/fencing
 SKIP LOCKED only across independent Timeline heads
-one canonical Scheduler claim/admission checklist
+one canonical Scheduler claim/admission contract
 Runtime-stamped Event occurred_at
 Ingress envelope -> normal Action authority path
 World Template -> Runtime-owned ValidatedWorldBirthPlan
@@ -108,17 +111,29 @@ Intent / Trigger / Reaction / Actor / Agent terminology reconciliation
 exact baseline supersession mapping
 current CI baseline = Ubuntu mandatory; macOS currently deferred
 TimelineBlockedOnMissingImplementation observability
+Agent Wake = Scheduler-managed durable execution obligation
+Runtime owns Agent-wake claim/session/provenance/commit orchestration
+AgentWorldView built through Binding-checked Runtime mediation
+Capability Work and Agency Wake use target-specific execution compatibility
+pinned read consistency != mandatory complete eager materialization
+successful v0 Logical Commits serialize at Timeline scope
+fine-grained ReadSet commit validation remains deferred
+historical checkpoint acceleration remains deferred
+worker executor / Send-Sync topology is an explicit implementation-planning decision
 ```
 
 特别地：
 
 - automatic technical retry 必须有界；terminal `Dead/Cancelled` 必须经 Logical Commit；
-- 同一 WorldInstant 的 Immediate/Reaction 链达到 chronology budget 后停止自动推进，但**不能**借此越过 due Work 推进 World Time；
-- chronology-budget consumption 与 logical Work completion 在同一个 Logical Commit 中记录/重建，不是 operational worker counter；
+- 同一 WorldInstant 的 Immediate/Reaction/Agency-Wake execution 达到 chronology budget 后停止自动推进，但**不能**借此越过 due Work 推进 World Time；
+- chronology-budget consumption 与 logical Work completion 在同一个 Logical Commit 中记录/重建，不是 operational worker counter；total completion counter 是最低安全维度，causal/derivation depth 只能作为额外 policy dimension；
 - `SKIP LOCKED` 可以帮助 worker 分配不同 Timeline 的 head，不能在同一 Timeline 内跳过 logical head；
-- operational claimability/Admission 的完整条件只认 accepted Amendment 的 canonical checklist；
+- Scheduler common claim/admission 条件仍以 accepted Amendment 的 canonical contract 为准；Agency Wake 再应用其 target-specific Agency execution compatibility；
+- Agent Wake 不把 `CognitiveExecutor` 塞进普通 Capability `WorkHandler`。Runtime claim due wake，建立 pinned Session，构造 subjective `AgentWorldView`，运行 cognition，然后让 `Decision::Act(ActionInvocation)` 回到 normal Capability authority path；
+- cognition 可以很慢，但 Timeline commit transaction 必须短；stale/fenced-out cognition result 不能 commit，重复 cognition 只属于 at-least-once execution/provenance；
 - Ingress 是可靠 external envelope，不再形成第二套 Capability handler hierarchy；
-- v0 `ProposedEvent` 不拥有选择 occurrence World Time 的 authority，Runtime 使用 pinned World Time stamp committed Event。
+- v0 `ProposedEvent` 不拥有选择 occurrence World Time 的 authority，Runtime 使用 pinned World Time stamp committed Event；
+- 同一 Timeline 上 root Action 可以在 admission 允许时并行 Resolve，但成功 Logical Commit 仍由 TimelineVersion/CAS 串行化；Scheduler-managed Work 还额外只允许 logical head 获得执行资格。
 
 ## Rust workspace
 
@@ -129,8 +144,8 @@ Loom
 │   ├── loom-protocol/    # Internal Execution Language
 │   ├── loom-api/         # Public Consumption Language
 │   ├── loom-capability/  # semantic extension API/SPI
-│   ├── loom-agency/      # cognition/decision contracts
-│   ├── loom-runtime/     # execution + validation + logical commit + scheduler authority
+│   ├── loom-agency/      # cognition/decision/context contracts
+│   ├── loom-runtime/     # execution + validation + logical commit + scheduler/Agency orchestration authority
 │   ├── loom-storage/     # persistence adapter implementing Runtime-owned ports
 │   └── loom-boundary/    # transport adapter over loom-api
 ├── apps/                 # composition roots and Loom consumers
@@ -150,7 +165,7 @@ Loom
 
 ## Current status
 
-**Loom v0 frozen baseline + accepted Amendments 0001 and 0002 are closed for re-planning.**
+**Loom v0 frozen baseline + accepted Amendments 0001, 0002 and 0003 are closed for re-planning.**
 
 当前仍然不应直接继续旧 Roadmap 的代码实现。
 
@@ -160,6 +175,8 @@ Loom
 Frozen baseline + accepted Amendments
         ↓
 Resolve supersession index
+        ↓
+Inventory current implementation against architecture
         ↓
 Rebuild V0 implementation order
         ↓
