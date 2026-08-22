@@ -1505,9 +1505,10 @@ impl From<WorkError> for CommitError {
 ///
 /// This is Runtime lifecycle metadata, not a domain Event or mutable World
 /// proposal. A successful value means the persistence adapter has durably
-/// established both identities as one bootstrap operation. The initial
-/// Timeline version is always zero by construction; future truth changes must
-/// use the normal validated commit path.
+/// established both identities as one bootstrap operation. Empty lifecycle
+/// creation returns version zero; Template birth returns the final version after
+/// its validated bootstrap mutations. Future truth changes must use the normal
+/// validated commit path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WorldCreation {
     world_id: WorldId,
@@ -1520,10 +1521,29 @@ impl WorldCreation {
     /// Creates the canonical empty-Timeline lifecycle result.
     #[must_use]
     pub fn new(world_id: WorldId, timeline_id: TimelineId, world_time: WorldInstant) -> Self {
+        Self::with_version(
+            world_id,
+            timeline_id,
+            TimelineVersion::new(EventSeq::new(0), StateRevision::new(0)),
+            world_time,
+        )
+    }
+
+    /// Creates a lifecycle result with the final version of an atomic birth.
+    ///
+    /// The version is supplied only by a persistence adapter after its one
+    /// authority transaction has applied all validated bootstrap mutations.
+    #[must_use]
+    pub const fn with_version(
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        version: TimelineVersion,
+        world_time: WorldInstant,
+    ) -> Self {
         Self {
             world_id,
             timeline_id,
-            version: TimelineVersion::new(EventSeq::new(0), StateRevision::new(0)),
+            version,
             world_time,
         }
     }
@@ -1540,7 +1560,7 @@ impl WorldCreation {
         self.timeline_id
     }
 
-    /// Returns the authoritative empty Timeline version.
+    /// Returns the authoritative Timeline version after lifecycle/bootstrap.
     #[must_use]
     pub const fn version(self) -> TimelineVersion {
         self.version
@@ -1587,9 +1607,11 @@ impl std::error::Error for LifecycleError {}
 ///
 /// Implementations must create the World identity and its initial Timeline in
 /// one atomic operation. This port is intentionally separate from
-/// [`CommitStore`]: bootstrap establishes the empty authority container and does
-/// not fabricate a domain Event or accept an unvalidated Resolution. Once
-/// created, all semantic mutation uses the normal Runtime commit authority.
+/// [`CommitStore`]: the legacy lifecycle entrypoint establishes an empty
+/// authority container, while Template birth accepts only Runtime-validated
+/// resolutions and applies them in the same authority transaction. No entrypoint
+/// fabricates a domain Event or accepts an unvalidated Resolution. Once created,
+/// all later semantic mutation uses the normal Runtime commit authority.
 pub trait WorldLifecycleStore {
     /// Atomically creates one World plus its initial empty Timeline.
     ///
@@ -1607,8 +1629,8 @@ pub trait WorldLifecycleStore {
     /// Atomically creates one World, its initial Timeline and its immutable
     /// World Runtime Binding.
     ///
-    /// This additive entrypoint is used by current Runtime World birth. The
-    /// legacy [`Self::create_world`] entrypoint remains available so adapters
+    /// This additive entrypoint is used by the empty compatibility birth path.
+    /// The legacy [`Self::create_world`] entrypoint remains available so adapters
     /// can represent M3-era rows that are migrated explicitly through
     /// [`WorldRuntimeBindingStore::ensure_binding`]. Production adapters must
     /// associate the supplied binding in the same transaction/state swap as
@@ -1622,6 +1644,38 @@ pub trait WorldLifecycleStore {
     ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
         let _ = binding;
         self.create_world(world_id, timeline_id, initial_world_time)
+    }
+
+    /// Atomically creates a World, its initial Timeline and Binding, then
+    /// applies the already Runtime-validated bootstrap resolutions in order.
+    ///
+    /// The slice contains Runtime authority tokens produced from ordinary
+    /// Action/Resolution validation. Adapters must apply all structural and
+    /// semantic birth records in one transaction/state swap; this default is a
+    /// deliberate failure rather than an empty-World fallback.
+    fn create_world_with_bootstrap<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        let _ = (
+            world_id,
+            timeline_id,
+            initial_world_time,
+            binding,
+            bootstrap,
+            now,
+        );
+        Box::pin(async {
+            Err(LifecycleError::StorageUnavailable {
+                message: "atomic Template birth is unsupported by this persistence adapter"
+                    .to_owned(),
+            })
+        })
     }
 }
 

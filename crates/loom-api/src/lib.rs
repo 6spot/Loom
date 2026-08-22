@@ -98,6 +98,201 @@ impl CreateWorldRequest {
     }
 }
 
+/// Stable public identity of a World Template revision source.
+///
+/// A Template ID is birth metadata, not a subscription key. Runtime copies the
+/// selected revision into the immutable World Runtime Binding during birth, so
+/// changing or re-registering a later descriptor cannot alter an existing
+/// World.
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct TemplateId(String);
+
+impl TemplateId {
+    /// Creates a Template identity from a stable application key.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Borrows the stable Template key.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Reports whether this descriptor has no usable Template identity.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for TemplateId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for TemplateId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<TemplateId> for String {
+    fn from(value: TemplateId) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for TemplateId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// One semantic Capability compatibility requirement declared by a Template.
+///
+/// The string is a semver requirement, not an exact implementation identity.
+/// Runtime parses and validates it against the active installed registry before
+/// producing its private birth authority value.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TemplateCapabilityRequirement {
+    /// Semantic Capability domain required by the Template.
+    pub id: CapabilityId,
+    /// Semver range accepted for the installed Capability implementation.
+    pub version: String,
+}
+
+impl TemplateCapabilityRequirement {
+    /// Creates one Template Capability requirement.
+    #[must_use]
+    pub fn new(id: impl Into<CapabilityId>, version: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            version: version.into(),
+        }
+    }
+
+    /// Borrows the declared semver requirement.
+    #[must_use]
+    pub fn version_requirement(&self) -> &str {
+        &self.version
+    }
+}
+
+/// Public, immutable World birth recipe descriptor.
+///
+/// A descriptor contains only stable consumption values: Capability
+/// requirements, immutable assembly configuration, initial semantic World Time
+/// and an ordered list of ordinary Action invocations used for semantic
+/// bootstrap. It contains no resolver, transaction, storage or exact binary
+/// implementation. Runtime validates the complete descriptor before any birth
+/// persistence is attempted.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct WorldTemplateDescriptor {
+    /// Stable identity of the Template family.
+    pub id: TemplateId,
+    /// Immutable revision of this birth recipe.
+    pub revision: u64,
+    /// Capability requirements selected by this Template revision.
+    pub capabilities: Vec<TemplateCapabilityRequirement>,
+    /// Immutable World-level assembly configuration.
+    pub configuration: Value,
+    /// Semantic World Time assigned to the initial Timeline.
+    pub initial_world_time: WorldInstant,
+    /// Ordered normal Action inputs used to construct initial semantic state.
+    pub bootstrap_actions: Vec<ActionInvocation>,
+}
+
+impl WorldTemplateDescriptor {
+    /// Creates an empty Template descriptor at an explicit initial World Time.
+    #[must_use]
+    pub fn new(id: impl Into<TemplateId>, revision: u64, initial_world_time: WorldInstant) -> Self {
+        Self {
+            id: id.into(),
+            revision,
+            capabilities: Vec::new(),
+            configuration: Value::Object(serde_json::Map::new()),
+            initial_world_time,
+            bootstrap_actions: Vec::new(),
+        }
+    }
+
+    /// Adds one Capability compatibility requirement.
+    #[must_use]
+    pub fn with_capability_requirement(
+        mut self,
+        requirement: TemplateCapabilityRequirement,
+    ) -> Self {
+        self.capabilities.push(requirement);
+        self
+    }
+
+    /// Adds one Capability compatibility requirement from an ID and semver range.
+    #[must_use]
+    pub fn requires_capability(
+        self,
+        id: impl Into<CapabilityId>,
+        version: impl Into<String>,
+    ) -> Self {
+        self.with_capability_requirement(TemplateCapabilityRequirement::new(id, version))
+    }
+
+    /// Sets immutable World-level assembly configuration.
+    #[must_use]
+    pub fn with_configuration(mut self, configuration: Value) -> Self {
+        self.configuration = configuration;
+        self
+    }
+
+    /// Appends one ordered semantic bootstrap Action.
+    #[must_use]
+    pub fn with_bootstrap_action(mut self, action: ActionInvocation) -> Self {
+        self.bootstrap_actions.push(action);
+        self
+    }
+
+    /// Appends ordered semantic bootstrap Actions.
+    #[must_use]
+    pub fn with_bootstrap_actions<I>(mut self, actions: I) -> Self
+    where
+        I: IntoIterator<Item = ActionInvocation>,
+    {
+        self.bootstrap_actions.extend(actions);
+        self
+    }
+
+    /// Returns the stable Template provenance key copied into the World Binding.
+    #[must_use]
+    pub fn provenance(&self) -> String {
+        format!("{}@{}", self.id, self.revision)
+    }
+}
+
+/// Public request to create a World from one immutable Template descriptor.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct CreateWorldFromTemplateRequest {
+    /// Descriptor whose revision is validated and snapshotted at birth.
+    pub template: WorldTemplateDescriptor,
+}
+
+impl CreateWorldFromTemplateRequest {
+    /// Creates a Template birth request.
+    #[must_use]
+    pub const fn new(template: WorldTemplateDescriptor) -> Self {
+        Self { template }
+    }
+}
+
+/// Public result of a successful Template birth.
+///
+/// The initial Timeline snapshot is the same read model used by the ordinary
+/// lifecycle API; its version includes any atomically committed bootstrap
+/// Events, Effects and logical Work mutations.
+pub type CreateWorldFromTemplateResult = TimelineSnapshot;
+
 /// A public request to resolve one semantic Action on a World Timeline.
 ///
 /// The `ActionInvocation` remains an untrusted Protocol value: it names a
@@ -622,6 +817,24 @@ pub trait WorldService {
     /// Returns a conflict if Runtime-allocated identities already exist, or an
     /// availability/internal error when lifecycle persistence cannot complete.
     fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, TimelineSnapshot>;
+
+    /// Creates one World by validating and atomically applying a Template birth
+    /// recipe.
+    ///
+    /// The default keeps focused third-party API test doubles source-compatible;
+    /// the Runtime implementation is the production authority for this method.
+    /// A successful result includes the final initial-Timeline version after all
+    /// bootstrap Events, Effects and logical Work have committed together.
+    fn create_world_from_template(
+        &self,
+        _request: CreateWorldFromTemplateRequest,
+    ) -> ApiFuture<'_, CreateWorldFromTemplateResult> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Template World birth is not implemented by this service",
+            ))
+        })
+    }
 }
 
 /// Executes semantic Actions against a World Timeline.

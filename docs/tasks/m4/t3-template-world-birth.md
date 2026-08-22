@@ -1,10 +1,10 @@
 ---
 task: M4-T3
 issue: 148
-status: planned
+status: in_progress
 depends_on: [147]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-22
 completed_at:
 completion_pr:
 merge_sha:
@@ -46,3 +46,4 @@ Pending.
 ## Progress Log
 
 - 2026-08-22 — Planned.
+- 2026-08-22 — Started implementation within the existing `loom-api`/`loom-runtime`/`loom-storage` boundaries; scope limited to frozen Template descriptors, Runtime birth-plan validation, and atomic birth persistence.

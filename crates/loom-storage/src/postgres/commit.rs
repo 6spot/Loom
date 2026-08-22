@@ -122,6 +122,103 @@ async fn commit_resolution(
     })
 }
 
+/// Applies Runtime-validated Template bootstrap resolutions inside the caller's
+/// already-open World birth transaction. The caller owns the final commit or
+/// rollback, so World, Binding, Timeline, Events, Effects and Work share one
+/// `PostgreSQL` authority transaction.
+pub(super) async fn commit_birth_in_transaction(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+    initial_world_time: loom_core::WorldInstant,
+    bootstrap: &[ValidatedResolution],
+    now: PlatformTime,
+) -> Result<TimelineVersion, CommitError> {
+    let locked = lock_timeline(transaction, timeline_id).await?;
+    if locked.version != TimelineVersion::default() {
+        return Err(CommitError::TimelineConflict {
+            expected: TimelineVersion::default(),
+            actual: locked.version,
+        });
+    }
+
+    let mut next_sequence = locked.version.head_event_seq.value();
+    let mut seen_events = HashSet::new();
+    let mut changes_runtime_state = false;
+
+    for resolution in bootstrap {
+        if resolution.timeline_id() != timeline_id {
+            return Err(CommitError::TimelineMismatch {
+                expected: timeline_id,
+                actual: resolution.timeline_id(),
+            });
+        }
+        if resolution.base_version() != TimelineVersion::default() {
+            return Err(CommitError::TimelineConflict {
+                expected: TimelineVersion::default(),
+                actual: resolution.base_version(),
+            });
+        }
+        if resolution.pinned_world_time() != initial_world_time {
+            return Err(CommitError::StorageUnavailable {
+                message: "validated Template bootstrap uses a different World Time".to_owned(),
+            });
+        }
+
+        for event in resolution.events() {
+            next_sequence = next_sequence
+                .checked_add(1)
+                .ok_or(CommitError::RevisionOverflow)?;
+            apply_event(
+                transaction,
+                timeline_id,
+                EventSeq::new(next_sequence),
+                event,
+                &seen_events,
+                initial_world_time,
+            )
+            .await?;
+            seen_events.insert(event.id);
+            changes_runtime_state = true;
+        }
+        for mutation in resolution.work() {
+            apply_work_mutation(transaction, timeline_id, mutation, now).await?;
+            changes_runtime_state = true;
+        }
+    }
+
+    let next_state_revision = if changes_runtime_state {
+        locked
+            .version
+            .state_revision
+            .value()
+            .checked_add(1)
+            .ok_or(CommitError::RevisionOverflow)?
+    } else {
+        locked.version.state_revision.value()
+    };
+    let next_head = if changes_runtime_state && !seen_events.is_empty() {
+        EventSeq::new(next_sequence)
+    } else {
+        locked.version.head_event_seq
+    };
+    let version = TimelineVersion::new(next_head, StateRevision::new(next_state_revision));
+
+    if changes_runtime_state {
+        sqlx::query(
+            "UPDATE loom_timeline SET head_event_seq = $2::numeric, state_revision = $3::numeric \
+             WHERE timeline_id = $1::uuid",
+        )
+        .bind(timeline_id.to_string())
+        .bind(next_head.value().to_string())
+        .bind(next_state_revision.to_string())
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+    }
+
+    Ok(version)
+}
+
 async fn lock_timeline(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,

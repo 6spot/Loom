@@ -429,7 +429,7 @@ impl RelationshipSnapshot {
 #[derive(Clone, Debug)]
 enum CandidateRelationship {
     Created(Relationship),
-    Ended,
+    Ended(Option<Relationship>),
 }
 
 /// Runtime's `Base + Mutation Overlay` candidate view.
@@ -527,7 +527,7 @@ impl CandidateWorldView {
                     relationship: relationship.clone(),
                     active: true,
                 }),
-                CandidateRelationship::Ended => None,
+                CandidateRelationship::Ended(_) => None,
             };
         }
         let result = self
@@ -598,6 +598,46 @@ impl CandidateWorldView {
             .clone()
     }
 
+    /// Materializes the candidate overlay as the next Runtime read snapshot.
+    ///
+    /// This is an internal birth-validation helper: it copies only the
+    /// candidate state needed by the next ordered bootstrap Action and keeps
+    /// the original pinned Timeline version. It does not grant persistence or
+    /// commit authority and is never exposed to Capability code.
+    pub(crate) fn into_base_snapshot(self) -> BaseWorldSnapshot {
+        let mut snapshot = self.base;
+        for entity in self.created_entities.into_values() {
+            snapshot.insert_entity(entity);
+        }
+        for (relationship_id, relationship) in self.relationships {
+            match relationship {
+                CandidateRelationship::Created(relationship) => {
+                    snapshot.insert_relationship(relationship, true);
+                }
+                CandidateRelationship::Ended(Some(relationship)) => {
+                    snapshot.insert_relationship(relationship, false);
+                }
+                CandidateRelationship::Ended(None) => {
+                    if let Some(record) = snapshot.relationships.get(&relationship_id) {
+                        snapshot.insert_relationship(record.relationship.clone(), false);
+                    }
+                }
+            }
+        }
+        for ((owner, facet_type), value) in self.facets {
+            match value {
+                Some(record) => {
+                    snapshot.insert_facet(owner, facet_type, record.schema_revision, record.value);
+                }
+                None => {
+                    snapshot.facets.remove(&(owner, facet_type));
+                }
+            }
+        }
+        snapshot.events = self.available_events;
+        snapshot
+    }
+
     pub(crate) fn extend_read_set(&self, reads: ReadSet) {
         self.reads
             .lock()
@@ -660,8 +700,22 @@ impl CandidateWorldView {
                 );
             }
             WorldEffect::EndRelationship { relationship_id } => {
+                let relationship = self
+                    .relationships
+                    .remove(relationship_id)
+                    .and_then(|candidate| match candidate {
+                        CandidateRelationship::Created(relationship)
+                        | CandidateRelationship::Ended(Some(relationship)) => Some(relationship),
+                        CandidateRelationship::Ended(None) => None,
+                    })
+                    .or_else(|| {
+                        self.base
+                            .relationships
+                            .get(relationship_id)
+                            .map(|record| record.relationship.clone())
+                    });
                 self.relationships
-                    .insert(*relationship_id, CandidateRelationship::Ended);
+                    .insert(*relationship_id, CandidateRelationship::Ended(relationship));
             }
         }
     }

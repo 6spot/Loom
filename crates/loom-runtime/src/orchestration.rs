@@ -4,13 +4,14 @@
 //! Work execution into the existing Runtime validation and persistence path.
 //! It does not define a second protocol, storage boundary or public endpoint.
 
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldRequest, EventQuery,
-    ExecutionResult, FacetQuery, FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService,
-    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService,
+    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
+    CreateWorldFromTemplateResult, CreateWorldRequest, EventQuery, ExecutionResult, FacetQuery,
+    FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService, TimelineService,
+    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, ResolutionContext, ResolutionContextError,
@@ -22,9 +23,10 @@ use semver::VersionReq;
 use serde_json::json;
 
 use crate::{
-    BindingError, BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent,
-    EffectEngine, IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture,
-    PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError,
+    BaseWorldSnapshot, BaseWorldView, BindingError, BudgetUsage, CallProvenance,
+    CandidateWorldView, CommitError, CommitStore, CommittedEvent, EffectEngine, IdentityAllocator,
+    LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
+    ResolutionBudget, RuntimeError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, TimelineSnapshot, UuidV7IdentityAllocator, ValidatedResolution,
     ValidationError, WorkClaim, WorkError, WorkRecord, WorkStore, WorldLifecycleStore,
@@ -55,6 +57,21 @@ pub struct Runtime<S> {
     platform_clock: Arc<dyn PlatformClock>,
     identity_allocator: Arc<dyn IdentityAllocator>,
     resolution_budget: ResolutionBudget,
+}
+
+/// Runtime-only authority value for one validated Template birth.
+///
+/// API descriptors remain untrusted public input. This value is created only
+/// after Capability compatibility/dependency closure and every ordered
+/// bootstrap Action has passed the normal Runtime validation pipeline. Storage
+/// can consume its validated resolutions through the atomic birth port, but no
+/// caller can construct or retarget this plan.
+struct ValidatedWorldBirthPlan {
+    world_id: loom_core::WorldId,
+    timeline_id: TimelineId,
+    initial_world_time: loom_core::WorldInstant,
+    binding: WorldRuntimeBinding,
+    bootstrap: Vec<ValidatedResolution>,
 }
 
 impl<S> Runtime<S>
@@ -212,6 +229,149 @@ where
             .ensure_binding(world_id, legacy_binding())
             .await
             .map_err(|error| map_binding_error(&error))
+    }
+
+    fn validate_template_binding(
+        &self,
+        template: &WorldTemplateDescriptor,
+    ) -> ApiResult<WorldRuntimeBinding> {
+        if template.id.is_empty() {
+            return Err(ApiError::invalid_request(
+                "World Template identity must not be empty",
+            ));
+        }
+
+        let mut requirements = BTreeMap::new();
+        for requirement in &template.capabilities {
+            let capability = CapabilityId::from(requirement.id.as_str());
+            if capability.is_empty() {
+                return Err(ApiError::invalid_request(
+                    "World Template Capability identity must not be empty",
+                ));
+            }
+            let version =
+                VersionReq::parse(requirement.version_requirement()).map_err(|error| {
+                    ApiError::invalid_request(format!(
+                        "Template Capability {} has an invalid compatibility requirement: {error}",
+                        requirement.id
+                    ))
+                })?;
+            self.validate_capability_closure(&capability, version, &mut requirements)?;
+        }
+
+        Ok(WorldRuntimeBinding::new(
+            requirements,
+            template.configuration.clone(),
+            template.revision,
+            Some(template.provenance()),
+        ))
+    }
+
+    fn validate_capability_closure(
+        &self,
+        capability: &CapabilityId,
+        requirement: VersionReq,
+        requirements: &mut BTreeMap<CapabilityId, VersionReq>,
+    ) -> ApiResult<()> {
+        let manifest = self.registry.capability(capability).ok_or_else(|| {
+            ApiError::unavailable(format!(
+                "Template Capability {capability} is not installed in the active Runtime"
+            ))
+        })?;
+        if !requirement.matches(&manifest.version) {
+            return Err(ApiError::unavailable(format!(
+                "Template Capability {capability} requires {requirement}, active version is {}",
+                manifest.version
+            )));
+        }
+
+        if let Some(existing) = requirements.get_mut(capability) {
+            if existing != &requirement {
+                let combined = format!("{existing}, {requirement}");
+                *existing = VersionReq::parse(&combined).map_err(|error| {
+                    ApiError::invalid_request(format!(
+                        "Template Capability {capability} has incompatible requirements: {error}"
+                    ))
+                })?;
+            }
+        } else {
+            requirements.insert(capability.clone(), requirement);
+        }
+
+        for dependency in &manifest.dependencies {
+            self.validate_capability_closure(
+                &dependency.id,
+                dependency.version.clone(),
+                requirements,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn validate_world_template(
+        &self,
+        template: &WorldTemplateDescriptor,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+    ) -> ApiResult<ValidatedWorldBirthPlan> {
+        let binding = self.validate_template_binding(template)?;
+        let initial_base = BaseWorldView::new(BaseWorldSnapshot::new(
+            world_id,
+            timeline_id,
+            loom_core::TimelineVersion::default(),
+            template.initial_world_time,
+        ));
+        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+        let mut base = initial_base;
+        let mut bootstrap = Vec::with_capacity(template.bootstrap_actions.len());
+        let mut total_usage = BudgetUsage::default();
+
+        for invocation in &template.bootstrap_actions {
+            enabled_action(&self.registry, &binding, &invocation.action)
+                .map_err(map_dispatch_error)?;
+            engine
+                .validate_action_input(&invocation.action, &invocation.input)
+                .map_err(|error| map_action_input_error(&error))?;
+            let (outcome, execution) = dispatch_root_action(
+                &base,
+                &self.registry,
+                &binding,
+                self.resolution_budget,
+                invocation,
+            )
+            .map_err(map_dispatch_error)?;
+            let ResolveOutcome::Resolved(_) = outcome else {
+                return Err(ApiError::invalid_request(format!(
+                    "Template bootstrap Action {} was semantically rejected",
+                    invocation.action
+                )));
+            };
+            let validated = engine
+                .validate_segments(&base, &execution.segments, execution.call_provenance)
+                .map_err(|error| map_runtime_error(&error))?;
+            total_usage = total_usage.combine(BudgetUsage::from_resolution(validated.resolution()));
+            self.resolution_budget
+                .check(total_usage)
+                .map_err(|error| ApiError::invalid_request(error.to_string()))?;
+
+            let mut candidate = CandidateWorldView::from_base(&base);
+            for event in validated.events() {
+                for effect in &event.effects {
+                    candidate.apply_effect(effect);
+                }
+                candidate.note_event(event.id);
+            }
+            base = BaseWorldView::new(candidate.into_base_snapshot());
+            bootstrap.push(validated);
+        }
+
+        Ok(ValidatedWorldBirthPlan {
+            world_id,
+            timeline_id,
+            initial_world_time: template.initial_world_time,
+            binding,
+            bootstrap,
+        })
     }
 
     /// Executes one claimed Durable Work obligation through the same
@@ -406,6 +566,25 @@ where
     ) -> PersistenceFuture<'_, Result<crate::WorldCreation, LifecycleError>> {
         (**self).create_world_with_binding(world_id, timeline_id, initial_world_time, binding)
     }
+
+    fn create_world_with_bootstrap<'a>(
+        &'a self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: loom_core::WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<crate::WorldCreation, LifecycleError>> {
+        (**self).create_world_with_bootstrap(
+            world_id,
+            timeline_id,
+            initial_world_time,
+            binding,
+            bootstrap,
+            now,
+        )
+    }
 }
 
 impl<T> WorldStore for &T
@@ -568,6 +747,40 @@ where
             let target = TimelineTarget::new(created.world_id(), created.timeline_id());
             Ok(ApiTimelineSnapshot::new(
                 target,
+                created.version(),
+                created.world_time(),
+            ))
+        })
+    }
+
+    fn create_world_from_template(
+        &self,
+        request: CreateWorldFromTemplateRequest,
+    ) -> ApiFuture<'_, CreateWorldFromTemplateResult> {
+        Box::pin(async move {
+            let world_id = self.identity_allocator.allocate_world_id();
+            let timeline_id = self.identity_allocator.allocate_timeline_id();
+            if world_id.is_nil() || timeline_id.is_nil() {
+                return Err(ApiError::internal(
+                    "Runtime identity allocator returned an invalid identity",
+                ));
+            }
+
+            let plan = self.validate_world_template(&request.template, world_id, timeline_id)?;
+            let created = self
+                .store
+                .create_world_with_bootstrap(
+                    plan.world_id,
+                    plan.timeline_id,
+                    plan.initial_world_time,
+                    plan.binding,
+                    &plan.bootstrap,
+                    self.platform_clock.now(),
+                )
+                .await
+                .map_err(|error| map_lifecycle_error(&error))?;
+            Ok(ApiTimelineSnapshot::new(
+                TimelineTarget::new(created.world_id(), created.timeline_id()),
                 created.version(),
                 created.world_time(),
             ))

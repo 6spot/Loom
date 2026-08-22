@@ -866,6 +866,27 @@ impl WorldLifecycleStore for InMemoryStore {
             self.create_world_internal(world_id, timeline_id, initial_world_time, Some(binding))
         })
     }
+
+    fn create_world_with_bootstrap<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_with_bootstrap_internal(
+                world_id,
+                timeline_id,
+                initial_world_time,
+                binding,
+                bootstrap,
+                now,
+            )
+        })
+    }
 }
 
 impl InMemoryStore {
@@ -896,6 +917,92 @@ impl InMemoryStore {
         Ok(WorldCreation::new(
             world_id,
             timeline_id,
+            initial_world_time,
+        ))
+    }
+
+    fn create_world_with_bootstrap_internal(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &[ValidatedResolution],
+        now: PlatformTime,
+    ) -> Result<WorldCreation, LifecycleError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        if staged.worlds.contains(&world_id) {
+            return Err(LifecycleError::WorldAlreadyExists { world_id });
+        }
+        if staged.timelines.contains_key(&timeline_id) {
+            return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+        }
+
+        let mut timeline = TimelineState::empty(world_id, timeline_id);
+        timeline.world_time = initial_world_time;
+        staged.worlds.insert(world_id);
+        staged.world_bindings.insert(world_id, binding);
+        staged.timelines.insert(timeline_id, timeline);
+
+        let timeline = staged
+            .timelines
+            .get_mut(&timeline_id)
+            .expect("the birth Timeline was inserted above");
+        let mut seen_events = HashSet::new();
+        let mut next_sequence = timeline.version.head_event_seq.value();
+        let mut changes_runtime_state = false;
+
+        for resolution in bootstrap {
+            if resolution.timeline_id() != timeline_id
+                || resolution.base_version() != TimelineVersion::default()
+                || resolution.pinned_world_time() != initial_world_time
+            {
+                return Err(LifecycleError::StorageUnavailable {
+                    message: "validated Template birth targets a different Timeline snapshot"
+                        .to_owned(),
+                });
+            }
+            for event in resolution.events() {
+                *timeline = validate_event(timeline, event, &seen_events)
+                    .map_err(|error| birth_commit_error(&error))?;
+                next_sequence = next_sequence
+                    .checked_add(1)
+                    .ok_or_else(|| birth_commit_error(&CommitError::RevisionOverflow))?;
+                let committed = CommittedEvent::from_proposed(
+                    timeline.timeline_id,
+                    loom_core::EventSeq::new(next_sequence),
+                    event,
+                    initial_world_time,
+                );
+                timeline.events.push(committed);
+                timeline.event_ids.insert(event.id);
+                seen_events.insert(event.id);
+                changes_runtime_state = true;
+            }
+            apply_work_mutations(timeline, resolution.work(), now)
+                .map_err(|error| birth_commit_error(&error))?;
+            changes_runtime_state |= !resolution.work().is_empty();
+        }
+
+        if changes_runtime_state {
+            let state_revision = timeline
+                .version
+                .state_revision
+                .value()
+                .checked_add(1)
+                .ok_or_else(|| birth_commit_error(&CommitError::RevisionOverflow))?;
+            timeline.version = TimelineVersion::new(
+                loom_core::EventSeq::new(next_sequence),
+                loom_core::StateRevision::new(state_revision),
+            );
+        }
+        let version = timeline.version;
+        *guard = staged;
+        Ok(WorldCreation::with_version(
+            world_id,
+            timeline_id,
+            version,
             initial_world_time,
         ))
     }
@@ -1368,5 +1475,11 @@ fn invalid_effect(event_id: EventId, message: &str) -> CommitError {
     CommitError::InvalidEffect {
         event_id,
         message: message.to_owned(),
+    }
+}
+
+fn birth_commit_error(error: &CommitError) -> LifecycleError {
+    LifecycleError::StorageUnavailable {
+        message: format!("atomic Template bootstrap failed: {error}"),
     }
 }

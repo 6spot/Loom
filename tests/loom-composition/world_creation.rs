@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
 use loom_api::{
-    ActionRequest, ApiErrorCode, CreateWorldRequest, EventQuery, LoomApi, WorldService,
+    ActionRequest, ApiErrorCode, CreateWorldFromTemplateRequest, CreateWorldRequest, EventQuery,
+    LoomApi, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
-    ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
-    CapabilityRegistry, EventDefinition, RegistrationError, ResolutionContext, ResolverError,
+    ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
+    CapabilityRegistrar, CapabilityRegistry, EventDefinition, RegistrationError, ResolutionContext,
+    ResolverError,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, SchemaRevision, TimelineId, TimelineVersion,
@@ -207,4 +209,158 @@ async fn public_world_creation_is_atomic_and_immediately_usable() {
     assert_eq!(recovered.target.timeline_id, recovered_timeline_id);
     assert_eq!(recovered.version, TimelineVersion::default());
     assert_eq!(recovered.world_time, WorldInstant::new(77));
+}
+
+#[tokio::test]
+async fn template_birth_commits_bootstrap_and_snapshots_binding() {
+    let store = InMemoryStore::new();
+    let world_id = id::<WorldId>(0x3101);
+    let timeline_id = id::<TimelineId>(0x3102);
+    let event_id = id::<EventId>(0x3110);
+    let entity_id = id::<EntityId>(0x3120);
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id,
+            timeline_id,
+        });
+    let api: &dyn LoomApi = &runtime;
+    let template = WorldTemplateDescriptor::new("bootstrap", 2, WorldInstant::new(42))
+        .requires_capability(CAPABILITY, "^0.1.0")
+        .with_configuration(json!({"assembly": "frozen"}))
+        .with_bootstrap_action(ActionInvocation::new(
+            ActionTypeId::from(ACTION),
+            json!({
+                "event_id": event_id.to_string(),
+                "entity_id": entity_id.to_string(),
+            }),
+        ));
+
+    let created = api
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(template))
+        .await
+        .expect("Template birth should commit atomically");
+    assert_eq!(created.target.world_id, world_id);
+    assert_eq!(created.target.timeline_id, timeline_id);
+    assert_eq!(created.version.head_event_seq.value(), 1);
+    assert_eq!(created.version.state_revision.value(), 1);
+    assert_eq!(created.world_time, WorldInstant::new(42));
+
+    let binding = store
+        .read_binding(world_id)
+        .expect("Template Binding should be persisted with the World");
+    assert_eq!(binding.revision(), 2);
+    assert_eq!(binding.template_provenance(), Some("bootstrap@2"));
+    assert_eq!(binding.configuration(), &json!({"assembly": "frozen"}));
+    assert!(
+        binding
+            .requirements()
+            .contains_key(&CapabilityId::from(CAPABILITY))
+    );
+
+    let history = api
+        .list_events(EventQuery::all(created.target))
+        .await
+        .expect("bootstrap history should be readable");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].id, event_id);
+    assert_eq!(history[0].occurred_at, WorldInstant::new(42));
+
+    let next_event_id = id::<EventId>(0x3130);
+    let next_entity_id = id::<EntityId>(0x3140);
+    let executed = api
+        .invoke(ActionRequest::new(
+            created.target,
+            ActionInvocation::new(
+                ActionTypeId::from(ACTION),
+                json!({
+                    "event_id": next_event_id.to_string(),
+                    "entity_id": next_entity_id.to_string(),
+                }),
+            ),
+        ))
+        .await
+        .expect("newly born World should be immediately executable");
+    assert!(executed.is_committed());
+}
+
+#[tokio::test]
+async fn invalid_template_birth_leaves_no_world_or_timeline_artifact() {
+    let store = InMemoryStore::new();
+    let world_id = id::<WorldId>(0x3201);
+    let timeline_id = id::<TimelineId>(0x3202);
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id,
+            timeline_id,
+        });
+    let api: &dyn LoomApi = &runtime;
+    let result = api
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new("invalid", 1, WorldInstant::new(9))
+                .requires_capability(CAPABILITY, "^0.1.0")
+                .with_bootstrap_action(ActionInvocation::new(
+                    ActionTypeId::from("bootstrap.missing"),
+                    json!({}),
+                )),
+        ))
+        .await
+        .expect_err("unknown bootstrap Action must fail before persistence");
+    assert_eq!(result.code, ApiErrorCode::NotFound);
+    assert!(store.snapshot(timeline_id).is_err());
+    assert!(store.read_binding(world_id).is_err());
+}
+
+#[tokio::test]
+async fn template_revisions_are_snapshotted_per_future_world() {
+    let store = InMemoryStore::new();
+    let first_world = id::<WorldId>(0x3301);
+    let first_timeline = id::<TimelineId>(0x3302);
+    let second_world = id::<WorldId>(0x3303);
+    let second_timeline = id::<TimelineId>(0x3304);
+
+    let first_runtime = Runtime::new(&store, registry())
+        .expect("first Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id: first_world,
+            timeline_id: first_timeline,
+        });
+    first_runtime
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new("revisioned", 1, WorldInstant::new(10))
+                .requires_capability(CAPABILITY, "^0.1.0")
+                .with_configuration(json!({"rules": "v1"})),
+        ))
+        .await
+        .expect("first Template revision should create a World");
+
+    let second_runtime = Runtime::new(&store, registry())
+        .expect("second Runtime should assemble")
+        .with_identity_allocator(FixedIdentityAllocator {
+            world_id: second_world,
+            timeline_id: second_timeline,
+        });
+    second_runtime
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new("revisioned", 2, WorldInstant::new(20))
+                .requires_capability(CAPABILITY, "^0.1.0")
+                .with_configuration(json!({"rules": "v2"})),
+        ))
+        .await
+        .expect("second Template revision should create a later World");
+
+    let first_binding = store
+        .read_binding(first_world)
+        .expect("first World Binding should remain readable");
+    assert_eq!(first_binding.revision(), 1);
+    assert_eq!(first_binding.template_provenance(), Some("revisioned@1"));
+    assert_eq!(first_binding.configuration(), &json!({"rules": "v1"}));
+
+    let second_binding = store
+        .read_binding(second_world)
+        .expect("second World Binding should be readable");
+    assert_eq!(second_binding.revision(), 2);
+    assert_eq!(second_binding.template_provenance(), Some("revisioned@2"));
+    assert_eq!(second_binding.configuration(), &json!({"rules": "v2"}));
 }
