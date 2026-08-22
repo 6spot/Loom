@@ -8,41 +8,46 @@ Loom 不以 MiroFish 的工程结构为基础，也不追求对其实现兼容�
 
 ## Architecture first
 
-Loom 的权威设计来自：
+先读 [`docs/architecture/README.md`](docs/architecture/README.md)。它是 Loom v0 的 **document authority map**，定义每个主题的 canonical source、冲突裁决顺序、accepted Amendments 与当前 deferred decisions。
 
-- [`docs/vision.md`](docs/vision.md) — 项目愿景与完整世界运行图景
-- [`docs/principles.md`](docs/principles.md) — **冻结的跨领域硬原则**
-- [`docs/architecture/core.md`](docs/architecture/core.md) — Core v0 Conceptual Closure
-- [`docs/architecture/layers.md`](docs/architecture/layers.md) — 产品/世界五层语义层级
-- [`docs/architecture/world-runtime.md`](docs/architecture/world-runtime.md) — **冻结的 World Runtime Binding、World Time、Logical Commit、Durable Work chronology、Execution Session 闭环契约**
-- [`docs/architecture/evolution.md`](docs/architecture/evolution.md) — World Evolution、World Binding 与 Runtime Change
-- [`docs/architecture/runtime-contracts.md`](docs/architecture/runtime-contracts.md) — **冻结的 Runtime / Capability / Effect / Durable Work 详细执行契约**
-- [`docs/architecture/implementation.md`](docs/architecture/implementation.md) — Loom v0 技术基线、依赖与数据权威
-- [`docs/architecture/governance.md`](docs/architecture/governance.md) — **强制 Rust 依赖方向、authority type placement、统一 Loom API 暴露与架构变更规则**
+关键文档：
+
+- [`docs/architecture/README.md`](docs/architecture/README.md) — document authority / precedence / amendment index
+- [`docs/architecture/glossary.md`](docs/architecture/glossary.md) — canonical terminology
+- [`docs/vision.md`](docs/vision.md) — 项目愿景
+- [`docs/principles.md`](docs/principles.md) — cross-cutting philosophy，不再维护第二套编号规范
+- [`docs/architecture/core.md`](docs/architecture/core.md) — Core conceptual closure
+- [`docs/architecture/layers.md`](docs/architecture/layers.md) — 五层语义模型
+- [`docs/architecture/world-runtime.md`](docs/architecture/world-runtime.md) — frozen World Runtime baseline
+- [`docs/architecture/runtime-contracts.md`](docs/architecture/runtime-contracts.md) — detailed Runtime/Capability execution contract
+- [`docs/architecture/evolution.md`](docs/architecture/evolution.md) — software/world evolution
+- [`docs/architecture/governance.md`](docs/architecture/governance.md) — Cargo DAG / public exposure / authority placement
+- [`docs/architecture/implementation.md`](docs/architecture/implementation.md) — technical realization baseline
+- [`docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`](docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md) — accepted runtime liveness/boundary amendment
 
 建议阅读顺序：
 
 ```text
-vision
-  ↓
-principles
-  ↓
+architecture/README + glossary
+        ↓
+vision + principles
+        ↓
 core + layers
-  ↓
+        ↓
 world-runtime
-  ↓
+        ↓
+accepted amendments
+        ↓
 runtime-contracts + evolution
-  ↓
+        ↓
 implementation + governance
 ```
 
-`world-runtime.md` 是当前冻结架构闭环的中心文档；`runtime-contracts.md` 是 Core/Protocol/Runtime/Capability 公共抽象的直接执行语义依据；`governance.md` 是所有开发必须遵守的 Rust 物理依赖、authority placement 与公开能力治理规范。根目录 [`AGENTS.md`](AGENTS.md) 提供开发者/编码 Agent 的执行守则。
+`AGENTS.md` 是开发执行入口，不是另一份架构规范；遇到冲突必须回到 Architecture Index 指向的 canonical document。
 
-代码中的公开抽象必须使用 Rust doc comments 记录其意义、所有权、Truth/authority domain、权限、禁止事项、持久化与一致性规则，不能要求维护者通过聊天记录猜测设计意图。
+## Core runtime distinctions
 
-## Frozen runtime distinctions
-
-Loom v0 明确区分：
+Loom v0 保持以下核心分离：
 
 ```text
 Installed Capability
@@ -55,7 +60,7 @@ Execution Assembly
 = exact software implementations pinned for one root Session
 ```
 
-同时区分：
+以及：
 
 ```text
 World History
@@ -65,136 +70,85 @@ Materialized World State
 = Entity / Relationship / Facets
 
 Timeline Logical State
-= World Time / logical Work / logical Work order / TimelineVersion / ancestry
+= World Time / logical Work / logical ordering / TimelineVersion / ancestry
 
 Platform Operational State
 = lease / fence / retry / worker bookkeeping
 
-Platform History / Execution Provenance
-= Runtime Revision / Sessions / exact implementation evidence
+Execution Provenance
+= Runtime Revision / Session / exact implementation / read/call evidence
 ```
 
 两个核心 mutation law：
 
 > **No semantic World State mutation without a committed Event.**
 >
-> **No Timeline logical-state mutation without a Runtime-owned logical commit.**
+> **No Timeline logical-state mutation without a Runtime-owned Logical Commit.**
 
-World Time 是显式 Timeline logical state；Event timestamp 和 PlatformClock 都不能隐式推动它。
+World Time 是显式 Timeline logical state；PlatformClock、Event timestamp、retry/backoff 都不能隐式推动它。
 
-### Durable Work chronology
+## Amendment 0001 closure
 
-Scheduler chronology 同样已经冻结：
-
-```text
-semantic due-ness
-= Pending + effective due World Time <= current World Time
-
-operational claimability
-= semantic due
-  + retry available_at satisfied
-  + no valid lease
-  + compatible implementation available
-```
-
-两者不能混。
-
-同一 Timeline 的 Scheduler-managed Work 使用：
+冻结 baseline 后的正式审查发现了几个 scheduler/boundary liveness 出口缺口。Amendment 0001 已把它们纳入 v0 contract：
 
 ```text
-(effective_due_world_time, logical_schedule_order)
+bounded Runtime FailurePolicy
+same-World-Time Chronology Budget
+Runtime-owned Scheduler / Timeline Driver
+single logical authority with multi-worker CAS/fencing
+SKIP LOCKED only across independent Timeline heads
+Runtime-stamped Event occurred_at
+Ingress envelope -> normal Action authority path
+World Template -> Runtime-owned ValidatedWorldBirthPlan
+Intent / Trigger / Reaction / Actor / Agent terminology reconciliation
 ```
 
-形成持久、可 replay/fork 的逻辑顺序。
+特别地：
 
-因此：
-
-- UUID/WorkId、数据库 natural row order、worker race、wall-clock race、lease acquisition speed 都不能定义 Work 顺序；
-- 只有当前 semantically due logical head 可以被 Scheduler admission/claim；
-- retry/backoff、active lease、worker crash 或 temporarily missing implementation 都不能让 later Work 越过 head；
-- 只要存在 semantically due Pending Work，World Time 就不能继续前进；
-- head 只有通过 Runtime-owned Logical Commit 进入 `Completed / Cancelled / Dead` 后才解除 barrier；
-- 不同 Timeline 可以独立、并行推进。
+- automatic technical retry 必须有界；terminal `Dead/Cancelled` 必须经 Logical Commit；
+- 同一 WorldInstant 的 Immediate/Reaction 链达到 chronology budget 后停止自动推进，但**不能**借此越过 due Work 推进 World Time；
+- `SKIP LOCKED` 可以帮助 worker 分配不同 Timeline 的 head，不能在同一 Timeline 内跳过 logical head；
+- Ingress 是可靠 external envelope，不再形成第二套 Capability handler hierarchy；
+- v0 `ProposedEvent` 不拥有选择 occurrence World Time 的 authority，Runtime 使用 pinned World Time stamp committed Event。
 
 ## Rust workspace
 
 ```text
 Loom
 ├── crates/
-│   ├── loom-core/        # World Language: stable world mechanisms
-│   ├── loom-protocol/    # Internal Execution Language: untrusted proposals
-│   ├── loom-api/         # Public Consumption Language: one Loom API
+│   ├── loom-core/        # World Language
+│   ├── loom-protocol/    # Internal Execution Language
+│   ├── loom-api/         # Public Consumption Language
 │   ├── loom-capability/  # semantic extension API/SPI
-│   ├── loom-agency/      # agent context/cognition extension API/SPI
+│   ├── loom-agency/      # cognition/decision contracts
 │   ├── loom-runtime/     # execution + validation + logical commit + scheduler authority
 │   ├── loom-storage/     # persistence adapter implementing Runtime-owned ports
-│   └── loom-boundary/    # HTTP/SSE/WebSocket adapter over loom-api
+│   └── loom-boundary/    # transport adapter over loom-api
 ├── apps/                 # composition roots and Loom consumers
-├── tools/                # repository architecture/verification tooling
+├── tools/                # architecture/verification tooling
 └── docs/
 ```
 
-这些 crate 是**代码责任与依赖边界**，不是微服务边界。第一阶段保持单体 workspace，不为了未来场景提前拆服务。
+这些 crate 是代码责任与依赖边界，不是微服务边界。v0 保持单体 Rust workspace。
 
-## Dependency and public exposure rule
-
-Loom 明确区分：
-
-```text
-semantic ownership
-runtime call flow
-Cargo dependency direction
-authority / persistence domains
-```
-
-它们不是同一张图。
-
-最核心的工程规则：
+最核心的工程规则仍然是：
 
 > **Core describes what a World is. Protocol describes execution proposals. API describes how Loom is consumed. Runtime decides what becomes reality.**
 
 > **Extension defines semantics; Loom owns exposure.**
 
-Capability 可以注册 `finance.transfer`、`employment.contract` 等语义，但不能自行注册 HTTP route、CLI command、GPUI engine endpoint 或 SDK service。HTTP、GPUI、CLI、SDK 等所有消费者统一通过 `loom-api` 使用 Loom。
-
-Global Capability Registry 只能表示 installed software；Runtime 对 target World 的 Action、Work、Reaction、subresolution、semantic retrieval 与 World-scoped discovery 都必须再检查 World Runtime Binding。
-
-Storage 可以实现 Work persistence、locking 和 `FOR UPDATE SKIP LOCKED` 等技术，但不能用数据库查询顺序重新定义 Timeline 的 logical next Work。
-
-CI 会在 Rust 编译测试前执行 `tools/check_architecture.py`，对 workspace dependency allowlist 和明确的基础设施泄漏进行检查。架构违例属于 build failure，不是 warning。
-
-## UI direction
-
-官方 Loom UI 优先采用 **GPUI**，目标是在 Application 层共享 Native 与 Web/WASM UI 代码。GPUI 当前 Web backend 仍在快速演进，因此 UI 依赖会与 Engine contracts 完全隔离，并在正式接入时固定经过验证的 Zed/GPUI revision。
-
-Studio 是 `loom-api` 的消费者，不直接依赖 Capability、Storage 或 Runtime 内部实现。
+完整 Cargo dependency/public exposure/authority placement 规则只以 `docs/architecture/governance.md` 为准，不在 README 再维护一份 allowlist。
 
 ## Current status
 
-**Loom v0 architecture is frozen.**
+**Loom v0 architecture baseline + accepted Amendment 0001 are closed for re-planning.**
 
-冻结内容至少包括：
+当前仍然不应直接继续旧 Roadmap 的代码实现。
 
-```text
-World Runtime Binding ownership
-Installed vs World-enabled Capability semantics
-explicit World Time progression
-Timeline Logical Commit authority
-semantic Work due-ness vs operational claimability
-same-Timeline deterministic Durable Work ordering
-head-of-line / due-work quiescence barrier
-Execution Session vs Runtime Revision / exact implementation binding
-Replay / Fork reconstruction domains
-Capability host nondeterminism boundaries
-Cargo dependency / authority placement rules
-```
-
-当前**不应直接继续旧 Roadmap 的代码实现**。
-
-下一阶段是：
+下一阶段：
 
 ```text
-Frozen Architecture
+Frozen baseline + accepted Amendments
         ↓
 Rebuild V0 implementation order
         ↓
@@ -203,4 +157,4 @@ Rebuild Issues / docs/tasks
 Resume implementation
 ```
 
-旧 Issue/Task 如果与冻结架构冲突，以架构文档为准；应重做计划，而不是让架构迁就旧实现。
+旧 Issues/tasks 只是历史计划输入；如果与当前 architecture authority map 冲突，必须重做计划，而不是让架构迁就旧实现。
