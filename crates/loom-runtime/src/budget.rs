@@ -1,6 +1,7 @@
 //! Small, Runtime-owned Resolution budget accounting.
 
 use loom_protocol::Resolution;
+use serde::{Deserialize, Serialize};
 
 /// A v0 budget dimension enforced before candidate validation begins.
 ///
@@ -125,7 +126,7 @@ impl BudgetUsage {
 /// unlimited because the caller that owns Runtime policy must choose limits
 /// appropriate for its deployment. A budget failure is a Runtime validation
 /// error and is distinct from `loom_protocol::Rejection`.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ResolutionBudget {
     events: Option<usize>,
     effects: Option<usize>,

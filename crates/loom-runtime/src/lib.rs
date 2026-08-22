@@ -94,13 +94,15 @@ pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
     ActiveRuntimeRevision, AdvanceWorldTime, BindingError, CommitError, CommitResult, CommitStore,
-    CommittedEvent, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
+    CommittedEvent, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
     PlatformTime, ReadError, RuntimeCapabilityImplementation, RuntimeRevision,
     RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
     RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, TimelineSnapshot, WorkClaim,
-    WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
+    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore,
 };
 pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
 pub use validation::{

@@ -24,13 +24,14 @@ use serde_json::json;
 
 use crate::{
     BaseWorldSnapshot, BaseWorldView, BindingError, BudgetUsage, CallProvenance,
-    CandidateWorldView, CommitError, CommitStore, CommittedEvent, EffectEngine, IdentityAllocator,
-    LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
-    ResolutionBudget, RuntimeError, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, TimelineSnapshot,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStore, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldStore,
+    CandidateWorldView, CommitError, CommitStore, CommittedEvent, EffectEngine, ExecutionAssembly,
+    ExecutionOrigin, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
+    IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
+    PlatformTime, ReadError, ResolutionBudget, RuntimeError, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, SessionError, TimelineSnapshot, UuidV7IdentityAllocator,
+    ValidatedResolution, ValidationError, WorkClaim, WorkError, WorkRecord, WorkStore,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -76,7 +77,12 @@ struct ValidatedWorldBirthPlan {
 
 impl<S> Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     /// Creates a Runtime after validating the assembled Capability registry.
     ///
@@ -145,6 +151,133 @@ where
     pub fn with_resolution_budget(mut self, budget: ResolutionBudget) -> Self {
         self.resolution_budget = budget;
         self
+    }
+
+    async fn execution_assembly(
+        &self,
+        snapshot: &TimelineSnapshot,
+        binding: WorldRuntimeBinding,
+    ) -> ApiResult<ExecutionAssembly> {
+        let active_selection = self
+            .store
+            .select_active_revision()
+            .await
+            .map_err(|error| map_runtime_revision_error(&error))?;
+        let (selection, legacy_migration) = match active_selection {
+            Some(selection) => (selection, false),
+            None => (self.legacy_runtime_revision(), true),
+        };
+        // M3 Worlds can carry the checked-in compatibility baseline while a
+        // test/application Runtime intentionally installs only a subset of
+        // that historical registry. The synthetic, non-activated migration
+        // selection preserves that pre-M4 behavior; an explicitly activated
+        // revision remains strict against every immutable Binding requirement.
+        let compatibility_binding = if legacy_migration {
+            WorldRuntimeBinding::new(
+                binding
+                    .requirements()
+                    .iter()
+                    .filter(|(capability_id, _)| self.registry.capability(capability_id).is_some())
+                    .map(|(capability_id, requirement)| {
+                        (capability_id.clone(), requirement.clone())
+                    }),
+                binding.configuration().clone(),
+                binding.revision(),
+                binding.template_provenance().map(str::to_owned),
+            )
+        } else {
+            binding.clone()
+        };
+        let implementations = selection
+            .revision()
+            .compatible_with(&compatibility_binding)
+            .map_err(|error| map_revision_compatibility_error(&error))?;
+
+        // The persisted revision is a description of the composition root's
+        // exact software. Validate that the immutable registry supplied to
+        // this Runtime still represents that description before Session start.
+        // The registry itself is never refreshed or re-selected while a
+        // Session is executing.
+        for implementation in implementations.capabilities().values() {
+            let Some(manifest) = self.registry.capability(implementation.capability_id()) else {
+                return Err(ApiError::unavailable(
+                    "active Runtime Revision implementation is not installed",
+                ));
+            };
+            if manifest.version != *implementation.version()
+                || manifest.loom_compatibility != *implementation.loom_compatibility()
+            {
+                return Err(ApiError::unavailable(
+                    "active Runtime Revision implementation does not match the installed registry",
+                ));
+            }
+        }
+
+        let session_id = self.identity_allocator.allocate_execution_session_id();
+        if session_id.is_nil() {
+            return Err(ApiError::internal(
+                "Runtime identity allocator returned an invalid Execution Session identity",
+            ));
+        }
+        Ok(ExecutionAssembly::new(
+            session_id,
+            snapshot.world_id(),
+            snapshot.timeline_id(),
+            snapshot.version(),
+            snapshot.world_time(),
+            binding,
+            selection,
+            implementations,
+            self.resolution_budget,
+        ))
+    }
+
+    fn legacy_runtime_revision(&self) -> RuntimeRevisionSelection {
+        let loom_version = self.registry.loom_version().clone();
+        let capabilities = self.registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("legacy-registry:{}@{}", manifest.id, manifest.version),
+            )
+        });
+        let descriptor = RuntimeRevisionDescriptor::new(
+            RuntimeRevisionId::from("legacy-registry"),
+            PlatformTime::default(),
+            "legacy-registry",
+            loom_version,
+            capabilities,
+        )
+        .expect("the immutable assembled Capability registry must form a legacy revision");
+        RuntimeRevisionSelection::new(descriptor, 0, PlatformTime::default())
+    }
+
+    async fn start_execution_session(
+        &self,
+        assembly: ExecutionAssembly,
+        origin: ExecutionOrigin,
+    ) -> ApiResult<ExecutionSession> {
+        let session = ExecutionSession::new(
+            assembly.session_id(),
+            origin,
+            assembly,
+            self.platform_clock.now(),
+        );
+        self.store
+            .start_session(session.clone())
+            .await
+            .map_err(|error| map_session_error(&error))?;
+        Ok(session)
+    }
+
+    async fn finish_execution_session(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+    ) -> ApiResult<ExecutionSession> {
+        self.store
+            .finish_session(session_id, status, self.platform_clock.now())
+            .await
+            .map_err(|error| map_session_error(&error))
     }
 
     /// Explicitly publishes a Runtime Revision through the Platform History
@@ -313,33 +446,28 @@ where
         template: &WorldTemplateDescriptor,
         world_id: loom_core::WorldId,
         timeline_id: TimelineId,
+        assembly: &ExecutionAssembly,
     ) -> ApiResult<ValidatedWorldBirthPlan> {
-        let binding = self.validate_template_binding(template)?;
         let initial_base = BaseWorldView::new(BaseWorldSnapshot::new(
             world_id,
             timeline_id,
             loom_core::TimelineVersion::default(),
             template.initial_world_time,
         ));
-        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
         let mut base = initial_base;
         let mut bootstrap = Vec::with_capacity(template.bootstrap_actions.len());
         let mut total_usage = BudgetUsage::default();
 
         for invocation in &template.bootstrap_actions {
-            enabled_action(&self.registry, &binding, &invocation.action)
+            enabled_action(&self.registry, assembly, &invocation.action)
                 .map_err(map_dispatch_error)?;
             engine
                 .validate_action_input(&invocation.action, &invocation.input)
                 .map_err(|error| map_action_input_error(&error))?;
-            let (outcome, execution) = dispatch_root_action(
-                &base,
-                &self.registry,
-                &binding,
-                self.resolution_budget,
-                invocation,
-            )
-            .map_err(map_dispatch_error)?;
+            let (outcome, execution) =
+                dispatch_root_action(&base, &self.registry, assembly, invocation)
+                    .map_err(map_dispatch_error)?;
             let ResolveOutcome::Resolved(_) = outcome else {
                 return Err(ApiError::invalid_request(format!(
                     "Template bootstrap Action {} was semantically rejected",
@@ -350,7 +478,8 @@ where
                 .validate_segments(&base, &execution.segments, execution.call_provenance)
                 .map_err(|error| map_runtime_error(&error))?;
             total_usage = total_usage.combine(BudgetUsage::from_resolution(validated.resolution()));
-            self.resolution_budget
+            assembly
+                .execution_policy()
                 .check(total_usage)
                 .map_err(|error| ApiError::invalid_request(error.to_string()))?;
 
@@ -369,7 +498,7 @@ where
             world_id,
             timeline_id,
             initial_world_time: template.initial_world_time,
-            binding,
+            binding: assembly.binding().clone(),
             bootstrap,
         })
     }
@@ -377,10 +506,11 @@ where
     /// Executes one claimed Durable Work obligation through the same
     /// Resolution → validation → authority commit path as a public Action.
     ///
-    /// The Work is claimed before resolution and is completed atomically with
-    /// the resulting Events, Effects and Work mutations. A handler/runtime/
-    /// commit failure releases the lease through the existing technical retry
-    /// port at `retry_available_at`; that bookkeeping changes no World Truth.
+    /// Runtime preflights the pinned implementation before claiming the Work;
+    /// after claim, resolution and completion are atomic with the resulting
+    /// Events, Effects and Work mutations. A handler/runtime/commit failure
+    /// releases the lease through the existing technical retry port at
+    /// `retry_available_at`; that bookkeeping changes no World Truth.
     /// A semantic `Rejected` outcome completes the current Work with an empty
     /// validated Resolution and returns the public rejection unchanged.
     ///
@@ -403,6 +533,7 @@ where
             .works
             .iter()
             .find(|work| work.id == work_id)
+            .cloned()
             .ok_or_else(|| ApiError::not_found(format!("Work {work_id} was not found")))?;
         if work
             .due_world_time
@@ -411,21 +542,23 @@ where
             return Err(ApiError::unavailable("Work is not due in World Time"));
         }
 
+        let binding = self.binding_for_world(snapshot.world_id()).await?;
+        let assembly = self.execution_assembly(&snapshot, binding).await?;
+        validate_work_target(&self.registry, &assembly, &work.handler)?;
+
+        // Compatibility and exact handler assembly are checked before claim.
+        // A missing software implementation therefore cannot consume the
+        // Work's technical attempt counter or create a lease.
         let claim = self
             .store
             .claim(target.timeline_id, work_id, now, claimed_until)
             .await
             .map_err(|error| map_work_error(&error))?;
-        let snapshot = match self.snapshot_for_target(target).await {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                return Err(self
-                    .retry_after_failure(&claim, now, retry_available_at, error)
-                    .await);
-            }
-        };
-        let binding = match self.binding_for_world(snapshot.world_id()).await {
-            Ok(binding) => binding,
+        let session = match self
+            .start_execution_session(assembly.clone(), ExecutionOrigin::Runtime)
+            .await
+        {
+            Ok(session) => session,
             Err(error) => {
                 return Err(self
                     .retry_after_failure(&claim, now, retry_available_at, error)
@@ -436,8 +569,7 @@ where
         let (outcome, execution) = match dispatch_root_work(
             &base,
             &self.registry,
-            &binding,
-            self.resolution_budget,
+            &assembly,
             &work.handler,
             &work.payload,
         ) {
@@ -445,12 +577,12 @@ where
             Err(error) => {
                 let error = map_dispatch_error(error);
                 return Err(self
-                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .finish_failure_and_retry(&session, &claim, now, retry_available_at, error)
                     .await);
             }
         };
 
-        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
         let rejection = match &outcome {
             ResolveOutcome::Rejected(rejection) => Some(rejection.clone()),
             ResolveOutcome::Resolved(_) => None,
@@ -470,21 +602,29 @@ where
             Err(error) => {
                 let error = map_runtime_error(&error);
                 return Err(self
-                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .finish_failure_and_retry(&session, &claim, now, retry_available_at, error)
                     .await);
             }
         };
 
         let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
         match self.store.commit(&validated, Some(&claim), now).await {
-            Ok(result) => match rejection {
-                Some(rejection) => Ok(ExecutionResult::rejected(rejection)),
-                None => Ok(execution_result(&result, changes_runtime_state)),
-            },
+            Ok(result) => {
+                let status = if rejection.is_some() {
+                    ExecutionSessionStatus::Rejected
+                } else {
+                    ExecutionSessionStatus::Committed
+                };
+                self.finish_execution_session(session.id(), status).await?;
+                match rejection {
+                    Some(rejection) => Ok(ExecutionResult::rejected(rejection)),
+                    None => Ok(execution_result(&result, changes_runtime_state)),
+                }
+            }
             Err(error) => {
                 let error = map_commit_error(&error);
                 Err(self
-                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .finish_failure_and_retry(&session, &claim, now, retry_available_at, error)
                     .await)
             }
         }
@@ -541,6 +681,25 @@ where
             return ApiError::internal("Work failure could not be recorded for retry");
         }
         error
+    }
+
+    async fn finish_failure_and_retry(
+        &self,
+        session: &ExecutionSession,
+        claim: &WorkClaim,
+        now: PlatformTime,
+        retry_available_at: PlatformTime,
+        error: ApiError,
+    ) -> ApiError {
+        let error = match self
+            .finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
+            .await
+        {
+            Ok(_) => error,
+            Err(session_error) => session_error,
+        };
+        self.retry_after_failure(claim, now, retry_available_at, error)
+            .await
     }
 }
 
@@ -674,6 +833,38 @@ where
     }
 }
 
+impl<T> ExecutionSessionStore for &T
+where
+    T: ExecutionSessionStore + ?Sized,
+{
+    fn start_session(
+        &self,
+        session: ExecutionSession,
+    ) -> PersistenceFuture<'_, Result<(), SessionError>> {
+        (**self).start_session(session)
+    }
+
+    fn finish_session(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).finish_session(session_id, status, ended_at)
+    }
+
+    fn read_session(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).read_session(session_id)
+    }
+
+    fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
+        (**self).list_sessions()
+    }
+}
+
 impl<T> CommitStore for &T
 where
     T: CommitStore + ?Sized,
@@ -723,7 +914,13 @@ where
 
 impl<S> WorldService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore + WorldLifecycleStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + WorldLifecycleStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn create_world_from_template(
         &self,
@@ -738,8 +935,35 @@ where
                 ));
             }
 
-            let plan = self.validate_world_template(&request.template, world_id, timeline_id)?;
-            let created = self
+            let binding = self.validate_template_binding(&request.template)?;
+            let initial_snapshot = TimelineSnapshot::new(
+                BaseWorldSnapshot::new(
+                    world_id,
+                    timeline_id,
+                    loom_core::TimelineVersion::default(),
+                    request.template.initial_world_time,
+                ),
+                Vec::new(),
+                Vec::new(),
+            );
+            let assembly = self.execution_assembly(&initial_snapshot, binding).await?;
+            let session = self
+                .start_execution_session(assembly.clone(), ExecutionOrigin::Runtime)
+                .await?;
+            let plan = match self.validate_world_template(
+                &request.template,
+                world_id,
+                timeline_id,
+                &assembly,
+            ) {
+                Ok(plan) => plan,
+                Err(error) => {
+                    self.finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
+                        .await?;
+                    return Err(error);
+                }
+            };
+            let created = match self
                 .store
                 .create_world_with_bootstrap(
                     plan.world_id,
@@ -750,7 +974,16 @@ where
                     self.platform_clock.now(),
                 )
                 .await
-                .map_err(|error| map_lifecycle_error(&error))?;
+            {
+                Ok(created) => created,
+                Err(error) => {
+                    self.finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
+                        .await?;
+                    return Err(map_lifecycle_error(&error));
+                }
+            };
+            self.finish_execution_session(session.id(), ExecutionSessionStatus::Committed)
+                .await?;
             Ok(ApiTimelineSnapshot::new(
                 TimelineTarget::new(created.world_id(), created.timeline_id()),
                 created.version(),
@@ -762,40 +995,87 @@ where
 
 impl<S> ActionService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(request.target).await?;
             let binding = self.binding_for_world(snapshot.world_id()).await?;
-            let base = snapshot.world_view();
-            enabled_action(&self.registry, &binding, &request.invocation.action)
+            let assembly = self.execution_assembly(&snapshot, binding).await?;
+            enabled_action(&self.registry, &assembly, &request.invocation.action)
                 .map_err(map_dispatch_error)?;
-            let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
-            engine
+            let session = self
+                .start_execution_session(assembly.clone(), ExecutionOrigin::Application)
+                .await?;
+            let base = snapshot.world_view();
+            let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
+            if let Err(error) = engine
                 .validate_action_input(&request.invocation.action, &request.invocation.input)
-                .map_err(|error| map_action_input_error(&error))?;
-            let (outcome, execution) = dispatch_root_action(
-                &base,
-                &self.registry,
-                &binding,
-                self.resolution_budget,
-                &request.invocation,
-            )
-            .map_err(map_dispatch_error)?;
+                .map_err(|error| map_action_input_error(&error))
+            {
+                self.finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
+                    .await?;
+                return Err(error);
+            }
+            let (outcome, execution) =
+                match dispatch_root_action(&base, &self.registry, &assembly, &request.invocation)
+                    .map_err(map_dispatch_error)
+                {
+                    Ok(result) => result,
+                    Err(error) => {
+                        self.finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
+                            .await?;
+                        return Err(error);
+                    }
+                };
             match outcome {
-                ResolveOutcome::Rejected(rejection) => Ok(ExecutionResult::rejected(rejection)),
+                ResolveOutcome::Rejected(rejection) => {
+                    self.finish_execution_session(session.id(), ExecutionSessionStatus::Rejected)
+                        .await?;
+                    Ok(ExecutionResult::rejected(rejection))
+                }
                 ResolveOutcome::Resolved(_) => {
-                    let validated = engine
+                    let validated = match engine
                         .validate_segments(&base, &execution.segments, execution.call_provenance)
-                        .map_err(|error| map_runtime_error(&error))?;
-                    self.store
+                        .map_err(|error| map_runtime_error(&error))
+                    {
+                        Ok(validated) => validated,
+                        Err(error) => {
+                            self.finish_execution_session(
+                                session.id(),
+                                ExecutionSessionStatus::Failed,
+                            )
+                            .await?;
+                            return Err(error);
+                        }
+                    };
+                    let result = match self
+                        .store
                         .commit(&validated, None, self.platform_clock.now())
                         .await
-                        .map(|result| {
-                            execution_result(&result, changes_runtime_state(&validated, None))
-                        })
                         .map_err(|error| map_commit_error(&error))
+                    {
+                        Ok(result) => result,
+                        Err(error) => {
+                            self.finish_execution_session(
+                                session.id(),
+                                ExecutionSessionStatus::Failed,
+                            )
+                            .await?;
+                            return Err(error);
+                        }
+                    };
+                    self.finish_execution_session(session.id(), ExecutionSessionStatus::Committed)
+                        .await?;
+                    Ok(execution_result(
+                        &result,
+                        changes_runtime_state(&validated, None),
+                    ))
                 }
             }
         })
@@ -804,7 +1084,12 @@ where
 
 impl<S> TimelineService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, ApiTimelineSnapshot> {
         Box::pin(async move {
@@ -820,7 +1105,12 @@ where
 
 impl<S> QueryService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<ApiFacetSnapshot>> {
         Box::pin(async move {
@@ -840,7 +1130,12 @@ where
 
 impl<S> HistoryService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
         Box::pin(async move {
@@ -861,7 +1156,12 @@ where
 
 impl<S> CatalogService for Runtime<S>
 where
-    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
 {
     fn catalog(&self) -> ApiResult<CatalogSnapshot> {
         let capabilities = self
@@ -991,7 +1291,7 @@ impl ExecutionState {
 struct RuntimeResolutionContext<'a> {
     base: &'a crate::BaseWorldView,
     registry: &'a CapabilityRegistry,
-    binding: &'a WorldRuntimeBinding,
+    assembly: &'a ExecutionAssembly,
     state: Rc<RefCell<ExecutionState>>,
     frame: CallFrame,
 }
@@ -1008,7 +1308,7 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
         dispatch_child_action(
             self.base,
             self.registry,
-            self.binding,
+            self.assembly,
             &self.state,
             &self.frame,
             invocation,
@@ -1024,29 +1324,29 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
 fn dispatch_root_action(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
-    budget: ResolutionBudget,
+    assembly: &ExecutionAssembly,
     invocation: &ActionInvocation,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
-    let action = enabled_action(registry, binding, &invocation.action)?;
+    let action = enabled_action(registry, assembly, &invocation.action)?;
     let frame = CallFrame {
         owner: action.owner.clone(),
         action: invocation.action.clone(),
     };
-    let state = Rc::new(RefCell::new(ExecutionState::new(budget)));
+    let state = Rc::new(RefCell::new(ExecutionState::new(
+        assembly.execution_policy(),
+    )));
     state
         .borrow_mut()
         .enter_root(frame.clone())
         .map_err(internal_dispatch_error)?;
-    let outcome = dispatch_action_frame(base, registry, binding, &state, &frame, invocation)?;
+    let outcome = dispatch_action_frame(base, registry, assembly, &state, &frame, invocation)?;
     Ok((outcome, state.borrow().clone()))
 }
 
 fn dispatch_root_work(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
-    budget: ResolutionBudget,
+    assembly: &ExecutionAssembly,
     handler_id: &loom_core::WorkHandlerId,
     payload: &serde_json::Value,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
@@ -1057,20 +1357,23 @@ fn dispatch_root_work(
         owner: handler.owner.clone(),
         action: ActionTypeId::from(format!("work:{handler_id}")),
     };
-    let state = Rc::new(RefCell::new(ExecutionState::new(budget)));
+    let state = Rc::new(RefCell::new(ExecutionState::new(
+        assembly.execution_policy(),
+    )));
     state
         .borrow_mut()
         .enter_root(frame.clone())
         .map_err(internal_dispatch_error)?;
-    let outcome =
-        dispatch_work_frame(base, registry, binding, &state, &frame, handler_id, payload)?;
+    let outcome = dispatch_work_frame(
+        base, registry, assembly, &state, &frame, handler_id, payload,
+    )?;
     Ok((outcome, state.borrow().clone()))
 }
 
 fn dispatch_action_frame(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
+    assembly: &ExecutionAssembly,
     state: &Rc<RefCell<ExecutionState>>,
     frame: &CallFrame,
     invocation: &ActionInvocation,
@@ -1079,7 +1382,7 @@ fn dispatch_action_frame(
         let context = RuntimeResolutionContext {
             base,
             registry,
-            binding,
+            assembly,
             state: Rc::clone(state),
             frame: frame.clone(),
         };
@@ -1091,7 +1394,7 @@ fn dispatch_action_frame(
 fn dispatch_work_frame(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
+    assembly: &ExecutionAssembly,
     state: &Rc<RefCell<ExecutionState>>,
     frame: &CallFrame,
     handler_id: &loom_core::WorkHandlerId,
@@ -1101,7 +1404,7 @@ fn dispatch_work_frame(
         let context = RuntimeResolutionContext {
             base,
             registry,
-            binding,
+            assembly,
             state: Rc::clone(state),
             frame: frame.clone(),
         };
@@ -1134,12 +1437,12 @@ fn capture_outcome(
 fn dispatch_child_action(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
+    assembly: &ExecutionAssembly,
     state: &Rc<RefCell<ExecutionState>>,
     caller: &CallFrame,
     invocation: &ActionInvocation,
 ) -> Result<ResolveOutcome, DispatchError> {
-    let action = enabled_action(registry, binding, &invocation.action)?;
+    let action = enabled_action(registry, assembly, &invocation.action)?;
     EffectEngine::new(registry)
         .validate_action_input(&invocation.action, &invocation.input)
         .map_err(|error| {
@@ -1174,7 +1477,7 @@ fn dispatch_child_action(
         state.borrow_mut().record_failure(message.clone());
         return Err(internal_dispatch_error(message));
     }
-    let result = dispatch_action_frame(base, registry, binding, state, &target, invocation);
+    let result = dispatch_action_frame(base, registry, assembly, state, &target, invocation);
     state.borrow_mut().leave(&target);
     result
 }
@@ -1185,19 +1488,52 @@ fn internal_dispatch_error(message: impl Into<String>) -> DispatchError {
 
 fn enabled_action<'a>(
     registry: &'a CapabilityRegistry,
-    binding: &WorldRuntimeBinding,
+    assembly: &ExecutionAssembly,
     action_id: &ActionTypeId,
 ) -> Result<&'a loom_capability::RegisteredAction, DispatchError> {
     let action = registry
         .action(action_id)
         .ok_or_else(|| DispatchError::UnknownAction(action_id.clone()))?;
-    let enabled = registry
-        .capability(&action.owner)
-        .is_some_and(|manifest| binding.allows(&action.owner, &manifest.version));
+    let Some(manifest) = registry.capability(&action.owner) else {
+        return Err(DispatchError::UnavailableAction(action_id.clone()));
+    };
+    let enabled = assembly.binding().allows(&action.owner, &manifest.version)
+        && assembly
+            .implementations()
+            .capability(&action.owner)
+            .is_some_and(|implementation| implementation.version() == &manifest.version);
     if !enabled {
         return Err(DispatchError::UnavailableAction(action_id.clone()));
     }
     Ok(action)
+}
+
+fn validate_work_target(
+    registry: &CapabilityRegistry,
+    assembly: &ExecutionAssembly,
+    handler_id: &loom_core::WorkHandlerId,
+) -> ApiResult<()> {
+    let Some(handler) = registry.work_handler(handler_id) else {
+        return Err(ApiError::not_found(format!(
+            "Work handler {handler_id} was not registered"
+        )));
+    };
+    let Some(manifest) = registry.capability(&handler.owner) else {
+        return Err(ApiError::unavailable(
+            "Work handler owner is not installed in the active Runtime Revision",
+        ));
+    };
+    let compatible = assembly.binding().allows(&handler.owner, &manifest.version)
+        && assembly
+            .implementations()
+            .capability(&handler.owner)
+            .is_some_and(|implementation| implementation.version() == &manifest.version);
+    if !compatible {
+        return Err(ApiError::unavailable(
+            "Work handler has no compatible pinned implementation",
+        ));
+    }
+    Ok(())
 }
 
 fn changes_runtime_state(
@@ -1273,6 +1609,41 @@ fn legacy_binding() -> WorldRuntimeBinding {
         1,
         Some("m3-compatibility-baseline-v1".to_owned()),
     )
+}
+
+fn map_runtime_revision_error(error: &RuntimeRevisionError) -> ApiError {
+    match error {
+        RuntimeRevisionError::RevisionNotFound { .. }
+        | RuntimeRevisionError::RevisionDescriptorMismatch { .. }
+        | RuntimeRevisionError::RevisionAlreadyExists { .. }
+        | RuntimeRevisionError::ActiveRevisionConflict { .. }
+        | RuntimeRevisionError::ActivationGenerationOverflow
+        | RuntimeRevisionError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Runtime Revision selection is unavailable")
+        }
+    }
+}
+
+fn map_revision_compatibility_error(error: &crate::RuntimeRevisionCompatibilityError) -> ApiError {
+    match error {
+        crate::RuntimeRevisionCompatibilityError::MissingCapability { .. }
+        | crate::RuntimeRevisionCompatibilityError::VersionMismatch { .. } => {
+            ApiError::unavailable(
+                "active Runtime Revision has no compatible implementation for this World",
+            )
+        }
+    }
+}
+
+fn map_session_error(error: &SessionError) -> ApiError {
+    match error {
+        SessionError::SessionAlreadyExists { .. }
+        | SessionError::SessionNotFound { .. }
+        | SessionError::InvalidTransition { .. }
+        | SessionError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Execution Session provenance is unavailable")
+        }
+    }
 }
 
 fn map_binding_error(error: &BindingError) -> ApiError {
@@ -1415,6 +1786,7 @@ mod tests {
         ActionTypeId, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId, WorldInstant,
     };
     use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
+    use semver::Version;
     use serde_json::{Value, json};
 
     use crate::{BaseWorldSnapshot, BaseWorldView};
@@ -1533,19 +1905,61 @@ mod tests {
         ))
     }
 
+    fn test_assembly(
+        registry: &CapabilityRegistry,
+        binding: WorldRuntimeBinding,
+    ) -> ExecutionAssembly {
+        let revision = RuntimeRevisionDescriptor::new(
+            RuntimeRevisionId::from("test-revision"),
+            PlatformTime::default(),
+            "test-build",
+            Version::new(0, 1, 0),
+            registry.capabilities().map(|manifest| {
+                RuntimeRevisionCapability::from_manifest(
+                    manifest,
+                    format!("test:{}@{}", manifest.id, manifest.version),
+                )
+            }),
+        )
+        .expect("test registry should form a Runtime Revision");
+        let selection = RuntimeRevisionSelection::new(revision.clone(), 1, PlatformTime::default());
+        let implementations = revision
+            .compatible_with(&binding)
+            .expect("test binding should be compatible");
+        let view = base();
+        ExecutionAssembly::new(
+            id::<loom_core::ExecutionSessionId>(3),
+            view.world_id(),
+            view.timeline_id(),
+            view.version(),
+            view.world_time(),
+            binding,
+            selection,
+            implementations,
+            ResolutionBudget::unlimited(),
+        )
+    }
+
     #[test]
     fn runtime_call_edge_is_observable_separately_from_world_causality() {
         let registry = registry();
-        let binding = legacy_binding();
+        let binding = WorldRuntimeBinding::new(
+            ["provenance.parent", "provenance.child"]
+                .into_iter()
+                .map(|id| {
+                    (
+                        CapabilityId::from(id),
+                        VersionReq::parse("^0.1.0").expect("test requirement should parse"),
+                    )
+                }),
+            json!({"fixture": "provenance"}),
+            1,
+            Some("test-provenance".to_owned()),
+        );
+        let assembly = test_assembly(&registry, binding);
         let invocation = ActionInvocation::new(ActionTypeId::from("provenance.parent"), json!({}));
-        let (outcome, execution) = dispatch_root_action(
-            &base(),
-            &registry,
-            &binding,
-            ResolutionBudget::unlimited(),
-            &invocation,
-        )
-        .expect("root dispatch should complete with semantic rejection");
+        let (outcome, execution) = dispatch_root_action(&base(), &registry, &assembly, &invocation)
+            .expect("root dispatch should complete with semantic rejection");
         assert!(matches!(outcome, ResolveOutcome::Rejected(_)));
         assert_eq!(execution.call_provenance.len(), 1);
         let edge = &execution.call_provenance.edges()[0];

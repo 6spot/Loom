@@ -20,7 +20,8 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    EffectEngine, PlatformTime, Runtime, RuntimeError, SemanticKind, ValidationError, WorkRecord,
+    EffectEngine, ExecutionSessionStore, PlatformTime, Runtime, RuntimeError,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind, ValidationError, WorkRecord,
     WorkStatus,
 };
 use loom_storage::InMemoryStore;
@@ -710,6 +711,83 @@ async fn vertical_slice_executes_durable_work_and_completes_atomically() {
             .expect("completed Work should remain inspectable")
             .status,
         WorkStatus::Completed
+    );
+}
+
+#[tokio::test]
+async fn missing_active_work_implementation_is_unavailable_before_claim() {
+    let store = counter_store();
+    store
+        .seed_work(WorkRecord {
+            id: work(22),
+            timeline_id: timeline(),
+            handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"amount": 4, "event_id": event(22).to_string()}),
+            due_world_time: None,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("missing-implementation Work should be seeded");
+    let registry = counter_registry();
+    let loom_version = registry
+        .capabilities()
+        .next()
+        .expect("counter registry should have one Capability")
+        .version
+        .clone();
+    let missing_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("missing-counter"),
+        PlatformTime::new(1),
+        "missing-counter-build",
+        loom_version,
+        std::iter::empty(),
+    )
+    .expect("an empty revision descriptor should be valid publication metadata");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    runtime
+        .register_runtime_revision(missing_revision)
+        .await
+        .expect("missing revision should register as immutable history");
+    runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("missing-counter"),
+            None,
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("missing revision should activate for the negative test");
+
+    let error = runtime
+        .execute_work(
+            counter_target(),
+            work(22),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(3),
+        )
+        .await
+        .expect_err("missing compatible software must stop before claim");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    let work = store
+        .work(timeline(), work(22))
+        .expect("Work lookup should succeed")
+        .expect("Work should remain persisted");
+    assert_eq!(work.attempt_count, 0);
+    assert_eq!(work.claim_generation, 0);
+    assert!(work.lease.is_none());
+    assert!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("Session ledger should remain readable")
+            .is_empty(),
+        "unavailable software must not start a Session"
     );
 }
 

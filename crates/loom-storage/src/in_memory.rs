@@ -14,16 +14,18 @@ use std::{
 };
 
 use loom_core::{
-    Entity, EntityId, EventId, FacetOwner, FacetTypeId, Relationship, RelationshipId, TimelineId,
-    TimelineVersion, WorldEffect, WorldId, WorldInstant,
+    Entity, EntityId, EventId, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
+    RelationshipId, TimelineId, TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommitError, CommitResult, CommitStore,
-    CommittedEvent, LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
+    CommittedEvent, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
+    LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease,
-    WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    RuntimeRevisionStore, SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim,
+    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -79,6 +81,7 @@ struct StoreState {
     timelines: HashMap<TimelineId, TimelineState>,
     runtime_revisions: BTreeMap<RuntimeRevisionId, RuntimeRevisionDescriptor>,
     active_runtime_revision: Option<RuntimeRevisionSelection>,
+    execution_sessions: BTreeMap<ExecutionSessionId, ExecutionSession>,
 }
 
 /// Errors raised while creating or seeding an in-memory World fixture.
@@ -162,6 +165,97 @@ impl InMemoryStore {
         Self {
             state: RwLock::new(StoreState::default()),
         }
+    }
+
+    /// Persists one immutable started Session in the in-memory Platform
+    /// History authority.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed duplicate or lifecycle error when the identity has
+    /// already been recorded or the supplied value is not `Started`.
+    pub fn start_session(&self, session: ExecutionSession) -> Result<(), SessionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let session_id = session.id();
+        if staged.execution_sessions.contains_key(&session_id) {
+            return Err(SessionError::SessionAlreadyExists { session_id });
+        }
+        if session.status() != ExecutionSessionStatus::Started {
+            return Err(SessionError::InvalidTransition {
+                session_id,
+                from: session.status(),
+                to: ExecutionSessionStatus::Started,
+            });
+        }
+        staged.execution_sessions.insert(session_id, session);
+        *guard = staged;
+        Ok(())
+    }
+
+    /// Linearizes one terminal Session lifecycle transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed missing-Session or invalid-transition error when the
+    /// identity is absent or already terminal.
+    pub fn finish_session(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> Result<ExecutionSession, SessionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let current = staged
+            .execution_sessions
+            .get(&session_id)
+            .cloned()
+            .ok_or(SessionError::SessionNotFound { session_id })?;
+        if current.status() != ExecutionSessionStatus::Started {
+            if current.status() == status {
+                return Ok(current);
+            }
+            return Err(SessionError::InvalidTransition {
+                session_id,
+                from: current.status(),
+                to: status,
+            });
+        }
+        let finished = current.finish(status, ended_at)?;
+        staged
+            .execution_sessions
+            .insert(session_id, finished.clone());
+        *guard = staged;
+        Ok(finished)
+    }
+
+    /// Reads one Session record without exposing mutable adapter state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError::SessionNotFound`] when the identity is absent.
+    pub fn read_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> Result<ExecutionSession, SessionError> {
+        let guard = self.read_state();
+        guard
+            .execution_sessions
+            .get(&session_id)
+            .cloned()
+            .ok_or(SessionError::SessionNotFound { session_id })
+    }
+
+    /// Reads all Session records in deterministic identity order.
+    ///
+    /// # Errors
+    ///
+    /// This operation currently has no expected in-memory failure, but keeps
+    /// the port's typed error contract for adapter parity.
+    pub fn list_sessions(&self) -> Result<Vec<ExecutionSession>, SessionError> {
+        let guard = self.read_state();
+        Ok(guard.execution_sessions.values().cloned().collect())
     }
 
     /// Registers one World identity for later Timeline creation.
@@ -1085,6 +1179,35 @@ impl RuntimeRevisionStore for InMemoryStore {
         Box::pin(async move {
             InMemoryStore::activate_revision(self, revision_id, expected_generation, activated_at)
         })
+    }
+}
+
+impl ExecutionSessionStore for InMemoryStore {
+    fn start_session(
+        &self,
+        session: ExecutionSession,
+    ) -> PersistenceFuture<'_, Result<(), SessionError>> {
+        Box::pin(async move { InMemoryStore::start_session(self, session) })
+    }
+
+    fn finish_session(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move { InMemoryStore::finish_session(self, session_id, status, ended_at) })
+    }
+
+    fn read_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move { InMemoryStore::read_session(self, session_id) })
+    }
+
+    fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
+        Box::pin(async move { InMemoryStore::list_sessions(self) })
     }
 }
 
