@@ -1,4 +1,4 @@
-//! PostgreSQL implementation of Runtime Execution Session persistence.
+//! `PostgreSQL` implementation of Runtime Execution Session persistence.
 
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
