@@ -5,9 +5,9 @@ use std::sync::{
 
 use loom_api::{ActionRequest, ApiErrorCode, ExecutionResult, LoomApi, TimelineTarget};
 use loom_capability::{
-    ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityManifest,
-    CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
-    ResolutionContext, ResolverError,
+    ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
+    CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition,
+    RegistrationError, ResolutionContext, ResolverError,
 };
 use loom_core::{
     ActionTypeId, Entity, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
@@ -19,7 +19,7 @@ use loom_protocol::{
 use loom_runtime::{
     CallProvenance, CommitError, CommitResult, CommitStore, PersistenceFuture, PlatformTime,
     ReadError, ResolutionBudget, Runtime, TimelineSnapshot, ValidatedResolution, WorkClaim,
-    WorkError, WorkRecord, WorkStore, WorldStore,
+    WorkError, WorkRecord, WorkStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -448,6 +448,31 @@ impl WorldStore for CountingStore {
     }
 }
 
+impl WorldRuntimeBindingStore for CountingStore {
+    fn read_binding(
+        &self,
+        world_id: WorldId,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, loom_runtime::BindingError>> {
+        WorldRuntimeBindingStore::read_binding(&self.inner, world_id)
+    }
+
+    fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<(), loom_runtime::BindingError>> {
+        WorldRuntimeBindingStore::persist_binding(&self.inner, world_id, binding)
+    }
+
+    fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, loom_runtime::BindingError>> {
+        WorldRuntimeBindingStore::ensure_binding(&self.inner, world_id, legacy_binding)
+    }
+}
+
 impl CommitStore for CountingStore {
     fn commit<'a>(
         &'a self,
@@ -563,6 +588,39 @@ async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
         1,
         "subresolution call edges must not become World Event causality",
     );
+}
+
+#[tokio::test]
+async fn world_binding_rejects_installed_but_disabled_action_before_dispatch() {
+    let store = CountingStore::new();
+    let binding = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(ROOT_CAPABILITY),
+            CapabilityDependency::parse(ROOT_CAPABILITY, "^0.1.0")
+                .expect("root binding requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "root-only"}),
+        1,
+        Some("binding-test".to_owned()),
+    );
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding)
+        .await
+        .expect("World binding should persist once");
+
+    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let error = (&runtime as &dyn LoomApi)
+        .invoke(ActionRequest::new(
+            target(),
+            ActionInvocation::new(
+                ActionTypeId::from(CHILD_ACTION),
+                json!({"event_id": event(200).to_string()}),
+            ),
+        ))
+        .await
+        .expect_err("installed child Action must remain unavailable outside the binding");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert_eq!(store.commit_count(), 0);
 }
 
 #[tokio::test]

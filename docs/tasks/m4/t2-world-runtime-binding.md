@@ -1,10 +1,10 @@
 ---
 task: M4-T2
 issue: 147
-status: planned
+status: in_review
 depends_on: [146]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-22
 completed_at:
 completion_pr:
 merge_sha:
@@ -41,8 +41,16 @@ Architecture basis: `world-runtime.md` Binding; `implementation.md` Binding/Exec
 
 ## Verification evidence
 
-Pending.
+- `python3 tools/check_architecture.py` → `Loom architecture dependency policy: OK`.
+- `cargo fmt --all -- --check` → passed.
+- `cargo check --workspace --all-targets --all-features` → passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed.
+- `cargo test --workspace --all-features` → passed; PostgreSQL integration fixtures return early when `LOOM_TEST_POSTGRES_URL` is unset.
+- `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` → passed.
+- InMemory binding tests → World-keyed sharing, one-time legacy materialization, and overwrite rejection pass.
+- PostgreSQL lifecycle binding test → compiles and is present; live PostgreSQL execution remains pending the configured database URL.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
+- 2026-08-22 — Implemented the Runtime-owned immutable World binding descriptor/port, additive InMemory/PostgreSQL persistence, explicit M3 compatibility materialization, and direct Action enablement enforcement; awaiting acceptance and live PostgreSQL evidence.

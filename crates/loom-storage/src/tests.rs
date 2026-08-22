@@ -2,9 +2,10 @@ use std::{str::FromStr, sync::Arc};
 
 use loom_api::{ActionRequest, ActionService, ExecutionResult, TimelineTarget};
 use loom_capability::{
-    ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
-    CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
-    RelationshipDefinition, ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
+    ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
+    CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition,
+    RegistrationError, RelationshipDefinition, ResolutionContext, ResolverError, WorkHandler,
+    WorkHandlerDefinition,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
@@ -16,8 +17,8 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus,
-    WorldTimeError,
+    AdvanceWorldTime, BindingError, CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord,
+    WorkStatus, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use serde_json::{Value, json};
 
@@ -43,6 +44,10 @@ fn timeline() -> TimelineId {
     id(2)
 }
 
+fn second_timeline() -> TimelineId {
+    id(3)
+}
+
 fn event(value: u128) -> EventId {
     id(value)
 }
@@ -61,6 +66,153 @@ fn registry() -> CapabilityRegistry {
             .expect("test Capability manifest should parse"),
     }])
     .expect("test Capability registry should assemble")
+}
+
+#[tokio::test]
+async fn world_binding_is_persisted_once_and_shared_across_timelines() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("first Timeline should be created");
+    store
+        .create_timeline(world(), second_timeline())
+        .expect("second Timeline should share the World");
+    let binding = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(OWNER),
+            CapabilityDependency::parse(OWNER, "^0.1.0")
+                .expect("binding requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "immutable"}),
+        1,
+        Some("test-template".to_owned()),
+    );
+
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding.clone())
+        .await
+        .expect("binding should persist once");
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&store, world())
+            .await
+            .expect("binding should reload"),
+        binding
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&store, world())
+            .await
+            .expect("second Timeline should see the World binding"),
+        binding
+    );
+
+    let replacement = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from("replacement"),
+            CapabilityDependency::parse("replacement", "*")
+                .expect("replacement requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "replacement"}),
+        2,
+        Some("replacement".to_owned()),
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::persist_binding(&store, world(), replacement).await,
+        Err(BindingError::BindingAlreadyExists { world_id: world() })
+    );
+}
+
+#[tokio::test]
+async fn different_worlds_keep_distinct_bindings() {
+    let store = InMemoryStore::new();
+    let other_world = id::<WorldId>(4);
+    let other_timeline = id::<TimelineId>(5);
+    store
+        .create_timeline(world(), timeline())
+        .expect("first World fixture should be created");
+    store
+        .create_timeline(other_world, other_timeline)
+        .expect("second World fixture should be created");
+    let first = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(OWNER),
+            CapabilityDependency::parse(OWNER, "^0.1.0")
+                .expect("first World requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "first-world"}),
+        1,
+        Some("first-world".to_owned()),
+    );
+    let second = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from("other"),
+            CapabilityDependency::parse("other", "*")
+                .expect("second World requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "second-world"}),
+        1,
+        Some("second-world".to_owned()),
+    );
+
+    WorldRuntimeBindingStore::persist_binding(&store, world(), first.clone())
+        .await
+        .expect("first World binding should persist");
+    WorldRuntimeBindingStore::persist_binding(&store, other_world, second.clone())
+        .await
+        .expect("second World binding should persist");
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&store, world()).await,
+        Ok(first)
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&store, other_world).await,
+        Ok(second)
+    );
+}
+
+#[tokio::test]
+async fn legacy_world_binding_is_materialized_once() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("legacy Timeline fixture should be created");
+    let first = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(OWNER),
+            CapabilityDependency::parse(OWNER, "^0.1.0")
+                .expect("first legacy requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "legacy-first"}),
+        1,
+        Some("m3-compatibility-baseline".to_owned()),
+    );
+    let second = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from("replacement"),
+            CapabilityDependency::parse("replacement", "*")
+                .expect("second legacy requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "legacy-second"}),
+        2,
+        Some("must-not-replace".to_owned()),
+    );
+
+    assert_eq!(
+        WorldRuntimeBindingStore::ensure_binding(&store, world(), first.clone()).await,
+        Ok(first.clone())
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::ensure_binding(&store, world(), second).await,
+        Ok(first.clone())
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&store, world()).await,
+        Ok(first)
+    );
 }
 
 fn validated(

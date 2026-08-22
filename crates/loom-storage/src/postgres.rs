@@ -20,9 +20,10 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, CommittedEvent, LifecycleError, PersistenceFuture,
-    PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, WorkLease, WorkRecord, WorkStatus,
-    WorldCreation, WorldLifecycleStore, WorldStore, WorldTimeError, WorldTimeStore,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
+    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, WorkLease,
+    WorkRecord, WorkStatus, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -384,45 +385,91 @@ impl WorldLifecycleStore for PgStorage {
         initial_world_time: WorldInstant,
     ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
         Box::pin(async move {
-            let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
-
-            if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
-                .bind(world_id.to_string())
-                .execute(&mut *transaction)
+            self.create_world_internal(world_id, timeline_id, initial_world_time, None)
                 .await
-            {
-                let _ = transaction.rollback().await;
-                if is_unique_violation(&error) {
-                    return Err(LifecycleError::WorldAlreadyExists { world_id });
-                }
-                return Err(sql_lifecycle_error(error));
-            }
+        })
+    }
 
-            if let Err(error) = sqlx::query(
-                "INSERT INTO loom_timeline \
-                 (timeline_id, world_id, head_event_seq, state_revision, world_time) \
-                 VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
-            )
-            .bind(timeline_id.to_string())
+    fn create_world_with_binding(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_internal(world_id, timeline_id, initial_world_time, Some(binding))
+                .await
+        })
+    }
+}
+
+impl PgStorage {
+    async fn create_world_internal(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: Option<WorldRuntimeBinding>,
+    ) -> Result<WorldCreation, LifecycleError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
+
+        if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
             .bind(world_id.to_string())
-            .bind(initial_world_time.value())
+            .execute(&mut *transaction)
+            .await
+        {
+            let _ = transaction.rollback().await;
+            if is_unique_violation(&error) {
+                return Err(LifecycleError::WorldAlreadyExists { world_id });
+            }
+            return Err(sql_lifecycle_error(error));
+        }
+
+        if let Some(binding) = binding {
+            let value = serde_json::to_value(binding).map_err(|error| {
+                LifecycleError::StorageUnavailable {
+                    message: format!("World Runtime Binding serialization failed: {error}"),
+                }
+            })?;
+            if let Err(error) = sqlx::query(
+                "INSERT INTO loom_world_runtime_binding (world_id, binding) \
+                 VALUES ($1::uuid, $2::jsonb)",
+            )
+            .bind(world_id.to_string())
+            .bind(value)
             .execute(&mut *transaction)
             .await
             {
                 let _ = transaction.rollback().await;
-                if is_unique_violation(&error) {
-                    return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
-                }
                 return Err(sql_lifecycle_error(error));
             }
+        }
 
-            transaction.commit().await.map_err(sql_lifecycle_error)?;
-            Ok(WorldCreation::new(
-                world_id,
-                timeline_id,
-                initial_world_time,
-            ))
-        })
+        if let Err(error) = sqlx::query(
+            "INSERT INTO loom_timeline \
+             (timeline_id, world_id, head_event_seq, state_revision, world_time) \
+             VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
+        )
+        .bind(timeline_id.to_string())
+        .bind(world_id.to_string())
+        .bind(initial_world_time.value())
+        .execute(&mut *transaction)
+        .await
+        {
+            let _ = transaction.rollback().await;
+            if is_unique_violation(&error) {
+                return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+            }
+            return Err(sql_lifecycle_error(error));
+        }
+
+        transaction.commit().await.map_err(sql_lifecycle_error)?;
+        Ok(WorldCreation::new(
+            world_id,
+            timeline_id,
+            initial_world_time,
+        ))
     }
 }
 
@@ -432,6 +479,144 @@ impl WorldStore for PgStorage {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.read_snapshot(timeline_id).await })
+    }
+}
+
+impl WorldRuntimeBindingStore for PgStorage {
+    fn read_binding(
+        &self,
+        world_id: WorldId,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        Box::pin(async move { self.read_binding(world_id).await })
+    }
+
+    fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<(), BindingError>> {
+        Box::pin(async move { self.persist_binding(world_id, binding).await })
+    }
+
+    fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        Box::pin(async move { self.ensure_binding(world_id, legacy_binding).await })
+    }
+}
+
+impl PgStorage {
+    async fn read_binding(&self, world_id: WorldId) -> Result<WorldRuntimeBinding, BindingError> {
+        let row =
+            sqlx::query("SELECT binding FROM loom_world_runtime_binding WHERE world_id = $1::uuid")
+                .bind(world_id.to_string())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(sql_binding_error)?;
+        if let Some(row) = row {
+            let value: Value = row.try_get("binding").map_err(sql_binding_error)?;
+            return serde_json::from_value(value).map_err(|error| {
+                BindingError::StorageUnavailable {
+                    message: format!("invalid persisted World Runtime Binding: {error}"),
+                }
+            });
+        }
+
+        let world_exists: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid")
+                .bind(world_id.to_string())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(sql_binding_error)?;
+        if world_exists.is_none() {
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        Err(BindingError::BindingNotFound { world_id })
+    }
+
+    async fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> Result<(), BindingError> {
+        let value =
+            serde_json::to_value(binding).map_err(|error| BindingError::StorageUnavailable {
+                message: format!("World Runtime Binding serialization failed: {error}"),
+            })?;
+        let mut transaction = self.pool.begin().await.map_err(sql_binding_error)?;
+        let world_exists: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid FOR UPDATE")
+                .bind(world_id.to_string())
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(sql_binding_error)?;
+        if world_exists.is_none() {
+            let _ = transaction.rollback().await;
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        let result = sqlx::query(
+            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
+             VALUES ($1::uuid, $2::jsonb)",
+        )
+        .bind(world_id.to_string())
+        .bind(value)
+        .execute(&mut *transaction)
+        .await;
+        if let Err(error) = result {
+            let _ = transaction.rollback().await;
+            if is_unique_violation(&error) {
+                return Err(BindingError::BindingAlreadyExists { world_id });
+            }
+            return Err(sql_binding_error(error));
+        }
+        transaction.commit().await.map_err(sql_binding_error)
+    }
+
+    async fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> Result<WorldRuntimeBinding, BindingError> {
+        let value = serde_json::to_value(legacy_binding).map_err(|error| {
+            BindingError::StorageUnavailable {
+                message: format!("World Runtime Binding serialization failed: {error}"),
+            }
+        })?;
+        let mut transaction = self.pool.begin().await.map_err(sql_binding_error)?;
+        let world_exists: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM loom_world WHERE world_id = $1::uuid FOR UPDATE")
+                .bind(world_id.to_string())
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(sql_binding_error)?;
+        if world_exists.is_none() {
+            let _ = transaction.rollback().await;
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        sqlx::query(
+            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
+             VALUES ($1::uuid, $2::jsonb) ON CONFLICT (world_id) DO NOTHING",
+        )
+        .bind(world_id.to_string())
+        .bind(value)
+        .execute(&mut *transaction)
+        .await
+        .map_err(sql_binding_error)?;
+        let row =
+            sqlx::query("SELECT binding FROM loom_world_runtime_binding WHERE world_id = $1::uuid")
+                .bind(world_id.to_string())
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(sql_binding_error)?;
+        let value: Value = row.try_get("binding").map_err(sql_binding_error)?;
+        let binding =
+            serde_json::from_value(value).map_err(|error| BindingError::StorageUnavailable {
+                message: format!("invalid persisted World Runtime Binding: {error}"),
+            })?;
+        transaction.commit().await.map_err(sql_binding_error)?;
+        Ok(binding)
     }
 }
 
@@ -533,6 +718,12 @@ impl WorldTimeStore for PgStorage {
 fn sql_lifecycle_error(error: sqlx::Error) -> LifecycleError {
     LifecycleError::StorageUnavailable {
         message: format!("PostgreSQL lifecycle persistence failed: {error}"),
+    }
+}
+
+fn sql_binding_error(error: sqlx::Error) -> BindingError {
+    BindingError::StorageUnavailable {
+        message: format!("PostgreSQL World Runtime Binding persistence failed: {error}"),
     }
 }
 

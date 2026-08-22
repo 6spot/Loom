@@ -2194,6 +2194,9 @@ enum VisitState {
 pub enum DispatchError {
     /// No registered Action owns this semantic key.
     UnknownAction(ActionTypeId),
+    /// A registered Action is not available in the target World's Runtime
+    /// Binding. The Runtime supplies the World-level enablement decision.
+    UnavailableAction(ActionTypeId),
     /// The registered Action resolver failed while executing.
     Resolver(ResolverError),
     /// No registered Work handler owns this semantic key.
@@ -2206,6 +2209,7 @@ impl fmt::Display for DispatchError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownAction(id) => write!(formatter, "unknown action: {id}"),
+            Self::UnavailableAction(id) => write!(formatter, "action is unavailable: {id}"),
             Self::Resolver(error) => write!(formatter, "action resolver failed: {error}"),
             Self::UnknownWorkHandler(id) => write!(formatter, "unknown work handler: {id}"),
             Self::Handler(error) => write!(formatter, "work handler failed: {error}"),
