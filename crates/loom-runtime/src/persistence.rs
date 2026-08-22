@@ -1335,6 +1335,113 @@ impl WorkRecord {
     }
 }
 
+/// One logical Work transition captured by a Timeline Logical Commit.
+///
+/// These records describe semantic future state only. Lease, fence, retry,
+/// availability and technical error metadata deliberately do not have a
+/// journal representation. A scheduled record carries the fields required to
+/// reconstruct the Work chronology without consulting the current Work table.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum LogicalWorkTransition {
+    /// A new logical Work obligation entered the Timeline's future.
+    Schedule {
+        /// Stable Work identity.
+        work_id: WorkId,
+        /// Explicit logical execution target.
+        target: WorkTarget,
+        /// World-semantic due coordinate resolved by the scheduling commit.
+        effective_due_world_time: WorldInstant,
+        /// Timeline-local persistent chronology order.
+        logical_schedule_order: u64,
+        /// Optional Event that caused the Work.
+        causal_event_id: Option<EventId>,
+        /// Optional preceding Work from which this Work was derived.
+        origin_work_id: Option<WorkId>,
+    },
+    /// A Pending Work obligation was logically cancelled.
+    Cancel {
+        /// Stable Work identity.
+        work_id: WorkId,
+    },
+    /// A Pending Work obligation was successfully completed by the Runtime.
+    Complete {
+        /// Stable Work identity.
+        work_id: WorkId,
+    },
+    /// A Pending Work obligation was logically terminalized as dead.
+    ///
+    /// M5-T3 supplies the policy/control path that creates this transition;
+    /// the journal shape is defined here so all logical Work terminal states
+    /// share one reconstruction contract.
+    Dead {
+        /// Stable Work identity.
+        work_id: WorkId,
+    },
+}
+
+/// An explicit World-Time transition recorded by a Logical Commit.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorldTimeTransition {
+    /// World Time before the logical transition.
+    pub from: WorldInstant,
+    /// World Time after the logical transition.
+    pub to: WorldInstant,
+}
+
+/// The same-World-Time chronology consumption caused by one successful
+/// Scheduler Work completion.
+///
+/// The before/after values are persisted with the Work completion's journal
+/// record, so a restart or later historical reader can reconstruct the
+/// liveness position without treating an operational attempt counter as
+/// semantic history.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ChronologyBudgetConsumption {
+    /// World instant whose chronology budget was consumed.
+    pub world_time: WorldInstant,
+    /// Consumption before this Logical Commit.
+    pub before: u64,
+    /// Consumption after this Logical Commit.
+    pub after: u64,
+}
+
+/// One ordered Runtime-owned Timeline Logical Commit journal record.
+///
+/// A record is appended atomically with the authority mutation it describes.
+/// It is not a World Event and never contains lease/retry/error bookkeeping.
+/// `after_version.state_revision` is the Timeline-local logical order key: a
+/// successful non-empty logical commit advances it exactly once, so ordered
+/// reads do not depend on database row order, UUID order or platform time.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct LogicalCommit {
+    /// Timeline containing this logical commit.
+    pub timeline_id: TimelineId,
+    /// Timeline version immediately before the commit.
+    pub before_version: TimelineVersion,
+    /// Timeline version immediately after the commit.
+    pub after_version: TimelineVersion,
+    /// Explicit World-Time transition, when this commit advances time.
+    pub world_time: Option<WorldTimeTransition>,
+    /// Event identities appended by this commit.
+    pub event_ids: Vec<EventId>,
+    /// Logical Work transitions appended by this commit.
+    pub work_transitions: Vec<LogicalWorkTransition>,
+    /// Same-instant chronology consumption, when this commit completes Work.
+    pub chronology_budget: Option<ChronologyBudgetConsumption>,
+}
+
+/// Compatibility name for callers that describe the ordered records as a
+/// logical journal rather than individual commits.
+pub type LogicalJournalRecord = LogicalCommit;
+
+impl LogicalCommit {
+    /// Returns the Timeline-local logical revision after this commit.
+    #[must_use]
+    pub const fn logical_revision(&self) -> StateRevision {
+        self.after_version.state_revision
+    }
+}
+
 /// One committed Event in authoritative Timeline-local order.
 ///
 /// This read model is produced only after a successful commit. Its `event_seq`
@@ -1541,9 +1648,9 @@ impl AdvanceWorldTime {
 /// A coherent Runtime read snapshot of one Timeline.
 ///
 /// `base` is suitable for constructing a [`BaseWorldView`]. `events` and
-/// `works` are read models from the same authority snapshot, so callers never
-/// observe an Event ledger from one revision with materialized state from
-/// another revision.
+/// `works` and `journal` are read models from the same authority snapshot, so
+/// callers never observe an Event ledger from one revision with materialized
+/// state or logical history from another revision.
 #[derive(Clone, Debug)]
 pub struct TimelineSnapshot {
     /// Pinned materialized World state used by Runtime validation.
@@ -1552,6 +1659,8 @@ pub struct TimelineSnapshot {
     pub events: Vec<CommittedEvent>,
     /// Durable Work records visible in this Timeline snapshot.
     pub works: Vec<WorkRecord>,
+    /// Ordered Timeline Logical Commit records visible in this snapshot.
+    pub journal: Vec<LogicalCommit>,
 }
 
 impl TimelineSnapshot {
@@ -1566,7 +1675,32 @@ impl TimelineSnapshot {
             base,
             events,
             works,
+            journal: Vec::new(),
         }
+    }
+
+    /// Creates a coherent Timeline snapshot including ordered logical
+    /// history. The journal is copied from the same authority snapshot as the
+    /// materialized state, Events and Work records.
+    #[must_use]
+    pub fn with_journal(
+        base: BaseWorldSnapshot,
+        events: Vec<CommittedEvent>,
+        works: Vec<WorkRecord>,
+        journal: Vec<LogicalCommit>,
+    ) -> Self {
+        Self {
+            base,
+            events,
+            works,
+            journal,
+        }
+    }
+
+    /// Returns the ordered logical journal for historical reconstruction.
+    #[must_use]
+    pub fn logical_journal(&self) -> &[LogicalCommit] {
+        &self.journal
     }
 
     /// Returns the pinned Timeline identity.
@@ -1691,6 +1825,8 @@ pub enum WorkError {
     DuplicateWork { work_id: WorkId },
     /// A Timeline cannot allocate another persistent logical Work order.
     LogicalScheduleOrderOverflow { timeline_id: TimelineId },
+    /// A Timeline cannot represent another same-World-Time budget unit.
+    ChronologyBudgetOverflow { timeline_id: TimelineId },
     /// A scheduled Work points at an Event absent from the staged ledger.
     MissingCausalEvent { work_id: WorkId, event_id: EventId },
     /// The persistence authority could not complete a Work I/O operation.
@@ -1768,6 +1904,10 @@ impl fmt::Display for WorkError {
             Self::LogicalScheduleOrderOverflow { timeline_id } => write!(
                 formatter,
                 "Timeline {timeline_id} logical Work schedule order overflowed"
+            ),
+            Self::ChronologyBudgetOverflow { timeline_id } => write!(
+                formatter,
+                "Timeline {timeline_id} chronology budget overflowed"
             ),
             Self::MissingCausalEvent { work_id, event_id } => write!(
                 formatter,
@@ -2059,6 +2199,19 @@ pub trait WorldStore {
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         self.snapshot(timeline_id)
     }
+}
+
+/// Runtime-owned read port for deterministic Timeline Logical Commit history.
+///
+/// The returned vector is ordered by the persisted logical revision after each
+/// commit. Implementations must read this history from the authority journal,
+/// never reconstruct it from the current Work table or operational metadata.
+pub trait LogicalJournalStore {
+    /// Reads all logical commits for one Timeline in deterministic order.
+    fn read_logical_journal(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<Vec<LogicalCommit>, ReadError>>;
 }
 
 /// Runtime-owned persistence port for World-level Runtime Binding metadata.

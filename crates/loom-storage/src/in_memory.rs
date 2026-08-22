@@ -18,9 +18,10 @@ use loom_core::{
     RelationshipId, TimelineId, TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommitError, CommitResult, CommitStore,
-    CommittedEvent, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
-    LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommitError,
+    CommitResult, CommitStore, CommittedEvent, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, LifecycleError, LogicalCommit, LogicalJournalStore,
+    LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim,
     WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget,
@@ -56,6 +57,8 @@ struct TimelineState {
     event_ids: HashSet<EventId>,
     works: HashMap<loom_core::WorkId, WorkRecord>,
     logical_schedule_order: u64,
+    chronology_budget_consumed: u64,
+    journal: Vec<LogicalCommit>,
 }
 
 impl TimelineState {
@@ -72,6 +75,8 @@ impl TimelineState {
             event_ids: HashSet::new(),
             works: HashMap::new(),
             logical_schedule_order: 0,
+            chronology_budget_consumed: 0,
+            journal: Vec::new(),
         }
     }
 }
@@ -462,6 +467,24 @@ impl InMemoryStore {
         Ok(snapshot_from_timeline(timeline))
     }
 
+    /// Reads the Timeline Logical Commit journal in its persisted logical
+    /// revision order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReadError::TimelineNotFound`] when the Timeline is absent.
+    pub fn read_logical_journal(
+        &self,
+        timeline_id: TimelineId,
+    ) -> Result<Vec<LogicalCommit>, ReadError> {
+        let guard = self.read_state();
+        let timeline = guard
+            .timelines
+            .get(&timeline_id)
+            .ok_or(ReadError::TimelineNotFound { timeline_id })?;
+        Ok(timeline.journal.clone())
+    }
+
     /// Reads the immutable World-level Runtime Binding independently of any
     /// Timeline materialized-state snapshot.
     ///
@@ -691,6 +714,10 @@ impl InMemoryStore {
     ///
     /// Returns a typed [`CommitError`] before swapping staged state when CAS,
     /// Event/Effect, Work or claim checks fail.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the atomic in-memory commit keeps authority, Work and journal staging together"
+    )]
     pub fn commit(
         &self,
         resolution: &ValidatedResolution,
@@ -714,11 +741,14 @@ impl InMemoryStore {
         if let Some(claim) = current_work {
             validate_claim(timeline, claim, now)?;
         }
+        let before_version = timeline.version;
+        let before_budget = timeline.chronology_budget_consumed;
         let changes_runtime_state = !resolution.events().is_empty()
             || !resolution.work().is_empty()
             || current_work.is_some();
 
         let mut committed_events = Vec::with_capacity(resolution.events().len());
+        let mut event_ids = Vec::with_capacity(resolution.events().len());
         let mut seen_events = HashSet::new();
         let mut next_sequence = timeline.version.head_event_seq.value();
         for event in resolution.events() {
@@ -735,10 +765,11 @@ impl InMemoryStore {
             timeline.events.push(committed.clone());
             timeline.event_ids.insert(event.id);
             seen_events.insert(event.id);
+            event_ids.push(event.id);
             committed_events.push(committed);
         }
 
-        apply_work_mutations(
+        let mut work_transitions = apply_work_mutations(
             timeline,
             resolution.work(),
             resolution.pinned_world_time(),
@@ -746,8 +777,22 @@ impl InMemoryStore {
         )?;
 
         let completed_work = if let Some(claim) = current_work {
-            complete_current_work(timeline, claim)?;
+            work_transitions.push(complete_current_work(timeline, claim)?);
             Some(claim.work_id())
+        } else {
+            None
+        };
+
+        let chronology_budget = if current_work.is_some() {
+            let after = before_budget.checked_add(1).ok_or(CommitError::Work(
+                WorkError::ChronologyBudgetOverflow { timeline_id },
+            ))?;
+            timeline.chronology_budget_consumed = after;
+            Some(ChronologyBudgetConsumption {
+                world_time: timeline.world_time,
+                before: before_budget,
+                after,
+            })
         } else {
             None
         };
@@ -771,6 +816,18 @@ impl InMemoryStore {
             next_head,
             loom_core::StateRevision::new(next_state_revision),
         );
+
+        if changes_runtime_state {
+            timeline.journal.push(LogicalCommit {
+                timeline_id,
+                before_version,
+                after_version: timeline.version,
+                world_time: None,
+                event_ids,
+                work_transitions,
+                chronology_budget,
+            });
+        }
 
         let result = CommitResult {
             timeline_id,
@@ -811,6 +868,7 @@ impl InMemoryStore {
                 actual: timeline.world_time,
             });
         }
+        let before_version = timeline.version;
         let state_revision = timeline
             .version
             .state_revision
@@ -818,10 +876,23 @@ impl InMemoryStore {
             .checked_add(1)
             .ok_or(WorldTimeError::RevisionOverflow)?;
         timeline.world_time = transition.next();
+        timeline.chronology_budget_consumed = 0;
         timeline.version = TimelineVersion::new(
             timeline.version.head_event_seq,
             loom_core::StateRevision::new(state_revision),
         );
+        timeline.journal.push(LogicalCommit {
+            timeline_id: transition.timeline_id(),
+            before_version,
+            after_version: timeline.version,
+            world_time: Some(loom_runtime::WorldTimeTransition {
+                from: transition.current(),
+                to: transition.next(),
+            }),
+            event_ids: Vec::new(),
+            work_transitions: Vec::new(),
+            chronology_budget: None,
+        });
         let version = timeline.version;
         *guard = staged;
         Ok(version)
@@ -1056,6 +1127,8 @@ impl InMemoryStore {
         let mut seen_events = HashSet::new();
         let mut next_sequence = timeline.version.head_event_seq.value();
         let mut changes_runtime_state = false;
+        let mut event_ids = Vec::new();
+        let mut work_transitions = Vec::new();
 
         for resolution in bootstrap {
             if resolution.timeline_id() != timeline_id
@@ -1082,10 +1155,13 @@ impl InMemoryStore {
                 timeline.events.push(committed);
                 timeline.event_ids.insert(event.id);
                 seen_events.insert(event.id);
+                event_ids.push(event.id);
                 changes_runtime_state = true;
             }
-            apply_work_mutations(timeline, resolution.work(), initial_world_time, now)
-                .map_err(|error| birth_commit_error(&error))?;
+            work_transitions.extend(
+                apply_work_mutations(timeline, resolution.work(), initial_world_time, now)
+                    .map_err(|error| birth_commit_error(&error))?,
+            );
             changes_runtime_state |= !resolution.work().is_empty();
         }
 
@@ -1100,6 +1176,15 @@ impl InMemoryStore {
                 loom_core::EventSeq::new(next_sequence),
                 loom_core::StateRevision::new(state_revision),
             );
+            timeline.journal.push(LogicalCommit {
+                timeline_id,
+                before_version: TimelineVersion::default(),
+                after_version: timeline.version,
+                world_time: None,
+                event_ids,
+                work_transitions,
+                chronology_budget: None,
+            });
         }
         let version = timeline.version;
         *guard = staged;
@@ -1118,6 +1203,15 @@ impl WorldStore for InMemoryStore {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { InMemoryStore::snapshot(self, timeline_id) })
+    }
+}
+
+impl LogicalJournalStore for InMemoryStore {
+    fn read_logical_journal(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<Vec<LogicalCommit>, ReadError>> {
+        Box::pin(async move { InMemoryStore::read_logical_journal(self, timeline_id) })
     }
 }
 
@@ -1299,7 +1393,12 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
     }
     let mut works: Vec<_> = timeline.works.values().cloned().collect();
     works.sort_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order));
-    TimelineSnapshot::new(base, timeline.events.clone(), works)
+    TimelineSnapshot::with_journal(
+        base,
+        timeline.events.clone(),
+        works,
+        timeline.journal.clone(),
+    )
 }
 
 fn validate_event(
@@ -1475,7 +1574,8 @@ fn apply_work_mutations(
     mutations: &[WorkMutation],
     world_time: WorldInstant,
     now: PlatformTime,
-) -> Result<(), CommitError> {
+) -> Result<Vec<LogicalWorkTransition>, CommitError> {
+    let mut transitions = Vec::with_capacity(mutations.len());
     for mutation in mutations {
         match mutation {
             WorkMutation::Schedule(work) => {
@@ -1528,6 +1628,14 @@ fn apply_work_mutations(
                         now,
                     ),
                 );
+                transitions.push(LogicalWorkTransition::Schedule {
+                    work_id: work.id,
+                    target: work.target.clone(),
+                    effective_due_world_time,
+                    logical_schedule_order,
+                    causal_event_id: work.causal_event_id,
+                    origin_work_id: work.origin_work_id,
+                });
             }
             WorkMutation::Cancel(work_id) => {
                 let work = timeline
@@ -1546,10 +1654,11 @@ fn apply_work_mutations(
                 }
                 work.status = WorkStatus::Cancelled;
                 work.lease = None;
+                transitions.push(LogicalWorkTransition::Cancel { work_id: *work_id });
             }
         }
     }
-    Ok(())
+    Ok(transitions)
 }
 
 fn validate_claim(
@@ -1601,7 +1710,7 @@ fn validate_claim(
 fn complete_current_work(
     timeline: &mut TimelineState,
     claim: &WorkClaim,
-) -> Result<(), CommitError> {
+) -> Result<LogicalWorkTransition, CommitError> {
     let work = timeline
         .works
         .get_mut(&claim.work_id())
@@ -1619,7 +1728,9 @@ fn complete_current_work(
     work.status = WorkStatus::Completed;
     work.lease = None;
     work.last_error = None;
-    Ok(())
+    Ok(LogicalWorkTransition::Complete {
+        work_id: claim.work_id(),
+    })
 }
 
 fn owner_exists(timeline: &TimelineState, owner: FacetOwner) -> bool {

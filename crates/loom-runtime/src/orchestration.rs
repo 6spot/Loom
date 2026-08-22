@@ -1762,6 +1762,7 @@ fn map_work_error(error: &WorkError) -> ApiError {
         WorkError::AttemptOverflow { .. }
         | WorkError::DuplicateWork { .. }
         | WorkError::LogicalScheduleOrderOverflow { .. }
+        | WorkError::ChronologyBudgetOverflow { .. }
         | WorkError::MissingCausalEvent { .. } => {
             ApiError::internal("Work adapter rejected the execution metadata")
         }

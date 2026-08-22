@@ -466,6 +466,7 @@ async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
     assert!(after.world_view().entity(created).is_none());
     assert_eq!(after.works.len(), 1);
     assert_eq!(after.works[0].status, WorkStatus::Pending);
+    assert!(after.journal.is_empty());
     pool.close().await;
     storage.close().await;
     database.cleanup().await;

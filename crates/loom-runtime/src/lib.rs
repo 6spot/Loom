@@ -93,16 +93,17 @@ pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
 pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
-    ActiveRuntimeRevision, AdvanceWorldTime, BindingError, CommitError, CommitResult, CommitStore,
-    CommittedEvent, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
-    PlatformTime, ReadError, RuntimeCapabilityImplementation, RuntimeRevision,
-    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
-    RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
-    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
-    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
-    WorldTimeError, WorldTimeStore,
+    ActiveRuntimeRevision, AdvanceWorldTime, BindingError, ChronologyBudgetConsumption,
+    CommitError, CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
+    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
+    LogicalJournalRecord, LogicalJournalStore, LogicalWorkTransition, ManualPlatformClock,
+    PersistenceFuture, PlatformClock, PlatformTime, ReadError, RuntimeCapabilityImplementation,
+    RuntimeRevision, RuntimeRevisionAssembly, RuntimeRevisionCapability,
+    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SessionError, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus,
+    WorkStore, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
 pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
 pub use validation::{

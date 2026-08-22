@@ -6,8 +6,9 @@ use loom_core::{
     EventId, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorldEffect,
 };
 use loom_runtime::{
-    CommitError, CommitResult, CommitStore, CommittedEvent, PersistenceFuture, PlatformTime,
-    ProposedEvent, ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
+    ChronologyBudgetConsumption, CommitError, CommitResult, CommitStore, CommittedEvent,
+    LogicalCommit, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
+    ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
 };
 use sqlx::{Postgres, Row, Transaction};
 
@@ -50,10 +51,14 @@ const COMPLETE_WORK_SQL: &str = include_str!("../../sql/work/complete.sql");
 const SELECT_WORK_STATUS_FOR_UPDATE_SQL: &str =
     include_str!("../../sql/work/select_status_for_update.sql");
 const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
+const INSERT_LOGICAL_JOURNAL_SQL: &str = include_str!("../../sql/logical_journal/insert.sql");
 
 #[derive(Clone, Copy)]
 struct LockedTimeline {
     version: TimelineVersion,
+    world_time: loom_core::WorldInstant,
+    chronology_budget_world_time: loom_core::WorldInstant,
+    chronology_budget_consumed: u64,
 }
 
 impl CommitStore for PgStorage {
@@ -85,10 +90,13 @@ async fn commit_resolution(
     if let Some(claim) = current_work {
         validate_current_work(&mut transaction, timeline_id, claim, now).await?;
     }
+    let before_version = locked.version;
+    let before_budget = locked.chronology_budget_consumed;
 
     let changes_runtime_state =
         !resolution.events().is_empty() || !resolution.work().is_empty() || current_work.is_some();
     let mut committed_events = Vec::with_capacity(resolution.events().len());
+    let mut event_ids = Vec::with_capacity(resolution.events().len());
     let mut next_sequence = locked.version.head_event_seq.value();
     let mut seen_events = HashSet::new();
     let mut logical_schedule_order =
@@ -108,23 +116,41 @@ async fn commit_resolution(
         )
         .await?;
         seen_events.insert(event.id);
+        event_ids.push(event.id);
         committed_events.push(committed);
     }
 
+    let mut work_transitions =
+        Vec::with_capacity(resolution.work().len() + usize::from(current_work.is_some()));
     for mutation in resolution.work() {
-        apply_work_mutation(
-            &mut transaction,
-            timeline_id,
-            mutation,
-            resolution.pinned_world_time(),
-            now,
-            &mut logical_schedule_order,
-        )
-        .await?;
+        work_transitions.push(
+            apply_work_mutation(
+                &mut transaction,
+                timeline_id,
+                mutation,
+                resolution.pinned_world_time(),
+                now,
+                &mut logical_schedule_order,
+            )
+            .await?,
+        );
     }
     let completed_work = if let Some(claim) = current_work {
-        complete_current_work(&mut transaction, timeline_id, claim).await?;
+        work_transitions.push(complete_current_work(&mut transaction, timeline_id, claim).await?);
         Some(claim.work_id())
+    } else {
+        None
+    };
+
+    let chronology_budget = if current_work.is_some() {
+        let after = before_budget.checked_add(1).ok_or(CommitError::Work(
+            WorkError::ChronologyBudgetOverflow { timeline_id },
+        ))?;
+        Some(ChronologyBudgetConsumption {
+            world_time: locked.world_time,
+            before: before_budget,
+            after,
+        })
     } else {
         None
     };
@@ -146,14 +172,36 @@ async fn commit_resolution(
     };
     let version = TimelineVersion::new(next_head, StateRevision::new(next_state_revision));
 
+    let next_budget = chronology_budget
+        .as_ref()
+        .map_or(before_budget, |consumption| consumption.after);
+
     if changes_runtime_state {
         sqlx::query(UPDATE_TIMELINE_VERSION_SQL)
             .bind(timeline_id.to_string())
             .bind(next_head.value().to_string())
             .bind(next_state_revision.to_string())
+            .bind(locked.chronology_budget_world_time.value())
+            .bind(next_budget.to_string())
             .execute(&mut *transaction)
             .await
             .map_err(storage_error)?;
+    }
+
+    if changes_runtime_state {
+        insert_logical_commit(
+            &mut transaction,
+            &LogicalCommit {
+                timeline_id,
+                before_version,
+                after_version: version,
+                world_time: None,
+                event_ids,
+                work_transitions,
+                chronology_budget,
+            },
+        )
+        .await?;
     }
 
     transaction.commit().await.map_err(storage_error)?;
@@ -187,6 +235,8 @@ pub(super) async fn commit_birth_in_transaction(
     let mut next_sequence = locked.version.head_event_seq.value();
     let mut seen_events = HashSet::new();
     let mut changes_runtime_state = false;
+    let mut event_ids = Vec::new();
+    let mut work_transitions = Vec::new();
     let mut logical_schedule_order = next_logical_schedule_order(transaction, timeline_id).await?;
 
     for resolution in bootstrap {
@@ -222,18 +272,21 @@ pub(super) async fn commit_birth_in_transaction(
             )
             .await?;
             seen_events.insert(event.id);
+            event_ids.push(event.id);
             changes_runtime_state = true;
         }
         for mutation in resolution.work() {
-            apply_work_mutation(
-                transaction,
-                timeline_id,
-                mutation,
-                initial_world_time,
-                now,
-                &mut logical_schedule_order,
-            )
-            .await?;
+            work_transitions.push(
+                apply_work_mutation(
+                    transaction,
+                    timeline_id,
+                    mutation,
+                    initial_world_time,
+                    now,
+                    &mut logical_schedule_order,
+                )
+                .await?,
+            );
             changes_runtime_state = true;
         }
     }
@@ -260,9 +313,24 @@ pub(super) async fn commit_birth_in_transaction(
             .bind(timeline_id.to_string())
             .bind(next_head.value().to_string())
             .bind(next_state_revision.to_string())
+            .bind(locked.chronology_budget_world_time.value())
+            .bind(locked.chronology_budget_consumed.to_string())
             .execute(&mut **transaction)
             .await
             .map_err(storage_error)?;
+        insert_logical_commit(
+            transaction,
+            &LogicalCommit {
+                timeline_id,
+                before_version: locked.version,
+                after_version: version,
+                world_time: None,
+                event_ids,
+                work_transitions,
+                chronology_budget: None,
+            },
+        )
+        .await?;
     }
 
     Ok(version)
@@ -283,6 +351,12 @@ async fn lock_timeline(
             EventSeq::new(parse_u64(&row, "head_event_seq")?),
             StateRevision::new(parse_u64(&row, "state_revision")?),
         ),
+        world_time: loom_core::WorldInstant::new(row.try_get("world_time").map_err(storage_error)?),
+        chronology_budget_world_time: loom_core::WorldInstant::new(
+            row.try_get("chronology_budget_world_time")
+                .map_err(storage_error)?,
+        ),
+        chronology_budget_consumed: parse_u64(&row, "chronology_budget_consumed")?,
     })
 }
 
@@ -296,6 +370,54 @@ async fn next_logical_schedule_order(
         .await
         .map_err(storage_error)?;
     parse_u64(&row, "logical_schedule_order")
+}
+
+pub(super) async fn insert_logical_commit(
+    transaction: &mut PgTransaction<'_>,
+    commit: &LogicalCommit,
+) -> Result<(), CommitError> {
+    let event_ids = serde_json::to_value(&commit.event_ids).map_err(|error| {
+        CommitError::StorageUnavailable {
+            message: format!("logical journal Event serialization failed: {error}"),
+        }
+    })?;
+    let work_transitions = serde_json::to_value(&commit.work_transitions).map_err(|error| {
+        CommitError::StorageUnavailable {
+            message: format!("logical journal Work serialization failed: {error}"),
+        }
+    })?;
+    let (world_time_before, world_time_after) =
+        commit.world_time.map_or((None, None), |transition| {
+            (Some(transition.from.value()), Some(transition.to.value()))
+        });
+    let (budget_world_time, budget_before, budget_after) =
+        commit
+            .chronology_budget
+            .map_or((None, None, None), |budget| {
+                (
+                    Some(budget.world_time.value()),
+                    Some(budget.before.to_string()),
+                    Some(budget.after.to_string()),
+                )
+            });
+
+    sqlx::query(INSERT_LOGICAL_JOURNAL_SQL)
+        .bind(commit.timeline_id.to_string())
+        .bind(commit.after_version.state_revision.value().to_string())
+        .bind(commit.before_version.head_event_seq.value().to_string())
+        .bind(commit.before_version.state_revision.value().to_string())
+        .bind(commit.after_version.head_event_seq.value().to_string())
+        .bind(world_time_before)
+        .bind(world_time_after)
+        .bind(event_ids)
+        .bind(work_transitions)
+        .bind(budget_world_time)
+        .bind(budget_before)
+        .bind(budget_after)
+        .execute(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+    Ok(())
 }
 
 async fn apply_event(
@@ -584,7 +706,7 @@ async fn apply_work_mutation(
     world_time: loom_core::WorldInstant,
     now: PlatformTime,
     logical_schedule_order: &mut u64,
-) -> Result<(), CommitError> {
+) -> Result<LogicalWorkTransition, CommitError> {
     match mutation {
         WorkMutation::Schedule(work) => {
             if work.timeline_id != timeline_id {
@@ -664,7 +786,14 @@ async fn apply_work_mutation(
                 .await
                 .map_err(storage_error)?;
             *logical_schedule_order = next_order;
-            Ok(())
+            Ok(LogicalWorkTransition::Schedule {
+                work_id: work.id,
+                target: work.target.clone(),
+                effective_due_world_time,
+                logical_schedule_order: next_order,
+                causal_event_id: work.causal_event_id,
+                origin_work_id: work.origin_work_id,
+            })
         }
         WorkMutation::Cancel(work_id) => cancel_work(transaction, timeline_id, *work_id).await,
     }
@@ -674,7 +803,7 @@ async fn cancel_work(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
     work_id: loom_core::WorkId,
-) -> Result<(), CommitError> {
+) -> Result<LogicalWorkTransition, CommitError> {
     let status = lock_work_status(transaction, timeline_id, work_id).await?;
     if status != WorkStatus::Pending {
         return Err(WorkError::NotPending { work_id, status }.into());
@@ -685,7 +814,7 @@ async fn cancel_work(
         .execute(&mut **transaction)
         .await
         .map_err(storage_error)?;
-    Ok(())
+    Ok(LogicalWorkTransition::Cancel { work_id })
 }
 
 async fn validate_current_work(
@@ -755,14 +884,16 @@ async fn complete_current_work(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
     claim: &WorkClaim,
-) -> Result<(), CommitError> {
+) -> Result<LogicalWorkTransition, CommitError> {
     sqlx::query(COMPLETE_WORK_SQL)
         .bind(timeline_id.to_string())
         .bind(claim.work_id().to_string())
         .execute(&mut **transaction)
         .await
         .map_err(storage_error)?;
-    Ok(())
+    Ok(LogicalWorkTransition::Complete {
+        work_id: claim.work_id(),
+    })
 }
 
 async fn lock_work_status(

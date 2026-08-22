@@ -20,12 +20,13 @@ use loom_core::{
     StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
-    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorkTarget,
-    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
-    WorldTimeError, WorldTimeStore,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommittedEvent,
+    LifecycleError, LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture,
+    PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, TimelineSnapshot,
+    ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorkTarget, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore, WorldTimeTransition,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -49,6 +50,7 @@ const READ_EVENT_RELATIONSHIP_REFS_SQL: &str =
     include_str!("../sql/event/read_relationship_refs.sql");
 const READ_EVENT_CAUSAL_LINKS_SQL: &str = include_str!("../sql/event/read_causal_links.sql");
 const READ_WORK_SQL: &str = include_str!("../sql/work/read_all_for_timeline.sql");
+const READ_LOGICAL_JOURNAL_SQL: &str = include_str!("../sql/logical_journal/read_all.sql");
 const INSERT_WORLD_SQL: &str = include_str!("../sql/world/insert_world.sql");
 const WORLD_EXISTS_SQL: &str = include_str!("../sql/world/exists.sql");
 const LOCK_WORLD_EXISTS_SQL: &str = include_str!("../sql/world/lock_exists.sql");
@@ -370,8 +372,46 @@ impl PgStorage {
             });
         }
 
+        let journal_rows = sqlx::query(READ_LOGICAL_JOURNAL_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let journal = journal_rows
+            .iter()
+            .map(logical_commit_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+
         transaction.commit().await.map_err(sql_read_error)?;
-        Ok(TimelineSnapshot::new(base, events, works))
+        Ok(TimelineSnapshot::with_journal(base, events, works, journal))
+    }
+
+    async fn read_logical_journal(
+        &self,
+        timeline_id: TimelineId,
+    ) -> Result<Vec<LogicalCommit>, ReadError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
+        let timeline_exists = sqlx::query(READ_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?
+            .is_some();
+        if !timeline_exists {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::TimelineNotFound { timeline_id });
+        }
+        let rows = sqlx::query(READ_LOGICAL_JOURNAL_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let journal = rows
+            .iter()
+            .map(logical_commit_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(journal)
     }
 }
 
@@ -568,6 +608,15 @@ impl WorldStore for PgStorage {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.read_snapshot(timeline_id).await })
+    }
+}
+
+impl LogicalJournalStore for PgStorage {
+    fn read_logical_journal(
+        &self,
+        timeline_id: TimelineId,
+    ) -> PersistenceFuture<'_, Result<Vec<LogicalCommit>, ReadError>> {
+        Box::pin(async move { self.read_logical_journal(timeline_id).await })
     }
 }
 
@@ -1021,6 +1070,25 @@ impl WorldTimeStore for PgStorage {
                 .map_err(|error| WorldTimeError::StorageUnavailable {
                     message: format!("PostgreSQL World-Time write failed: {error}"),
                 })?;
+            commit::insert_logical_commit(
+                &mut transaction,
+                &LogicalCommit {
+                    timeline_id: transition.timeline_id(),
+                    before_version: actual,
+                    after_version: next,
+                    world_time: Some(WorldTimeTransition {
+                        from: transition.current(),
+                        to: transition.next(),
+                    }),
+                    event_ids: Vec::new(),
+                    work_transitions: Vec::new(),
+                    chronology_budget: None,
+                },
+            )
+            .await
+            .map_err(|error| WorldTimeError::StorageUnavailable {
+                message: format!("PostgreSQL World-Time journal write failed: {error}"),
+            })?;
             transaction
                 .commit()
                 .await
@@ -1107,6 +1175,83 @@ fn row_i64(row: &sqlx::postgres::PgRow, column: &str) -> Result<i64, ReadError> 
 
 fn row_json(row: &sqlx::postgres::PgRow, column: &str) -> Result<Value, ReadError> {
     row.try_get(column).map_err(sql_read_error)
+}
+
+fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit, ReadError> {
+    let timeline_id = parse_identity::<TimelineId>(&row_string(row, "timeline_id")?, "TimelineId")?;
+    let before_version = TimelineVersion::new(
+        EventSeq::new(parse_u64(
+            &row_string(row, "before_head_event_seq")?,
+            "before_head_event_seq",
+        )?),
+        StateRevision::new(parse_u64(
+            &row_string(row, "before_state_revision")?,
+            "before_state_revision",
+        )?),
+    );
+    let after_version = TimelineVersion::new(
+        EventSeq::new(parse_u64(
+            &row_string(row, "after_head_event_seq")?,
+            "after_head_event_seq",
+        )?),
+        StateRevision::new(parse_u64(
+            &row_string(row, "after_state_revision")?,
+            "after_state_revision",
+        )?),
+    );
+
+    let world_time_before: Option<i64> =
+        row.try_get("world_time_before").map_err(sql_read_error)?;
+    let world_time_after: Option<i64> = row.try_get("world_time_after").map_err(sql_read_error)?;
+    let world_time = match (world_time_before, world_time_after) {
+        (None, None) => None,
+        (Some(from), Some(to)) => Some(WorldTimeTransition {
+            from: WorldInstant::new(from),
+            to: WorldInstant::new(to),
+        }),
+        _ => return Err(corrupt("logical journal World-Time columns disagree")),
+    };
+
+    let event_ids = serde_json::from_value::<Vec<EventId>>(row_json(row, "event_ids")?)
+        .map_err(|error| corrupt(format!("invalid logical journal Event IDs: {error}")))?;
+    let work_transitions =
+        serde_json::from_value::<Vec<LogicalWorkTransition>>(row_json(row, "work_transitions")?)
+            .map_err(|error| {
+                corrupt(format!("invalid logical journal Work transitions: {error}"))
+            })?;
+
+    let budget_world_time: Option<i64> = row
+        .try_get("chronology_budget_world_time")
+        .map_err(sql_read_error)?;
+    let budget_before: Option<String> = row
+        .try_get("chronology_budget_before")
+        .map_err(sql_read_error)?;
+    let budget_after: Option<String> = row
+        .try_get("chronology_budget_after")
+        .map_err(sql_read_error)?;
+    let chronology_budget = match (budget_world_time, budget_before, budget_after) {
+        (None, None, None) => None,
+        (Some(world_time), Some(before), Some(after)) => Some(ChronologyBudgetConsumption {
+            world_time: WorldInstant::new(world_time),
+            before: parse_u64(&before, "chronology_budget_before")?,
+            after: parse_u64(&after, "chronology_budget_after")?,
+        }),
+        _ => {
+            return Err(corrupt(
+                "logical journal chronology budget columns disagree",
+            ));
+        }
+    };
+
+    Ok(LogicalCommit {
+        timeline_id,
+        before_version,
+        after_version,
+        world_time,
+        event_ids,
+        work_transitions,
+        chronology_budget,
+    })
 }
 
 fn work_target(row: &sqlx::postgres::PgRow) -> Result<WorkTarget, ReadError> {

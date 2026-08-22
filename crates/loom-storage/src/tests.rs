@@ -17,10 +17,10 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, CommitError, EffectEngine, PlatformTime, Runtime,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionStore, WorkError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldTimeError,
+    AdvanceWorldTime, BindingError, CommitError, EffectEngine, LogicalWorkTransition, PlatformTime,
+    Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError,
+    RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord, WorkStatus, WorkTarget,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -799,6 +799,171 @@ fn explicit_world_time_transition_is_monotonic_and_stale_cas_loses() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the journal fixture covers each logical and operational boundary in one scenario"
+)]
+async fn logical_journal_tracks_semantic_commits_and_excludes_operational_noise() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let registry = registry();
+
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let event_token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event(80),
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"kind": "event-only"}),
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&event_token, None, PlatformTime::new(1))
+        .expect("Event-only commit should succeed");
+
+    let after_event = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_event.journal.len(), 1);
+    assert_eq!(after_event.journal[0].before_version, initial.version());
+    assert_eq!(after_event.journal[0].after_version, after_event.version());
+    assert_eq!(after_event.journal[0].event_ids, vec![event(80)]);
+    assert!(after_event.journal[0].work_transitions.is_empty());
+    assert!(after_event.journal[0].chronology_budget.is_none());
+
+    let scheduled = work(81);
+    let schedule_token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::new(
+                scheduled,
+                timeline(),
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"kind": "work-only"}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+    store
+        .commit(&schedule_token, None, PlatformTime::new(2))
+        .expect("Work-only commit should succeed");
+
+    let after_schedule = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_schedule.journal.len(), 2);
+    assert_eq!(
+        after_schedule.journal[1].before_version,
+        after_event.version()
+    );
+    assert!(matches!(
+        &after_schedule.journal[1].work_transitions[0],
+        LogicalWorkTransition::Schedule {
+            work_id,
+            effective_due_world_time,
+            logical_schedule_order,
+            ..
+        } if *work_id == scheduled
+            && *effective_due_world_time == WorldInstant::new(0)
+            && *logical_schedule_order == 1
+    ));
+
+    let journal_before_retry = after_schedule.journal.clone();
+    let claim = store
+        .claim(
+            timeline(),
+            scheduled,
+            PlatformTime::new(10),
+            PlatformTime::new(20),
+        )
+        .expect("scheduled Work should be claimable");
+    store
+        .retry(
+            &claim,
+            PlatformTime::new(11),
+            PlatformTime::new(100),
+            Some("technical failure".to_owned()),
+        )
+        .expect("technical retry should succeed");
+    assert_eq!(
+        store
+            .read_logical_journal(timeline())
+            .expect("logical journal should be readable"),
+        journal_before_retry,
+        "claim/retry must not append logical history"
+    );
+
+    let retry_claim = store
+        .claim(
+            timeline(),
+            scheduled,
+            PlatformTime::new(100),
+            PlatformTime::new(110),
+        )
+        .expect("retried Work should be claimable");
+    let completion_token = validated(&store, &registry, Resolution::default());
+    store
+        .commit(
+            &completion_token,
+            Some(&retry_claim),
+            PlatformTime::new(101),
+        )
+        .expect("Work completion should succeed");
+
+    let after_completion = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after_completion.journal.len(), 3);
+    assert_eq!(
+        after_completion.journal[2]
+            .after_version
+            .state_revision
+            .value(),
+        3
+    );
+    assert!(matches!(
+        &after_completion.journal[2].work_transitions[0],
+        LogicalWorkTransition::Complete { work_id } if *work_id == scheduled
+    ));
+    let budget = after_completion.journal[2]
+        .chronology_budget
+        .expect("Work completion should consume one chronology unit");
+    assert_eq!(budget.world_time, WorldInstant::new(0));
+    assert_eq!((budget.before, budget.after), (0, 1));
+
+    let transition = AdvanceWorldTime::new(
+        timeline(),
+        after_completion.version(),
+        after_completion.world_time(),
+        WorldInstant::new(5),
+    )
+    .expect("World-Time transition should validate");
+    store
+        .advance_world_time(transition)
+        .expect("World-Time transition should succeed");
+
+    let final_snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(final_snapshot.journal.len(), 4);
+    assert_eq!(
+        final_snapshot.journal[3].world_time,
+        Some(loom_runtime::WorldTimeTransition {
+            from: WorldInstant::new(0),
+            to: WorldInstant::new(5),
+        })
+    );
+    assert!(
+        final_snapshot
+            .journal
+            .windows(2)
+            .all(|entries| entries[0].logical_revision() < entries[1].logical_revision())
+    );
+}
+
+#[tokio::test]
 async fn storage_hard_checks_accept_same_event_structural_references_and_ordered_effects() {
     let store = InMemoryStore::new();
     store
@@ -1031,6 +1196,7 @@ async fn staged_commit_does_not_expose_event_before_work_failure() {
     assert!(after.events.is_empty());
     assert!(after.world_view().entity(entity(42)).is_none());
     assert_eq!(after.works[0].status, WorkStatus::Pending);
+    assert!(after.journal.is_empty());
 }
 
 #[tokio::test]
