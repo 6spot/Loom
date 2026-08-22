@@ -16,15 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STORAGE = ROOT / "crates" / "loom-storage"
 ALLOWED_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
 
-# Existing inline-SQL debt is intentionally explicit and may only shrink. New
-# PostgreSQL modules must start with centralized SQL files. #209 removes these
-# final exemptions once their statements have been extracted without changing
-# persistence behavior.
-INLINE_SQL_DEBT_ALLOWLIST = {
-    Path("crates/loom-storage/src/postgres.rs"),
-    Path("crates/loom-storage/src/postgres/commit.rs"),
-}
-
 FORBIDDEN_RUST_PATTERNS = {
     "sqlx path": re.compile(r"\bsqlx::"),
     "PgPool": re.compile(r"\bPgPool\b"),
@@ -110,15 +101,23 @@ def check_non_storage_cargo(errors: list[str]) -> None:
                     )
 
 
+def production_rust(text: str) -> str:
+    """Return the production portion before a file-local cfg(test) module.
+
+    `loom-storage` tests may issue direct SQL to verify PostgreSQL schema and
+    constraint behavior. That SQL is test instrumentation, not a production
+    persistence path. Production adapter code has no inline-SQL exemption.
+    """
+    return text.split("#[cfg(test)]", 1)[0]
+
+
 def check_storage_inline_sql(errors: list[str]) -> None:
     source_root = STORAGE / "src"
     for path in source_root.rglob("*.rs"):
-        relative = path.relative_to(ROOT)
-        text = path.read_text(encoding="utf-8")
+        text = production_rust(path.read_text(encoding="utf-8"))
         if not INLINE_SQL_PATTERN.search(text):
             continue
-        if relative in INLINE_SQL_DEBT_ALLOWLIST:
-            continue
+        relative = path.relative_to(ROOT)
         errors.append(
             f"inline production SQL in {relative}; move the statement to "
             "crates/loom-storage/sql/<domain>/ and load it with include_str!"
