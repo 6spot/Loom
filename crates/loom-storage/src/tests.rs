@@ -15,7 +15,10 @@ use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
     WorkSchedule,
 };
-use loom_runtime::{CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus};
+use loom_runtime::{
+    AdvanceWorldTime, CommitError, EffectEngine, PlatformTime, Runtime, WorkRecord, WorkStatus,
+    WorldTimeError,
+};
 use serde_json::{Value, json};
 
 use crate::InMemoryStore;
@@ -97,13 +100,12 @@ fn pending_work_with_handler(work_id: WorkId, handler: WorkHandlerId) -> WorkRec
     }
 }
 
-fn event_with_effect(event_id: EventId, effect: WorldEffect, occurred_at: i64) -> ProposedEvent {
+fn event_with_effect(event_id: EventId, effect: WorldEffect, source_time: i64) -> ProposedEvent {
     ProposedEvent::new(
         event_id,
         EventTypeId::from("test.changed"),
         SchemaRevision::new(1),
-        WorldInstant::new(occurred_at),
-        json!({"event": event_id.to_string()}),
+        json!({"event": event_id.to_string(), "source_time": source_time}),
     )
     .with_effect(effect)
 }
@@ -476,7 +478,6 @@ async fn commit_assigns_contiguous_event_sequences_and_advances_once() {
                 event(11),
                 EventTypeId::from("test.changed"),
                 SchemaRevision::new(1),
-                WorldInstant::new(3),
                 json!({"fact": true}),
             ),
         ],
@@ -502,8 +503,60 @@ async fn commit_assigns_contiguous_event_sequences_and_advances_once() {
     assert_eq!(snapshot.events.len(), 2);
     assert_eq!(snapshot.events[0].event_seq, EventSeq::new(1));
     assert_eq!(snapshot.events[1].event_seq, EventSeq::new(2));
-    assert_eq!(snapshot.world_time(), WorldInstant::new(5));
+    assert_eq!(snapshot.world_time(), WorldInstant::new(0));
+    assert!(
+        snapshot
+            .events
+            .iter()
+            .all(|event| event.occurred_at == WorldInstant::new(0))
+    );
     assert!(snapshot.world_view().entity(entity(20)).is_some());
+}
+
+#[test]
+fn explicit_world_time_transition_is_monotonic_and_stale_cas_loses() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let initial = store.snapshot(timeline()).expect("snapshot should exist");
+    let first = AdvanceWorldTime::new(
+        timeline(),
+        initial.version(),
+        initial.world_time(),
+        WorldInstant::new(10),
+    )
+    .expect("forward transition should validate");
+    let next = store
+        .advance_world_time(first)
+        .expect("matching World-Time CAS should succeed");
+    assert_eq!(next.head_event_seq, EventSeq::new(0));
+    assert_eq!(next.state_revision.value(), 1);
+    assert_eq!(
+        store.snapshot(timeline()).expect("snapshot").world_time(),
+        WorldInstant::new(10)
+    );
+
+    let stale = AdvanceWorldTime::new(
+        timeline(),
+        initial.version(),
+        initial.world_time(),
+        WorldInstant::new(20),
+    )
+    .expect("stale forward transition is structurally monotonic");
+    assert!(matches!(
+        store.advance_world_time(stale),
+        Err(WorldTimeError::TimelineConflict { .. })
+    ));
+    assert!(matches!(
+        AdvanceWorldTime::new(
+            timeline(),
+            next,
+            WorldInstant::new(10),
+            WorldInstant::new(10),
+        ),
+        Err(WorldTimeError::NonMonotonic { .. })
+    ));
 }
 
 #[tokio::test]

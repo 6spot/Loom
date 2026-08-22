@@ -18,10 +18,10 @@ use loom_core::{
     TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent, LifecycleError,
-    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot,
+    AdvanceWorldTime, BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent,
+    LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot,
     ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
-    WorkStore, WorldCreation, WorldLifecycleStore, WorldStore,
+    WorkStore, WorldCreation, WorldLifecycleStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -421,13 +421,11 @@ impl InMemoryStore {
                 timeline.timeline_id,
                 loom_core::EventSeq::new(next_sequence),
                 event,
+                resolution.pinned_world_time(),
             );
             timeline.events.push(committed.clone());
             timeline.event_ids.insert(event.id);
             seen_events.insert(event.id);
-            if event.occurred_at > timeline.world_time {
-                timeline.world_time = event.occurred_at;
-            }
             committed_events.push(committed);
         }
 
@@ -468,6 +466,51 @@ impl InMemoryStore {
         };
         *guard = staged;
         Ok(result)
+    }
+
+    /// Applies an explicit monotonic World-Time transition with Timeline CAS.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed World-Time error when the Timeline is missing, the
+    /// expected version or current time is stale, or the revision overflows.
+    pub fn advance_world_time(
+        &self,
+        transition: AdvanceWorldTime,
+    ) -> Result<TimelineVersion, WorldTimeError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let timeline = staged.timelines.get_mut(&transition.timeline_id()).ok_or(
+            WorldTimeError::TimelineNotFound {
+                timeline_id: transition.timeline_id(),
+            },
+        )?;
+        if timeline.version != transition.expected_version() {
+            return Err(WorldTimeError::TimelineConflict {
+                expected: transition.expected_version(),
+                actual: timeline.version,
+            });
+        }
+        if timeline.world_time != transition.current() {
+            return Err(WorldTimeError::CurrentTimeMismatch {
+                expected: transition.current(),
+                actual: timeline.world_time,
+            });
+        }
+        let state_revision = timeline
+            .version
+            .state_revision
+            .value()
+            .checked_add(1)
+            .ok_or(WorldTimeError::RevisionOverflow)?;
+        timeline.world_time = transition.next();
+        timeline.version = TimelineVersion::new(
+            timeline.version.head_event_seq,
+            loom_core::StateRevision::new(state_revision),
+        );
+        let version = timeline.version;
+        *guard = staged;
+        Ok(version)
     }
 
     /// Claims one pending Work with explicit platform-time bounds.
@@ -638,6 +681,15 @@ impl CommitStore for InMemoryStore {
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move { InMemoryStore::commit(self, resolution, current_work, now) })
+    }
+}
+
+impl WorldTimeStore for InMemoryStore {
+    fn advance_world_time(
+        &self,
+        transition: AdvanceWorldTime,
+    ) -> PersistenceFuture<'_, Result<TimelineVersion, WorldTimeError>> {
+        Box::pin(async move { InMemoryStore::advance_world_time(self, transition) })
     }
 }
 

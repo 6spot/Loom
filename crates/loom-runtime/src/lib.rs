@@ -93,10 +93,10 @@ pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
 pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
-    CommitError, CommitResult, CommitStore, CommittedEvent, LifecycleError, ManualPlatformClock,
-    PersistenceFuture, PlatformClock, PlatformTime, ReadError, TimelineSnapshot, WorkClaim,
-    WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore,
-    WorldStore,
+    AdvanceWorldTime, CommitError, CommitResult, CommitStore, CommittedEvent, LifecycleError,
+    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
+    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
+    WorldCreation, WorldLifecycleStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
 pub use validation::{

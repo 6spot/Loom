@@ -152,13 +152,12 @@ async fn seed_pending_work(pool: &PgPool, timeline_id: TimelineId, work_id: Work
     .expect("test Work should insert");
 }
 
-fn event(event_id: EventId, occurred_at: i64) -> ProposedEvent {
+fn event(event_id: EventId, source_time: i64) -> ProposedEvent {
     ProposedEvent::new(
         event_id,
         EventTypeId::from(EVENT_TYPE),
         SchemaRevision::new(1),
-        WorldInstant::new(occurred_at),
-        json!({"event": event_id.to_string()}),
+        json!({"event": event_id.to_string(), "source_time": source_time}),
     )
 }
 
@@ -223,7 +222,7 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
     let snapshot = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("committed Timeline should be readable");
-    assert_eq!(snapshot.world_time(), WorldInstant::new(7));
+    assert_eq!(snapshot.world_time(), WorldInstant::new(0));
     assert_eq!(snapshot.events.len(), 3);
     assert!(snapshot.world_view().entity(created).is_some());
     assert!(snapshot.world_view().relationship(relationship).is_some());

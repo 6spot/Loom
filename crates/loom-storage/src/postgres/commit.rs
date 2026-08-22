@@ -18,7 +18,6 @@ type PgTransaction<'a> = Transaction<'a, Postgres>;
 #[derive(Clone, Copy)]
 struct LockedTimeline {
     version: TimelineVersion,
-    world_time: loom_core::WorldInstant,
 }
 
 impl CommitStore for PgStorage {
@@ -55,7 +54,6 @@ async fn commit_resolution(
         !resolution.events().is_empty() || !resolution.work().is_empty() || current_work.is_some();
     let mut committed_events = Vec::with_capacity(resolution.events().len());
     let mut next_sequence = locked.version.head_event_seq.value();
-    let mut world_time = locked.world_time;
     let mut seen_events = HashSet::new();
 
     for event in resolution.events() {
@@ -68,12 +66,10 @@ async fn commit_resolution(
             EventSeq::new(next_sequence),
             event,
             &seen_events,
+            resolution.pinned_world_time(),
         )
         .await?;
         seen_events.insert(event.id);
-        if event.occurred_at > world_time {
-            world_time = event.occurred_at;
-        }
         committed_events.push(committed);
     }
 
@@ -106,13 +102,12 @@ async fn commit_resolution(
 
     if changes_runtime_state {
         sqlx::query(
-            "UPDATE loom_timeline SET head_event_seq = $2::numeric, state_revision = $3::numeric, \
-             world_time = $4 WHERE timeline_id = $1::uuid",
+            "UPDATE loom_timeline SET head_event_seq = $2::numeric, state_revision = $3::numeric \
+             WHERE timeline_id = $1::uuid",
         )
         .bind(timeline_id.to_string())
         .bind(next_head.value().to_string())
         .bind(next_state_revision.to_string())
-        .bind(world_time.value())
         .execute(&mut *transaction)
         .await
         .map_err(storage_error)?;
@@ -132,8 +127,8 @@ async fn lock_timeline(
     timeline_id: TimelineId,
 ) -> Result<LockedTimeline, CommitError> {
     let row = sqlx::query(
-        "SELECT head_event_seq::text AS head_event_seq, state_revision::text AS state_revision, \
-         world_time FROM loom_timeline WHERE timeline_id = $1::uuid FOR UPDATE",
+        "SELECT head_event_seq::text AS head_event_seq, state_revision::text AS state_revision \
+         FROM loom_timeline WHERE timeline_id = $1::uuid FOR UPDATE",
     )
     .bind(timeline_id.to_string())
     .fetch_optional(&mut **transaction)
@@ -145,7 +140,6 @@ async fn lock_timeline(
             EventSeq::new(parse_u64(&row, "head_event_seq")?),
             StateRevision::new(parse_u64(&row, "state_revision")?),
         ),
-        world_time: loom_core::WorldInstant::new(row.try_get("world_time").map_err(storage_error)?),
     })
 }
 
@@ -155,6 +149,7 @@ async fn apply_event(
     event_seq: EventSeq,
     event: &ProposedEvent,
     seen_events: &HashSet<EventId>,
+    occurred_at: loom_core::WorldInstant,
 ) -> Result<CommittedEvent, CommitError> {
     if event.id.is_nil() {
         return Err(invalid_event(event.id, "Event identity is nil"));
@@ -184,7 +179,7 @@ async fn apply_event(
     .bind(event_seq.value().to_string())
     .bind(event.event_type.as_str())
     .bind(i64::from(event.schema_revision.value()))
-    .bind(event.occurred_at.value())
+    .bind(occurred_at.value())
     .bind(event.payload.clone())
     .bind(effects)
     .execute(&mut **transaction)
@@ -236,7 +231,12 @@ async fn apply_event(
         .map_err(|error| event_sql_error(event.id, error))?;
     }
 
-    Ok(CommittedEvent::from_proposed(timeline_id, event_seq, event))
+    Ok(CommittedEvent::from_proposed(
+        timeline_id,
+        event_seq,
+        event,
+        occurred_at,
+    ))
 }
 
 async fn validate_event_references(

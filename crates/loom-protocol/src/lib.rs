@@ -175,8 +175,6 @@ pub struct ProposedEvent {
     pub event_type: EventTypeId,
     /// Schema revision used to interpret `payload` and association semantics.
     pub schema_revision: SchemaRevision,
-    /// World semantic time at which the candidate Event is effective/occurred.
-    pub occurred_at: WorldInstant,
     /// Direct Entity associations that are part of the Event fact.
     pub participants: Vec<EventParticipant>,
     /// Relationship identities directly referenced by the Event fact.
@@ -200,14 +198,12 @@ impl ProposedEvent {
         id: EventId,
         event_type: EventTypeId,
         schema_revision: SchemaRevision,
-        occurred_at: WorldInstant,
         payload: Value,
     ) -> Self {
         Self {
             id,
             event_type,
             schema_revision,
-            occurred_at,
             participants: Vec::new(),
             relationship_refs: Vec::new(),
             causal_links: Vec::new(),
@@ -461,7 +457,6 @@ mod tests {
             event_id,
             EventTypeId::from("counter.incremented"),
             SchemaRevision::new(1),
-            WorldInstant::new(4),
             json!({"amount": 1}),
         );
         event.participants.push(EventParticipant::new(

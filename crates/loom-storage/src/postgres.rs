@@ -20,9 +20,9 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, CommittedEvent, LifecycleError, PersistenceFuture, PlatformTime,
-    ProposedEvent, ReadError, TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldCreation,
-    WorldLifecycleStore, WorldStore,
+    AdvanceWorldTime, BaseWorldSnapshot, CommittedEvent, LifecycleError, PersistenceFuture,
+    PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, WorkLease, WorkRecord, WorkStatus,
+    WorldCreation, WorldLifecycleStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -252,11 +252,15 @@ impl PgStorage {
                 event_id,
                 EventTypeId::from(row_string(&row, "event_type")?),
                 schema_revision(&row)?,
-                WorldInstant::new(row_i64(&row, "occurred_at")?),
                 row_json(&row, "payload")?,
             );
             proposal.effects = effects;
-            let mut event = CommittedEvent::from_proposed(timeline_id, event_seq, &proposal);
+            let mut event = CommittedEvent::from_proposed(
+                timeline_id,
+                event_seq,
+                &proposal,
+                WorldInstant::new(row_i64(&row, "occurred_at")?),
+            );
 
             let participant_rows = sqlx::query(
                 "SELECT entity_id::text AS entity_id, role FROM loom_event_participant \
@@ -428,6 +432,101 @@ impl WorldStore for PgStorage {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.read_snapshot(timeline_id).await })
+    }
+}
+
+impl WorldTimeStore for PgStorage {
+    fn advance_world_time(
+        &self,
+        transition: AdvanceWorldTime,
+    ) -> PersistenceFuture<'_, Result<TimelineVersion, WorldTimeError>> {
+        Box::pin(async move {
+            let mut transaction =
+                self.pool
+                    .begin()
+                    .await
+                    .map_err(|error| WorldTimeError::StorageUnavailable {
+                        message: format!("PostgreSQL World-Time persistence failed: {error}"),
+                    })?;
+            let row = sqlx::query(
+                "SELECT head_event_seq::text AS head_event_seq, state_revision::text AS state_revision, \
+                 world_time FROM loom_timeline WHERE timeline_id = $1::uuid FOR UPDATE",
+            )
+            .bind(transition.timeline_id().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(|error| WorldTimeError::StorageUnavailable {
+                message: format!("PostgreSQL World-Time read failed: {error}"),
+            })?
+            .ok_or(WorldTimeError::TimelineNotFound {
+                timeline_id: transition.timeline_id(),
+            })?;
+            let actual = TimelineVersion::new(
+                EventSeq::new(
+                    row.try_get::<String, _>("head_event_seq")
+                        .map_err(|error| WorldTimeError::StorageUnavailable {
+                            message: format!("invalid persisted Event sequence: {error}"),
+                        })?
+                        .parse()
+                        .map_err(|error| WorldTimeError::StorageUnavailable {
+                            message: format!("invalid persisted Event sequence: {error}"),
+                        })?,
+                ),
+                StateRevision::new(
+                    row.try_get::<String, _>("state_revision")
+                        .map_err(|error| WorldTimeError::StorageUnavailable {
+                            message: format!("invalid persisted state revision: {error}"),
+                        })?
+                        .parse()
+                        .map_err(|error| WorldTimeError::StorageUnavailable {
+                            message: format!("invalid persisted state revision: {error}"),
+                        })?,
+                ),
+            );
+            if actual != transition.expected_version() {
+                return Err(WorldTimeError::TimelineConflict {
+                    expected: transition.expected_version(),
+                    actual,
+                });
+            }
+            let current = WorldInstant::new(row.try_get("world_time").map_err(|error| {
+                WorldTimeError::StorageUnavailable {
+                    message: format!("invalid persisted World Time: {error}"),
+                }
+            })?);
+            if current != transition.current() {
+                return Err(WorldTimeError::CurrentTimeMismatch {
+                    expected: transition.current(),
+                    actual: current,
+                });
+            }
+            let next_revision = actual
+                .state_revision
+                .value()
+                .checked_add(1)
+                .ok_or(WorldTimeError::RevisionOverflow)?;
+            let next =
+                TimelineVersion::new(actual.head_event_seq, StateRevision::new(next_revision));
+            sqlx::query(
+                "UPDATE loom_timeline SET state_revision = $2::numeric, world_time = $3 \
+                 WHERE timeline_id = $1::uuid",
+            )
+            .bind(transition.timeline_id().to_string())
+            .bind(next_revision.to_string())
+            .bind(transition.next().value())
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| WorldTimeError::StorageUnavailable {
+                message: format!("PostgreSQL World-Time write failed: {error}"),
+            })?;
+            transaction
+                .commit()
+                .await
+                .map_err(|error| WorldTimeError::StorageUnavailable {
+                    message: format!("PostgreSQL World-Time commit failed: {error}"),
+                })?;
+            Ok(next)
+        })
     }
 }
 

@@ -220,7 +220,6 @@ impl ActionResolver for RootResolver {
                     root_event_id,
                     EventTypeId::from(ROOT_EVENT),
                     SchemaRevision::new(1),
-                    context.world_time(),
                     json!({"value": 2}),
                 )
                 .with_causal_link(CausalLink::new(child_event_id))
@@ -286,7 +285,6 @@ impl ActionResolver for ChildResolver {
             event_id,
             EventTypeId::from(CHILD_EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"value": value}),
         )
         .with_effect(WorldEffect::PutFacet {
@@ -307,7 +305,7 @@ struct LeafResolver;
 impl ActionResolver for LeafResolver {
     fn resolve(
         &self,
-        context: &dyn ResolutionContext,
+        _context: &dyn ResolutionContext,
         input: &Value,
     ) -> Result<ResolveOutcome, ResolverError> {
         let event_id = parse_event_id(input, "event_id")?;
@@ -315,7 +313,6 @@ impl ActionResolver for LeafResolver {
             event_id,
             EventTypeId::from(LEAF_EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"value": 3}),
         )
         .with_effect(WorldEffect::PutFacet {

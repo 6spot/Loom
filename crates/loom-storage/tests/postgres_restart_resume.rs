@@ -129,7 +129,6 @@ impl ActionResolver for BootstrapResolver {
             event_id,
             EventTypeId::from(BOOTSTRAPPED_EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"value": 1}),
         )
         .with_effect(WorldEffect::CreateEntity { entity_id })
@@ -174,7 +173,6 @@ impl ActionResolver for ContinueResolver {
             event_id,
             EventTypeId::from(CONTINUED_EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"value": next}),
         )
         .with_effect(WorldEffect::PutFacet {
@@ -208,7 +206,6 @@ impl WorkHandler for WorkResolver {
             event_id,
             EventTypeId::from(WORK_EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"value": next}),
         )
         .with_effect(WorldEffect::PutFacet {

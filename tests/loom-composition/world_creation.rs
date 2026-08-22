@@ -73,7 +73,7 @@ struct CreateEntityResolver;
 impl ActionResolver for CreateEntityResolver {
     fn resolve(
         &self,
-        context: &dyn ResolutionContext,
+        _context: &dyn ResolutionContext,
         input: &Value,
     ) -> Result<ResolveOutcome, ResolverError> {
         let event_id = parse_id::<EventId>(input, "event_id")?;
@@ -82,7 +82,6 @@ impl ActionResolver for CreateEntityResolver {
             event_id,
             EventTypeId::from(EVENT),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"entity_id": entity_id.to_string()}),
         )
         .with_effect(WorldEffect::CreateEntity { entity_id });

@@ -136,7 +136,6 @@ fn proposed_event(value: u128) -> ProposedEvent {
         event(value),
         loom_core::EventTypeId::from("counter.changed"),
         SchemaRevision::new(1),
-        WorldInstant::new(5),
         json!({"value": value}),
     )
 }
