@@ -23,8 +23,9 @@ use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
     PersistenceFuture, PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -403,6 +404,28 @@ impl WorldLifecycleStore for PgStorage {
                 .await
         })
     }
+
+    fn create_world_with_bootstrap<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_with_bootstrap_internal(
+                world_id,
+                timeline_id,
+                initial_world_time,
+                binding,
+                bootstrap,
+                now,
+            )
+            .await
+        })
+    }
 }
 
 impl PgStorage {
@@ -469,6 +492,89 @@ impl PgStorage {
         Ok(WorldCreation::new(
             world_id,
             timeline_id,
+            initial_world_time,
+        ))
+    }
+
+    async fn create_world_with_bootstrap_internal(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &[ValidatedResolution],
+        now: PlatformTime,
+    ) -> Result<WorldCreation, LifecycleError> {
+        let binding_value =
+            serde_json::to_value(binding).map_err(|error| LifecycleError::StorageUnavailable {
+                message: format!("World Runtime Binding serialization failed: {error}"),
+            })?;
+        let mut transaction = self.pool.begin().await.map_err(sql_lifecycle_error)?;
+
+        if let Err(error) = sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+            .bind(world_id.to_string())
+            .execute(&mut *transaction)
+            .await
+        {
+            let _ = transaction.rollback().await;
+            if is_unique_violation(&error) {
+                return Err(LifecycleError::WorldAlreadyExists { world_id });
+            }
+            return Err(sql_lifecycle_error(error));
+        }
+
+        if let Err(error) = sqlx::query(
+            "INSERT INTO loom_world_runtime_binding (world_id, binding) \
+             VALUES ($1::uuid, $2::jsonb)",
+        )
+        .bind(world_id.to_string())
+        .bind(binding_value)
+        .execute(&mut *transaction)
+        .await
+        {
+            let _ = transaction.rollback().await;
+            return Err(sql_lifecycle_error(error));
+        }
+
+        if let Err(error) = sqlx::query(
+            "INSERT INTO loom_timeline \
+             (timeline_id, world_id, head_event_seq, state_revision, world_time) \
+             VALUES ($1::uuid, $2::uuid, 0, 0, $3)",
+        )
+        .bind(timeline_id.to_string())
+        .bind(world_id.to_string())
+        .bind(initial_world_time.value())
+        .execute(&mut *transaction)
+        .await
+        {
+            let _ = transaction.rollback().await;
+            if is_unique_violation(&error) {
+                return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+            }
+            return Err(sql_lifecycle_error(error));
+        }
+
+        let version = match commit::commit_birth_in_transaction(
+            &mut transaction,
+            timeline_id,
+            initial_world_time,
+            bootstrap,
+            now,
+        )
+        .await
+        {
+            Ok(version) => version,
+            Err(error) => {
+                let _ = transaction.rollback().await;
+                return Err(lifecycle_birth_error(error));
+            }
+        };
+
+        transaction.commit().await.map_err(sql_lifecycle_error)?;
+        Ok(WorldCreation::with_version(
+            world_id,
+            timeline_id,
+            version,
             initial_world_time,
         ))
     }
@@ -984,6 +1090,12 @@ impl WorldTimeStore for PgStorage {
 fn sql_lifecycle_error(error: sqlx::Error) -> LifecycleError {
     LifecycleError::StorageUnavailable {
         message: format!("PostgreSQL lifecycle persistence failed: {error}"),
+    }
+}
+
+fn lifecycle_birth_error(error: loom_runtime::CommitError) -> LifecycleError {
+    LifecycleError::StorageUnavailable {
+        message: format!("PostgreSQL atomic Template bootstrap failed: {error}"),
     }
 }
 

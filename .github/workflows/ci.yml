@@ -111,6 +111,11 @@ jobs:
       - name: PostgreSQL World lifecycle contract
         run: cargo test -p loom-storage --test postgres_lifecycle -- --nocapture
 
+      - name: PostgreSQL Template birth transaction contract
+        run: >-
+          cargo test -p loom-storage --test postgres_lifecycle
+          postgres_18_template_birth_is_atomic_and_snapshots_binding -- --nocapture
+
       - name: PostgreSQL public Runtime/API vertical parity
         run: cargo test -p loom-storage --test postgres_vertical -- --nocapture
 

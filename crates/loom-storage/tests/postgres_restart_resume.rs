@@ -3,7 +3,10 @@ mod support;
 
 use std::str::FromStr;
 
-use loom_api::{ActionRequest, CreateWorldRequest, EventQuery, FacetQuery, LoomApi};
+use loom_api::{
+    ActionRequest, CreateWorldFromTemplateRequest, EventQuery, FacetQuery, LoomApi,
+    WorldTemplateDescriptor,
+};
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
     CapabilityRegistry, EventDefinition, RegistrationError, ResolutionContext, ResolverError,
@@ -17,7 +20,7 @@ use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
     WorkSchedule,
 };
-use loom_runtime::{PlatformTime, Runtime, WorkStatus, WorldStore};
+use loom_runtime::{PlatformTime, Runtime, WorkStatus, WorldRuntimeBindingStore, WorldStore};
 use serde_json::{Value, json};
 
 use support::TestDatabase;
@@ -295,9 +298,13 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     let first_runtime = Runtime::new(first_storage, registry()).expect("Runtime should assemble");
     let first_api: &dyn LoomApi = &first_runtime;
     let created = first_api
-        .create_world(CreateWorldRequest::new(WorldInstant::new(7)))
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new(OWNER, 1, WorldInstant::new(7))
+                .requires_capability(OWNER, "^0.1.0")
+                .with_configuration(json!({"fixture": "restart-resume"})),
+        ))
         .await
-        .expect("public WorldService creation should succeed");
+        .expect("Template WorldService creation should succeed");
     assert_eq!(created.version, loom_core::TimelineVersion::default());
     assert_eq!(created.world_time, WorldInstant::new(7));
 
@@ -333,6 +340,19 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     let second_runtime =
         Runtime::new(second_storage, registry()).expect("Runtime should reassemble");
     let second_api: &dyn LoomApi = &second_runtime;
+
+    let binding = WorldRuntimeBindingStore::read_binding(&read_storage, target.world_id)
+        .await
+        .expect("reconstructed Runtime should read the persisted Template Binding");
+    assert_eq!(binding.revision(), 1);
+    assert_eq!(
+        binding.template_provenance(),
+        Some("postgres.restart_resume@1")
+    );
+    assert_eq!(
+        binding.configuration(),
+        &json!({"fixture": "restart-resume"})
+    );
 
     let inspected = second_api
         .inspect_timeline(target)
