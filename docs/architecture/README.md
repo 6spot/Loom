@@ -46,6 +46,7 @@ Accepted amendments are part of the current baseline from their merge point onwa
 
 - `amendments/0001-runtime-liveness-and-boundaries.md` — Work failure exit, same-World-Time liveness budget, scheduler driver ownership, `SKIP LOCKED` scope, Event occurrence-time ownership, Ingress contract, Template technical placement and terminology reconciliation.
 - `amendments/0002-supersession-and-authority-linkage.md` — exact supersession mapping, one claimability contract, Chronology Budget authority placement, current CI baseline, missing-implementation observability and Amendment linkage rules.
+- `amendments/0003-agency-execution-and-pinned-read-boundary.md` — autonomous Agent-wake execution closure, target-specific Scheduler admission for Agency Wake, AgentWorldView production authority, scalable pinned-read semantics, explicit Timeline-wide commit serialization and scale-related deferred decisions.
 
 A frozen document does not mean “never change.” It means changes are explicit, reviewable Amendments rather than silent edits that make history impossible to audit.
 
@@ -59,12 +60,16 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `core.md` | §7.3 | Amendment 0001 §8.2 — Trigger is an umbrella; Temporal Trigger = `WorkSchedule::At`, Event Trigger = Reaction → Immediate Work |
 | `core.md` | §8.4 | Amendment 0001 §8.1 — no generic Runtime `Intent` protocol type |
 | `core.md` | §9.2 | Amendment 0001 §2 + Amendment 0002 §3 — work/reaction/compute budget reference is concretized by the reconstructable same-World-Time Chronology Budget contract |
+| `world-runtime.md` | §5.1, §10.4 | Amendment 0003 §3 — Agent wake is a Scheduler-managed durable obligation; Runtime owns wake/session orchestration while Agency owns subjective context/cognition contracts |
 | `world-runtime.md` | §6.4 | Amendment 0001 §5 — Runtime owns authoritative Event occurrence-time stamp |
-| `world-runtime.md` | §8.1 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `world-runtime.md` | §8.1 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common claim/admission rules plus target-specific Capability Work vs Agency Wake compatibility |
 | `world-runtime.md` | §2.4 | Amendment 0002 §3 — chronology-budget consumption is Timeline Logical State |
 | `world-runtime.md` | §13 | Amendment 0002 §7 — status changed: end-of-document hard invariants are navigation/checklist aids, not an independent specification layer |
+| `runtime-contracts.md` | §1, §6.3, §6.5 | Amendment 0003 §3 — closes wake admission/session lifecycle and AgentWorldView production authority |
+| `runtime-contracts.md` | §7.1, §16.3 | Amendment 0003 §5 — successful logical commits serialize at Timeline scope; Scheduler Work still admits only the logical head; fine-grained commit validation remains deferred |
+| `runtime-contracts.md` | §16.5 | Amendment 0003 §4 — pinned `BaseWorldView` is a consistency contract, not a requirement to eagerly materialize the complete World in memory |
 | `runtime-contracts.md` | §9.5, §10.1, §16.1 | Amendment 0001 §5 — Capability does not choose authoritative `occurred_at` |
-| `runtime-contracts.md` | §14.11 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `runtime-contracts.md` | §14.11 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common Scheduler claim/admission contract with Agency-Wake target-specific compatibility |
 | `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 — public API includes Ingress service/domain |
 | `runtime-contracts.md` | §20.2 | Amendment 0001 §7 — Runtime owns Template validation / ValidatedWorldBirthPlan authority |
 | `runtime-contracts.md` | §22 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, not an independent specification layer |
@@ -72,11 +77,13 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
 | `implementation.md` | §5.1 | Amendment 0001 §6.2 — public API includes Ingress |
 | `implementation.md` | §6.5, §13 | Amendment 0001 §4 — `SKIP LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
+| `implementation.md` | §11.5 | Amendment 0003 §5 — optimistic TimelineVersion CAS implies Timeline-wide successful-commit serialization in v0 |
+| `implementation.md` | §15.2, §16 | Amendment 0003 §3 — Agency cognition tail is preceded by durable wake/session/context orchestration |
 | `implementation.md` | §12.2, §21.5 | Amendment 0001 §5 — Runtime-stamped Event occurrence time |
-| `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 — one complete claim/admission checklist |
+| `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common claim/admission contract plus target-specific Agency-Wake compatibility |
 | `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
 
-The full clause-by-clause explanation lives in Amendment 0002 §1. If a row appears here, the frozen text is historical context, **not current executable acceptance criteria by itself**.
+Each accepted Amendment contains its own exact affected-clause index. If a row appears here, the frozen text is historical context, **not current executable acceptance criteria by itself**.
 
 ## 4. Open questions registry
 
@@ -91,11 +98,18 @@ None, once all accepted Amendments listed above are merged.
 These are intentionally not architecture blockers:
 
 - exact numeric retry/backoff defaults;
-- exact chronology budget numbers;
+- exact chronology budget numbers and optional additive dimensions such as reaction/derivation depth, total schedules or compute/cognition cost;
 - exact Rust struct/function names where ownership is already fixed;
 - PostgreSQL table names/index layout;
-- scheduler poll cadence/worker count;
+- Scheduler poll cadence/worker count;
 - exact public authorization model for Runtime Admin operations;
+- exact Agency Wake public/control DTO/service names and cadence policy;
+- concrete pinned-read realization: revision-keyed cache, bounded prefetch, version-fenced lazy reads, miss/refill/restart, or a compatible combination;
+- exact synchronous/async Rust host/view SPI syntax used to realize scalable pinned reads without leaking persistence authority;
+- ReadSet-based fine-grained commit validation/concurrency beyond v0 Timeline-wide CAS;
+- worker/process/executor topology and the coherent `Send`/`Sync` contract across API, Runtime ports, Capability/Agency SPIs and Storage adapters;
+- historical replay/fork checkpointing and snapshot acceleration;
+- large-World benchmark thresholds / readiness targets distinct from semantic architecture capability;
 - dependency patch/minor versions not required by semantic compatibility;
 - macOS CI restoration timing / exact cross-platform validation matrix;
 - dynamic per-World Capability migration/hot-plug.
