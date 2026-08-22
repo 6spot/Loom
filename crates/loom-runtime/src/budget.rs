@@ -21,6 +21,12 @@ pub enum BudgetDimension {
     SubresolutionDepth,
     /// Number of subresolution dispatches attempted in one root execution.
     SubresolutionCount,
+    /// Number of mediated entropy requests made in one root execution.
+    EntropyRequests,
+    /// Total bytes returned by mediated entropy requests in one root execution.
+    EntropyBytes,
+    /// Largest individual mediated entropy request in one root execution.
+    EntropyRequestBytes,
 }
 
 impl std::fmt::Display for BudgetDimension {
@@ -31,6 +37,9 @@ impl std::fmt::Display for BudgetDimension {
             Self::WorkMutations => "work_mutations",
             Self::SubresolutionDepth => "subresolution_depth",
             Self::SubresolutionCount => "subresolution_count",
+            Self::EntropyRequests => "entropy_requests",
+            Self::EntropyBytes => "entropy_bytes",
+            Self::EntropyRequestBytes => "entropy_request_bytes",
         };
         formatter.write_str(name)
     }
@@ -48,6 +57,9 @@ pub struct BudgetUsage {
     work_mutations: usize,
     subresolution_depth: usize,
     subresolution_count: usize,
+    entropy_requests: usize,
+    entropy_bytes: usize,
+    entropy_request_bytes: usize,
 }
 
 impl BudgetUsage {
@@ -65,6 +77,9 @@ impl BudgetUsage {
             work_mutations: resolution.work.len(),
             subresolution_depth: 0,
             subresolution_count: 0,
+            entropy_requests: 0,
+            entropy_bytes: 0,
+            entropy_request_bytes: 0,
         }
     }
 
@@ -98,6 +113,24 @@ impl BudgetUsage {
         self.subresolution_count
     }
 
+    /// Returns the number of mediated entropy requests observed so far.
+    #[must_use]
+    pub const fn entropy_requests(self) -> usize {
+        self.entropy_requests
+    }
+
+    /// Returns the total number of mediated entropy bytes observed so far.
+    #[must_use]
+    pub const fn entropy_bytes(self) -> usize {
+        self.entropy_bytes
+    }
+
+    /// Returns the largest individual entropy request observed so far.
+    #[must_use]
+    pub const fn entropy_request_bytes(self) -> usize {
+        self.entropy_request_bytes
+    }
+
     pub(crate) fn combine(self, other: Self) -> Self {
         Self {
             events: self.events.saturating_add(other.events),
@@ -107,6 +140,9 @@ impl BudgetUsage {
             subresolution_count: self
                 .subresolution_count
                 .saturating_add(other.subresolution_count),
+            entropy_requests: self.entropy_requests.saturating_add(other.entropy_requests),
+            entropy_bytes: self.entropy_bytes.saturating_add(other.entropy_bytes),
+            entropy_request_bytes: self.entropy_request_bytes.max(other.entropy_request_bytes),
         }
     }
 
@@ -114,6 +150,20 @@ impl BudgetUsage {
         Self {
             subresolution_depth: depth,
             subresolution_count: count,
+            ..self
+        }
+    }
+
+    pub(crate) const fn with_entropy(self, request_bytes: usize) -> Self {
+        let entropy_request_bytes = if self.entropy_request_bytes > request_bytes {
+            self.entropy_request_bytes
+        } else {
+            request_bytes
+        };
+        Self {
+            entropy_requests: self.entropy_requests.saturating_add(1),
+            entropy_bytes: self.entropy_bytes.saturating_add(request_bytes),
+            entropy_request_bytes,
             ..self
         }
     }
@@ -127,12 +177,16 @@ impl BudgetUsage {
 /// appropriate for its deployment. A budget failure is a Runtime validation
 /// error and is distinct from `loom_protocol::Rejection`.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct ResolutionBudget {
     events: Option<usize>,
     effects: Option<usize>,
     work_mutations: Option<usize>,
     subresolution_depth: Option<usize>,
     subresolution_count: Option<usize>,
+    entropy_requests: Option<usize>,
+    entropy_bytes: Option<usize>,
+    entropy_request_bytes: Option<usize>,
 }
 
 impl ResolutionBudget {
@@ -149,6 +203,9 @@ impl ResolutionBudget {
             work_mutations: max_work_mutations,
             subresolution_depth: None,
             subresolution_count: None,
+            entropy_requests: None,
+            entropy_bytes: None,
+            entropy_request_bytes: None,
         }
     }
 
@@ -231,6 +288,45 @@ impl ResolutionBudget {
         self.subresolution_count
     }
 
+    /// Sets the maximum number of mediated entropy requests for one root.
+    #[must_use]
+    pub const fn with_max_entropy_requests(mut self, limit: usize) -> Self {
+        self.entropy_requests = Some(limit);
+        self
+    }
+
+    /// Sets the maximum total mediated entropy bytes for one root.
+    #[must_use]
+    pub const fn with_max_entropy_bytes(mut self, limit: usize) -> Self {
+        self.entropy_bytes = Some(limit);
+        self
+    }
+
+    /// Sets the maximum bytes permitted in one mediated entropy request.
+    #[must_use]
+    pub const fn with_max_entropy_request_bytes(mut self, limit: usize) -> Self {
+        self.entropy_request_bytes = Some(limit);
+        self
+    }
+
+    /// Returns the maximum number of mediated entropy requests.
+    #[must_use]
+    pub const fn max_entropy_requests(self) -> Option<usize> {
+        self.entropy_requests
+    }
+
+    /// Returns the maximum total mediated entropy bytes.
+    #[must_use]
+    pub const fn max_entropy_bytes(self) -> Option<usize> {
+        self.entropy_bytes
+    }
+
+    /// Returns the maximum bytes permitted in one mediated entropy request.
+    #[must_use]
+    pub const fn max_entropy_request_bytes(self) -> Option<usize> {
+        self.entropy_request_bytes
+    }
+
     pub(crate) fn check(self, usage: BudgetUsage) -> Result<(), BudgetError> {
         let dimensions = [
             (BudgetDimension::Events, self.events, usage.events),
@@ -249,6 +345,21 @@ impl ResolutionBudget {
                 BudgetDimension::SubresolutionCount,
                 self.subresolution_count,
                 usage.subresolution_count,
+            ),
+            (
+                BudgetDimension::EntropyRequests,
+                self.entropy_requests,
+                usage.entropy_requests,
+            ),
+            (
+                BudgetDimension::EntropyBytes,
+                self.entropy_bytes,
+                usage.entropy_bytes,
+            ),
+            (
+                BudgetDimension::EntropyRequestBytes,
+                self.entropy_request_bytes,
+                usage.entropy_request_bytes,
             ),
         ];
 

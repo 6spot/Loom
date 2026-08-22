@@ -2,8 +2,8 @@
 
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
-    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, PersistenceFuture,
-    PlatformTime, SessionError,
+    EntropyEvidence, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
+    PersistenceFuture, PlatformTime, SessionError,
 };
 use serde_json::Value;
 use sqlx::Row;
@@ -30,6 +30,18 @@ impl ExecutionSessionStore for PgStorage {
         ended_at: PlatformTime,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         Box::pin(async move { finish_session(self, session_id, status, ended_at).await })
+    }
+
+    fn finish_session_with_entropy(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            finish_session_with_entropy(self, session_id, status, ended_at, entropy_evidence).await
+        })
     }
 
     fn read_session(
@@ -83,6 +95,33 @@ async fn finish_session(
     status: ExecutionSessionStatus,
     ended_at: PlatformTime,
 ) -> Result<ExecutionSession, SessionError> {
+    finish_session_inner(storage, session_id, status, ended_at, None).await
+}
+
+async fn finish_session_with_entropy(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    status: ExecutionSessionStatus,
+    ended_at: PlatformTime,
+    entropy_evidence: EntropyEvidence,
+) -> Result<ExecutionSession, SessionError> {
+    finish_session_inner(
+        storage,
+        session_id,
+        status,
+        ended_at,
+        Some(entropy_evidence),
+    )
+    .await
+}
+
+async fn finish_session_inner(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    status: ExecutionSessionStatus,
+    ended_at: PlatformTime,
+    entropy_evidence: Option<EntropyEvidence>,
+) -> Result<ExecutionSession, SessionError> {
     let current = read_session(storage, session_id).await?;
     if current.status() != ExecutionSessionStatus::Started {
         if current.status() == status {
@@ -94,7 +133,12 @@ async fn finish_session(
             to: status,
         });
     }
-    let finished = current.finish(status, ended_at)?;
+    let finished = match entropy_evidence {
+        Some(entropy_evidence) => {
+            current.finish_with_entropy(status, ended_at, entropy_evidence)?
+        }
+        None => current.finish(status, ended_at)?,
+    };
     let record =
         serde_json::to_value(&finished).map_err(|error| SessionError::StorageUnavailable {
             message: format!("Execution Session serialization failed: {error}"),

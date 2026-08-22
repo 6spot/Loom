@@ -13,7 +13,9 @@ use loom_core::{
 use loom_protocol::{ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation};
 use serde_json::Value;
 
-use crate::{BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ResolutionBudget};
+use crate::{
+    BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, EntropyEvidence, ResolutionBudget,
+};
 
 /// A typed failure raised while an untrusted Resolution crosses the Runtime
 /// validation boundary.
@@ -290,6 +292,7 @@ pub struct ValidatedResolution {
     pinned_world_time: loom_core::WorldInstant,
     read_set: crate::ReadSet,
     call_provenance: CallProvenance,
+    entropy_evidence: EntropyEvidence,
 }
 
 impl ValidatedResolution {
@@ -355,6 +358,13 @@ impl ValidatedResolution {
         &self.call_provenance
     }
 
+    /// Returns ordered Runtime entropy provenance retained with this validated
+    /// execution result.
+    #[must_use]
+    pub const fn entropy_evidence(&self) -> &EntropyEvidence {
+        &self.entropy_evidence
+    }
+
     pub(crate) fn new(
         resolution: Resolution,
         timeline_id: TimelineId,
@@ -362,6 +372,7 @@ impl ValidatedResolution {
         pinned_world_time: loom_core::WorldInstant,
         read_set: crate::ReadSet,
         call_provenance: CallProvenance,
+        entropy_evidence: EntropyEvidence,
     ) -> Self {
         Self {
             resolution,
@@ -370,6 +381,7 @@ impl ValidatedResolution {
             pinned_world_time,
             read_set,
             call_provenance,
+            entropy_evidence,
         }
     }
 }
@@ -513,6 +525,23 @@ impl<'registry> EffectEngine<'registry> {
         segments: &[ResolutionSegment],
         call_provenance: CallProvenance,
     ) -> Result<ValidatedResolution, RuntimeError> {
+        self.validate_segments_with_entropy(
+            base,
+            segments,
+            call_provenance,
+            EntropyEvidence::default(),
+        )
+    }
+
+    /// Validates owner-tagged segments while retaining the Runtime entropy
+    /// evidence collected by the same pinned Execution Session.
+    pub(crate) fn validate_segments_with_entropy(
+        &self,
+        base: &crate::BaseWorldView,
+        segments: &[ResolutionSegment],
+        call_provenance: CallProvenance,
+        entropy_evidence: EntropyEvidence,
+    ) -> Result<ValidatedResolution, RuntimeError> {
         let aggregate_usage = segments
             .iter()
             .fold(BudgetUsage::default(), |usage, segment| {
@@ -572,6 +601,7 @@ impl<'registry> EffectEngine<'registry> {
             base.world_time(),
             read_set,
             call_provenance,
+            entropy_evidence,
         ))
     }
 

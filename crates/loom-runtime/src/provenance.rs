@@ -1,7 +1,81 @@
 //! Runtime-owned execution provenance for candidate validation.
 
-use loom_capability::CapabilityId;
+use loom_capability::{CapabilityId, EntropyRequest, EntropySample};
 use loom_core::{ActionTypeId, EntityId, EventId, FacetOwner, FacetTypeId, RelationshipId};
+use serde::{Deserialize, Serialize};
+
+use crate::EntropySourceId;
+
+/// One ordered Runtime-observed entropy request and returned sample.
+///
+/// This is execution provenance, not a World Event or a Capability-supplied
+/// record. The ordinal makes ordering explicit for later durable M9 storage;
+/// the vector order remains the in-memory observation order.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EntropyObservation {
+    /// Zero-based order in which Runtime accepted the request.
+    pub ordinal: usize,
+    /// Mediated request supplied by the resolver.
+    pub request: EntropyRequest,
+    /// Frozen value returned to the resolver.
+    pub sample: EntropySample,
+}
+
+/// Ordered entropy provenance for one pinned Execution Session.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EntropyEvidence {
+    source_id: EntropySourceId,
+    observations: Vec<EntropyObservation>,
+}
+
+impl EntropyEvidence {
+    /// Creates empty evidence for the source pinned by an Execution Assembly.
+    #[must_use]
+    pub fn new(source_id: EntropySourceId) -> Self {
+        Self {
+            source_id,
+            observations: Vec::new(),
+        }
+    }
+
+    /// Returns the source identity captured with the evidence.
+    #[must_use]
+    pub const fn source_id(&self) -> &EntropySourceId {
+        &self.source_id
+    }
+
+    /// Returns ordered request/sample observations.
+    #[must_use]
+    pub fn observations(&self) -> &[EntropyObservation] {
+        &self.observations
+    }
+
+    /// Returns the number of accepted entropy requests.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.observations.len()
+    }
+
+    /// Reports whether no entropy request has been accepted.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.observations.is_empty()
+    }
+
+    pub(crate) fn record(&mut self, request: EntropyRequest, sample: EntropySample) {
+        self.observations.push(EntropyObservation {
+            ordinal: self.observations.len(),
+            request,
+            sample,
+        });
+    }
+}
+
+impl Default for EntropyEvidence {
+    fn default() -> Self {
+        Self::new(EntropySourceId::from("unknown"))
+    }
+}
 
 /// One Runtime-mediated edge in a root Resolution call graph.
 ///
