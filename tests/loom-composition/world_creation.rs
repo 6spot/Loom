@@ -14,7 +14,7 @@ use loom_core::{
     WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
-use loom_runtime::{IdentityAllocator, Runtime};
+use loom_runtime::{ExecutionOrigin, ExecutionSessionStore, IdentityAllocator, Runtime};
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
 
@@ -142,6 +142,16 @@ async fn template_world_creation_is_atomic_and_immediately_usable() {
     assert_eq!(created.target.timeline_id, timeline_id);
     assert_eq!(created.version, TimelineVersion::default());
     assert_eq!(created.world_time, WorldInstant::new(42));
+    let birth_sessions = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("Template Session should be persisted");
+    assert_eq!(birth_sessions.len(), 1);
+    assert_eq!(birth_sessions[0].origin(), ExecutionOrigin::Runtime);
+    assert_eq!(birth_sessions[0].assembly().world_id(), world_id);
+    assert_eq!(
+        birth_sessions[0].status(),
+        loom_runtime::ExecutionSessionStatus::Committed
+    );
 
     let event_id = id::<EventId>(0x3010);
     let entity_id = id::<EntityId>(0x3020);
@@ -253,6 +263,21 @@ async fn template_birth_commits_bootstrap_and_snapshots_binding() {
     assert_eq!(created.version.head_event_seq.value(), 1);
     assert_eq!(created.version.state_revision.value(), 1);
     assert_eq!(created.world_time, WorldInstant::new(42));
+    let sessions = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("bootstrap Session should be persisted");
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].origin(), ExecutionOrigin::Runtime);
+    assert_eq!(sessions[0].assembly().world_id(), world_id);
+    assert_eq!(
+        sessions[0].assembly().timeline_id(),
+        timeline_id,
+        "Template bootstrap must retain one target Timeline in its Session"
+    );
+    assert_eq!(
+        sessions[0].status(),
+        loom_runtime::ExecutionSessionStatus::Committed
+    );
 
     let binding = store
         .read_binding(world_id)
@@ -316,6 +341,15 @@ async fn invalid_template_birth_leaves_no_world_or_timeline_artifact() {
         .await
         .expect_err("unknown bootstrap Action must fail before persistence");
     assert_eq!(result.code, ApiErrorCode::NotFound);
+    let sessions = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("failed bootstrap Session should remain auditable");
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].origin(), ExecutionOrigin::Runtime);
+    assert_eq!(
+        sessions[0].status(),
+        loom_runtime::ExecutionSessionStatus::Failed
+    );
     assert!(store.snapshot(timeline_id).is_err());
     assert!(store.read_binding(world_id).is_err());
 }

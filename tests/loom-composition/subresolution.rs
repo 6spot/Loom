@@ -10,16 +10,19 @@ use loom_capability::{
     RegistrationError, ResolutionContext, ResolverError,
 };
 use loom_core::{
-    ActionTypeId, Entity, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorldEffect, WorldId,
+    ActionTypeId, Entity, EntityId, EventId, EventTypeId, ExecutionSessionId, FacetOwner,
+    FacetTypeId, SchemaRevision, TimelineId, WorldEffect, WorldId,
 };
 use loom_protocol::{
     ActionInvocation, CausalLink, ProposedEvent, Rejection, Resolution, ResolveOutcome,
 };
 use loom_runtime::{
-    CallProvenance, CommitError, CommitResult, CommitStore, PersistenceFuture, PlatformTime,
-    ReadError, ResolutionBudget, Runtime, TimelineSnapshot, ValidatedResolution, WorkClaim,
-    WorkError, WorkRecord, WorkStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    CallProvenance, CommitError, CommitResult, CommitStore, ExecutionSession,
+    ExecutionSessionStatus, ExecutionSessionStore, PersistenceFuture, PlatformTime, ReadError,
+    ResolutionBudget, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkRecord,
+    WorkStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -473,6 +476,84 @@ impl WorldRuntimeBindingStore for CountingStore {
     }
 }
 
+impl RuntimeRevisionStore for CountingStore {
+    fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<(), RuntimeRevisionError>> {
+        RuntimeRevisionStore::register_revision(&self.inner, revision)
+    }
+
+    fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        RuntimeRevisionStore::confirm_revision(&self.inner, revision)
+    }
+
+    fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        RuntimeRevisionStore::read_revision(&self.inner, revision_id)
+    }
+
+    fn list_revisions(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>> {
+        RuntimeRevisionStore::list_revisions(&self.inner)
+    }
+
+    fn read_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
+        RuntimeRevisionStore::read_active_revision(&self.inner)
+    }
+
+    fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionSelection, RuntimeRevisionError>> {
+        RuntimeRevisionStore::activate_revision(
+            &self.inner,
+            revision_id,
+            expected_generation,
+            activated_at,
+        )
+    }
+}
+
+impl ExecutionSessionStore for CountingStore {
+    fn start_session(
+        &self,
+        session: ExecutionSession,
+    ) -> PersistenceFuture<'_, Result<(), SessionError>> {
+        ExecutionSessionStore::start_session(&self.inner, session)
+    }
+
+    fn finish_session(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        ExecutionSessionStore::finish_session(&self.inner, session_id, status, ended_at)
+    }
+
+    fn read_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        ExecutionSessionStore::read_session(&self.inner, session_id)
+    }
+
+    fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
+        ExecutionSessionStore::list_sessions(&self.inner)
+    }
+}
+
 impl CommitStore for CountingStore {
     fn commit<'a>(
         &'a self,
@@ -556,6 +637,36 @@ async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
         .snapshot(timeline())
         .await
         .expect("composition Timeline should remain readable");
+    let sessions = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("Action Session should be persisted");
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(
+        sessions[0].origin(),
+        loom_runtime::ExecutionOrigin::Application
+    );
+    assert_eq!(sessions[0].id(), sessions[0].assembly().session_id());
+    assert_eq!(sessions[0].assembly().world_id(), world());
+    assert_eq!(sessions[0].assembly().timeline_id(), timeline());
+    assert_eq!(
+        sessions[0]
+            .assembly()
+            .expected_version()
+            .head_event_seq
+            .value(),
+        0,
+        "the root and all subresolutions must retain one input TimelineVersion",
+    );
+    assert_eq!(
+        sessions[0]
+            .assembly()
+            .runtime_revision()
+            .revision()
+            .id()
+            .as_str(),
+        "legacy-registry",
+    );
+    assert!(sessions[0].status().is_terminal());
     assert_eq!(snapshot.events.len(), 2);
     assert_eq!(snapshot.events[0].event_type.as_str(), CHILD_EVENT);
     assert_eq!(snapshot.events[1].event_type.as_str(), ROOT_EVENT);
@@ -587,6 +698,181 @@ async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
             .sum::<usize>(),
         1,
         "subresolution call edges must not become World Event causality",
+    );
+}
+
+const SWITCH_CAPABILITY: &str = "session.switch";
+const SWITCH_ACTION: &str = "session.switch_action";
+
+struct SwitchingCapability {
+    manifest: CapabilityManifest,
+    store: Arc<InMemoryStore>,
+}
+
+impl Capability for SwitchingCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(SWITCH_ACTION), SchemaRevision::new(1))
+                .with_input_schema(json!({"type": "object"})),
+            SwitchingResolver {
+                store: Arc::clone(&self.store),
+            },
+        )?;
+        Ok(())
+    }
+}
+
+struct SwitchingResolver {
+    store: Arc<InMemoryStore>,
+}
+
+impl ActionResolver for SwitchingResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let sessions = self
+            .store
+            .list_sessions()
+            .expect("Session should be durable before resolver dispatch");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].status(), ExecutionSessionStatus::Started);
+        self.store
+            .activate_revision(
+                RuntimeRevisionId::from("r2"),
+                Some(1),
+                PlatformTime::new(20),
+            )
+            .expect("resolver hook should activate the next revision");
+        Ok(ResolveOutcome::Rejected(Rejection::new(
+            "session.switch_rejected",
+            "test resolver switched the active revision after Session start",
+        )))
+    }
+}
+
+fn revision_for_registry(
+    registry: &CapabilityRegistry,
+    id: &str,
+    implementation_prefix: &str,
+) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from(id),
+        PlatformTime::new(1),
+        format!("{id}-build"),
+        registry
+            .capabilities()
+            .next()
+            .expect("test registry should have one Capability")
+            .version
+            .clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!(
+                    "{implementation_prefix}:{}@{}",
+                    manifest.id, manifest.version
+                ),
+            )
+        }),
+    )
+    .expect("test registry should form a Runtime Revision")
+}
+
+#[tokio::test]
+async fn active_revision_switch_after_session_start_does_not_rebind_assembly() {
+    let store = Arc::new(InMemoryStore::new());
+    store
+        .create_timeline(world(), timeline())
+        .expect("switch Timeline should be created");
+    WorldRuntimeBindingStore::persist_binding(
+        store.as_ref(),
+        world(),
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from(SWITCH_CAPABILITY),
+                CapabilityDependency::parse(SWITCH_CAPABILITY, "^0.1.0")
+                    .expect("test requirement should parse")
+                    .version,
+            )],
+            json!({"fixture": "revision-switch"}),
+            1,
+            Some("revision-switch".to_owned()),
+        ),
+    )
+    .await
+    .expect("switch binding should persist once");
+    let registry = CapabilityRegistry::assemble([SwitchingCapability {
+        manifest: CapabilityManifest::parse(SWITCH_CAPABILITY, "0.1.0")
+            .expect("switch manifest should parse"),
+        store: Arc::clone(&store),
+    }])
+    .expect("switch registry should assemble");
+    let r1 = revision_for_registry(&registry, "r1", "implementation-r1");
+    let r2 = revision_for_registry(&registry, "r2", "implementation-r2");
+    let runtime = Runtime::new(store.as_ref(), registry).expect("Runtime should assemble");
+    runtime
+        .register_runtime_revision(r1)
+        .await
+        .expect("R1 should register");
+    runtime
+        .register_runtime_revision(r2)
+        .await
+        .expect("R2 should register");
+    runtime
+        .activate_runtime_revision(RuntimeRevisionId::from("r1"), None, PlatformTime::new(2))
+        .await
+        .expect("R1 should activate");
+
+    let result = (&runtime as &dyn LoomApi)
+        .invoke(ActionRequest::new(
+            target(),
+            ActionInvocation::new(ActionTypeId::from(SWITCH_ACTION), json!({})),
+        ))
+        .await
+        .expect("the resolver's semantic rejection should remain a normal outcome");
+    assert!(matches!(result, ExecutionResult::Rejected(_)));
+
+    let sessions = ExecutionSessionStore::list_sessions(store.as_ref())
+        .await
+        .expect("Session should survive the active-revision switch");
+    assert_eq!(sessions.len(), 1);
+    let session = &sessions[0];
+    assert_eq!(session.origin(), loom_runtime::ExecutionOrigin::Application);
+    assert_eq!(session.status(), ExecutionSessionStatus::Rejected);
+    assert_eq!(
+        session
+            .assembly()
+            .runtime_revision()
+            .revision()
+            .id()
+            .as_str(),
+        "r1"
+    );
+    assert_eq!(
+        session
+            .assembly()
+            .implementations()
+            .capability(&CapabilityId::from(SWITCH_CAPABILITY))
+            .expect("R1 implementation should be pinned")
+            .implementation_id(),
+        "implementation-r1:session.switch@0.1.0"
+    );
+    assert_eq!(
+        runtime
+            .active_runtime_revision()
+            .await
+            .expect("active revision should remain readable")
+            .expect("R2 should be active")
+            .revision()
+            .id()
+            .as_str(),
+        "r2"
     );
 }
 

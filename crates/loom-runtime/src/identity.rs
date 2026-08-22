@@ -5,7 +5,7 @@
 //! while applications/tests may inject a deterministic allocator. Capability
 //! resolution and the public Loom API never receive the allocator itself.
 
-use loom_core::{TimelineId, WorldId};
+use loom_core::{ExecutionSessionId, TimelineId, WorldId};
 
 /// Allocates fresh technical identities for Runtime-owned World lifecycle work.
 ///
@@ -19,6 +19,17 @@ pub trait IdentityAllocator {
 
     /// Allocates a fresh Timeline identity.
     fn allocate_timeline_id(&self) -> TimelineId;
+
+    /// Allocates a fresh Runtime execution Session identity.
+    ///
+    /// The default keeps existing application/test allocators source
+    /// compatible while moving Session identity allocation into the same
+    /// Runtime-owned technical boundary as World and Timeline identities.
+    /// The returned value is provenance metadata only; it is not a World
+    /// Event identity or a commit token.
+    fn allocate_execution_session_id(&self) -> ExecutionSessionId {
+        ExecutionSessionId::from_uuid(uuid::Uuid::now_v7())
+    }
 }
 
 /// Default Runtime allocator using RFC 9562 UUID version 7 identities.
@@ -36,6 +47,10 @@ impl IdentityAllocator for UuidV7IdentityAllocator {
 
     fn allocate_timeline_id(&self) -> TimelineId {
         TimelineId::from_uuid(uuid::Uuid::now_v7())
+    }
+
+    fn allocate_execution_session_id(&self) -> ExecutionSessionId {
+        ExecutionSessionId::from_uuid(uuid::Uuid::now_v7())
     }
 }
 

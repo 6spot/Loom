@@ -20,7 +20,10 @@ use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
     WorkSchedule,
 };
-use loom_runtime::{PlatformTime, Runtime, WorkStatus, WorldRuntimeBindingStore, WorldStore};
+use loom_runtime::{
+    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, Runtime,
+    WorkStatus, WorldRuntimeBindingStore, WorldStore,
+};
 use serde_json::{Value, json};
 
 use support::TestDatabase;
@@ -295,7 +298,8 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     };
 
     let first_storage = database.storage().await;
-    let first_runtime = Runtime::new(first_storage, registry()).expect("Runtime should assemble");
+    let first_runtime =
+        Runtime::new(first_storage.clone(), registry()).expect("Runtime should assemble");
     let first_api: &dyn LoomApi = &first_runtime;
     let created = first_api
         .create_world_from_template(CreateWorldFromTemplateRequest::new(
@@ -332,14 +336,34 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
             .len(),
         1
     );
+    let sessions_before_restart = ExecutionSessionStore::list_sessions(&first_storage)
+        .await
+        .expect("PostgreSQL Session records should be readable before restart");
+    assert_eq!(sessions_before_restart.len(), 2);
+    assert!(sessions_before_restart.iter().any(|session| {
+        session.origin() == ExecutionOrigin::Runtime
+            && session.status() == ExecutionSessionStatus::Committed
+            && session.assembly().world_id() == target.world_id
+    }));
+    assert!(sessions_before_restart.iter().any(|session| {
+        session.origin() == ExecutionOrigin::Application
+            && session.status() == ExecutionSessionStatus::Committed
+            && session.assembly().timeline_id() == target.timeline_id
+    }));
 
     drop(first_runtime);
 
     let second_storage = database.storage().await;
     let read_storage = second_storage.clone();
     let second_runtime =
-        Runtime::new(second_storage, registry()).expect("Runtime should reassemble");
+        Runtime::new(second_storage.clone(), registry()).expect("Runtime should reassemble");
     let second_api: &dyn LoomApi = &second_runtime;
+    assert_eq!(
+        ExecutionSessionStore::list_sessions(&second_storage)
+            .await
+            .expect("PostgreSQL Session records should survive restart"),
+        sessions_before_restart,
+    );
 
     let binding = WorldRuntimeBindingStore::read_binding(&read_storage, target.world_id)
         .await
@@ -420,6 +444,14 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     assert_eq!(completed.attempt_count, 1);
     assert_eq!(completed.claim_generation, 1);
     assert!(completed.lease.is_none());
+    let sessions_after_resume = ExecutionSessionStore::list_sessions(&second_storage)
+        .await
+        .expect("all resumed Session records should remain readable");
+    assert_eq!(sessions_after_resume.len(), 4);
+    assert!(sessions_after_resume.iter().all(|session| {
+        session.status() == ExecutionSessionStatus::Committed
+            && session.assembly().world_id() == target.world_id
+    }));
 
     drop(second_runtime);
     database.cleanup().await;
