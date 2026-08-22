@@ -18,13 +18,13 @@ use std::{
     },
 };
 
-use loom_capability::CapabilityId;
+use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
     AssociationRole, EntityId, EventId, EventSeq, RelationshipId, StateRevision, TimelineId,
     TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
-use semver::VersionReq;
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -157,7 +157,9 @@ impl std::error::Error for BindingError {}
 /// [`WorldInstant`], which is semantic time in a World Timeline. A retry
 /// backoff or lease deadline must not advance World Time or become a World
 /// Event merely because platform time moved forward.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub struct PlatformTime(i64);
 
 impl PlatformTime {
@@ -191,6 +193,551 @@ impl fmt::Display for PlatformTime {
         self.0.fmt(formatter)
     }
 }
+
+/// Stable identity of one immutable Runtime software revision.
+///
+/// This is Platform History metadata. It is deliberately not a Core identity,
+/// World Event key or Timeline revision. A composition root chooses the stable
+/// value and must explicitly register/confirm it before activation.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct RuntimeRevisionId(String);
+
+impl RuntimeRevisionId {
+    /// Creates a Runtime Revision identity without granting activation
+    /// authority.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Borrows the stable revision identity.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Reports whether the identity is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for RuntimeRevisionId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for RuntimeRevisionId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<RuntimeRevisionId> for String {
+    fn from(value: RuntimeRevisionId) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for RuntimeRevisionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// Exact Capability software metadata available under one Runtime Revision.
+///
+/// `implementation_id` is a non-secret composition/build identity. The
+/// semantic Capability ID and exact implementation version are kept separate
+/// so a later Execution Session can pin both the implementation identity and
+/// the compatibility facts used against a World Runtime Binding.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeRevisionCapability {
+    capability_id: CapabilityId,
+    implementation_id: String,
+    version: Version,
+    loom_compatibility: VersionReq,
+}
+
+impl RuntimeRevisionCapability {
+    /// Creates one exact installed Capability implementation record.
+    #[must_use]
+    pub fn new(
+        capability_id: impl Into<CapabilityId>,
+        implementation_id: impl Into<String>,
+        version: Version,
+        loom_compatibility: VersionReq,
+    ) -> Self {
+        Self {
+            capability_id: capability_id.into(),
+            implementation_id: implementation_id.into(),
+            version,
+            loom_compatibility,
+        }
+    }
+
+    /// Creates the minimum implementation record represented by a registered
+    /// Capability manifest. Composition roots with a distinct build identity
+    /// should use [`Self::new`] and supply that identity explicitly.
+    #[must_use]
+    pub fn from_manifest(
+        manifest: &CapabilityManifest,
+        implementation_id: impl Into<String>,
+    ) -> Self {
+        Self::new(
+            manifest.id.clone(),
+            implementation_id,
+            manifest.version.clone(),
+            manifest.loom_compatibility.clone(),
+        )
+    }
+
+    /// Returns the semantic Capability identity.
+    #[must_use]
+    pub const fn capability_id(&self) -> &CapabilityId {
+        &self.capability_id
+    }
+
+    /// Returns the non-secret exact implementation/build identity.
+    #[must_use]
+    pub fn implementation_id(&self) -> &str {
+        &self.implementation_id
+    }
+
+    /// Returns the exact installed Capability version.
+    #[must_use]
+    pub const fn version(&self) -> &Version {
+        &self.version
+    }
+
+    /// Returns the Loom contract compatibility requirement declared by the
+    /// implementation.
+    #[must_use]
+    pub const fn loom_compatibility(&self) -> &VersionReq {
+        &self.loom_compatibility
+    }
+}
+
+/// Errors found while constructing an immutable Runtime Revision descriptor.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RuntimeRevisionDescriptorError {
+    /// A stable revision identity is required.
+    EmptyRevisionId,
+    /// A non-secret core build/ref is required by the publication record.
+    EmptyCoreBuildRef,
+    /// Each installed implementation needs a stable non-secret identity.
+    EmptyImplementationId { capability_id: CapabilityId },
+    /// A descriptor may contain one exact implementation per semantic
+    /// Capability identity.
+    DuplicateCapability { capability_id: CapabilityId },
+    /// The implementation cannot run against the descriptor's Loom contract.
+    IncompatibleLoomVersion {
+        capability_id: CapabilityId,
+        required: VersionReq,
+        found: Version,
+    },
+}
+
+impl fmt::Display for RuntimeRevisionDescriptorError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyRevisionId => formatter.write_str("Runtime Revision identity is empty"),
+            Self::EmptyCoreBuildRef => formatter.write_str("Runtime core build/ref is empty"),
+            Self::EmptyImplementationId { capability_id } => write!(
+                formatter,
+                "implementation identity for Capability {capability_id} is empty"
+            ),
+            Self::DuplicateCapability { capability_id } => write!(
+                formatter,
+                "Runtime Revision contains duplicate Capability {capability_id}"
+            ),
+            Self::IncompatibleLoomVersion {
+                capability_id,
+                required,
+                found,
+            } => write!(
+                formatter,
+                "Capability {capability_id} requires Loom {required}, found {found}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeRevisionDescriptorError {}
+
+/// Immutable publication descriptor for one Runtime software revision.
+///
+/// The descriptor is Platform History only. It contains non-secret build and
+/// compatibility metadata, never provider secrets/raw configuration, and it
+/// cannot be changed after registration. Exact selected implementations are
+/// later copied into a root Execution Assembly by the Session boundary.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeRevisionDescriptor {
+    id: RuntimeRevisionId,
+    published_at: PlatformTime,
+    core_build_ref: String,
+    loom_version: Version,
+    capabilities: BTreeMap<CapabilityId, RuntimeRevisionCapability>,
+}
+
+impl RuntimeRevisionDescriptor {
+    /// Builds and validates one immutable publication descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when publication metadata is incomplete,
+    /// Capability identities are duplicated or a Capability cannot run
+    /// against the descriptor's Loom contract version.
+    pub fn new<I>(
+        id: impl Into<RuntimeRevisionId>,
+        published_at: PlatformTime,
+        core_build_ref: impl Into<String>,
+        loom_version: Version,
+        capabilities: I,
+    ) -> Result<Self, RuntimeRevisionDescriptorError>
+    where
+        I: IntoIterator<Item = RuntimeRevisionCapability>,
+    {
+        let id = id.into();
+        if id.is_empty() {
+            return Err(RuntimeRevisionDescriptorError::EmptyRevisionId);
+        }
+        let core_build_ref = core_build_ref.into();
+        if core_build_ref.is_empty() {
+            return Err(RuntimeRevisionDescriptorError::EmptyCoreBuildRef);
+        }
+
+        let mut installed = BTreeMap::new();
+        for capability in capabilities {
+            let capability_id = capability.capability_id.clone();
+            if capability.implementation_id.is_empty() {
+                return Err(RuntimeRevisionDescriptorError::EmptyImplementationId {
+                    capability_id,
+                });
+            }
+            if installed.contains_key(&capability_id) {
+                return Err(RuntimeRevisionDescriptorError::DuplicateCapability { capability_id });
+            }
+            installed.insert(capability_id, capability);
+        }
+
+        for capability in installed.values() {
+            if !capability.loom_compatibility.matches(&loom_version) {
+                return Err(RuntimeRevisionDescriptorError::IncompatibleLoomVersion {
+                    capability_id: capability.capability_id.clone(),
+                    required: capability.loom_compatibility.clone(),
+                    found: loom_version.clone(),
+                });
+            }
+        }
+
+        Ok(Self {
+            id,
+            published_at,
+            core_build_ref,
+            loom_version,
+            capabilities: installed,
+        })
+    }
+
+    /// Returns the stable revision identity.
+    #[must_use]
+    pub const fn id(&self) -> &RuntimeRevisionId {
+        &self.id
+    }
+
+    /// Returns the publication platform-time metadata.
+    #[must_use]
+    pub const fn published_at(&self) -> PlatformTime {
+        self.published_at
+    }
+
+    /// Returns the non-secret core build/ref metadata.
+    #[must_use]
+    pub fn core_build_ref(&self) -> &str {
+        &self.core_build_ref
+    }
+
+    /// Returns the Loom contract version used to validate installed
+    /// Capability compatibility.
+    #[must_use]
+    pub const fn loom_version(&self) -> &Version {
+        &self.loom_version
+    }
+
+    /// Returns exact installed Capability metadata in deterministic key order.
+    #[must_use]
+    pub const fn capabilities(&self) -> &BTreeMap<CapabilityId, RuntimeRevisionCapability> {
+        &self.capabilities
+    }
+
+    /// Looks up one exact installed Capability implementation.
+    #[must_use]
+    pub fn capability(&self, capability_id: &CapabilityId) -> Option<&RuntimeRevisionCapability> {
+        self.capabilities.get(capability_id)
+    }
+
+    /// Checks this active revision against a World Runtime Binding and returns
+    /// the exact compatible implementation assembly for a future Session.
+    ///
+    /// This method only reads immutable descriptors. It never changes the
+    /// Binding, active selection, World history or Timeline state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed missing-Capability or version-mismatch error when the
+    /// active revision cannot satisfy the immutable Binding.
+    pub fn compatible_with(
+        &self,
+        binding: &WorldRuntimeBinding,
+    ) -> Result<RuntimeRevisionAssembly, RuntimeRevisionCompatibilityError> {
+        let mut selected = BTreeMap::new();
+        for (capability_id, requirement) in binding.requirements() {
+            let Some(installed) = self.capabilities.get(capability_id) else {
+                return Err(RuntimeRevisionCompatibilityError::MissingCapability {
+                    capability_id: capability_id.clone(),
+                    required: requirement.clone(),
+                });
+            };
+            if !requirement.matches(&installed.version) {
+                return Err(RuntimeRevisionCompatibilityError::VersionMismatch {
+                    capability_id: capability_id.clone(),
+                    required: requirement.clone(),
+                    found: installed.version.clone(),
+                });
+            }
+            selected.insert(capability_id.clone(), installed.clone());
+        }
+        Ok(RuntimeRevisionAssembly {
+            revision_id: self.id.clone(),
+            capabilities: selected,
+        })
+    }
+}
+
+/// Exact compatible implementation set selected for one future Session.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeRevisionAssembly {
+    revision_id: RuntimeRevisionId,
+    capabilities: BTreeMap<CapabilityId, RuntimeRevisionCapability>,
+}
+
+impl RuntimeRevisionAssembly {
+    /// Returns the Runtime Revision pinned by this assembly.
+    #[must_use]
+    pub const fn revision_id(&self) -> &RuntimeRevisionId {
+        &self.revision_id
+    }
+
+    /// Returns the exact compatible implementation set.
+    #[must_use]
+    pub const fn capabilities(&self) -> &BTreeMap<CapabilityId, RuntimeRevisionCapability> {
+        &self.capabilities
+    }
+}
+
+/// Typed incompatibility between an active Runtime Revision and a World
+/// Runtime Binding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RuntimeRevisionCompatibilityError {
+    /// The active revision has no implementation for a required semantic
+    /// Capability domain.
+    MissingCapability {
+        capability_id: CapabilityId,
+        required: VersionReq,
+    },
+    /// The installed implementation version does not satisfy the immutable
+    /// World requirement.
+    VersionMismatch {
+        capability_id: CapabilityId,
+        required: VersionReq,
+        found: Version,
+    },
+}
+
+impl fmt::Display for RuntimeRevisionCompatibilityError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingCapability {
+                capability_id,
+                required,
+            } => write!(
+                formatter,
+                "Runtime Revision is missing Capability {capability_id} required by {required}"
+            ),
+            Self::VersionMismatch {
+                capability_id,
+                required,
+                found,
+            } => write!(
+                formatter,
+                "Capability {capability_id} version {found} does not satisfy World requirement {required}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeRevisionCompatibilityError {}
+
+/// Active Runtime Revision selection returned by the Runtime port.
+///
+/// The generation is the CAS token for the selection pointer. The embedded
+/// descriptor is cloned at read/activation time, so a Session can retain it
+/// even if a later activation changes the active pointer.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeRevisionSelection {
+    revision: RuntimeRevisionDescriptor,
+    generation: u64,
+    activated_at: PlatformTime,
+}
+
+impl RuntimeRevisionSelection {
+    /// Creates one active-selection snapshot after the persistence adapter has
+    /// linearized its generation CAS.
+    #[must_use]
+    pub const fn new(
+        revision: RuntimeRevisionDescriptor,
+        generation: u64,
+        activated_at: PlatformTime,
+    ) -> Self {
+        Self {
+            revision,
+            generation,
+            activated_at,
+        }
+    }
+
+    /// Returns the immutable selected descriptor.
+    #[must_use]
+    pub const fn revision(&self) -> &RuntimeRevisionDescriptor {
+        &self.revision
+    }
+
+    /// Returns the active-selection CAS generation.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Returns the platform-time activation metadata.
+    #[must_use]
+    pub const fn activated_at(&self) -> PlatformTime {
+        self.activated_at
+    }
+}
+
+/// Errors from the immutable Runtime Revision and active-selection port.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RuntimeRevisionError {
+    /// A publication with this stable identity is already present.
+    RevisionAlreadyExists { revision_id: RuntimeRevisionId },
+    /// The requested immutable publication is absent.
+    RevisionNotFound { revision_id: RuntimeRevisionId },
+    /// A confirmation supplied metadata different from the immutable row.
+    RevisionDescriptorMismatch { revision_id: RuntimeRevisionId },
+    /// A concurrent activation changed the selection pointer.
+    ActiveRevisionConflict {
+        expected_generation: Option<u64>,
+        actual_generation: Option<u64>,
+    },
+    /// The active-selection generation cannot advance further.
+    ActivationGenerationOverflow,
+    /// The Runtime Revision authority could not complete the operation.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for RuntimeRevisionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RevisionAlreadyExists { revision_id } => {
+                write!(formatter, "Runtime Revision {revision_id} already exists")
+            }
+            Self::RevisionNotFound { revision_id } => {
+                write!(formatter, "Runtime Revision {revision_id} was not found")
+            }
+            Self::RevisionDescriptorMismatch { revision_id } => write!(
+                formatter,
+                "Runtime Revision {revision_id} does not match the confirmed descriptor"
+            ),
+            Self::ActiveRevisionConflict {
+                expected_generation,
+                actual_generation,
+            } => write!(
+                formatter,
+                "active Runtime Revision generation conflict: expected {expected_generation:?}, actual {actual_generation:?}"
+            ),
+            Self::ActivationGenerationOverflow => {
+                formatter.write_str("active Runtime Revision generation overflowed")
+            }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for RuntimeRevisionError {}
+
+/// Runtime-owned Platform History port for immutable revision publication and
+/// explicit active-revision selection.
+///
+/// Implementations must keep revision descriptors immutable and linearize
+/// activation through the supplied generation CAS. No method writes World,
+/// Timeline, Event, materialized State or World Runtime Binding data.
+pub trait RuntimeRevisionStore {
+    /// Publishes one immutable revision descriptor exactly once.
+    fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<(), RuntimeRevisionError>>;
+
+    /// Confirms a known descriptor, registering it only when its stable ID is
+    /// absent. A different descriptor under the same ID is rejected.
+    fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>>;
+
+    /// Reads one immutable revision publication.
+    fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>>;
+
+    /// Reads all immutable publications in deterministic ID order.
+    fn list_revisions(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>>;
+
+    /// Reads the current active selection. `None` means no semantic revision
+    /// has been explicitly activated yet.
+    fn read_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>>;
+
+    /// Alias used by Session-start code to emphasize selection/pinning.
+    fn select_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
+        self.read_active_revision()
+    }
+
+    /// Activates a previously registered revision if the active-selection
+    /// generation still equals `expected_generation` (`None` means no active
+    /// revision). The revision descriptor itself is never changed.
+    fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionSelection, RuntimeRevisionError>>;
+}
+
+/// Compatibility aliases matching the architecture's shorter terminology.
+pub type RuntimeRevision = RuntimeRevisionDescriptor;
+pub type RuntimeCapabilityImplementation = RuntimeRevisionCapability;
+pub type ActiveRuntimeRevision = RuntimeRevisionSelection;
 
 /// Runtime-owned source of operational platform time.
 ///

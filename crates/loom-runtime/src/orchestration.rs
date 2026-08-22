@@ -24,10 +24,11 @@ use serde_json::json;
 use crate::{
     BindingError, BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent,
     EffectEngine, IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture,
-    PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError, TimelineSnapshot,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStore, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldStore,
+    PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, TimelineSnapshot, UuidV7IdentityAllocator, ValidatedResolution,
+    ValidationError, WorkClaim, WorkError, WorkRecord, WorkStore, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -127,6 +128,80 @@ where
     pub fn with_resolution_budget(mut self, budget: ResolutionBudget) -> Self {
         self.resolution_budget = budget;
         self
+    }
+
+    /// Explicitly publishes a Runtime Revision through the Platform History
+    /// port. Runtime construction itself never registers or activates a
+    /// revision as a side effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Platform History error from the persistence adapter.
+    pub async fn register_runtime_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<(), RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.register_revision(revision).await
+    }
+
+    /// Explicitly confirms the composition root's known Runtime Revision
+    /// descriptor. A matching immutable publication is returned; a conflicting
+    /// descriptor under the same ID is rejected without changing Platform or
+    /// World state.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Platform History error when the descriptor is absent,
+    /// conflicting or the adapter is unavailable.
+    pub async fn confirm_runtime_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.confirm_revision(revision).await
+    }
+
+    /// Reads the current active Runtime Revision selection for a root Session
+    /// start. The returned descriptor is a clone and therefore remains pinned
+    /// if a later activation changes the selection pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Platform History read error from the persistence
+    /// adapter.
+    pub async fn active_runtime_revision(
+        &self,
+    ) -> Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.select_active_revision().await
+    }
+
+    /// Explicitly activates a previously registered Runtime Revision through
+    /// the generation CAS. This operation is Platform History only and never
+    /// mutates World, Timeline, Event, State or World Runtime Binding data.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed missing-revision, stale-generation or storage error.
+    pub async fn activate_runtime_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> Result<RuntimeRevisionSelection, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store
+            .activate_revision(revision_id, expected_generation, activated_at)
+            .await
     }
 
     async fn binding_for_world(
@@ -370,6 +445,53 @@ where
         legacy_binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
         (**self).ensure_binding(world_id, legacy_binding)
+    }
+}
+
+impl<T> RuntimeRevisionStore for &T
+where
+    T: RuntimeRevisionStore + ?Sized,
+{
+    fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<(), RuntimeRevisionError>> {
+        (**self).register_revision(revision)
+    }
+
+    fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        (**self).confirm_revision(revision)
+    }
+
+    fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        (**self).read_revision(revision_id)
+    }
+
+    fn list_revisions(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>> {
+        (**self).list_revisions()
+    }
+
+    fn read_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
+        (**self).read_active_revision()
+    }
+
+    fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionSelection, RuntimeRevisionError>> {
+        (**self).activate_revision(revision_id, expected_generation, activated_at)
     }
 }
 

@@ -21,9 +21,10 @@ use loom_core::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommittedEvent, LifecycleError,
-    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot, WorkLease,
-    WorkRecord, WorkStatus, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    PersistenceFuture, PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    TimelineSnapshot, WorkLease, WorkRecord, WorkStatus, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -620,6 +621,271 @@ impl PgStorage {
     }
 }
 
+impl RuntimeRevisionStore for PgStorage {
+    fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<(), RuntimeRevisionError>> {
+        Box::pin(async move { self.register_revision(revision).await })
+    }
+
+    fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        Box::pin(async move { self.confirm_revision(revision).await })
+    }
+
+    fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionDescriptor, RuntimeRevisionError>> {
+        Box::pin(async move { self.read_revision(revision_id).await })
+    }
+
+    fn list_revisions(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>> {
+        Box::pin(async move { self.list_revisions().await })
+    }
+
+    fn read_active_revision(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
+        Box::pin(async move { self.read_active_revision().await })
+    }
+
+    fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<RuntimeRevisionSelection, RuntimeRevisionError>> {
+        Box::pin(async move {
+            self.activate_revision(revision_id, expected_generation, activated_at)
+                .await
+        })
+    }
+}
+
+impl PgStorage {
+    async fn register_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<(), RuntimeRevisionError> {
+        let revision_id = revision.id().clone();
+        let descriptor = serde_json::to_value(revision).map_err(|error| {
+            RuntimeRevisionError::StorageUnavailable {
+                message: format!("Runtime Revision serialization failed: {error}"),
+            }
+        })?;
+        let result = sqlx::query(
+            "INSERT INTO loom_runtime_revision (revision_id, descriptor) \
+             VALUES ($1, $2::jsonb)",
+        )
+        .bind(revision_id.as_str())
+        .bind(descriptor)
+        .execute(&self.pool)
+        .await;
+        if let Err(error) = result {
+            if is_unique_violation(&error) {
+                return Err(RuntimeRevisionError::RevisionAlreadyExists { revision_id });
+            }
+            return Err(sql_revision_error(error));
+        }
+        Ok(())
+    }
+
+    async fn confirm_revision(
+        &self,
+        revision: RuntimeRevisionDescriptor,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError> {
+        let revision_id = revision.id().clone();
+        match self.read_revision(revision_id.clone()).await {
+            Ok(existing) => {
+                if existing != revision {
+                    return Err(RuntimeRevisionError::RevisionDescriptorMismatch { revision_id });
+                }
+                Ok(existing)
+            }
+            Err(RuntimeRevisionError::RevisionNotFound { .. }) => {
+                match self.register_revision(revision.clone()).await {
+                    Ok(()) => Ok(revision),
+                    Err(RuntimeRevisionError::RevisionAlreadyExists { .. }) => {
+                        let existing = self.read_revision(revision_id.clone()).await?;
+                        if existing != revision {
+                            return Err(RuntimeRevisionError::RevisionDescriptorMismatch {
+                                revision_id,
+                            });
+                        }
+                        Ok(existing)
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn read_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError> {
+        let row =
+            sqlx::query("SELECT descriptor FROM loom_runtime_revision WHERE revision_id = $1")
+                .bind(revision_id.as_str())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(sql_revision_error)?;
+        let Some(row) = row else {
+            return Err(RuntimeRevisionError::RevisionNotFound { revision_id });
+        };
+        let descriptor: Value = row.try_get("descriptor").map_err(sql_revision_error)?;
+        serde_json::from_value(descriptor).map_err(|error| {
+            RuntimeRevisionError::StorageUnavailable {
+                message: format!("invalid persisted Runtime Revision: {error}"),
+            }
+        })
+    }
+
+    async fn list_revisions(&self) -> Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError> {
+        let rows =
+            sqlx::query("SELECT descriptor FROM loom_runtime_revision ORDER BY revision_id ASC")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(sql_revision_error)?;
+        rows.into_iter()
+            .map(|row| {
+                let descriptor: Value = row.try_get("descriptor").map_err(sql_revision_error)?;
+                serde_json::from_value(descriptor).map_err(|error| {
+                    RuntimeRevisionError::StorageUnavailable {
+                        message: format!("invalid persisted Runtime Revision: {error}"),
+                    }
+                })
+            })
+            .collect()
+    }
+
+    async fn read_active_revision(
+        &self,
+    ) -> Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError> {
+        let row = sqlx::query(
+            "SELECT active.revision_id, active.activation_generation::text AS activation_generation, \
+                    active.activated_at, revision.descriptor \
+             FROM loom_runtime_active_revision AS active \
+             LEFT JOIN loom_runtime_revision AS revision \
+               ON revision.revision_id = active.revision_id \
+             WHERE active.singleton = TRUE",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sql_revision_error)?;
+        let Some(row) = row else {
+            return Err(RuntimeRevisionError::StorageUnavailable {
+                message: "Runtime active-revision anchor is missing".to_owned(),
+            });
+        };
+        let revision_id: Option<String> = row.try_get("revision_id").map_err(sql_revision_error)?;
+        let Some(revision_id) = revision_id else {
+            return Ok(None);
+        };
+        let generation = parse_runtime_u64(
+            &row.try_get::<String, _>("activation_generation")
+                .map_err(sql_revision_error)?,
+            "activation_generation",
+        )?;
+        let activated_at: i64 = row.try_get("activated_at").map_err(sql_revision_error)?;
+        let descriptor: Value = row.try_get("descriptor").map_err(sql_revision_error)?;
+        let revision = serde_json::from_value(descriptor).map_err(|error| {
+            RuntimeRevisionError::StorageUnavailable {
+                message: format!(
+                    "invalid persisted active Runtime Revision {revision_id}: {error}"
+                ),
+            }
+        })?;
+        Ok(Some(RuntimeRevisionSelection::new(
+            revision,
+            generation,
+            PlatformTime::new(activated_at),
+        )))
+    }
+
+    async fn activate_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+        expected_generation: Option<u64>,
+        activated_at: PlatformTime,
+    ) -> Result<RuntimeRevisionSelection, RuntimeRevisionError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_revision_error)?;
+        let active_row = sqlx::query(
+            "SELECT revision_id, activation_generation::text AS activation_generation \
+             FROM loom_runtime_active_revision WHERE singleton = TRUE FOR UPDATE",
+        )
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(sql_revision_error)?
+        .ok_or_else(|| RuntimeRevisionError::StorageUnavailable {
+            message: "Runtime active-revision anchor is missing".to_owned(),
+        })?;
+        let current_revision_id: Option<String> = active_row
+            .try_get("revision_id")
+            .map_err(sql_revision_error)?;
+        let stored_generation = parse_runtime_u64(
+            &active_row
+                .try_get::<String, _>("activation_generation")
+                .map_err(sql_revision_error)?,
+            "activation_generation",
+        )?;
+        let actual_generation = current_revision_id.as_ref().map(|_| stored_generation);
+        if actual_generation != expected_generation {
+            let _ = transaction.rollback().await;
+            return Err(RuntimeRevisionError::ActiveRevisionConflict {
+                expected_generation,
+                actual_generation,
+            });
+        }
+
+        let descriptor_row =
+            sqlx::query("SELECT descriptor FROM loom_runtime_revision WHERE revision_id = $1")
+                .bind(revision_id.as_str())
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(sql_revision_error)?
+                .ok_or_else(|| RuntimeRevisionError::RevisionNotFound {
+                    revision_id: revision_id.clone(),
+                })?;
+        let descriptor: Value = descriptor_row
+            .try_get("descriptor")
+            .map_err(sql_revision_error)?;
+        let revision: RuntimeRevisionDescriptor =
+            serde_json::from_value(descriptor).map_err(|error| {
+                RuntimeRevisionError::StorageUnavailable {
+                    message: format!("invalid persisted Runtime Revision: {error}"),
+                }
+            })?;
+        let generation = stored_generation
+            .checked_add(1)
+            .ok_or(RuntimeRevisionError::ActivationGenerationOverflow)?;
+        sqlx::query(
+            "UPDATE loom_runtime_active_revision \
+             SET revision_id = $1, activation_generation = $2::numeric, activated_at = $3 \
+             WHERE singleton = TRUE",
+        )
+        .bind(revision_id.as_str())
+        .bind(generation.to_string())
+        .bind(activated_at.value())
+        .execute(&mut *transaction)
+        .await
+        .map_err(sql_revision_error)?;
+        transaction.commit().await.map_err(sql_revision_error)?;
+        Ok(RuntimeRevisionSelection::new(
+            revision,
+            generation,
+            activated_at,
+        ))
+    }
+}
+
 impl WorldTimeStore for PgStorage {
     fn advance_world_time(
         &self,
@@ -727,6 +993,12 @@ fn sql_binding_error(error: sqlx::Error) -> BindingError {
     }
 }
 
+fn sql_revision_error(error: sqlx::Error) -> RuntimeRevisionError {
+    RuntimeRevisionError::StorageUnavailable {
+        message: format!("PostgreSQL Runtime Revision persistence failed: {error}"),
+    }
+}
+
 fn is_unique_violation(error: &sqlx::Error) -> bool {
     error
         .as_database_error()
@@ -758,6 +1030,14 @@ fn parse_u64(value: &str, label: &str) -> Result<u64, ReadError> {
     value
         .parse()
         .map_err(|error| corrupt(format!("invalid persisted {label}: {error}")))
+}
+
+fn parse_runtime_u64(value: &str, label: &str) -> Result<u64, RuntimeRevisionError> {
+    value
+        .parse()
+        .map_err(|error| RuntimeRevisionError::StorageUnavailable {
+            message: format!("invalid persisted Runtime Revision {label}: {error}"),
+        })
 }
 
 fn row_string(row: &sqlx::postgres::PgRow, column: &str) -> Result<String, ReadError> {
@@ -866,7 +1146,7 @@ mod tests {
         .fetch_one(&storage.pool)
         .await
         .expect("schema tables should be inspectable");
-        assert_eq!(loom_table_count, 13);
+        assert_eq!(loom_table_count, 15);
 
         sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
             .bind(WORLD_ID)

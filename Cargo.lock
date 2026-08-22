@@ -879,6 +879,7 @@ dependencies = [
  "loom-core",
  "loom-protocol",
  "loom-runtime",
+ "semver",
  "serde_json",
  "sqlx",
  "tokio",

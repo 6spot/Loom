@@ -15,11 +15,13 @@ use loom_protocol::{
     CausalLink, EventParticipant, EventRelationshipRef, ProposedEvent, Rejection, Resolution,
     ResolveOutcome,
 };
+use semver::{Version, VersionReq};
 use serde_json::json;
 
 use super::{
-    BaseWorldSnapshot, BaseWorldView, EffectEngine, ReadDependency, ValidationError,
-    ValidationOutcome,
+    BaseWorldSnapshot, BaseWorldView, EffectEngine, ReadDependency, RuntimeRevisionCapability,
+    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    ValidationError, ValidationOutcome, WorldRuntimeBinding,
 };
 
 const OWNER: &str = "counter";
@@ -95,6 +97,55 @@ fn invariant_registry() -> CapabilityRegistry {
             .expect("test Capability manifest should parse"),
     };
     CapabilityRegistry::assemble(vec![capability]).expect("Capability registry should assemble")
+}
+
+#[test]
+fn runtime_revision_selects_exact_compatible_capabilities_without_mutating_binding() {
+    let revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("r1"),
+        super::PlatformTime::new(10),
+        "loom-core-build-1",
+        Version::new(0, 1, 0),
+        [RuntimeRevisionCapability::new(
+            "counter",
+            "counter-build-1",
+            Version::new(1, 2, 3),
+            VersionReq::parse("^0.1.0").expect("Loom compatibility should parse"),
+        )],
+    )
+    .expect("revision descriptor should be valid");
+    let binding = WorldRuntimeBinding::new(
+        [("counter".into(), VersionReq::parse("^1.0").unwrap())],
+        json!({"immutable": true}),
+        1,
+        Some("template-r1".to_owned()),
+    );
+
+    let assembly = revision
+        .compatible_with(&binding)
+        .expect("revision should satisfy the World binding");
+    assert_eq!(assembly.revision_id(), revision.id());
+    assert_eq!(
+        assembly
+            .capabilities()
+            .get(&"counter".into())
+            .expect("selected Capability should be present")
+            .implementation_id(),
+        "counter-build-1"
+    );
+    assert_eq!(binding.revision(), 1);
+    assert_eq!(binding.configuration(), &json!({"immutable": true}));
+
+    let incompatible = WorldRuntimeBinding::new(
+        [("counter".into(), VersionReq::parse(">=2.0").unwrap())],
+        json!({}),
+        1,
+        None,
+    );
+    assert!(matches!(
+        revision.compatible_with(&incompatible),
+        Err(RuntimeRevisionCompatibilityError::VersionMismatch { .. })
+    ));
 }
 
 fn register_basic_semantics(
