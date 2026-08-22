@@ -101,20 +101,25 @@ def check_non_storage_cargo(errors: list[str]) -> None:
                     )
 
 
-def production_rust(text: str) -> str:
-    """Return the production portion before a file-local cfg(test) module.
+def production_rust(path: Path, text: str) -> str:
+    """Return only Rust that is compiled as production storage implementation.
 
-    `loom-storage` tests may issue direct SQL to verify PostgreSQL schema and
-    constraint behavior. That SQL is test instrumentation, not a production
-    persistence path. Production adapter code has no inline-SQL exemption.
+    A file named `tests.rs` under `loom-storage/src` is a module referenced only
+    through `#[cfg(test)] mod tests;`. Inline SQL there is schema/constraint test
+    instrumentation, not a production persistence path. A file-local test module
+    at the end of a production source file is treated the same way.
+
+    There is intentionally no production-path allowlist.
     """
+    if path.name == "tests.rs":
+        return ""
     return text.split("#[cfg(test)]", 1)[0]
 
 
 def check_storage_inline_sql(errors: list[str]) -> None:
     source_root = STORAGE / "src"
     for path in source_root.rglob("*.rs"):
-        text = production_rust(path.read_text(encoding="utf-8"))
+        text = production_rust(path, path.read_text(encoding="utf-8"))
         if not INLINE_SQL_PATTERN.search(text):
             continue
         relative = path.relative_to(ROOT)
