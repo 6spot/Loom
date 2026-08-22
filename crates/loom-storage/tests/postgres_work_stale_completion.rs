@@ -46,9 +46,11 @@ async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, TimelineId, Wor
     .expect("test Timeline should insert");
     sqlx::query(
         "INSERT INTO loom_work \
-         (timeline_id, work_id, handler, schema_revision, payload, status, attempt_count, \
+         (timeline_id, work_id, target_kind, target_handler, schema_revision, payload, \
+          effective_due_world_time, logical_schedule_order, status, attempt_count, \
           claim_generation, available_at) \
-         VALUES ($1::uuid, $2::uuid, 'postgres.work.stale', 1, '{}'::jsonb, 'pending', 0, 0, 0)",
+         VALUES ($1::uuid, $2::uuid, 'capability_work', 'postgres.work.stale', 1, \
+                 '{}'::jsonb, 0, 1, 'pending', 0, 0, 0)",
     )
     .bind(timeline_id.to_string())
     .bind(work_id.to_string())

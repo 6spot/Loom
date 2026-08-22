@@ -10,7 +10,9 @@ use loom_core::{
     ActionTypeId, AssociationRole, EntityId, EventId, FacetOwner, RelationshipId,
     RelationshipParticipant, SchemaRevision, TimelineId, WorkId, WorldEffect,
 };
-use loom_protocol::{ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation};
+use loom_protocol::{
+    ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation, WorkTarget,
+};
 use serde_json::Value;
 
 use crate::{
@@ -581,15 +583,13 @@ impl<'registry> EffectEngine<'registry> {
                 candidate.note_event(event.id);
                 flattened.events.push(event.clone());
             }
-            validate_work(
+            let normalized_work = validate_work(
                 self.registry,
                 &mut candidate,
                 segment.owner.as_str(),
                 &segment.resolution,
             )?;
-            flattened
-                .work
-                .extend(segment.resolution.work.iter().cloned());
+            flattened.work.extend(normalized_work);
         }
 
         let mut read_set = base.read_set();
@@ -1112,7 +1112,8 @@ fn validate_work(
     candidate: &mut CandidateWorldView,
     proposer: &str,
     resolution: &Resolution,
-) -> Result<(), ValidationError> {
+) -> Result<Vec<WorkMutation>, ValidationError> {
+    let mut normalized = Vec::with_capacity(resolution.work.len());
     for mutation in &resolution.work {
         match mutation {
             WorkMutation::Schedule(work) => {
@@ -1122,35 +1123,8 @@ fn validate_work(
                         id: work.id.to_string(),
                     });
                 }
-                let handler = registry.work_handler(&work.handler).ok_or_else(|| {
-                    ValidationError::UnknownSemantic {
-                        kind: SemanticKind::WorkHandler,
-                        key: work.handler.to_string(),
-                    }
-                })?;
-                ensure_owner(
-                    SemanticKind::WorkHandler,
-                    work.handler.to_string(),
-                    handler.owner.as_str(),
-                    proposer,
-                )?;
-                ensure_revision(
-                    SemanticKind::WorkHandler,
-                    work.handler.to_string(),
-                    handler.definition.schema_revision,
-                    work.schema_revision,
-                )?;
-                validate_json_schema(
-                    handler.definition.payload_schema.as_ref(),
-                    &work.payload,
-                    SemanticKind::WorkHandler,
-                    &work.handler.to_string(),
-                )
-                .map_err(|message| ValidationError::SchemaViolation {
-                    kind: SemanticKind::WorkHandler,
-                    key: work.handler.to_string(),
-                    message,
-                })?;
+                let mut normalized_work = work.clone();
+                normalized_work.target = normalize_work_target(registry, proposer, work)?;
                 if work.timeline_id != candidate.timeline_id() {
                     return Err(ValidationError::WorkTimelineMismatch {
                         expected: candidate.timeline_id(),
@@ -1165,6 +1139,7 @@ fn validate_work(
                         event_id,
                     });
                 }
+                normalized.push(WorkMutation::Schedule(normalized_work));
             }
             WorkMutation::Cancel(work_id) => {
                 if work_id.is_nil() {
@@ -1173,8 +1148,82 @@ fn validate_work(
                         id: work_id.to_string(),
                     });
                 }
+                normalized.push(WorkMutation::Cancel(*work_id));
             }
         }
     }
-    Ok(())
+    Ok(normalized)
+}
+
+fn normalize_work_target(
+    registry: &CapabilityRegistry,
+    proposer: &str,
+    work: &loom_protocol::NewWork,
+) -> Result<WorkTarget, ValidationError> {
+    match &work.target {
+        WorkTarget::CapabilityWork { owner, handler } => {
+            let registered =
+                registry
+                    .work_handler(handler)
+                    .ok_or_else(|| ValidationError::UnknownSemantic {
+                        kind: SemanticKind::WorkHandler,
+                        key: handler.to_string(),
+                    })?;
+            if let Some(requested_owner) = owner
+                && requested_owner != registered.owner.as_str()
+            {
+                return Err(ValidationError::SemanticOwnerMismatch {
+                    kind: SemanticKind::WorkHandler,
+                    key: handler.to_string(),
+                    expected: registered.owner.to_string(),
+                    proposer: requested_owner.clone(),
+                });
+            }
+            ensure_owner(
+                SemanticKind::WorkHandler,
+                handler.to_string(),
+                registered.owner.as_str(),
+                proposer,
+            )?;
+            ensure_revision(
+                SemanticKind::WorkHandler,
+                handler.to_string(),
+                registered.definition.schema_revision,
+                work.schema_revision,
+            )?;
+            validate_json_schema(
+                registered.definition.payload_schema.as_ref(),
+                &work.payload,
+                SemanticKind::WorkHandler,
+                &handler.to_string(),
+            )
+            .map_err(|message| ValidationError::SchemaViolation {
+                kind: SemanticKind::WorkHandler,
+                key: handler.to_string(),
+                message,
+            })?;
+            Ok(WorkTarget::CapabilityWork {
+                owner: Some(registered.owner.to_string()),
+                handler: handler.clone(),
+            })
+        }
+        WorkTarget::AgencyWake { agent, cognition } => {
+            if agent.is_nil() {
+                return Err(ValidationError::InvalidIdentity {
+                    kind: "Agency Wake Agent",
+                    id: agent.to_string(),
+                });
+            }
+            if cognition.trim().is_empty() {
+                return Err(ValidationError::InvalidIdentity {
+                    kind: "Agency Wake Cognition",
+                    id: cognition.clone(),
+                });
+            }
+            Ok(WorkTarget::AgencyWake {
+                agent: *agent,
+                cognition: cognition.clone(),
+            })
+        }
+    }
 }

@@ -196,9 +196,11 @@ async fn seed_entity(pool: &PgPool, timeline_id: TimelineId, entity_id: EntityId
 async fn seed_pending_work(pool: &PgPool, timeline_id: TimelineId, work_id: WorkId) {
     sqlx::query(
         "INSERT INTO loom_work \
-         (timeline_id, work_id, handler, schema_revision, payload, status, attempt_count, \
+         (timeline_id, work_id, target_kind, target_handler, schema_revision, payload, \
+          effective_due_world_time, logical_schedule_order, status, attempt_count, \
           claim_generation, available_at) \
-         VALUES ($1::uuid, $2::uuid, $3, 1, '{}'::jsonb, 'pending', 0, 0, 0)",
+         VALUES ($1::uuid, $2::uuid, 'capability_work', $3, 1, '{}'::jsonb, 0, 1, \
+                 'pending', 0, 0, 0)",
     )
     .bind(timeline_id.to_string())
     .bind(work_id.to_string())
@@ -464,6 +466,7 @@ async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
     assert!(after.world_view().entity(created).is_none());
     assert_eq!(after.works.len(), 1);
     assert_eq!(after.works[0].status, WorkStatus::Pending);
+    assert!(after.journal.is_empty());
     pool.close().await;
     storage.close().await;
     database.cleanup().await;
@@ -523,7 +526,7 @@ async fn postgres_18_commit_no_change_and_work_only_semantics() {
         .expect("scheduled Work should exist");
     assert_eq!(work.status, WorkStatus::Pending);
     assert_eq!(work.available_at, PlatformTime::new(19));
-    assert_eq!(work.due_world_time, Some(WorldInstant::new(100)));
+    assert_eq!(work.effective_due_world_time, WorldInstant::new(100));
     pool.close().await;
     storage.close().await;
     database.cleanup().await;
@@ -537,9 +540,11 @@ async fn postgres_18_commit_current_work_completion_is_atomic_runtime_state() {
     let work_id: WorkId = id(0x1510);
     sqlx::query(
         "INSERT INTO loom_work \
-         (timeline_id, work_id, handler, schema_revision, payload, status, attempt_count, \
+         (timeline_id, work_id, target_kind, target_handler, schema_revision, payload, \
+          effective_due_world_time, logical_schedule_order, status, attempt_count, \
           claim_generation, available_at, lease_claimed_until, lease_fence) \
-         VALUES ($1::uuid, $2::uuid, $3, 1, '{}'::jsonb, 'pending', 1, 4, 0, 50, 4)",
+         VALUES ($1::uuid, $2::uuid, 'capability_work', $3, 1, '{}'::jsonb, 0, 1, \
+                 'pending', 1, 4, 0, 50, 4)",
     )
     .bind(timeline_id.to_string())
     .bind(work_id.to_string())

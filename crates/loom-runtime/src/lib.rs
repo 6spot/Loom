@@ -98,16 +98,17 @@ pub use entropy::{
 pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
-    ActiveRuntimeRevision, AdvanceWorldTime, BindingError, CommitError, CommitResult, CommitStore,
-    CommittedEvent, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
-    PlatformTime, ReadError, RuntimeCapabilityImplementation, RuntimeRevision,
-    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
-    RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
-    TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore,
-    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
-    WorldTimeError, WorldTimeStore,
+    ActiveRuntimeRevision, AdvanceWorldTime, BindingError, ChronologyBudgetConsumption,
+    CommitError, CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
+    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
+    LogicalJournalRecord, LogicalJournalStore, LogicalWorkTransition, ManualPlatformClock,
+    PersistenceFuture, PlatformClock, PlatformTime, ReadError, RuntimeCapabilityImplementation,
+    RuntimeRevision, RuntimeRevisionAssembly, RuntimeRevisionCapability,
+    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SessionError, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus,
+    WorkStore, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
 pub use provenance::{
     CallProvenance, EntropyEvidence, EntropyObservation, ReadDependency, ReadSet,
@@ -133,6 +134,10 @@ pub use loom_protocol::ProposedEvent;
 /// general Protocol facade. A mutation becomes commit-eligible only as part of a
 /// [`ValidatedResolution`].
 pub use loom_protocol::WorkMutation;
+/// World-semantic schedule representation used by Runtime-owned Work ports.
+pub use loom_protocol::WorkSchedule;
+/// Frozen Durable Work target representation shared by Runtime and Storage.
+pub use loom_protocol::WorkTarget;
 
 #[cfg(test)]
 mod tests;

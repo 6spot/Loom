@@ -100,14 +100,18 @@ async fn seed_work(
 ) {
     sqlx::query(
         "INSERT INTO loom_work \
-         (timeline_id, work_id, handler, schema_revision, payload, due_world_time, status, \
-          attempt_count, claim_generation, available_at) \
-         VALUES ($1::uuid, $2::uuid, $3, 1, '{}'::jsonb, $4, 'pending', 0, 0, $5)",
+         (timeline_id, work_id, target_kind, target_handler, schema_revision, payload, \
+          effective_due_world_time, logical_schedule_order, status, attempt_count, \
+          claim_generation, available_at) \
+         VALUES ($1::uuid, $2::uuid, 'capability_work', $3, 1, '{}'::jsonb, $4, \
+                 (SELECT COALESCE(MAX(logical_schedule_order), 0) + 1 \
+                    FROM loom_work WHERE timeline_id = $1::uuid), \
+                 'pending', 0, 0, $5)",
     )
     .bind(timeline_id.to_string())
     .bind(work_id.to_string())
     .bind(HANDLER)
-    .bind(due_world_time)
+    .bind(due_world_time.unwrap_or(0))
     .bind(available_at)
     .execute(pool)
     .await

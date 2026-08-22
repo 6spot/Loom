@@ -1,0 +1,28 @@
+INSERT INTO loom_logical_journal (
+    timeline_id,
+    after_state_revision,
+    before_head_event_seq,
+    before_state_revision,
+    after_head_event_seq,
+    world_time_before,
+    world_time_after,
+    event_ids,
+    work_transitions,
+    chronology_budget_world_time,
+    chronology_budget_before,
+    chronology_budget_after
+)
+VALUES (
+    $1::uuid,
+    $2::numeric,
+    $3::numeric,
+    $4::numeric,
+    $5::numeric,
+    $6,
+    $7,
+    $8::jsonb,
+    $9::jsonb,
+    $10,
+    $11::numeric,
+    $12::numeric
+);

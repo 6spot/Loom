@@ -1,9 +1,14 @@
 SELECT
     work_id::text AS work_id,
-    handler,
+    target_kind,
+    target_owner,
+    target_handler,
+    target_agent_id::text AS target_agent_id,
+    target_cognition,
     schema_revision,
     payload,
-    due_world_time,
+    effective_due_world_time,
+    logical_schedule_order::text AS logical_schedule_order,
     causal_event_id::text AS causal_event_id,
     origin_work_id::text AS origin_work_id,
     status,
@@ -15,4 +20,4 @@ SELECT
     lease_fence::text AS lease_fence
 FROM loom_work
 WHERE timeline_id = $1::uuid
-ORDER BY work_id
+ORDER BY effective_due_world_time, logical_schedule_order

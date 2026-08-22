@@ -13,7 +13,7 @@ use loom_capability::{
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId,
+    TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation,
@@ -22,7 +22,7 @@ use loom_protocol::{
 use loom_runtime::{
     EffectEngine, ExecutionSessionStore, PlatformTime, Runtime, RuntimeError,
     RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind, ValidationError, WorkRecord,
-    WorkStatus,
+    WorkStatus, WorkTarget,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -664,10 +664,14 @@ async fn vertical_slice_executes_durable_work_and_completes_atomically() {
         .seed_work(WorkRecord {
             id: work(20),
             timeline_id: timeline(),
-            handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
             schema_revision: SchemaRevision::new(1),
             payload: json!({"amount": 4, "event_id": event(20).to_string()}),
-            due_world_time: None,
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
             causal_event_id: None,
             origin_work_id: None,
             status: WorkStatus::Pending,
@@ -721,10 +725,14 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
         .seed_work(WorkRecord {
             id: work(22),
             timeline_id: timeline(),
-            handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
             schema_revision: SchemaRevision::new(1),
             payload: json!({"amount": 4, "event_id": event(22).to_string()}),
-            due_world_time: None,
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
             causal_event_id: None,
             origin_work_id: None,
             status: WorkStatus::Pending,
@@ -798,10 +806,14 @@ async fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
         .seed_work(WorkRecord {
             id: work(21),
             timeline_id: timeline(),
-            handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
             schema_revision: SchemaRevision::new(1),
             payload: json!({"event_id": event(21).to_string()}),
-            due_world_time: None,
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
             causal_event_id: None,
             origin_work_id: None,
             status: WorkStatus::Pending,

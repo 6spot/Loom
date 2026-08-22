@@ -367,6 +367,63 @@ pub enum WorkSchedule {
     At(WorldInstant),
 }
 
+/// The logical execution target of one Durable Work obligation.
+///
+/// Target kind is part of the Work contract rather than an interpretation of
+/// the serialized payload. Capability Work is routed through a registered
+/// `WorkHandler`; an Agency Wake is a Runtime/Agency obligation and must never
+/// be represented by a fake Capability handler. The optional Capability owner
+/// keeps the legacy [`NewWork::new`] constructor source-compatible; Runtime
+/// resolves and persists the registered owner before a validated mutation can
+/// reach Storage.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum WorkTarget {
+    /// Capability-owned future execution routed to one handler.
+    CapabilityWork {
+        /// Registered Capability owner requirement, when supplied by the
+        /// caller or normalized by Runtime validation.
+        owner: Option<String>,
+        /// Capability-owned handler that interprets the Work payload.
+        handler: WorkHandlerId,
+    },
+    /// Runtime-orchestrated wake for an Entity acting in an Agent role.
+    AgencyWake {
+        /// Agent Entity whose subjective context will later be assembled.
+        agent: EntityId,
+        /// Stable cognition implementation/policy requirement.
+        cognition: String,
+    },
+}
+
+impl WorkTarget {
+    /// Creates a Capability Work target with an explicit owner requirement.
+    #[must_use]
+    pub fn capability_work(owner: impl Into<String>, handler: WorkHandlerId) -> Self {
+        Self::CapabilityWork {
+            owner: Some(owner.into()),
+            handler,
+        }
+    }
+
+    /// Creates an Agency Wake target without introducing a Capability handler.
+    #[must_use]
+    pub fn agency_wake(agent: EntityId, cognition: impl Into<String>) -> Self {
+        Self::AgencyWake {
+            agent,
+            cognition: cognition.into(),
+        }
+    }
+
+    /// Returns the Capability handler when this is Capability Work.
+    #[must_use]
+    pub fn capability_handler(&self) -> Option<&WorkHandlerId> {
+        match self {
+            Self::CapabilityWork { handler, .. } => Some(handler),
+            Self::AgencyWake { .. } => None,
+        }
+    }
+}
+
 /// A new Durable Work obligation proposed as part of a Resolution.
 ///
 /// `NewWork` is untrusted future-execution data. Runtime assigns the Work's
@@ -380,8 +437,8 @@ pub struct NewWork {
     pub id: WorkId,
     /// Timeline on which this future obligation is valid.
     pub timeline_id: TimelineId,
-    /// Capability-owned handler key that will interpret the payload later.
-    pub handler: WorkHandlerId,
+    /// Explicit logical execution target, independent from the payload.
+    pub target: WorkTarget,
     /// Schema revision for the serialized Work payload.
     pub schema_revision: SchemaRevision,
     /// Serialized handler input; this is not a precomputed future result.
@@ -408,8 +465,58 @@ impl NewWork {
         Self {
             id,
             timeline_id,
-            handler,
+            target: WorkTarget::CapabilityWork {
+                owner: None,
+                handler,
+            },
             schema_revision,
+            payload,
+            schedule,
+            causal_event_id: None,
+            origin_work_id: None,
+        }
+    }
+
+    /// Creates a Capability Work proposal with an explicit owner requirement.
+    #[must_use]
+    pub fn capability_work(
+        id: WorkId,
+        timeline_id: TimelineId,
+        owner: impl Into<String>,
+        handler: WorkHandlerId,
+        schema_revision: SchemaRevision,
+        payload: Value,
+        schedule: WorkSchedule,
+    ) -> Self {
+        Self {
+            id,
+            timeline_id,
+            target: WorkTarget::capability_work(owner, handler),
+            schema_revision,
+            payload,
+            schedule,
+            causal_event_id: None,
+            origin_work_id: None,
+        }
+    }
+
+    /// Creates an Agency Wake proposal with an explicit Agent and cognition
+    /// requirement. Agency execution remains Runtime-owned and is not routed
+    /// through a Capability `WorkHandler`.
+    #[must_use]
+    pub fn agency_wake(
+        id: WorkId,
+        timeline_id: TimelineId,
+        agent: EntityId,
+        cognition: impl Into<String>,
+        payload: Value,
+        schedule: WorkSchedule,
+    ) -> Self {
+        Self {
+            id,
+            timeline_id,
+            target: WorkTarget::agency_wake(agent, cognition),
+            schema_revision: SchemaRevision::new(0),
             payload,
             schedule,
             causal_event_id: None,
@@ -446,7 +553,7 @@ mod tests {
     use super::{
         ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, NewWork,
         ProposedEvent, Rejection, RejectionCode, Resolution, ResolveOutcome, WorkMutation,
-        WorkSchedule,
+        WorkSchedule, WorkTarget,
     };
 
     #[test]
@@ -546,5 +653,25 @@ mod tests {
             WorkMutation::Cancel(work_id),
             WorkMutation::Cancel(_)
         ));
+    }
+
+    #[test]
+    fn work_target_kind_round_trips_without_payload_conventions() {
+        let capability =
+            WorkTarget::capability_work("counter", WorkHandlerId::from("counter.tick"));
+        let agency = WorkTarget::agency_wake(
+            EntityId::from_uuid(
+                "00000000-0000-0000-0000-000000000010"
+                    .parse()
+                    .expect("Agent EntityId should parse"),
+            ),
+            "cognition.default",
+        );
+        for target in [capability, agency] {
+            let encoded = serde_json::to_string(&target).expect("WorkTarget should serialize");
+            let decoded: WorkTarget =
+                serde_json::from_str(&encoded).expect("WorkTarget should deserialize");
+            assert_eq!(decoded, target);
+        }
     }
 }

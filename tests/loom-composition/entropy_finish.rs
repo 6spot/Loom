@@ -13,7 +13,7 @@ use loom_capability::{
     ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{ActionTypeId, SchemaRevision, WorkHandlerId, WorkId, WorldInstant};
-use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
+use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome, WorkTarget};
 use loom_runtime::{
     EntropySource, EntropySourceError, EntropySourceId, ExecutionOrigin, ExecutionSession,
     ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, ResolutionBudget, Runtime,
@@ -224,10 +224,14 @@ async fn work_budget_failure_finishes_session_with_prior_entropy() {
         .seed_work(WorkRecord {
             id: work_id,
             timeline_id: target.timeline_id,
-            handler: WorkHandlerId::from(WORK_HANDLER),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(WORK_HANDLER),
+            },
             schema_revision: SchemaRevision::new(1),
             payload: json!({"fail": true}),
-            due_world_time: None,
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
             causal_event_id: None,
             origin_work_id: None,
             status: WorkStatus::Pending,
@@ -335,10 +339,14 @@ async fn action_and_work_success_finish_sessions_with_entropy() {
         .seed_work(WorkRecord {
             id: work_id,
             timeline_id: target.timeline_id,
-            handler: WorkHandlerId::from(WORK_HANDLER),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(WORK_HANDLER),
+            },
             schema_revision: SchemaRevision::new(1),
             payload: json!({"fail": false}),
-            due_world_time: None,
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
             causal_event_id: None,
             origin_work_id: None,
             status: WorkStatus::Pending,
