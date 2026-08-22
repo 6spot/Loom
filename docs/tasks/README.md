@@ -4,6 +4,19 @@ This directory is the repository-level audit trail for Loom implementation work.
 
 GitHub issues remain the collaboration surface for discussion, assignment and checklists. Task files preserve durable implementation status and completion evidence next to the code and architecture they describe.
 
+## Current V0 roadmap
+
+The current post-Amendment V0 plan is [`v0-roadmap.md`](v0-roadmap.md), covering M4–M13 and GitHub issues #136–#203.
+
+Milestones 1–3 remain historical completed implementation baselines. The old unmerged M4–M13 planning in issues #60–#134 / draft PR #135 is superseded and must not be used as the current execution plan.
+
+Before implementing any planned task:
+
+1. read `docs/architecture/README.md`;
+2. resolve the reverse supersession table for every architecture clause used by the task;
+3. read the task file and linked GitHub Issue;
+4. if the implementation would require a new authority/semantic decision, stop and create an Architecture Amendment rather than deciding it inside the implementation task.
+
 ## One task, one file
 
 Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.
@@ -24,11 +37,11 @@ Each task file begins with metadata containing exactly one of these statuses:
 
 ```yaml
 ---
-task: M2-T1
-issue: 26
+task: M4-T1
+issue: 146
 status: planned
 depends_on: []
-created_at: 2026-08-21
+created_at: 2026-08-22
 started_at:
 completed_at:
 completion_pr:
@@ -73,6 +86,8 @@ Prefer updating the task record in the completion PR. If the final merge SHA onl
 ### Cancellation / duplication
 
 Do not mark cancelled or duplicate work as completed. Record why it stopped and identify the replacement task/issue.
+
+For a superseded planning task, close the GitHub Issue as `not_planned` and either mark a merged task file `cancelled` with its replacement reference or, when the task file never reached `main`, keep the supersession record in the current roadmap/Issue history rather than importing obsolete task files merely to cancel them.
 
 ## Progress log
 
