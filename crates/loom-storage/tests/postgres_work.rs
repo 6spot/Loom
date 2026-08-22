@@ -10,8 +10,9 @@ use loom_capability::{
 use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
 use loom_protocol::{Resolution, ResolveOutcome, WorkMutation};
 use loom_runtime::{
-    CommitError, CommitStore, EffectEngine, PlatformTime, Runtime, WorkError, WorkStatus,
-    WorkStore, WorldStore,
+    CommitError, CommitStore, EffectEngine, LogicalJournalStore, LogicalWorkTransition,
+    PlatformTime, Runtime, RuntimeControlStore, WorkError, WorkStatus, WorkStore,
+    WorkTerminalState, WorkTerminalization, WorldStore,
 };
 use loom_storage::PgStorage;
 use serde_json::Value;
@@ -116,6 +117,76 @@ async fn seed_work(
     .execute(pool)
     .await
     .expect("test Work should insert");
+}
+
+#[tokio::test]
+async fn postgres_18_runtime_terminalization_survives_restart() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2600).await else {
+        return;
+    };
+    let work_id: WorkId = id(0x2610);
+    seed_work(&pool, timeline_id, work_id, 0, None).await;
+    let before = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("initial Timeline should be readable");
+    let terminalized = RuntimeControlStore::terminalize_work(
+        &storage,
+        &WorkTerminalization::new(
+            timeline_id,
+            before.version(),
+            work_id,
+            WorkTerminalState::Cancelled,
+            PlatformTime::new(1),
+        ),
+    )
+    .await
+    .expect("Runtime Control cancellation should commit");
+    assert_eq!(terminalized.state_revision.value(), 1);
+    let journal_before_restart = LogicalJournalStore::read_logical_journal(&storage, timeline_id)
+        .await
+        .expect("terminalization journal should be readable");
+    assert!(matches!(
+        journal_before_restart.as_slice(),
+        [commit] if matches!(
+            commit.work_transitions.as_slice(),
+            [LogicalWorkTransition::Cancel { work_id: cancelled_id }] if *cancelled_id == work_id
+        )
+    ));
+
+    pool.close().await;
+    storage.close().await;
+    let restarted = database.storage().await;
+    let after = WorldStore::snapshot(&restarted, timeline_id)
+        .await
+        .expect("terminalized Timeline should survive restart");
+    assert_eq!(after.version().state_revision.value(), 1);
+    assert!(after.events.is_empty());
+    assert_eq!(
+        LogicalJournalStore::read_logical_journal(&restarted, timeline_id)
+            .await
+            .expect("terminalization journal should survive restart"),
+        journal_before_restart
+    );
+    let work = after
+        .works
+        .iter()
+        .find(|work| work.id == work_id)
+        .expect("cancelled Work should survive restart");
+    assert_eq!(work.status, WorkStatus::Cancelled);
+    assert!(work.lease.is_none());
+    let claim = WorkStore::claim(
+        &restarted,
+        timeline_id,
+        work_id,
+        PlatformTime::new(2),
+        PlatformTime::new(3),
+    )
+    .await
+    .expect_err("terminal Work must remain non-claimable after restart");
+    assert!(matches!(claim, WorkError::NotPending { .. }));
+
+    restarted.close().await;
+    database.cleanup().await;
 }
 
 async fn validated(

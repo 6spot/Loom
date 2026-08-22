@@ -4,7 +4,12 @@
 //! Work execution into the existing Runtime validation and persistence path.
 //! It does not define a second protocol, storage boundary or public endpoint.
 
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
@@ -26,16 +31,20 @@ use crate::{
     BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage, CallProvenance,
     CandidateWorldView, CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
     EntropySource, EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession,
-    ExecutionSessionStatus, ExecutionSessionStore, IdentityAllocator, LifecycleError,
-    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
-    ResolutionBudget, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SessionError, TimelineSnapshot, UnavailableEntropySource, UuidV7IdentityAllocator,
-    ValidatedResolution, ValidationError, WorkClaim, WorkError, WorkRecord, WorkStore,
+    ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy, IdentityAllocator,
+    LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
+    ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, SessionError, TimelineBlockedOnMissingImplementation, TimelineSnapshot,
+    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStore, WorkTerminalState, WorkTerminalization,
     WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
+
+type MissingImplementationObservations =
+    Arc<Mutex<BTreeMap<(TimelineId, WorkId), (PlatformTime, PlatformTime)>>>;
 
 /// A Runtime composition root for one Capability registry and persistence
 /// adapter.
@@ -60,6 +69,8 @@ pub struct Runtime<S> {
     entropy_source: Arc<dyn EntropySource>,
     identity_allocator: Arc<dyn IdentityAllocator>,
     resolution_budget: ResolutionBudget,
+    failure_policy: FailurePolicy,
+    missing_implementation_observations: MissingImplementationObservations,
 }
 
 /// Runtime-only authority value for one validated Template birth.
@@ -109,6 +120,8 @@ where
             entropy_source: Arc::new(UnavailableEntropySource),
             identity_allocator: Arc::new(UuidV7IdentityAllocator),
             resolution_budget: ResolutionBudget::unlimited(),
+            failure_policy: FailurePolicy::default(),
+            missing_implementation_observations: Arc::new(Mutex::new(BTreeMap::new())),
         })
     }
 
@@ -164,6 +177,15 @@ where
     #[must_use]
     pub fn with_resolution_budget(mut self, budget: ResolutionBudget) -> Self {
         self.resolution_budget = budget;
+        self
+    }
+
+    /// Injects the bounded Runtime policy for automatic technical Work
+    /// failures. The policy changes only platform retry/terminalization
+    /// behavior; it never changes Work's semantic due time or logical order.
+    #[must_use]
+    pub fn with_failure_policy(mut self, failure_policy: FailurePolicy) -> Self {
+        self.failure_policy = failure_policy;
         self
     }
 
@@ -555,14 +577,164 @@ where
         })
     }
 
+    /// Observes whether the requested due logical head is blocked because its
+    /// target cannot be assembled by the active Runtime Revision.
+    ///
+    /// The observation is derived from current Timeline/Binding/software
+    /// state. It does not claim the Work, consume an attempt, write retry
+    /// metadata or advance the Timeline logical revision. A `None` result means
+    /// the Work is not the due head or a compatible implementation is present.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the target snapshot, World binding, or active
+    /// Runtime Revision cannot be read.
+    pub async fn missing_implementation_block(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+    ) -> ApiResult<Option<TimelineBlockedOnMissingImplementation>> {
+        let snapshot = self.snapshot_for_target(target).await?;
+        let Some(work) = snapshot.works.iter().find(|work| work.id == work_id) else {
+            return Err(ApiError::not_found(format!("Work {work_id} was not found")));
+        };
+        if !work.is_pending() || work.effective_due_world_time > snapshot.world_time() {
+            return Ok(None);
+        }
+        let Some(head) = snapshot
+            .works
+            .iter()
+            .filter(|candidate| {
+                candidate.is_pending()
+                    && candidate.effective_due_world_time <= snapshot.world_time()
+            })
+            .min_by_key(|candidate| {
+                (
+                    candidate.effective_due_world_time,
+                    candidate.logical_schedule_order,
+                )
+            })
+        else {
+            return Ok(None);
+        };
+        if head.id != work_id {
+            return Ok(None);
+        }
+
+        let binding = self.binding_for_world(snapshot.world_id()).await?;
+        let active_selection = self
+            .store
+            .select_active_revision()
+            .await
+            .map_err(|error| map_runtime_revision_error(&error))?;
+        let (selection, compatibility_binding) = if let Some(selection) = active_selection {
+            (selection, binding.clone())
+        } else {
+            let compatibility_binding = WorldRuntimeBinding::new(
+                binding
+                    .requirements()
+                    .iter()
+                    .filter(|(capability_id, _)| self.registry.capability(capability_id).is_some())
+                    .map(|(capability_id, requirement)| {
+                        (capability_id.clone(), requirement.clone())
+                    }),
+                binding.configuration().clone(),
+                binding.revision(),
+                binding.template_provenance().map(str::to_owned),
+            );
+            (self.legacy_runtime_revision(), compatibility_binding)
+        };
+        let active_runtime_revision = selection.revision().id().clone();
+        let revision_compatible = selection
+            .revision()
+            .compatible_with(&compatibility_binding)
+            .is_ok();
+        if revision_compatible
+            && work_target_has_compatible_implementation(
+                &self.registry,
+                &compatibility_binding,
+                &selection,
+                &work.target,
+            )
+        {
+            self.missing_implementation_observations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&(snapshot.timeline_id(), work_id));
+            return Ok(None);
+        }
+
+        let observed_at = self.platform_clock.now();
+        let (first_observed_platform_time, last_observed_platform_time) = {
+            let mut observations = self
+                .missing_implementation_observations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let observed = observations
+                .entry((snapshot.timeline_id(), work_id))
+                .or_insert((observed_at, observed_at));
+            observed.1 = observed_at;
+            (Some(observed.0), observed.1)
+        };
+
+        Ok(Some(TimelineBlockedOnMissingImplementation {
+            world_id: snapshot.world_id(),
+            timeline_id: snapshot.timeline_id(),
+            work_id,
+            semantic_requirement: work.target.clone(),
+            active_runtime_revision,
+            first_observed_platform_time,
+            last_observed_platform_time,
+        }))
+    }
+
+    /// Applies an authorized Runtime Control transition to a Pending Work.
+    ///
+    /// The persistence adapter performs the expected-version CAS and appends
+    /// the corresponding logical `Cancel`/`Dead` journal transition atomically.
+    /// This method is intentionally outside the ordinary Capability
+    /// `WorkMutation` path; callers are expected to place authorization at the
+    /// Admin/Runtime Control boundary before invoking it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the target snapshot cannot be read or the
+    /// expected Timeline version/Work claim fails in the persistence CAS.
+    pub async fn terminalize_work(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        expected_version: loom_core::TimelineVersion,
+        terminal_state: WorkTerminalState,
+    ) -> ApiResult<loom_core::TimelineVersion>
+    where
+        S: RuntimeControlStore,
+    {
+        let snapshot = self.snapshot_for_target(target).await?;
+        let terminalization = WorkTerminalization::new(
+            snapshot.timeline_id(),
+            expected_version,
+            work_id,
+            terminal_state,
+            self.platform_clock.now(),
+        );
+        self.store
+            .terminalize_work(&terminalization)
+            .await
+            .map_err(|error| map_commit_error(&error))
+    }
+
     /// Executes one claimed Durable Work obligation through the same
     /// Resolution → validation → authority commit path as a public Action.
     ///
     /// Runtime preflights the pinned implementation before claiming the Work;
     /// after claim, resolution and completion are atomic with the resulting
     /// Events, Effects and Work mutations. A handler/runtime/commit failure
-    /// releases the lease through the existing technical retry port at
-    /// `retry_available_at`; that bookkeeping changes no World Truth.
+    /// enters the bounded Runtime `FailurePolicy`: while attempts remain it
+    /// releases the lease through the technical retry port at a
+    /// Platform-Time availability, and on exhaustion it appends the
+    /// Runtime-owned `Pending` -> `Dead` logical transition. Neither path
+    /// creates a World Event or changes World Truth.
     /// A semantic `Rejected` outcome completes the current Work with an empty
     /// validated Resolution and returns the public rejection unchanged.
     ///
@@ -570,8 +742,8 @@ where
     ///
     /// Returns a public service error for missing/stale Work, resolver or
     /// Runtime validation failure, or an unsuccessful atomic commit. The
-    /// current Work remains Pending after a technical failure when retry
-    /// bookkeeping succeeds.
+    /// current Work remains Pending after a technical failure only when the
+    /// bounded policy records a retry; exhaustion leaves it terminally Dead.
     #[allow(clippy::too_many_lines)]
     pub async fn execute_work(
         &self,
@@ -580,7 +752,10 @@ where
         now: PlatformTime,
         claimed_until: PlatformTime,
         retry_available_at: PlatformTime,
-    ) -> ApiResult<ExecutionResult> {
+    ) -> ApiResult<ExecutionResult>
+    where
+        S: RuntimeControlStore,
+    {
         let snapshot = self.snapshot_for_target(target).await?;
         let work = snapshot
             .works
@@ -620,7 +795,13 @@ where
             Ok(session) => session,
             Err(error) => {
                 return Err(self
-                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .apply_failure_policy(
+                        snapshot.version(),
+                        &claim,
+                        now,
+                        retry_available_at,
+                        error,
+                    )
                     .await);
             }
         };
@@ -640,7 +821,8 @@ where
             Err(error) => {
                 let error = map_dispatch_error(error);
                 return Err(self
-                    .finish_failure_and_retry_with_entropy(
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
                         &session,
                         &claim,
                         now,
@@ -676,7 +858,8 @@ where
             Err(error) => {
                 let error = map_runtime_error(&error);
                 return Err(self
-                    .finish_failure_and_retry_with_entropy(
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
                         &session,
                         &claim,
                         now,
@@ -710,7 +893,8 @@ where
             Err(error) => {
                 let error = map_commit_error(&error);
                 Err(self
-                    .finish_failure_and_retry_with_entropy(
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
                         &session,
                         &claim,
                         now,
@@ -758,33 +942,101 @@ where
         Ok(snapshot)
     }
 
-    async fn retry_after_failure(
+    async fn apply_failure_policy(
         &self,
+        expected_version: loom_core::TimelineVersion,
         claim: &WorkClaim,
         now: PlatformTime,
         retry_available_at: PlatformTime,
         error: ApiError,
-    ) -> ApiError {
-        if self
-            .store
-            .retry(claim, now, retry_available_at, Some(error.message.clone()))
-            .await
-            .is_err()
-        {
-            return ApiError::internal("Work failure could not be recorded for retry");
+    ) -> ApiError
+    where
+        S: RuntimeControlStore,
+    {
+        if self.failure_policy.allows_retry(claim.attempt_count()) {
+            let available_at = match self
+                .failure_policy
+                .next_available_at(now, retry_available_at)
+            {
+                Ok(available_at) => available_at,
+                Err(policy_error) => {
+                    return match self
+                        .terminalize_failed_work(
+                            expected_version,
+                            claim,
+                            now,
+                            &policy_error.to_string(),
+                        )
+                        .await
+                    {
+                        Ok(()) => error,
+                        Err(terminal_error) => terminal_error,
+                    };
+                }
+            };
+            if self
+                .store
+                .retry(claim, now, available_at, Some(error.message.clone()))
+                .await
+                .is_err()
+            {
+                return ApiError::internal("Work failure could not be recorded for retry");
+            }
+            return error;
         }
-        error
+
+        match self
+            .terminalize_failed_work(expected_version, claim, now, &error.message)
+            .await
+        {
+            Ok(()) => error,
+            Err(terminal_error) => terminal_error,
+        }
     }
 
-    async fn finish_failure_and_retry_with_entropy(
+    async fn terminalize_failed_work(
         &self,
+        expected_version: loom_core::TimelineVersion,
+        claim: &WorkClaim,
+        now: PlatformTime,
+        last_error: &str,
+    ) -> Result<(), ApiError>
+    where
+        S: RuntimeControlStore,
+    {
+        let terminalization = WorkTerminalization::new(
+            claim.timeline_id(),
+            expected_version,
+            claim.work_id(),
+            WorkTerminalState::Dead,
+            now,
+        )
+        .with_claim(*claim)
+        .with_last_error(last_error);
+        self.store
+            .terminalize_work(&terminalization)
+            .await
+            .map(|_| ())
+            .map_err(|error| map_commit_error(&error))
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "failure handling needs the existing execution evidence"
+    )]
+    async fn finish_failure_and_apply_policy(
+        &self,
+        expected_version: loom_core::TimelineVersion,
         session: &ExecutionSession,
         claim: &WorkClaim,
         now: PlatformTime,
         retry_available_at: PlatformTime,
         error: ApiError,
         entropy_evidence: Option<EntropyEvidence>,
-    ) -> ApiError {
+    ) -> ApiError
+    where
+        S: RuntimeControlStore,
+    {
         let error = match entropy_evidence {
             Some(entropy_evidence) => match self
                 .finish_execution_session_with_entropy(
@@ -805,7 +1057,7 @@ where
                 Err(session_error) => session_error,
             },
         };
-        self.retry_after_failure(claim, now, retry_available_at, error)
+        self.apply_failure_policy(expected_version, claim, now, retry_available_at, error)
             .await
     }
 }
@@ -1026,6 +1278,18 @@ where
         work_id: WorkId,
     ) -> PersistenceFuture<'_, Result<Option<WorkRecord>, ReadError>> {
         (**self).work(timeline_id, work_id)
+    }
+}
+
+impl<T> RuntimeControlStore for &T
+where
+    T: RuntimeControlStore + ?Sized,
+{
+    fn terminalize_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<loom_core::TimelineVersion, CommitError>> {
+        (**self).terminalize_work(terminalization)
     }
 }
 
@@ -1842,6 +2106,37 @@ fn validate_work_target(
         ));
     }
     Ok(())
+}
+
+fn work_target_has_compatible_implementation(
+    registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
+    selection: &RuntimeRevisionSelection,
+    target: &WorkTarget,
+) -> bool {
+    let WorkTarget::CapabilityWork { owner, handler } = target else {
+        // Agency Wake has no Capability WorkHandler fallback. Until the
+        // target-specific Agency executor is assembled, it is a typed missing
+        // implementation blockage rather than a technical attempt.
+        return false;
+    };
+    let Some(registered) = registry.work_handler(handler) else {
+        return false;
+    };
+    if owner
+        .as_deref()
+        .is_some_and(|owner| owner != registered.owner.as_str())
+    {
+        return false;
+    }
+    let Some(manifest) = registry.capability(&registered.owner) else {
+        return false;
+    };
+    binding.allows(&registered.owner, &manifest.version)
+        && selection
+            .revision()
+            .capability(&registered.owner)
+            .is_some_and(|implementation| implementation.version() == &manifest.version)
 }
 
 fn changes_runtime_state(

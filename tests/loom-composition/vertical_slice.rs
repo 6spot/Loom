@@ -20,9 +20,9 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    EffectEngine, ExecutionSessionStore, PlatformTime, Runtime, RuntimeError,
-    RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind, ValidationError, WorkRecord,
-    WorkStatus, WorkTarget,
+    EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
+    Runtime, RuntimeError, RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind,
+    ValidationError, WorkRecord, WorkStatus, WorkTarget,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -772,6 +772,28 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
         .await
         .expect("missing revision should activate for the negative test");
 
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work(22))
+        .await
+        .expect("missing implementation observation should succeed")
+        .expect("due Work should expose a typed blockage");
+    assert_eq!(blocked.world_id, world());
+    assert_eq!(blocked.timeline_id, timeline());
+    assert_eq!(blocked.work_id, work(22));
+    assert_eq!(
+        blocked.active_runtime_revision,
+        RuntimeRevisionId::from("missing-counter")
+    );
+    assert_eq!(blocked.last_observed_platform_time, PlatformTime::new(0));
+    assert_eq!(
+        blocked.first_observed_platform_time,
+        Some(PlatformTime::new(0))
+    );
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
     let error = runtime
         .execute_work(
             counter_target(),
@@ -859,4 +881,115 @@ async fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
     assert_eq!(retried_work.status, WorkStatus::Pending);
     assert_eq!(retried_work.available_at, PlatformTime::new(3));
     assert!(retried_work.lease.is_none());
+}
+
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded retry scenario asserts each terminalization invariant"
+)]
+async fn bounded_failure_policy_terminalizes_after_configured_attempts() {
+    let store = counter_store();
+    let work_id = work(23);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"event_id": event(23).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("bounded-failure Work should be seeded");
+    let before = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should exist");
+    let runtime = Runtime::new(&store, counter_registry())
+        .expect("Runtime should assemble")
+        .with_failure_policy(FailurePolicy::new(2, 5).expect("test FailurePolicy should be valid"));
+
+    runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(1),
+        )
+        .await
+        .expect_err("first technical failure should return the handler error");
+    let retried = store
+        .work(timeline(), work_id)
+        .expect("retried Work lookup should succeed")
+        .expect("retried Work should exist");
+    assert_eq!(retried.status, WorkStatus::Pending);
+    assert_eq!(retried.attempt_count, 1);
+    assert_eq!(retried.available_at, PlatformTime::new(5));
+    assert_eq!(
+        retried.effective_due_world_time,
+        before.effective_due_world_time
+    );
+    assert_eq!(
+        retried.logical_schedule_order,
+        before.logical_schedule_order
+    );
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("snapshot should exist")
+            .journal
+            .len(),
+        0
+    );
+
+    runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(5),
+            PlatformTime::new(15),
+            PlatformTime::new(6),
+        )
+        .await
+        .expect_err("attempt exhaustion should still return the technical failure");
+    let after = store
+        .snapshot(timeline())
+        .expect("terminalized Timeline should remain readable");
+    let terminal = after
+        .works
+        .iter()
+        .find(|work| work.id == work_id)
+        .expect("terminalized Work should remain inspectable");
+    assert_eq!(terminal.status, WorkStatus::Dead);
+    assert_eq!(terminal.attempt_count, 2);
+    assert_eq!(
+        terminal.effective_due_world_time,
+        before.effective_due_world_time
+    );
+    assert_eq!(
+        terminal.logical_schedule_order,
+        before.logical_schedule_order
+    );
+    assert!(terminal.lease.is_none());
+    assert!(after.events.is_empty());
+    assert_eq!(after.world_time(), WorldInstant::new(0));
+    assert_eq!(after.version().state_revision.value(), 1);
+    assert_eq!(after.journal.len(), 1);
+    assert!(matches!(
+        after.journal[0].work_transitions.as_slice(),
+        [LogicalWorkTransition::Dead { work_id: dead_id }] if *dead_id == work_id
+    ));
 }
