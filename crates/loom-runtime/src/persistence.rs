@@ -29,7 +29,10 @@ use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{BaseWorldSnapshot, BaseWorldView, ResolutionBudget, ValidatedResolution};
+use crate::{
+    BaseWorldSnapshot, BaseWorldView, EntropyEvidence, EntropySourceId, ResolutionBudget,
+    ValidatedResolution,
+};
 
 /// Executor-neutral future returned by Runtime persistence I/O ports.
 ///
@@ -662,9 +665,10 @@ pub enum ExecutionOrigin {
 /// one World Runtime Binding read and one active Runtime Revision selection.
 /// It is passed by shared reference to root dispatch and every subresolution;
 /// no child may re-select the active revision or mutate the Binding. The
-/// `ResolutionBudget` is the currently defined v0 execution policy. Entropy,
-/// Agency and provider references are added by their later architecture tasks
-/// when those host contracts exist.
+/// `ResolutionBudget` is the currently defined v0 execution policy. The
+/// `entropy_source_id` identifies the controlled entropy environment pinned for
+/// this Session; the source handle itself remains Runtime-owned and is never
+/// serialized into Capability-visible state.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExecutionAssembly {
     session_id: ExecutionSessionId,
@@ -676,6 +680,8 @@ pub struct ExecutionAssembly {
     runtime_revision: RuntimeRevisionSelection,
     implementations: RuntimeRevisionAssembly,
     execution_policy: ResolutionBudget,
+    #[serde(default)]
+    entropy_source_id: EntropySourceId,
 }
 
 impl ExecutionAssembly {
@@ -693,6 +699,7 @@ impl ExecutionAssembly {
         runtime_revision: RuntimeRevisionSelection,
         implementations: RuntimeRevisionAssembly,
         execution_policy: ResolutionBudget,
+        entropy_source_id: EntropySourceId,
     ) -> Self {
         Self {
             session_id,
@@ -704,6 +711,7 @@ impl ExecutionAssembly {
             runtime_revision,
             implementations,
             execution_policy,
+            entropy_source_id,
         }
     }
 
@@ -761,6 +769,12 @@ impl ExecutionAssembly {
     pub const fn execution_policy(&self) -> ResolutionBudget {
         self.execution_policy
     }
+
+    /// Returns the controlled entropy source identity pinned for this Session.
+    #[must_use]
+    pub const fn entropy_source_id(&self) -> &EntropySourceId {
+        &self.entropy_source_id
+    }
 }
 
 /// Lifecycle state of one persisted Runtime execution Session.
@@ -787,10 +801,9 @@ impl ExecutionSessionStatus {
 
 /// Minimum durable Session lifecycle/provenance record.
 ///
-/// The record intentionally stores the complete pinned assembly and only the
-/// lifecycle fields required by M4. Rich `ReadSet`, call, entropy and cognition
-/// evidence remains a later M9/M10 concern. A record is Platform History and
-/// never a World Event or Timeline logical state transition.
+/// The record stores the complete pinned assembly, lifecycle state and the
+/// ordered entropy evidence observed by the root execution. It remains Platform
+/// History and never a World Event or Timeline logical state transition.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExecutionSession {
     id: ExecutionSessionId,
@@ -799,6 +812,8 @@ pub struct ExecutionSession {
     started_at: PlatformTime,
     status: ExecutionSessionStatus,
     ended_at: Option<PlatformTime>,
+    #[serde(default)]
+    entropy_evidence: EntropyEvidence,
 }
 
 impl ExecutionSession {
@@ -808,6 +823,7 @@ impl ExecutionSession {
         assembly: ExecutionAssembly,
         started_at: PlatformTime,
     ) -> Self {
+        let entropy_source_id = assembly.entropy_source_id().clone();
         Self {
             id,
             origin,
@@ -815,6 +831,7 @@ impl ExecutionSession {
             started_at,
             status: ExecutionSessionStatus::Started,
             ended_at: None,
+            entropy_evidence: EntropyEvidence::new(entropy_source_id),
         }
     }
 
@@ -854,6 +871,12 @@ impl ExecutionSession {
         self.ended_at
     }
 
+    /// Returns ordered Runtime entropy evidence captured for this Session.
+    #[must_use]
+    pub const fn entropy_evidence(&self) -> &EntropyEvidence {
+        &self.entropy_evidence
+    }
+
     /// Returns a terminal copy used by persistence adapters at the lifecycle
     /// transition linearization point.
     ///
@@ -865,6 +888,22 @@ impl ExecutionSession {
         &self,
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
+    ) -> Result<Self, SessionError> {
+        self.finish_with_entropy(status, ended_at, self.entropy_evidence.clone())
+    }
+
+    /// Returns a terminal copy while attaching ordered entropy evidence from
+    /// the same pinned source environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle error when the Session is already terminal or the
+    /// evidence belongs to a different pinned entropy source.
+    pub fn finish_with_entropy(
+        &self,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
     ) -> Result<Self, SessionError> {
         if !status.is_terminal() {
             return Err(SessionError::InvalidTransition {
@@ -880,9 +919,15 @@ impl ExecutionSession {
                 to: status,
             });
         }
+        if entropy_evidence.source_id() != self.assembly.entropy_source_id() {
+            return Err(SessionError::EntropySourceMismatch {
+                session_id: self.id,
+            });
+        }
         let mut finished = self.clone();
         finished.status = status;
         finished.ended_at = Some(ended_at);
+        finished.entropy_evidence = entropy_evidence;
         Ok(finished)
     }
 }
@@ -900,6 +945,11 @@ pub enum SessionError {
         from: ExecutionSessionStatus,
         to: ExecutionSessionStatus,
     },
+    /// Evidence was produced by a source other than the Session's pinned
+    /// entropy environment.
+    EntropySourceMismatch { session_id: ExecutionSessionId },
+    /// The persistence adapter does not implement the entropy evidence port.
+    EntropyEvidenceUnavailable { session_id: ExecutionSessionId },
     /// The persistence authority could not complete the Session operation.
     StorageUnavailable { message: String },
 }
@@ -920,6 +970,14 @@ impl fmt::Display for SessionError {
             } => write!(
                 formatter,
                 "Execution Session {session_id} cannot transition from {from:?} to {to:?}"
+            ),
+            Self::EntropySourceMismatch { session_id } => write!(
+                formatter,
+                "entropy evidence does not belong to Execution Session {session_id}"
+            ),
+            Self::EntropyEvidenceUnavailable { session_id } => write!(
+                formatter,
+                "entropy evidence cannot be persisted for Execution Session {session_id}"
             ),
             Self::StorageUnavailable { message } => formatter.write_str(message),
         }
@@ -947,6 +1005,26 @@ pub trait ExecutionSessionStore {
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>>;
+
+    /// Persists a terminal Session transition together with ordered entropy
+    /// evidence. Runtime-owned adapters persist the evidence in their existing
+    /// Session record envelope without a schema migration. An older adapter
+    /// using the default can still finish Sessions with no samples, but must
+    /// not silently discard non-empty evidence.
+    fn finish_session_with_entropy(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        if !entropy_evidence.is_empty() {
+            return Box::pin(async move {
+                Err(SessionError::EntropyEvidenceUnavailable { session_id })
+            });
+        }
+        self.finish_session(session_id, status, ended_at)
+    }
 
     /// Reads one Session record for audit/restart linkage.
     fn read_session(

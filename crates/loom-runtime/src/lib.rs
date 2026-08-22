@@ -82,6 +82,7 @@
 #![forbid(unsafe_code)]
 
 mod budget;
+mod entropy;
 mod identity;
 mod orchestration;
 mod persistence;
@@ -90,6 +91,10 @@ mod validation;
 mod views;
 
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use entropy::{
+    DeterministicEntropySource, EntropySource, EntropySourceError, EntropySourceId,
+    UnavailableEntropySource,
+};
 pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
@@ -105,7 +110,10 @@ pub use persistence::{
     WorkStore, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
     WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
-pub use provenance::{CallProvenance, ReadDependency, ReadSet, ResolutionCallEdge};
+pub use provenance::{
+    CallProvenance, EntropyEvidence, EntropyObservation, ReadDependency, ReadSet,
+    ResolutionCallEdge,
+};
 pub use validation::{
     EffectEngine, RuntimeError, ValidatedResolution, ValidationError, ValidationOutcome,
 };

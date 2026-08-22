@@ -19,14 +19,14 @@ use loom_core::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommitError,
-    CommitResult, CommitStore, CommittedEvent, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, LifecycleError, LogicalCommit, LogicalJournalStore,
-    LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim,
-    WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget,
-    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
-    WorldTimeError, WorldTimeStore,
+    CommitResult, CommitStore, CommittedEvent, EntropyEvidence, ExecutionSession,
+    ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
+    LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
+    ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SessionError, TimelineSnapshot,
+    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
+    WorkStore, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -212,6 +212,32 @@ impl InMemoryStore {
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
     ) -> Result<ExecutionSession, SessionError> {
+        self.finish_session_inner(session_id, status, ended_at, None)
+    }
+
+    /// Linearizes a terminal Session transition with ordered entropy evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Session lifecycle or source-identity error when the
+    /// transition cannot be applied atomically.
+    pub fn finish_session_with_entropy(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+    ) -> Result<ExecutionSession, SessionError> {
+        self.finish_session_inner(session_id, status, ended_at, Some(entropy_evidence))
+    }
+
+    fn finish_session_inner(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: Option<EntropyEvidence>,
+    ) -> Result<ExecutionSession, SessionError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
         let current = staged
@@ -229,7 +255,12 @@ impl InMemoryStore {
                 to: status,
             });
         }
-        let finished = current.finish(status, ended_at)?;
+        let finished = match entropy_evidence {
+            Some(entropy_evidence) => {
+                current.finish_with_entropy(status, ended_at, entropy_evidence)?
+            }
+            None => current.finish(status, ended_at)?,
+        };
         staged
             .execution_sessions
             .insert(session_id, finished.clone());
@@ -1301,6 +1332,24 @@ impl ExecutionSessionStore for InMemoryStore {
         ended_at: PlatformTime,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         Box::pin(async move { InMemoryStore::finish_session(self, session_id, status, ended_at) })
+    }
+
+    fn finish_session_with_entropy(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            InMemoryStore::finish_session_with_entropy(
+                self,
+                session_id,
+                status,
+                ended_at,
+                entropy_evidence,
+            )
+        })
     }
 
     fn read_session(
