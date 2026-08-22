@@ -8,6 +8,7 @@
 //! [`loom_protocol::Resolution`] never crosses this boundary.
 
 use std::{
+    collections::BTreeMap,
     fmt,
     future::Future,
     pin::Pin,
@@ -17,11 +18,14 @@ use std::{
     },
 };
 
+use loom_capability::CapabilityId;
 use loom_core::{
     AssociationRole, EntityId, EventId, EventSeq, RelationshipId, StateRevision, TimelineId,
     TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule};
+use semver::VersionReq;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{BaseWorldSnapshot, BaseWorldView, ValidatedResolution};
@@ -32,6 +36,120 @@ use crate::{BaseWorldSnapshot, BaseWorldView, ValidatedResolution};
 /// choosing an executor for Runtime. Capability code never receives this type:
 /// resolvers operate on the already-pinned in-memory `BaseWorldView`.
 pub type PersistenceFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+
+/// Immutable semantic execution contract owned by one World.
+///
+/// The binding is Runtime metadata, not a Capability registry snapshot and not
+/// a permanent implementation pin. Its requirements identify the semantic
+/// Capability domains a World permits and the compatible software ranges that
+/// may satisfy those domains in a later Execution Session. The configuration
+/// is intentionally opaque to Storage and remains World-level, immutable
+/// assembly data rather than evolving semantic state.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorldRuntimeBinding {
+    requirements: BTreeMap<CapabilityId, VersionReq>,
+    configuration: Value,
+    revision: u64,
+    template_provenance: Option<String>,
+}
+
+impl WorldRuntimeBinding {
+    /// Creates one immutable World-level binding descriptor.
+    ///
+    /// Capability requirements are stored in deterministic key order. If the
+    /// input contains a duplicate Capability ID, the last value wins while the
+    /// resulting descriptor still contains exactly one semantic owner entry.
+    /// Callers should construct requirements from a validated registry or
+    /// template plan rather than relying on duplicate replacement.
+    #[must_use]
+    pub fn new<I>(
+        requirements: I,
+        configuration: Value,
+        revision: u64,
+        template_provenance: Option<String>,
+    ) -> Self
+    where
+        I: IntoIterator<Item = (CapabilityId, VersionReq)>,
+    {
+        Self {
+            requirements: requirements.into_iter().collect(),
+            configuration,
+            revision,
+            template_provenance,
+        }
+    }
+
+    /// Returns the semantic Capability compatibility requirements.
+    #[must_use]
+    pub fn requirements(&self) -> &BTreeMap<CapabilityId, VersionReq> {
+        &self.requirements
+    }
+
+    /// Returns the requirement for one semantic Capability, if this World
+    /// permits that Capability domain.
+    #[must_use]
+    pub fn requirement(&self, capability: &CapabilityId) -> Option<&VersionReq> {
+        self.requirements.get(capability)
+    }
+
+    /// Reports whether the binding permits the supplied Capability version.
+    #[must_use]
+    pub fn allows(&self, capability: &CapabilityId, version: &semver::Version) -> bool {
+        self.requirement(capability)
+            .is_some_and(|requirement| requirement.matches(version))
+    }
+
+    /// Returns immutable World-level assembly configuration.
+    #[must_use]
+    pub const fn configuration(&self) -> &Value {
+        &self.configuration
+    }
+
+    /// Returns the immutable binding revision.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Returns Template/birth provenance, when the source is known.
+    #[must_use]
+    pub fn template_provenance(&self) -> Option<&str> {
+        self.template_provenance.as_deref()
+    }
+}
+
+/// Typed failures from the World Runtime Binding persistence boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BindingError {
+    /// The requested World identity is not present in persistence.
+    WorldNotFound { world_id: WorldId },
+    /// A pre-binding legacy World has not yet gone through explicit migration.
+    BindingNotFound { world_id: WorldId },
+    /// A binding already exists; v0 never overwrites it.
+    BindingAlreadyExists { world_id: WorldId },
+    /// The persistence authority could not complete the binding operation.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for BindingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WorldNotFound { world_id } => write!(formatter, "World {world_id} not found"),
+            Self::BindingNotFound { world_id } => {
+                write!(formatter, "World Runtime Binding for {world_id} not found")
+            }
+            Self::BindingAlreadyExists { world_id } => {
+                write!(
+                    formatter,
+                    "World Runtime Binding for {world_id} already exists"
+                )
+            }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for BindingError {}
 
 /// An explicit platform-time coordinate used for leases and technical retry.
 ///
@@ -938,6 +1056,26 @@ pub trait WorldLifecycleStore {
         timeline_id: TimelineId,
         initial_world_time: WorldInstant,
     ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>>;
+
+    /// Atomically creates one World, its initial Timeline and its immutable
+    /// World Runtime Binding.
+    ///
+    /// This additive entrypoint is used by current Runtime World birth. The
+    /// legacy [`Self::create_world`] entrypoint remains available so adapters
+    /// can represent M3-era rows that are migrated explicitly through
+    /// [`WorldRuntimeBindingStore::ensure_binding`]. Production adapters must
+    /// associate the supplied binding in the same transaction/state swap as
+    /// the World and initial Timeline.
+    fn create_world_with_binding(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
+        let _ = binding;
+        self.create_world(world_id, timeline_id, initial_world_time)
+    }
 }
 
 /// Runtime read port required by validation and public history projections.
@@ -966,6 +1104,39 @@ pub trait WorldStore {
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         self.snapshot(timeline_id)
     }
+}
+
+/// Runtime-owned persistence port for World-level Runtime Binding metadata.
+///
+/// Binding reads are keyed by `WorldId`, never `TimelineId`, so every Timeline
+/// branch of one World observes the same immutable descriptor independently of
+/// its materialized state snapshot. `ensure_binding` is the explicit one-time
+/// compatibility path for M3 Worlds whose rows predate this metadata; once a
+/// descriptor exists, the supplied legacy candidate is ignored.
+pub trait WorldRuntimeBindingStore {
+    /// Reads the persisted immutable binding for one World.
+    fn read_binding(
+        &self,
+        world_id: WorldId,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>>;
+
+    /// Persists a binding exactly once for an existing World.
+    ///
+    /// Implementations must reject a second binding rather than overwrite the
+    /// existing descriptor, which is the v0 immutability gate.
+    fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<(), BindingError>>;
+
+    /// Reads an existing binding or atomically persists the supplied explicit
+    /// legacy compatibility descriptor when the World predates bindings.
+    fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>>;
 }
 
 /// Runtime-owned port for explicit, monotonic World-Time transitions.

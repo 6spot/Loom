@@ -864,6 +864,8 @@ dependencies = [
  "loom-capability",
  "loom-core",
  "loom-protocol",
+ "semver",
+ "serde",
  "serde_json",
  "uuid",
 ]

@@ -3,9 +3,13 @@ mod support;
 use std::str::FromStr;
 
 use loom_api::{TimelineService, TimelineTarget};
-use loom_capability::CapabilityRegistry;
+use loom_capability::{CapabilityDependency, CapabilityId, CapabilityRegistry};
 use loom_core::{TimelineId, TimelineVersion, WorldId, WorldInstant};
-use loom_runtime::{LifecycleError, Runtime, WorldLifecycleStore, WorldStore};
+use loom_runtime::{
+    BindingError, LifecycleError, Runtime, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore,
+};
+use serde_json::json;
 
 use support::TestDatabase;
 
@@ -141,5 +145,68 @@ async fn postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows() 
 
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_18_world_runtime_binding_survives_restart_and_rejects_mutation() {
+    let Some(database) = TestDatabase::provision("binding_lifecycle").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let world_id = id::<WorldId>(0x4301);
+    let timeline_id = id::<TimelineId>(0x4302);
+    let binding = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from("binding.test"),
+            CapabilityDependency::parse("binding.test", "^0.1.0")
+                .expect("binding requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "postgres"}),
+        1,
+        Some("binding-test".to_owned()),
+    );
+
+    WorldLifecycleStore::create_world_with_binding(
+        &storage,
+        world_id,
+        timeline_id,
+        WorldInstant::new(0),
+        binding.clone(),
+    )
+    .await
+    .expect("World and Binding should commit atomically");
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&storage, world_id)
+            .await
+            .expect("Binding should be readable"),
+        binding
+    );
+    storage.close().await;
+
+    let restarted = database.storage().await;
+    assert_eq!(
+        WorldRuntimeBindingStore::read_binding(&restarted, world_id)
+            .await
+            .expect("Binding should survive adapter restart"),
+        binding
+    );
+    let replacement = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from("binding.other"),
+            CapabilityDependency::parse("binding.other", "*")
+                .expect("replacement requirement should parse")
+                .version,
+        )],
+        json!({"fixture": "replacement"}),
+        2,
+        Some("replacement".to_owned()),
+    );
+    assert_eq!(
+        WorldRuntimeBindingStore::persist_binding(&restarted, world_id, replacement).await,
+        Err(BindingError::BindingAlreadyExists { world_id })
+    );
+    restarted.close().await;
     database.cleanup().await;
 }

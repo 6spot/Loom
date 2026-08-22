@@ -18,13 +18,16 @@ use loom_capability::{
 };
 use loom_core::{ActionTypeId, TimelineId, WorkId};
 use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome};
+use semver::VersionReq;
+use serde_json::json;
 
 use crate::{
-    BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent, EffectEngine,
-    IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock,
-    PlatformTime, ReadError, ResolutionBudget, RuntimeError, TimelineSnapshot,
+    BindingError, BudgetUsage, CallProvenance, CommitError, CommitStore, CommittedEvent,
+    EffectEngine, IdentityAllocator, LifecycleError, ManualPlatformClock, PersistenceFuture,
+    PlatformClock, PlatformTime, ReadError, ResolutionBudget, RuntimeError, TimelineSnapshot,
     UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStore, WorldLifecycleStore, WorldStore,
+    WorkRecord, WorkStore, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -55,7 +58,7 @@ pub struct Runtime<S> {
 
 impl<S> Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     /// Creates a Runtime after validating the assembled Capability registry.
     ///
@@ -126,6 +129,16 @@ where
         self
     }
 
+    async fn binding_for_world(
+        &self,
+        world_id: loom_core::WorldId,
+    ) -> ApiResult<WorldRuntimeBinding> {
+        self.store
+            .ensure_binding(world_id, legacy_binding())
+            .await
+            .map_err(|error| map_binding_error(&error))
+    }
+
     /// Executes one claimed Durable Work obligation through the same
     /// Resolution → validation → authority commit path as a public Action.
     ///
@@ -176,10 +189,19 @@ where
                     .await);
             }
         };
+        let binding = match self.binding_for_world(snapshot.world_id()).await {
+            Ok(binding) => binding,
+            Err(error) => {
+                return Err(self
+                    .retry_after_failure(&claim, now, retry_available_at, error)
+                    .await);
+            }
+        };
         let base = snapshot.world_view();
         let (outcome, execution) = match dispatch_root_work(
             &base,
             &self.registry,
+            &binding,
             self.resolution_budget,
             &work.handler,
             &work.payload,
@@ -299,6 +321,16 @@ where
     ) -> PersistenceFuture<'_, Result<crate::WorldCreation, LifecycleError>> {
         (**self).create_world(world_id, timeline_id, initial_world_time)
     }
+
+    fn create_world_with_binding(
+        &self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: loom_core::WorldInstant,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<crate::WorldCreation, LifecycleError>> {
+        (**self).create_world_with_binding(world_id, timeline_id, initial_world_time, binding)
+    }
 }
 
 impl<T> WorldStore for &T
@@ -310,6 +342,34 @@ where
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         (**self).snapshot(timeline_id)
+    }
+}
+
+impl<T> WorldRuntimeBindingStore for &T
+where
+    T: WorldRuntimeBindingStore + ?Sized,
+{
+    fn read_binding(
+        &self,
+        world_id: loom_core::WorldId,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        (**self).read_binding(world_id)
+    }
+
+    fn persist_binding(
+        &self,
+        world_id: loom_core::WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<(), BindingError>> {
+        (**self).persist_binding(world_id, binding)
+    }
+
+    fn ensure_binding(
+        &self,
+        world_id: loom_core::WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        (**self).ensure_binding(world_id, legacy_binding)
     }
 }
 
@@ -362,7 +422,7 @@ where
 
 impl<S> WorldService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore + WorldLifecycleStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore + WorldLifecycleStore,
 {
     fn create_world(&self, request: CreateWorldRequest) -> ApiFuture<'_, ApiTimelineSnapshot> {
         Box::pin(async move {
@@ -375,7 +435,12 @@ where
             }
             let created = self
                 .store
-                .create_world(world_id, timeline_id, request.initial_world_time)
+                .create_world_with_binding(
+                    world_id,
+                    timeline_id,
+                    request.initial_world_time,
+                    legacy_binding(),
+                )
                 .await
                 .map_err(|error| map_lifecycle_error(&error))?;
             let target = TimelineTarget::new(created.world_id(), created.timeline_id());
@@ -390,18 +455,15 @@ where
 
 impl<S> ActionService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(request.target).await?;
+            let binding = self.binding_for_world(snapshot.world_id()).await?;
             let base = snapshot.world_view();
-            if self.registry.action(&request.invocation.action).is_none() {
-                return Err(ApiError::not_found(format!(
-                    "Action {} was not registered",
-                    request.invocation.action
-                )));
-            }
+            enabled_action(&self.registry, &binding, &request.invocation.action)
+                .map_err(map_dispatch_error)?;
             let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
             engine
                 .validate_action_input(&request.invocation.action, &request.invocation.input)
@@ -409,6 +471,7 @@ where
             let (outcome, execution) = dispatch_root_action(
                 &base,
                 &self.registry,
+                &binding,
                 self.resolution_budget,
                 &request.invocation,
             )
@@ -434,7 +497,7 @@ where
 
 impl<S> TimelineService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, ApiTimelineSnapshot> {
         Box::pin(async move {
@@ -450,7 +513,7 @@ where
 
 impl<S> QueryService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<ApiFacetSnapshot>> {
         Box::pin(async move {
@@ -470,7 +533,7 @@ where
 
 impl<S> HistoryService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
         Box::pin(async move {
@@ -491,7 +554,7 @@ where
 
 impl<S> CatalogService for Runtime<S>
 where
-    S: WorldStore + CommitStore + WorkStore,
+    S: WorldStore + WorldRuntimeBindingStore + CommitStore + WorkStore,
 {
     fn catalog(&self) -> ApiResult<CatalogSnapshot> {
         let capabilities = self
@@ -621,6 +684,7 @@ impl ExecutionState {
 struct RuntimeResolutionContext<'a> {
     base: &'a crate::BaseWorldView,
     registry: &'a CapabilityRegistry,
+    binding: &'a WorldRuntimeBinding,
     state: Rc<RefCell<ExecutionState>>,
     frame: CallFrame,
 }
@@ -637,6 +701,7 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
         dispatch_child_action(
             self.base,
             self.registry,
+            self.binding,
             &self.state,
             &self.frame,
             invocation,
@@ -652,12 +717,11 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
 fn dispatch_root_action(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
     budget: ResolutionBudget,
     invocation: &ActionInvocation,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
-    let action = registry
-        .action(&invocation.action)
-        .ok_or_else(|| DispatchError::UnknownAction(invocation.action.clone()))?;
+    let action = enabled_action(registry, binding, &invocation.action)?;
     let frame = CallFrame {
         owner: action.owner.clone(),
         action: invocation.action.clone(),
@@ -667,13 +731,14 @@ fn dispatch_root_action(
         .borrow_mut()
         .enter_root(frame.clone())
         .map_err(internal_dispatch_error)?;
-    let outcome = dispatch_action_frame(base, registry, &state, &frame, invocation)?;
+    let outcome = dispatch_action_frame(base, registry, binding, &state, &frame, invocation)?;
     Ok((outcome, state.borrow().clone()))
 }
 
 fn dispatch_root_work(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
     budget: ResolutionBudget,
     handler_id: &loom_core::WorkHandlerId,
     payload: &serde_json::Value,
@@ -690,13 +755,15 @@ fn dispatch_root_work(
         .borrow_mut()
         .enter_root(frame.clone())
         .map_err(internal_dispatch_error)?;
-    let outcome = dispatch_work_frame(base, registry, &state, &frame, handler_id, payload)?;
+    let outcome =
+        dispatch_work_frame(base, registry, binding, &state, &frame, handler_id, payload)?;
     Ok((outcome, state.borrow().clone()))
 }
 
 fn dispatch_action_frame(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
     state: &Rc<RefCell<ExecutionState>>,
     frame: &CallFrame,
     invocation: &ActionInvocation,
@@ -705,6 +772,7 @@ fn dispatch_action_frame(
         let context = RuntimeResolutionContext {
             base,
             registry,
+            binding,
             state: Rc::clone(state),
             frame: frame.clone(),
         };
@@ -716,6 +784,7 @@ fn dispatch_action_frame(
 fn dispatch_work_frame(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
     state: &Rc<RefCell<ExecutionState>>,
     frame: &CallFrame,
     handler_id: &loom_core::WorkHandlerId,
@@ -725,6 +794,7 @@ fn dispatch_work_frame(
         let context = RuntimeResolutionContext {
             base,
             registry,
+            binding,
             state: Rc::clone(state),
             frame: frame.clone(),
         };
@@ -757,10 +827,12 @@ fn capture_outcome(
 fn dispatch_child_action(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
     state: &Rc<RefCell<ExecutionState>>,
     caller: &CallFrame,
     invocation: &ActionInvocation,
 ) -> Result<ResolveOutcome, DispatchError> {
+    let action = enabled_action(registry, binding, &invocation.action)?;
     EffectEngine::new(registry)
         .validate_action_input(&invocation.action, &invocation.input)
         .map_err(|error| {
@@ -769,9 +841,6 @@ fn dispatch_child_action(
             internal_dispatch_error(message)
         })?;
 
-    let action = registry
-        .action(&invocation.action)
-        .ok_or_else(|| DispatchError::UnknownAction(invocation.action.clone()))?;
     let target = CallFrame {
         owner: action.owner.clone(),
         action: invocation.action.clone(),
@@ -798,13 +867,30 @@ fn dispatch_child_action(
         state.borrow_mut().record_failure(message.clone());
         return Err(internal_dispatch_error(message));
     }
-    let result = dispatch_action_frame(base, registry, state, &target, invocation);
+    let result = dispatch_action_frame(base, registry, binding, state, &target, invocation);
     state.borrow_mut().leave(&target);
     result
 }
 
 fn internal_dispatch_error(message: impl Into<String>) -> DispatchError {
     DispatchError::Resolver(ResolverError::new(message))
+}
+
+fn enabled_action<'a>(
+    registry: &'a CapabilityRegistry,
+    binding: &WorldRuntimeBinding,
+    action_id: &ActionTypeId,
+) -> Result<&'a loom_capability::RegisteredAction, DispatchError> {
+    let action = registry
+        .action(action_id)
+        .ok_or_else(|| DispatchError::UnknownAction(action_id.clone()))?;
+    let enabled = registry
+        .capability(&action.owner)
+        .is_some_and(|manifest| binding.allows(&action.owner, &manifest.version));
+    if !enabled {
+        return Err(DispatchError::UnavailableAction(action_id.clone()));
+    }
+    Ok(action)
 }
 
 fn changes_runtime_state(
@@ -841,6 +927,64 @@ fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
     }
 }
 
+/// Returns the repository-owned compatibility descriptor used while migrating
+/// M3 Worlds that predate World Runtime Binding.
+///
+/// This is deliberately a checked-in fixture rather than a projection of the
+/// process-local registry. The registry describes installed software; using it
+/// here would make the first Runtime process silently decide a World's
+/// permanent semantic enablement. M4-T3 replaces this interim birth baseline
+/// with the validated Template binding path.
+fn legacy_binding() -> WorldRuntimeBinding {
+    const M3_COMPATIBILITY_CAPABILITIES: &[&str] = &[
+        "bootstrap.basic",
+        "composition.child",
+        "composition.leaf",
+        "composition.root",
+        "counter",
+        "counter.basic",
+        "counting",
+        "postgres.commit.test",
+        "postgres.restart_resume",
+        "postgres.vertical.counter",
+        "postgres.work.test",
+        "provenance.child",
+        "provenance.parent",
+        "test",
+        "test.no_change",
+    ];
+
+    WorldRuntimeBinding::new(
+        M3_COMPATIBILITY_CAPABILITIES.iter().map(|capability_id| {
+            (
+                CapabilityId::from(*capability_id),
+                VersionReq::parse("^0.1.0")
+                    .expect("the checked-in M3 baseline requirement should parse"),
+            )
+        }),
+        json!({"baseline": "m3-compatibility-baseline-v1"}),
+        1,
+        Some("m3-compatibility-baseline-v1".to_owned()),
+    )
+}
+
+fn map_binding_error(error: &BindingError) -> ApiError {
+    match error {
+        BindingError::WorldNotFound { world_id } => {
+            ApiError::not_found(format!("World {world_id} was not found"))
+        }
+        BindingError::BindingNotFound { .. } => {
+            ApiError::internal("World Runtime Binding is missing")
+        }
+        BindingError::BindingAlreadyExists { .. } => {
+            ApiError::conflict("World Runtime Binding already exists")
+        }
+        BindingError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Persistence authority is temporarily unavailable")
+        }
+    }
+}
+
 fn map_lifecycle_error(error: &LifecycleError) -> ApiError {
     match error {
         LifecycleError::WorldAlreadyExists { world_id } => {
@@ -870,6 +1014,9 @@ fn map_dispatch_error(error: DispatchError) -> ApiError {
     match error {
         DispatchError::UnknownAction(action) => {
             ApiError::not_found(format!("Action {action} was not registered"))
+        }
+        DispatchError::UnavailableAction(_) => {
+            ApiError::unavailable("Action is not enabled for this World")
         }
         DispatchError::UnknownWorkHandler(_) => {
             ApiError::internal("registered Work handler was not found")
@@ -1082,10 +1229,12 @@ mod tests {
     #[test]
     fn runtime_call_edge_is_observable_separately_from_world_causality() {
         let registry = registry();
+        let binding = legacy_binding();
         let invocation = ActionInvocation::new(ActionTypeId::from("provenance.parent"), json!({}));
         let (outcome, execution) = dispatch_root_action(
             &base(),
             &registry,
+            &binding,
             ResolutionBudget::unlimited(),
             &invocation,
         )
@@ -1103,5 +1252,21 @@ mod tests {
             .expect("empty Work-like validation should retain provenance");
         assert_eq!(validated.call_provenance().len(), 1);
         assert!(validated.events().is_empty());
+    }
+
+    #[test]
+    fn m3_compatibility_baseline_is_stable_across_runtime_registries() {
+        let first = legacy_binding();
+        let second = legacy_binding();
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.template_provenance(),
+            Some("m3-compatibility-baseline-v1")
+        );
+        assert_eq!(
+            first.requirement(&CapabilityId::from("not-in-the-baseline")),
+            None
+        );
     }
 }

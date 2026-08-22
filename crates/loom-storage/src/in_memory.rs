@@ -18,10 +18,11 @@ use loom_core::{
     TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, CommitError, CommitResult, CommitStore, CommittedEvent,
-    LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError, TimelineSnapshot,
-    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
-    WorkStore, WorldCreation, WorldLifecycleStore, WorldStore, WorldTimeError, WorldTimeStore,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, CommitError, CommitResult, CommitStore,
+    CommittedEvent, LifecycleError, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
+    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
+    WorkRecord, WorkStatus, WorkStore, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -73,6 +74,7 @@ impl TimelineState {
 #[derive(Clone, Debug, Default)]
 struct StoreState {
     worlds: HashSet<WorldId>,
+    world_bindings: HashMap<WorldId, WorldRuntimeBinding>,
     timelines: HashMap<TimelineId, TimelineState>,
 }
 
@@ -358,6 +360,76 @@ impl InMemoryStore {
         Ok(snapshot_from_timeline(timeline))
     }
 
+    /// Reads the immutable World-level Runtime Binding independently of any
+    /// Timeline materialized-state snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::WorldNotFound`] when the World is absent or
+    /// [`BindingError::BindingNotFound`] for an unmigrated M3 World.
+    pub fn read_binding(&self, world_id: WorldId) -> Result<WorldRuntimeBinding, BindingError> {
+        let guard = self.read_state();
+        if !guard.worlds.contains(&world_id) {
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        guard
+            .world_bindings
+            .get(&world_id)
+            .cloned()
+            .ok_or(BindingError::BindingNotFound { world_id })
+    }
+
+    /// Persists one World Runtime Binding without an overwrite path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::WorldNotFound`] when the World is absent or
+    /// [`BindingError::BindingAlreadyExists`] when v0 immutability rejects the
+    /// second descriptor.
+    pub fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> Result<(), BindingError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        if !staged.worlds.contains(&world_id) {
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        if staged.world_bindings.contains_key(&world_id) {
+            return Err(BindingError::BindingAlreadyExists { world_id });
+        }
+        staged.world_bindings.insert(world_id, binding);
+        *guard = staged;
+        Ok(())
+    }
+
+    /// Reads a binding or performs the explicit one-time M3 compatibility
+    /// migration for a World whose binding row predates the current schema.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::WorldNotFound`] when the World is absent.
+    pub fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> Result<WorldRuntimeBinding, BindingError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        if !staged.worlds.contains(&world_id) {
+            return Err(BindingError::WorldNotFound { world_id });
+        }
+        if let Some(binding) = staged.world_bindings.get(&world_id) {
+            return Ok(binding.clone());
+        }
+        staged
+            .world_bindings
+            .insert(world_id, legacy_binding.clone());
+        *guard = staged;
+        Ok(legacy_binding)
+    }
+
     /// Reads one Work record without exposing the mutable adapter state.
     ///
     /// # Errors
@@ -641,26 +713,53 @@ impl WorldLifecycleStore for InMemoryStore {
         initial_world_time: WorldInstant,
     ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
         Box::pin(async move {
-            let mut guard = self.write_state();
-            let mut staged = guard.clone();
-            if staged.worlds.contains(&world_id) {
-                return Err(LifecycleError::WorldAlreadyExists { world_id });
-            }
-            if staged.timelines.contains_key(&timeline_id) {
-                return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
-            }
-
-            let mut timeline = TimelineState::empty(world_id, timeline_id);
-            timeline.world_time = initial_world_time;
-            staged.worlds.insert(world_id);
-            staged.timelines.insert(timeline_id, timeline);
-            *guard = staged;
-            Ok(WorldCreation::new(
-                world_id,
-                timeline_id,
-                initial_world_time,
-            ))
+            self.create_world_internal(world_id, timeline_id, initial_world_time, None)
         })
+    }
+
+    fn create_world_with_binding(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_internal(world_id, timeline_id, initial_world_time, Some(binding))
+        })
+    }
+}
+
+impl InMemoryStore {
+    fn create_world_internal(
+        &self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: Option<WorldRuntimeBinding>,
+    ) -> Result<WorldCreation, LifecycleError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        if staged.worlds.contains(&world_id) {
+            return Err(LifecycleError::WorldAlreadyExists { world_id });
+        }
+        if staged.timelines.contains_key(&timeline_id) {
+            return Err(LifecycleError::TimelineAlreadyExists { timeline_id });
+        }
+
+        let mut timeline = TimelineState::empty(world_id, timeline_id);
+        timeline.world_time = initial_world_time;
+        staged.worlds.insert(world_id);
+        if let Some(binding) = binding {
+            staged.world_bindings.insert(world_id, binding);
+        }
+        staged.timelines.insert(timeline_id, timeline);
+        *guard = staged;
+        Ok(WorldCreation::new(
+            world_id,
+            timeline_id,
+            initial_world_time,
+        ))
     }
 }
 
@@ -670,6 +769,31 @@ impl WorldStore for InMemoryStore {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { InMemoryStore::snapshot(self, timeline_id) })
+    }
+}
+
+impl WorldRuntimeBindingStore for InMemoryStore {
+    fn read_binding(
+        &self,
+        world_id: WorldId,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        Box::pin(async move { InMemoryStore::read_binding(self, world_id) })
+    }
+
+    fn persist_binding(
+        &self,
+        world_id: WorldId,
+        binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<(), BindingError>> {
+        Box::pin(async move { InMemoryStore::persist_binding(self, world_id, binding) })
+    }
+
+    fn ensure_binding(
+        &self,
+        world_id: WorldId,
+        legacy_binding: WorldRuntimeBinding,
+    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
+        Box::pin(async move { InMemoryStore::ensure_binding(self, world_id, legacy_binding) })
     }
 }
 
