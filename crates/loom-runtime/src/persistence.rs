@@ -360,6 +360,7 @@ impl CommittedEvent {
         timeline_id: TimelineId,
         event_seq: EventSeq,
         event: &ProposedEvent,
+        occurred_at: WorldInstant,
     ) -> Self {
         Self {
             id: event.id,
@@ -367,7 +368,7 @@ impl CommittedEvent {
             event_seq,
             event_type: event.event_type.clone(),
             schema_revision: event.schema_revision,
-            occurred_at: event.occurred_at,
+            occurred_at,
             participants: event.participants.clone(),
             relationship_refs: event.relationship_refs.clone(),
             causal_links: event.causal_links.clone(),
@@ -405,6 +406,122 @@ impl CommittedEvent {
     #[must_use]
     pub const fn sequence(&self) -> EventSeq {
         self.event_seq
+    }
+}
+
+/// Runtime-owned authority value for an explicit Timeline World-Time change.
+///
+/// The expected version and current time are both pinned by the caller. The
+/// persistence port must compare them with the authoritative Timeline at its
+/// linearization point before changing the logical revision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AdvanceWorldTime {
+    timeline_id: TimelineId,
+    expected_version: TimelineVersion,
+    current: WorldInstant,
+    next: WorldInstant,
+}
+
+/// Validation or persistence failures for an explicit World-Time transition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum WorldTimeError {
+    /// The transition target is not strictly later than its source.
+    NonMonotonic {
+        current: WorldInstant,
+        next: WorldInstant,
+    },
+    /// The Timeline does not exist in the persistence authority.
+    TimelineNotFound { timeline_id: TimelineId },
+    /// The expected logical position lost a race with another commit.
+    TimelineConflict {
+        expected: TimelineVersion,
+        actual: TimelineVersion,
+    },
+    /// The expected source World Time no longer matches the Timeline.
+    CurrentTimeMismatch {
+        expected: WorldInstant,
+        actual: WorldInstant,
+    },
+    /// The logical revision cannot be incremented.
+    RevisionOverflow,
+    /// The persistence authority could not complete the transition.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for WorldTimeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonMonotonic { current, next } => {
+                write!(
+                    formatter,
+                    "World Time transition {current:?} -> {next:?} is not monotonic"
+                )
+            }
+            Self::TimelineNotFound { timeline_id } => {
+                write!(formatter, "Timeline {timeline_id} not found")
+            }
+            Self::TimelineConflict { expected, actual } => {
+                write!(
+                    formatter,
+                    "Timeline CAS conflict: expected {expected:?}, actual {actual:?}"
+                )
+            }
+            Self::CurrentTimeMismatch { expected, actual } => {
+                write!(
+                    formatter,
+                    "World Time mismatch: expected {expected:?}, actual {actual:?}"
+                )
+            }
+            Self::RevisionOverflow => formatter.write_str("Timeline revision overflow"),
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for WorldTimeError {}
+
+impl AdvanceWorldTime {
+    /// Validates and pins an explicit World-Time transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorldTimeError::NonMonotonic`] when `next` does not strictly
+    /// follow `current`.
+    pub fn new(
+        timeline_id: TimelineId,
+        expected_version: TimelineVersion,
+        current: WorldInstant,
+        next: WorldInstant,
+    ) -> Result<Self, WorldTimeError> {
+        if next <= current {
+            return Err(WorldTimeError::NonMonotonic { current, next });
+        }
+        Ok(Self {
+            timeline_id,
+            expected_version,
+            current,
+            next,
+        })
+    }
+
+    #[must_use]
+    pub const fn timeline_id(self) -> TimelineId {
+        self.timeline_id
+    }
+
+    #[must_use]
+    pub const fn expected_version(self) -> TimelineVersion {
+        self.expected_version
+    }
+
+    #[must_use]
+    pub const fn current(self) -> WorldInstant {
+        self.current
+    }
+
+    #[must_use]
+    pub const fn next(self) -> WorldInstant {
+        self.next
     }
 }
 
@@ -849,6 +966,15 @@ pub trait WorldStore {
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         self.snapshot(timeline_id)
     }
+}
+
+/// Runtime-owned port for explicit, monotonic World-Time transitions.
+pub trait WorldTimeStore {
+    /// Applies one transition using the expected Timeline version as CAS.
+    fn advance_world_time(
+        &self,
+        transition: AdvanceWorldTime,
+    ) -> PersistenceFuture<'_, Result<TimelineVersion, WorldTimeError>>;
 }
 
 /// Runtime commit port whose semantic input is exclusively authority-gated.

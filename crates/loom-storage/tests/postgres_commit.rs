@@ -17,8 +17,8 @@ use loom_protocol::{
     ResolveOutcome, WorkMutation, WorkSchedule,
 };
 use loom_runtime::{
-    CommitError, CommitStore, EffectEngine, PlatformTime, RuntimeError, ValidationError, WorkClaim,
-    WorkError, WorkStatus, WorldStore,
+    AdvanceWorldTime, CommitError, CommitStore, EffectEngine, PlatformTime, RuntimeError,
+    ValidationError, WorkClaim, WorkError, WorkStatus, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use loom_storage::PgStorage;
 use serde_json::{Value, json};
@@ -128,6 +128,62 @@ async fn validated(
         .expect("test Resolution should validate")
 }
 
+#[tokio::test]
+async fn postgres_18_world_time_port_advances_and_rejects_stale_cas() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1050).await else {
+        return;
+    };
+    let initial = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("initial Timeline should be readable");
+    assert_eq!(initial.version().head_event_seq, EventSeq::new(0));
+    assert_eq!(initial.version().state_revision.value(), 0);
+    assert_eq!(initial.world_time(), WorldInstant::new(0));
+
+    let transition = AdvanceWorldTime::new(
+        timeline_id,
+        initial.version(),
+        initial.world_time(),
+        WorldInstant::new(42),
+    )
+    .expect("forward World-Time transition should validate");
+    let advanced = WorldTimeStore::advance_world_time(&storage, transition)
+        .await
+        .expect("PostgreSQL World-Time transition should succeed");
+    assert_eq!(advanced.head_event_seq, EventSeq::new(0));
+    assert_eq!(advanced.state_revision.value(), 1);
+
+    let after_advance = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("advanced Timeline should be readable");
+    assert_eq!(after_advance.version(), advanced);
+    assert_eq!(after_advance.world_time(), WorldInstant::new(42));
+
+    let stale = AdvanceWorldTime::new(
+        timeline_id,
+        initial.version(),
+        initial.world_time(),
+        WorldInstant::new(99),
+    )
+    .expect("stale transition remains structurally monotonic");
+    let stale_error = WorldTimeStore::advance_world_time(&storage, stale)
+        .await
+        .expect_err("stale World-Time CAS should lose");
+    assert!(matches!(
+        stale_error,
+        WorldTimeError::TimelineConflict { .. }
+    ));
+
+    let after_stale = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("Timeline should remain readable after stale CAS");
+    assert_eq!(after_stale.version(), advanced);
+    assert_eq!(after_stale.world_time(), WorldInstant::new(42));
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
+
 async fn seed_entity(pool: &PgPool, timeline_id: TimelineId, entity_id: EntityId) {
     sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
         .bind(timeline_id.to_string())
@@ -152,13 +208,12 @@ async fn seed_pending_work(pool: &PgPool, timeline_id: TimelineId, work_id: Work
     .expect("test Work should insert");
 }
 
-fn event(event_id: EventId, occurred_at: i64) -> ProposedEvent {
+fn event(event_id: EventId, source_time: i64) -> ProposedEvent {
     ProposedEvent::new(
         event_id,
         EventTypeId::from(EVENT_TYPE),
         SchemaRevision::new(1),
-        WorldInstant::new(occurred_at),
-        json!({"event": event_id.to_string()}),
+        json!({"event": event_id.to_string(), "source_time": source_time}),
     )
 }
 
@@ -223,7 +278,7 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
     let snapshot = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("committed Timeline should be readable");
-    assert_eq!(snapshot.world_time(), WorldInstant::new(7));
+    assert_eq!(snapshot.world_time(), WorldInstant::new(0));
     assert_eq!(snapshot.events.len(), 3);
     assert!(snapshot.world_view().entity(created).is_some());
     assert!(snapshot.world_view().relationship(relationship).is_some());

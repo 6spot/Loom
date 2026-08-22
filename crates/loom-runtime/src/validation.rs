@@ -287,6 +287,7 @@ pub struct ValidatedResolution {
     resolution: Resolution,
     timeline_id: TimelineId,
     base_version: loom_core::TimelineVersion,
+    pinned_world_time: loom_core::WorldInstant,
     read_set: crate::ReadSet,
     call_provenance: CallProvenance,
 }
@@ -307,6 +308,12 @@ impl ValidatedResolution {
     #[must_use]
     pub const fn base_version(&self) -> loom_core::TimelineVersion {
         self.base_version
+    }
+
+    /// Returns the Runtime-pinned World Time used to stamp committed Events.
+    #[must_use]
+    pub const fn pinned_world_time(&self) -> loom_core::WorldInstant {
+        self.pinned_world_time
     }
 
     /// Borrows the validated proposal for a Runtime-owned commit adapter.
@@ -352,6 +359,7 @@ impl ValidatedResolution {
         resolution: Resolution,
         timeline_id: TimelineId,
         base_version: loom_core::TimelineVersion,
+        pinned_world_time: loom_core::WorldInstant,
         read_set: crate::ReadSet,
         call_provenance: CallProvenance,
     ) -> Self {
@@ -359,6 +367,7 @@ impl ValidatedResolution {
             resolution,
             timeline_id,
             base_version,
+            pinned_world_time,
             read_set,
             call_provenance,
         }
@@ -560,6 +569,7 @@ impl<'registry> EffectEngine<'registry> {
             flattened,
             base.timeline_id(),
             base.version(),
+            base.world_time(),
             read_set,
             call_provenance,
         ))

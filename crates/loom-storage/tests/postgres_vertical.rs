@@ -141,7 +141,6 @@ impl ActionResolver for CounterIncrementer {
             event_id,
             EventTypeId::from(INCREMENTED),
             SchemaRevision::new(1),
-            context.world_time(),
             json!({"previous": current, "amount": amount, "value": next}),
         )
         .with_effect(WorldEffect::PutFacet {
@@ -175,7 +174,6 @@ impl ActionResolver for CounterObserver {
                 event_id,
                 EventTypeId::from(OBSERVED),
                 SchemaRevision::new(1),
-                context.world_time(),
                 json!({"value": current}),
             )],
             Vec::new(),

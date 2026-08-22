@@ -2296,7 +2296,6 @@ mod tests {
                     EventId::from_str("00000000-0000-0000-0000-000000000001").expect("test id"),
                     EventTypeId::from("test.event"),
                     SchemaRevision::new(1),
-                    0.into(),
                     input.clone(),
                 )],
                 Vec::new(),
