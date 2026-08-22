@@ -43,6 +43,7 @@ Entity、Relationship、Facet 等世界语义状态不能被直接修改；任�
 ```text
 World Time
 logical Durable Work lifecycle
+logical Durable Work order
 Timeline logical revision / ancestry
 ```
 
@@ -145,7 +146,7 @@ World
 
 Identity 属于 World；可变 semantic State 属于 Timeline。Fork 创建的是同一批既有身份的另一段历史，而不是把“张三”复制成另一个身份。
 
-Fork 同时继承 fork point 的 World Time 与 logical Pending Work，但后续 State、World Time、Work lifecycle 和未来结果各自独立；World Runtime Binding 因属于 World 而保持相同。
+Fork 同时继承 fork point 的 World Time 与 logical Pending Work；后续 State、World Time、Work lifecycle 和未来结果各自独立。Inherited Work 可以拥有新的 branch-local WorkId，但其 effective due time 与相对 logical schedule order 必须保持；World Runtime Binding 因属于 World 而保持相同。
 
 ## 5. Agent 是世界中的持续存在者，LLM 只是可配置认知执行器
 
@@ -221,6 +222,39 @@ AdvanceWorldTime(T_current -> T_next)
 
 因此 Runtime 才能真正闭环：当没有当前 due Work、但存在未来 Work 时，time policy 可以显式推进到合适的 WorldInstant，再恢复执行。
 
+### Durable Work 的世界顺序与平台可执行性分离
+
+一个 Work 是否已经在世界语义上到期，与服务器当前能否执行它不是同一问题：
+
+```text
+Semantic due-ness
+= Pending + effective due World Time <= current World Time
+
+Operational claimability
+= semantic due
+  + retry available_at satisfied
+  + no valid lease
+  + compatible implementation available
+```
+
+retry/backoff、lease、worker crash 或 software implementation 暂时不可用，可以让服务器**晚一点处理**，但不能让这个 Work 在 Timeline chronology 中消失或被后面的 Work 越过。
+
+同一 Timeline 的 Scheduler-managed Work 使用：
+
+```text
+(effective_due_world_time, logical_schedule_order)
+```
+
+形成持久、可 Replay/Fork 的顺序。UUID、数据库 row order、worker race 和 wall-clock race 都不能决定 World scheduler chronology。
+
+因此只要存在 semantically due 的 Pending Work：
+
+> **World Time cannot advance.**
+
+当前 logical head 必须先通过 Runtime-owned Logical Commit 进入 `Completed / Cancelled / Dead`，Scheduler 才能继续处理 later Work 或推进 World Time。
+
+这使纯技术故障可以延迟现实机器上的执行，但不能偷偷把 World chronology 推到更晚的未来。
+
 ## 7. Runtime 安装能力，World 决定启用能力，Session 决定实际软件
 
 Loom 必须区分三个不同层次：
@@ -252,11 +286,13 @@ controlled entropy/cognition environment where relevant
 
 如果当前 Runtime Revision 无法满足目标 World 的 Binding，执行应失败为 unavailable/incompatible；Runtime 不得静默修改 World Binding 或启用其他 semantic domain。
 
+如果无法满足的是当前 due logical head，Scheduler 保持在该 head / 当前 World Time；不能跳过它继续 later Work。
+
 ## 8. 世界可以连接现实，但 Core 不直接控制现实
 
 外部系统通过 **Ingress Protocol** 向 Loom 提交输入；输入不会直接修改 State，而是进入 Runtime 并经过领域解释、Resolution 和 Event Commit。
 
-Ingress 的 source/platform timestamp 也不会自动推动 World Time。如果一个 Reality Mirror Application 希望把现实时间映射到 World Time，应由明确 policy 请求 Runtime 的 World-Time transition。
+Ingress 的 source/platform timestamp 也不会自动推动 World Time。如果一个 Reality Mirror Application 希望把现实时间映射到 World Time，应由明确 policy 请求 Runtime 的 World-Time transition，并仍然遵守当前 due-work quiescence barrier。
 
 Loom 通过 **World Change Feed / Feedback** 把已经提交的世界变化提供给 Application 或外部观察者。
 
@@ -293,10 +329,12 @@ Committed Events + frozen Effects
 → reconstruct semantic materialized State
 
 Timeline Logical History
-→ reconstruct World Time + logical Durable Work
+→ reconstruct World Time + logical Durable Work + Work chronology
 ```
 
 Replay 不重新调用旧 Resolver、Entropy、Cognitive Executor，也不依赖旧 binary 才能知道“当时世界发生了什么”。
+
+Replay 也不重新根据 UUID、数据库 row order、Platform timestamps 或当前 worker 状态决定历史 Work 顺序。
 
 Execution Provenance 保存的是“当时是怎么计算出来的”，不是 replay authority。
 
@@ -327,7 +365,7 @@ Loom 的核心目标不是让每个世界都拥有相同内容，而是提供一
 
 > **如果移除一个概念后，持续 World Runtime 仍然能够闭环，那么它原则上不应进入最小 Core。**
 
-同时遵循三个 authority test：
+同时遵循四个 authority / chronology test：
 
 ```text
 semantic World State change
@@ -336,8 +374,11 @@ semantic World State change
 reconstructable Timeline time/future change
 → Runtime-owned Logical Commit
 
+Scheduler-managed future ordering
+→ persistent Timeline logical chronology
+
 platform reliability bookkeeping
 → Operational State only
 ```
 
-Core 保持稳定；新的世界能力优先通过 Capability 扩展。详细闭环见 `docs/architecture/world-runtime.md`。
+Core 保持稳定；新的世界能力优先通过 Capability 扩展。Loom v0 World Runtime architecture 已冻结，详细闭环见 `docs/architecture/world-runtime.md`。
