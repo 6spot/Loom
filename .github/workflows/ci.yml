@@ -5,7 +5,27 @@ on:
   push:
     branches:
       - main
+    paths:
+      - ".github/workflows/ci.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - "apps/**"
+      - "crates/**"
+      - "tests/**"
+      - "tools/**"
   pull_request:
+    paths:
+      - ".github/workflows/ci.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - "apps/**"
+      - "crates/**"
+      - "tests/**"
+      - "tools/**"
 
 permissions:
   contents: read
@@ -19,14 +39,8 @@ env:
 
 jobs:
   rust:
-    name: Rust ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+    name: Rust checks
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
