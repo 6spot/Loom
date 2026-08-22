@@ -33,12 +33,13 @@ use crate::{
     EntropySource, EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession,
     ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy, IdentityAllocator,
     LifecycleError, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
-    ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionCapability,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SessionError, TimelineBlockedOnMissingImplementation, TimelineSnapshot,
-    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
-    WorkClaim, WorkError, WorkRecord, WorkStore, WorkTerminalState, WorkTerminalization,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
+    TimelineBlockedOnMissingImplementation, TimelineSnapshot, UnavailableEntropySource,
+    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
+    WorkRecord, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 
 use super::validation::ResolutionSegment;
@@ -645,16 +646,13 @@ where
             (self.legacy_runtime_revision(), compatibility_binding)
         };
         let active_runtime_revision = selection.revision().id().clone();
-        let revision_compatible = selection
-            .revision()
-            .compatible_with(&compatibility_binding)
-            .is_ok();
-        if revision_compatible
+        let implementations = selection.revision().compatible_with(&compatibility_binding);
+        if let Ok(implementations) = implementations.as_ref()
             && work_target_has_compatible_implementation(
                 &self.registry,
                 &compatibility_binding,
-                &selection,
-                &work.target,
+                implementations,
+                work,
             )
         {
             self.missing_implementation_observations
@@ -766,6 +764,15 @@ where
         if work.effective_due_world_time > snapshot.world_time() {
             return Err(ApiError::unavailable("Work is not due in World Time"));
         }
+        if self
+            .missing_implementation_block(target, work_id)
+            .await?
+            .is_some()
+        {
+            return Err(ApiError::unavailable(
+                "Work is blocked on a missing compatible implementation",
+            ));
+        }
 
         let handler_id = match &work.target {
             WorkTarget::CapabilityWork { handler, .. } => handler,
@@ -778,7 +785,7 @@ where
 
         let binding = self.binding_for_world(snapshot.world_id()).await?;
         let assembly = self.execution_assembly(&snapshot, binding).await?;
-        validate_work_target(&self.registry, &assembly, &work.target)?;
+        validate_work_target(&self.registry, &assembly, &work)?;
 
         // Compatibility and exact handler assembly are checked before claim.
         // A missing software implementation therefore cannot consume the
@@ -1013,11 +1020,16 @@ where
         )
         .with_claim(*claim)
         .with_last_error(last_error);
-        self.store
-            .terminalize_work(&terminalization)
-            .await
-            .map(|_| ())
-            .map_err(|error| map_commit_error(&error))
+        match self.store.terminalize_work(&terminalization).await {
+            Ok(_) => Ok(()),
+            Err(CommitError::TimelineConflict { .. }) => self
+                .store
+                .terminalize_current_work(&terminalization)
+                .await
+                .map(|_| ())
+                .map_err(|error| map_failure_terminalization_error(&error)),
+            Err(error) => Err(map_failure_terminalization_error(&error)),
+        }
     }
 
     #[allow(
@@ -1290,6 +1302,13 @@ where
         terminalization: &'a WorkTerminalization,
     ) -> PersistenceFuture<'a, Result<loom_core::TimelineVersion, CommitError>> {
         (**self).terminalize_work(terminalization)
+    }
+
+    fn terminalize_current_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<loom_core::TimelineVersion, CommitError>> {
+        (**self).terminalize_current_work(terminalization)
     }
 }
 
@@ -2069,8 +2088,9 @@ fn enabled_action<'a>(
 fn validate_work_target(
     registry: &CapabilityRegistry,
     assembly: &ExecutionAssembly,
-    target: &WorkTarget,
+    work: &WorkRecord,
 ) -> ApiResult<()> {
+    let target = &work.target;
     let WorkTarget::CapabilityWork { owner, handler } = target else {
         return Err(ApiError::unavailable(
             "Agency Wake execution requires the Agency runtime path",
@@ -2082,6 +2102,11 @@ fn validate_work_target(
             "Work handler {handler_id} was not registered"
         )));
     };
+    if handler.definition.schema_revision != work.schema_revision {
+        return Err(ApiError::unavailable(
+            "Work handler schema revision is not compatible with the persisted Work",
+        ));
+    }
     if owner
         .as_deref()
         .is_some_and(|owner| owner != handler.owner.as_str())
@@ -2111,10 +2136,10 @@ fn validate_work_target(
 fn work_target_has_compatible_implementation(
     registry: &CapabilityRegistry,
     binding: &WorldRuntimeBinding,
-    selection: &RuntimeRevisionSelection,
-    target: &WorkTarget,
+    implementations: &RuntimeRevisionAssembly,
+    work: &WorkRecord,
 ) -> bool {
-    let WorkTarget::CapabilityWork { owner, handler } = target else {
+    let WorkTarget::CapabilityWork { owner, handler } = &work.target else {
         // Agency Wake has no Capability WorkHandler fallback. Until the
         // target-specific Agency executor is assembled, it is a typed missing
         // implementation blockage rather than a technical attempt.
@@ -2132,11 +2157,15 @@ fn work_target_has_compatible_implementation(
     let Some(manifest) = registry.capability(&registered.owner) else {
         return false;
     };
+    if registered.definition.schema_revision != work.schema_revision {
+        return false;
+    }
+    let Some(implementation) = implementations.capability(&registered.owner) else {
+        return false;
+    };
     binding.allows(&registered.owner, &manifest.version)
-        && selection
-            .revision()
-            .capability(&registered.owner)
-            .is_some_and(|implementation| implementation.version() == &manifest.version)
+        && implementation.version() == &manifest.version
+        && implementation.loom_compatibility() == &manifest.loom_compatibility
 }
 
 fn changes_runtime_state(
@@ -2343,8 +2372,10 @@ fn map_work_error(error: &WorkError) -> ApiError {
         | WorkError::StaleClaim { .. }
         | WorkError::MissingLease { .. }
         | WorkError::LeaseExpired { .. } => ApiError::conflict("Work claim is no longer usable"),
-        WorkError::InvalidLease { .. } | WorkError::TimelineMismatch { .. } => {
-            ApiError::invalid_request("Work claim has invalid timing or Timeline scope")
+        WorkError::InvalidLease { .. }
+        | WorkError::TimelineMismatch { .. }
+        | WorkError::WorkMismatch { .. } => {
+            ApiError::invalid_request("Work claim has invalid timing, Timeline or Work scope")
         }
         WorkError::StorageUnavailable { .. } => {
             ApiError::unavailable("Persistence authority is temporarily unavailable")
@@ -2378,6 +2409,14 @@ fn map_commit_error(error: &CommitError) -> ApiError {
         | CommitError::InvalidEvent { .. }
         | CommitError::InvalidEffect { .. }
         | CommitError::RevisionOverflow => ApiError::internal("Timeline commit failed validation"),
+    }
+}
+
+fn map_failure_terminalization_error(error: &CommitError) -> ApiError {
+    if matches!(error, CommitError::TimelineConflict { .. }) {
+        ApiError::conflict("Work terminalization requires explicit Runtime Control")
+    } else {
+        map_commit_error(error)
     }
 }
 

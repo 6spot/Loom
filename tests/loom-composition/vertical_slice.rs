@@ -21,10 +21,11 @@ use loom_protocol::{
 };
 use loom_runtime::{
     EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
-    Runtime, RuntimeError, RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind,
-    ValidationError, WorkRecord, WorkStatus, WorkTarget,
+    Runtime, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    SemanticKind, ValidationError, WorkRecord, WorkStatus, WorkTarget,
 };
 use loom_storage::InMemoryStore;
+use semver::{Version, VersionReq};
 use serde_json::{Value, json};
 
 const COUNTER_CAPABILITY: &str = "counter.basic";
@@ -818,6 +819,170 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
             .expect("Session ledger should remain readable")
             .is_empty(),
         "unavailable software must not start a Session"
+    );
+}
+
+#[tokio::test]
+async fn missing_observer_matches_assembly_loom_compatibility_predicate() {
+    let store = counter_store();
+    let work_id = work(24);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"amount": 4, "event_id": event(24).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("loom-compatibility Work should be seeded");
+    let registry = counter_registry();
+    let incompatible_manifest_requirement = VersionReq::parse(">=0.1.0")
+        .expect("a valid alternate Loom compatibility requirement should parse");
+    let revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("loom-compatibility-mismatch"),
+        PlatformTime::new(1),
+        "loom-compatibility-mismatch-build",
+        registry.loom_version().clone(),
+        [RuntimeRevisionCapability::new(
+            COUNTER_CAPABILITY,
+            "counter-build-mismatch",
+            Version::new(0, 1, 0),
+            incompatible_manifest_requirement,
+        )],
+    )
+    .expect("the active revision metadata should be structurally valid");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    runtime
+        .register_runtime_revision(revision)
+        .await
+        .expect("the revision should register");
+    runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("loom-compatibility-mismatch"),
+            None,
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("the revision should activate");
+
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work_id)
+        .await
+        .expect("missing implementation observation should succeed")
+        .expect("the mismatched Loom compatibility must produce a blockage");
+    assert_eq!(blocked.work_id, work_id);
+    assert_eq!(
+        blocked.active_runtime_revision,
+        RuntimeRevisionId::from("loom-compatibility-mismatch")
+    );
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
+    let error = runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(3),
+        )
+        .await
+        .expect_err("assembly-incompatible software must stop before claim");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    let work = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should remain persisted");
+    assert_eq!(work.attempt_count, 0);
+    assert_eq!(work.claim_generation, 0);
+    assert!(work.lease.is_none());
+    assert!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("Session ledger should remain readable")
+            .is_empty(),
+        "assembly-incompatible software must not start a Session"
+    );
+}
+
+#[tokio::test]
+async fn work_schema_revision_mismatch_blocks_before_claim() {
+    let store = counter_store();
+    let work_id = work(25);
+    store
+        .seed_work(WorkRecord {
+            id: work_id,
+            timeline_id: timeline(),
+            target: WorkTarget::CapabilityWork {
+                owner: Some(COUNTER_CAPABILITY.to_owned()),
+                handler: WorkHandlerId::from(COUNTER_WORK_HANDLER),
+            },
+            schema_revision: SchemaRevision::new(2),
+            payload: json!({"amount": 4, "event_id": event(25).to_string()}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease: None,
+        })
+        .expect("schema-mismatch Work should be seeded");
+    let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
+
+    let blocked = runtime
+        .missing_implementation_block(counter_target(), work_id)
+        .await
+        .expect("schema compatibility observation should succeed")
+        .expect("a handler schema mismatch must produce a typed blockage");
+    assert_eq!(blocked.work_id, work_id);
+    assert!(matches!(
+        blocked.semantic_requirement,
+        WorkTarget::CapabilityWork { .. }
+    ));
+
+    let error = runtime
+        .execute_work(
+            counter_target(),
+            work_id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(3),
+        )
+        .await
+        .expect_err("schema-incompatible Work must stop before claim");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    let work = store
+        .work(timeline(), work_id)
+        .expect("Work lookup should succeed")
+        .expect("Work should remain persisted");
+    assert_eq!(work.attempt_count, 0);
+    assert_eq!(work.claim_generation, 0);
+    assert!(work.lease.is_none());
+    assert!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("Session ledger should remain readable")
+            .is_empty(),
+        "schema-incompatible Work must not start a Session"
     );
 }
 

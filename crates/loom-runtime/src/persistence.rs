@@ -2151,6 +2151,8 @@ pub enum WorkError {
         expected: TimelineId,
         actual: TimelineId,
     },
+    /// A claim token targets a different Work than the terminalization request.
+    WorkMismatch { expected: WorkId, actual: WorkId },
     /// Claiming/completing is only valid for Pending Work.
     NotPending { work_id: WorkId, status: WorkStatus },
     /// A live lease already owns this Pending Work.
@@ -2214,6 +2216,10 @@ impl fmt::Display for WorkError {
             Self::TimelineMismatch { expected, actual } => write!(
                 formatter,
                 "Work claim targets Timeline {actual}, expected {expected}"
+            ),
+            Self::WorkMismatch { expected, actual } => write!(
+                formatter,
+                "Work claim targets Work {actual}, expected {expected}"
             ),
             Self::NotPending { work_id, status } => {
                 write!(formatter, "Work {work_id} is {status}, not Pending")
@@ -2708,6 +2714,17 @@ pub trait WorkStore {
 pub trait RuntimeControlStore {
     /// Applies one Pending -> Dead/Cancelled transition.
     fn terminalize_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>>;
+
+    /// Applies the bounded Runtime failure-recovery transition against the
+    /// current Timeline version read at the storage linearization point.
+    ///
+    /// This is not the public operator CAS path: it is used only after the
+    /// Runtime observes a stale execution snapshot while terminalizing a
+    /// currently claimed Work.
+    fn terminalize_current_work<'a>(
         &'a self,
         terminalization: &'a WorkTerminalization,
     ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>>;

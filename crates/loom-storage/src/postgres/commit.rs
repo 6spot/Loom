@@ -81,16 +81,38 @@ impl RuntimeControlStore for PgStorage {
     ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
         Box::pin(async move { terminalize_work(self, terminalization).await })
     }
+
+    fn terminalize_current_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
+        Box::pin(async move { terminalize_current_work(self, terminalization).await })
+    }
 }
 
 async fn terminalize_work(
     storage: &PgStorage,
     terminalization: &WorkTerminalization,
 ) -> Result<TimelineVersion, CommitError> {
+    terminalize_work_internal(storage, terminalization, true).await
+}
+
+async fn terminalize_current_work(
+    storage: &PgStorage,
+    terminalization: &WorkTerminalization,
+) -> Result<TimelineVersion, CommitError> {
+    terminalize_work_internal(storage, terminalization, false).await
+}
+
+async fn terminalize_work_internal(
+    storage: &PgStorage,
+    terminalization: &WorkTerminalization,
+    check_expected_version: bool,
+) -> Result<TimelineVersion, CommitError> {
     let timeline_id = terminalization.timeline_id();
     let mut transaction = storage.pool.begin().await.map_err(storage_error)?;
     let locked = lock_timeline(&mut transaction, timeline_id).await?;
-    if locked.version != terminalization.expected_version() {
+    if check_expected_version && locked.version != terminalization.expected_version() {
         return Err(CommitError::TimelineConflict {
             expected: terminalization.expected_version(),
             actual: locked.version,
@@ -98,6 +120,13 @@ async fn terminalize_work(
     }
 
     if let Some(claim) = terminalization.claim() {
+        if claim.work_id() != terminalization.work_id() {
+            return Err(WorkError::WorkMismatch {
+                expected: terminalization.work_id(),
+                actual: claim.work_id(),
+            }
+            .into());
+        }
         validate_current_work(&mut transaction, timeline_id, &claim, terminalization.now()).await?;
     } else {
         let status =

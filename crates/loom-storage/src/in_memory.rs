@@ -1054,6 +1054,28 @@ impl InMemoryStore {
         &self,
         terminalization: &WorkTerminalization,
     ) -> Result<TimelineVersion, CommitError> {
+        self.terminalize_work_internal(terminalization, true)
+    }
+
+    /// Applies Runtime failure terminalization using the current Timeline
+    /// version at the `InMemory` linearization point.
+    ///
+    /// # Errors
+    ///
+    /// Returns a commit error when the Timeline/Work is missing or an automatic
+    /// claim no longer owns the lease.
+    pub fn terminalize_current_work(
+        &self,
+        terminalization: &WorkTerminalization,
+    ) -> Result<TimelineVersion, CommitError> {
+        self.terminalize_work_internal(terminalization, false)
+    }
+
+    fn terminalize_work_internal(
+        &self,
+        terminalization: &WorkTerminalization,
+        check_expected_version: bool,
+    ) -> Result<TimelineVersion, CommitError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
         let timeline_id = terminalization.timeline_id();
@@ -1061,13 +1083,20 @@ impl InMemoryStore {
             .timelines
             .get_mut(&timeline_id)
             .ok_or(CommitError::TimelineNotFound { timeline_id })?;
-        if timeline.version != terminalization.expected_version() {
+        if check_expected_version && timeline.version != terminalization.expected_version() {
             return Err(CommitError::TimelineConflict {
                 expected: terminalization.expected_version(),
                 actual: timeline.version,
             });
         }
         if let Some(claim) = terminalization.claim() {
+            if claim.work_id() != terminalization.work_id() {
+                return Err(WorkError::WorkMismatch {
+                    expected: terminalization.work_id(),
+                    actual: claim.work_id(),
+                }
+                .into());
+            }
             validate_claim(timeline, &claim, terminalization.now())?;
         }
         let work =
@@ -1509,6 +1538,13 @@ impl RuntimeControlStore for InMemoryStore {
         terminalization: &'a WorkTerminalization,
     ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
         Box::pin(async move { InMemoryStore::terminalize_work(self, terminalization) })
+    }
+
+    fn terminalize_current_work<'a>(
+        &'a self,
+        terminalization: &'a WorkTerminalization,
+    ) -> PersistenceFuture<'a, Result<TimelineVersion, CommitError>> {
+        Box::pin(async move { InMemoryStore::terminalize_current_work(self, terminalization) })
     }
 }
 
