@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Validate Loom's Rust architecture dependency policy.
+"""Validate Loom's Rust architecture dependency and infrastructure policy.
 
 This checker intentionally uses `cargo metadata` rather than parsing Cargo.toml
-files itself. It enforces the physical dependency DAG documented in
-`docs/architecture/governance.md` and rejects layer-specific implementation
-leaks before they can become established conventions.
+files itself for dependency edges. It enforces the physical dependency DAG
+documented in `docs/architecture/governance.md` and rejects layer-specific
+implementation leaks before they can become established conventions.
 
 The checker is not a substitute for architecture review. It is a mechanical
-floor: a new dependency edge that is not explicitly allowed must first be
-reviewed and added to the architecture contract rather than bypassed here.
+floor: a new dependency edge or persistence-ownership exception that is not
+explicitly allowed must first be reviewed and added to the architecture contract
+rather than bypassed here.
 """
 
 from __future__ import annotations
@@ -201,6 +202,19 @@ def is_production_dependency(dependency: dict) -> bool:
     return dependency.get("kind") in {None, "normal", "build"}
 
 
+def run_storage_sql_ownership_check() -> int:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "check_storage_sql_ownership.py")],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    print(result.stdout, end="")
+    print(result.stderr, end="", file=sys.stderr)
+    return result.returncode
+
+
 def main() -> int:
     metadata = run_metadata()
     workspace_ids = set(metadata["workspace_members"])
@@ -256,6 +270,15 @@ def main() -> int:
         print(
             "\nSee docs/architecture/governance.md. Change the architecture contract "
             "before changing this checker.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if run_storage_sql_ownership_check() != 0:
+        print(
+            "\nSee docs/architecture/governance.md and "
+            "crates/loom-storage/sql/README.md. PostgreSQL implementation details "
+            "must remain owned by loom-storage.",
             file=sys.stderr,
         )
         return 1
