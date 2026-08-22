@@ -235,19 +235,10 @@ where
         // this Runtime still represents that description before Session start.
         // The registry itself is never refreshed or re-selected while a
         // Session is executing.
-        for implementation in implementations.capabilities().values() {
-            let Some(manifest) = self.registry.capability(implementation.capability_id()) else {
-                return Err(ApiError::unavailable(
-                    "active Runtime Revision implementation is not installed",
-                ));
-            };
-            if manifest.version != *implementation.version()
-                || manifest.loom_compatibility != *implementation.loom_compatibility()
-            {
-                return Err(ApiError::unavailable(
-                    "active Runtime Revision implementation does not match the installed registry",
-                ));
-            }
+        if !runtime_revision_matches_registry(&self.registry, &implementations) {
+            return Err(ApiError::unavailable(
+                "active Runtime Revision implementation does not match the installed registry",
+            ));
         }
 
         let session_id = self.identity_allocator.allocate_execution_session_id();
@@ -648,6 +639,7 @@ where
         let active_runtime_revision = selection.revision().id().clone();
         let implementations = selection.revision().compatible_with(&compatibility_binding);
         if let Ok(implementations) = implementations.as_ref()
+            && runtime_revision_matches_registry(&self.registry, implementations)
             && work_target_has_compatible_implementation(
                 &self.registry,
                 &compatibility_binding,
@@ -2083,6 +2075,22 @@ fn enabled_action<'a>(
         return Err(DispatchError::UnavailableAction(action_id.clone()));
     }
     Ok(action)
+}
+
+fn runtime_revision_matches_registry(
+    registry: &CapabilityRegistry,
+    implementations: &RuntimeRevisionAssembly,
+) -> bool {
+    implementations
+        .capabilities()
+        .values()
+        .all(|implementation| {
+            let Some(manifest) = registry.capability(implementation.capability_id()) else {
+                return false;
+            };
+            manifest.version == *implementation.version()
+                && manifest.loom_compatibility == *implementation.loom_compatibility()
+        })
 }
 
 fn validate_work_target(

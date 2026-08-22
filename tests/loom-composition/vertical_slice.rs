@@ -7,9 +7,9 @@ use loom_api::{
     ActionRequest, ApiErrorCode, EventQuery, ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
 };
 use loom_capability::{
-    ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
-    CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError, ResolutionContext,
-    ResolverError, WorkHandler, WorkHandlerDefinition,
+    ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
+    CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
+    ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
@@ -22,7 +22,8 @@ use loom_protocol::{
 use loom_runtime::{
     EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
     Runtime, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    SemanticKind, ValidationError, WorkRecord, WorkStatus, WorkTarget,
+    SemanticKind, ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
+    WorldRuntimeBindingStore,
 };
 use loom_storage::InMemoryStore;
 use semver::{Version, VersionReq};
@@ -35,6 +36,7 @@ const COUNTER_OBSERVE: &str = "counter.observe";
 const COUNTER_INCREMENTED: &str = "counter.incremented";
 const COUNTER_OBSERVED: &str = "counter.observed";
 const COUNTER_WORK_HANDLER: &str = "counter.increment_work";
+const SECONDARY_CAPABILITY: &str = "counter.secondary";
 
 fn id<T>(value: u128) -> T
 where
@@ -151,6 +153,20 @@ impl Capability for CounterCapability {
                 entity_id: self.entity_id,
             },
         )?;
+        Ok(())
+    }
+}
+
+struct SecondaryCapability {
+    manifest: CapabilityManifest,
+}
+
+impl Capability for SecondaryCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, _registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
         Ok(())
     }
 }
@@ -368,6 +384,22 @@ fn counter_registry() -> CapabilityRegistry {
         entity_id: entity(10),
     }])
     .expect("counter Capability registry should assemble")
+}
+
+fn counter_registry_with_secondary() -> CapabilityRegistry {
+    CapabilityRegistry::assemble(vec![
+        Box::new(CounterCapability {
+            manifest: CapabilityManifest::parse(COUNTER_CAPABILITY, "0.1.0")
+                .expect("counter Capability manifest should parse")
+                .with_description("A neutral counter test Capability."),
+            entity_id: entity(10),
+        }) as Box<dyn Capability>,
+        Box::new(SecondaryCapability {
+            manifest: CapabilityManifest::parse(SECONDARY_CAPABILITY, "0.1.0")
+                .expect("secondary Capability manifest should parse"),
+        }),
+    ])
+    .expect("counter and secondary Capability registry should assemble")
 }
 
 fn counter_request(action: &str, input: Value) -> ActionRequest {
@@ -823,7 +855,11 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
 }
 
 #[tokio::test]
-async fn missing_observer_matches_assembly_loom_compatibility_predicate() {
+#[allow(
+    clippy::too_many_lines,
+    reason = "the D-2 fixture covers full Binding compatibility, blockage observability and recovery"
+)]
+async fn missing_observer_matches_full_assembly_compatibility_predicate() {
     let store = counter_store();
     let work_id = work(24);
     store
@@ -848,30 +884,57 @@ async fn missing_observer_matches_assembly_loom_compatibility_predicate() {
             lease: None,
         })
         .expect("loom-compatibility Work should be seeded");
-    let registry = counter_registry();
-    let incompatible_manifest_requirement = VersionReq::parse(">=0.1.0")
-        .expect("a valid alternate Loom compatibility requirement should parse");
-    let revision = RuntimeRevisionDescriptor::new(
-        RuntimeRevisionId::from("loom-compatibility-mismatch"),
+    let binding = WorldRuntimeBinding::new(
+        [
+            (
+                CapabilityId::from(COUNTER_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("counter Binding requirement should parse"),
+            ),
+            (
+                CapabilityId::from(SECONDARY_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("secondary Binding requirement should parse"),
+            ),
+        ],
+        json!({"fixture": "full-compatibility"}),
+        1,
+        Some("full-compatibility-test".to_owned()),
+    );
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding)
+        .await
+        .expect("the A+B Binding should persist");
+
+    let registry = counter_registry_with_secondary();
+    let loom_version = registry.loom_version().clone();
+    let incompatible_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("full-compatibility-mismatch"),
         PlatformTime::new(1),
-        "loom-compatibility-mismatch-build",
-        registry.loom_version().clone(),
-        [RuntimeRevisionCapability::new(
-            COUNTER_CAPABILITY,
-            "counter-build-mismatch",
-            Version::new(0, 1, 0),
-            incompatible_manifest_requirement,
-        )],
+        "full-compatibility-mismatch-build",
+        loom_version.clone(),
+        [
+            RuntimeRevisionCapability::new(
+                COUNTER_CAPABILITY,
+                "counter-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+            RuntimeRevisionCapability::new(
+                SECONDARY_CAPABILITY,
+                "secondary-build-mismatch",
+                Version::new(0, 1, 0),
+                VersionReq::parse(">=0.1.0")
+                    .expect("a valid alternate Loom compatibility requirement should parse"),
+            ),
+        ],
     )
-    .expect("the active revision metadata should be structurally valid");
+    .expect("the active A+B revision metadata should be structurally valid");
     let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     runtime
-        .register_runtime_revision(revision)
+        .register_runtime_revision(incompatible_revision)
         .await
         .expect("the revision should register");
     runtime
         .activate_runtime_revision(
-            RuntimeRevisionId::from("loom-compatibility-mismatch"),
+            RuntimeRevisionId::from("full-compatibility-mismatch"),
             None,
             PlatformTime::new(2),
         )
@@ -883,11 +946,18 @@ async fn missing_observer_matches_assembly_loom_compatibility_predicate() {
         .await
         .expect("missing implementation observation should succeed")
         .expect("the mismatched Loom compatibility must produce a blockage");
+    assert_eq!(blocked.world_id, world());
+    assert_eq!(blocked.timeline_id, timeline());
     assert_eq!(blocked.work_id, work_id);
     assert_eq!(
         blocked.active_runtime_revision,
-        RuntimeRevisionId::from("loom-compatibility-mismatch")
+        RuntimeRevisionId::from("full-compatibility-mismatch")
     );
+    assert_eq!(
+        blocked.first_observed_platform_time,
+        Some(PlatformTime::new(0))
+    );
+    assert_eq!(blocked.last_observed_platform_time, PlatformTime::new(0));
     assert!(matches!(
         blocked.semantic_requirement,
         WorkTarget::CapabilityWork { .. }
@@ -917,6 +987,60 @@ async fn missing_observer_matches_assembly_loom_compatibility_predicate() {
             .expect("Session ledger should remain readable")
             .is_empty(),
         "assembly-incompatible software must not start a Session"
+    );
+
+    let compatible_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("full-compatibility-match"),
+        PlatformTime::new(3),
+        "full-compatibility-match-build",
+        loom_version,
+        [
+            RuntimeRevisionCapability::new(
+                COUNTER_CAPABILITY,
+                "counter-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+            RuntimeRevisionCapability::new(
+                SECONDARY_CAPABILITY,
+                "secondary-build-compatible",
+                Version::new(0, 1, 0),
+                VersionReq::STAR,
+            ),
+        ],
+    )
+    .expect("the fully compatible A+B revision should be valid");
+    runtime
+        .register_runtime_revision(compatible_revision)
+        .await
+        .expect("the compatible revision should register");
+    runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("full-compatibility-match"),
+            Some(1),
+            PlatformTime::new(4),
+        )
+        .await
+        .expect("the compatible revision should activate");
+    assert!(
+        runtime
+            .missing_implementation_block(counter_target(), work_id)
+            .await
+            .expect("compatible implementation observation should succeed")
+            .is_none()
+    );
+    assert!(
+        runtime
+            .execute_work(
+                counter_target(),
+                work_id,
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(3),
+            )
+            .await
+            .expect("the fully compatible A+B assembly should execute the Work")
+            .is_committed()
     );
 }
 
