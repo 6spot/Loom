@@ -45,15 +45,24 @@ crates/loom-storage/
 ## Acceptance checklist
 
 - [ ] Production SQL exists only under `crates/loom-storage/migrations/` or `crates/loom-storage/sql/`.
-- [ ] No non-storage crate depends on `sqlx` or uses PostgreSQL implementation types.
-- [ ] Existing PostgreSQL migrations and persistence behavior remain compatible.
-- [ ] Architecture checker rejects representative SQL/SQLx leakage outside `loom-storage`.
-- [ ] Existing inline production SQL is migrated to centralized SQL files.
-- [ ] Architecture/fmt/check/clippy/tests/rustdoc and PostgreSQL integration gates pass.
-- [ ] Completion PR, merge SHA and verification evidence are recorded here before marking completed.
+- [x] No non-storage crate depends on `sqlx` or uses PostgreSQL implementation types; enforced by the architecture checker.
+- [x] Existing PostgreSQL migrations and persistence behavior remain compatible for the extracted Work queries.
+- [x] Architecture checker rejects SQL/SQLx/PostgreSQL ownership leakage outside `loom-storage` and rejects new inline-SQL storage modules.
+- [ ] Existing inline production SQL is fully migrated to centralized SQL files. Remaining explicit debt: `src/postgres.rs`, `src/postgres/commit.rs`.
+- [x] Baseline architecture/fmt/check/clippy/tests/rustdoc and PostgreSQL 18 integration gates pass on PR #211 head `b6db80ff925348429af72c1c88293d4837829928`.
+- [ ] Completion PR, merge SHA and final verification evidence are recorded here before marking completed.
 
 ## Evidence
 
-- Completion PR: pending
+- Implementation PR: #211 (draft while legacy inline SQL remains)
+- Verified head: `b6db80ff925348429af72c1c88293d4837829928`
+- CI run: `32578643547`
+- CI result: Rust Architecture/fmt/check/clippy/tests/rustdoc **green**; PostgreSQL 18 schema/migration, World lifecycle, Template birth, public Runtime/API parity, reads, commit/CAS, Durable Work, stale fence, restart/resume and Runtime Revision ledger **green**.
 - Integration merge SHA: pending
-- CI / verification: pending
+
+## Remaining closure work
+
+1. Extract all production statements from `crates/loom-storage/src/postgres.rs` into domain SQL files and remove that file from the inline-SQL debt allowlist.
+2. Extract all production statements from `crates/loom-storage/src/postgres/commit.rs` and remove the final allowlist entry.
+3. Run the full gates again on the no-exemption candidate.
+4. Merge, record merge SHA/final CI evidence, then mark this task and #209 completed.
