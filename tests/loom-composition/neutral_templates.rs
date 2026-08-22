@@ -2,11 +2,14 @@ use loom_api::{
     ActionService, ApiErrorCode, EventQuery, HistoryService, TimelineService, WorldService,
 };
 use loom_composition_tests::neutral::{
-    self, COUNTER_CAPABILITY, COUNTER_INCREMENT_WORK, OBSERVER_ACTION, OBSERVER_CAPABILITY,
-    OBSERVER_EVENT,
+    self, COUNTER_CAPABILITY, COUNTER_INCREMENT_ACTION, COUNTER_INCREMENT_WORK, OBSERVER_ACTION,
+    OBSERVER_CAPABILITY, OBSERVER_EVENT,
 };
 use loom_core::{EntityId, EventId, WorldId, WorldInstant};
-use loom_runtime::{ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, Runtime};
+use loom_runtime::{
+    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+};
 use loom_storage::InMemoryStore;
 use serde_json::json;
 
@@ -25,6 +28,19 @@ async fn neutral_template_revisions_pin_distinct_bindings_and_bootstrap_evidence
 
     let first_registry = neutral::registry();
     let revision = neutral::runtime_revision(&first_registry);
+    let revision_two = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("neutral-fixtures-r2"),
+        PlatformTime::new(3),
+        "neutral-fixtures-r2",
+        revision.loom_version().clone(),
+        first_registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("neutral-fixture-r2:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("neutral Runtime Revision R2 should be valid");
     let first_runtime = Runtime::new(&store, first_registry)
         .expect("neutral Runtime should assemble")
         .with_identity_allocator(neutral::FixedIdentityAllocator {
@@ -32,7 +48,7 @@ async fn neutral_template_revisions_pin_distinct_bindings_and_bootstrap_evidence
             timeline_id: first_timeline,
         });
     first_runtime
-        .register_runtime_revision(revision)
+        .register_runtime_revision(revision.clone())
         .await
         .expect("neutral Runtime Revision should publish");
     first_runtime
@@ -214,6 +230,167 @@ async fn neutral_template_revisions_pin_distinct_bindings_and_bootstrap_evidence
         .expect("first World should remain inspectable after revision two birth");
     assert_eq!(first_after_revision_two.world_time, WorldInstant::new(11));
     assert_eq!(first_after_revision_two.version, first.version);
+
+    let first_r1_execution = first_runtime
+        .invoke(loom_api::ActionRequest::new(
+            first.target,
+            loom_protocol::ActionInvocation::new(
+                COUNTER_INCREMENT_ACTION.into(),
+                json!({
+                    "event_id": neutral::identity::<EventId>(0x5170).to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1,
+                }),
+            ),
+        ))
+        .await
+        .expect("first neutral Action should execute under R1");
+    assert!(first_r1_execution.is_committed());
+    let first_history_after_r1 = first_runtime
+        .list_events(EventQuery::all(first.target))
+        .await
+        .expect("first World history should remain readable after R1 execution");
+    assert_eq!(first_history_after_r1.len(), 2);
+    assert!(
+        first_history_after_r1
+            .iter()
+            .all(|event| event.occurred_at == WorldInstant::new(11)),
+        "ordinary Action commits must use pinned World Time"
+    );
+
+    first_runtime
+        .register_runtime_revision(revision_two)
+        .await
+        .expect("neutral Runtime Revision R2 should publish");
+    let r1_generation = first_runtime
+        .active_runtime_revision()
+        .await
+        .expect("active Runtime Revision should remain readable")
+        .expect("R1 should remain active before the switch")
+        .generation();
+    first_runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("neutral-fixtures-r2"),
+            Some(r1_generation),
+            PlatformTime::new(4),
+        )
+        .await
+        .expect("compatible neutral Runtime Revision R2 should activate");
+
+    let first_r2_execution = first_runtime
+        .invoke(loom_api::ActionRequest::new(
+            first.target,
+            loom_protocol::ActionInvocation::new(
+                COUNTER_INCREMENT_ACTION.into(),
+                json!({
+                    "event_id": neutral::identity::<EventId>(0x5180).to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1,
+                }),
+            ),
+        ))
+        .await
+        .expect("next neutral Action should execute under R2");
+    assert!(first_r2_execution.is_committed());
+    let sessions_after_r2 = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("R1 and R2 Session evidence should be inspectable");
+    let application_sessions = sessions_after_r2
+        .iter()
+        .filter(|session| session.origin() == ExecutionOrigin::Application)
+        .collect::<Vec<_>>();
+    assert_eq!(application_sessions.len(), 2);
+    assert!(application_sessions.iter().any(|session| {
+        session
+            .assembly()
+            .runtime_revision()
+            .revision()
+            .id()
+            .as_str()
+            == "neutral-fixtures-r1"
+    }));
+    assert!(application_sessions.iter().any(|session| {
+        session
+            .assembly()
+            .runtime_revision()
+            .revision()
+            .id()
+            .as_str()
+            == "neutral-fixtures-r2"
+    }));
+
+    let incompatible_revision = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("neutral-fixtures-incompatible"),
+        PlatformTime::new(5),
+        "neutral-fixtures-incompatible",
+        revision.loom_version().clone(),
+        std::iter::empty(),
+    )
+    .expect("empty incompatible Runtime Revision should be valid history metadata");
+    first_runtime
+        .register_runtime_revision(incompatible_revision)
+        .await
+        .expect("incompatible Runtime Revision should publish as immutable history");
+    let r2_generation = first_runtime
+        .active_runtime_revision()
+        .await
+        .expect("R2 active selection should remain readable")
+        .expect("R2 should be active before incompatible activation")
+        .generation();
+    first_runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("neutral-fixtures-incompatible"),
+            Some(r2_generation),
+            PlatformTime::new(6),
+        )
+        .await
+        .expect("incompatible Runtime Revision should activate as platform history");
+    let binding_before_incompatible = store
+        .read_binding(first_world)
+        .expect("first World Binding should remain readable before incompatibility");
+    let history_before_incompatible = first_runtime
+        .list_events(EventQuery::all(first.target))
+        .await
+        .expect("first World history should remain readable before incompatibility");
+    let session_count_before_incompatible = ExecutionSessionStore::list_sessions(&store)
+        .await
+        .expect("Session ledger should remain readable before incompatibility")
+        .len();
+    let unavailable = first_runtime
+        .invoke(loom_api::ActionRequest::new(
+            first.target,
+            loom_protocol::ActionInvocation::new(
+                COUNTER_INCREMENT_ACTION.into(),
+                json!({
+                    "event_id": neutral::identity::<EventId>(0x5190).to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1,
+                }),
+            ),
+        ))
+        .await
+        .expect_err("incompatible active assembly must make execution unavailable");
+    assert_eq!(unavailable.code, ApiErrorCode::Unavailable);
+    assert_eq!(
+        store
+            .read_binding(first_world)
+            .expect("incompatible execution must not remove the Binding"),
+        binding_before_incompatible
+    );
+    assert_eq!(
+        first_runtime
+            .list_events(EventQuery::all(first.target))
+            .await
+            .expect("incompatible execution must not damage history"),
+        history_before_incompatible
+    );
+    assert_eq!(
+        ExecutionSessionStore::list_sessions(&store)
+            .await
+            .expect("incompatible execution must not start a Session")
+            .len(),
+        session_count_before_incompatible
+    );
 }
 
 #[test]
