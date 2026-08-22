@@ -1,13 +1,13 @@
 ---
 task: M4-T4
 issue: 149
-status: in_progress
+status: completed
 depends_on: [147]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-22
+completion_pr: 207
+merge_sha: 14d2b7cc3f0a5f3c80e9fa9dfc299eb688c37350
 ---
 
 # M4-T4 — Minimum Runtime Revision ledger
@@ -30,10 +30,10 @@ No mutable version string without history, World Event for activation, secrets i
 
 ## Acceptance
 
-- [ ] Immutable revision/active state survives restart.
-- [ ] Selection is concurrency-safe and compatibility checks typed.
-- [ ] Activation changes no World history/state/binding.
-- [ ] Fresh PostgreSQL migration + standard gates pass.
+- [x] Immutable revision/active state survives restart.
+- [x] Selection is concurrency-safe and compatibility checks typed.
+- [x] Activation changes no World history/state/binding.
+- [x] Fresh PostgreSQL migration + standard gates pass.
 
 Architecture basis: `evolution.md`, `world-runtime.md` Execution Session/Assembly.
 
@@ -47,10 +47,12 @@ Architecture basis: `evolution.md`, `world-runtime.md` Execution Session/Assembl
 - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` → passed.
 - Runtime revision compatibility fixture → exact Capability identity/version selection and typed missing/version mismatch behavior pass.
 - InMemory revision fixture → immutable publication, explicit first activation, stale generation rejection, and unchanged Timeline snapshot pass.
-- PostgreSQL revision fixture → fresh migration, restart persistence, active selection, and World/Event neutrality are covered; live execution awaits configured PostgreSQL.
+- PostgreSQL revision fixture → fresh migration, restart persistence, active selection, and World/Event neutrality pass against PostgreSQL 18.
+- PR #207 merged as `14d2b7cc3f0a5f3c80e9fa9dfc299eb688c37350`; post-merge CI run `32574908686` passed the Rust and PostgreSQL 18 jobs.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
 - 2026-08-22 — Implementing the Runtime-owned immutable revision descriptor and explicit Platform History registration/activation seam; Session pinning remains the dependent M4-T5 boundary.
 - 2026-08-22 — Local implementation gates pass; awaiting review/merge for completion metadata.
+- 2026-08-22 — Accepted and merged as PR #207; post-merge CI run `32574908686` passed.

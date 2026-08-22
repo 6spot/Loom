@@ -23,6 +23,31 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     .expect("migrated Loom tables should be inspectable");
     assert_eq!(table_count, 16);
 
+    let reconciliation_tables: Vec<String> = sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.tables \
+         WHERE table_schema = 'public' \
+           AND table_name IN (\
+             'loom_world_runtime_binding',\
+             'loom_runtime_revision',\
+             'loom_runtime_active_revision',\
+             'loom_execution_session'\
+           ) \
+         ORDER BY table_name",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("M4 Binding, Revision and Session tables should be inspectable");
+    assert_eq!(
+        reconciliation_tables,
+        vec![
+            "loom_execution_session",
+            "loom_runtime_active_revision",
+            "loom_runtime_revision",
+            "loom_world_runtime_binding",
+        ],
+        "fresh migration must include every reconciliation authority table"
+    );
+
     let migration_count: i64 = sqlx::query_scalar("SELECT count(*)::bigint FROM _sqlx_migrations")
         .fetch_one(&pool)
         .await

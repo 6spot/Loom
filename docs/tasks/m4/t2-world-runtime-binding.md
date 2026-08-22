@@ -1,13 +1,13 @@
 ---
 task: M4-T2
 issue: 147
-status: in_review
+status: completed
 depends_on: [146]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-22
+completion_pr: 206
+merge_sha: a716f636677d4b1b915024bcb2fe1a0dc5656baa
 ---
 
 # M4-T2 — Immutable World Runtime Binding
@@ -31,11 +31,11 @@ No per-Timeline binding, Template live subscription, exact Session implementatio
 
 ## Acceptance
 
-- [ ] Different Worlds can have different bindings under one installed registry.
-- [ ] Disabled installed Action is unavailable.
-- [ ] Binding survives restart and cannot mutate in v0.
-- [ ] Legacy data receives deterministic persisted binding.
-- [ ] InMemory/PostgreSQL + standard gates pass.
+- [x] Different Worlds can have different bindings under one installed registry.
+- [x] Disabled installed Action is unavailable.
+- [x] Binding survives restart and cannot mutate in v0.
+- [x] Legacy data receives deterministic persisted binding.
+- [x] InMemory/PostgreSQL + standard gates pass.
 
 Architecture basis: `world-runtime.md` Binding; `implementation.md` Binding/Execution Assembly distinction.
 
@@ -48,9 +48,11 @@ Architecture basis: `world-runtime.md` Binding; `implementation.md` Binding/Exec
 - `cargo test --workspace --all-features` → passed; PostgreSQL integration fixtures return early when `LOOM_TEST_POSTGRES_URL` is unset.
 - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` → passed.
 - InMemory binding tests → World-keyed sharing, one-time legacy materialization, and overwrite rejection pass.
-- PostgreSQL lifecycle binding test → compiles and is present; live PostgreSQL execution remains pending the configured database URL.
+- PostgreSQL lifecycle binding test → passed live against PostgreSQL 18, including restart survival and mutation rejection.
+- PR #206 merged as `a716f636677d4b1b915024bcb2fe1a0dc5656baa`; post-merge CI run `32571901477` passed the Rust and PostgreSQL 18 jobs.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
 - 2026-08-22 — Implemented the Runtime-owned immutable World binding descriptor/port, additive InMemory/PostgreSQL persistence, explicit M3 compatibility materialization, and direct Action enablement enforcement; awaiting acceptance and live PostgreSQL evidence.
+- 2026-08-22 — Accepted and merged as PR #206; post-merge CI run `32571901477` passed, and the PostgreSQL binding/lifecycle suite was revalidated locally.

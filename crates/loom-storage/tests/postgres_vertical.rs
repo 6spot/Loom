@@ -10,7 +10,7 @@ use loom_capability::{
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorldEffect, WorldId,
+    TimelineId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Rejection, Resolution, ResolveOutcome};
 use loom_runtime::{Runtime, WorldStore};
@@ -279,6 +279,10 @@ async fn authority() -> Option<(
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL public vertical slice is intentionally linear"
+)]
 async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
     let Some((database, storage, pool, world_id, timeline_id, entity_id)) = authority().await
     else {
@@ -343,6 +347,7 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
     let after_zero_effect = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("Timeline should be readable after zero-Effect Event");
+    assert_eq!(after_zero_effect.world_time(), WorldInstant::new(0));
     assert_eq!(
         after_zero_effect.version().head_event_seq.value(),
         before_rejection.version().head_event_seq.value() + 1
@@ -359,6 +364,12 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
             .expect("observation should exist")
             .effects
             .is_empty()
+    );
+    assert!(
+        history
+            .iter()
+            .all(|event| event.occurred_at == WorldInstant::new(0)),
+        "PostgreSQL Events must use the pinned World Time"
     );
 
     let before_no_change = WorldStore::snapshot(&storage, timeline_id)

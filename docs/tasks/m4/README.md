@@ -26,12 +26,12 @@ M4 migrates the already-completed M1–M3 implementation to the current architec
 
 | Task | Issue | Status | Purpose |
 | --- | ---: | --- | --- |
-| M4-T1 | #146 | planned | Runtime-stamped Event time + explicit World-Time transition |
-| M4-T2 | #147 | planned | Immutable per-World Runtime Binding + legacy migration |
-| M4-T3 | #148 | planned | Template validation + atomic World birth |
-| M4-T4 | #149 | in_progress | Minimum Runtime Revision ledger/active selection |
-| M4-T5 | #150 | planned | Root Execution Session + exact Execution Assembly |
-| M4-T6 | #151 | planned | Neutral Template/Binding fixtures |
+| M4-T1 | #146 | completed | Runtime-stamped Event time + explicit World-Time transition |
+| M4-T2 | #147 | completed | Immutable per-World Runtime Binding + legacy migration |
+| M4-T3 | #148 | completed | Template validation + atomic World birth |
+| M4-T4 | #149 | completed | Minimum Runtime Revision ledger/active selection |
+| M4-T5 | #150 | completed | Root Execution Session + exact Execution Assembly |
+| M4-T6 | #151 | completed | Neutral Template/Binding fixtures |
 | M4-T7 | #152 | planned | Revalidate M1–M3 under current authority chain |
 
 ## Gate

@@ -1,13 +1,13 @@
 ---
 task: M4-T3
 issue: 148
-status: in_progress
+status: completed
 depends_on: [147]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-22
+completion_pr: 208
+merge_sha: 50d1dd97b563cad8222e39eb2ad14de301c78a95
 ---
 
 # M4-T3 — Template validation and atomic World birth
@@ -32,18 +32,21 @@ No empty-World-then-multiple-bootstrap-commits, direct SQL semantic bootstrap, T
 
 ## Acceptance
 
-- [ ] Template revisions affect future Worlds only.
-- [ ] Failure matrix leaves no partial World.
-- [ ] Successful World is immediately executable via Binding-aware Action path.
-- [ ] InMemory/PostgreSQL parity + standard gates pass.
+- [x] Template revisions affect future Worlds only.
+- [x] Failure matrix leaves no partial World.
+- [x] Successful World is immediately executable via Binding-aware Action path.
+- [x] InMemory/PostgreSQL parity + standard gates pass.
 
 Architecture basis: Amendment 0001 §7; Architecture Index rows for Template placement.
 
 ## Verification evidence
 
-Pending.
+- InMemory `world_creation` and `neutral_templates` suites pass Template revision, atomic birth, Binding, bootstrap Event and Session assertions.
+- PostgreSQL `postgres_lifecycle` passes atomic Template birth, Binding provenance, immediate readability and rollback cases against PostgreSQL 18.
+- PR #208 merged as `50d1dd97b563cad8222e39eb2ad14de301c78a95`; post-merge CI run `32576280547` passed the Rust and PostgreSQL 18 jobs.
 
 ## Progress Log
 
 - 2026-08-22 — Planned.
 - 2026-08-22 — Started implementation within the existing `loom-api`/`loom-runtime`/`loom-storage` boundaries; scope limited to frozen Template descriptors, Runtime birth-plan validation, and atomic birth persistence.
+- 2026-08-22 — Accepted and merged as PR #208; post-merge CI run `32576280547` passed.
