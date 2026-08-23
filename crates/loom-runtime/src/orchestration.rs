@@ -1600,7 +1600,11 @@ where
         if let Some(session) = existing_session.as_ref()
             && let Some(provenance) = session.commit_provenance()
             && let Some(commit) = snapshot.journal.iter().find(|commit| {
-                committed_provenance_matches(commit.provenance.as_ref(), Some(provenance))
+                commit.timeline_id == session.assembly().timeline_id()
+                    && commit.before_version == session.assembly().expected_version()
+                    && commit.world_time.is_none()
+                    && commit.chronology_budget.is_none()
+                    && committed_provenance_matches(commit.provenance.as_ref(), Some(provenance))
                     && commit.work_transitions
                         == commit
                             .provenance
