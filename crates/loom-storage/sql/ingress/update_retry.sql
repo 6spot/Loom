@@ -10,4 +10,3 @@ WHERE ingress_id = $1
   AND status = 'processing'
   AND lease_fence = $7::numeric
   AND lease_claimed_until = $8;
-
