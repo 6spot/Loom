@@ -904,6 +904,7 @@ mod tests {
                 origin_work_id: None,
             }],
             chronology_budget: None,
+            provenance: None,
         }
     }
 
@@ -919,6 +920,7 @@ mod tests {
                 event_ids: vec![event_id],
                 work_transitions: Vec::new(),
                 chronology_budget: None,
+                provenance: None,
             },
             schedule_commit(),
             LogicalCommit {
@@ -933,6 +935,7 @@ mod tests {
                     before: 0,
                     after: 1,
                 }),
+                provenance: None,
             },
             LogicalCommit {
                 timeline_id: timeline(),
@@ -945,6 +948,7 @@ mod tests {
                 event_ids: Vec::new(),
                 work_transitions: Vec::new(),
                 chronology_budget: None,
+                provenance: None,
             },
         ];
         (events, journal)

@@ -1821,6 +1821,7 @@ impl WorldTimeStore for PgStorage {
                     event_ids: Vec::new(),
                     work_transitions: Vec::new(),
                     chronology_budget: None,
+                    provenance: None,
                 },
             )
             .await
@@ -2181,6 +2182,14 @@ fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit,
             .map_err(|error| {
                 corrupt(format!("invalid logical journal Work transitions: {error}"))
             })?;
+    let provenance = row
+        .try_get::<Option<serde_json::Value>, _>("provenance")
+        .map_err(sql_read_error)?
+        .map(|value| {
+            serde_json::from_value(value)
+                .map_err(|error| corrupt(format!("invalid logical journal provenance: {error}")))
+        })
+        .transpose()?;
 
     let budget_world_time: Option<i64> = row
         .try_get("chronology_budget_world_time")
@@ -2213,6 +2222,7 @@ fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit,
         event_ids,
         work_transitions,
         chronology_budget,
+        provenance,
     })
 }
 

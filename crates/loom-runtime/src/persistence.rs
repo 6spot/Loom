@@ -1082,6 +1082,9 @@ pub struct ExecutionSession {
     /// finalization recovery window without creating another mutation path.
     #[serde(default)]
     ingress_completion: Option<IngressCompletion>,
+    /// Durable identity of the logical proposal prepared by this Session.
+    #[serde(default)]
+    commit_provenance: Option<CommitProvenance>,
 }
 
 impl ExecutionSession {
@@ -1102,6 +1105,7 @@ impl ExecutionSession {
             entropy_evidence: EntropyEvidence::new(entropy_source_id),
             ingress_id: None,
             ingress_completion: None,
+            commit_provenance: None,
         }
     }
 
@@ -1172,6 +1176,37 @@ impl ExecutionSession {
         self.ingress_completion.as_ref()
     }
 
+    /// Returns the durable authority provenance prepared by this Session.
+    #[must_use]
+    pub const fn commit_provenance(&self) -> Option<&CommitProvenance> {
+        self.commit_provenance.as_ref()
+    }
+
+    /// Returns a Started Session copy with its authority proposal identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle error unless this is a Started Ingress Session for
+    /// the same durable Ingress identity.
+    pub fn with_commit_provenance(
+        &self,
+        provenance: CommitProvenance,
+    ) -> Result<Self, SessionError> {
+        if self.status != ExecutionSessionStatus::Started
+            || self.origin != ExecutionOrigin::Ingress
+            || self.ingress_id.as_ref() != Some(&provenance.ingress_id)
+        {
+            return Err(SessionError::InvalidTransition {
+                session_id: self.id,
+                from: self.status,
+                to: self.status,
+            });
+        }
+        let mut prepared = self.clone();
+        prepared.commit_provenance = Some(provenance);
+        Ok(prepared)
+    }
+
     /// Returns a terminal copy used by persistence adapters at the lifecycle
     /// transition linearization point.
     ///
@@ -1240,6 +1275,7 @@ impl ExecutionSession {
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
         completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
     ) -> Result<Self, SessionError> {
         if self.origin != ExecutionOrigin::Ingress || self.ingress_id.is_none() {
             return Err(SessionError::IngressCompletionUnavailable {
@@ -1248,6 +1284,9 @@ impl ExecutionSession {
         }
         let mut finished = self.finish_with_entropy(status, ended_at, entropy_evidence)?;
         finished.ingress_completion = Some(completion);
+        if provenance.is_some() {
+            finished.commit_provenance = provenance;
+        }
         Ok(finished)
     }
 }
@@ -1364,8 +1403,20 @@ pub trait ExecutionSessionStore {
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
         completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
-        let _ = (status, ended_at, entropy_evidence, completion);
+        let _ = (status, ended_at, entropy_evidence, completion, provenance);
+        Box::pin(async move { Err(SessionError::IngressCompletionUnavailable { session_id }) })
+    }
+
+    /// Persists the proposal identity before authority execution so recovery
+    /// can reconcile a Started Session without creating a new root.
+    fn record_ingress_provenance(
+        &self,
+        session_id: ExecutionSessionId,
+        provenance: CommitProvenance,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        let _ = provenance;
         Box::pin(async move { Err(SessionError::IngressCompletionUnavailable { session_id }) })
     }
 
@@ -1505,6 +1556,57 @@ impl IngressClaim {
     #[must_use]
     pub const fn attempt_count(&self) -> u32 {
         self.attempt_count
+    }
+}
+
+/// Durable identity tying one root Session to the complete logical proposal
+/// submitted to Timeline authority.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct CommitProvenance {
+    /// Root Runtime Session that produced the proposal.
+    pub session_id: ExecutionSessionId,
+    /// Durable Ingress that owns the proposal.
+    pub ingress_id: IngressId,
+    /// Deterministic identity of the complete validated logical proposal.
+    pub proposal_identity: String,
+}
+
+impl CommitProvenance {
+    /// Creates durable provenance for one Ingress authority proposal.
+    #[must_use]
+    pub fn new(
+        session_id: ExecutionSessionId,
+        ingress_id: IngressId,
+        proposal_identity: impl Into<String>,
+    ) -> Self {
+        Self {
+            session_id,
+            ingress_id,
+            proposal_identity: proposal_identity.into(),
+        }
+    }
+}
+
+/// Generic authority context shared by direct Actions and durable Ingress.
+#[derive(Clone, Debug, Default)]
+pub struct CommitAuthorityContext {
+    /// Optional current Scheduler Work claim.
+    pub current_work: Option<WorkClaim>,
+    /// Optional durable Ingress claim, validated in the same atomic commit.
+    pub ingress_claim: Option<IngressClaim>,
+    /// Optional durable provenance written into the logical journal.
+    pub provenance: Option<CommitProvenance>,
+}
+
+impl CommitAuthorityContext {
+    /// Creates the direct Action context.
+    #[must_use]
+    pub fn direct(current_work: Option<WorkClaim>) -> Self {
+        Self {
+            current_work,
+            ingress_claim: None,
+            provenance: None,
+        }
     }
 }
 
@@ -2459,6 +2561,9 @@ pub struct LogicalCommit {
     pub work_transitions: Vec<LogicalWorkTransition>,
     /// Same-instant chronology consumption, when this commit completes Work.
     pub chronology_budget: Option<ChronologyBudgetConsumption>,
+    /// Root Session/Ingress/proposal identity, when supplied by authority.
+    #[serde(default)]
+    pub provenance: Option<CommitProvenance>,
 }
 
 /// Compatibility name for callers that describe the ordered records as a
@@ -3344,6 +3449,9 @@ pub enum CommitError {
     /// The current Scheduler Work would exceed the configured same-instant
     /// chronology budget. No logical state was changed.
     ChronologyBudgetExceeded(ChronologyBudgetExceeded),
+    /// The durable Ingress claim was stale, expired or not Processing at the
+    /// Timeline commit linearization point.
+    IngressClaim { message: String },
     /// The authority returned an error while finalizing a Scheduler commit;
     /// the commit outcome must be reconciled before any retry decision.
     CommitOutcomeUnknown { message: String },
@@ -3384,6 +3492,7 @@ impl fmt::Display for CommitError {
             }
             Self::Work(error) => error.fmt(formatter),
             Self::ChronologyBudgetExceeded(error) => error.fmt(formatter),
+            Self::IngressClaim { message } => formatter.write_str(message),
             Self::CommitOutcomeUnknown { message } | Self::StorageUnavailable { message } => {
                 formatter.write_str(message)
             }
@@ -4292,6 +4401,28 @@ pub trait CommitStore {
         current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>>;
+
+    /// Shared authority entry point carrying optional Work and durable
+    /// Ingress fences/provenance. Ingress callers must use this method; the
+    /// default only preserves compatibility for direct-only adapters.
+    fn commit_with_authority<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        context: CommitAuthorityContext,
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        if context.ingress_claim.is_some() || context.provenance.is_some() {
+            return Box::pin(async {
+                Err(CommitError::StorageUnavailable {
+                    message: "Ingress authority is unsupported by this adapter".to_owned(),
+                })
+            });
+        }
+        Box::pin(async move {
+            self.commit(resolution, context.current_work.as_ref(), now)
+                .await
+        })
+    }
 }
 
 /// Runtime persistence port for a Scheduler Work completion with an explicit

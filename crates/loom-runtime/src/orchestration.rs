@@ -41,32 +41,54 @@ use serde_json::{Value, json};
 use crate::{
     AdvanceWorldTime, BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage,
     CallProvenance, CandidateWorldView, ChronologyBudgetExceeded, ChronologyBudgetPolicy,
-    CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
-    EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
-    IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalWorkState,
-    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
-    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
-    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
-    ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
-    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
-    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
-    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
-    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
-    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition, semantic_projection_hit_bytes,
+    CommitAuthorityContext, CommitError, CommitProvenance, CommitStore, CommittedEvent,
+    EffectEngine, EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly,
+    ExecutionOrigin, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
+    FailurePolicy, ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState,
+    IdentityAllocator, IngressClaim, IngressError, IngressStore, IngressSubmission,
+    IngressTechnicalFailure, LifecycleError, LogicalWorkState, LogicalWorkTransition,
+    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
+    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
+    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
+    ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError,
+    SemanticProjectionFilter, SemanticProjectionHit, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionStore, SessionError, TimelineBlockedOnMissingImplementation,
+    TimelineDriverBlock, TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
+    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
 
 type MissingImplementationObservations =
     Arc<Mutex<BTreeMap<(TimelineId, WorkId), (PlatformTime, PlatformTime)>>>;
+
+struct AuthorityFailure {
+    error: ApiError,
+    entropy_evidence: EntropyEvidence,
+    commit_error: Option<CommitError>,
+    validated: Option<ValidatedResolution>,
+    changes_runtime_state: bool,
+    provenance: Option<CommitProvenance>,
+}
+
+enum AuthorityExecution {
+    Rejected {
+        rejection: loom_protocol::Rejection,
+        entropy_evidence: EntropyEvidence,
+    },
+    Committed {
+        result: crate::CommitResult,
+        validated: Box<ValidatedResolution>,
+        changes_runtime_state: bool,
+        provenance: Option<CommitProvenance>,
+    },
+}
 
 /// A Runtime composition root for one Capability registry and persistence
 /// adapter.
@@ -390,6 +412,7 @@ where
         status: ExecutionSessionStatus,
         entropy_evidence: EntropyEvidence,
         completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
     ) -> ApiResult<ExecutionSession>
     where
         S: ExecutionSessionStore,
@@ -401,7 +424,22 @@ where
                 self.platform_clock.now(),
                 entropy_evidence,
                 completion,
+                provenance,
             )
+            .await
+            .map_err(|error| map_session_error(&error))
+    }
+
+    async fn record_ingress_provenance(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        provenance: CommitProvenance,
+    ) -> ApiResult<ExecutionSession>
+    where
+        S: ExecutionSessionStore,
+    {
+        self.store
+            .record_ingress_provenance(session_id, provenance)
             .await
             .map_err(|error| map_session_error(&error))
     }
@@ -1313,6 +1351,136 @@ where
         }
     }
 
+    /// Executes the normal root Action authority once. Both direct Actions
+    /// and durable Ingress provide only a pinned root, invocation and generic
+    /// authority context; validation, subresolution, reactions and commit are
+    /// deliberately linearized here.
+    #[allow(clippy::too_many_lines)]
+    async fn execute_root_authority(
+        &self,
+        base: &BaseWorldView,
+        assembly: &ExecutionAssembly,
+        invocation: &ActionInvocation,
+        context: CommitAuthorityContext,
+    ) -> Result<AuthorityExecution, AuthorityFailure>
+    where
+        S: SemanticProjectionStore,
+    {
+        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
+        if let Err(error) = engine
+            .validate_action_input(&invocation.action, &invocation.input)
+            .map_err(|error| map_action_input_error(&error))
+        {
+            return Err(AuthorityFailure {
+                error,
+                entropy_evidence: EntropyEvidence::new(assembly.entropy_source_id().clone()),
+                commit_error: None,
+                validated: None,
+                changes_runtime_state: false,
+                provenance: None,
+            });
+        }
+
+        let mut dispatch_entropy_evidence =
+            EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let (outcome, execution) = dispatch_root_action_async(
+            base,
+            &self.registry,
+            assembly,
+            &*self.entropy_source,
+            &self.store,
+            &mut dispatch_entropy_evidence,
+            invocation,
+        )
+        .await
+        .map_err(|error| AuthorityFailure {
+            error: map_dispatch_error(error),
+            entropy_evidence: dispatch_entropy_evidence.clone(),
+            commit_error: None,
+            validated: None,
+            changes_runtime_state: false,
+            provenance: None,
+        })?;
+        let execution_entropy_evidence = execution.entropy_evidence.clone();
+        match outcome {
+            ResolveOutcome::Rejected(rejection) => Ok(AuthorityExecution::Rejected {
+                rejection,
+                entropy_evidence: execution_entropy_evidence,
+            }),
+            ResolveOutcome::Resolved(_) => {
+                let mut validated = engine
+                    .validate_segments_with_entropy(
+                        base,
+                        &execution.segments,
+                        execution.call_provenance,
+                        execution.entropy_evidence,
+                    )
+                    .map_err(|error| AuthorityFailure {
+                        error: map_runtime_error(&error),
+                        entropy_evidence: execution_entropy_evidence.clone(),
+                        commit_error: None,
+                        validated: None,
+                        changes_runtime_state: false,
+                        provenance: None,
+                    })?;
+                validated.append_validated_work(Vec::new(), execution.read_set.clone());
+                self.expand_reactions(base, assembly, &engine, &mut validated, None)
+                    .map_err(|error| AuthorityFailure {
+                        error,
+                        entropy_evidence: validated.entropy_evidence().clone(),
+                        commit_error: None,
+                        validated: None,
+                        changes_runtime_state: false,
+                        provenance: None,
+                    })?;
+
+                let mut context = context;
+                let provenance = context.provenance.as_mut().map(|provenance| {
+                    provenance.proposal_identity = logical_proposal_identity(&validated);
+                    provenance.clone()
+                });
+                if let Some(provenance) = provenance.clone() {
+                    self.record_ingress_provenance(provenance.session_id, provenance.clone())
+                        .await
+                        .map_err(|error| AuthorityFailure {
+                            error,
+                            entropy_evidence: validated.entropy_evidence().clone(),
+                            commit_error: None,
+                            validated: None,
+                            changes_runtime_state: false,
+                            provenance: Some(provenance.clone()),
+                        })?;
+                    context.provenance = Some(provenance);
+                }
+                let changes_runtime_state =
+                    changes_runtime_state(&validated, context.current_work.as_ref());
+                let result = match self
+                    .store
+                    .commit_with_authority(&validated, context, self.platform_clock.now())
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(error) => {
+                        return Err(AuthorityFailure {
+                            error: map_commit_error(&error),
+                            entropy_evidence: validated.entropy_evidence().clone(),
+                            commit_error: Some(error),
+                            validated: Some(validated),
+                            changes_runtime_state,
+                            provenance,
+                        });
+                    }
+                };
+                Ok(AuthorityExecution::Committed {
+                    result,
+                    validated: Box::new(validated),
+                    changes_runtime_state,
+                    provenance,
+                })
+            }
+        }
+    }
+
     /// Processes one accepted durable Ingress through the normal root Action
     /// authority path.
     ///
@@ -1334,7 +1502,7 @@ where
     pub async fn process_ingress(
         &self,
         ingress_id: IngressId,
-        now: PlatformTime,
+        _now: PlatformTime,
         claimed_until: PlatformTime,
         retry_available_at: PlatformTime,
     ) -> ApiResult<IngressCompletion>
@@ -1356,211 +1524,287 @@ where
             IngressStatus::Accepted | IngressStatus::Processing | IngressStatus::Retryable(_) => {}
         }
 
-        let target = record.submission.envelope.target;
-        let invocation = record.submission.envelope.invocation.clone();
-        let snapshot = self.snapshot_for_target(target).await?;
-        let binding = self.binding_for_world(snapshot.world_id()).await?;
-        let assembly = self.execution_assembly(&snapshot, binding).await?;
-        enabled_action(&self.registry, &assembly, &invocation.action)
-            .map_err(map_dispatch_error)?;
+        // Recovery is provenance-first: inspect durable Sessions before any
+        // fresh snapshot/assembly/action preflight.
+        let existing_session = self.recover_ingress(&ingress_id).await?;
+        let mut claim = if existing_session.is_some() {
+            Some(
+                IngressStore::claim(
+                    &self.store,
+                    ingress_id.clone(),
+                    self.platform_clock.now(),
+                    claimed_until,
+                )
+                .await
+                .map_err(map_ingress_error)?,
+            )
+        } else {
+            None
+        };
 
-        let claim = IngressStore::claim(&self.store, ingress_id.clone(), now, claimed_until)
-            .await
-            .map_err(map_ingress_error)?;
-
-        if let Some((session_id, completion)) = self.recover_ingress(&ingress_id).await? {
+        if let Some(session) = existing_session.as_ref()
+            && let Some(completion) = session.ingress_completion().cloned()
+            && let Some(claim) = claim.as_ref()
+        {
             self.store
-                .complete(&claim, session_id, completion.clone(), now)
+                .complete(
+                    claim,
+                    session.id(),
+                    completion.clone(),
+                    self.platform_clock.now(),
+                )
                 .await
                 .map_err(map_ingress_error)?;
             return Ok(completion);
         }
 
-        let session = match self
-            .start_ingress_execution_session(assembly.clone(), ingress_id.clone())
-            .await
-        {
-            Ok(session) => session,
-            Err(error) => {
+        let target = record.submission.envelope.target;
+        let invocation = record.submission.envelope.invocation.clone();
+        let snapshot = self.snapshot_for_target(target).await?;
+        let (session, claim) = if let Some(session) = existing_session {
+            if snapshot.version() != session.assembly().expected_version() {
+                let claim_ref = claim.as_ref().ok_or_else(|| {
+                    ApiError::internal("Ingress recovery claim was lost before reconciliation")
+                })?;
                 return Err(self
-                    .record_ingress_failure(&claim, now, retry_available_at, error)
-                    .await);
-            }
-        };
-
-        let base = snapshot.world_view();
-        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
-        if let Err(error) = engine
-            .validate_action_input(&invocation.action, &invocation.input)
-            .map_err(|error| map_action_input_error(&error))
-        {
-            return Err(self
-                .finish_ingress_failure(
-                    &session,
-                    &claim,
-                    now,
-                    retry_available_at,
-                    error,
-                    EntropyEvidence::new(assembly.entropy_source_id().clone()),
-                )
-                .await);
-        }
-
-        let mut dispatch_entropy_evidence =
-            EntropyEvidence::new(assembly.entropy_source_id().clone());
-        let (outcome, execution) = match dispatch_root_action_async(
-            &base,
-            &self.registry,
-            &assembly,
-            &*self.entropy_source,
-            &self.store,
-            &mut dispatch_entropy_evidence,
-            &invocation,
-        )
-        .await
-        {
-            Ok(result) => result,
-            Err(error) => {
-                return Err(self
-                    .finish_ingress_failure(
-                        &session,
-                        &claim,
-                        now,
+                    .record_ingress_failure(
+                        claim_ref,
+                        self.platform_clock.now(),
                         retry_available_at,
-                        map_dispatch_error(error),
-                        dispatch_entropy_evidence,
+                        ApiError::unavailable(
+                            "Ingress Started Session requires bounded provenance reconciliation",
+                        ),
                     )
                     .await);
             }
+            (
+                session,
+                claim.take().ok_or_else(|| {
+                    ApiError::internal("Ingress recovery claim was lost before execution")
+                })?,
+            )
+        } else {
+            let binding = self.binding_for_world(snapshot.world_id()).await?;
+            let assembly = self.execution_assembly(&snapshot, binding).await?;
+            enabled_action(&self.registry, &assembly, &invocation.action)
+                .map_err(map_dispatch_error)?;
+            claim = Some(
+                IngressStore::claim(
+                    &self.store,
+                    ingress_id.clone(),
+                    self.platform_clock.now(),
+                    claimed_until,
+                )
+                .await
+                .map_err(map_ingress_error)?,
+            );
+            match self
+                .start_ingress_execution_session(assembly, ingress_id.clone())
+                .await
+            {
+                Ok(session) => (
+                    session,
+                    claim.take().ok_or_else(|| {
+                        ApiError::internal("Ingress claim was lost before Session start")
+                    })?,
+                ),
+                Err(error) => {
+                    let claim_ref = claim.as_ref().ok_or_else(|| {
+                        ApiError::internal("Ingress claim was lost before failure recording")
+                    })?;
+                    return Err(self
+                        .record_ingress_failure(
+                            claim_ref,
+                            self.platform_clock.now(),
+                            retry_available_at,
+                            error,
+                        )
+                        .await);
+                }
+            }
         };
+        let assembly = session.assembly().clone();
+        if let Some(provenance) = session.commit_provenance()
+            && let Some(commit) = snapshot
+                .journal
+                .iter()
+                .find(|commit| commit.provenance.as_ref() == Some(provenance))
+        {
+            let completion = IngressCompletion::Committed {
+                event_refs: commit
+                    .event_ids
+                    .iter()
+                    .map(|event_id| EventRef::new(commit.timeline_id, *event_id))
+                    .collect(),
+                timeline_version: commit.after_version,
+            };
+            self.finish_ingress_execution_session(
+                session.id(),
+                ExecutionSessionStatus::Committed,
+                session.entropy_evidence().clone(),
+                completion.clone(),
+                Some(provenance.clone()),
+            )
+            .await?;
+            self.store
+                .complete(
+                    &claim,
+                    session.id(),
+                    completion.clone(),
+                    self.platform_clock.now(),
+                )
+                .await
+                .map_err(map_ingress_error)?;
+            return Ok(completion);
+        }
+        // A Started Session carrying provenance means an earlier authority
+        // finalization was unknown. Until that exact journal identity is
+        // observed, recovery may only remain bounded/retryable; it must not
+        // re-enter Action execution on the unchanged base version.
+        if session.commit_provenance().is_some() {
+            return Err(self
+                .record_ingress_failure(
+                    &claim,
+                    self.platform_clock.now(),
+                    retry_available_at,
+                    ApiError::unavailable(
+                        "Ingress authority provenance requires reconciliation before retry",
+                    ),
+                )
+                .await);
+        }
+        enabled_action(&self.registry, &assembly, &invocation.action)
+            .map_err(map_dispatch_error)?;
 
-        let execution_entropy_evidence = execution.entropy_evidence.clone();
-        match outcome {
-            ResolveOutcome::Rejected(rejection) => {
+        let context = CommitAuthorityContext {
+            current_work: None,
+            ingress_claim: Some(claim.clone()),
+            provenance: Some(CommitProvenance::new(
+                session.id(),
+                ingress_id.clone(),
+                "pending",
+            )),
+        };
+        match self
+            .execute_root_authority(&snapshot.world_view(), &assembly, &invocation, context)
+            .await
+        {
+            Ok(AuthorityExecution::Rejected {
+                rejection,
+                entropy_evidence,
+            }) => {
                 let completion = IngressCompletion::Rejected(rejection);
                 self.finish_ingress_execution_session(
                     session.id(),
                     ExecutionSessionStatus::Rejected,
-                    execution_entropy_evidence,
+                    entropy_evidence,
                     completion.clone(),
+                    None,
                 )
                 .await?;
                 self.store
-                    .complete(&claim, session.id(), completion.clone(), now)
+                    .complete(
+                        &claim,
+                        session.id(),
+                        completion.clone(),
+                        self.platform_clock.now(),
+                    )
                     .await
                     .map_err(map_ingress_error)?;
                 Ok(completion)
             }
-            ResolveOutcome::Resolved(_) => {
-                let mut validated = match engine.validate_segments_with_entropy(
-                    &base,
-                    &execution.segments,
-                    execution.call_provenance,
-                    execution.entropy_evidence,
-                ) {
-                    Ok(validated) => validated,
-                    Err(error) => {
-                        return Err(self
-                            .finish_ingress_failure(
-                                &session,
-                                &claim,
-                                now,
-                                retry_available_at,
-                                map_runtime_error(&error),
-                                execution_entropy_evidence,
-                            )
-                            .await);
-                    }
-                };
-                validated.append_validated_work(Vec::new(), execution.read_set.clone());
-                if let Err(error) =
-                    self.expand_reactions(&base, &assembly, &engine, &mut validated, None)
-                {
-                    return Err(self
-                        .finish_ingress_failure(
-                            &session,
-                            &claim,
-                            now,
-                            retry_available_at,
-                            error,
-                            validated.entropy_evidence().clone(),
-                        )
-                        .await);
-                }
-
-                let changes = changes_runtime_state(&validated, None);
-                match self
-                    .store
-                    .commit(&validated, None, self.platform_clock.now())
+            Ok(AuthorityExecution::Committed {
+                result,
+                validated,
+                changes_runtime_state,
+                provenance,
+            }) => {
+                let completion = ingress_completion(&result, changes_runtime_state);
+                self.finish_ingress_execution_session(
+                    session.id(),
+                    ExecutionSessionStatus::Committed,
+                    validated.entropy_evidence().clone(),
+                    completion.clone(),
+                    provenance.clone(),
+                )
+                .await?;
+                self.store
+                    .complete(
+                        &claim,
+                        session.id(),
+                        completion.clone(),
+                        self.platform_clock.now(),
+                    )
                     .await
-                {
-                    Ok(result) => {
-                        let completion = ingress_completion(&result, changes);
-                        self.finish_ingress_execution_session(
-                            session.id(),
-                            ExecutionSessionStatus::Committed,
-                            validated.entropy_evidence().clone(),
-                            completion.clone(),
+                    .map_err(map_ingress_error)?;
+                Ok(completion)
+            }
+            Err(failure) => {
+                if matches!(
+                    failure.commit_error,
+                    Some(CommitError::CommitOutcomeUnknown { .. })
+                ) {
+                    let validated = failure.validated.ok_or_else(|| {
+                        ApiError::unavailable("Ingress unknown commit lost proposal identity")
+                    })?;
+                    let provenance = failure.provenance;
+                    match self
+                        .reconcile_ingress_commit(
+                            target,
+                            &validated,
+                            failure.changes_runtime_state,
+                            provenance.as_ref(),
                         )
-                        .await?;
-                        self.store
-                            .complete(&claim, session.id(), completion.clone(), now)
-                            .await
-                            .map_err(map_ingress_error)?;
-                        Ok(completion)
-                    }
-                    Err(CommitError::CommitOutcomeUnknown { .. }) => {
-                        match self
-                            .reconcile_ingress_commit(target, &validated, changes)
-                            .await?
-                        {
-                            Some(completion) => {
-                                self.finish_ingress_execution_session(
-                                    session.id(),
-                                    ExecutionSessionStatus::Committed,
-                                    validated.entropy_evidence().clone(),
-                                    completion.clone(),
-                                )
-                                .await?;
-                                self.store
-                                    .complete(&claim, session.id(), completion.clone(), now)
-                                    .await
-                                    .map_err(map_ingress_error)?;
-                                Ok(completion)
-                            }
-                            None => Err(self
-                                .finish_ingress_failure(
-                                    &session,
+                        .await
+                    {
+                        Ok(Some(completion)) => {
+                            self.finish_ingress_execution_session(
+                                session.id(),
+                                ExecutionSessionStatus::Committed,
+                                validated.entropy_evidence().clone(),
+                                completion.clone(),
+                                provenance,
+                            )
+                            .await?;
+                            self.store
+                                .complete(
                                     &claim,
-                                    now,
-                                    retry_available_at,
-                                    ApiError::unavailable(
-                                        "Ingress commit was not observed after reconciliation",
-                                    ),
-                                    validated.entropy_evidence().clone(),
+                                    session.id(),
+                                    completion.clone(),
+                                    self.platform_clock.now(),
                                 )
-                                .await),
+                                .await
+                                .map_err(map_ingress_error)?;
+                            Ok(completion)
                         }
+                        Ok(None) | Err(_) => Err(self
+                            .record_ingress_failure(
+                                &claim,
+                                self.platform_clock.now(),
+                                retry_available_at,
+                                ApiError::unavailable(
+                                    "Ingress commit outcome requires bounded reconciliation",
+                                ),
+                            )
+                            .await),
                     }
-                    Err(error) => Err(self
+                } else {
+                    Err(self
                         .finish_ingress_failure(
                             &session,
                             &claim,
-                            now,
+                            self.platform_clock.now(),
                             retry_available_at,
-                            map_commit_error(&error),
-                            validated.entropy_evidence().clone(),
+                            failure.error,
+                            failure.entropy_evidence,
                         )
-                        .await),
+                        .await)
                 }
             }
         }
     }
 
-    async fn recover_ingress(
-        &self,
-        ingress_id: &IngressId,
-    ) -> ApiResult<Option<(loom_core::ExecutionSessionId, IngressCompletion)>>
+    async fn recover_ingress(&self, ingress_id: &IngressId) -> ApiResult<Option<ExecutionSession>>
     where
         S: IngressStore + SemanticProjectionStore,
     {
@@ -1571,16 +1815,7 @@ where
             .map_err(|error| map_session_error(&error))?;
         let matches: Vec<_> = sessions
             .into_iter()
-            .filter_map(|session| {
-                (session.ingress_id() == Some(ingress_id) && session.status().is_terminal())
-                    .then(|| {
-                        session
-                            .ingress_completion()
-                            .cloned()
-                            .map(|completion| (session.id(), completion))
-                    })
-                    .flatten()
-            })
+            .filter(|session| session.ingress_id() == Some(ingress_id))
             .collect();
         match matches.as_slice() {
             [] => Ok(None),
@@ -1596,16 +1831,65 @@ where
         target: TimelineTarget,
         resolution: &ValidatedResolution,
         changes_runtime_state: bool,
+        provenance: Option<&CommitProvenance>,
     ) -> ApiResult<Option<IngressCompletion>>
     where
         S: IngressStore + SemanticProjectionStore,
     {
         let snapshot = self.snapshot_for_target(target).await?;
         let expected_event_ids: Vec<_> = resolution.events().iter().map(|event| event.id).collect();
+        let expected_work_ids: Vec<_> = resolution
+            .work()
+            .iter()
+            .map(|mutation| match mutation {
+                WorkMutation::Schedule(work) => work.id,
+                WorkMutation::Cancel(work_id) => *work_id,
+            })
+            .collect();
+        let actual_work_ids: Vec<_> = snapshot
+            .journal
+            .iter()
+            .filter(|commit| {
+                commit.timeline_id == resolution.timeline_id()
+                    && commit.before_version == resolution.base_version()
+            })
+            .flat_map(|commit| commit.work_transitions.iter())
+            .map(|transition| match transition {
+                LogicalWorkTransition::Schedule { work_id, .. }
+                | LogicalWorkTransition::Cancel { work_id }
+                | LogicalWorkTransition::Complete { work_id }
+                | LogicalWorkTransition::Dead { work_id } => *work_id,
+            })
+            .collect();
+        let expected_after_version = TimelineVersion::new(
+            loom_core::EventSeq::new(
+                resolution.base_version().head_event_seq.value()
+                    + u64::try_from(expected_event_ids.len()).unwrap_or(u64::MAX),
+            ),
+            loom_core::StateRevision::new(
+                resolution.base_version().state_revision.value() + u64::from(changes_runtime_state),
+            ),
+        );
         if let Some(commit) = snapshot.journal.iter().find(|commit| {
             commit.timeline_id == resolution.timeline_id()
                 && commit.before_version == resolution.base_version()
+                && commit.after_version == expected_after_version
                 && commit.event_ids == expected_event_ids
+                && commit.provenance.as_ref() == provenance
+                && commit
+                    .work_transitions
+                    .iter()
+                    .map(|transition| match transition {
+                        LogicalWorkTransition::Schedule { work_id, .. }
+                        | LogicalWorkTransition::Cancel { work_id }
+                        | LogicalWorkTransition::Complete { work_id }
+                        | LogicalWorkTransition::Dead { work_id } => *work_id,
+                    })
+                    .collect::<Vec<_>>()
+                    == expected_work_ids
+                && actual_work_ids == expected_work_ids
+                && commit.world_time.is_none()
+                && commit.chronology_budget.is_none()
         }) {
             return Ok(Some(IngressCompletion::Committed {
                 event_refs: commit
@@ -1898,6 +2182,17 @@ where
     }
 }
 
+fn logical_proposal_identity(resolution: &ValidatedResolution) -> String {
+    // ValidatedResolution's Debug representation includes the complete
+    // authority proposal (Events, Work, pinned version/time, reads and
+    // entropy evidence). Hashing that stable in-process representation keeps
+    // the durable identity compact without exposing a second resolution API.
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    format!("{resolution:?}").hash(&mut hasher);
+    format!("proposal:{:016x}", hasher.finish())
+}
+
 impl<T> WorldLifecycleStore for &T
 where
     T: WorldLifecycleStore + ?Sized,
@@ -2084,6 +2379,7 @@ where
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
         completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         (**self).finish_session_with_ingress_completion(
             session_id,
@@ -2091,7 +2387,16 @@ where
             ended_at,
             entropy_evidence,
             completion,
+            provenance,
         )
+    }
+
+    fn record_ingress_provenance(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        provenance: CommitProvenance,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).record_ingress_provenance(session_id, provenance)
     }
 
     fn read_session(
@@ -2174,6 +2479,15 @@ where
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<crate::CommitResult, CommitError>> {
         (**self).commit(resolution, current_work, now)
+    }
+
+    fn commit_with_authority<'a>(
+        &'a self,
+        resolution: &'a crate::ValidatedResolution,
+        context: CommitAuthorityContext,
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<crate::CommitResult, CommitError>> {
+        (**self).commit_with_authority(resolution, context, now)
     }
 }
 
@@ -2432,112 +2746,49 @@ where
             let session = self
                 .start_execution_session(assembly.clone(), ExecutionOrigin::Application)
                 .await?;
-            let base = snapshot.world_view();
-            let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
-            if let Err(error) = engine
-                .validate_action_input(&request.invocation.action, &request.invocation.input)
-                .map_err(|error| map_action_input_error(&error))
+            match self
+                .execute_root_authority(
+                    &snapshot.world_view(),
+                    &assembly,
+                    &request.invocation,
+                    CommitAuthorityContext::direct(None),
+                )
+                .await
             {
-                self.finish_execution_session(session.id(), ExecutionSessionStatus::Failed)
-                    .await?;
-                return Err(error);
-            }
-            let mut dispatch_entropy_evidence =
-                EntropyEvidence::new(assembly.entropy_source_id().clone());
-            let (outcome, execution) = match dispatch_root_action_async(
-                &base,
-                &self.registry,
-                &assembly,
-                &*self.entropy_source,
-                &self.store,
-                &mut dispatch_entropy_evidence,
-                &request.invocation,
-            )
-            .await
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    let error = map_dispatch_error(error);
-                    self.finish_execution_session_with_entropy(
-                        session.id(),
-                        ExecutionSessionStatus::Failed,
-                        dispatch_entropy_evidence,
-                    )
-                    .await?;
-                    return Err(error);
-                }
-            };
-            let execution_entropy_evidence = execution.entropy_evidence.clone();
-            match outcome {
-                ResolveOutcome::Rejected(rejection) => {
+                Ok(AuthorityExecution::Rejected {
+                    rejection,
+                    entropy_evidence,
+                }) => {
                     self.finish_execution_session_with_entropy(
                         session.id(),
                         ExecutionSessionStatus::Rejected,
-                        execution_entropy_evidence,
+                        entropy_evidence,
                     )
                     .await?;
                     Ok(ExecutionResult::rejected(rejection))
                 }
-                ResolveOutcome::Resolved(_) => {
-                    let mut validated = match engine
-                        .validate_segments_with_entropy(
-                            &base,
-                            &execution.segments,
-                            execution.call_provenance,
-                            execution.entropy_evidence,
-                        )
-                        .map_err(|error| map_runtime_error(&error))
-                    {
-                        Ok(validated) => validated,
-                        Err(error) => {
-                            self.finish_execution_session_with_entropy(
-                                session.id(),
-                                ExecutionSessionStatus::Failed,
-                                execution_entropy_evidence.clone(),
-                            )
-                            .await?;
-                            return Err(error);
-                        }
-                    };
-                    validated.append_validated_work(Vec::new(), execution.read_set.clone());
-                    if let Err(error) =
-                        self.expand_reactions(&base, &assembly, &engine, &mut validated, None)
-                    {
-                        self.finish_execution_session_with_entropy(
-                            session.id(),
-                            ExecutionSessionStatus::Failed,
-                            validated.entropy_evidence().clone(),
-                        )
-                        .await?;
-                        return Err(error);
-                    }
-                    let result = match self
-                        .store
-                        .commit(&validated, None, self.platform_clock.now())
-                        .await
-                        .map_err(|error| map_commit_error(&error))
-                    {
-                        Ok(result) => result,
-                        Err(error) => {
-                            self.finish_execution_session_with_entropy(
-                                session.id(),
-                                ExecutionSessionStatus::Failed,
-                                validated.entropy_evidence().clone(),
-                            )
-                            .await?;
-                            return Err(error);
-                        }
-                    };
+                Ok(AuthorityExecution::Committed {
+                    result,
+                    validated,
+                    changes_runtime_state,
+                    ..
+                }) => {
                     self.finish_execution_session_with_entropy(
                         session.id(),
                         ExecutionSessionStatus::Committed,
                         validated.entropy_evidence().clone(),
                     )
                     .await?;
-                    Ok(execution_result(
-                        &result,
-                        changes_runtime_state(&validated, None),
-                    ))
+                    Ok(execution_result(&result, changes_runtime_state))
+                }
+                Err(failure) => {
+                    self.finish_execution_session_with_entropy(
+                        session.id(),
+                        ExecutionSessionStatus::Failed,
+                        failure.entropy_evidence,
+                    )
+                    .await?;
+                    Err(failure.error)
                 }
             }
         })
@@ -4826,6 +5077,9 @@ fn map_commit_error(error: &CommitError) -> ApiError {
         CommitError::TimelineMismatch { .. } => {
             ApiError::invalid_request("Commit target does not match the pinned Timeline")
         }
+        CommitError::IngressClaim { .. } => {
+            ApiError::conflict("Ingress claim fence is stale or expired")
+        }
         CommitError::Work(_) => ApiError::conflict("Work state changed before commit"),
         CommitError::StorageUnavailable { .. } => {
             ApiError::unavailable("Persistence authority is temporarily unavailable")
@@ -5316,6 +5570,7 @@ mod tests {
                 before: 0,
                 after: 1,
             }),
+            provenance: None,
         }];
         let committed = TimelineSnapshot::with_journal(
             BaseWorldSnapshot::new(

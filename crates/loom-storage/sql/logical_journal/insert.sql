@@ -8,6 +8,7 @@ INSERT INTO loom_logical_journal (
     world_time_after,
     event_ids,
     work_transitions,
+    provenance,
     chronology_budget_world_time,
     chronology_budget_before,
     chronology_budget_after
@@ -22,7 +23,8 @@ VALUES (
     $7,
     $8::jsonb,
     $9::jsonb,
-    $10,
-    $11::numeric,
-    $12::numeric
+    $10::jsonb,
+    $11,
+    $12::numeric,
+    $13::numeric
 );

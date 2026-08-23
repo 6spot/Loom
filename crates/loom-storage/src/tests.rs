@@ -2,7 +2,8 @@ use std::{str::FromStr, sync::Arc};
 
 use loom_api::{
     ActionRequest, ActionService, ApiErrorCode, ExecutionResult, ForkTimelineRequest,
-    TimelineTarget,
+    IngressAuthorizationContext, IngressEnvelope, IngressId, IngressProvenance,
+    IngressTimeMetadata, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
@@ -20,8 +21,9 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine, ForkWork,
-    LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
+    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitAuthorityContext, CommitError,
+    CommitStore, EffectEngine, ForkWork, IngressStore, IngressSubmission, LogicalWorkTransition,
+    PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore,
     SchedulerCommitStore, TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError,
     WorkRecord, WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization,
@@ -364,6 +366,67 @@ fn event_with_effect(event_id: EventId, effect: WorldEffect, source_time: i64) -
         json!({"event": event_id.to_string(), "source_time": source_time}),
     )
     .with_effect(effect)
+}
+
+#[tokio::test]
+async fn ingress_authority_rejects_stale_fence_before_no_change_commit() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let submission = IngressSubmission::new(
+        "tenant-a",
+        IngressEnvelope::new(
+            IngressId::from("ingress-authority"),
+            "key-authority",
+            IngressProvenance::new("test"),
+            TimelineTarget::new(world(), timeline()),
+            IngressAuthorizationContext::new(json!({"policy": "test"})),
+            IngressTimeMetadata::from_source("source-time"),
+            ActionInvocation::new(ActionTypeId::from("test.action"), json!({})),
+        ),
+        "fingerprint",
+        PlatformTime::new(0),
+    );
+    IngressStore::accept(&store, submission)
+        .await
+        .expect("Ingress should be accepted");
+    let first = IngressStore::claim(
+        &store,
+        IngressId::from("ingress-authority"),
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect("first claim should succeed");
+    let _second = IngressStore::claim(
+        &store,
+        IngressId::from("ingress-authority"),
+        PlatformTime::new(10),
+        PlatformTime::new(20),
+    )
+    .await
+    .expect("expired claim should be reclaimed");
+    let validated = validated(&store, &registry(), Resolution::new(Vec::new(), Vec::new()));
+    let result = CommitStore::commit_with_authority(
+        &store,
+        &validated,
+        CommitAuthorityContext {
+            current_work: None,
+            ingress_claim: Some(first),
+            provenance: None,
+        },
+        PlatformTime::new(10),
+    )
+    .await;
+    assert!(matches!(result, Err(CommitError::IngressClaim { .. })));
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("snapshot should exist")
+            .version(),
+        TimelineVersion::default()
+    );
 }
 
 fn with_entity_participant(mut event: ProposedEvent, entity_id: EntityId) -> ProposedEvent {

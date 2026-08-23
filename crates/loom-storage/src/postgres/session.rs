@@ -2,8 +2,8 @@
 
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
-    EntropyEvidence, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
-    IngressCompletion, PersistenceFuture, PlatformTime, SessionError,
+    CommitProvenance, EntropyEvidence, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, IngressCompletion, PersistenceFuture, PlatformTime, SessionError,
 };
 use serde_json::Value;
 use sqlx::Row;
@@ -51,6 +51,7 @@ impl ExecutionSessionStore for PgStorage {
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
         completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         Box::pin(async move {
             finish_session_with_ingress_completion(
@@ -60,9 +61,18 @@ impl ExecutionSessionStore for PgStorage {
                 ended_at,
                 entropy_evidence,
                 completion,
+                provenance,
             )
             .await
         })
+    }
+
+    fn record_ingress_provenance(
+        &self,
+        session_id: ExecutionSessionId,
+        provenance: CommitProvenance,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move { record_ingress_provenance(self, session_id, provenance).await })
     }
 
     fn read_session(
@@ -116,7 +126,7 @@ async fn finish_session(
     status: ExecutionSessionStatus,
     ended_at: PlatformTime,
 ) -> Result<ExecutionSession, SessionError> {
-    finish_session_inner(storage, session_id, status, ended_at, None, None).await
+    finish_session_inner(storage, session_id, status, ended_at, None, None, None).await
 }
 
 async fn finish_session_with_entropy(
@@ -133,6 +143,7 @@ async fn finish_session_with_entropy(
         ended_at,
         Some(entropy_evidence),
         None,
+        None,
     )
     .await
 }
@@ -144,6 +155,7 @@ async fn finish_session_with_ingress_completion(
     ended_at: PlatformTime,
     entropy_evidence: EntropyEvidence,
     completion: IngressCompletion,
+    provenance: Option<CommitProvenance>,
 ) -> Result<ExecutionSession, SessionError> {
     finish_session_inner(
         storage,
@@ -152,6 +164,7 @@ async fn finish_session_with_ingress_completion(
         ended_at,
         Some(entropy_evidence),
         Some(completion),
+        provenance,
     )
     .await
 }
@@ -163,6 +176,7 @@ async fn finish_session_inner(
     ended_at: PlatformTime,
     entropy_evidence: Option<EntropyEvidence>,
     ingress_completion: Option<IngressCompletion>,
+    provenance: Option<CommitProvenance>,
 ) -> Result<ExecutionSession, SessionError> {
     let current = read_session(storage, session_id).await?;
     if current.status() != ExecutionSessionStatus::Started {
@@ -182,6 +196,7 @@ async fn finish_session_inner(
                 ended_at,
                 entropy_evidence,
                 completion,
+                provenance,
             )?,
             None => current.finish_with_entropy(status, ended_at, entropy_evidence)?,
         },
@@ -216,6 +231,33 @@ async fn finish_session_inner(
         });
     }
     Ok(finished)
+}
+
+async fn record_ingress_provenance(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    provenance: CommitProvenance,
+) -> Result<ExecutionSession, SessionError> {
+    let current = read_session(storage, session_id).await?;
+    let prepared = current.with_commit_provenance(provenance)?;
+    let record =
+        serde_json::to_value(&prepared).map_err(|error| SessionError::StorageUnavailable {
+            message: format!("Execution Session serialization failed: {error}"),
+        })?;
+    let result = sqlx::query(FINISH_SESSION_SQL)
+        .bind(session_id.to_string())
+        .bind(session_status(ExecutionSessionStatus::Started))
+        .bind(prepared.started_at().value())
+        .bind(record)
+        .execute(&storage.pool)
+        .await
+        .map_err(sql_session_error)?;
+    if result.rows_affected() == 0 {
+        return Err(SessionError::StorageUnavailable {
+            message: "Execution Session provenance update was lost".to_owned(),
+        });
+    }
+    Ok(prepared)
 }
 
 async fn read_session(

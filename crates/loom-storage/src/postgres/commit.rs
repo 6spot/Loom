@@ -6,10 +6,12 @@ use loom_core::{
     EventId, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect,
 };
 use loom_runtime::{
-    ChronologyBudgetConsumption, CommitError, CommitResult, CommitStore, CommittedEvent,
-    LogicalCommit, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
-    RuntimeControlStore, SchedulerCommitStore, ValidatedResolution, WorkClaim, WorkError,
-    WorkMutation, WorkStatus, WorkTerminalState, WorkTerminalization,
+    ChronologyBudgetConsumption, CommitAuthorityContext, CommitError, CommitProvenance,
+    CommitResult, CommitStore, CommittedEvent, IngressClaim, IngressError,
+    IngressOperationalRecord, IngressStatus, LogicalCommit, LogicalWorkTransition,
+    PersistenceFuture, PlatformTime, ProposedEvent, RuntimeControlStore, SchedulerCommitStore,
+    ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus, WorkTerminalState,
+    WorkTerminalization,
 };
 use sqlx::{Postgres, Row, Transaction};
 
@@ -57,6 +59,7 @@ const SELECT_WORK_STATUS_FOR_UPDATE_SQL: &str =
 const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
 const INSERT_LOGICAL_JOURNAL_SQL: &str = include_str!("../../sql/logical_journal/insert.sql");
 const SELECT_LOGICAL_HEAD_SQL: &str = include_str!("../../sql/work/select_logical_head.sql");
+const SELECT_INGRESS_FOR_UPDATE_SQL: &str = include_str!("../../sql/ingress/select_for_update.sql");
 
 #[derive(Clone, Copy)]
 struct LockedTimeline {
@@ -74,7 +77,29 @@ impl CommitStore for PgStorage {
         current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
-        Box::pin(async move { commit_resolution(self, resolution, current_work, now, None).await })
+        Box::pin(async move {
+            commit_resolution(self, resolution, current_work, None, None, now, None).await
+        })
+    }
+
+    fn commit_with_authority<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        context: CommitAuthorityContext,
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            commit_resolution(
+                self,
+                resolution,
+                context.current_work.as_ref(),
+                context.ingress_claim.as_ref(),
+                context.provenance.as_ref(),
+                now,
+                None,
+            )
+            .await
+        })
     }
 }
 
@@ -91,6 +116,8 @@ impl SchedulerCommitStore for PgStorage {
                 self,
                 resolution,
                 Some(current_work),
+                None,
+                None,
                 now,
                 Some(max_completions),
             )
@@ -216,6 +243,7 @@ async fn terminalize_work_internal(
             event_ids: Vec::new(),
             work_transitions: vec![work_transition],
             chronology_budget: None,
+            provenance: None,
         },
     )
     .await?;
@@ -227,6 +255,8 @@ async fn commit_resolution(
     storage: &PgStorage,
     resolution: &ValidatedResolution,
     current_work: Option<&WorkClaim>,
+    ingress_claim: Option<&IngressClaim>,
+    provenance: Option<&CommitProvenance>,
     now: PlatformTime,
     chronology_budget_limit: Option<u64>,
 ) -> Result<CommitResult, CommitError> {
@@ -238,6 +268,9 @@ async fn commit_resolution(
             expected: resolution.base_version(),
             actual: locked.version,
         });
+    }
+    if let Some(claim) = ingress_claim {
+        validate_current_ingress(&mut transaction, claim, now).await?;
     }
     if let Some(claim) = current_work {
         validate_current_work(&mut transaction, timeline_id, claim, now).await?;
@@ -367,20 +400,18 @@ async fn commit_resolution(
                 event_ids,
                 work_transitions,
                 chronology_budget,
+                provenance: provenance.cloned(),
             },
         )
         .await?;
     }
 
-    transaction.commit().await.map_err(|error| {
-        if chronology_budget_limit.is_some() {
-            CommitError::CommitOutcomeUnknown {
-                message: format!("PostgreSQL Scheduler commit outcome is unknown: {error}"),
-            }
-        } else {
-            storage_error(error)
-        }
-    })?;
+    transaction
+        .commit()
+        .await
+        .map_err(|error| CommitError::CommitOutcomeUnknown {
+            message: format!("PostgreSQL authority commit outcome is unknown: {error}"),
+        })?;
     Ok(CommitResult {
         timeline_id,
         version,
@@ -506,6 +537,7 @@ pub(super) async fn commit_birth_in_transaction(
                 event_ids,
                 work_transitions,
                 chronology_budget: None,
+                provenance: None,
             },
         )
         .await?;
@@ -537,6 +569,51 @@ async fn lock_timeline(
         chronology_budget_consumed: parse_u64(&row, "chronology_budget_consumed")?,
         logical_schedule_order: parse_u64(&row, "logical_schedule_order")?,
     })
+}
+
+async fn validate_current_ingress(
+    transaction: &mut PgTransaction<'_>,
+    claim: &IngressClaim,
+    now: PlatformTime,
+) -> Result<(), CommitError> {
+    let row = sqlx::query(SELECT_INGRESS_FOR_UPDATE_SQL)
+        .bind(claim.ingress_id().as_str())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+        .ok_or_else(|| CommitError::IngressClaim {
+            message: format!("Ingress {} was not found", claim.ingress_id()),
+        })?;
+    let record: serde_json::Value = row.try_get("record").map_err(storage_error)?;
+    let record: IngressOperationalRecord =
+        serde_json::from_value(record).map_err(|error| CommitError::IngressClaim {
+            message: format!("invalid persisted Ingress claim record: {error}"),
+        })?;
+    if !matches!(record.status, IngressStatus::Processing) {
+        return Err(CommitError::IngressClaim {
+            message: IngressError::NotClaimable {
+                ingress_id: claim.ingress_id().clone(),
+                status: record.status,
+            }
+            .to_string(),
+        });
+    }
+    let Some(lease) = record.lease else {
+        return Err(CommitError::IngressClaim {
+            message: format!("Ingress {} has no active lease", claim.ingress_id()),
+        });
+    };
+    if lease.fence() != claim.fence() || lease.claimed_until() != claim.claimed_until() {
+        return Err(CommitError::IngressClaim {
+            message: format!("Ingress {} claim fence is stale", claim.ingress_id()),
+        });
+    }
+    if now >= lease.claimed_until() {
+        return Err(CommitError::IngressClaim {
+            message: format!("Ingress {} lease has expired", claim.ingress_id()),
+        });
+    }
+    Ok(())
 }
 
 async fn next_logical_schedule_order(
@@ -585,6 +662,14 @@ pub(super) async fn insert_logical_commit(
             message: format!("logical journal Work serialization failed: {error}"),
         }
     })?;
+    let provenance = commit
+        .provenance
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|error| CommitError::StorageUnavailable {
+            message: format!("logical journal provenance serialization failed: {error}"),
+        })?;
     let (world_time_before, world_time_after) =
         commit.world_time.map_or((None, None), |transition| {
             (Some(transition.from.value()), Some(transition.to.value()))
@@ -610,6 +695,7 @@ pub(super) async fn insert_logical_commit(
         .bind(world_time_after)
         .bind(event_ids)
         .bind(work_transitions)
+        .bind(provenance)
         .bind(budget_world_time)
         .bind(budget_before)
         .bind(budget_after)
