@@ -1,11 +1,16 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    fs,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Instant,
 };
 
 use loom_api::{
-    ActionRequest, ApiErrorCode, CausalDirection, CausalQuery, EntityTrajectoryQuery, EventQuery,
-    ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
+    ActionRequest, ActionService, ApiErrorCode, CausalDirection, CausalQuery,
+    EntityTrajectoryQuery, EventQuery, ExecutionResult, FacetQuery, LoomApi,
+    RelationshipTrajectoryQuery, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
@@ -14,21 +19,25 @@ use loom_capability::{
     SemanticIndexSource, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId,
-    SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId, Relationship,
+    RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId,
+    WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    ActionInvocation, CausalLink, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome,
-    WorkMutation, WorkSchedule,
+    ActionInvocation, CausalLink, EventRelationshipRef, NewWork, ProposedEvent, Rejection,
+    Resolution, ResolveOutcome, WorkMutation, WorkSchedule,
 };
 use loom_runtime::{
-    EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
-    Runtime, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    SemanticKind, SemanticProjectionError, SemanticProjectionKey, SemanticProjectionQuery,
-    ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
+    BlobError, BlobStore, EffectEngine, ExecutionSessionStore, FailurePolicy,
+    LogicalWorkTransition, PinnedReadBoundary, PinnedReadPolicy, PinnedReadSession,
+    PinnedWorldReadStore, PlatformTime, ReadError, Runtime, RuntimeError,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, SemanticKind,
+    SemanticProjectionError, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow, TimelineFork,
+    TimelineForkStore, ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
     WorldRuntimeBindingStore,
 };
-use loom_storage::InMemoryStore;
+use loom_storage::{InMemoryBlobStore, InMemoryStore, LocalBlobStore};
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
 
@@ -195,6 +204,31 @@ impl Capability for SecondaryCapability {
             json!({}),
         ))?;
         Ok(())
+    }
+}
+
+struct ProjectionRevisionCapability {
+    manifest: CapabilityManifest,
+    projection_revision: u64,
+    model_revision: &'static str,
+}
+
+impl Capability for ProjectionRevisionCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_semantic_index(SemanticIndexDefinition::new(
+            COUNTER_INDEX,
+            SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+            SchemaRevision::new(1),
+            self.projection_revision,
+            self.model_revision,
+            2,
+            SemanticIndexMetric::Cosine,
+            json!({"normalization": "unit"}),
+        ))
     }
 }
 
@@ -443,6 +477,16 @@ fn counter_registry_with_secondary() -> CapabilityRegistry {
         }),
     ])
     .expect("counter and secondary Capability registry should assemble")
+}
+
+fn projection_v2_registry() -> CapabilityRegistry {
+    CapabilityRegistry::assemble([ProjectionRevisionCapability {
+        manifest: CapabilityManifest::parse(COUNTER_CAPABILITY, "0.1.0")
+            .expect("projection v2 Capability manifest should parse"),
+        projection_revision: 2,
+        model_revision: "counter-model-2",
+    }])
+    .expect("projection v2 Capability registry should assemble")
 }
 
 fn counter_request(action: &str, input: Value) -> ActionRequest {
@@ -1460,4 +1504,563 @@ async fn bounded_failure_policy_terminalizes_after_configured_attempts() {
         after.journal[0].work_transitions.as_slice(),
         [LogicalWorkTransition::Dead { work_id: dead_id }] if *dead_id == work_id
     ));
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "ME-212 combines the already-delivered read, projection, blob and pinned-read contracts"
+)]
+async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() {
+    let store = counter_store();
+    let second_world = id::<WorldId>(100);
+    let second_timeline = id::<TimelineId>(101);
+    store
+        .create_timeline(second_world, second_timeline)
+        .expect("second World Binding scope should be created");
+    store
+        .seed_entity(
+            timeline(),
+            loom_core::Entity {
+                id: entity(11),
+                world_id: world(),
+            },
+        )
+        .expect("relationship participant Entity should be seeded");
+    let relationship_id = id::<RelationshipId>(400);
+    store
+        .seed_relationship(
+            timeline(),
+            Relationship::new(
+                relationship_id,
+                world(),
+                RelationshipTypeId::from("test.relationship"),
+                vec![
+                    RelationshipParticipant::new(entity(10), "left"),
+                    RelationshipParticipant::new(entity(11), "right"),
+                ],
+            ),
+            true,
+        )
+        .expect("relationship fixture should be seeded");
+
+    WorldRuntimeBindingStore::persist_binding(
+        &store,
+        world(),
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from(COUNTER_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("counter binding requirement should parse"),
+            )],
+            json!({"fixture": "me-212-counter"}),
+            1,
+            Some("me-212-counter".to_owned()),
+        ),
+    )
+    .await
+    .expect("counter-only World Binding should persist");
+    WorldRuntimeBindingStore::persist_binding(
+        &store,
+        second_world,
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from(SECONDARY_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("secondary binding requirement should parse"),
+            )],
+            json!({"fixture": "me-212-secondary"}),
+            1,
+            Some("me-212-secondary".to_owned()),
+        ),
+    )
+    .await
+    .expect("secondary-only World Binding should persist");
+
+    let runtime = Runtime::new(&store, counter_registry_with_secondary())
+        .expect("ME-212 Runtime should assemble");
+    let api: &dyn LoomApi = &runtime;
+
+    let global = api.catalog().expect("global catalog should be readable");
+    assert_eq!(global.capabilities.len(), 2);
+    assert_eq!(global.semantic_indexes.len(), 2);
+    let counter_catalog = api
+        .catalog_for_world(world())
+        .await
+        .expect("counter World catalog should be readable");
+    assert_eq!(
+        counter_catalog
+            .capabilities
+            .iter()
+            .map(|capability| capability.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![COUNTER_CAPABILITY]
+    );
+    assert_eq!(counter_catalog.semantic_indexes.len(), 1);
+    assert_eq!(counter_catalog.semantic_indexes[0].id, COUNTER_INDEX);
+    let secondary_catalog = api
+        .catalog_for_world(second_world)
+        .await
+        .expect("secondary World catalog should be readable");
+    assert_eq!(
+        secondary_catalog
+            .capabilities
+            .iter()
+            .map(|capability| capability.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![SECONDARY_CAPABILITY]
+    );
+    assert_eq!(secondary_catalog.semantic_indexes.len(), 1);
+    assert_eq!(secondary_catalog.semantic_indexes[0].id, SECONDARY_INDEX);
+
+    assert!(
+        api.invoke(counter_request(
+            COUNTER_INCREMENT,
+            json!({"amount": 1, "event_id": event(210).to_string()}),
+        ))
+        .await
+        .expect("root Event should commit")
+        .is_committed()
+    );
+
+    let child_timeline = id::<TimelineId>(500);
+    let root_version = store
+        .snapshot(timeline())
+        .expect("root version should be readable")
+        .version();
+    let child = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(timeline(), root_version, child_timeline),
+    )
+    .await
+    .expect("child Timeline should fork at the current committed root version");
+    assert_eq!(child.ancestry().parent_timeline_id, Some(timeline()));
+    let child_target = TimelineTarget::new(world(), child_timeline);
+
+    let relationship_event = ProposedEvent::new(
+        event(213),
+        EventTypeId::from(COUNTER_INCREMENTED),
+        SchemaRevision::new(1),
+        json!({"previous": 1, "amount": 0, "value": 1}),
+    )
+    .with_participant(loom_protocol::EventParticipant::new(entity(10), "subject"));
+    let mut relationship_event = relationship_event;
+    relationship_event
+        .relationship_refs
+        .push(EventRelationshipRef::new(relationship_id, "subject"));
+    let relationship_registry = counter_registry();
+    let relationship_resolution = EffectEngine::new(&relationship_registry)
+        .validate(
+            &store
+                .snapshot(timeline())
+                .expect("relationship base snapshot should be readable")
+                .world_view(),
+            COUNTER_CAPABILITY,
+            Resolution::new(vec![relationship_event], Vec::new()),
+        )
+        .expect("relationship Event should pass Runtime validation");
+    store
+        .commit(&relationship_resolution, None, PlatformTime::new(1))
+        .expect("relationship Event should commit through the authority adapter");
+
+    assert!(
+        api.invoke(counter_request(
+            COUNTER_INCREMENT,
+            json!({"amount": 1, "event_id": event(211).to_string()}),
+        ))
+        .await
+        .expect("parent future Event should commit")
+        .is_committed()
+    );
+    assert!(
+        api.invoke_on(
+            world(),
+            child_timeline,
+            ActionInvocation::new(
+                ActionTypeId::from(COUNTER_INCREMENT),
+                json!({
+                    "amount": 1,
+                    "event_id": event(212).to_string(),
+                    "cause_event_id": event(210).to_string()
+                }),
+            ),
+        )
+        .await
+        .expect("child branch Event should commit")
+        .is_committed()
+    );
+
+    let child_trajectory = api
+        .entity_trajectory(EntityTrajectoryQuery::all(child_target, entity(10)))
+        .await
+        .expect("child Entity trajectory should be readable");
+    assert_eq!(
+        child_trajectory
+            .events
+            .iter()
+            .map(|event| event.id)
+            .collect::<Vec<_>>(),
+        vec![event(210), event(212)]
+    );
+    assert!(
+        !child_trajectory
+            .events
+            .iter()
+            .any(|committed_event| committed_event.id == event(211))
+    );
+    let relationship_trajectory = api
+        .relationship_trajectory(RelationshipTrajectoryQuery::all(
+            counter_target(),
+            relationship_id,
+        ))
+        .await
+        .expect("Relationship trajectory should be readable");
+    assert_eq!(
+        relationship_trajectory
+            .events
+            .iter()
+            .map(|event| event.id)
+            .collect::<Vec<_>>(),
+        vec![event(213)]
+    );
+    let child_event_ref = EventRef::new(child_timeline, event(212));
+    assert_eq!(
+        api.direct_causes(child_event_ref)
+            .await
+            .expect("child causal source should be readable"),
+        vec![EventRef::new(timeline(), event(210))]
+    );
+    let causal_walk = api
+        .causal_walk(CausalQuery::new(
+            child_event_ref,
+            CausalDirection::Causes,
+            1,
+            1,
+        ))
+        .await
+        .expect("bounded child causal walk should be readable");
+    assert_eq!(
+        causal_walk.events,
+        vec![EventRef::new(timeline(), event(210))]
+    );
+    assert!(!causal_walk.truncated);
+
+    let authority_before_projection = store
+        .snapshot(timeline())
+        .expect("authority snapshot should be readable before projection changes");
+    let projection_key = SemanticProjectionKey::new(world(), timeline(), COUNTER_INDEX.into());
+    let registration_v1 = SemanticProjectionRegistration::new(
+        projection_key.clone(),
+        SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+        SchemaRevision::new(1),
+        1,
+        "counter-model-1",
+        2,
+        SemanticIndexMetric::Cosine,
+    )
+    .expect("projection revision one should be valid");
+    runtime
+        .register_semantic_projection(registration_v1.clone())
+        .await
+        .expect("projection revision one should register");
+    let child_version = store
+        .snapshot(child_timeline)
+        .expect("child version should be readable")
+        .version();
+    let rows_v1 = vec![
+        SemanticProjectionRow::new(
+            EventRef::new(timeline(), event(210)),
+            "root-source",
+            authority_before_projection.version(),
+            1,
+            "counter-model-1",
+            vec![1.0, 0.0],
+        )
+        .expect("root projection row should be valid"),
+        SemanticProjectionRow::new(
+            child_event_ref,
+            "child-source",
+            child_version,
+            1,
+            "counter-model-1",
+            vec![0.0, 1.0],
+        )
+        .expect("child projection row should be valid"),
+    ];
+    runtime
+        .rebuild_semantic_projection(
+            &SemanticProjectionRebuild::new(registration_v1.clone(), Some(1), rows_v1)
+                .expect("projection revision one rebuild should be valid"),
+        )
+        .await
+        .expect("projection revision one should rebuild");
+    let projection_query = SemanticProjectionQuery::new(
+        projection_key.clone(),
+        SchemaRevision::new(1),
+        1,
+        "counter-model-1",
+        vec![1.0, 0.0],
+        2,
+    )
+    .expect("projection query should be bounded");
+    let hits = runtime
+        .query_semantic_projection(projection_query.clone())
+        .await
+        .expect("projection query should be served through Runtime");
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[0].source_ref, EventRef::new(timeline(), event(210)));
+
+    let restarted_runtime = Runtime::new(&store, counter_registry_with_secondary())
+        .expect("Runtime should restart over the same authority adapter");
+    assert_eq!(
+        restarted_runtime
+            .query_semantic_projection(projection_query)
+            .await
+            .expect("projection should survive Runtime restart")
+            .len(),
+        2
+    );
+    restarted_runtime
+        .delete_semantic_projection(projection_key.clone())
+        .await
+        .expect("projection delete should only remove its materialization");
+    assert!(matches!(
+        restarted_runtime
+            .query_semantic_projection(
+                SemanticProjectionQuery::new(
+                    projection_key.clone(),
+                    SchemaRevision::new(1),
+                    1,
+                    "counter-model-1",
+                    vec![1.0, 0.0],
+                    1,
+                )
+                .expect("deleted projection query should remain structurally valid"),
+            )
+            .await,
+        Err(SemanticProjectionError::IndexNotRegistered { .. })
+    ));
+
+    let v2_runtime = Runtime::new(&store, projection_v2_registry())
+        .expect("model revision two Runtime should assemble");
+    let registration_v2 = SemanticProjectionRegistration::new(
+        projection_key.clone(),
+        SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+        SchemaRevision::new(1),
+        2,
+        "counter-model-2",
+        2,
+        SemanticIndexMetric::Cosine,
+    )
+    .expect("projection revision two should be valid");
+    v2_runtime
+        .register_semantic_projection(registration_v2.clone())
+        .await
+        .expect("model change should register as a new projection revision");
+    let rows_v2 = vec![
+        SemanticProjectionRow::new(
+            EventRef::new(timeline(), event(210)),
+            "root-source-v2",
+            authority_before_projection.version(),
+            2,
+            "counter-model-2",
+            vec![1.0, 0.0],
+        )
+        .expect("model revision two row should be valid"),
+    ];
+    v2_runtime
+        .rebuild_semantic_projection(
+            &SemanticProjectionRebuild::new(registration_v2, Some(2), rows_v2)
+                .expect("model revision two rebuild should be valid"),
+        )
+        .await
+        .expect("model revision two should rebuild");
+    let v2_hits = v2_runtime
+        .query_semantic_projection(
+            SemanticProjectionQuery::new(
+                projection_key,
+                SchemaRevision::new(1),
+                2,
+                "counter-model-2",
+                vec![1.0, 0.0],
+                1,
+            )
+            .expect("model revision two query should be valid"),
+        )
+        .await
+        .expect("model revision two query should succeed");
+    assert_eq!(v2_hits.len(), 1);
+    let authority_after_projection = store
+        .snapshot(timeline())
+        .expect("authority snapshot should remain readable after projection changes");
+    assert_eq!(
+        authority_before_projection.version(),
+        authority_after_projection.version()
+    );
+    assert_eq!(
+        authority_before_projection.events,
+        authority_after_projection.events
+    );
+    assert_eq!(
+        authority_before_projection.base,
+        authority_after_projection.base
+    );
+
+    let blob_store = InMemoryBlobStore::new();
+    let blob_reference = blob_store
+        .put(b"ME-212 immutable blob", Some("text/plain"))
+        .await
+        .expect("blob put should succeed");
+    assert_eq!(
+        blob_store
+            .put(b"ME-212 immutable blob", Some("text/plain"))
+            .await
+            .expect("duplicate blob put should be idempotent"),
+        blob_reference
+    );
+    assert!(matches!(
+        blob_store
+            .put(b"ME-212 immutable blob", Some("application/octet-stream"))
+            .await,
+        Err(BlobError::MetadataMismatch { .. })
+    ));
+    assert_eq!(
+        blob_store
+            .read(&blob_reference)
+            .await
+            .expect("blob read should verify immutable metadata")
+            .bytes(),
+        b"ME-212 immutable blob"
+    );
+    blob_store
+        .corrupt(&blob_reference, b"tampered".to_vec())
+        .expect("test adapter should permit deterministic corruption simulation");
+    assert!(matches!(
+        blob_store.read(&blob_reference).await,
+        Err(BlobError::SizeMismatch { .. } | BlobError::HashMismatch { .. })
+    ));
+    blob_store
+        .delete(&blob_reference)
+        .expect("blob delete should remove only the adapter object");
+    assert!(matches!(
+        blob_store.read(&blob_reference).await,
+        Err(BlobError::NotFound { .. })
+    ));
+
+    let local_root = std::env::temp_dir().join(format!("loom-me212-gate-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&local_root);
+    fs::create_dir_all(&local_root).expect("local blob fixture directory should be created");
+    let local_reference = {
+        let local_store = LocalBlobStore::new(&local_root).expect("local BlobStore should open");
+        local_store
+            .put(b"reopen me", None)
+            .await
+            .expect("local blob put should succeed")
+    };
+    let reopened_local_store =
+        LocalBlobStore::new(&local_root).expect("local BlobStore should reopen");
+    assert_eq!(
+        reopened_local_store
+            .read(&local_reference)
+            .await
+            .expect("reopened local blob should read")
+            .bytes(),
+        b"reopen me"
+    );
+    reopened_local_store
+        .delete(&local_reference)
+        .await
+        .expect("reopened local blob should delete its object");
+    fs::remove_dir_all(&local_root).expect("local blob fixture directory should be cleaned");
+    let authority_after_blob = store
+        .snapshot(timeline())
+        .expect("authority snapshot should remain readable after blob failures");
+    assert_eq!(
+        authority_after_projection.version(),
+        authority_after_blob.version()
+    );
+    assert_eq!(
+        authority_after_projection.events,
+        authority_after_blob.events
+    );
+
+    let pinned_session = PinnedReadSession::new(
+        id(900),
+        world(),
+        timeline(),
+        authority_before_projection.version(),
+        authority_before_projection.world_time(),
+    );
+    let mut pinned_boundary = PinnedReadBoundary::new(&store, PinnedReadPolicy::new(1, 2));
+    pinned_boundary
+        .entity(&pinned_session, entity(10))
+        .await
+        .expect("pinned Entity read should succeed")
+        .value()
+        .as_ref()
+        .expect("pinned Entity should exist");
+    pinned_boundary
+        .entity(&pinned_session, entity(10))
+        .await
+        .expect("exact-version cache read should succeed");
+    assert_eq!(pinned_boundary.metrics().cache_hits(), 1);
+
+    let race_session = PinnedReadSession::new(
+        id(901),
+        world(),
+        timeline(),
+        authority_before_projection.version(),
+        authority_before_projection.world_time(),
+    );
+    let race_runtime =
+        Runtime::new(&store, counter_registry()).expect("race Runtime should assemble");
+    let (commit_result, raced_read) = tokio::join!(
+        race_runtime.invoke(counter_request(
+            COUNTER_INCREMENT,
+            json!({"amount": 1, "event_id": event(220).to_string()}),
+        )),
+        PinnedWorldReadStore::read_entity(&store, &race_session, entity(10)),
+    );
+    assert!(
+        commit_result
+            .expect("concurrent authority commit should complete")
+            .is_committed()
+    );
+    match raced_read {
+        Ok(read) => assert!(read.value().is_some()),
+        Err(ReadError::PinnedVersionMismatch { .. }) => {}
+        Err(error) => panic!("pinned race returned an unrelated error: {error:?}"),
+    }
+    let mut stale_boundary = PinnedReadBoundary::new(&store, PinnedReadPolicy::new(1, 0));
+    let stale = stale_boundary
+        .entity(&pinned_session, entity(10))
+        .await
+        .expect_err("fresh boundary must fence the old pinned version");
+    assert!(matches!(stale, ReadError::PinnedVersionMismatch { .. }));
+    assert!(stale_boundary.policy().should_restart(0, &stale));
+    let latest = store
+        .snapshot(timeline())
+        .expect("latest pinned version should be readable");
+    let latest_session = PinnedReadSession::new(
+        id(902),
+        world(),
+        timeline(),
+        latest.version(),
+        latest.world_time(),
+    );
+    let mut benchmark_boundary = PinnedReadBoundary::new(&store, PinnedReadPolicy::new(1, 2));
+    let started = Instant::now();
+    let benchmark_read = benchmark_boundary
+        .entity(&latest_session, entity(10))
+        .await
+        .expect("latest pinned Entity read should succeed");
+    let latency_us = started.elapsed().as_micros();
+    println!(
+        "ME-212 benchmark adapter=InMemory backend=local world_size=2 rows={} bytes={} latency_us={} cache_capacity={} max_restarts={}",
+        benchmark_read.metrics().rows_read(),
+        benchmark_read.metrics().bytes_read(),
+        latency_us,
+        benchmark_boundary.policy().cache_capacity(),
+        benchmark_boundary.policy().max_restarts(),
+    );
+    assert_eq!(benchmark_read.metrics().rows_read(), 1);
+    assert!(benchmark_read.value().is_some());
 }

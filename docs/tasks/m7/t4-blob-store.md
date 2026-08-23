@@ -1,13 +1,13 @@
 ---
 task: M7-T4
 issue: 171
-status: planned
+status: in_review
 depends_on: [167]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-23
+completed_at: 2026-08-23
+completion_pr: none (Executor constraint)
+merge_sha: candidate SHA reported in issue handoff
 ---
 # M7-T4 — Immutable Blob/Object Store
 
@@ -18,11 +18,15 @@ merge_sha:
 - Missing/corrupt object is typed access failure and cannot rewrite World history/state.
 
 ## Acceptance
-- [ ] Integrity/hash mismatch is detected.
-- [ ] Local/S3 adapter contract passes.
-- [ ] Blob absence changes only blob-read result.
-- [ ] No secrets/provider types leak lower layers.
-- [ ] Standard gates pass.
+- [x] Integrity/hash mismatch is detected.
+- [x] Local/S3 adapter contract passes.
+- [x] Blob absence changes only blob-read result.
+- [x] No secrets/provider types leak lower layers.
+- [x] Standard gates pass.
 
 ## Verification evidence
-Pending.
+Runtime/Storage targeted tests, workspace check/clippy/test, architecture, format
+and rustdoc gates pass. Blob tests cover deterministic BLAKE3 references,
+immutable duplicate puts, local filesystem and S3-compatible object-store
+adapters, corrupt-body hash/size mismatch, unavailable reads, and replay
+materialization/head invariance after the referenced object is removed.

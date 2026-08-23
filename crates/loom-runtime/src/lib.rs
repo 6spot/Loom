@@ -81,6 +81,7 @@
 
 #![forbid(unsafe_code)]
 
+mod blob;
 mod budget;
 mod entropy;
 mod identity;
@@ -93,6 +94,10 @@ mod replay;
 mod validation;
 mod views;
 
+pub use blob::{
+    BLOB_HASH_SIZE, BlobError, BlobHash, BlobHashParseError, BlobId, BlobMetadata, BlobObject,
+    BlobRef, BlobStore,
+};
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
 pub use entropy::{
     DeterministicEntropySource, EntropySource, EntropySourceError, EntropySourceId,
