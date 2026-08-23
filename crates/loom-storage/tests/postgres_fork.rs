@@ -172,6 +172,17 @@ async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_e
         c_after_restart.ancestry().fork_parent_event,
         Some(EventRef::new(timeline_a, event_id))
     );
+
+    let timeline_d = id::<TimelineId>(0x5105);
+    let child_d = TimelineForkStore::fork_timeline(
+        &restarted,
+        &TimelineFork::new(timeline_b, b_after_restart.version(), timeline_d)
+            .at_version(TimelineVersion::default()),
+    )
+    .await
+    .expect("B to D V0 fork should commit");
+    assert_eq!(child_d.ancestry().fork_parent_event, None);
+    assert!(child_d.events.is_empty());
     assert_eq!(
         WorldStore::snapshot(&restarted, timeline_a)
             .await

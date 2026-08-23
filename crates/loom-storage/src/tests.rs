@@ -2442,6 +2442,20 @@ async fn current_head_fork_resolves_parent_event_through_ancestry() {
         child_c.ancestry().fork_parent_event,
         Some(EventRef::new(timeline(), event_id))
     );
+
+    let child_c_before_parent_event = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(second_timeline(), child_b.version(), id(5))
+            .at_version(TimelineVersion::default()),
+    )
+    .await
+    .expect("second fork at B's pre-boundary position should commit");
+    assert_eq!(
+        child_c_before_parent_event.ancestry().fork_parent_event,
+        None,
+        "C's requested V0 must not inherit A's later EventRef"
+    );
+    assert!(child_c_before_parent_event.events.is_empty());
     assert_eq!(
         store
             .snapshot(timeline())

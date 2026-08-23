@@ -410,7 +410,7 @@ async fn resolve_parent_event_ref(
             });
         }
         timeline_id = parent_timeline;
-        visible_head = EventSeq::new(parent_head);
+        visible_head = EventSeq::new(visible_head.value().min(parent_head));
     }
 }
 

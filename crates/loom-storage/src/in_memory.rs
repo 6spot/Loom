@@ -1335,10 +1335,7 @@ impl InMemoryStore {
             });
         }
 
-        let parent_event = visible_events(&staged, source.timeline_id)
-            .into_iter()
-            .find(|event| event.event_seq == fork.fork_version.head_event_seq)
-            .map(|event| EventRef::new(event.timeline_id, event.id));
+        let parent_event = resolve_parent_event_ref(&staged.timelines, &source, fork.fork_version);
         let ancestry = TimelineAncestry::fork(source.timeline_id, fork.fork_version, parent_event);
 
         if let Some(existing) = staged.timelines.get(&fork.child_timeline_id) {
@@ -1895,6 +1892,40 @@ fn visible_event_ids(state: &StoreState, timeline_id: TimelineId) -> HashSet<Eve
         .into_iter()
         .map(|event| event.id)
         .collect()
+}
+
+fn resolve_parent_event_ref(
+    timelines: &HashMap<TimelineId, TimelineState>,
+    source: &TimelineState,
+    source_version: TimelineVersion,
+) -> Option<EventRef> {
+    let mut timeline_id = source.timeline_id;
+    let mut visible_head = source_version.head_event_seq;
+    let mut visited = HashSet::new();
+
+    loop {
+        if !visited.insert(timeline_id) {
+            return None;
+        }
+        let timeline = timelines.get(&timeline_id)?;
+        if let Some(event) = timeline
+            .events
+            .iter()
+            .filter(|event| event.event_seq <= visible_head)
+            .max_by_key(|event| event.event_seq)
+        {
+            return Some(EventRef::new(timeline_id, event.id));
+        }
+
+        let parent_timeline_id = timeline.ancestry.parent_timeline_id?;
+        let parent_version = timeline.ancestry.fork_parent_version?;
+        visible_head = loom_core::EventSeq::new(
+            visible_head
+                .value()
+                .min(parent_version.head_event_seq.value()),
+        );
+        timeline_id = parent_timeline_id;
+    }
 }
 
 fn validate_event(
