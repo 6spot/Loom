@@ -6,7 +6,7 @@ depends_on: [153, 154, 157]
 created_at: 2026-08-22
 started_at: 2026-08-23
 completed_at:
-completion_pr:
+completion_pr: 220
 merge_sha:
 ---
 # M5-T6 — Atomic Reaction Work scheduling
