@@ -298,22 +298,32 @@ impl ObjectStoreBlobStore {
         {
             Ok(_) => Ok(reference),
             Err(object_store::Error::AlreadyExists { .. }) => {
-                let existing = self.read_inner(&reference).await?;
-                if let Some(existing_type) = &existing.reference.metadata.content_type
-                    && existing_type != content_type.as_deref().unwrap_or_default()
-                {
+                let (existing, existing_content_type) =
+                    self.read_inner_with_metadata(&reference).await?;
+                if existing_content_type != content_type {
                     return Err(BlobError::MetadataMismatch {
-                        expected: Some(existing_type.clone()),
+                        expected: existing_content_type,
                         actual: content_type,
                     });
                 }
-                Ok(existing.reference)
+                let mut existing_reference = existing.reference;
+                existing_reference.metadata.content_type = existing_content_type;
+                Ok(existing_reference)
             }
             Err(error) => Err(map_object_store_error(reference.id, error)),
         }
     }
 
     async fn read_inner(&self, reference: &BlobRef) -> Result<BlobObject, BlobError> {
+        self.read_inner_with_metadata(reference)
+            .await
+            .map(|(object, _)| object)
+    }
+
+    async fn read_inner_with_metadata(
+        &self,
+        reference: &BlobRef,
+    ) -> Result<(BlobObject, Option<String>), BlobError> {
         if !reference.is_consistent() {
             return Err(BlobError::InvalidReference {
                 id: reference.id,
@@ -327,6 +337,10 @@ impl ObjectStoreBlobStore {
             .await
             .map_err(|error| map_object_store_error(reference.id, error))?;
         let reported_size = result.meta.size;
+        let content_type = result
+            .attributes
+            .get(&Attribute::ContentType)
+            .map(|value| value.as_ref().to_owned());
         let bytes = result
             .bytes()
             .await
@@ -338,10 +352,13 @@ impl ObjectStoreBlobStore {
             });
         }
         verify_bytes(reference, &bytes)?;
-        Ok(BlobObject {
-            reference: reference.clone(),
-            bytes: bytes.to_vec(),
-        })
+        Ok((
+            BlobObject {
+                reference: reference.clone(),
+                bytes: bytes.to_vec(),
+            },
+            content_type,
+        ))
     }
 
     /// Deletes one concrete object-store entry.
@@ -581,6 +598,20 @@ mod tests {
         let store = S3CompatibleBlobStore::new(backend.clone());
         exercise_contract(&store).await;
 
+        let no_metadata_reference = put(&store, b"x", None).await;
+        assert!(matches!(
+            store.put(b"x", Some("text/plain")).await,
+            Err(BlobError::MetadataMismatch {
+                expected: None,
+                actual: Some(actual),
+            }) if actual == "text/plain"
+        ));
+        assert_eq!(store.put(b"x", None).await.unwrap(), no_metadata_reference);
+        assert_eq!(
+            store.read(&no_metadata_reference).await.unwrap().bytes(),
+            b"x"
+        );
+
         let reference = put(&store, b"object body", Some("application/octet-stream")).await;
         let location = object_store::path::Path::from(reference.id.to_string());
         backend
@@ -612,6 +643,11 @@ mod tests {
             reference = put(&store, b"local bytes", None).await;
         }
         let reopened = LocalBlobStore::new(&root).unwrap();
+        assert_eq!(
+            reopened.read(&reference).await.unwrap().bytes(),
+            b"local bytes"
+        );
+        assert_eq!(reopened.put(b"local bytes", None).await.unwrap(), reference);
         assert_eq!(
             reopened.read(&reference).await.unwrap().bytes(),
             b"local bytes"
