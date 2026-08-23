@@ -93,6 +93,16 @@ For exact terminology such as semantic due-ness, operational claimability, Logic
 
 For Scheduler claim/admission, do **not** reconstruct a checklist from older baseline summaries. Use Amendment 0001 §9 + Amendment 0002 §2; when the logical head is Agency Wake, also apply Amendment 0003 §3.2 target-specific compatibility.
 
+## Local PostgreSQL integration tests
+
+Development on the standard Linux host reuses the repository-managed local PostgreSQL 18 + pgvector test service instead of starting an ad-hoc database for each task.
+
+- Start or inspect the service with `bash tools/postgres-test.sh up` / `status`.
+- Run PostgreSQL-dependent tests through `bash tools/test.sh ...`; this loads `.env.test.local` and requires PostgreSQL integration tests rather than silently skipping them.
+- Do not invent a different local test URL or launch another PostgreSQL container when the repository service is available.
+- The configured URL is a control database. Test fixtures create/drop isolated child databases, so the configured role must retain the required database-creation privileges.
+- See `docs/development/postgres-tests.md` for lifecycle, networking and CI details.
+
 ## Task records
 
 GitHub Issues are the collaboration surface; repository task files are the durable audit trail **once the rebuilt implementation plan is active**.
