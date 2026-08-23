@@ -181,18 +181,40 @@ impl PgStorage {
             "fork_parent_state_revision",
             "fork_parent_state_revision",
         )?;
+        let parent_event_timeline = optional_identity::<TimelineId>(
+            &timeline_row,
+            "fork_parent_event_timeline_id",
+            "TimelineId",
+        )?;
         let parent_event =
             optional_identity::<EventId>(&timeline_row, "fork_parent_event_id", "EventId")?;
-        let ancestry = match (parent_timeline, parent_head, parent_state) {
-            (None, None, None) => TimelineAncestry::root(),
-            (Some(parent_timeline), Some(parent_head), Some(parent_state)) => {
+        let ancestry = match (
+            parent_timeline,
+            parent_head,
+            parent_state,
+            parent_event_timeline,
+            parent_event,
+        ) {
+            (None, None, None, None, None) => TimelineAncestry::root(),
+            (
+                Some(parent_timeline),
+                Some(parent_head),
+                Some(parent_state),
+                Some(parent_event_timeline),
+                Some(parent_event),
+            ) => TimelineAncestry::fork(
+                parent_timeline,
+                TimelineVersion::new(EventSeq::new(parent_head), StateRevision::new(parent_state)),
+                Some(EventRef::new(parent_event_timeline, parent_event)),
+            ),
+            (Some(parent_timeline), Some(parent_head), Some(parent_state), None, None) => {
                 TimelineAncestry::fork(
                     parent_timeline,
                     TimelineVersion::new(
                         EventSeq::new(parent_head),
                         StateRevision::new(parent_state),
                     ),
-                    parent_event.map(|event| EventRef::new(parent_timeline, event)),
+                    None,
                 )
             }
             _ => return Err(corrupt("persisted Timeline ancestry columns disagree")),
