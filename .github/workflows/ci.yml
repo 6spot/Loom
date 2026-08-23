@@ -71,7 +71,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Test
-        run: cargo test --workspace --all-features
+        run: bash tools/test.sh --workspace --all-features
 
       - name: Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
@@ -97,7 +97,6 @@ jobs:
       # Ephemeral CI-only control connection. Individual tests create/drop their
       # own migrated databases and never share application state.
       LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
-      LOOM_REQUIRE_POSTGRES_TESTS: "1"
 
     steps:
       - name: Checkout
