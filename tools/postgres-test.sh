@@ -37,7 +37,7 @@ case "${1:-up}" in
     ;;
   up)
     init_env
-    compose up -d
+    compose up -d --wait --wait-timeout 60
     compose ps
     ;;
   down)
