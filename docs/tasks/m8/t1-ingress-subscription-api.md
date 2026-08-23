@@ -1,10 +1,10 @@
 ---
 task: M8-T1
 issue: 174
-status: planned
+status: in_review
 depends_on: [173]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-24
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,4 +29,15 @@ No HTTP types in `loom-api`, direct Ingress Event/Effect/commit endpoint, accept
 Architecture: Amendment 0001 §6.2.
 
 ## Verification evidence
-Pending.
+- `crates/loom-api/src/lib.rs` defines transport-neutral Ingress envelope,
+  idempotency acceptance/conflict, platform status, completed commit/no-change/
+  semantic-rejection results and technical retry/failure states.
+- The same public crate defines Timeline/EventSeq Change Feed cursors, bounded
+  page requests, resume/reconnect/end/backpressure values and a focused
+  `SubscriptionService`; no callback, process notification ID or transport
+  type is exposed.
+- `cargo fmt --all -- --check` passed.
+- `cargo check --workspace` passed.
+- `cargo clippy --workspace --all-targets -- -D warnings` passed.
+- `cargo test --workspace` passed.
+- `cargo doc --workspace --no-deps` passed.

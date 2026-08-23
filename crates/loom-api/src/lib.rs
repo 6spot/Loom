@@ -12,9 +12,10 @@
 //!
 //! This v0 surface contains only the World-facing contracts needed by the
 //! in-memory vertical slice: Action invocation, Timeline inspection, current
-//! Facet queries, committed Event history and central Capability/Action
-//! discovery. Runtime administration is a separate future API boundary and is
-//! deliberately not represented by these traits.
+//! Facet queries, committed Event history, external Ingress, committed Change
+//! Feed/Subscription reads and central Capability/Action discovery. Runtime
+//! administration is a separate API namespace and is deliberately not
+//! represented by these traits.
 //!
 //! # Dependency and exposure rules
 //!
@@ -356,6 +357,767 @@ impl ActionRequest {
     ) -> Self {
         Self::new(TimelineTarget::new(world_id, timeline_id), invocation)
     }
+}
+
+/// Stable identity allocated for one external Ingress submission.
+///
+/// This is a platform request identity, not an Event, Work or World identity.
+/// Runtime owns allocation and persistence; the public API only carries the
+/// value needed to query the submission's platform status. It is deliberately
+/// text-shaped so a Boundary can preserve an external stable identifier
+/// without introducing a UUID or transport dependency into this contract.
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct IngressId(String);
+
+impl IngressId {
+    /// Creates an Ingress identity from a stable boundary key.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Borrows the stable Ingress identity.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns whether this identity is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for IngressId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for IngressId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<IngressId> for String {
+    fn from(value: IngressId) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for IngressId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// Caller-supplied key used to deduplicate one logical external submission.
+///
+/// Reusing a key with an equivalent request is reported as a platform
+/// deduplication. Reusing it for a different request is an explicit
+/// [`IdempotencyConflict`]; neither outcome is a World commit result.
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct IdempotencyKey(String);
+
+impl IdempotencyKey {
+    /// Creates an idempotency key from a caller-stable value.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Borrows the key.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns whether this key is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for IdempotencyKey {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for IdempotencyKey {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<IdempotencyKey> for String {
+    fn from(value: IdempotencyKey) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for IdempotencyKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// Opaque authorization/policy data carried with an Ingress envelope.
+///
+/// The API preserves this value for Runtime policy evaluation but assigns it
+/// no authorization meaning and does not inspect its schema. It is not a
+/// capability token, a storage credential or a proof that the request is
+/// authorized.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct IngressAuthorizationContext(Value);
+
+impl IngressAuthorizationContext {
+    /// Creates an opaque authorization context from policy data.
+    #[must_use]
+    pub fn new(policy_data: Value) -> Self {
+        Self(policy_data)
+    }
+
+    /// Borrows the opaque policy data without interpreting it.
+    #[must_use]
+    pub const fn as_value(&self) -> &Value {
+        &self.0
+    }
+
+    /// Returns the opaque policy data.
+    #[must_use]
+    pub fn into_value(self) -> Value {
+        self.0
+    }
+}
+
+/// Compatibility spelling for callers that use the shorter authorization
+/// context name. The value remains Ingress-scoped and opaque.
+pub type AuthorizationContext = IngressAuthorizationContext;
+
+/// Source and provenance metadata supplied by an external producer.
+///
+/// `source` and `external_id` identify the producer's namespace; `metadata`
+/// carries provider-specific provenance without making provider fields part of
+/// the Loom API. This metadata is execution provenance, not World payload or
+/// Event history.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct IngressProvenance {
+    /// Stable producer or source-system namespace.
+    pub source: String,
+    /// Optional source-system identity for the observed external item.
+    pub external_id: Option<String>,
+    /// Opaque source-specific provenance metadata.
+    pub metadata: Value,
+}
+
+impl IngressProvenance {
+    /// Creates provenance for one source namespace.
+    #[must_use]
+    pub fn new(source: impl Into<String>) -> Self {
+        Self {
+            source: source.into(),
+            external_id: None,
+            metadata: Value::Object(serde_json::Map::new()),
+        }
+    }
+
+    /// Adds a source-system item identity.
+    #[must_use]
+    pub fn with_external_id(mut self, external_id: impl Into<String>) -> Self {
+        self.external_id = Some(external_id.into());
+        self
+    }
+
+    /// Adds opaque source-specific metadata.
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: Value) -> Self {
+        self.metadata = metadata;
+        self
+    }
+}
+
+/// Source and platform time metadata carried by an Ingress envelope.
+///
+/// Values are serialized boundary metadata and never advance World Time by
+/// themselves. A real-world timestamp-to-World-Time mapping requires an
+/// explicit authorized Runtime control transition. `platform_time` is owned
+/// by the receiving platform and may be absent before acceptance.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct IngressTimeMetadata {
+    /// Producer-observed time, if the source supplied one.
+    pub source_time: Option<String>,
+    /// Platform receipt/processing time, if one has been assigned.
+    pub platform_time: Option<String>,
+}
+
+impl IngressTimeMetadata {
+    /// Creates empty time metadata for a new external submission.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            source_time: None,
+            platform_time: None,
+        }
+    }
+
+    /// Creates metadata with an externally supplied source time.
+    #[must_use]
+    pub fn from_source(source_time: impl Into<String>) -> Self {
+        Self {
+            source_time: Some(source_time.into()),
+            platform_time: None,
+        }
+    }
+
+    /// Adds the platform-assigned time.
+    #[must_use]
+    pub fn with_platform_time(mut self, platform_time: impl Into<String>) -> Self {
+        self.platform_time = Some(platform_time.into());
+        self
+    }
+}
+
+/// Transport-neutral external input envelope around one normal Action attempt.
+///
+/// Acceptance of this envelope records a platform input boundary only. The
+/// contained [`ActionInvocation`] still follows normal Runtime resolution,
+/// validation, World Binding and logical commit authority; the envelope is not
+/// a direct Event, Effect or commit endpoint.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct IngressEnvelope {
+    /// Stable platform identity for this submission.
+    pub ingress_id: IngressId,
+    /// Caller key used for idempotent submission.
+    pub idempotency_key: IdempotencyKey,
+    /// Source and execution provenance metadata.
+    pub provenance: IngressProvenance,
+    /// World and Timeline that the normal Action targets.
+    pub target: TimelineTarget,
+    /// Opaque policy data evaluated by Runtime authorization.
+    pub authorization: IngressAuthorizationContext,
+    /// Source/platform time metadata; neither value is World Time.
+    pub time_metadata: IngressTimeMetadata,
+    /// Normal semantic Action routed after Ingress acceptance.
+    pub invocation: ActionInvocation,
+}
+
+impl IngressEnvelope {
+    /// Creates one transport-neutral Ingress envelope.
+    #[must_use]
+    pub fn new(
+        ingress_id: impl Into<IngressId>,
+        idempotency_key: impl Into<IdempotencyKey>,
+        provenance: IngressProvenance,
+        target: TimelineTarget,
+        authorization: IngressAuthorizationContext,
+        time_metadata: IngressTimeMetadata,
+        invocation: ActionInvocation,
+    ) -> Self {
+        Self {
+            ingress_id: ingress_id.into(),
+            idempotency_key: idempotency_key.into(),
+            provenance,
+            target,
+            authorization,
+            time_metadata,
+            invocation,
+        }
+    }
+}
+
+/// Compatibility name for the public Ingress submission request.
+pub type IngressRequest = IngressEnvelope;
+
+/// Platform receipt returned after an Ingress is accepted or deduplicated.
+///
+/// A receipt contains no Event, `EventSeq`, `TimelineVersion` or committed-state
+/// claim. Consumers must query [`IngressStatusRecord`] for execution truth.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct IngressReceipt {
+    /// Stable platform identity to use for status lookup.
+    pub ingress_id: IngressId,
+    /// Idempotency key associated with this logical submission.
+    pub idempotency_key: IdempotencyKey,
+}
+
+impl IngressReceipt {
+    /// Creates a platform receipt.
+    #[must_use]
+    pub const fn new(ingress_id: IngressId, idempotency_key: IdempotencyKey) -> Self {
+        Self {
+            ingress_id,
+            idempotency_key,
+        }
+    }
+}
+
+/// Explicit conflict information when an idempotency key names a different
+/// logical request than the submitted envelope.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct IdempotencyConflict {
+    /// Key that was reused.
+    pub idempotency_key: IdempotencyKey,
+    /// Existing submission that owns the key.
+    pub existing_ingress_id: IngressId,
+    /// Boundary-computed fingerprint of the existing request.
+    pub existing_request_fingerprint: String,
+    /// Boundary-computed fingerprint of the conflicting request.
+    pub submitted_request_fingerprint: String,
+}
+
+impl IdempotencyConflict {
+    /// Creates an explicit idempotency conflict description.
+    #[must_use]
+    pub fn new(
+        idempotency_key: IdempotencyKey,
+        existing_ingress_id: IngressId,
+        existing_request_fingerprint: impl Into<String>,
+        submitted_request_fingerprint: impl Into<String>,
+    ) -> Self {
+        Self {
+            idempotency_key,
+            existing_ingress_id,
+            existing_request_fingerprint: existing_request_fingerprint.into(),
+            submitted_request_fingerprint: submitted_request_fingerprint.into(),
+        }
+    }
+}
+
+/// Platform-level outcome of submitting an Ingress envelope.
+///
+/// `Accepted` and `Deduplicated` say only that the platform has a durable
+/// submission identity. `IdempotencyConflict` is a normal explicit platform
+/// outcome. None of these variants claims that the Action committed World
+/// Truth.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum IngressAcceptance {
+    /// A new logical submission was accepted for processing.
+    Accepted(IngressReceipt),
+    /// The key matched an existing equivalent submission.
+    Deduplicated(IngressReceipt),
+    /// The key was already used for a different request.
+    IdempotencyConflict(IdempotencyConflict),
+}
+
+impl IngressAcceptance {
+    /// Creates a new-acceptance result.
+    #[must_use]
+    pub const fn accepted(receipt: IngressReceipt) -> Self {
+        Self::Accepted(receipt)
+    }
+
+    /// Creates a deduplication result.
+    #[must_use]
+    pub const fn deduplicated(receipt: IngressReceipt) -> Self {
+        Self::Deduplicated(receipt)
+    }
+
+    /// Creates an idempotency conflict result.
+    #[must_use]
+    pub const fn conflict(conflict: IdempotencyConflict) -> Self {
+        Self::IdempotencyConflict(conflict)
+    }
+
+    /// Reports whether a new platform submission was accepted.
+    #[must_use]
+    pub const fn is_accepted(&self) -> bool {
+        matches!(self, Self::Accepted(_))
+    }
+
+    /// Reports whether this submission was deduplicated.
+    #[must_use]
+    pub const fn is_deduplicated(&self) -> bool {
+        matches!(self, Self::Deduplicated(_))
+    }
+
+    /// Reports whether the platform rejected the submission for key reuse.
+    #[must_use]
+    pub const fn is_conflict(&self) -> bool {
+        matches!(self, Self::IdempotencyConflict(_))
+    }
+}
+
+/// Completed semantic result of an accepted Ingress execution.
+///
+/// Only `Committed` carries World history identity. `Rejected` is a completed
+/// semantic result, not a technical failure. `NoChange` is also complete but
+/// intentionally carries no claim that a new Event was appended.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum IngressCompletion {
+    /// Normal Runtime commit succeeded and produced the listed Event history.
+    Committed {
+        /// Timeline-qualified identities of committed Events.
+        event_refs: Vec<EventRef>,
+        /// Timeline version after the commit linearization point.
+        timeline_version: TimelineVersion,
+    },
+    /// Semantic execution completed without a World or Work mutation.
+    NoChange,
+    /// The owning Capability semantically refused the Action.
+    Rejected(Rejection),
+}
+
+impl IngressCompletion {
+    /// Reports whether the normal Runtime commit linearization point succeeded.
+    #[must_use]
+    pub const fn is_committed(&self) -> bool {
+        matches!(self, Self::Committed { .. })
+    }
+
+    /// Reports whether the Action completed with a semantic rejection.
+    #[must_use]
+    pub const fn is_rejected(&self) -> bool {
+        matches!(self, Self::Rejected(_))
+    }
+}
+
+/// Compatibility spelling for consumers that call the completed value an
+/// execution result.
+pub type IngressExecutionResult = IngressCompletion;
+
+/// Technical failure details carried by platform retry/error statuses.
+///
+/// This value is not a semantic rejection and does not represent World Truth.
+/// Whether the failure is retryable or terminal is expressed by the enclosing
+/// [`IngressStatus`] variant.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct IngressTechnicalFailure {
+    /// Stable platform-facing failure category.
+    pub code: String,
+    /// Boundary-safe explanation for logs or a transport adapter.
+    pub message: String,
+}
+
+impl IngressTechnicalFailure {
+    /// Creates technical failure details.
+    #[must_use]
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+}
+
+/// Platform lifecycle state for one accepted Ingress.
+///
+/// `Accepted`/`Processing` are platform states. `Completed` contains the only
+/// semantic execution result. Technical retry and terminal error remain
+/// platform states, separate from semantic [`IngressCompletion::Rejected`].
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum IngressStatus {
+    /// The platform accepted the submission but has not started execution.
+    Accepted,
+    /// The platform is attempting the normal semantic Action.
+    Processing,
+    /// Execution reached a terminal semantic outcome.
+    Completed(IngressCompletion),
+    /// A technical failure may be retried by the platform.
+    Retryable(IngressTechnicalFailure),
+    /// A technical failure has been terminalized by platform policy.
+    Failed(IngressTechnicalFailure),
+}
+
+impl IngressStatus {
+    /// Reports whether this status has reached a terminal outcome.
+    #[must_use]
+    pub const fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed(_) | Self::Failed(_))
+    }
+
+    /// Reports whether this status contains a completed semantic result.
+    #[must_use]
+    pub const fn is_completed(&self) -> bool {
+        matches!(self, Self::Completed(_))
+    }
+}
+
+/// Status record for one Ingress platform submission.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct IngressStatusRecord {
+    /// Submission identity returned by the acceptance receipt.
+    pub ingress_id: IngressId,
+    /// Idempotency key associated with this submission.
+    pub idempotency_key: IdempotencyKey,
+    /// Current platform/execution state.
+    pub status: IngressStatus,
+}
+
+/// Compatibility spelling for the status response returned by Ingress APIs.
+pub type IngressStatusResponse = IngressStatusRecord;
+
+impl IngressStatusRecord {
+    /// Creates a status record.
+    #[must_use]
+    pub const fn new(
+        ingress_id: IngressId,
+        idempotency_key: IdempotencyKey,
+        status: IngressStatus,
+    ) -> Self {
+        Self {
+            ingress_id,
+            idempotency_key,
+            status,
+        }
+    }
+}
+
+/// Upper bound a Subscription/Change Feed request may ask for in one page.
+///
+/// Runtime owns enforcement and may choose a lower operational bound, but a
+/// public request is never an unbounded history read.
+pub const MAX_CHANGE_FEED_PAGE_SIZE: u32 = 1_000;
+
+/// Stable resume position in committed Timeline history.
+///
+/// A cursor is tied to a World/Timeline and advances by authoritative
+/// `EventSeq`. It is not a process notification ID, connection ID, UUID sort
+/// order or platform receipt. Consumers resume strictly after `after`.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct ChangeFeedCursor {
+    /// World and Timeline whose committed history is being resumed.
+    pub target: TimelineTarget,
+    /// Last committed Timeline sequence already consumed.
+    pub after: EventSeq,
+}
+
+impl ChangeFeedCursor {
+    /// Creates a cursor after one committed Timeline sequence.
+    #[must_use]
+    pub const fn after(target: TimelineTarget, after: EventSeq) -> Self {
+        Self { target, after }
+    }
+
+    /// Creates the beginning-of-history cursor for one Timeline.
+    #[must_use]
+    pub const fn beginning(target: TimelineTarget) -> Self {
+        Self {
+            target,
+            after: EventSeq::new(0),
+        }
+    }
+}
+
+/// Bounded request for committed World Change Feed history.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ChangeFeedRequest {
+    /// World and Timeline whose committed history is read.
+    pub target: TimelineTarget,
+    /// Last consumed committed position, or `None` to begin at the start.
+    pub cursor: Option<ChangeFeedCursor>,
+    /// Maximum number of committed Events requested in this page.
+    pub limit: u32,
+}
+
+impl ChangeFeedRequest {
+    /// Creates a bounded Change Feed request from the beginning of history.
+    #[must_use]
+    pub const fn new(target: TimelineTarget, limit: u32) -> Self {
+        Self {
+            target,
+            cursor: None,
+            limit,
+        }
+    }
+
+    /// Sets the committed Timeline cursor used for resume.
+    #[must_use]
+    pub const fn with_cursor(mut self, cursor: ChangeFeedCursor) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+
+    /// Reports whether this request has a non-zero, bounded page size and a
+    /// cursor addressed to the same World/Timeline.
+    #[must_use]
+    pub fn is_bounded(&self) -> bool {
+        self.limit > 0
+            && self.limit <= MAX_CHANGE_FEED_PAGE_SIZE
+            && match self.cursor {
+                Some(cursor) => {
+                    cursor.target.world_id == self.target.world_id
+                        && cursor.target.timeline_id == self.target.timeline_id
+                }
+                None => true,
+            }
+    }
+
+    /// Validates the stable public bounds before a service reads history.
+    ///
+    /// Runtime may apply a lower operational bound, but it must never accept
+    /// an unbounded request or silently read a cursor from another Timeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiErrorCode::InvalidRequest`] when the page size is zero,
+    /// exceeds [`MAX_CHANGE_FEED_PAGE_SIZE`] or the cursor targets another
+    /// World/Timeline.
+    pub fn validate(&self) -> ApiResult<()> {
+        if self.is_bounded() {
+            Ok(())
+        } else {
+            Err(ApiError::invalid_request(
+                "Change Feed limit or Timeline cursor is invalid",
+            ))
+        }
+    }
+}
+
+/// One bounded page of committed Timeline Change Feed history.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct ChangeFeedPage {
+    /// Events in authoritative Timeline `EventSeq` order.
+    pub events: Vec<CommittedEvent>,
+    /// Cursor after the last returned Event, when the page returned data.
+    pub next_cursor: Option<ChangeFeedCursor>,
+    /// Whether more committed history was available at the read boundary.
+    pub has_more: bool,
+}
+
+/// Compatibility spelling for consumers that call a page a feed batch.
+pub type ChangeFeedBatch = ChangeFeedPage;
+
+/// Request to read/resume one transport-neutral committed Change Feed
+/// subscription.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SubscriptionRequest {
+    /// World and Timeline whose committed history is observed.
+    pub target: TimelineTarget,
+    /// Durable committed cursor to resume after; `None` starts at history.
+    pub resume_from: Option<ChangeFeedCursor>,
+    /// Maximum number of Events to return in one bounded result.
+    pub limit: u32,
+}
+
+impl SubscriptionRequest {
+    /// Creates a new bounded subscription read from the beginning.
+    #[must_use]
+    pub const fn new(target: TimelineTarget, limit: u32) -> Self {
+        Self {
+            target,
+            resume_from: None,
+            limit,
+        }
+    }
+
+    /// Creates a bounded subscription read resumed from committed history.
+    #[must_use]
+    pub const fn resume(target: TimelineTarget, cursor: ChangeFeedCursor, limit: u32) -> Self {
+        Self {
+            target,
+            resume_from: Some(cursor),
+            limit,
+        }
+    }
+
+    /// Reports whether this request has a non-zero, bounded page size and a
+    /// resume cursor addressed to the same World/Timeline.
+    #[must_use]
+    pub fn is_bounded(&self) -> bool {
+        self.limit > 0
+            && self.limit <= MAX_CHANGE_FEED_PAGE_SIZE
+            && match self.resume_from {
+                Some(cursor) => {
+                    cursor.target.world_id == self.target.world_id
+                        && cursor.target.timeline_id == self.target.timeline_id
+                }
+                None => true,
+            }
+    }
+
+    /// Validates the stable public bounds before a service starts a read.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ApiErrorCode::InvalidRequest`] when the page size is zero,
+    /// exceeds [`MAX_CHANGE_FEED_PAGE_SIZE`] or the resume cursor targets
+    /// another World/Timeline.
+    pub fn validate(&self) -> ApiResult<()> {
+        if self.is_bounded() {
+            Ok(())
+        } else {
+            Err(ApiError::invalid_request(
+                "Subscription limit or Timeline cursor is invalid",
+            ))
+        }
+    }
+}
+
+/// Reason a consumer should reconnect and resume from a committed cursor.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum SubscriptionReconnectReason {
+    /// A temporary platform condition interrupted delivery.
+    TemporaryFailure,
+    /// The platform is restarting or being maintained.
+    Maintenance,
+}
+
+/// Transport-neutral reconnect instruction.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SubscriptionReconnect {
+    /// Durable history position from which the consumer must resume.
+    pub resume_from: Option<ChangeFeedCursor>,
+    /// Platform-neutral reason for reconnecting.
+    pub reason: SubscriptionReconnectReason,
+}
+
+/// A successful resume position when no new page is returned yet.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SubscriptionResume {
+    /// Committed cursor retained for the next bounded read.
+    pub cursor: ChangeFeedCursor,
+}
+
+/// Reason a subscription ended without changing committed World history.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum SubscriptionEndReason {
+    /// The consumer explicitly ended the subscription.
+    ConsumerRequested,
+    /// The subscription source was closed by platform policy.
+    SourceClosed,
+}
+
+/// Transport-neutral terminal subscription result.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SubscriptionEnd {
+    /// Last durable cursor known to the subscription, when available.
+    pub cursor: Option<ChangeFeedCursor>,
+    /// Platform-neutral end reason.
+    pub reason: SubscriptionEndReason,
+}
+
+/// Transport-neutral backpressure instruction.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SubscriptionBackpressure {
+    /// Durable cursor that remains safe for a later resume.
+    pub resume_from: Option<ChangeFeedCursor>,
+    /// Optional platform hint in milliseconds; transport chooses its own
+    /// scheduling/framing representation.
+    pub retry_after_ms: Option<u64>,
+    /// Maximum page size the platform is currently willing to produce.
+    pub max_events: u32,
+}
+
+/// Result of one bounded, transport-neutral Change Feed subscription read.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum SubscriptionResult {
+    /// A committed Event page was read in Timeline order.
+    Events(ChangeFeedPage),
+    /// The requested resume position was accepted and remains durable.
+    Resumed(SubscriptionResume),
+    /// The consumer must reconnect and use the supplied committed cursor.
+    Reconnect(SubscriptionReconnect),
+    /// The subscription has ended and cannot produce another page.
+    Ended(SubscriptionEnd),
+    /// The consumer must reduce demand or wait before requesting more data.
+    Backpressure(SubscriptionBackpressure),
 }
 
 /// The public outcome of a semantic Action execution.
@@ -1237,6 +1999,46 @@ pub trait ActionService {
     }
 }
 
+/// Accepts external input through the normal Runtime semantic Action path.
+///
+/// This is a World-facing public capability domain, not a direct Event or
+/// Effect endpoint. The default methods keep existing focused API test doubles
+/// source-compatible while Runtime/Boundary implementations are added by the
+/// durable Ingress tasks.
+pub trait IngressService {
+    /// Accepts one idempotent external Action envelope.
+    ///
+    /// `Ok(IngressAcceptance)` reports platform acceptance, deduplication or
+    /// an explicit idempotency conflict. It does not report World commit truth;
+    /// callers query [`Self::ingress_status`] for that lifecycle.
+    fn submit_ingress(&self, _request: IngressEnvelope) -> ApiFuture<'_, IngressAcceptance> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Ingress submission is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Reads platform status and, once terminal, the semantic execution result.
+    fn ingress_status(&self, _ingress_id: IngressId) -> ApiFuture<'_, IngressStatusRecord> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Ingress status is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Short operation-name alias for [`Self::submit_ingress`].
+    fn submit(&self, request: IngressEnvelope) -> ApiFuture<'_, IngressAcceptance> {
+        self.submit_ingress(request)
+    }
+
+    /// Short operation-name alias for [`Self::ingress_status`].
+    fn status(&self, ingress_id: IngressId) -> ApiFuture<'_, IngressStatusRecord> {
+        self.ingress_status(ingress_id)
+    }
+}
+
 /// Inspects and forks Timelines at the unified public boundary.
 ///
 /// This service is intentionally limited to observation. Initial World/Timeline
@@ -1372,6 +2174,28 @@ pub trait HistoryService {
     }
 }
 
+/// Reads the committed World Change Feed through a durable Timeline cursor.
+///
+/// Subscription values describe bounded reads and lifecycle instructions only;
+/// they do not expose a callback, process notification ID, transport stream or
+/// commit authority. Runtime/Boundary adapters map these values to HTTP/SSE or
+/// another transport outside `loom-api`.
+pub trait SubscriptionService {
+    /// Reads or resumes one bounded committed Change Feed page.
+    fn subscribe(&self, _request: SubscriptionRequest) -> ApiFuture<'_, SubscriptionResult> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Change Feed subscription is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Explicit operation-name alias for [`Self::subscribe`].
+    fn poll_change_feed(&self, request: SubscriptionRequest) -> ApiFuture<'_, SubscriptionResult> {
+        self.subscribe(request)
+    }
+}
+
 /// Discovers centrally registered Capability and semantic Action definitions.
 ///
 /// The catalog is the single public discovery surface for all semantic
@@ -1426,8 +2250,14 @@ mod tests {
     use super::{
         ActionDescriptor, ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture,
         ApiResult, CapabilityDescriptor, CapabilityId, CatalogService, CatalogSnapshot,
-        CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventQuery,
-        ExecutionResult, FacetQuery, FacetSnapshot, HistoryService, LoomApi, QueryService,
+        ChangeFeedRequest, CommittedEvent, CreateWorldFromTemplateRequest,
+        CreateWorldFromTemplateResult, EventQuery, ExecutionResult, FacetQuery, FacetSnapshot,
+        HistoryService, IdempotencyConflict, IdempotencyKey, IngressAcceptance,
+        IngressAuthorizationContext, IngressCompletion, IngressEnvelope, IngressId,
+        IngressProvenance, IngressReceipt, IngressService, IngressStatus, IngressStatusRecord,
+        IngressTechnicalFailure, IngressTimeMetadata, LoomApi, QueryService,
+        SubscriptionBackpressure, SubscriptionEnd, SubscriptionEndReason, SubscriptionReconnect,
+        SubscriptionReconnectReason, SubscriptionRequest, SubscriptionResult, SubscriptionService,
         TimelineService, TimelineSnapshot, TimelineTarget, WorldService, WorldTemplateDescriptor,
     };
     use crate::{
@@ -1505,6 +2335,10 @@ mod tests {
             Box::pin(async { Ok(Vec::new()) })
         }
     }
+
+    impl IngressService for StubApi {}
+
+    impl SubscriptionService for StubApi {}
 
     impl CatalogService for StubApi {
         fn catalog(&self) -> ApiResult<CatalogSnapshot> {
@@ -1625,5 +2459,107 @@ mod tests {
         assert_eq!(query.target, target());
         assert!(query.after.is_none());
         assert!(query.limit.is_none());
+    }
+
+    #[test]
+    fn ingress_envelope_round_trips_without_transport_or_commit_values() {
+        let envelope = IngressEnvelope::new(
+            IngressId::from("ingress-1"),
+            IdempotencyKey::from("source-event-1"),
+            IngressProvenance::new("weather-feed")
+                .with_external_id("observation-1")
+                .with_metadata(json!({"region": "north"})),
+            target(),
+            IngressAuthorizationContext::new(json!({"tenant": "demo"})),
+            IngressTimeMetadata::from_source("2026-08-24T00:00:00Z")
+                .with_platform_time("2026-08-24T00:00:01Z"),
+            ActionInvocation::new(
+                ActionTypeId::from("weather.observe_external_report"),
+                json!({"temperature": 21}),
+            ),
+        );
+
+        let encoded = serde_json::to_string(&envelope).expect("Ingress should serialize");
+        let decoded: IngressEnvelope =
+            serde_json::from_str(&encoded).expect("Ingress should deserialize");
+        assert_eq!(decoded, envelope);
+        assert_eq!(decoded.target, target());
+    }
+
+    #[test]
+    fn ingress_platform_lifecycle_keeps_commit_and_semantic_rejection_distinct() {
+        let receipt =
+            IngressReceipt::new(IngressId::from("ingress-1"), IdempotencyKey::from("key-1"));
+        let accepted = IngressAcceptance::accepted(receipt.clone());
+        assert!(accepted.is_accepted());
+        assert!(!accepted.is_deduplicated());
+
+        let deduplicated = IngressAcceptance::deduplicated(receipt.clone());
+        assert!(deduplicated.is_deduplicated());
+
+        let conflict = IngressAcceptance::conflict(IdempotencyConflict::new(
+            IdempotencyKey::from("key-1"),
+            IngressId::from("ingress-1"),
+            "sha256:existing",
+            "sha256:submitted",
+        ));
+        assert!(conflict.is_conflict());
+
+        let rejected = IngressStatus::Completed(IngressCompletion::Rejected(Rejection::new(
+            "weather.invalid_report",
+            "report is semantically invalid",
+        )));
+        assert!(rejected.is_terminal());
+        assert!(rejected.is_completed());
+        assert!(matches!(rejected, IngressStatus::Completed(_)));
+
+        let retryable = IngressStatus::Retryable(IngressTechnicalFailure::new(
+            "runtime_unavailable",
+            "temporary execution failure",
+        ));
+        assert!(!retryable.is_terminal());
+        let status =
+            IngressStatusRecord::new(receipt.ingress_id, receipt.idempotency_key, retryable);
+        let encoded = serde_json::to_string(&status).expect("status should serialize");
+        let decoded: IngressStatusRecord =
+            serde_json::from_str(&encoded).expect("status should deserialize");
+        assert_eq!(decoded, status);
+    }
+
+    #[test]
+    fn change_feed_resume_uses_timeline_event_sequence_and_bounded_results() {
+        let cursor = super::ChangeFeedCursor::after(target(), 7.into());
+        let feed_request = ChangeFeedRequest::new(target(), 50).with_cursor(cursor);
+        assert!(feed_request.is_bounded());
+        feed_request
+            .validate()
+            .expect("feed request should be valid");
+
+        let request = SubscriptionRequest::resume(target(), cursor, 50);
+        assert_eq!(request.resume_from, Some(cursor));
+        assert!(request.is_bounded());
+        request
+            .validate()
+            .expect("subscription request should be valid");
+
+        let reconnect = SubscriptionResult::Reconnect(SubscriptionReconnect {
+            resume_from: Some(cursor),
+            reason: SubscriptionReconnectReason::TemporaryFailure,
+        });
+        let ended = SubscriptionResult::Ended(SubscriptionEnd {
+            cursor: Some(cursor),
+            reason: SubscriptionEndReason::ConsumerRequested,
+        });
+        let backpressure = SubscriptionResult::Backpressure(SubscriptionBackpressure {
+            resume_from: Some(cursor),
+            retry_after_ms: Some(100),
+            max_events: 10,
+        });
+
+        for result in [reconnect, ended, backpressure] {
+            let encoded = serde_json::to_string(&result).expect("subscription should serialize");
+            let _: SubscriptionResult =
+                serde_json::from_str(&encoded).expect("subscription should deserialize");
+        }
     }
 }
