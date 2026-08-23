@@ -6,7 +6,7 @@ depends_on: [154, 162]
 created_at: 2026-08-22
 started_at: 2026-08-23
 completed_at:
-completion_pr:
+completion_pr: 223
 merge_sha:
 ---
 # M6-T2 — Replay Timeline Logical State
