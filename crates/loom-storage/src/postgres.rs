@@ -13,7 +13,7 @@ mod fork;
 mod session;
 mod work;
 
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, time::Instant};
 
 use loom_core::{
     AssociationRole, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
@@ -24,7 +24,8 @@ use loom_core::{
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption,
     ChronologyBudgetState, CommittedEvent, LifecycleError, LogicalCommit, LogicalJournalStore,
-    LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
+    LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
+    PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
     WorkLease, WorkRecord, WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore,
@@ -32,7 +33,7 @@ use loom_runtime::{
     WorldTimeTransition,
 };
 use serde_json::Value;
-use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgPoolOptions};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
@@ -40,6 +41,10 @@ const HEALTH_SQL: &str = include_str!("../sql/health/check.sql");
 const REPEATABLE_READ_READ_ONLY_SQL: &str =
     include_str!("../sql/transaction/repeatable_read_read_only.sql");
 const READ_TIMELINE_SQL: &str = include_str!("../sql/world/read_timeline.sql");
+const READ_ENTITY_SQL: &str = include_str!("../sql/world/read_entity.sql");
+const READ_RELATIONSHIP_SQL: &str = include_str!("../sql/world/read_relationship.sql");
+const READ_ENTITY_FACET_SQL: &str = include_str!("../sql/world/read_entity_facet.sql");
+const READ_RELATIONSHIP_FACET_SQL: &str = include_str!("../sql/world/read_relationship_facet.sql");
 const READ_ENTITIES_SQL: &str = include_str!("../sql/world/read_entities.sql");
 const READ_RELATIONSHIPS_SQL: &str = include_str!("../sql/world/read_relationships.sql");
 const READ_RELATIONSHIP_PARTICIPANTS_SQL: &str =
@@ -48,6 +53,7 @@ const READ_ENTITY_FACETS_SQL: &str = include_str!("../sql/world/read_entity_face
 const READ_RELATIONSHIP_FACETS_SQL: &str =
     include_str!("../sql/world/read_relationship_facets.sql");
 const READ_VISIBLE_EVENTS_SQL: &str = include_str!("../sql/ancestry/read_visible_events.sql");
+const READ_VISIBLE_EVENT_SQL: &str = include_str!("../sql/ancestry/read_visible_event.sql");
 const READ_EVENT_PARTICIPANTS_SQL: &str = include_str!("../sql/event/read_participants.sql");
 const READ_EVENT_RELATIONSHIP_REFS_SQL: &str =
     include_str!("../sql/event/read_relationship_refs.sql");
@@ -481,6 +487,349 @@ impl PgStorage {
             .collect::<Result<Vec<_>, _>>()?;
         transaction.commit().await.map_err(sql_read_error)?;
         Ok(journal)
+    }
+}
+
+impl PgStorage {
+    async fn begin_fenced_read<'a>(
+        &'a self,
+        session: &PinnedReadSession,
+    ) -> Result<Transaction<'a, Postgres>, ReadError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
+        sqlx::query(REPEATABLE_READ_READ_ONLY_SQL)
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let row = sqlx::query(READ_TIMELINE_SQL)
+            .bind(session.timeline_id().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?
+            .ok_or(ReadError::TimelineNotFound {
+                timeline_id: session.timeline_id(),
+            })?;
+        let (world_id, actual, _) = timeline_read_position(&row)?;
+        if world_id != session.world_id() {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::PinnedWorldMismatch {
+                timeline_id: session.timeline_id(),
+                expected: session.world_id(),
+                actual: world_id,
+            });
+        }
+        if actual != session.version() {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::PinnedVersionMismatch {
+                timeline_id: session.timeline_id(),
+                expected: session.version(),
+                actual,
+            });
+        }
+        Ok(transaction)
+    }
+
+    async fn open_pinned_read(
+        &self,
+        assembly: &loom_runtime::ExecutionAssembly,
+    ) -> Result<PinnedReadSession, ReadError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
+        sqlx::query(REPEATABLE_READ_READ_ONLY_SQL)
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let row = sqlx::query(READ_TIMELINE_SQL)
+            .bind(assembly.timeline_id().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?
+            .ok_or(ReadError::TimelineNotFound {
+                timeline_id: assembly.timeline_id(),
+            })?;
+        let (world_id, actual, world_time) = timeline_read_position(&row)?;
+        if world_id != assembly.world_id() {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::PinnedWorldMismatch {
+                timeline_id: assembly.timeline_id(),
+                expected: assembly.world_id(),
+                actual: world_id,
+            });
+        }
+        if actual != assembly.expected_version() {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::PinnedVersionMismatch {
+                timeline_id: assembly.timeline_id(),
+                expected: assembly.expected_version(),
+                actual,
+            });
+        }
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(PinnedReadSession::new(
+            assembly.session_id(),
+            world_id,
+            assembly.timeline_id(),
+            actual,
+            world_time,
+        ))
+    }
+
+    async fn read_pinned_entity(
+        &self,
+        session: &PinnedReadSession,
+        entity_id: EntityId,
+    ) -> Result<PinnedRead<Option<loom_core::Entity>>, ReadError> {
+        let started = Instant::now();
+        let mut transaction = self.begin_fenced_read(session).await?;
+        let row = sqlx::query(READ_ENTITY_SQL)
+            .bind(session.timeline_id().to_string())
+            .bind(entity_id.to_string())
+            .bind(session.version().head_event_seq.value().to_string())
+            .bind(session.version().state_revision.value().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let present = row.is_some();
+        let value = row.map(|_| loom_core::Entity {
+            id: entity_id,
+            world_id: session.world_id(),
+        });
+        let bytes = u64::from(value.is_some()) * entity_id.to_string().len() as u64;
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(PinnedRead::new(
+            value,
+            PinnedReadMetrics::new(u64::from(present), bytes, elapsed_micros(started)),
+        ))
+    }
+
+    async fn read_pinned_relationship(
+        &self,
+        session: &PinnedReadSession,
+        relationship_id: RelationshipId,
+    ) -> Result<PinnedRead<Option<Relationship>>, ReadError> {
+        let started = Instant::now();
+        let mut transaction = self.begin_fenced_read(session).await?;
+        let row = sqlx::query(READ_RELATIONSHIP_SQL)
+            .bind(session.timeline_id().to_string())
+            .bind(relationship_id.to_string())
+            .bind(session.version().head_event_seq.value().to_string())
+            .bind(session.version().state_revision.value().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let value = if let Some(row) = row {
+            let relationship_type =
+                RelationshipTypeId::from(row_string(&row, "relationship_type")?);
+            let active: bool = row.try_get("active").map_err(sql_read_error)?;
+            let participant_rows = sqlx::query(READ_RELATIONSHIP_PARTICIPANTS_SQL)
+                .bind(session.timeline_id().to_string())
+                .bind(relationship_id.to_string())
+                .fetch_all(&mut *transaction)
+                .await
+                .map_err(sql_read_error)?;
+            let mut participants = Vec::with_capacity(participant_rows.len());
+            let mut bytes = relationship_type.as_str().len() as u64 + 1;
+            for participant in participant_rows {
+                let entity_id = parse_identity::<EntityId>(
+                    &row_string(&participant, "entity_id")?,
+                    "EntityId",
+                )?;
+                let role = row_string(&participant, "role")?;
+                bytes =
+                    bytes.saturating_add(entity_id.to_string().len() as u64 + role.len() as u64);
+                participants.push(RelationshipParticipant::new(entity_id, role));
+            }
+            let relationship = Relationship::new(
+                relationship_id,
+                session.world_id(),
+                relationship_type,
+                participants,
+            );
+            (Some(relationship), active, bytes)
+        } else {
+            (None, false, 0)
+        };
+        transaction.commit().await.map_err(sql_read_error)?;
+        let (value, active, bytes) = value;
+        let rows_read = u64::from(value.is_some());
+        Ok(PinnedRead::new(
+            value.filter(|_| active),
+            PinnedReadMetrics::new(rows_read, bytes, elapsed_micros(started)),
+        ))
+    }
+
+    async fn read_pinned_facet(
+        &self,
+        session: &PinnedReadSession,
+        owner: FacetOwner,
+        facet_type: &FacetTypeId,
+    ) -> Result<PinnedRead<Option<PinnedFacet>>, ReadError> {
+        let started = Instant::now();
+        let mut transaction = self.begin_fenced_read(session).await?;
+        let owner_id = match owner {
+            FacetOwner::Entity(entity_id) => entity_id.to_string(),
+            FacetOwner::Relationship(relationship_id) => relationship_id.to_string(),
+        };
+        let query = match owner {
+            FacetOwner::Entity(_) => READ_ENTITY_FACET_SQL,
+            FacetOwner::Relationship(_) => READ_RELATIONSHIP_FACET_SQL,
+        };
+        let row = sqlx::query(query)
+            .bind(session.timeline_id().to_string())
+            .bind(owner_id)
+            .bind(facet_type.to_string())
+            .bind(session.version().head_event_seq.value().to_string())
+            .bind(session.version().state_revision.value().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let value = row
+            .map(|row| {
+                Ok(PinnedFacet::new(
+                    schema_revision(&row)?,
+                    row_json(&row, "value")?,
+                ))
+            })
+            .transpose()?;
+        let bytes = value
+            .as_ref()
+            .map_or(0, |facet| facet.value.to_string().len() as u64);
+        let present = value.is_some();
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(PinnedRead::new(
+            value,
+            PinnedReadMetrics::new(u64::from(present), bytes, elapsed_micros(started)),
+        ))
+    }
+
+    async fn read_pinned_event(
+        &self,
+        session: &PinnedReadSession,
+        event_id: EventId,
+    ) -> Result<PinnedRead<Option<CommittedEvent>>, ReadError> {
+        let started = Instant::now();
+        let mut transaction = self.begin_fenced_read(session).await?;
+        let row = sqlx::query(READ_VISIBLE_EVENT_SQL)
+            .bind(session.timeline_id().to_string())
+            .bind(event_id.to_string())
+            .bind(session.version().head_event_seq.value().to_string())
+            .bind(session.version().state_revision.value().to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let Some(row) = row else {
+            transaction.commit().await.map_err(sql_read_error)?;
+            return Ok(PinnedRead::new(
+                None,
+                PinnedReadMetrics::new(0, 0, elapsed_micros(started)),
+            ));
+        };
+        let event_timeline_id =
+            parse_identity::<TimelineId>(&row_string(&row, "timeline_id")?, "TimelineId")?;
+        let event_seq = EventSeq::new(parse_u64(&row_string(&row, "event_seq")?, "event_seq")?);
+        let effects: Vec<WorldEffect> = serde_json::from_value(row_json(&row, "effects")?)
+            .map_err(|error| corrupt(format!("invalid persisted Event effects: {error}")))?;
+        let mut proposal = ProposedEvent::new(
+            event_id,
+            EventTypeId::from(row_string(&row, "event_type")?),
+            schema_revision(&row)?,
+            row_json(&row, "payload")?,
+        );
+        proposal.effects = effects;
+        let mut event = CommittedEvent::from_proposed(
+            event_timeline_id,
+            event_seq,
+            &proposal,
+            WorldInstant::new(row_i64(&row, "occurred_at")?),
+        );
+        let participant_rows = sqlx::query(READ_EVENT_PARTICIPANTS_SQL)
+            .bind(event_timeline_id.to_string())
+            .bind(event_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        for participant in participant_rows {
+            event.push_participant(
+                parse_identity::<EntityId>(&row_string(&participant, "entity_id")?, "EntityId")?,
+                AssociationRole::from(row_string(&participant, "role")?),
+            );
+        }
+        let relationship_rows = sqlx::query(READ_EVENT_RELATIONSHIP_REFS_SQL)
+            .bind(event_timeline_id.to_string())
+            .bind(event_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        for relationship in relationship_rows {
+            event.push_relationship_ref(
+                parse_identity::<RelationshipId>(
+                    &row_string(&relationship, "relationship_id")?,
+                    "RelationshipId",
+                )?,
+                AssociationRole::from(row_string(&relationship, "role")?),
+            );
+        }
+        let causal_rows = sqlx::query(READ_EVENT_CAUSAL_LINKS_SQL)
+            .bind(event_timeline_id.to_string())
+            .bind(event_id.to_string())
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        for causal in causal_rows {
+            event.push_causal_link(parse_identity::<EventId>(
+                &row_string(&causal, "cause_event_id")?,
+                "EventId",
+            )?);
+        }
+        let bytes = event.payload.to_string().len() as u64 + event.effects.len() as u64;
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(PinnedRead::new(
+            Some(event),
+            PinnedReadMetrics::new(1, bytes, elapsed_micros(started)),
+        ))
+    }
+}
+
+impl PinnedWorldReadStore for PgStorage {
+    fn open_pinned_read<'a>(
+        &'a self,
+        assembly: &'a loom_runtime::ExecutionAssembly,
+    ) -> PersistenceFuture<'a, Result<PinnedReadSession, ReadError>> {
+        Box::pin(async move { self.open_pinned_read(assembly).await })
+    }
+
+    fn read_entity<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        entity_id: EntityId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Entity>>, ReadError>> {
+        Box::pin(async move { self.read_pinned_entity(session, entity_id).await })
+    }
+
+    fn read_relationship<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        relationship_id: RelationshipId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Relationship>>, ReadError>> {
+        Box::pin(async move {
+            self.read_pinned_relationship(session, relationship_id)
+                .await
+        })
+    }
+
+    fn read_facet<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        owner: FacetOwner,
+        facet_type: &'a FacetTypeId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<PinnedFacet>>, ReadError>> {
+        Box::pin(async move { self.read_pinned_facet(session, owner, facet_type).await })
+    }
+
+    fn read_event<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        event_id: EventId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<CommittedEvent>>, ReadError>> {
+        Box::pin(async move { self.read_pinned_event(session, event_id).await })
     }
 }
 
@@ -1271,6 +1620,31 @@ fn row_i64(row: &sqlx::postgres::PgRow, column: &str) -> Result<i64, ReadError> 
 
 fn row_json(row: &sqlx::postgres::PgRow, column: &str) -> Result<Value, ReadError> {
     row.try_get(column).map_err(sql_read_error)
+}
+
+fn timeline_read_position(
+    row: &sqlx::postgres::PgRow,
+) -> Result<(WorldId, TimelineVersion, WorldInstant), ReadError> {
+    let world_id = parse_identity::<WorldId>(&row_string(row, "world_id")?, "WorldId")?;
+    let version = TimelineVersion::new(
+        EventSeq::new(parse_u64(
+            &row_string(row, "head_event_seq")?,
+            "head_event_seq",
+        )?),
+        StateRevision::new(parse_u64(
+            &row_string(row, "state_revision")?,
+            "state_revision",
+        )?),
+    );
+    Ok((
+        world_id,
+        version,
+        WorldInstant::new(row_i64(row, "world_time")?),
+    ))
+}
+
+fn elapsed_micros(started: Instant) -> u64 {
+    started.elapsed().as_micros().try_into().unwrap_or(u64::MAX)
 }
 
 fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit, ReadError> {

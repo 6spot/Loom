@@ -87,6 +87,7 @@ mod identity;
 mod logical_replay;
 mod orchestration;
 mod persistence;
+mod pinned_reads;
 mod provenance;
 mod replay;
 mod validation;
@@ -119,6 +120,10 @@ pub use persistence::{
     WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
     WorkTerminalization, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
     WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
+};
+pub use pinned_reads::{
+    PinnedFacet, PinnedRead, PinnedReadBoundary, PinnedReadCache, PinnedReadMetrics,
+    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore,
 };
 pub use provenance::{
     CallProvenance, EntropyEvidence, EntropyObservation, ReadDependency, ReadSet,

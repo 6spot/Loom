@@ -39,7 +39,8 @@ use crate::{
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
     HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
-    LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime,
+    LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
+    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
     RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
     RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
@@ -1805,6 +1806,33 @@ where
     }
 }
 
+impl<S> Runtime<S>
+where
+    S: PinnedWorldReadStore,
+{
+    /// Creates the Runtime-owned bounded point-read boundary for one injected
+    /// Storage adapter. The returned helper is intended for Runtime assembly
+    /// and refill/restart orchestration; it is never passed to Capability code.
+    #[must_use]
+    pub fn pinned_read_boundary(&self, policy: PinnedReadPolicy) -> PinnedReadBoundary<'_, S> {
+        PinnedReadBoundary::new(&self.store, policy)
+    }
+
+    /// Opens a version-fenced point-read session for an already pinned
+    /// Execution Assembly.
+    ///
+    /// # Errors
+    ///
+    /// Returns the persistence port's error when the assembly's world,
+    /// timeline, or version cannot be fenced.
+    pub async fn open_pinned_read(
+        &self,
+        assembly: &ExecutionAssembly,
+    ) -> Result<PinnedReadSession, ReadError> {
+        self.store.open_pinned_read(assembly).await
+    }
+}
+
 impl<S> ActionService for Runtime<S>
 where
     S: WorldStore
@@ -3045,6 +3073,12 @@ fn map_read_error(error: &ReadError) -> ApiError {
     match error {
         ReadError::TimelineNotFound { timeline_id } => {
             ApiError::not_found(format!("Timeline {timeline_id} was not found"))
+        }
+        ReadError::PinnedVersionMismatch { .. } => {
+            ApiError::conflict("Timeline changed during pinned read; restart the resolution")
+        }
+        ReadError::PinnedWorldMismatch { .. } => {
+            ApiError::not_found("Timeline is not part of the requested World")
         }
         ReadError::StorageUnavailable { .. } => {
             ApiError::unavailable("Persistence authority is temporarily unavailable")

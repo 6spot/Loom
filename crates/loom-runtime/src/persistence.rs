@@ -2398,6 +2398,28 @@ pub struct CommitResult {
 pub enum ReadError {
     /// The requested Timeline does not exist in the adapter authority.
     TimelineNotFound { timeline_id: TimelineId },
+    /// A point read was fenced to an older Timeline version than the
+    /// authority snapshot observed by the adapter. Runtime must discard the
+    /// current read working set and restart/re-resolve; it must never return
+    /// the result as though it belonged to the pinned version.
+    PinnedVersionMismatch {
+        /// Timeline whose version changed during the fenced read.
+        timeline_id: TimelineId,
+        /// Version fixed by the Execution Session.
+        expected: TimelineVersion,
+        /// Version observed by the adapter's read-only snapshot.
+        actual: TimelineVersion,
+    },
+    /// The Timeline belongs to another World than the pinned Execution
+    /// Assembly requested.
+    PinnedWorldMismatch {
+        /// Timeline checked by the adapter.
+        timeline_id: TimelineId,
+        /// World fixed by the Execution Session.
+        expected: WorldId,
+        /// World attached to the Timeline in persistence.
+        actual: WorldId,
+    },
     /// The persistence authority could not complete a coherent read.
     StorageUnavailable { message: String },
 }
@@ -2408,6 +2430,22 @@ impl fmt::Display for ReadError {
             Self::TimelineNotFound { timeline_id } => {
                 write!(formatter, "Timeline {timeline_id} was not found")
             }
+            Self::PinnedVersionMismatch {
+                timeline_id,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "Timeline {timeline_id} changed during pinned read: expected {expected:?}, actual {actual:?}"
+            ),
+            Self::PinnedWorldMismatch {
+                timeline_id,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "Timeline {timeline_id} belongs to World {actual}, expected {expected}"
+            ),
             Self::StorageUnavailable { message } => formatter.write_str(message),
         }
     }
