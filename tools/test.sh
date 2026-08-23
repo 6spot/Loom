@@ -6,16 +6,23 @@ cd "$ROOT_DIR"
 
 ENV_FILE="${LOOM_TEST_ENV_FILE:-.env.test.local}"
 
-# Ensure the repository-managed PostgreSQL test service exists and is running.
-# On first use, postgres-test.sh also creates the local ignored env file.
+# Reuse the repository-managed PostgreSQL service when it already exists;
+# Docker Compose only creates/pulls what is missing.
 bash tools/postgres-test.sh up >/dev/null
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
 
-: "${LOOM_TEST_POSTGRES_URL:?LOOM_TEST_POSTGRES_URL must be set in $ENV_FILE}"
+POSTGRES_USER="${POSTGRES_USER:-loom}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-loom}"
+POSTGRES_DB="${POSTGRES_DB:-loom_control}"
+POSTGRES_PORT="${POSTGRES_PORT:-15432}"
+
+export LOOM_TEST_POSTGRES_URL="${LOOM_TEST_POSTGRES_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}}"
 export LOOM_REQUIRE_POSTGRES_TESTS="${LOOM_REQUIRE_POSTGRES_TESTS:-1}"
 
 exec cargo test "$@"
