@@ -4,7 +4,8 @@ use std::sync::{
 };
 
 use loom_api::{
-    ActionRequest, ApiErrorCode, EventQuery, ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
+    ActionRequest, ApiErrorCode, CausalDirection, CausalQuery, EntityTrajectoryQuery, EventQuery,
+    ExecutionResult, FacetQuery, LoomApi, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
@@ -12,12 +13,12 @@ use loom_capability::{
     ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId,
+    SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    ActionInvocation, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation,
-    WorkSchedule,
+    ActionInvocation, CausalLink, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome,
+    WorkMutation, WorkSchedule,
 };
 use loom_runtime::{
     EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
@@ -96,10 +97,12 @@ impl Capability for CounterCapability {
                 EventTypeId::from(COUNTER_INCREMENTED),
                 SchemaRevision::new(1),
             )
+            .with_participant_role("subject".into())
             .with_payload_schema(counter_event_schema()),
         )?;
         registrar.register_event(
             EventDefinition::new(EventTypeId::from(COUNTER_OBSERVED), SchemaRevision::new(1))
+                .with_participant_role("subject".into())
                 .with_payload_schema(json!({
                     "type": "object",
                     "required": ["value"],
@@ -255,18 +258,30 @@ impl CounterIncrementer {
         let next = current
             .checked_add(amount)
             .ok_or_else(|| ResolverError::new("counter value overflowed"))?;
-        let event = ProposedEvent::new(
+        let mut event = ProposedEvent::new(
             event_id,
             EventTypeId::from(COUNTER_INCREMENTED),
             SchemaRevision::new(1),
             json!({"previous": current, "amount": amount, "value": next}),
         )
+        .with_participant(loom_protocol::EventParticipant::new(
+            self.entity_id,
+            "subject",
+        ))
         .with_effect(WorldEffect::PutFacet {
             owner: FacetOwner::entity(self.entity_id),
             facet_type: FacetTypeId::from(COUNTER_FACET),
             schema_revision: SchemaRevision::new(1),
             value: json!({"value": next}),
         });
+        if let Some(cause) = input.get("cause_event_id") {
+            let cause_event_id = cause
+                .as_str()
+                .ok_or_else(|| ResolverError::new("cause_event_id must be a UUID string"))?
+                .parse()
+                .map_err(|_| ResolverError::new("cause_event_id must be a UUID string"))?;
+            event = event.with_causal_link(CausalLink::new(cause_event_id));
+        }
         Ok(ResolveOutcome::Resolved(Resolution::new(
             vec![event],
             Vec::new(),
@@ -312,7 +327,11 @@ impl ActionResolver for CounterObserver {
             EventTypeId::from(COUNTER_OBSERVED),
             SchemaRevision::new(1),
             json!({"value": current}),
-        );
+        )
+        .with_participant(loom_protocol::EventParticipant::new(
+            self.entity_id,
+            "subject",
+        ));
         Ok(ResolveOutcome::Resolved(Resolution::new(
             vec![event],
             Vec::new(),
@@ -688,6 +707,107 @@ async fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_h
             .as_str(),
         COUNTER_CAPABILITY
     );
+}
+
+#[tokio::test]
+async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projections() {
+    let store = counter_store();
+    let runtime =
+        Runtime::new(&store, counter_registry_with_secondary()).expect("Runtime should assemble");
+    let api: &dyn LoomApi = &runtime;
+
+    for event_id in [event(40), event(41)] {
+        let result = api
+            .invoke(counter_request(
+                COUNTER_INCREMENT,
+                json!({"amount": 1, "event_id": event_id.to_string()}),
+            ))
+            .await
+            .expect("counter Event should commit");
+        assert!(matches!(result, ExecutionResult::Committed { .. }));
+    }
+
+    let global = api.catalog().expect("global catalog should be readable");
+    assert_eq!(global.capabilities.len(), 2);
+    assert_eq!(global.facets.len(), 1);
+    assert_eq!(global.events.len(), 2);
+    assert_eq!(global.work_handlers.len(), 1);
+
+    let scoped = api
+        .catalog_for_world(world())
+        .await
+        .expect("World catalog should be readable");
+    assert_eq!(scoped.capabilities.len(), 1);
+    assert_eq!(scoped.capabilities[0].id.as_str(), COUNTER_CAPABILITY);
+    assert_eq!(scoped.actions.len(), 2);
+
+    let first_page = api
+        .entity_trajectory(EntityTrajectoryQuery {
+            target: counter_target(),
+            entity_id: entity(10),
+            after: None,
+            limit: Some(1),
+        })
+        .await
+        .expect("Entity trajectory should be readable");
+    assert_eq!(first_page.events.len(), 1);
+    assert_eq!(first_page.events[0].id, event(40));
+    assert_eq!(first_page.next_after, Some(1.into()));
+
+    let second_page = api
+        .entity_trajectory(EntityTrajectoryQuery::after(
+            counter_target(),
+            entity(10),
+            first_page.next_after.expect("page should expose cursor"),
+            Some(1),
+        ))
+        .await
+        .expect("next Entity trajectory page should be readable");
+    assert_eq!(second_page.events.len(), 1);
+    assert_eq!(second_page.events[0].id, event(41));
+    assert_eq!(second_page.next_after, None);
+
+    let fetched = api
+        .get_event(first_page.events[0].event_ref())
+        .await
+        .expect("EventRef lookup should be readable")
+        .expect("committed Event should exist");
+    assert_eq!(fetched.id, event(40));
+}
+
+#[tokio::test]
+async fn causal_queries_follow_only_qualified_authoritative_event_links() {
+    let store = counter_store();
+    let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
+    let api: &dyn LoomApi = &runtime;
+
+    api.invoke(counter_request(
+        COUNTER_INCREMENT,
+        json!({"amount": 1, "event_id": event(50).to_string()}),
+    ))
+    .await
+    .expect("cause Event should commit");
+    api.invoke(counter_request(
+        COUNTER_INCREMENT,
+        json!({
+            "amount": 1,
+            "event_id": event(51).to_string(),
+            "cause_event_id": event(50).to_string()
+        }),
+    ))
+    .await
+    .expect("effect Event should commit");
+
+    let cause = EventRef::new(timeline(), event(50));
+    let effect = EventRef::new(timeline(), event(51));
+    assert_eq!(api.direct_causes(effect).await.unwrap(), vec![cause]);
+    assert_eq!(api.direct_effects(cause).await.unwrap(), vec![effect]);
+    let walk = api
+        .causal_walk(CausalQuery::new(effect, CausalDirection::Causes, 4, 4))
+        .await
+        .expect("causal walk should be bounded and readable");
+    assert_eq!(walk.events, vec![cause]);
+    assert!(!walk.truncated);
 }
 
 #[tokio::test]

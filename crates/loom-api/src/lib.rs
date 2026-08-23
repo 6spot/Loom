@@ -36,8 +36,8 @@ use std::{fmt, future::Future, pin::Pin};
 pub use loom_core::{
     ActionTypeId, AssociationRole, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
     FacetTypeId, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
-    StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorldEffect, WorldId,
-    WorldInstant,
+    StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkHandlerId, WorldEffect,
+    WorldId, WorldInstant,
 };
 pub use loom_protocol::{
     ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, Rejection, RejectionCode,
@@ -700,6 +700,165 @@ impl EventQuery {
     }
 }
 
+/// A bounded page of committed Event read models.
+///
+/// `next_after` is an opaque-to-ordering cursor represented by the
+/// authoritative Timeline `EventSeq`. Consumers must pass it back through the
+/// next query's `after` field; UUID or platform-time ordering is not part of
+/// this contract.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct EventPage {
+    /// Events in authoritative deterministic order.
+    pub events: Vec<CommittedEvent>,
+    /// Cursor for the next page, when more matching Events remain.
+    pub next_after: Option<EventSeq>,
+}
+
+/// Compatibility name for trajectory pages, which contain the same public
+/// Event read model as ordinary history pages.
+pub type TrajectoryPage = EventPage;
+
+/// Query for the committed Events directly associated with one Entity.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EntityTrajectoryQuery {
+    /// World and Timeline whose visible ancestry is queried.
+    pub target: TimelineTarget,
+    /// Entity identity appearing in a direct Event participant association.
+    pub entity_id: EntityId,
+    /// Return matching Events strictly after this sequence when present.
+    pub after: Option<EventSeq>,
+    /// Maximum number of matching Events requested by the consumer.
+    pub limit: Option<u32>,
+}
+
+impl EntityTrajectoryQuery {
+    /// Creates an unfiltered bounded trajectory query for one Entity.
+    #[must_use]
+    pub const fn all(target: TimelineTarget, entity_id: EntityId) -> Self {
+        Self {
+            target,
+            entity_id,
+            after: None,
+            limit: None,
+        }
+    }
+
+    /// Creates a trajectory query beginning after an authoritative `EventSeq`.
+    #[must_use]
+    pub const fn after(
+        target: TimelineTarget,
+        entity_id: EntityId,
+        after: EventSeq,
+        limit: Option<u32>,
+    ) -> Self {
+        Self {
+            target,
+            entity_id,
+            after: Some(after),
+            limit,
+        }
+    }
+}
+
+/// Query for the committed Events directly associated with one Relationship.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RelationshipTrajectoryQuery {
+    /// World and Timeline whose visible ancestry is queried.
+    pub target: TimelineTarget,
+    /// Relationship identity appearing in an Event relationship association.
+    pub relationship_id: RelationshipId,
+    /// Return matching Events strictly after this sequence when present.
+    pub after: Option<EventSeq>,
+    /// Maximum number of matching Events requested by the consumer.
+    pub limit: Option<u32>,
+}
+
+impl RelationshipTrajectoryQuery {
+    /// Creates an unfiltered bounded trajectory query for one Relationship.
+    #[must_use]
+    pub const fn all(target: TimelineTarget, relationship_id: RelationshipId) -> Self {
+        Self {
+            target,
+            relationship_id,
+            after: None,
+            limit: None,
+        }
+    }
+
+    /// Creates a trajectory query beginning after an authoritative `EventSeq`.
+    #[must_use]
+    pub const fn after(
+        target: TimelineTarget,
+        relationship_id: RelationshipId,
+        after: EventSeq,
+        limit: Option<u32>,
+    ) -> Self {
+        Self {
+            target,
+            relationship_id,
+            after: Some(after),
+            limit,
+        }
+    }
+}
+
+/// Direction of a bounded walk over authoritative World Event causal links.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CausalDirection {
+    /// Follow each Event's direct `cause_event_id` references backwards.
+    Causes,
+    /// Follow later visible Events that directly reference the current Event.
+    Effects,
+}
+
+/// Query for a bounded causal traversal rooted at one qualified Event identity.
+///
+/// `max_depth` and `limit` are explicit public bounds. Runtime may reject
+/// values outside its deterministic v0 policy; a traversal never reads beyond
+/// the addressed Timeline's visible ancestry and branch-local history.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CausalQuery {
+    /// Timeline-qualified Event at which the walk starts.
+    pub root: EventRef,
+    /// Direction in which authoritative causal links are followed.
+    pub direction: CausalDirection,
+    /// Maximum number of causal edges from the root to visit.
+    pub max_depth: u32,
+    /// Maximum number of distinct `EventRefs` to return.
+    pub limit: u32,
+}
+
+impl CausalQuery {
+    /// Creates a bounded causal traversal query.
+    #[must_use]
+    pub const fn new(
+        root: EventRef,
+        direction: CausalDirection,
+        max_depth: u32,
+        limit: u32,
+    ) -> Self {
+        Self {
+            root,
+            direction,
+            max_depth,
+            limit,
+        }
+    }
+}
+
+/// Compatibility spelling for callers that name the operation explicitly.
+pub type CausalTraversalQuery = CausalQuery;
+
+/// Bounded causal Event identities returned by a history query.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CausalTraversal {
+    /// Distinct `EventRefs` in deterministic breadth/depth order.
+    pub events: Vec<EventRef>,
+    /// True when the requested result bound stopped an otherwise unfinished
+    /// walk.
+    pub truncated: bool,
+}
+
 /// One committed World Event exposed by the public History service.
 ///
 /// Unlike `loom_protocol::ProposedEvent`, this read model carries authoritative
@@ -801,10 +960,25 @@ pub struct CapabilityDescriptor {
     pub id: CapabilityId,
     /// Capability software version exposed for discovery.
     pub version: String,
+    /// Loom contract version requirement declared by the implementation.
+    #[serde(default)]
+    pub loom_compatibility: String,
     /// Human-readable description safe for catalog consumers.
     pub description: String,
     /// Capability identifiers required by this Capability's registration.
     pub dependencies: Vec<CapabilityId>,
+    /// Capability dependency/version requirements in deterministic order.
+    #[serde(default)]
+    pub dependency_requirements: Vec<CapabilityDependencyDescriptor>,
+}
+
+/// Public versioned dependency metadata for a Capability descriptor.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CapabilityDependencyDescriptor {
+    /// Required Capability identity.
+    pub id: CapabilityId,
+    /// Semver requirement accepted for the dependency.
+    pub version: String,
 }
 
 /// Public descriptor for one Capability-owned semantic Action.
@@ -829,6 +1003,94 @@ pub struct ActionDescriptor {
     pub input_schema: Option<Value>,
 }
 
+/// Public descriptor for one Capability-owned Facet schema.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct FacetDescriptor {
+    /// Stable semantic Facet key.
+    pub id: FacetTypeId,
+    /// Capability that owns and interprets the Facet.
+    pub owner: CapabilityId,
+    /// Schema revision used to interpret Facet values.
+    pub schema_revision: SchemaRevision,
+    /// Human-readable semantic description.
+    pub description: String,
+    /// Capability-owned JSON Schema for complete Facet values.
+    pub schema: Value,
+}
+
+/// Public descriptor for one Relationship semantic type.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct RelationshipDescriptor {
+    /// Stable semantic Relationship key.
+    pub id: RelationshipTypeId,
+    /// Capability that owns and interprets the Relationship.
+    pub owner: CapabilityId,
+    /// Schema revision for the Relationship definition.
+    pub schema_revision: SchemaRevision,
+    /// Declared role cardinality constraints.
+    pub roles: Vec<RelationshipRoleDescriptor>,
+    /// Facet schema keys allowed on this Relationship type.
+    pub allowed_facets: Vec<FacetTypeId>,
+    /// Human-readable semantic description.
+    pub description: String,
+}
+
+/// Public role/cardinality metadata for a Relationship descriptor.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RelationshipRoleDescriptor {
+    /// Neutral semantic role label.
+    pub role: AssociationRole,
+    /// Minimum participant count for this role.
+    pub minimum: u16,
+    /// Optional maximum participant count for this role.
+    pub maximum: Option<u16>,
+}
+
+/// Public descriptor for one Capability-owned Event schema.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct EventDescriptor {
+    /// Stable semantic Event key.
+    pub id: EventTypeId,
+    /// Capability that owns and interprets the Event.
+    pub owner: CapabilityId,
+    /// Schema revision for the Event payload and associations.
+    pub schema_revision: SchemaRevision,
+    /// Optional JSON Schema for the Event payload.
+    pub payload_schema: Option<Value>,
+    /// Roles allowed for direct Entity participants.
+    pub participant_roles: Vec<AssociationRole>,
+    /// Roles allowed for referenced Relationships.
+    pub relationship_roles: Vec<AssociationRole>,
+    /// Human-readable semantic description.
+    pub description: String,
+}
+
+/// Public descriptor for one Capability-owned Durable Work handler.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct WorkHandlerDescriptor {
+    /// Stable semantic Work handler key.
+    pub id: WorkHandlerId,
+    /// Capability that owns and interprets the handler.
+    pub owner: CapabilityId,
+    /// Schema revision for handler payloads.
+    pub schema_revision: SchemaRevision,
+    /// Optional JSON Schema for handler payloads.
+    pub payload_schema: Option<Value>,
+    /// Human-readable semantic description.
+    pub description: String,
+}
+
+/// Public descriptor for one Event-to-Work reaction.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ReactionDescriptor {
+    /// Capability that owns the reaction registration.
+    pub owner: CapabilityId,
+    /// Event type that activates the reaction.
+    pub event_type: EventTypeId,
+    /// Work handler scheduled by the reaction.
+    pub handler: WorkHandlerId,
+}
+
 /// A coherent public snapshot of registered Capability and Action metadata.
 ///
 /// The snapshot is read-only catalog data assembled centrally by Loom. It does
@@ -840,6 +1102,21 @@ pub struct CatalogSnapshot {
     pub capabilities: Vec<CapabilityDescriptor>,
     /// Registered semantic Action descriptors visible through Loom.
     pub actions: Vec<ActionDescriptor>,
+    /// Registered Facet schema descriptors visible to the consumer.
+    #[serde(default)]
+    pub facets: Vec<FacetDescriptor>,
+    /// Registered Relationship descriptors visible to the consumer.
+    #[serde(default)]
+    pub relationships: Vec<RelationshipDescriptor>,
+    /// Registered Event schema descriptors visible to the consumer.
+    #[serde(default)]
+    pub events: Vec<EventDescriptor>,
+    /// Registered Durable Work handler descriptors visible to the consumer.
+    #[serde(default)]
+    pub work_handlers: Vec<WorkHandlerDescriptor>,
+    /// Registered Event-to-Work reaction descriptors visible to the consumer.
+    #[serde(default)]
+    pub reactions: Vec<ReactionDescriptor>,
 }
 
 impl CatalogSnapshot {
@@ -984,6 +1261,80 @@ pub trait HistoryService {
     /// Returns an `ApiError` when the target cannot be found or its history
     /// cannot be read.
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<CommittedEvent>>;
+
+    /// Lists one bounded page of committed Events matching the history query.
+    ///
+    /// The default keeps focused API test doubles source-compatible. Runtime
+    /// supplies the authoritative cursor and deterministic page boundary.
+    fn list_events_page(&self, query: EventQuery) -> ApiFuture<'_, EventPage> {
+        Box::pin(async move {
+            let events = self.list_events(query).await?;
+            Ok(EventPage {
+                next_after: None,
+                events,
+            })
+        })
+    }
+
+    /// Returns one committed Event addressed by its Timeline-qualified ID.
+    fn get_event(&self, _event_ref: EventRef) -> ApiFuture<'_, Option<CommittedEvent>> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Event lookup is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Returns direct causal Event identities for one committed Event.
+    fn direct_causes(&self, _event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Event causality is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Returns later visible Event identities that directly reference one
+    /// committed Event through an authoritative causal link.
+    fn direct_effects(&self, _event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Event causality is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Performs a bounded traversal over authoritative Event causal links.
+    fn causal_walk(&self, _query: CausalQuery) -> ApiFuture<'_, CausalTraversal> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Event causality is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Lists the Event trajectory of one Entity over visible ancestry and
+    /// branch-local committed history.
+    fn entity_trajectory(&self, _query: EntityTrajectoryQuery) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Entity trajectories are not implemented by this service",
+            ))
+        })
+    }
+
+    /// Lists the Event trajectory of one Relationship over visible ancestry
+    /// and branch-local committed history.
+    fn relationship_trajectory(
+        &self,
+        _query: RelationshipTrajectoryQuery,
+    ) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Relationship trajectories are not implemented by this service",
+            ))
+        })
+    }
 }
 
 /// Discovers centrally registered Capability and semantic Action definitions.
@@ -998,6 +1349,16 @@ pub trait CatalogService {
     ///
     /// Returns an `ApiError` when the catalog cannot be read.
     fn catalog(&self) -> ApiResult<CatalogSnapshot>;
+
+    /// Returns the catalog visible to one World under its immutable Runtime
+    /// Binding and the currently compatible Runtime software.
+    fn catalog_for_world(&self, _world_id: WorldId) -> ApiFuture<'_, CatalogSnapshot> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "World-scoped catalog is not implemented by this service",
+            ))
+        })
+    }
 }
 
 /// A compile-time composition bound for a complete World-facing Loom API.
@@ -1116,8 +1477,10 @@ mod tests {
                 capabilities: vec![CapabilityDescriptor {
                     id: CapabilityId::from("counter.basic"),
                     version: "0.1".to_owned(),
+                    loom_compatibility: "*".to_owned(),
                     description: "test capability".to_owned(),
                     dependencies: Vec::new(),
+                    dependency_requirements: Vec::new(),
                 }],
                 actions: vec![ActionDescriptor {
                     id: ActionTypeId::from("counter.increment"),
@@ -1126,6 +1489,11 @@ mod tests {
                     description: "increment".to_owned(),
                     input_schema: Some(json!({"type": "object"})),
                 }],
+                facets: Vec::new(),
+                relationships: Vec::new(),
+                events: Vec::new(),
+                work_handlers: Vec::new(),
+                reactions: Vec::new(),
             })
         }
     }

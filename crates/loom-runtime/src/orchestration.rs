@@ -15,17 +15,20 @@ use std::{
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
-    CreateWorldFromTemplateResult, EventQuery, ExecutionResult, FacetQuery,
-    FacetSnapshot as ApiFacetSnapshot, ForkTimelineRequest, HistoryService, QueryService,
-    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService,
-    WorldTemplateDescriptor,
+    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal,
+    CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
+    CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
+    ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
+    ForkTimelineRequest, HistoryService, QueryService, ReactionDescriptor, RelationshipDescriptor,
+    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, TimelineService,
+    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage, WorkHandlerDescriptor,
+    WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
 };
-use loom_core::{ActionTypeId, EventId, TimelineId, TimelineVersion, WorkId};
+use loom_core::{ActionTypeId, EventId, EventRef, TimelineId, TimelineVersion, WorkId};
 use loom_protocol::{
     ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
 };
@@ -2162,6 +2165,277 @@ where
             child.ancestry(),
         ))
     }
+
+    async fn snapshot_for_event_ref(&self, event_ref: EventRef) -> ApiResult<TimelineSnapshot> {
+        self.store
+            .snapshot(event_ref.timeline_id)
+            .await
+            .map_err(|error| map_read_error(&error))
+    }
+
+    fn project_catalog(&self, available: Option<&HashSet<CapabilityId>>) -> CatalogSnapshot {
+        project_catalog(&self.registry, available)
+    }
+}
+
+const MAX_QUERY_PAGE_SIZE: u32 = 1_024;
+const MAX_CAUSAL_DEPTH: u32 = 64;
+const MAX_CAUSAL_RESULTS: u32 = 1_024;
+
+fn query_limit(limit: Option<u32>) -> ApiResult<usize> {
+    let limit = limit.unwrap_or(MAX_QUERY_PAGE_SIZE);
+    if limit == 0 || limit > MAX_QUERY_PAGE_SIZE {
+        return Err(ApiError::invalid_request(format!(
+            "query limit must be between 1 and {MAX_QUERY_PAGE_SIZE}"
+        )));
+    }
+    Ok(usize::try_from(limit).expect("the bounded query limit fits usize"))
+}
+
+fn history_page<'a, I>(events: I, query: EventQuery) -> ApiResult<EventPage>
+where
+    I: IntoIterator<Item = &'a CommittedEvent>,
+{
+    let limit = query_limit(query.limit)?;
+    let mut matching: Vec<_> = events
+        .into_iter()
+        .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
+        .take(limit + 1)
+        .collect();
+    let next_after = if matching.len() > limit {
+        matching.truncate(limit);
+        matching.last().map(|event| event.sequence())
+    } else {
+        None
+    };
+    Ok(EventPage {
+        events: matching.into_iter().map(api_event).collect(),
+        next_after,
+    })
+}
+
+fn validate_causal_query(query: CausalQuery) -> ApiResult<()> {
+    if query.max_depth == 0 || query.max_depth > MAX_CAUSAL_DEPTH {
+        return Err(ApiError::invalid_request(format!(
+            "causal max_depth must be between 1 and {MAX_CAUSAL_DEPTH}"
+        )));
+    }
+    if query.limit == 0 || query.limit > MAX_CAUSAL_RESULTS {
+        return Err(ApiError::invalid_request(format!(
+            "causal limit must be between 1 and {MAX_CAUSAL_RESULTS}"
+        )));
+    }
+    Ok(())
+}
+
+fn visible_event(snapshot: &TimelineSnapshot, event_ref: EventRef) -> Option<&CommittedEvent> {
+    snapshot
+        .events
+        .iter()
+        .find(|event| event.event_ref() == event_ref)
+}
+
+fn causal_neighbors(
+    snapshot: &TimelineSnapshot,
+    event: &CommittedEvent,
+    direction: CausalDirection,
+) -> Vec<EventRef> {
+    let mut neighbors: Vec<EventRef> = match direction {
+        CausalDirection::Causes => event
+            .causal_links
+            .iter()
+            .filter_map(|link| {
+                snapshot
+                    .events
+                    .iter()
+                    .find(|candidate| candidate.id == link.event_id())
+                    .map(CommittedEvent::event_ref)
+            })
+            .collect(),
+        CausalDirection::Effects => snapshot
+            .events
+            .iter()
+            .filter(|candidate| {
+                candidate
+                    .causal_links
+                    .iter()
+                    .any(|link| link.event_id() == event.id)
+            })
+            .map(CommittedEvent::event_ref)
+            .collect(),
+    };
+    neighbors.sort_by(|left, right| {
+        let left_event = visible_event(snapshot, *left)
+            .expect("causal neighbor must belong to the visible snapshot");
+        let right_event = visible_event(snapshot, *right)
+            .expect("causal neighbor must belong to the visible snapshot");
+        (left_event.event_seq, left_event.timeline_id, left_event.id).cmp(&(
+            right_event.event_seq,
+            right_event.timeline_id,
+            right_event.id,
+        ))
+    });
+    neighbors.dedup();
+    neighbors
+}
+
+fn catalog_owner_visible(owner: &CapabilityId, available: Option<&HashSet<CapabilityId>>) -> bool {
+    available.is_none_or(|available| available.contains(owner))
+}
+
+fn project_catalog(
+    registry: &CapabilityRegistry,
+    available: Option<&HashSet<CapabilityId>>,
+) -> CatalogSnapshot {
+    let capabilities = registry
+        .capabilities()
+        .filter(|manifest| catalog_owner_visible(&manifest.id, available))
+        .map(api_capability_descriptor)
+        .collect();
+    let actions = registry
+        .actions()
+        .filter(|action| catalog_owner_visible(&action.owner, available))
+        .map(api_action_descriptor)
+        .collect();
+    let facets = registry
+        .facets()
+        .filter(|facet| catalog_owner_visible(&facet.owner, available))
+        .map(api_facet_descriptor)
+        .collect();
+    let relationships = registry
+        .relationships()
+        .filter(|relationship| catalog_owner_visible(&relationship.owner, available))
+        .map(api_relationship_descriptor)
+        .collect();
+    let events = registry
+        .events()
+        .filter(|event| catalog_owner_visible(&event.owner, available))
+        .map(api_event_descriptor)
+        .collect();
+    let work_handlers = registry
+        .work_handlers()
+        .filter(|handler| catalog_owner_visible(&handler.owner, available))
+        .map(api_work_handler_descriptor)
+        .collect();
+    let mut reactions: Vec<_> = registry
+        .reactions()
+        .filter(|reaction| catalog_owner_visible(&reaction.owner, available))
+        .map(api_reaction_descriptor)
+        .collect();
+    reactions.sort_by(|left, right| {
+        (&left.event_type, &left.handler, &left.owner).cmp(&(
+            &right.event_type,
+            &right.handler,
+            &right.owner,
+        ))
+    });
+    CatalogSnapshot {
+        capabilities,
+        actions,
+        facets,
+        relationships,
+        events,
+        work_handlers,
+        reactions,
+    }
+}
+
+fn api_capability_descriptor(
+    manifest: &loom_capability::CapabilityManifest,
+) -> loom_api::CapabilityDescriptor {
+    loom_api::CapabilityDescriptor {
+        id: manifest.id.as_str().into(),
+        version: manifest.version.to_string(),
+        loom_compatibility: manifest.loom_compatibility.to_string(),
+        description: manifest.description.clone(),
+        dependencies: manifest
+            .dependencies
+            .iter()
+            .map(|dependency| dependency.id.as_str().into())
+            .collect(),
+        dependency_requirements: manifest
+            .dependencies
+            .iter()
+            .map(|dependency| loom_api::CapabilityDependencyDescriptor {
+                id: dependency.id.as_str().into(),
+                version: dependency.version.to_string(),
+            })
+            .collect(),
+    }
+}
+
+fn api_action_descriptor(action: &loom_capability::RegisteredAction) -> ActionDescriptor {
+    ActionDescriptor {
+        id: action.definition.id.clone(),
+        owner: action.owner.as_str().into(),
+        schema_revision: action.definition.schema_revision,
+        description: action.definition.description.clone(),
+        input_schema: action.definition.input_schema.clone(),
+    }
+}
+
+fn api_facet_descriptor(facet: &loom_capability::RegisteredFacet) -> FacetDescriptor {
+    FacetDescriptor {
+        id: facet.definition.id.clone(),
+        owner: facet.owner.as_str().into(),
+        schema_revision: facet.definition.schema_revision,
+        description: facet.definition.description.clone(),
+        schema: facet.definition.schema.clone(),
+    }
+}
+
+fn api_relationship_descriptor(
+    relationship: &loom_capability::RegisteredRelationship,
+) -> RelationshipDescriptor {
+    RelationshipDescriptor {
+        id: relationship.definition.id.clone(),
+        owner: relationship.owner.as_str().into(),
+        schema_revision: relationship.definition.schema_revision,
+        roles: relationship
+            .definition
+            .roles
+            .iter()
+            .map(|role| RelationshipRoleDescriptor {
+                role: role.role.clone(),
+                minimum: role.minimum,
+                maximum: role.maximum,
+            })
+            .collect(),
+        allowed_facets: relationship.definition.allowed_facets.clone(),
+        description: relationship.definition.description.clone(),
+    }
+}
+
+fn api_event_descriptor(event: &loom_capability::RegisteredEvent) -> EventDescriptor {
+    EventDescriptor {
+        id: event.definition.id.clone(),
+        owner: event.owner.as_str().into(),
+        schema_revision: event.definition.schema_revision,
+        payload_schema: event.definition.payload_schema.clone(),
+        participant_roles: event.definition.participant_roles.clone(),
+        relationship_roles: event.definition.relationship_roles.clone(),
+        description: event.definition.description.clone(),
+    }
+}
+
+fn api_work_handler_descriptor(
+    handler: &loom_capability::RegisteredWorkHandler,
+) -> WorkHandlerDescriptor {
+    WorkHandlerDescriptor {
+        id: handler.definition.id.clone(),
+        owner: handler.owner.as_str().into(),
+        schema_revision: handler.definition.schema_revision,
+        payload_schema: handler.definition.payload_schema.clone(),
+        description: handler.definition.description.clone(),
+    }
+}
+
+fn api_reaction_descriptor(reaction: &loom_capability::RegisteredReaction) -> ReactionDescriptor {
+    ReactionDescriptor {
+        owner: reaction.owner.as_str().into(),
+        event_type: reaction.reaction.event_type.clone(),
+        handler: reaction.reaction.handler.clone(),
+    }
 }
 
 fn version_before(candidate: TimelineVersion, boundary: TimelineVersion) -> bool {
@@ -2246,16 +2520,126 @@ where
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(query.target).await?;
-            let limit = query.limit.map_or(usize::MAX, |limit| {
-                usize::try_from(limit).unwrap_or(usize::MAX)
-            });
+            Ok(history_page(snapshot.events.iter(), query)?.events)
+        })
+    }
+
+    fn list_events_page(&self, query: EventQuery) -> ApiFuture<'_, EventPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(snapshot.events.iter(), query)
+        })
+    }
+
+    fn get_event(&self, event_ref: EventRef) -> ApiFuture<'_, Option<ApiCommittedEvent>> {
+        Box::pin(async move {
+            let snapshot = self
+                .store
+                .snapshot(event_ref.timeline_id)
+                .await
+                .map_err(|error| map_read_error(&error))?;
             Ok(snapshot
                 .events
                 .iter()
-                .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
-                .take(limit)
-                .map(api_event)
-                .collect())
+                .find(|event| event.event_ref() == event_ref)
+                .map(api_event))
+        })
+    }
+
+    fn direct_causes(&self, event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_event_ref(event_ref).await?;
+            let event = visible_event(&snapshot, event_ref)
+                .ok_or_else(|| ApiError::not_found(format!("Event {event_ref:?} was not found")))?;
+            Ok(causal_neighbors(&snapshot, event, CausalDirection::Causes))
+        })
+    }
+
+    fn direct_effects(&self, event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_event_ref(event_ref).await?;
+            let event = visible_event(&snapshot, event_ref)
+                .ok_or_else(|| ApiError::not_found(format!("Event {event_ref:?} was not found")))?;
+            Ok(causal_neighbors(&snapshot, event, CausalDirection::Effects))
+        })
+    }
+
+    fn causal_walk(&self, query: CausalQuery) -> ApiFuture<'_, CausalTraversal> {
+        Box::pin(async move {
+            validate_causal_query(query)?;
+            let snapshot = self.snapshot_for_event_ref(query.root).await?;
+            if visible_event(&snapshot, query.root).is_none() {
+                return Err(ApiError::not_found(format!(
+                    "Event {:?} was not found",
+                    query.root
+                )));
+            }
+
+            let mut queue = std::collections::VecDeque::from([(query.root, 0_u32)]);
+            let mut visited = HashSet::from([query.root]);
+            let mut events = Vec::new();
+            let mut truncated = false;
+            while let Some((current, depth)) = queue.pop_front() {
+                if depth >= query.max_depth {
+                    continue;
+                }
+                let Some(current_event) = visible_event(&snapshot, current) else {
+                    continue;
+                };
+                for next in causal_neighbors(&snapshot, current_event, query.direction) {
+                    if !visited.insert(next) {
+                        continue;
+                    }
+                    if events.len() >= usize::try_from(query.limit).unwrap_or(usize::MAX) {
+                        truncated = true;
+                        continue;
+                    }
+                    events.push(next);
+                    queue.push_back((next, depth + 1));
+                }
+            }
+            Ok(CausalTraversal { events, truncated })
+        })
+    }
+
+    fn entity_trajectory(&self, query: EntityTrajectoryQuery) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(
+                snapshot.events.iter().filter(|event| {
+                    event
+                        .participants
+                        .iter()
+                        .any(|participant| participant.entity_id == query.entity_id)
+                }),
+                EventQuery {
+                    target: query.target,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )
+        })
+    }
+
+    fn relationship_trajectory(
+        &self,
+        query: RelationshipTrajectoryQuery,
+    ) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(
+                snapshot.events.iter().filter(|event| {
+                    event
+                        .relationship_refs
+                        .iter()
+                        .any(|relationship| relationship.relationship_id == query.relationship_id)
+                }),
+                EventQuery {
+                    target: query.target,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )
         })
     }
 }
@@ -2270,34 +2654,35 @@ where
         + ExecutionSessionStore,
 {
     fn catalog(&self) -> ApiResult<CatalogSnapshot> {
-        let capabilities = self
-            .registry
-            .capabilities()
-            .map(|manifest| loom_api::CapabilityDescriptor {
-                id: manifest.id.as_str().into(),
-                version: manifest.version.to_string(),
-                description: manifest.description.clone(),
-                dependencies: manifest
-                    .dependencies
-                    .iter()
-                    .map(|dependency| dependency.id.as_str().into())
-                    .collect(),
-            })
-            .collect();
-        let actions = self
-            .registry
-            .actions()
-            .map(|action| ActionDescriptor {
-                id: action.definition.id.clone(),
-                owner: action.owner.as_str().into(),
-                schema_revision: action.definition.schema_revision,
-                description: action.definition.description.clone(),
-                input_schema: action.definition.input_schema.clone(),
-            })
-            .collect();
-        Ok(CatalogSnapshot {
-            capabilities,
-            actions,
+        Ok(self.project_catalog(None))
+    }
+
+    fn catalog_for_world(&self, world_id: loom_core::WorldId) -> ApiFuture<'_, CatalogSnapshot> {
+        Box::pin(async move {
+            let binding = self.binding_for_world(world_id).await?;
+            let active = self
+                .store
+                .select_active_revision()
+                .await
+                .map_err(|error| map_runtime_revision_error(&error))?;
+            let mut available = HashSet::new();
+            for manifest in self.registry.capabilities() {
+                let compatible_binding = binding.allows(&manifest.id, &manifest.version);
+                let current_software = active.as_ref().is_none_or(|selection| {
+                    selection
+                        .revision()
+                        .capability(&manifest.id)
+                        .is_some_and(|implementation| {
+                            implementation.version() == &manifest.version
+                                && implementation.loom_compatibility()
+                                    == &manifest.loom_compatibility
+                        })
+                });
+                if compatible_binding && current_software {
+                    available.insert(manifest.id.clone());
+                }
+            }
+            Ok(self.project_catalog(Some(&available)))
         })
     }
 }
