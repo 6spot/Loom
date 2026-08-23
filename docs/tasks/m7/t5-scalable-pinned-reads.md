@@ -6,7 +6,7 @@ depends_on: [150, 167]
 created_at: 2026-08-22
 started_at: 2026-08-23
 completed_at:
-completion_pr:
+completion_pr: 226
 merge_sha:
 ---
 # M7-T5 — Scalable Pinned Read Boundary
