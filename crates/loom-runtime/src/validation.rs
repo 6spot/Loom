@@ -11,7 +11,7 @@ use loom_core::{
     RelationshipParticipant, SchemaRevision, TimelineId, WorkId, WorldEffect,
 };
 use loom_protocol::{
-    ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation, WorkTarget,
+    NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome, WorkMutation, WorkTarget,
 };
 use serde_json::Value;
 
@@ -386,6 +386,19 @@ impl ValidatedResolution {
             entropy_evidence,
         }
     }
+
+    /// Appends Runtime-generated Work after the enclosing Events have passed
+    /// candidate validation. The generated Work is still normalized through
+    /// the same ownership, schema, Timeline and causal-reference checks as
+    /// ordinary Work mutations before the authority token is returned.
+    pub(crate) fn append_validated_work(
+        &mut self,
+        work: Vec<WorkMutation>,
+        read_set: crate::ReadSet,
+    ) {
+        self.resolution.work.extend(work);
+        self.read_set.extend(read_set);
+    }
 }
 
 /// Runtime Effect Engine for one immutable semantic registry and validation
@@ -603,6 +616,57 @@ impl<'registry> EffectEngine<'registry> {
             call_provenance,
             entropy_evidence,
         ))
+    }
+
+    /// Validates and appends Runtime-generated reaction Work against the
+    /// candidate state produced by an already validated Resolution.
+    ///
+    /// Reactions are expanded only after Event validation, but their Work
+    /// still crosses the normal Work validation boundary and participates in
+    /// the same aggregate resolution budget. No handler is invoked here.
+    pub(crate) fn append_reaction_work(
+        &self,
+        base: &crate::BaseWorldView,
+        validated: &mut ValidatedResolution,
+        additions: Vec<(CapabilityId, NewWork)>,
+    ) -> Result<(), RuntimeError> {
+        if additions.is_empty() {
+            return Ok(());
+        }
+
+        let additions_resolution = Resolution::new(
+            Vec::new(),
+            additions
+                .iter()
+                .map(|(_, work)| WorkMutation::Schedule(work.clone()))
+                .collect(),
+        );
+        let total_usage = BudgetUsage::from_resolution(validated.resolution())
+            .combine(BudgetUsage::from_resolution(&additions_resolution));
+        self.budget
+            .check(total_usage)
+            .map_err(RuntimeError::Budget)?;
+
+        let mut candidate = CandidateWorldView::from_base(base);
+        for event in validated.events() {
+            for effect in &event.effects {
+                candidate.apply_effect(effect);
+            }
+            candidate.note_event(event.id);
+        }
+
+        let mut normalized = Vec::with_capacity(additions.len());
+        for (owner, work) in additions {
+            normalized.extend(validate_work(
+                self.registry,
+                &mut candidate,
+                owner.as_str(),
+                &Resolution::new(Vec::new(), vec![WorkMutation::Schedule(work)]),
+            )?);
+        }
+        let read_set = candidate.read_set();
+        validated.append_validated_work(normalized, read_set);
+        Ok(())
     }
 
     /// Validates a normal resolver result while preserving Capability
