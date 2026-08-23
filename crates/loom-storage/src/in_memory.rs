@@ -32,7 +32,7 @@ use loom_runtime::{
     TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
     WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
     WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore,
+    WorldTimeStore, semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -1841,6 +1841,14 @@ impl SemanticProjectionStore for InMemoryStore {
                 .get(&query.key)
                 .into_iter()
                 .flatten()
+                .filter(|row| {
+                    query.filters.iter().all(|filter| {
+                        filter
+                            .source_hash
+                            .as_ref()
+                            .is_none_or(|expected| expected == &row.source_hash)
+                    })
+                })
                 .map(|row| SemanticProjectionHit {
                     source_ref: row.source_ref,
                     source_hash: row.source_hash.clone(),
@@ -1867,6 +1875,16 @@ impl SemanticProjectionStore for InMemoryStore {
                     })
             });
             hits.truncate(query.limit as usize);
+            let result_bytes = hits
+                .iter()
+                .map(semantic_projection_hit_bytes)
+                .sum::<usize>();
+            if result_bytes > query.max_result_bytes as usize {
+                return Err(SemanticProjectionError::LimitExceeded {
+                    limit: query.max_result_bytes,
+                    actual: u32::try_from(result_bytes).unwrap_or(u32::MAX),
+                });
+            }
             Ok(hits)
         })
     }

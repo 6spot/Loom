@@ -33,6 +33,7 @@ use loom_runtime::{
     TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord,
     WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
     WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
+    semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgPoolOptions};
@@ -42,6 +43,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 const HEALTH_SQL: &str = include_str!("../sql/health/check.sql");
 const REPEATABLE_READ_READ_ONLY_SQL: &str =
     include_str!("../sql/transaction/repeatable_read_read_only.sql");
+const REPEATABLE_READ_SQL: &str = include_str!("../sql/transaction/repeatable_read.sql");
 const READ_TIMELINE_SQL: &str = include_str!("../sql/world/read_timeline.sql");
 const READ_ENTITY_SQL: &str = include_str!("../sql/world/read_entity.sql");
 const READ_RELATIONSHIP_SQL: &str = include_str!("../sql/world/read_relationship.sql");
@@ -1274,6 +1276,10 @@ impl PgStorage {
     ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
         query.validate()?;
         let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
+        sqlx::query(REPEATABLE_READ_SQL)
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
         let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
             .bind(query.key.world_id.to_string())
             .bind(query.key.timeline_id.to_string())
@@ -1322,6 +1328,12 @@ impl PgStorage {
             .bind(vector_literal(&query.vector))
             .bind(query.projection_revision.to_string())
             .bind(&query.model_revision)
+            .bind(
+                query
+                    .filters
+                    .first()
+                    .and_then(|filter| filter.source_hash.as_deref()),
+            )
             .bind(i64::from(query.limit))
             .fetch_all(&mut *transaction)
             .await
@@ -1329,6 +1341,17 @@ impl PgStorage {
         let mut hits = Vec::with_capacity(rows.len());
         for row in rows {
             hits.push(semantic_projection_hit_from_row(&row)?);
+        }
+        let result_bytes = hits
+            .iter()
+            .map(semantic_projection_hit_bytes)
+            .sum::<usize>();
+        if result_bytes > query.max_result_bytes as usize {
+            let _ = transaction.rollback().await;
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: query.max_result_bytes,
+                actual: u32::try_from(result_bytes).unwrap_or(u32::MAX),
+            });
         }
         transaction.commit().await.map_err(sql_projection_error)?;
         Ok(hits)

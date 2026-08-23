@@ -11,7 +11,8 @@ FROM loom_semantic_projection_row
 WHERE world_id = $1::uuid
   AND timeline_id = $2::uuid
   AND index_id = $3
+  AND ($7::text IS NULL OR source_hash = $7)
   AND projection_revision = $5::numeric
   AND model_revision = $6
 ORDER BY distance ASC, source_timeline_id, source_event_id
-LIMIT $7
+LIMIT $8

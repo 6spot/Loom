@@ -74,13 +74,15 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     error::Error,
     fmt,
+    future::Future,
+    pin::Pin,
     sync::Arc,
 };
 
 use loom_core::{
-    ActionTypeId, AssociationRole, Entity, EntityId, EventTypeId, FacetOwner, FacetTypeId,
-    Relationship, RelationshipId, RelationshipTypeId, SchemaRevision, TimelineId, TimelineVersion,
-    WorkHandlerId, WorldInstant,
+    ActionTypeId, AssociationRole, Entity, EntityId, EventRef, EventTypeId, FacetOwner,
+    FacetTypeId, Relationship, RelationshipId, RelationshipTypeId, SchemaRevision, TimelineId,
+    TimelineVersion, WorkHandlerId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ResolveOutcome, WorkSchedule};
 use semver::{Version, VersionReq};
@@ -431,6 +433,191 @@ pub struct SemanticIndexDefinition {
     /// Human-readable discovery description.
     pub description: String,
 }
+
+/// One provider-neutral predicate applied to semantic projection hits.
+///
+/// The filter is a request value, not a SQL expression or provider query
+/// fragment. Runtime and Storage interpret it against the source metadata
+/// carried by a projection row.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SemanticQueryFilter {
+    /// Optional exact source fingerprint predicate.
+    pub source_hash: Option<String>,
+}
+
+impl SemanticQueryFilter {
+    /// Creates an exact source-fingerprint filter.
+    #[must_use]
+    pub fn source_hash(value: impl Into<String>) -> Self {
+        Self {
+            source_hash: Some(value.into()),
+        }
+    }
+}
+
+/// Runtime-mediated semantic retrieval request visible to Capability code.
+///
+/// This value contains only semantic metadata and query data. It deliberately
+/// contains no storage handle, SQL, vector index object or embedding provider.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SemanticQueryRequest {
+    /// Capability-owned index identity.
+    pub index_id: SemanticIndexId,
+    /// Source schema revision expected by the caller.
+    pub source_schema_revision: SchemaRevision,
+    /// Projection algorithm/configuration revision expected by the caller.
+    pub projection_revision: u64,
+    /// Provider-neutral model revision expected by the caller.
+    pub model_revision: String,
+    /// Query vector supplied by the Capability/Agency policy.
+    pub vector: Vec<f32>,
+    /// Maximum number of returned hits.
+    pub limit: u32,
+    /// Bounded source metadata predicates.
+    #[serde(default)]
+    pub filters: Vec<SemanticQueryFilter>,
+    /// Semantic traversal/context depth requested by the caller.
+    #[serde(default)]
+    pub depth: u32,
+}
+
+impl SemanticQueryRequest {
+    /// Creates a query with no filters and zero semantic depth.
+    #[must_use]
+    pub fn new(
+        index_id: impl Into<SemanticIndexId>,
+        source_schema_revision: SchemaRevision,
+        projection_revision: u64,
+        model_revision: impl Into<String>,
+        vector: Vec<f32>,
+        limit: u32,
+    ) -> Self {
+        Self {
+            index_id: index_id.into(),
+            source_schema_revision,
+            projection_revision,
+            model_revision: model_revision.into(),
+            vector,
+            limit,
+            filters: Vec::new(),
+            depth: 0,
+        }
+    }
+
+    /// Adds one provider-neutral source filter.
+    #[must_use]
+    pub fn with_filter(mut self, filter: SemanticQueryFilter) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Sets the semantic query depth used by Runtime policy.
+    #[must_use]
+    pub const fn with_depth(mut self, depth: u32) -> Self {
+        self.depth = depth;
+        self
+    }
+}
+
+/// One source-addressed semantic retrieval hit.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SemanticQueryHit {
+    /// Qualified authoritative source reference represented by the row.
+    pub source_ref: EventRef,
+    /// Source fingerprint retained for provenance and filtering.
+    pub source_hash: String,
+    /// Source Timeline revision observed by the projection builder.
+    pub source_revision: TimelineVersion,
+    /// Projection revision that produced the hit.
+    pub projection_revision: u64,
+    /// Provider-neutral model revision that produced the hit.
+    pub model_revision: String,
+    /// Metric distance; lower values sort first.
+    pub distance: f32,
+}
+
+/// Results returned by the Runtime-mediated semantic host.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SemanticQueryResult {
+    /// Hits in deterministic distance/source-reference order.
+    pub hits: Vec<SemanticQueryHit>,
+}
+
+/// Typed failures crossing the semantic host boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SemanticQueryError {
+    /// The request exceeded a named Runtime/session bound.
+    Bounds {
+        /// Bound dimension, such as `query_count` or `result_bytes`.
+        dimension: String,
+        /// Maximum accepted value.
+        limit: usize,
+        /// Requested/observed value.
+        actual: usize,
+    },
+    /// The requested index or projection is absent.
+    Missing { index_id: SemanticIndexId },
+    /// Projection metadata is stale relative to the pinned request.
+    Stale {
+        /// Metadata field that became stale.
+        field: String,
+        /// Pinned/requested value.
+        expected: String,
+        /// Projection value observed at the read boundary.
+        actual: String,
+    },
+    /// Projection metadata is incompatible with the request/session.
+    Mismatch {
+        /// Metadata field that differs.
+        field: String,
+        /// Required value.
+        expected: String,
+        /// Observed value.
+        actual: String,
+    },
+    /// The projection/read authority cannot serve the request.
+    Unavailable { message: String },
+    /// The request is structurally invalid.
+    InvalidRequest { message: String },
+}
+
+impl fmt::Display for SemanticQueryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bounds {
+                dimension,
+                limit,
+                actual,
+            } => write!(
+                formatter,
+                "semantic {dimension} bound exceeded: {actual} > {limit}"
+            ),
+            Self::Missing { index_id } => write!(formatter, "semantic index {index_id} is missing"),
+            Self::Stale {
+                field,
+                expected,
+                actual,
+            }
+            | Self::Mismatch {
+                field,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "semantic {field} mismatch: expected {expected}, got {actual}"
+            ),
+            Self::Unavailable { message } | Self::InvalidRequest { message } => {
+                formatter.write_str(message)
+            }
+        }
+    }
+}
+
+impl Error for SemanticQueryError {}
+
+/// Executor-neutral future used by the approved semantic host port.
+pub type SemanticQueryFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<SemanticQueryResult, ResolutionContextError>> + 'a>>;
 
 impl SemanticIndexDefinition {
     /// Creates an index definition with an empty description.
@@ -960,6 +1147,8 @@ pub enum ResolutionContextErrorKind {
     Host,
     /// A mediated entropy request failed with a typed reason.
     Entropy(EntropyError),
+    /// A typed Runtime-mediated semantic retrieval failure.
+    Semantic(SemanticQueryError),
 }
 
 impl ResolutionContextError {
@@ -978,6 +1167,15 @@ impl ResolutionContextError {
         Self {
             message: error.to_string(),
             kind: ResolutionContextErrorKind::Entropy(error),
+        }
+    }
+
+    /// Creates a host error retaining the typed semantic retrieval failure.
+    #[must_use]
+    pub fn semantic(error: SemanticQueryError) -> Self {
+        Self {
+            message: error.to_string(),
+            kind: ResolutionContextErrorKind::Semantic(error),
         }
     }
 
@@ -1016,6 +1214,8 @@ pub enum ResolverErrorKind {
     Host,
     /// A typed mediated entropy failure.
     Entropy(EntropyError),
+    /// A typed semantic retrieval failure from the host boundary.
+    Semantic(SemanticQueryError),
 }
 
 impl ResolverError {
@@ -1040,6 +1240,7 @@ impl From<ResolutionContextError> for ResolverError {
         let kind = match error.kind {
             ResolutionContextErrorKind::Host => ResolverErrorKind::Host,
             ResolutionContextErrorKind::Entropy(error) => ResolverErrorKind::Entropy(error),
+            ResolutionContextErrorKind::Semantic(error) => ResolverErrorKind::Semantic(error),
         };
         Self {
             message: error.message,
@@ -1152,6 +1353,30 @@ pub trait ResolutionContext {
         &self,
         invocation: &ActionInvocation,
     ) -> Result<ResolveOutcome, ResolutionContextError>;
+
+    /// Requests one Runtime-mediated semantic query.
+    ///
+    /// The future is intentionally executor-neutral so Capability and Agency
+    /// implementations can await the same host contract without receiving a
+    /// database or provider client. The default keeps older focused host
+    /// implementations source-compatible and reports an unavailable port.
+    fn query_semantic<'a>(&'a self, _request: &'a SemanticQueryRequest) -> SemanticQueryFuture<'a> {
+        Box::pin(async {
+            Err(ResolutionContextError::semantic(
+                SemanticQueryError::Unavailable {
+                    message: "semantic retrieval is unavailable in this host context".to_owned(),
+                },
+            ))
+        })
+    }
+
+    /// Async subresolution companion used by async resolver implementations.
+    fn subresolve_async<'a>(
+        &'a self,
+        invocation: &'a ActionInvocation,
+    ) -> Pin<Box<dyn Future<Output = Result<ResolveOutcome, ResolutionContextError>> + 'a>> {
+        Box::pin(async move { self.subresolve(invocation) })
+    }
 
     /// Requests a Runtime-mediated entropy sample under the pinned Session
     /// policy.
@@ -1268,6 +1493,16 @@ pub trait WorkHandler {
         context: &dyn ResolutionContext,
         payload: &Value,
     ) -> CapabilityResult<ResolveOutcome>;
+
+    /// Async Work-handler companion. The default preserves existing sync
+    /// handlers while allowing a handler to await Runtime host reads.
+    fn handle_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        payload: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        Box::pin(async move { self.handle(context, payload) })
+    }
 }
 
 /// Action resolver SPI for one registered semantic Action key.
@@ -1289,6 +1524,17 @@ pub trait ActionResolver {
         context: &dyn ResolutionContext,
         input: &Value,
     ) -> CapabilityResult<ResolveOutcome>;
+
+    /// Async resolver companion. Existing synchronous resolvers keep their
+    /// behavior; semantic-retrieval resolvers may override this method and
+    /// await [`ResolutionContext::query_semantic`].
+    fn resolve_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        input: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        Box::pin(async move { self.resolve(context, input) })
+    }
 }
 
 impl<T> ActionResolver for Box<T>
@@ -1301,6 +1547,14 @@ where
         input: &Value,
     ) -> CapabilityResult<ResolveOutcome> {
         (**self).resolve(context, input)
+    }
+
+    fn resolve_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        input: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        (**self).resolve_async(context, input)
     }
 }
 
@@ -1315,6 +1569,14 @@ where
     ) -> CapabilityResult<ResolveOutcome> {
         (**self).resolve(context, input)
     }
+
+    fn resolve_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        input: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        (**self).resolve_async(context, input)
+    }
 }
 
 impl<T> WorkHandler for Box<T>
@@ -1328,6 +1590,14 @@ where
     ) -> CapabilityResult<ResolveOutcome> {
         (**self).handle(context, payload)
     }
+
+    fn handle_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        payload: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        (**self).handle_async(context, payload)
+    }
 }
 
 impl<T> WorkHandler for Arc<T>
@@ -1340,6 +1610,14 @@ where
         payload: &Value,
     ) -> CapabilityResult<ResolveOutcome> {
         (**self).handle(context, payload)
+    }
+
+    fn handle_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        payload: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        (**self).handle_async(context, payload)
     }
 }
 
@@ -2024,6 +2302,15 @@ impl RegisteredAction {
         self.resolver.resolve(context, input)
     }
 
+    /// Resolves input through the async Action SPI.
+    pub fn resolve_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        input: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        self.resolver.resolve_async(context, input)
+    }
+
     /// Borrows the registered resolver for Runtime dispatch.
     #[must_use]
     pub fn resolver(&self) -> &dyn ActionResolver {
@@ -2053,6 +2340,15 @@ impl RegisteredWorkHandler {
         payload: &Value,
     ) -> CapabilityResult<ResolveOutcome> {
         self.handler.handle(context, payload)
+    }
+
+    /// Resolves a Work payload through the async handler SPI.
+    pub fn handle_async<'a>(
+        &'a self,
+        context: &'a dyn ResolutionContext,
+        payload: &'a Value,
+    ) -> Pin<Box<dyn Future<Output = CapabilityResult<ResolveOutcome>> + 'a>> {
+        self.handler.handle_async(context, payload)
     }
 
     /// Borrows the registered Work handler for Runtime dispatch.
@@ -2420,6 +2716,26 @@ impl CapabilityRegistry {
             .map_err(DispatchError::Resolver)
     }
 
+    /// Dispatches one Action through its async resolver SPI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an unknown-action or resolver/host dispatch error.
+    pub async fn resolve_action_async(
+        &self,
+        id: &ActionTypeId,
+        context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, DispatchError> {
+        let Some(action) = self.action(id) else {
+            return Err(DispatchError::UnknownAction(id.clone()));
+        };
+        action
+            .resolve_async(context, input)
+            .await
+            .map_err(DispatchError::Resolver)
+    }
+
     /// Dispatches one Durable Work payload through its registered handler.
     ///
     /// # Errors
@@ -2437,6 +2753,26 @@ impl CapabilityRegistry {
         };
         handler
             .handle(context, payload)
+            .map_err(DispatchError::Handler)
+    }
+
+    /// Dispatches one Durable Work payload through its async handler SPI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an unknown-handler or handler/host dispatch error.
+    pub async fn handle_work_async(
+        &self,
+        id: &WorkHandlerId,
+        context: &dyn ResolutionContext,
+        payload: &Value,
+    ) -> Result<ResolveOutcome, DispatchError> {
+        let Some(handler) = self.work_handler(id) else {
+            return Err(DispatchError::UnknownWorkHandler(id.clone()));
+        };
+        handler
+            .handle_async(context, payload)
+            .await
             .map_err(DispatchError::Handler)
     }
 

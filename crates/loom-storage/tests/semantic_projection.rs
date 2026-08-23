@@ -4,9 +4,10 @@ use std::str::FromStr;
 
 use loom_core::{EventRef, SchemaRevision, TimelineId, TimelineVersion, WorldId, WorldInstant};
 use loom_runtime::{
-    MAX_SEMANTIC_PROJECTION_ROWS, SemanticIndexMetric, SemanticIndexSource, SemanticProjectionKey,
-    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
-    SemanticProjectionRow, SemanticProjectionStore, WorldLifecycleStore, WorldStore,
+    MAX_SEMANTIC_PROJECTION_ROWS, SemanticIndexMetric, SemanticIndexSource,
+    SemanticProjectionFilter, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
+    SemanticProjectionStore, WorldLifecycleStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
 
@@ -58,6 +59,10 @@ fn rows() -> Vec<SemanticProjectionRow> {
     ]
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one InMemory fixture covers the complete projection boundary"
+)]
 #[tokio::test]
 async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
     let store = InMemoryStore::new();
@@ -145,11 +150,30 @@ async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
             actual: 2
         }
     ));
-    let hits = SemanticProjectionStore::query_semantic_projection(&store, query)
+    let hits = SemanticProjectionStore::query_semantic_projection(&store, query.clone())
         .await
         .expect("projection query should succeed");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].source_ref.event_id, id(11));
+    let filtered = SemanticProjectionStore::query_semantic_projection(
+        &store,
+        query
+            .clone()
+            .with_filter(SemanticProjectionFilter::source_hash("hash-a")),
+    )
+    .await
+    .expect("matching source filter should return its row");
+    assert_eq!(filtered[0].source_ref.event_id, id(11));
+    let byte_bound = SemanticProjectionStore::query_semantic_projection(
+        &store,
+        query.clone().with_max_result_bytes(1),
+    )
+    .await
+    .expect_err("result bytes must be bounded before returning hits");
+    assert!(matches!(
+        byte_bound,
+        loom_runtime::SemanticProjectionError::LimitExceeded { limit: 1, .. }
+    ));
     SemanticProjectionStore::delete_semantic_projection(&store, registration.key)
         .await
         .expect("projection deletion should succeed");
@@ -224,6 +248,26 @@ async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
         .await
         .expect("pgvector query should succeed");
     assert_eq!(hits[0].source_ref.event_id, id(11));
+    let filtered = SemanticProjectionStore::query_semantic_projection(
+        &storage,
+        query
+            .clone()
+            .with_filter(SemanticProjectionFilter::source_hash("hash-a")),
+    )
+    .await
+    .expect("PostgreSQL source filter should match InMemory semantics");
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].source_ref.event_id, id(11));
+    let byte_bound = SemanticProjectionStore::query_semantic_projection(
+        &storage,
+        query.clone().with_max_result_bytes(1),
+    )
+    .await
+    .expect_err("PostgreSQL result bytes must be bounded");
+    assert!(matches!(
+        byte_bound,
+        loom_runtime::SemanticProjectionError::LimitExceeded { limit: 1, .. }
+    ));
     let invalid_limit_query = SemanticProjectionQuery {
         limit: 0,
         ..query.clone()

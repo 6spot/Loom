@@ -3165,6 +3165,13 @@ pub const MAX_SEMANTIC_PROJECTION_ROWS: usize = 16_384;
 pub const MAX_SEMANTIC_VECTOR_DIMENSIONS: u32 = 4_096;
 /// Maximum number of similarity hits returned by one query.
 pub const MAX_SEMANTIC_QUERY_RESULTS: u32 = 1_024;
+/// Maximum bytes returned by one semantic query when no Session-specific
+/// result-byte policy is supplied.
+pub const MAX_SEMANTIC_QUERY_RESULT_BYTES: u32 = 1_048_576;
+/// Maximum provider-neutral source filters accepted by one semantic query.
+pub const MAX_SEMANTIC_QUERY_FILTERS: u32 = 1;
+/// Maximum semantic traversal depth accepted by one semantic query.
+pub const MAX_SEMANTIC_QUERY_DEPTH: u32 = 32;
 
 /// Stable key for one World/Timeline semantic projection materialization.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -3417,6 +3424,29 @@ pub struct SemanticProjectionQuery {
     pub vector: Vec<f32>,
     /// Maximum number of deterministic hits.
     pub limit: u32,
+    /// Provider-neutral source metadata filters.
+    pub filters: Vec<SemanticProjectionFilter>,
+    /// Maximum deterministic bytes returned by this query.
+    pub max_result_bytes: u32,
+    /// Semantic traversal/context depth requested by the caller.
+    pub depth: u32,
+}
+
+/// One provider-neutral predicate applied to projection source metadata.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SemanticProjectionFilter {
+    /// Optional exact source fingerprint predicate.
+    pub source_hash: Option<String>,
+}
+
+impl SemanticProjectionFilter {
+    /// Creates an exact source fingerprint predicate.
+    #[must_use]
+    pub fn source_hash(value: impl Into<String>) -> Self {
+        Self {
+            source_hash: Some(value.into()),
+        }
+    }
 }
 
 impl SemanticProjectionQuery {
@@ -3444,6 +3474,9 @@ impl SemanticProjectionQuery {
             model_revision,
             vector,
             limit,
+            filters: Vec::new(),
+            max_result_bytes: MAX_SEMANTIC_QUERY_RESULT_BYTES,
+            depth: 0,
         };
         query.validate()?;
         Ok(query)
@@ -3464,6 +3497,24 @@ impl SemanticProjectionQuery {
                 actual: self.limit,
             });
         }
+        if self.max_result_bytes == 0 || self.max_result_bytes > MAX_SEMANTIC_QUERY_RESULT_BYTES {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_RESULT_BYTES,
+                actual: self.max_result_bytes,
+            });
+        }
+        if self.filters.len() > MAX_SEMANTIC_QUERY_FILTERS as usize {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_FILTERS,
+                actual: u32::try_from(self.filters.len()).unwrap_or(u32::MAX),
+            });
+        }
+        if self.depth > MAX_SEMANTIC_QUERY_DEPTH {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_DEPTH,
+                actual: self.depth,
+            });
+        }
         if self.projection_revision == 0 || self.model_revision.is_empty() {
             return Err(SemanticProjectionError::InvalidRequest {
                 message: "projection revision and model revision are required".to_owned(),
@@ -3481,6 +3532,29 @@ impl SemanticProjectionQuery {
             });
         }
         Ok(())
+    }
+}
+
+impl SemanticProjectionQuery {
+    /// Adds one provider-neutral source filter.
+    #[must_use]
+    pub fn with_filter(mut self, filter: SemanticProjectionFilter) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Sets the result-byte bound for this query.
+    #[must_use]
+    pub const fn with_max_result_bytes(mut self, max_result_bytes: u32) -> Self {
+        self.max_result_bytes = max_result_bytes;
+        self
+    }
+
+    /// Sets the semantic traversal/context depth for this query.
+    #[must_use]
+    pub const fn with_depth(mut self, depth: u32) -> Self {
+        self.depth = depth;
+        self
     }
 }
 
@@ -3529,6 +3603,18 @@ pub enum SemanticProjectionError {
     LimitExceeded { limit: u32, actual: u32 },
     /// The projection adapter could not complete its operation.
     StorageUnavailable { message: String },
+}
+
+/// Returns the deterministic evidence byte size of one semantic hit.
+#[must_use]
+pub fn semantic_projection_hit_bytes(hit: &SemanticProjectionHit) -> usize {
+    hit.source_ref.timeline_id.to_string().len()
+        + hit.source_ref.event_id.to_string().len()
+        + hit.source_hash.len()
+        + format!("{:?}", hit.source_revision).len()
+        + hit.projection_revision.to_string().len()
+        + hit.model_revision.len()
+        + std::mem::size_of::<f32>()
 }
 
 impl fmt::Display for SemanticProjectionError {
