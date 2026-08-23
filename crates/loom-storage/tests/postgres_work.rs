@@ -10,9 +10,9 @@ use loom_capability::{
 use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
 use loom_protocol::{NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule};
 use loom_runtime::{
-    CommitError, CommitStore, EffectEngine, LogicalJournalStore, LogicalWorkTransition,
-    PlatformTime, Runtime, RuntimeControlStore, WorkError, WorkStatus, WorkStore,
-    WorkTerminalState, WorkTerminalization, WorldStore,
+    ChronologyBudgetExceeded, CommitError, CommitStore, EffectEngine, LogicalJournalStore,
+    LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, TimelineDriverResult,
+    WorkError, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldStore,
 };
 use loom_storage::PgStorage;
 use serde_json::Value;
@@ -535,6 +535,92 @@ async fn postgres_18_work_zero_event_runtime_completion_is_durable() {
     assert_eq!(snapshot.world_time().value(), 0);
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_18_scheduler_budget_is_durable_across_restart() {
+    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2450).await else {
+        return;
+    };
+    let first_work: WorkId = id(0x2460);
+    let second_work: WorkId = id(0x2461);
+    seed_work(&pool, timeline_id, first_work, 0, None).await;
+    seed_work(&pool, timeline_id, second_work, 0, None).await;
+
+    let runtime = Runtime::new(storage.clone(), registry())
+        .expect("Runtime should assemble")
+        .with_chronology_budget_limit(1);
+    let target = TimelineTarget::new(world_id, timeline_id);
+    let executed = runtime
+        .drive_timeline(
+            target,
+            PlatformTime::new(10),
+            PlatformTime::new(20),
+            PlatformTime::new(30),
+        )
+        .await
+        .expect("the first due logical head should execute");
+    assert!(matches!(
+        executed,
+        TimelineDriverResult::Executed { work_id, result }
+            if work_id == first_work && result.is_committed()
+    ));
+
+    let exhausted = runtime
+        .drive_timeline(
+            target,
+            PlatformTime::new(10),
+            PlatformTime::new(20),
+            PlatformTime::new(30),
+        )
+        .await
+        .expect("budget exhaustion should be a typed driver result");
+    assert!(matches!(
+        exhausted,
+        TimelineDriverResult::ChronologyBudgetExceeded(ChronologyBudgetExceeded {
+            timeline_id: exhausted_timeline,
+            world_time,
+            limit: 1,
+            consumed: 1,
+        }) if exhausted_timeline == timeline_id && world_time.value() == 0
+    ));
+
+    let before_restart = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("budget snapshot should be readable before restart");
+    assert_eq!(before_restart.chronology_budget().consumed, 1);
+    assert_eq!(before_restart.journal.len(), 1);
+
+    pool.close().await;
+    storage.close().await;
+    let restarted = database.storage().await;
+    let after_restart = WorldStore::snapshot(&restarted, timeline_id)
+        .await
+        .expect("budget snapshot should survive restart");
+    assert_eq!(after_restart.chronology_budget().consumed, 1);
+    let restarted_runtime = Runtime::new(restarted.clone(), registry())
+        .expect("restarted Runtime should assemble")
+        .with_chronology_budget_limit(1);
+    let restarted_result = restarted_runtime
+        .drive_timeline(
+            target,
+            PlatformTime::new(10),
+            PlatformTime::new(20),
+            PlatformTime::new(30),
+        )
+        .await
+        .expect("restarted budget exhaustion should remain observable");
+    assert!(matches!(
+        restarted_result,
+        TimelineDriverResult::ChronologyBudgetExceeded(ChronologyBudgetExceeded {
+            limit: 1,
+            consumed: 1,
+            ..
+        })
+    ));
+
+    restarted.close().await;
     database.cleanup().await;
 }
 

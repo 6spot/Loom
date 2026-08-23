@@ -99,16 +99,18 @@ pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
 pub use orchestration::Runtime;
 pub use persistence::{
     ActiveRuntimeRevision, AdvanceWorldTime, BindingError, ChronologyBudgetConsumption,
-    CommitError, CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
+    ChronologyBudgetExceeded, ChronologyBudgetPolicy, ChronologyBudgetState, CommitError,
+    CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
     ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
     FailurePolicyError, LifecycleError, LogicalCommit, LogicalJournalRecord, LogicalJournalStore,
     LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime,
     ReadError, RuntimeCapabilityImplementation, RuntimeControlStore, RuntimeRevision,
     RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
     RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
-    TimelineBlockedOnMissingImplementation, TimelineSnapshot, WorkClaim, WorkError, WorkLease,
-    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldCreation,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
+    SessionError, TimelineBlockedOnMissingImplementation, TimelineDriverBlock,
+    TimelineDriverResult, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord,
+    WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldCreation,
     WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
     WorldTimeStore, WorldTimeTransition,
 };
