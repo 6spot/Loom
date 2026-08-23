@@ -28,6 +28,8 @@ impl TestDatabase {
         let control_pool = PgPool::connect(&control_url)
             .await
             .expect("PostgreSQL test control database should accept connections");
+        validate_control_database(&control_pool).await;
+
         let database_name = unique_database_name(label);
         let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
         sqlx::query(AssertSqlSafe(create_sql))
@@ -82,6 +84,30 @@ fn postgres_control_url() -> Option<String> {
         }
         Err(_) => None,
     }
+}
+
+async fn validate_control_database(control_pool: &PgPool) {
+    let server_version: i32 =
+        sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
+            .fetch_one(control_pool)
+            .await
+            .expect("PostgreSQL test control database should report its server version");
+    assert!(
+        (180_000..190_000).contains(&server_version),
+        "Loom PostgreSQL integration tests require PostgreSQL 18, got server_version_num={server_version}"
+    );
+
+    let vector_version: Option<String> = sqlx::query_scalar(
+        "SELECT default_version::text FROM pg_available_extensions WHERE name = 'vector'",
+    )
+    .fetch_optional(control_pool)
+    .await
+    .expect("PostgreSQL test control database should expose available extensions");
+    assert_eq!(
+        vector_version.as_deref(),
+        Some("0.8.6"),
+        "Loom PostgreSQL integration tests require pgvector 0.8.6 on PostgreSQL 18. Do not use plain postgres:18 or an ad-hoc container; start the repository-managed service with `bash tools/postgres-test.sh up`."
+    );
 }
 
 fn child_database_url(control_url: &str, database_name: &str) -> String {
