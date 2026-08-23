@@ -4,28 +4,6 @@ Loom PostgreSQL integration tests use a long-lived local PostgreSQL 18 + pgvecto
 
 The local service is intentionally bound only to `127.0.0.1` and is not exposed on the machine's public interfaces.
 
-## Start the local test database
-
-From the repository root:
-
-```bash
-bash tools/postgres-test.sh up
-```
-
-On first use this creates `.env.test.local` with a generated local-only password, starts `pgvector/pgvector:0.8.6-pg18`, and publishes PostgreSQL at `127.0.0.1:15432` by default.
-
-The generated `.env.test.local` is ignored by Git. `.env.test.example` documents the variables without containing a real credential.
-
-Useful service commands:
-
-```bash
-bash tools/postgres-test.sh status
-bash tools/postgres-test.sh logs
-bash tools/postgres-test.sh down
-```
-
-`down` removes the container/network but preserves the named test volume, so the control database survives normal restarts.
-
 ## Run tests
 
 Use the repository test wrapper:
@@ -40,7 +18,9 @@ For one PostgreSQL integration test:
 bash tools/test.sh -p loom-storage --test postgres_schema -- --nocapture
 ```
 
-`tools/test.sh` loads `.env.test.local`, requires `LOOM_TEST_POSTGRES_URL`, sets `LOOM_REQUIRE_POSTGRES_TESTS=1`, and then delegates to `cargo test`.
+No separate PostgreSQL setup step is required. On first use, `tools/test.sh` calls `tools/postgres-test.sh up`, which creates the ignored `.env.test.local` with a generated local-only password, starts `pgvector/pgvector:0.8.6-pg18`, waits for its health check, and publishes PostgreSQL at `127.0.0.1:15432` by default. It then loads the generated environment, requires PostgreSQL integration tests, and delegates to `cargo test`.
+
+The generated `.env.test.local` is ignored by Git. `.env.test.example` documents the variables without containing a real credential.
 
 The control connection defaults to:
 
@@ -49,6 +29,19 @@ postgresql://loom:<generated-password>@127.0.0.1:15432/loom_control
 ```
 
 The `loom` role created by the PostgreSQL image is the initialization superuser and therefore can create/drop the isolated databases required by `crates/loom-storage/tests/support`.
+
+## Manage the local service
+
+The test wrapper normally manages startup automatically. These commands are available when the service needs to be inspected or managed explicitly:
+
+```bash
+bash tools/postgres-test.sh up
+bash tools/postgres-test.sh status
+bash tools/postgres-test.sh logs
+bash tools/postgres-test.sh down
+```
+
+`down` removes the container/network but preserves the named test volume, so the control database survives normal restarts.
 
 ## Development environment
 
