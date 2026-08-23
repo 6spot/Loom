@@ -2426,6 +2426,10 @@ async fn current_head_fork_resolves_parent_event_through_ancestry() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the regression covers the complete historical fork boundary"
+)]
 async fn historical_runtime_fork_replays_pending_future_without_parent_tail() {
     let store = InMemoryStore::new();
     store
@@ -2526,9 +2530,50 @@ async fn historical_runtime_fork_replays_pending_future_without_parent_tail() {
         "the historical logical order is preserved for the branch"
     );
 
+    let child_current = runtime
+        .fork(ForkTimelineRequest::new(child.target))
+        .await
+        .expect("forking a child at its current inherited head should commit");
+    let child_boundary = runtime
+        .fork(ForkTimelineRequest::at_version(child.target, fork_version))
+        .await
+        .expect("forking a child at its inherited boundary should commit");
+    for forked_child in [child_current, child_boundary] {
+        let snapshot = store
+            .snapshot(forked_child.target.timeline_id)
+            .expect("forked child should be readable");
+        assert_eq!(snapshot.version(), fork_version);
+        assert_eq!(snapshot.world_time(), child_snapshot.world_time());
+        assert!(snapshot.events.is_empty());
+        assert!(snapshot.world_view().entity(entity(100)).is_some());
+        assert!(snapshot.world_view().entity(entity(101)).is_none());
+        assert_eq!(snapshot.works.len(), 1);
+        assert_eq!(snapshot.works[0].target, child_snapshot.works[0].target);
+        assert_eq!(snapshot.works[0].payload, child_snapshot.works[0].payload);
+        assert_eq!(
+            snapshot.works[0].logical_schedule_order,
+            child_snapshot.works[0].logical_schedule_order
+        );
+        assert_ne!(snapshot.works[0].id, child_snapshot.works[0].id);
+    }
+
+    let child_ancestor = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("a committed ancestor position should remain visible through B");
+    let ancestor_snapshot = store
+        .snapshot(child_ancestor.target.timeline_id)
+        .expect("ancestor fork should be readable");
+    assert_eq!(ancestor_snapshot.version(), TimelineVersion::default());
+    assert!(ancestor_snapshot.world_view().entity(entity(100)).is_none());
+    assert!(ancestor_snapshot.works.is_empty());
+
     let invalid = runtime
         .fork(ForkTimelineRequest::at_version(
-            TimelineTarget::new(world(), timeline()),
+            child.target,
             TimelineVersion::new(EventSeq::new(99), StateRevision::new(99)),
         ))
         .await

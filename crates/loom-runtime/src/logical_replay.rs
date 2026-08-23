@@ -117,6 +117,26 @@ pub struct HistoricalTimelineState {
 }
 
 impl HistoricalTimelineState {
+    pub(crate) fn from_parts(
+        materialization: BaseWorldSnapshot,
+        logical: TimelineLogicalState,
+    ) -> Self {
+        Self {
+            materialization,
+            logical,
+        }
+    }
+
+    pub(crate) fn retarget_timeline(&self, timeline_id: TimelineId) -> Self {
+        let mut logical = self.logical.clone();
+        logical.timeline_id = timeline_id;
+        Self::from_parts(
+            self.materialization
+                .retarget(timeline_id, self.version(), self.world_time()),
+            logical,
+        )
+    }
+
     /// Returns the materialized World reconstruction.
     #[must_use]
     pub const fn materialization(&self) -> &BaseWorldSnapshot {
@@ -380,6 +400,31 @@ impl LogicalReplayEngine {
         journal: &[LogicalCommit],
         target: TimelineVersion,
     ) -> Result<HistoricalTimelineState, LogicalReplayError> {
+        let initial_chronology_budget = ChronologyBudgetState::new(initial.world_time(), 0);
+        Self::replay_with_seed(
+            initial,
+            Vec::new(),
+            initial_chronology_budget,
+            0,
+            events,
+            journal,
+            target,
+        )
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "seeded replay preserves one deterministic logical replay path"
+    )]
+    pub(crate) fn replay_with_seed(
+        initial: BaseWorldSnapshot,
+        initial_works: Vec<LogicalWorkState>,
+        initial_chronology_budget: ChronologyBudgetState,
+        initial_logical_order_high_water: u64,
+        events: &[CommittedEvent],
+        journal: &[LogicalCommit],
+        target: TimelineVersion,
+    ) -> Result<HistoricalTimelineState, LogicalReplayError> {
         let timeline_id = initial.timeline_id();
         if target.state_revision.value() < initial.version().state_revision.value()
             || target.head_event_seq.value() < initial.version().head_event_seq.value()
@@ -396,9 +441,18 @@ impl LogicalReplayEngine {
 
         let mut version = initial.version();
         let mut world_time = initial.world_time();
-        let mut chronology_budget = 0;
+        let mut chronology_budget = initial_chronology_budget.consumed;
         let mut works = BTreeMap::<WorkId, LogicalWorkState>::new();
-        let mut logical_order_high_water = 0;
+        for work in initial_works {
+            if works.insert(work.work_id, work).is_some() {
+                return Err(LogicalReplayError::InvalidWorkTransition {
+                    version: initial.version(),
+                    work_id: None,
+                    reason: LogicalWorkReplayError::DuplicateWork,
+                });
+            }
+        }
+        let mut logical_order_high_water = initial_logical_order_high_water;
         let mut event_cursor = 0;
         let mut known_events = HashSet::new();
         let mut found_target = target == version;
@@ -467,16 +521,16 @@ impl LogicalReplayEngine {
             )
         });
 
-        Ok(HistoricalTimelineState {
+        Ok(HistoricalTimelineState::from_parts(
             materialization,
-            logical: TimelineLogicalState {
+            TimelineLogicalState {
                 timeline_id,
                 version: target,
                 world_time,
                 works,
                 chronology_budget: ChronologyBudgetState::new(world_time, chronology_budget),
             },
-        })
+        ))
     }
 }
 

@@ -2350,6 +2350,25 @@ impl TimelineSnapshot {
     ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
         crate::replay_timeline(initial, &self.events, &self.journal, target)
     }
+
+    pub(crate) fn replay_from_seed(
+        &self,
+        initial: BaseWorldSnapshot,
+        initial_works: Vec<crate::LogicalWorkState>,
+        initial_chronology_budget: ChronologyBudgetState,
+        initial_logical_order_high_water: u64,
+        target: TimelineVersion,
+    ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
+        crate::LogicalReplayEngine::replay_with_seed(
+            initial,
+            initial_works,
+            initial_chronology_budget,
+            initial_logical_order_high_water,
+            &self.events,
+            &self.journal,
+            target,
+        )
+    }
 }
 
 /// Result of a successful atomic Timeline commit.

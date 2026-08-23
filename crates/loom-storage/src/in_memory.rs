@@ -1306,6 +1306,10 @@ impl InMemoryStore {
         ))
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the staged fork validates and swaps one atomic branch plan"
+    )]
     fn fork_timeline_internal(&self, fork: &TimelineFork) -> Result<TimelineSnapshot, ForkError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
@@ -1431,20 +1435,19 @@ impl InMemoryStore {
                     message: "child Work identity or Timeline is invalid".to_owned(),
                 });
             }
-            if let Some(source_work) = source_work {
-                if fork.materialization.is_none()
-                    && (work.target != source_work.target
-                        || work.schema_revision != source_work.schema_revision
-                        || work.payload != source_work.payload
-                        || work.effective_due_world_time != source_work.effective_due_world_time
-                        || work.logical_schedule_order != source_work.logical_schedule_order
-                        || work.causal_event_id != source_work.causal_event_id)
-                {
-                    return Err(ForkError::InvalidWork {
-                        work_id: *source_work_id,
-                        message: "child Work changed semantic fields".to_owned(),
-                    });
-                }
+            if let Some(source_work) = source_work
+                && fork.materialization.is_none()
+                && (work.target != source_work.target
+                    || work.schema_revision != source_work.schema_revision
+                    || work.payload != source_work.payload
+                    || work.effective_due_world_time != source_work.effective_due_world_time
+                    || work.logical_schedule_order != source_work.logical_schedule_order
+                    || work.causal_event_id != source_work.causal_event_id)
+            {
+                return Err(ForkError::InvalidWork {
+                    work_id: *source_work_id,
+                    message: "child Work changed semantic fields".to_owned(),
+                });
             }
             let mut cloned = work.clone();
             cloned.attempt_count = 0;

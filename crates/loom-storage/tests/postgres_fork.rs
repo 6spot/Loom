@@ -2,13 +2,15 @@ mod support;
 
 use std::str::FromStr;
 
+use loom_api::{ApiErrorCode, ForkTimelineRequest, TimelineTarget};
+use loom_capability::CapabilityRegistry;
 use loom_core::{
     Entity, EventId, EventRef, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId,
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, ChronologyBudgetState, ForkMaterialization, TimelineFork, TimelineForkStore,
-    WorldStore,
+    BaseWorldSnapshot, ChronologyBudgetState, ForkMaterialization, Runtime, TimelineFork,
+    TimelineForkStore, WorldStore,
 };
 use support::TestDatabase;
 
@@ -199,6 +201,128 @@ async fn postgres_18_current_head_fork_without_event_round_trips_none() {
 
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL restart fixture covers both inherited fork positions"
+)]
+async fn postgres_runtime_fork_replays_child_visible_boundary_after_restart() {
+    let Some(database) = TestDatabase::provision("historical_child_fork").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let pool = database.pool().await;
+    let world_id = id::<WorldId>(0x5401);
+    let timeline_a = id::<TimelineId>(0x5402);
+    let event_one = id::<EventId>(0x5410);
+    let event_two = id::<EventId>(0x5411);
+
+    seed_world(&pool, world_id, timeline_a).await;
+    for (event_id, event_seq, state_revision) in [(event_one, 1, 1), (event_two, 2, 2)] {
+        sqlx::query(
+            "INSERT INTO loom_event \
+             (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \
+             VALUES ($1::uuid, $2::uuid, $3, 'test.fork.event', 1, 0, '{}'::jsonb, '[]'::jsonb)",
+        )
+        .bind(timeline_a.to_string())
+        .bind(event_id.to_string())
+        .bind(event_seq)
+        .execute(&pool)
+        .await
+        .expect("source Event should insert");
+        sqlx::query(
+            "INSERT INTO loom_logical_journal \
+             (timeline_id, after_state_revision, before_head_event_seq, before_state_revision, \
+              after_head_event_seq, event_ids, work_transitions) \
+             VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, '[]'::jsonb)",
+        )
+        .bind(timeline_a.to_string())
+        .bind(state_revision)
+        .bind(state_revision - 1)
+        .bind(state_revision - 1)
+        .bind(event_seq)
+        .bind(format!("[\"{event_id}\"]"))
+        .execute(&pool)
+        .await
+        .expect("source logical commit should insert");
+    }
+    sqlx::query(
+        "UPDATE loom_timeline SET head_event_seq = 1, state_revision = 1 \
+         WHERE timeline_id = $1::uuid",
+    )
+    .bind(timeline_a.to_string())
+    .execute(&pool)
+    .await
+    .expect("source should expose the first committed position");
+
+    let version = TimelineVersion::new(EventSeq::new(1), StateRevision::new(1));
+    let runtime =
+        Runtime::new(&storage, CapabilityRegistry::new()).expect("Runtime should assemble");
+    let child_b = runtime
+        .fork(ForkTimelineRequest::at_version(
+            TimelineTarget::new(world_id, timeline_a),
+            version,
+        ))
+        .await
+        .expect("A to B historical fork should commit");
+    let timeline_b = child_b.target.timeline_id;
+
+    sqlx::query(
+        "UPDATE loom_timeline SET head_event_seq = 2, state_revision = 2 \
+         WHERE timeline_id = $1::uuid",
+    )
+    .bind(timeline_a.to_string())
+    .execute(&pool)
+    .await
+    .expect("parent tail should commit after B");
+
+    storage.close().await;
+    let restarted = database.storage().await;
+    let restarted_runtime = Runtime::new(&restarted, CapabilityRegistry::new())
+        .expect("Runtime should reassemble after restart");
+    let child_current = restarted_runtime
+        .fork(ForkTimelineRequest::new(TimelineTarget::new(
+            world_id, timeline_b,
+        )))
+        .await
+        .expect("B current inherited head should be forkable after restart");
+    let child_boundary = restarted_runtime
+        .fork(ForkTimelineRequest::at_version(
+            TimelineTarget::new(world_id, timeline_b),
+            version,
+        ))
+        .await
+        .expect("B inherited boundary should be forkable after restart");
+    for child in [child_current, child_boundary] {
+        let snapshot = WorldStore::snapshot(&restarted, child.target.timeline_id)
+            .await
+            .expect("forked child should be readable after restart");
+        assert_eq!(snapshot.version(), version);
+        assert!(snapshot.events.is_empty());
+        assert_eq!(snapshot.ancestry().parent_timeline_id, Some(timeline_b));
+    }
+    assert_eq!(
+        WorldStore::snapshot(&restarted, timeline_a)
+            .await
+            .expect("parent should remain readable")
+            .version(),
+        TimelineVersion::new(EventSeq::new(2), StateRevision::new(2))
+    );
+
+    let invalid = restarted_runtime
+        .fork(ForkTimelineRequest::at_version(
+            TimelineTarget::new(world_id, timeline_b),
+            TimelineVersion::new(EventSeq::new(99), StateRevision::new(99)),
+        ))
+        .await
+        .expect_err("a position before B's inherited boundary must fail");
+    assert_eq!(invalid.code, ApiErrorCode::InvalidRequest);
+
+    restarted.close().await;
+    pool.close().await;
     database.cleanup().await;
 }
 

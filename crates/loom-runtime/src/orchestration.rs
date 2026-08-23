@@ -6,7 +6,7 @@
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -23,7 +23,7 @@ use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
 };
-use loom_core::{ActionTypeId, EventId, TimelineId, WorkId};
+use loom_core::{ActionTypeId, EventId, TimelineId, TimelineVersion, WorkId};
 use loom_protocol::{
     ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
 };
@@ -36,11 +36,11 @@ use crate::{
     CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    IdentityAllocator, LifecycleError, LogicalWorkTransition, ManualPlatformClock,
-    PersistenceFuture, PlatformClock, PlatformTime, ReadError, ResolutionBudget,
-    RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly, RuntimeRevisionCapability,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SchedulerCommitStore, SessionError,
+    HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
+    LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime,
+    ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
     TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
     UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
@@ -1964,12 +1964,106 @@ where
         self.fork_head(request).await
     }
 
+    async fn replay_visible_to(
+        &self,
+        source: TimelineSnapshot,
+        target: TimelineVersion,
+    ) -> ApiResult<HistoricalTimelineState> {
+        let mut snapshots = vec![source];
+        let mut boundaries = Vec::new();
+        let mut seen = HashSet::new();
+        seen.insert(snapshots[0].timeline_id());
+
+        loop {
+            let child = snapshots.last().expect("ancestry chain is non-empty");
+            let ancestry = child.ancestry();
+            let Some(parent_timeline_id) = ancestry.parent_timeline_id else {
+                break;
+            };
+            let Some(boundary) = ancestry.fork_parent_version else {
+                return Err(map_historical_fork_error());
+            };
+            if !seen.insert(parent_timeline_id) {
+                return Err(map_historical_fork_error());
+            }
+            let parent = self
+                .snapshot_for_target(TimelineTarget::new(child.world_id(), parent_timeline_id))
+                .await?;
+            boundaries.push(boundary);
+            snapshots.push(parent);
+        }
+
+        let first_child_index = boundaries
+            .iter()
+            .position(|boundary| !version_before(target, *boundary))
+            .unwrap_or(boundaries.len());
+        let mut historical = if first_child_index == boundaries.len() {
+            snapshots
+                .last()
+                .expect("ancestry chain is non-empty")
+                .replay_to(target)
+                .map_err(|_| map_historical_fork_error())?
+        } else {
+            let root_target = *boundaries.last().expect("non-empty ancestry chain");
+            snapshots
+                .last()
+                .expect("ancestry chain is non-empty")
+                .replay_to(root_target)
+                .map_err(|_| map_historical_fork_error())?
+        };
+
+        for index in (first_child_index..boundaries.len()).rev() {
+            let child = &snapshots[index];
+            let boundary = boundaries[index];
+            let child_target = if index == 0 {
+                target
+            } else {
+                boundaries[index - 1]
+            };
+            if version_before(child_target, boundary) {
+                return Err(map_historical_fork_error());
+            }
+
+            let parent_logical = historical.logical_state();
+            let initial = historical.materialization().retarget(
+                child.timeline_id(),
+                boundary,
+                historical.world_time(),
+            );
+            let logical_order_high_water = parent_logical
+                .works
+                .iter()
+                .map(|work| work.logical_schedule_order)
+                .max()
+                .unwrap_or_default();
+            let initial_chronology_budget = parent_logical.chronology_budget;
+            let initial_works = child
+                .works
+                .iter()
+                .filter(|work| work.logical_schedule_order <= logical_order_high_water)
+                .map(logical_work_seed)
+                .collect();
+            historical = child
+                .replay_from_seed(
+                    initial,
+                    initial_works,
+                    initial_chronology_budget,
+                    logical_order_high_water,
+                    child_target,
+                )
+                .map_err(|_| map_historical_fork_error())?;
+        }
+
+        if first_child_index > 0 {
+            historical = historical.retarget_timeline(snapshots[0].timeline_id());
+        }
+        Ok(historical)
+    }
+
     async fn fork_head(&self, request: ForkTimelineRequest) -> ApiResult<ApiTimelineSnapshot> {
         let source = self.snapshot_for_target(request.source).await?;
         let fork_version = request.source_version.unwrap_or(source.version());
-        let historical = source
-            .replay_to(fork_version)
-            .map_err(|_| map_historical_fork_error())?;
+        let historical = self.replay_visible_to(source.clone(), fork_version).await?;
         let child_timeline_id = self.identity_allocator.allocate_timeline_id();
         if child_timeline_id.is_nil() {
             return Err(ApiError::internal(
@@ -2054,6 +2148,25 @@ where
             child.world_time(),
             child.ancestry(),
         ))
+    }
+}
+
+fn version_before(candidate: TimelineVersion, boundary: TimelineVersion) -> bool {
+    candidate.head_event_seq < boundary.head_event_seq
+        || candidate.state_revision < boundary.state_revision
+}
+
+fn logical_work_seed(work: &WorkRecord) -> LogicalWorkState {
+    LogicalWorkState {
+        work_id: work.id,
+        target: work.target.clone(),
+        schema_revision: work.schema_revision,
+        payload: work.payload.clone(),
+        effective_due_world_time: work.effective_due_world_time,
+        logical_schedule_order: work.logical_schedule_order,
+        causal_event_id: work.causal_event_id,
+        origin_work_id: work.origin_work_id,
+        status: WorkStatus::Pending,
     }
 }
 

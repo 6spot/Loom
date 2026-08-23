@@ -204,6 +204,28 @@ impl BaseWorldSnapshot {
         self
     }
 
+    pub(crate) fn retarget(
+        &self,
+        timeline_id: TimelineId,
+        version: TimelineVersion,
+        world_time: WorldInstant,
+    ) -> Self {
+        let mut retargeted = Self::new(self.world_id, timeline_id, version, world_time);
+        for entity in self.entities() {
+            retargeted.insert_entity(entity.clone());
+        }
+        for (relationship, active) in self.relationships() {
+            retargeted.insert_relationship(relationship.clone(), active);
+        }
+        for (owner, facet_type, schema_revision, value) in self.facets() {
+            retargeted.insert_facet(owner, facet_type.clone(), schema_revision, value.clone());
+        }
+        for event_id in &self.events {
+            retargeted.insert_event(*event_id);
+        }
+        retargeted
+    }
+
     pub(crate) fn event_exists(&self, event_id: EventId) -> bool {
         self.events.contains(&event_id)
     }

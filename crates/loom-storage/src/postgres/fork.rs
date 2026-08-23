@@ -197,17 +197,23 @@ async fn fork_timeline(
         work,
     } in &fork.pending_work
     {
-        let source_work = sqlx::query(LOCK_SOURCE_WORK_SQL)
-            .bind(fork.source_timeline_id.to_string())
-            .bind(source_work_id.to_string())
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(storage_error)?
-            .ok_or_else(|| ForkError::InvalidWork {
-                work_id: *source_work_id,
-                message: "source Work is not present at the fork head".to_owned(),
-            })?;
-        if fork.materialization.is_none() {
+        let source_work = if fork.materialization.is_none() {
+            Some(
+                sqlx::query(LOCK_SOURCE_WORK_SQL)
+                    .bind(fork.source_timeline_id.to_string())
+                    .bind(source_work_id.to_string())
+                    .fetch_optional(&mut *transaction)
+                    .await
+                    .map_err(storage_error)?
+                    .ok_or_else(|| ForkError::InvalidWork {
+                        work_id: *source_work_id,
+                        message: "source Work is not present at the fork head".to_owned(),
+                    })?,
+            )
+        } else {
+            None
+        };
+        if let Some(source_work) = source_work {
             let status: String = source_work.try_get("status").map_err(storage_error)?;
             if status != "pending" {
                 return Err(ForkError::InvalidWork {
