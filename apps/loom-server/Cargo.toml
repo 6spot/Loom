@@ -1,0 +1,17 @@
+[package]
+name = "loom-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-api = { path = "../../crates/loom-api" }
+loom-runtime = { path = "../../crates/loom-runtime" }
+
+[dev-dependencies]
+loom-capability = { path = "../../crates/loom-capability" }
+loom-core = { path = "../../crates/loom-core" }
+loom-storage = { path = "../../crates/loom-storage" }
+tokio = { version = "~1.51", features = ["macros", "rt"] }
+
+[lints]
+workspace = true

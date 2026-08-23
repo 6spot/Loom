@@ -30,7 +30,7 @@ all ──> #161 final gate
 | M5-T5 | #157 | planned |
 | M5-T6 | #158 | planned |
 | M5-T7 | #159 | planned |
-| M5-T8 | #160 | planned |
+| M5-T8 | #160 | in_review |
 | M5-T9 | #161 | planned |
 
 The gate must prove same-Timeline `(effective_due_world_time, logical_schedule_order)` ordering, bounded liveness, head-aware claim, restart/fencing, chronology budget and explicit World-Time advancement.
