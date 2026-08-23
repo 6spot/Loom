@@ -25,7 +25,7 @@ struct FacetRecord {
     value: Value,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct RelationshipRecord {
     relationship: Relationship,
     active: bool,
@@ -38,7 +38,7 @@ struct RelationshipRecord {
 /// unmodified read side while candidate Effects are applied to a separate
 /// overlay. Storage adapters may populate this value, but they do not gain
 /// authority to construct `ValidatedResolution` from it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BaseWorldSnapshot {
     world_id: WorldId,
     timeline_id: TimelineId,
@@ -168,6 +168,27 @@ impl BaseWorldSnapshot {
         self.world_time
     }
 
+    /// Iterates the materialized Entities in this snapshot.
+    pub fn entities(&self) -> impl Iterator<Item = &Entity> {
+        self.entities.values()
+    }
+
+    /// Iterates the materialized Relationships with their lifecycle marker.
+    pub fn relationships(&self) -> impl Iterator<Item = (&Relationship, bool)> {
+        self.relationships
+            .values()
+            .map(|record| (&record.relationship, record.active))
+    }
+
+    /// Iterates the materialized Facets and their schema/value data.
+    pub fn facets(
+        &self,
+    ) -> impl Iterator<Item = (FacetOwner, &FacetTypeId, loom_core::SchemaRevision, &Value)> {
+        self.facets.iter().map(|((owner, facet_type), record)| {
+            (*owner, facet_type, record.schema_revision, &record.value)
+        })
+    }
+
     pub(crate) fn with_event_head(mut self, event_head: EventSeq) -> Self {
         self.version = TimelineVersion::new(event_head, self.version.state_revision);
         self
@@ -181,6 +202,28 @@ impl BaseWorldSnapshot {
         self.version = version;
         self.world_time = world_time;
         self
+    }
+
+    pub(crate) fn retarget(
+        &self,
+        timeline_id: TimelineId,
+        version: TimelineVersion,
+        world_time: WorldInstant,
+    ) -> Self {
+        let mut retargeted = Self::new(self.world_id, timeline_id, version, world_time);
+        for entity in self.entities() {
+            retargeted.insert_entity(entity.clone());
+        }
+        for (relationship, active) in self.relationships() {
+            retargeted.insert_relationship(relationship.clone(), active);
+        }
+        for (owner, facet_type, schema_revision, value) in self.facets() {
+            retargeted.insert_facet(owner, facet_type.clone(), schema_revision, value.clone());
+        }
+        for event_id in &self.events {
+            retargeted.insert_event(*event_id);
+        }
+        retargeted
     }
 
     pub(crate) fn event_exists(&self, event_id: EventId) -> bool {

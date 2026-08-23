@@ -25,6 +25,8 @@ const INSERT_EVENT_RELATIONSHIP_REF_SQL: &str =
     include_str!("../../sql/event/insert_relationship_ref.sql");
 const INSERT_EVENT_CAUSAL_LINK_SQL: &str = include_str!("../../sql/event/insert_causal_link.sql");
 const EVENT_EXISTS_SQL: &str = include_str!("../../sql/event/exists.sql");
+const READ_VISIBLE_EVENT_IDS_SQL: &str =
+    include_str!("../../sql/ancestry/read_visible_event_ids.sql");
 const INSERT_ENTITY_SQL: &str = include_str!("../../sql/world/insert_entity.sql");
 const UPSERT_ENTITY_FACET_SQL: &str = include_str!("../../sql/world/upsert_entity_facet.sql");
 const UPSERT_RELATIONSHIP_FACET_SQL: &str =
@@ -62,6 +64,7 @@ struct LockedTimeline {
     world_time: loom_core::WorldInstant,
     chronology_budget_world_time: loom_core::WorldInstant,
     chronology_budget_consumed: u64,
+    logical_schedule_order: u64,
 }
 
 impl CommitStore for PgStorage {
@@ -190,6 +193,7 @@ async fn terminalize_work_internal(
         .bind(version.state_revision.value().to_string())
         .bind(locked.chronology_budget_world_time.value())
         .bind(locked.chronology_budget_consumed.to_string())
+        .bind(locked.logical_schedule_order.to_string())
         .execute(&mut *transaction)
         .await
         .map_err(storage_error)?;
@@ -253,6 +257,7 @@ async fn commit_resolution(
     }
     let before_version = locked.version;
     let before_budget = locked.chronology_budget_consumed;
+    let visible_event_ids = read_visible_event_ids(&mut transaction, timeline_id).await?;
 
     let changes_runtime_state =
         !resolution.events().is_empty() || !resolution.work().is_empty() || current_work.is_some();
@@ -273,6 +278,7 @@ async fn commit_resolution(
             EventSeq::new(next_sequence),
             event,
             &seen_events,
+            &visible_event_ids,
             resolution.pinned_world_time(),
         )
         .await?;
@@ -344,6 +350,7 @@ async fn commit_resolution(
             .bind(next_state_revision.to_string())
             .bind(locked.chronology_budget_world_time.value())
             .bind(next_budget.to_string())
+            .bind(logical_schedule_order.to_string())
             .execute(&mut *transaction)
             .await
             .map_err(storage_error)?;
@@ -437,6 +444,7 @@ pub(super) async fn commit_birth_in_transaction(
                 EventSeq::new(next_sequence),
                 event,
                 &seen_events,
+                &seen_events,
                 initial_world_time,
             )
             .await?;
@@ -484,6 +492,7 @@ pub(super) async fn commit_birth_in_transaction(
             .bind(next_state_revision.to_string())
             .bind(locked.chronology_budget_world_time.value())
             .bind(locked.chronology_budget_consumed.to_string())
+            .bind(logical_schedule_order.to_string())
             .execute(&mut **transaction)
             .await
             .map_err(storage_error)?;
@@ -526,6 +535,7 @@ async fn lock_timeline(
                 .map_err(storage_error)?,
         ),
         chronology_budget_consumed: parse_u64(&row, "chronology_budget_consumed")?,
+        logical_schedule_order: parse_u64(&row, "logical_schedule_order")?,
     })
 }
 
@@ -539,6 +549,26 @@ async fn next_logical_schedule_order(
         .await
         .map_err(storage_error)?;
     parse_u64(&row, "logical_schedule_order")
+}
+
+async fn read_visible_event_ids(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+) -> Result<HashSet<EventId>, CommitError> {
+    let rows = sqlx::query_scalar::<_, String>(READ_VISIBLE_EVENT_IDS_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(storage_error)?;
+    rows.into_iter()
+        .map(|value| {
+            value
+                .parse::<EventId>()
+                .map_err(|error| CommitError::StorageUnavailable {
+                    message: format!("invalid visible Event identity: {error}"),
+                })
+        })
+        .collect()
 }
 
 pub(super) async fn insert_logical_commit(
@@ -595,6 +625,7 @@ async fn apply_event(
     event_seq: EventSeq,
     event: &ProposedEvent,
     seen_events: &HashSet<EventId>,
+    visible_event_ids: &HashSet<EventId>,
     occurred_at: loom_core::WorldInstant,
 ) -> Result<CommittedEvent, CommitError> {
     if event.id.is_nil() {
@@ -607,7 +638,14 @@ async fn apply_event(
     for effect in &event.effects {
         apply_effect(transaction, timeline_id, event.id, effect).await?;
     }
-    validate_event_references(transaction, timeline_id, event).await?;
+    validate_event_references(
+        transaction,
+        timeline_id,
+        event,
+        seen_events,
+        visible_event_ids,
+    )
+    .await?;
 
     let effects = serde_json::to_value(&event.effects).map_err(|error| {
         invalid_event(
@@ -673,6 +711,8 @@ async fn validate_event_references(
     transaction: &mut PgTransaction<'_>,
     timeline_id: TimelineId,
     event: &ProposedEvent,
+    seen_events: &HashSet<EventId>,
+    visible_event_ids: &HashSet<EventId>,
 ) -> Result<(), CommitError> {
     for participant in &event.participants {
         if !entity_exists(transaction, timeline_id, participant.entity_id).await? {
@@ -700,7 +740,9 @@ async fn validate_event_references(
         }
     }
     for causal in &event.causal_links {
-        if !event_exists(transaction, timeline_id, causal.event_id()).await? {
+        if !visible_event_ids.contains(&causal.event_id())
+            && !seen_events.contains(&causal.event_id())
+        {
             return Err(invalid_event(
                 event.id,
                 format!(

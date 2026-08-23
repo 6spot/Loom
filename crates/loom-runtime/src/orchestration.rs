@@ -6,7 +6,9 @@
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
+    future::Future,
+    pin::Pin,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -15,14 +17,15 @@ use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
     CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
     CreateWorldFromTemplateResult, EventQuery, ExecutionResult, FacetQuery,
-    FacetSnapshot as ApiFacetSnapshot, HistoryService, QueryService, TimelineService,
-    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService, WorldTemplateDescriptor,
+    FacetSnapshot as ApiFacetSnapshot, ForkTimelineRequest, HistoryService, QueryService,
+    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService,
+    WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
 };
-use loom_core::{ActionTypeId, EventId, TimelineId, WorkId};
+use loom_core::{ActionTypeId, EventId, TimelineId, TimelineVersion, WorkId};
 use loom_protocol::{
     ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
 };
@@ -34,16 +37,18 @@ use crate::{
     CallProvenance, CandidateWorldView, ChronologyBudgetExceeded, ChronologyBudgetPolicy,
     CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, IdentityAllocator, LifecycleError, LogicalWorkTransition,
-    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
-    ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
+    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
+    HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
+    LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime,
+    ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
     RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
     RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
-    TimelineSnapshot, UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution,
-    ValidationError, WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
-    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
+    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
+    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    WorldTimeTransition,
 };
 
 use super::validation::ResolutionSegment;
@@ -1474,6 +1479,25 @@ where
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         (**self).snapshot(timeline_id)
     }
+
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
+        (**self).fork_timeline(fork)
+    }
+}
+
+impl<T> TimelineForkStore for &T
+where
+    T: TimelineForkStore + ?Sized,
+{
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
+        (**self).fork_timeline(fork)
+    }
 }
 
 impl<T> WorldRuntimeBindingStore for &T
@@ -1909,6 +1933,228 @@ where
     }
 }
 
+impl<S> Runtime<S>
+where
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore,
+{
+    /// Forks the addressed Timeline at its requested committed position.
+    /// Omitting the request version selects the current head.
+    ///
+    /// Runtime allocates the child identity, reconstructs the semantic head
+    /// through the persistence fork seam and returns only the public child
+    /// snapshot. The storage adapter owns the source CAS and atomic write.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the source cannot be read, the source changes
+    /// before the fork commit, or the persistence authority rejects the child.
+    pub async fn fork_timeline(&self, target: TimelineTarget) -> ApiResult<ApiTimelineSnapshot> {
+        self.fork_head(ForkTimelineRequest::new(target)).await
+    }
+
+    /// Request-form alias for [`Self::fork_timeline`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the same API errors as [`Self::fork_timeline`].
+    pub async fn fork(&self, request: ForkTimelineRequest) -> ApiResult<ApiTimelineSnapshot> {
+        self.fork_head(request).await
+    }
+
+    fn replay_visible_to(
+        &self,
+        source: TimelineSnapshot,
+        target: TimelineVersion,
+    ) -> Pin<Box<dyn Future<Output = ApiResult<HistoricalTimelineState>> + '_>> {
+        self.replay_visible_to_inner(source, target, HashSet::new())
+    }
+
+    fn replay_visible_to_inner(
+        &self,
+        source: TimelineSnapshot,
+        target: TimelineVersion,
+        mut seen: HashSet<TimelineId>,
+    ) -> Pin<Box<dyn Future<Output = ApiResult<HistoricalTimelineState>> + '_>> {
+        Box::pin(async move {
+            if !seen.insert(source.timeline_id()) {
+                return Err(map_historical_fork_error());
+            }
+            let ancestry = source.ancestry();
+            let Some(parent_timeline_id) = ancestry.parent_timeline_id else {
+                return source
+                    .replay_to(target)
+                    .map_err(|_| map_historical_fork_error());
+            };
+            let Some(boundary) = ancestry.fork_parent_version else {
+                return Err(map_historical_fork_error());
+            };
+            let parent = self
+                .snapshot_for_target(TimelineTarget::new(source.world_id(), parent_timeline_id))
+                .await?;
+            if version_before(target, boundary) {
+                return self
+                    .replay_visible_to_inner(parent, target, seen)
+                    .await
+                    .map(|historical| historical.retarget_timeline(source.timeline_id()));
+            }
+
+            let historical_parent = self.replay_visible_to_inner(parent, boundary, seen).await?;
+            let parent_logical = historical_parent.logical_state();
+            let initial = historical_parent.materialization().retarget(
+                source.timeline_id(),
+                boundary,
+                historical_parent.world_time(),
+            );
+            let logical_order_high_water = parent_logical
+                .works
+                .iter()
+                .map(|work| work.logical_schedule_order)
+                .max()
+                .unwrap_or_default();
+            let initial_chronology_budget = parent_logical.chronology_budget;
+            let initial_works = source
+                .works
+                .iter()
+                .filter(|work| work.logical_schedule_order <= logical_order_high_water)
+                .map(logical_work_seed)
+                .collect();
+            let branch_events = source
+                .events
+                .iter()
+                .filter(|event| {
+                    event.timeline_id == source.timeline_id()
+                        && event.event_seq > boundary.head_event_seq
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            source
+                .replay_from_seed_with_events(
+                    initial,
+                    initial_works,
+                    initial_chronology_budget,
+                    logical_order_high_water,
+                    &branch_events,
+                    target,
+                )
+                .map_err(|_| map_historical_fork_error())
+        })
+    }
+
+    async fn fork_head(&self, request: ForkTimelineRequest) -> ApiResult<ApiTimelineSnapshot> {
+        let source = self.snapshot_for_target(request.source).await?;
+        let fork_version = request.source_version.unwrap_or(source.version());
+        let historical = self.replay_visible_to(source.clone(), fork_version).await?;
+        let child_timeline_id = self.identity_allocator.allocate_timeline_id();
+        if child_timeline_id.is_nil() {
+            return Err(ApiError::internal(
+                "Runtime identity allocator returned a nil child Timeline",
+            ));
+        }
+
+        let pending = historical
+            .logical_state()
+            .pending_works()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut work_ids = BTreeMap::new();
+        for work in &pending {
+            let child_work_id = self.identity_allocator.allocate_work_id();
+            if child_work_id.is_nil()
+                || work_ids.insert(work.work_id, child_work_id).is_some()
+                || work_ids.values().filter(|id| **id == child_work_id).count() > 1
+            {
+                return Err(ApiError::internal(
+                    "Runtime identity allocator returned a duplicate or nil child Work",
+                ));
+            }
+        }
+
+        let pending_work = pending
+            .iter()
+            .map(|work| {
+                let origin_work_id = work.origin_work_id.map(|origin_work_id| {
+                    work_ids
+                        .get(&origin_work_id)
+                        .copied()
+                        .unwrap_or(origin_work_id)
+                });
+                let child = WorkRecord {
+                    id: work_ids[&work.work_id],
+                    timeline_id: child_timeline_id,
+                    target: work.target.clone(),
+                    schema_revision: work.schema_revision,
+                    payload: work.payload.clone(),
+                    effective_due_world_time: work.effective_due_world_time,
+                    logical_schedule_order: work.logical_schedule_order,
+                    causal_event_id: work.causal_event_id,
+                    origin_work_id,
+                    status: WorkStatus::Pending,
+                    attempt_count: 0,
+                    claim_generation: 0,
+                    available_at: PlatformTime::default(),
+                    last_error: None,
+                    lease: None,
+                };
+                ForkWork {
+                    source_work_id: work.work_id,
+                    work: child,
+                }
+            })
+            .collect();
+        let logical_schedule_order = historical
+            .logical_state()
+            .works
+            .iter()
+            .map(|work| work.logical_schedule_order)
+            .max()
+            .unwrap_or_default();
+        let materialization = ForkMaterialization::new(
+            historical.materialization().clone(),
+            historical.logical_state().chronology_budget,
+            logical_schedule_order,
+        );
+        let fork = TimelineFork::new(source.timeline_id(), source.version(), child_timeline_id)
+            .at_version(fork_version)
+            .with_materialization(materialization)
+            .with_pending_work(pending_work);
+        let child = self
+            .store
+            .fork_timeline(&fork)
+            .await
+            .map_err(|error| map_fork_error(&error))?;
+        Ok(ApiTimelineSnapshot::with_ancestry(
+            TimelineTarget::new(child.world_id(), child.timeline_id()),
+            child.version(),
+            child.world_time(),
+            child.ancestry(),
+        ))
+    }
+}
+
+fn version_before(candidate: TimelineVersion, boundary: TimelineVersion) -> bool {
+    candidate.head_event_seq < boundary.head_event_seq
+        || candidate.state_revision < boundary.state_revision
+}
+
+fn logical_work_seed(work: &WorkRecord) -> LogicalWorkState {
+    LogicalWorkState {
+        work_id: work.id,
+        target: work.target.clone(),
+        schema_revision: work.schema_revision,
+        payload: work.payload.clone(),
+        effective_due_world_time: work.effective_due_world_time,
+        logical_schedule_order: work.logical_schedule_order,
+        causal_event_id: work.causal_event_id,
+        origin_work_id: work.origin_work_id,
+        status: WorkStatus::Pending,
+    }
+}
+
 impl<S> TimelineService for Runtime<S>
 where
     S: WorldStore
@@ -1921,12 +2167,17 @@ where
     fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, ApiTimelineSnapshot> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(target).await?;
-            Ok(ApiTimelineSnapshot::new(
+            Ok(ApiTimelineSnapshot::with_ancestry(
                 target,
                 snapshot.version(),
                 snapshot.world_time(),
+                snapshot.ancestry(),
             ))
         })
+    }
+
+    fn fork(&self, request: ForkTimelineRequest) -> ApiFuture<'_, ApiTimelineSnapshot> {
+        Box::pin(async move { self.fork_head(request).await })
     }
 }
 
@@ -2799,6 +3050,29 @@ fn map_read_error(error: &ReadError) -> ApiError {
             ApiError::unavailable("Persistence authority is temporarily unavailable")
         }
     }
+}
+
+fn map_fork_error(error: &ForkError) -> ApiError {
+    match error {
+        ForkError::SourceTimelineNotFound { timeline_id } => {
+            ApiError::not_found(format!("source Timeline {timeline_id} was not found"))
+        }
+        ForkError::TimelineAlreadyExists { timeline_id } => {
+            ApiError::conflict(format!("child Timeline {timeline_id} already exists"))
+        }
+        ForkError::SourceVersionConflict { .. } => {
+            ApiError::conflict("source Timeline changed before fork commit")
+        }
+        ForkError::InvalidForkVersion { .. } => map_historical_fork_error(),
+        ForkError::InvalidWork { .. } => ApiError::internal("Timeline fork Work plan was invalid"),
+        ForkError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Timeline fork persistence is unavailable")
+        }
+    }
+}
+
+fn map_historical_fork_error() -> ApiError {
+    ApiError::invalid_request("source TimelineVersion is not a committed visible history position")
 }
 
 fn map_world_time_error(error: &WorldTimeError) -> ApiError {

@@ -163,6 +163,31 @@ uuid_id! {
     WorkId
 }
 
+/// A Timeline-qualified Event identity used when an Event may belong to an
+/// ancestor branch rather than the currently addressed Timeline.
+///
+/// `EventId` alone is sufficient only inside one Timeline. Fork ancestry and
+/// later cross-branch history/causality therefore carry this pair explicitly;
+/// the Timeline is never inferred from UUID ordering or the current request.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct EventRef {
+    /// Timeline that owns the referenced Event.
+    pub timeline_id: TimelineId,
+    /// Event identity within that Timeline.
+    pub event_id: EventId,
+}
+
+impl EventRef {
+    /// Creates a Timeline-qualified Event reference.
+    #[must_use]
+    pub const fn new(timeline_id: TimelineId, event_id: EventId) -> Self {
+        Self {
+            timeline_id,
+            event_id,
+        }
+    }
+}
+
 uuid_id! {
     /// Identity of one Runtime execution session and its provenance record.
     ///

@@ -1,6 +1,9 @@
 use std::{str::FromStr, sync::Arc};
 
-use loom_api::{ActionRequest, ActionService, ExecutionResult, TimelineTarget};
+use loom_api::{
+    ActionRequest, ActionService, ApiErrorCode, ExecutionResult, ForkTimelineRequest,
+    TimelineTarget,
+};
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
     CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition,
@@ -8,21 +11,21 @@ use loom_capability::{
     WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
-    RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
-    WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
+    FacetTypeId, RelationshipParticipant, RelationshipTypeId, SchemaRevision, StateRevision,
+    TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
+    ActionInvocation, CausalLink, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine,
+    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine, ForkWork,
     LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore,
-    SchedulerCommitStore, TimelineDriverResult, WorkError, WorkRecord, WorkStatus, WorkTarget,
-    WorkTerminalState, WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldTimeError,
+    SchedulerCommitStore, TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError,
+    WorkRecord, WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -312,6 +315,18 @@ fn validated(
     EffectEngine::new(registry)
         .validate(&view, OWNER, resolution)
         .expect("test Resolution should validate")
+}
+
+fn validated_at(
+    store: &InMemoryStore,
+    registry: &CapabilityRegistry,
+    timeline_id: TimelineId,
+    resolution: Resolution,
+) -> Result<loom_runtime::ValidatedResolution, loom_runtime::RuntimeError> {
+    let snapshot = store
+        .snapshot(timeline_id)
+        .expect("test Timeline should exist");
+    EffectEngine::new(registry).validate(&snapshot.world_view(), OWNER, resolution)
 }
 
 fn pending_work(work_id: WorkId) -> WorkRecord {
@@ -2275,5 +2290,1016 @@ async fn concurrent_claims_choose_one_fence_winner() {
             Err(loom_runtime::WorkError::AlreadyClaimed { .. })
         )),
         1
+    );
+}
+
+#[tokio::test]
+async fn current_head_fork_clones_only_pending_work_and_is_idempotent_for_child_id() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("source Timeline should be created");
+    let mut source_work = pending_work(work(80));
+    source_work.attempt_count = 4;
+    source_work.claim_generation = 7;
+    source_work.available_at = PlatformTime::new(99);
+    source_work.last_error = Some("transient".to_owned());
+    source_work.lease = Some(loom_runtime::WorkLease::new(100.into(), 7));
+    store
+        .seed_work(source_work.clone())
+        .expect("source Pending Work should be seeded");
+
+    let mut child_work = source_work.clone();
+    child_work.id = work(81);
+    child_work.timeline_id = second_timeline();
+    let fork = TimelineFork::new(timeline(), TimelineVersion::default(), second_timeline())
+        .with_pending_work(vec![ForkWork {
+            source_work_id: source_work.id,
+            work: child_work,
+        }]);
+    let child = TimelineForkStore::fork_timeline(&store, &fork)
+        .await
+        .expect("head fork should commit atomically");
+
+    assert_eq!(child.world_id(), world());
+    assert_eq!(child.ancestry().parent_timeline_id, Some(timeline()));
+    assert_eq!(
+        child.ancestry().fork_parent_version,
+        Some(TimelineVersion::default())
+    );
+    assert!(
+        child.events.is_empty(),
+        "ancestor Events must not be copied"
+    );
+    let inherited = &child.works[0];
+    assert_eq!(inherited.id, work(81));
+    assert_eq!(
+        inherited.effective_due_world_time,
+        source_work.effective_due_world_time
+    );
+    assert_eq!(
+        inherited.logical_schedule_order,
+        source_work.logical_schedule_order
+    );
+    assert_eq!(inherited.attempt_count, 0);
+    assert_eq!(inherited.claim_generation, 0);
+    assert_eq!(inherited.available_at, PlatformTime::default());
+    assert!(inherited.last_error.is_none());
+    assert!(inherited.lease.is_none());
+
+    let second = TimelineForkStore::fork_timeline(&store, &fork)
+        .await
+        .expect("retrying the same child identity should be idempotent");
+    assert_eq!(second.ancestry(), child.ancestry());
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("source should remain readable")
+            .works[0],
+        source_work
+    );
+
+    let mut invalid_work = source_work.clone();
+    invalid_work.id = work(82);
+    invalid_work.timeline_id = id(4);
+    invalid_work.payload = json!({"tampered": true});
+    let tampered_fork = TimelineFork::new(timeline(), TimelineVersion::default(), id(4))
+        .with_pending_work(vec![ForkWork {
+            source_work_id: source_work.id,
+            work: invalid_work,
+        }]);
+    assert!(matches!(
+        TimelineForkStore::fork_timeline(&store, &tampered_fork).await,
+        Err(loom_runtime::ForkError::InvalidWork { .. })
+    ));
+    assert!(matches!(
+        store.snapshot(id(4)),
+        Err(loom_runtime::ReadError::TimelineNotFound { .. })
+    ));
+}
+
+#[tokio::test]
+async fn current_head_fork_resolves_parent_event_through_ancestry() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("source Timeline should be created");
+    let registry = registry();
+    let event_id = event(90);
+    let token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event_id,
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"kind": "ancestry-event"}),
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&token, None, PlatformTime::new(1))
+        .expect("source Event should commit at a non-default version");
+    let source_before = store.snapshot(timeline()).expect("source snapshot");
+
+    let child_b = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(timeline(), source_before.version(), second_timeline()),
+    )
+    .await
+    .expect("first fork should commit");
+    assert_eq!(
+        child_b
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![EventRef::new(timeline(), event_id)]
+    );
+    assert_eq!(
+        child_b.ancestry().fork_parent_event,
+        Some(EventRef::new(timeline(), event_id))
+    );
+
+    let child_c_id: TimelineId = id(4);
+    let child_c = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(second_timeline(), child_b.version(), child_c_id),
+    )
+    .await
+    .expect("second fork should commit");
+    assert_eq!(
+        child_c
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![EventRef::new(timeline(), event_id)]
+    );
+    assert_eq!(
+        child_c.ancestry().fork_parent_event,
+        Some(EventRef::new(timeline(), event_id))
+    );
+
+    let child_c_before_parent_event = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(second_timeline(), child_b.version(), id(5))
+            .at_version(TimelineVersion::default()),
+    )
+    .await
+    .expect("second fork at B's pre-boundary position should commit");
+    assert_eq!(
+        child_c_before_parent_event.ancestry().fork_parent_event,
+        None,
+        "C's requested V0 must not inherit A's later EventRef"
+    );
+    assert!(child_c_before_parent_event.events.is_empty());
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("source remains readable")
+            .version(),
+        source_before.version()
+    );
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the regression covers the complete historical fork boundary"
+)]
+async fn historical_runtime_fork_replays_pending_future_without_parent_tail() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("source Timeline should be created");
+    let registry = registry();
+
+    let first_event = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![event_with_effect(
+                event(100),
+                WorldEffect::CreateEntity {
+                    entity_id: entity(100),
+                },
+                0,
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&first_event, None, PlatformTime::new(1))
+        .expect("first Event should commit");
+
+    let scheduled = work(100);
+    let schedule = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::new(
+                scheduled,
+                timeline(),
+                WorkHandlerId::from(TEST_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"historical": true}),
+                WorkSchedule::Immediate,
+            ))],
+        ),
+    );
+    store
+        .commit(&schedule, None, PlatformTime::new(2))
+        .expect("historical Pending Work should commit");
+    let fork_version = store.snapshot(timeline()).expect("fork point").version();
+
+    let cancel = validated(
+        &store,
+        &registry,
+        Resolution::new(Vec::new(), vec![WorkMutation::Cancel(scheduled)]),
+    );
+    store
+        .commit(&cancel, None, PlatformTime::new(3))
+        .expect("parent Work completion should commit after the fork point");
+    let parent_tail = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![event_with_effect(
+                event(101),
+                WorldEffect::CreateEntity {
+                    entity_id: entity(101),
+                },
+                0,
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&parent_tail, None, PlatformTime::new(4))
+        .expect("parent tail should commit");
+
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    let child = runtime
+        .fork(ForkTimelineRequest::at_version(
+            TimelineTarget::new(world(), timeline()),
+            fork_version,
+        ))
+        .await
+        .expect("historical fork should commit");
+    let child_snapshot = store
+        .snapshot(child.target.timeline_id)
+        .expect("child should be readable");
+
+    assert_eq!(child_snapshot.version(), fork_version);
+    assert_eq!(
+        child_snapshot.ancestry().fork_parent_version,
+        Some(fork_version)
+    );
+    assert_eq!(
+        child_snapshot
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![EventRef::new(timeline(), event(100))]
+    );
+    assert!(child_snapshot.world_view().entity(entity(100)).is_some());
+    assert!(child_snapshot.world_view().entity(entity(101)).is_none());
+    assert_eq!(child_snapshot.works.len(), 1);
+    assert_eq!(child_snapshot.works[0].status, WorkStatus::Pending);
+    assert_ne!(child_snapshot.works[0].id, scheduled);
+    assert_eq!(
+        child_snapshot.works[0].logical_schedule_order, 1,
+        "the historical logical order is preserved for the branch"
+    );
+
+    let child_current = runtime
+        .fork(ForkTimelineRequest::new(child.target))
+        .await
+        .expect("forking a child at its current inherited head should commit");
+    let child_boundary = runtime
+        .fork(ForkTimelineRequest::at_version(child.target, fork_version))
+        .await
+        .expect("forking a child at its inherited boundary should commit");
+    for forked_child in [child_current, child_boundary] {
+        let snapshot = store
+            .snapshot(forked_child.target.timeline_id)
+            .expect("forked child should be readable");
+        assert_eq!(snapshot.version(), fork_version);
+        assert_eq!(snapshot.world_time(), child_snapshot.world_time());
+        assert_eq!(
+            snapshot
+                .events
+                .iter()
+                .map(loom_runtime::CommittedEvent::event_ref)
+                .collect::<Vec<_>>(),
+            vec![EventRef::new(timeline(), event(100))]
+        );
+        assert!(snapshot.world_view().entity(entity(100)).is_some());
+        assert!(snapshot.world_view().entity(entity(101)).is_none());
+        assert_eq!(snapshot.works.len(), 1);
+        assert_eq!(snapshot.works[0].target, child_snapshot.works[0].target);
+        assert_eq!(snapshot.works[0].payload, child_snapshot.works[0].payload);
+        assert_eq!(
+            snapshot.works[0].logical_schedule_order,
+            child_snapshot.works[0].logical_schedule_order
+        );
+        assert_ne!(snapshot.works[0].id, child_snapshot.works[0].id);
+    }
+
+    let child_ancestor = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("a committed ancestor position should remain visible through B");
+    let ancestor_snapshot = store
+        .snapshot(child_ancestor.target.timeline_id)
+        .expect("ancestor fork should be readable");
+    assert_eq!(ancestor_snapshot.version(), TimelineVersion::default());
+    assert!(ancestor_snapshot.world_view().entity(entity(100)).is_none());
+    assert!(ancestor_snapshot.works.is_empty());
+
+    let child_c = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("B should fork C at the visible inherited zero position");
+    let grandchild_current = runtime
+        .fork(ForkTimelineRequest::new(child_c.target))
+        .await
+        .expect("C current inherited position should be forkable");
+    let grandchild_boundary = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child_c.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("C inherited boundary should be forkable");
+    for forked_child in [grandchild_current, grandchild_boundary] {
+        let snapshot = store
+            .snapshot(forked_child.target.timeline_id)
+            .expect("grandchild should be readable");
+        assert_eq!(snapshot.version(), TimelineVersion::default());
+        assert_eq!(
+            snapshot.ancestry().parent_timeline_id,
+            Some(child_c.target.timeline_id)
+        );
+        assert!(snapshot.events.is_empty());
+        assert!(snapshot.logical_journal().is_empty());
+        assert!(snapshot.world_view().entity(entity(100)).is_none());
+        assert!(snapshot.world_view().entity(entity(101)).is_none());
+        assert!(snapshot.works.is_empty());
+    }
+
+    let invalid_child_target = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child_c.target,
+            fork_version,
+        ))
+        .await
+        .expect_err("C cannot fork at B's post-boundary version");
+    assert_eq!(invalid_child_target.code, ApiErrorCode::InvalidRequest);
+
+    let invalid = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child.target,
+            TimelineVersion::new(EventSeq::new(99), StateRevision::new(99)),
+        ))
+        .await
+        .expect_err("a beyond-head version must fail before child creation");
+    assert_eq!(invalid.code, ApiErrorCode::InvalidRequest);
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the M6 parity gate intentionally keeps the complete replay/fork scenario visible"
+)]
+async fn m6_replay_fork_branch_isolation_parity_gate_in_memory() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("parent Timeline should be created");
+    let capabilities = registry();
+
+    let entity_event = event_with_effect(
+        event(600),
+        WorldEffect::CreateEntity {
+            entity_id: entity(10),
+        },
+        900,
+    )
+    .with_effect(WorldEffect::PutFacet {
+        owner: FacetOwner::entity(entity(10)),
+        facet_type: FacetTypeId::from("test.facet"),
+        schema_revision: SchemaRevision::new(1),
+        value: json!({"origin": "entity"}),
+    });
+    let second_entity_event = event_with_effect(
+        event(601),
+        WorldEffect::CreateEntity {
+            entity_id: entity(11),
+        },
+        901,
+    );
+    let relationship_id = id::<loom_core::RelationshipId>(620);
+    let relationship_event = with_relationship_ref(
+        event_with_effect(
+            event(602),
+            WorldEffect::CreateRelationship {
+                relationship_id,
+                relationship_type: RelationshipTypeId::from("test.relationship"),
+                participants: relationship_participants(),
+            },
+            902,
+        )
+        .with_effect(WorldEffect::PutFacet {
+            owner: FacetOwner::relationship(relationship_id),
+            facet_type: FacetTypeId::from("test.facet"),
+            schema_revision: SchemaRevision::new(1),
+            value: json!({"origin": "relationship"}),
+        }),
+        relationship_id,
+    );
+    let zero_effect_event = ProposedEvent::new(
+        event(603),
+        EventTypeId::from("test.changed"),
+        SchemaRevision::new(1),
+        json!({"zero_effect": true}),
+    )
+    .with_causal_link(CausalLink::new(event(602)));
+    let end_relationship_event = with_relationship_ref(
+        event_with_effect(
+            event(604),
+            WorldEffect::EndRelationship { relationship_id },
+            904,
+        ),
+        relationship_id,
+    )
+    .with_causal_link(CausalLink::new(event(603)));
+
+    for proposal in [
+        entity_event,
+        second_entity_event,
+        relationship_event,
+        zero_effect_event,
+        end_relationship_event,
+    ] {
+        let token = validated(
+            &store,
+            &capabilities,
+            Resolution::new(vec![proposal], Vec::new()),
+        );
+        store
+            .commit(&token, None, PlatformTime::new(1))
+            .expect("root Event should commit");
+    }
+
+    let immediate = work(610);
+    let at_work = work(611);
+    let agency_wake = work(612);
+    let mut reaction_work = NewWork::new(
+        work(613),
+        timeline(),
+        WorkHandlerId::from(TEST_WORK_HANDLER),
+        SchemaRevision::new(1),
+        json!({"reaction": true}),
+        WorkSchedule::Immediate,
+    );
+    reaction_work.causal_event_id = Some(event(603));
+    reaction_work.origin_work_id = Some(immediate);
+    let reaction_id = reaction_work.id;
+    let schedule_token = validated(
+        &store,
+        &capabilities,
+        Resolution::new(
+            Vec::new(),
+            vec![
+                WorkMutation::Schedule(NewWork::new(
+                    immediate,
+                    timeline(),
+                    WorkHandlerId::from(TEST_WORK_HANDLER),
+                    SchemaRevision::new(1),
+                    json!({"immediate": true}),
+                    WorkSchedule::Immediate,
+                )),
+                WorkMutation::Schedule(NewWork::new(
+                    at_work,
+                    timeline(),
+                    WorkHandlerId::from(TEST_WORK_HANDLER),
+                    SchemaRevision::new(1),
+                    json!({"at": true}),
+                    WorkSchedule::At(WorldInstant::new(100)),
+                )),
+                WorkMutation::Schedule(NewWork::agency_wake(
+                    agency_wake,
+                    timeline(),
+                    entity(10),
+                    "cognition.default",
+                    json!({"wake": true}),
+                    WorkSchedule::Immediate,
+                )),
+            ],
+        ),
+    );
+    store
+        .commit(&schedule_token, None, PlatformTime::new(2))
+        .expect("scheduled Work should commit");
+    let reaction_token = validated(
+        &store,
+        &capabilities,
+        Resolution::new(Vec::new(), vec![WorkMutation::Schedule(reaction_work)]),
+    );
+    store
+        .commit(&reaction_token, None, PlatformTime::new(3))
+        .expect("reaction Work should commit");
+
+    let scheduled = store.snapshot(timeline()).expect("scheduled snapshot");
+    let scheduled_version = scheduled.version();
+    assert_eq!(scheduled.chronology_budget().consumed, 0);
+    assert_eq!(scheduled.works.len(), 4);
+
+    let retry_claim = store
+        .claim(
+            timeline(),
+            immediate,
+            PlatformTime::new(4),
+            PlatformTime::new(8),
+        )
+        .expect("Immediate Work should be claimable");
+    let retried = store
+        .retry(
+            &retry_claim,
+            PlatformTime::new(5),
+            PlatformTime::new(9),
+            Some("transient operational failure".to_owned()),
+        )
+        .expect("technical retry should remain operational noise");
+    assert_eq!(retried.attempt_count, 1);
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("retry snapshot")
+            .version(),
+        scheduled_version
+    );
+
+    let complete_claim = store
+        .claim(
+            timeline(),
+            immediate,
+            PlatformTime::new(10),
+            PlatformTime::new(20),
+        )
+        .expect("retried Work should become claimable");
+    SchedulerCommitStore::commit_scheduler_work(
+        &store,
+        &validated(&store, &capabilities, Resolution::default()),
+        &complete_claim,
+        PlatformTime::new(11),
+        8,
+    )
+    .await
+    .expect("successful Work completion should consume chronology budget");
+
+    let cancel_token = validated(
+        &store,
+        &capabilities,
+        Resolution::new(Vec::new(), vec![WorkMutation::Cancel(reaction_id)]),
+    );
+    store
+        .commit(&cancel_token, None, PlatformTime::new(12))
+        .expect("reaction Work should cancel logically");
+    let before_dead = store.snapshot(timeline()).expect("pre-dead snapshot");
+    store
+        .terminalize_work(
+            &WorkTerminalization::new(
+                timeline(),
+                before_dead.version(),
+                agency_wake,
+                WorkTerminalState::Dead,
+                PlatformTime::new(13),
+            )
+            .with_last_error("bounded provider failure"),
+        )
+        .expect("Agency Wake should terminalize as Dead");
+
+    let fork_point = store.snapshot(timeline()).expect("fork point snapshot");
+    assert_eq!(fork_point.chronology_budget().consumed, 1);
+    assert_eq!(
+        fork_point
+            .works
+            .iter()
+            .map(|work| (work.id, work.status))
+            .collect::<Vec<_>>(),
+        vec![
+            (immediate, WorkStatus::Completed),
+            (agency_wake, WorkStatus::Dead),
+            (reaction_id, WorkStatus::Cancelled),
+            (at_work, WorkStatus::Pending),
+        ]
+    );
+
+    let replayed = fork_point
+        .replay_to(fork_point.version())
+        .expect("root should replay to its current boundary");
+    assert!(replayed.world_view().entity(entity(10)).is_some());
+    assert!(replayed.world_view().entity(entity(11)).is_some());
+    assert!(
+        replayed
+            .world_view()
+            .relationship(relationship_id)
+            .is_none()
+    );
+    assert_eq!(
+        replayed
+            .logical_state()
+            .work(at_work)
+            .expect("At Work should replay")
+            .status,
+        WorkStatus::Pending
+    );
+
+    let runtime = Runtime::new(&store, capabilities).expect("Runtime should assemble");
+    let target = TimelineTarget::new(world(), timeline());
+    let historical_child = runtime
+        .fork(ForkTimelineRequest::at_version(
+            target,
+            fork_point.version(),
+        ))
+        .await
+        .expect("historical fork should use replayed semantic and logical state");
+    let child_snapshot = store
+        .snapshot(historical_child.target.timeline_id)
+        .expect("historical child should be readable");
+    assert_eq!(child_snapshot.world_time(), fork_point.world_time());
+    assert_eq!(child_snapshot.works.len(), 1);
+    assert_ne!(child_snapshot.works[0].id, at_work);
+    assert_eq!(child_snapshot.works[0].status, WorkStatus::Pending);
+    assert_eq!(child_snapshot.chronology_budget().consumed, 1);
+    assert!(child_snapshot.world_view().entity(entity(10)).is_some());
+    assert!(
+        child_snapshot
+            .world_view()
+            .relationship(relationship_id)
+            .is_none()
+    );
+
+    let before_boundary = runtime
+        .fork(ForkTimelineRequest::at_version(
+            historical_child.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("target before branch boundary should recurse to parent");
+    let before_boundary_snapshot = store
+        .snapshot(before_boundary.target.timeline_id)
+        .expect("before-boundary child should be readable");
+    assert_eq!(
+        before_boundary_snapshot.version(),
+        TimelineVersion::default()
+    );
+    assert!(before_boundary_snapshot.events.is_empty());
+    assert!(
+        before_boundary_snapshot
+            .world_view()
+            .entity(entity(10))
+            .is_none()
+    );
+
+    let parent_time = AdvanceWorldTime::new(
+        timeline(),
+        fork_point.version(),
+        fork_point.world_time(),
+        WorldInstant::new(10),
+    )
+    .expect("explicit World-Time transition should validate");
+    store
+        .advance_world_time(parent_time)
+        .expect("parent should advance World Time explicitly");
+    let parent_head = runtime
+        .fork(ForkTimelineRequest::new(target))
+        .await
+        .expect("current parent fork should commit");
+    let sibling = runtime
+        .fork(ForkTimelineRequest::new(target))
+        .await
+        .expect("sibling fork should commit independently");
+    let grandchild = runtime
+        .fork(ForkTimelineRequest::new(historical_child.target))
+        .await
+        .expect("grandchild fork should retain historical ancestry");
+
+    let parent_tail = validated_at(
+        &store,
+        &registry(),
+        timeline(),
+        Resolution::new(
+            vec![event_with_effect(
+                event(650),
+                WorldEffect::PutFacet {
+                    owner: FacetOwner::entity(entity(10)),
+                    facet_type: FacetTypeId::from("test.facet"),
+                    schema_revision: SchemaRevision::new(1),
+                    value: json!({"branch": "parent"}),
+                },
+                950,
+            )],
+            Vec::new(),
+        ),
+    )
+    .expect("parent branch Event should validate");
+    store
+        .commit(&parent_tail, None, PlatformTime::new(14))
+        .expect("parent branch should diverge");
+
+    let child_tail = validated_at(
+        &store,
+        &registry(),
+        historical_child.target.timeline_id,
+        Resolution::new(
+            vec![event_with_effect(
+                event(651),
+                WorldEffect::CreateEntity {
+                    entity_id: entity(651),
+                },
+                951,
+            )],
+            Vec::new(),
+        ),
+    )
+    .expect("historical child Event should validate");
+    store
+        .commit(&child_tail, None, PlatformTime::new(15))
+        .expect("historical child should diverge");
+
+    let sibling_tail = validated_at(
+        &store,
+        &registry(),
+        sibling.target.timeline_id,
+        Resolution::new(
+            vec![event_with_effect(
+                event(652),
+                WorldEffect::CreateEntity {
+                    entity_id: entity(652),
+                },
+                952,
+            )],
+            Vec::new(),
+        ),
+    )
+    .expect("sibling Event should validate");
+    store
+        .commit(&sibling_tail, None, PlatformTime::new(16))
+        .expect("sibling should diverge");
+
+    let grandchild_tail = validated_at(
+        &store,
+        &registry(),
+        grandchild.target.timeline_id,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event(653),
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"grandchild": true}),
+            )],
+            Vec::new(),
+        ),
+    )
+    .expect("grandchild Event should validate");
+    store
+        .commit(&grandchild_tail, None, PlatformTime::new(17))
+        .expect("grandchild should diverge");
+
+    let parent_after = store.snapshot(timeline()).expect("parent after divergence");
+    let child_after = store
+        .snapshot(historical_child.target.timeline_id)
+        .expect("child after divergence");
+    let sibling_after = store
+        .snapshot(sibling.target.timeline_id)
+        .expect("sibling after divergence");
+    let grandchild_after = store
+        .snapshot(grandchild.target.timeline_id)
+        .expect("grandchild after divergence");
+    assert!(parent_after.world_view().entity(entity(651)).is_none());
+    assert!(parent_after.world_view().entity(entity(652)).is_none());
+    assert!(child_after.world_view().entity(entity(651)).is_some());
+    assert!(child_after.world_view().entity(entity(652)).is_none());
+    assert!(sibling_after.world_view().entity(entity(651)).is_none());
+    assert!(sibling_after.world_view().entity(entity(652)).is_some());
+    assert!(grandchild_after.world_view().entity(entity(651)).is_none());
+    assert!(grandchild_after.world_view().entity(entity(652)).is_none());
+    assert_eq!(
+        parent_after
+            .world_view()
+            .facet(
+                FacetOwner::entity(entity(10)),
+                &FacetTypeId::from("test.facet"),
+            )
+            .expect("parent facet should exist")
+            .value(),
+        &json!({"branch": "parent"})
+    );
+    assert_eq!(
+        child_after
+            .world_view()
+            .facet(
+                FacetOwner::entity(entity(10)),
+                &FacetTypeId::from("test.facet"),
+            )
+            .expect("child inherited facet should exist")
+            .value(),
+        &json!({"origin": "entity"})
+    );
+
+    let restarted_runtime = Runtime::new(&store, registry()).expect("Runtime should reassemble");
+    let replay_after_restart = parent_after
+        .replay_to(fork_point.version())
+        .expect("restart replay should remain deterministic");
+    assert_eq!(
+        replay_after_restart
+            .logical_state()
+            .chronology_budget
+            .consumed,
+        1
+    );
+    let restarted_grandchild = restarted_runtime
+        .fork(ForkTimelineRequest::new(grandchild.target))
+        .await
+        .expect("restarted Runtime should preserve grandchild ancestry");
+    let restarted_snapshot = store
+        .snapshot(restarted_grandchild.target.timeline_id)
+        .expect("restarted grandchild child should be readable");
+    assert!(
+        restarted_snapshot
+            .world_view()
+            .entity(entity(651))
+            .is_none()
+    );
+    assert!(
+        restarted_snapshot
+            .world_view()
+            .entity(entity(652))
+            .is_none()
+    );
+    assert_eq!(
+        restarted_snapshot.ancestry().parent_timeline_id,
+        Some(grandchild.target.timeline_id)
+    );
+    assert_ne!(
+        parent_head.target.timeline_id, historical_child.target.timeline_id,
+        "head and historical forks must allocate distinct branch identities"
+    );
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the ancestry causality fixture keeps visible-prefix cases together"
+)]
+async fn ancestry_causal_links_follow_visible_branch_history_only() {
+    let store = InMemoryStore::new();
+    let source = timeline();
+    let child = second_timeline();
+    let sibling = id::<TimelineId>(6);
+    store
+        .create_timeline(world(), source)
+        .expect("source Timeline should be created");
+    let capabilities = registry();
+
+    let root = validated(
+        &store,
+        &capabilities,
+        Resolution::new(
+            vec![
+                ProposedEvent::new(
+                    event(700),
+                    EventTypeId::from("test.changed"),
+                    SchemaRevision::new(1),
+                    json!({"event": 700}),
+                ),
+                ProposedEvent::new(
+                    event(701),
+                    EventTypeId::from("test.changed"),
+                    SchemaRevision::new(1),
+                    json!({"event": 701}),
+                ),
+            ],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&root, None, PlatformTime::new(1))
+        .expect("root history should commit");
+    let root_version = store.snapshot(source).expect("root snapshot").version();
+    TimelineForkStore::fork_timeline(&store, &TimelineFork::new(source, root_version, child))
+        .await
+        .expect("child fork should commit");
+    TimelineForkStore::fork_timeline(&store, &TimelineFork::new(source, root_version, sibling))
+        .await
+        .expect("sibling fork should commit");
+
+    let child_event = ProposedEvent::new(
+        event(702),
+        EventTypeId::from("test.changed"),
+        SchemaRevision::new(1),
+        json!({"event": 702}),
+    )
+    .with_causal_link(CausalLink::new(event(700)));
+    let child_token = validated_at(
+        &store,
+        &capabilities,
+        child,
+        Resolution::new(vec![child_event], Vec::new()),
+    )
+    .expect("child may reference visible ancestor history");
+    store
+        .commit(&child_token, None, PlatformTime::new(2))
+        .expect("child causal Event should commit");
+
+    let parent_future = validated(
+        &store,
+        &capabilities,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event(703),
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"event": 703}),
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&parent_future, None, PlatformTime::new(3))
+        .expect("parent future should commit independently");
+    let future_reference = ProposedEvent::new(
+        event(704),
+        EventTypeId::from("test.changed"),
+        SchemaRevision::new(1),
+        json!({"event": 704}),
+    )
+    .with_causal_link(CausalLink::new(event(703)));
+    assert!(
+        validated_at(
+            &store,
+            &capabilities,
+            child,
+            Resolution::new(vec![future_reference], Vec::new()),
+        )
+        .is_err()
+    );
+
+    let sibling_reference = ProposedEvent::new(
+        event(705),
+        EventTypeId::from("test.changed"),
+        SchemaRevision::new(1),
+        json!({"event": 705}),
+    )
+    .with_causal_link(CausalLink::new(event(702)));
+    assert!(
+        validated_at(
+            &store,
+            &capabilities,
+            sibling,
+            Resolution::new(vec![sibling_reference], Vec::new()),
+        )
+        .is_err()
+    );
+
+    let child_snapshot = store.snapshot(child).expect("child snapshot");
+    assert_eq!(
+        child_snapshot
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![
+            EventRef::new(source, event(700)),
+            EventRef::new(source, event(701)),
+            EventRef::new(child, event(702)),
+        ]
+    );
+    assert_eq!(
+        store
+            .snapshot(sibling)
+            .expect("sibling snapshot")
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![
+            EventRef::new(source, event(700)),
+            EventRef::new(source, event(701))
+        ]
     );
 }

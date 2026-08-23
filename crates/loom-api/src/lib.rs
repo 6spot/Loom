@@ -34,9 +34,10 @@
 use std::{fmt, future::Future, pin::Pin};
 
 pub use loom_core::{
-    ActionTypeId, AssociationRole, EntityId, EventId, EventSeq, EventTypeId, FacetOwner,
+    ActionTypeId, AssociationRole, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
     FacetTypeId, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
-    StateRevision, TimelineId, TimelineVersion, WorldEffect, WorldId, WorldInstant,
+    StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorldEffect, WorldId,
+    WorldInstant,
 };
 pub use loom_protocol::{
     ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, Rejection, RejectionCode,
@@ -73,6 +74,57 @@ impl TimelineTarget {
         }
     }
 }
+
+/// Public request for a Timeline fork.
+///
+/// Runtime reads the source head and allocates the child Timeline identity.
+/// When `source_version` is absent, the current head is used as a convenience
+/// default. An explicit version must be an exact committed visible position;
+/// it is a historical selector, not a storage transaction or commit token.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ForkTimelineRequest {
+    /// World and source Timeline to fork.
+    pub source: TimelineTarget,
+    /// Optional exact committed source version; `None` selects the head.
+    #[serde(default)]
+    pub source_version: Option<TimelineVersion>,
+}
+
+impl ForkTimelineRequest {
+    /// Creates a current-head fork request.
+    #[must_use]
+    pub const fn new(source: TimelineTarget) -> Self {
+        Self {
+            source,
+            source_version: None,
+        }
+    }
+
+    /// Creates a fork request from one exact committed source version.
+    #[must_use]
+    pub const fn at_version(source: TimelineTarget, source_version: TimelineVersion) -> Self {
+        Self {
+            source,
+            source_version: Some(source_version),
+        }
+    }
+
+    /// Returns a copy of this request selecting one exact source version.
+    #[must_use]
+    pub const fn with_source_version(mut self, source_version: TimelineVersion) -> Self {
+        self.source_version = Some(source_version);
+        self
+    }
+
+    /// Creates a fork request from separate World/Timeline identities.
+    #[must_use]
+    pub const fn for_timeline(world_id: WorldId, timeline_id: TimelineId) -> Self {
+        Self::new(TimelineTarget::new(world_id, timeline_id))
+    }
+}
+
+/// Compatibility spelling for consumers that name the operation first.
+pub type TimelineForkRequest = ForkTimelineRequest;
 
 /// Stable public identity of a World Template revision source.
 ///
@@ -503,6 +555,9 @@ pub struct TimelineSnapshot {
     pub version: TimelineVersion,
     /// Current semantic World time of the Timeline.
     pub world_time: WorldInstant,
+    /// Immutable parent/fork position metadata; root Timelines use the root
+    /// value. Ancestor Event rows are not duplicated into this snapshot.
+    pub ancestry: TimelineAncestry,
 }
 
 impl TimelineSnapshot {
@@ -517,9 +572,29 @@ impl TimelineSnapshot {
             target,
             version,
             world_time,
+            ancestry: TimelineAncestry::root(),
+        }
+    }
+
+    /// Creates a public snapshot including immutable Timeline ancestry.
+    #[must_use]
+    pub const fn with_ancestry(
+        target: TimelineTarget,
+        version: TimelineVersion,
+        world_time: WorldInstant,
+        ancestry: TimelineAncestry,
+    ) -> Self {
+        Self {
+            target,
+            version,
+            world_time,
+            ancestry,
         }
     }
 }
+
+/// The public result of a successful Timeline fork.
+pub type ForkTimelineResult = TimelineSnapshot;
 
 /// Query for one current Facet value in a Timeline.
 ///
@@ -657,6 +732,14 @@ pub struct CommittedEvent {
     pub payload: Value,
     /// Mechanical Effects frozen under the committed Event.
     pub effects: Vec<WorldEffect>,
+}
+
+impl CommittedEvent {
+    /// Returns the explicit Timeline-qualified identity of this Event.
+    #[must_use]
+    pub const fn event_ref(&self) -> EventRef {
+        EventRef::new(self.timeline_id, self.id)
+    }
 }
 
 /// Stable identity used by the public Capability catalog.
@@ -842,11 +925,11 @@ pub trait ActionService {
     }
 }
 
-/// Inspects the current version and World time of a Timeline.
+/// Inspects and forks Timelines at the unified public boundary.
 ///
 /// This service is intentionally limited to observation. Initial World/Timeline
-/// creation belongs to [`WorldService`]; Timeline fork/ancestry remains a separate
-/// future contract rather than an inspection side effect.
+/// World creation belongs to [`WorldService`]; fork is a Runtime-owned
+/// operation and never an inspection side effect.
 pub trait TimelineService {
     /// Returns one consistent public Timeline snapshot.
     ///
@@ -854,6 +937,25 @@ pub trait TimelineService {
     ///
     /// Returns an `ApiError` when the World/Timeline cannot be found or read.
     fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, TimelineSnapshot>;
+
+    /// Allocates a child Timeline from an exact committed source position, or
+    /// from the current head when the request omits a version.
+    ///
+    /// The default keeps focused API test doubles source-compatible. Runtime's
+    /// implementation is the authority for the atomic reconstruction and
+    /// branch-local Pending Work clone.
+    fn fork(&self, _request: ForkTimelineRequest) -> ApiFuture<'_, ForkTimelineResult> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Timeline fork is not implemented by this service",
+            ))
+        })
+    }
+
+    /// Explicit operation-name alias for [`Self::fork`].
+    fn fork_timeline(&self, request: ForkTimelineRequest) -> ApiFuture<'_, ForkTimelineResult> {
+        self.fork(request)
+    }
 }
 
 /// Reads current materialized World state through the unified API.

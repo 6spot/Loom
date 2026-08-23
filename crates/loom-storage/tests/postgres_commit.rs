@@ -18,7 +18,8 @@ use loom_protocol::{
 };
 use loom_runtime::{
     AdvanceWorldTime, CommitError, CommitStore, EffectEngine, PlatformTime, RuntimeError,
-    ValidationError, WorkClaim, WorkError, WorkStatus, WorldStore, WorldTimeError, WorldTimeStore,
+    TimelineFork, TimelineForkStore, ValidationError, WorkClaim, WorkError, WorkStatus, WorldStore,
+    WorldTimeError, WorldTimeStore,
 };
 use loom_storage::PgStorage;
 use serde_json::{Value, json};
@@ -126,6 +127,16 @@ async fn validated(
     EffectEngine::new(registry)
         .validate(&snapshot.world_view(), OWNER, resolution)
         .expect("test Resolution should validate")
+}
+
+async fn try_validated(
+    storage: &PgStorage,
+    timeline_id: TimelineId,
+    registry: &CapabilityRegistry,
+    resolution: Resolution,
+) -> Result<loom_runtime::ValidatedResolution, RuntimeError> {
+    let snapshot = WorldStore::snapshot(storage, timeline_id).await.unwrap();
+    EffectEngine::new(registry).validate(&snapshot.world_view(), OWNER, resolution)
 }
 
 #[tokio::test]
@@ -293,6 +304,122 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
         snapshot.events[2].causal_links[0].event_id(),
         snapshot.events[1].id
     );
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL fixture covers valid and bounded cross-Timeline causality"
+)]
+async fn postgres_18_commit_accepts_visible_ancestor_and_rejects_late_branch_reference() {
+    let Some((database, storage, pool, _world_id, timeline_a)) = authority(0x10a0).await else {
+        return;
+    };
+    let timeline_b: TimelineId = id(0x10a2);
+    let timeline_sibling: TimelineId = id(0x10a3);
+    let root_event: EventId = id(0x10b0);
+    let root_future_event: EventId = id(0x10b1);
+    let child_event_id: EventId = id(0x10b2);
+    let rejected_event_id: EventId = id(0x10b3);
+    let registry = registry();
+
+    let root_token = validated(
+        &storage,
+        timeline_a,
+        &registry,
+        Resolution::new(vec![event(root_event, 1)], Vec::new()),
+    )
+    .await;
+    CommitStore::commit(&storage, &root_token, None, PlatformTime::new(1))
+        .await
+        .expect("root Event should commit");
+    let root_head = WorldStore::snapshot(&storage, timeline_a)
+        .await
+        .expect("root snapshot should read")
+        .version();
+    TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_a, root_head, timeline_b),
+    )
+    .await
+    .expect("child fork should commit");
+    TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_a, root_head, timeline_sibling),
+    )
+    .await
+    .expect("sibling fork should commit");
+
+    let child_event = event(child_event_id, 2).with_causal_link(CausalLink::new(root_event));
+    let child_token = try_validated(
+        &storage,
+        timeline_b,
+        &registry,
+        Resolution::new(vec![child_event], Vec::new()),
+    )
+    .await
+    .expect("child should validate visible ancestor causality");
+    CommitStore::commit(&storage, &child_token, None, PlatformTime::new(2))
+        .await
+        .expect("child ancestor causal link should commit");
+    let child_after = WorldStore::snapshot(&storage, timeline_b)
+        .await
+        .expect("child snapshot should read");
+    assert_eq!(child_after.events.len(), 2);
+    assert_eq!(child_after.events[0].timeline_id, timeline_a);
+    assert_eq!(child_after.events[1].timeline_id, timeline_b);
+
+    let root_future_token = validated(
+        &storage,
+        timeline_a,
+        &registry,
+        Resolution::new(vec![event(root_future_event, 3)], Vec::new()),
+    )
+    .await;
+    CommitStore::commit(&storage, &root_future_token, None, PlatformTime::new(3))
+        .await
+        .expect("root future should commit independently");
+
+    let ancestor_future =
+        event(rejected_event_id, 4).with_causal_link(CausalLink::new(root_future_event));
+    assert!(
+        try_validated(
+            &storage,
+            timeline_b,
+            &registry,
+            Resolution::new(vec![ancestor_future], Vec::new()),
+        )
+        .await
+        .is_err(),
+        "child validation must not see parent Events after its fork boundary"
+    );
+    assert!(
+        try_validated(
+            &storage,
+            timeline_sibling,
+            &registry,
+            Resolution::new(
+                vec![event(rejected_event_id, 4).with_causal_link(CausalLink::new(child_event_id))],
+                Vec::new(),
+            ),
+        )
+        .await
+        .is_err(),
+        "sibling branch Events must not become causal sources"
+    );
+    assert_eq!(
+        WorldStore::snapshot(&storage, timeline_b)
+            .await
+            .expect("child history should remain readable")
+            .events
+            .len(),
+        2,
+        "rejected references must not append child history"
+    );
+
     pool.close().await;
     storage.close().await;
     database.cleanup().await;

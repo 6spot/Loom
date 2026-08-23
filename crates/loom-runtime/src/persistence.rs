@@ -20,9 +20,9 @@ use std::{
 
 use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
-    AssociationRole, EntityId, EventId, EventSeq, ExecutionSessionId, RelationshipId,
-    SchemaRevision, StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId,
-    WorldInstant,
+    AssociationRole, EntityId, EventId, EventRef, EventSeq, ExecutionSessionId, RelationshipId,
+    SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
+    WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule, WorkTarget};
 use semver::{Version, VersionReq};
@@ -1979,6 +1979,12 @@ pub struct CommittedEvent {
 }
 
 impl CommittedEvent {
+    /// Returns the explicit Timeline-qualified identity of this Event.
+    #[must_use]
+    pub const fn event_ref(&self) -> EventRef {
+        EventRef::new(self.timeline_id, self.id)
+    }
+
     /// Builds an authoritative read model from one proposal and assigned seq.
     #[must_use]
     pub fn from_proposed(
@@ -2176,6 +2182,12 @@ pub struct TimelineSnapshot {
     pub works: Vec<WorkRecord>,
     /// Ordered Timeline Logical Commit records visible in this snapshot.
     pub journal: Vec<LogicalCommit>,
+    /// Immutable parent/fork position metadata for this Timeline.
+    pub ancestry: TimelineAncestry,
+    /// Materialized same-instant chronology position read from the authority.
+    /// This is carried separately because a fork has no copied ancestor
+    /// journal rows while still inheriting the parent's logical budget.
+    pub chronology_budget_state: ChronologyBudgetState,
 }
 
 impl TimelineSnapshot {
@@ -2186,11 +2198,14 @@ impl TimelineSnapshot {
         events: Vec<CommittedEvent>,
         works: Vec<WorkRecord>,
     ) -> Self {
+        let world_time = base.world_time();
         Self {
             base,
             events,
             works,
             journal: Vec::new(),
+            ancestry: TimelineAncestry::root(),
+            chronology_budget_state: ChronologyBudgetState::new(world_time, 0),
         }
     }
 
@@ -2204,11 +2219,45 @@ impl TimelineSnapshot {
         works: Vec<WorkRecord>,
         journal: Vec<LogicalCommit>,
     ) -> Self {
+        let world_time = base.world_time();
+        let chronology_budget = journal
+            .iter()
+            .rev()
+            .find_map(|commit| {
+                commit
+                    .chronology_budget
+                    .filter(|budget| budget.world_time == world_time)
+                    .map(|budget| budget.after)
+            })
+            .unwrap_or_default();
         Self {
             base,
             events,
             works,
             journal,
+            ancestry: TimelineAncestry::root(),
+            chronology_budget_state: ChronologyBudgetState::new(world_time, chronology_budget),
+        }
+    }
+
+    /// Creates a coherent snapshot including ancestry and the authority's
+    /// materialized chronology budget position.
+    #[must_use]
+    pub fn with_journal_ancestry_and_budget(
+        base: BaseWorldSnapshot,
+        events: Vec<CommittedEvent>,
+        works: Vec<WorkRecord>,
+        journal: Vec<LogicalCommit>,
+        ancestry: TimelineAncestry,
+        chronology_budget_state: ChronologyBudgetState,
+    ) -> Self {
+        Self {
+            base,
+            events,
+            works,
+            journal,
+            ancestry,
+            chronology_budget_state,
         }
     }
 
@@ -2222,18 +2271,13 @@ impl TimelineSnapshot {
     /// the authoritative logical journal.
     #[must_use]
     pub fn chronology_budget(&self) -> ChronologyBudgetState {
-        let consumed = self
-            .journal
-            .iter()
-            .rev()
-            .find_map(|commit| {
-                commit
-                    .chronology_budget
-                    .filter(|budget| budget.world_time == self.world_time())
-                    .map(|budget| budget.after)
-            })
-            .unwrap_or_default();
-        ChronologyBudgetState::new(self.world_time(), consumed)
+        self.chronology_budget_state
+    }
+
+    /// Returns immutable parent/fork position metadata.
+    #[must_use]
+    pub const fn ancestry(&self) -> TimelineAncestry {
+        self.ancestry
     }
 
     /// Returns the pinned Timeline identity.
@@ -2312,6 +2356,26 @@ impl TimelineSnapshot {
     ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
         crate::replay_timeline(initial, &self.events, &self.journal, target)
     }
+
+    pub(crate) fn replay_from_seed_with_events(
+        &self,
+        initial: BaseWorldSnapshot,
+        initial_works: Vec<crate::LogicalWorkState>,
+        initial_chronology_budget: ChronologyBudgetState,
+        initial_logical_order_high_water: u64,
+        events: &[CommittedEvent],
+        target: TimelineVersion,
+    ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
+        crate::LogicalReplayEngine::replay_with_seed(
+            initial,
+            initial_works,
+            initial_chronology_budget,
+            initial_logical_order_high_water,
+            events,
+            &self.journal,
+            target,
+        )
+    }
 }
 
 /// Result of a successful atomic Timeline commit.
@@ -2350,6 +2414,163 @@ impl fmt::Display for ReadError {
 }
 
 impl std::error::Error for ReadError {}
+
+/// Reconstructed branch-local materialization supplied to the atomic fork
+/// boundary.
+///
+/// Runtime creates this value only from the deterministic Event and Logical
+/// Journal replay APIs. Storage persists it as child-local materialized state;
+/// it never consults a later parent state to fill in omitted fields.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForkMaterialization {
+    /// Materialized semantic state at the requested fork version.
+    pub base: BaseWorldSnapshot,
+    /// Same-instant chronology position at the requested fork version.
+    pub chronology_budget: ChronologyBudgetState,
+    /// Highest logical schedule order visible at the requested version.
+    pub logical_schedule_order: u64,
+}
+
+impl ForkMaterialization {
+    /// Creates a reconstructed fork materialization.
+    #[must_use]
+    pub const fn new(
+        base: BaseWorldSnapshot,
+        chronology_budget: ChronologyBudgetState,
+        logical_schedule_order: u64,
+    ) -> Self {
+        Self {
+            base,
+            chronology_budget,
+            logical_schedule_order,
+        }
+    }
+}
+
+/// One branch-local Pending Work record supplied to the atomic fork
+/// boundary. Runtime allocates the new Work identity and rewrites any origin
+/// reference that points at another cloned Pending Work before persistence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForkWork {
+    /// Source Work identity used by the adapter's source-head recheck.
+    pub source_work_id: WorkId,
+    /// New child-Timeline Work record with semantic fields copied from source.
+    pub work: WorkRecord,
+}
+
+/// Runtime-owned atomic Timeline fork command.
+///
+/// The adapter rechecks `expected_version` while locking the source Timeline,
+/// reconstructs/copies materialized state, records immutable ancestry and
+/// writes the child Pending Work set in one transaction/critical section.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimelineFork {
+    /// Source Timeline whose current head is being forked.
+    pub source_timeline_id: TimelineId,
+    /// Source version observed before Runtime allocated the child plan.
+    pub expected_version: TimelineVersion,
+    /// Exact source version represented by the child, which may be earlier
+    /// than `expected_version` when a historical fork is requested.
+    pub fork_version: TimelineVersion,
+    /// Runtime-allocated child Timeline identity.
+    pub child_timeline_id: TimelineId,
+    /// Replay-derived materialization to persist, when supplied by Runtime.
+    /// `None` retains the M6-T3 adapter-only current-head compatibility path.
+    pub materialization: Option<ForkMaterialization>,
+    /// Only source Pending Work is represented here; operational fields are
+    /// ignored/reset by the persistence adapter.
+    pub pending_work: Vec<ForkWork>,
+}
+
+impl TimelineFork {
+    /// Creates an atomic head-fork command without Pending Work.
+    #[must_use]
+    pub const fn new(
+        source_timeline_id: TimelineId,
+        expected_version: TimelineVersion,
+        child_timeline_id: TimelineId,
+    ) -> Self {
+        Self {
+            source_timeline_id,
+            expected_version,
+            fork_version: expected_version,
+            child_timeline_id,
+            materialization: None,
+            pending_work: Vec::new(),
+        }
+    }
+
+    /// Selects the exact source version represented by the child.
+    #[must_use]
+    pub const fn at_version(mut self, fork_version: TimelineVersion) -> Self {
+        self.fork_version = fork_version;
+        self
+    }
+
+    /// Supplies the replay-derived semantic state for the child.
+    #[must_use]
+    pub fn with_materialization(mut self, materialization: ForkMaterialization) -> Self {
+        self.materialization = Some(materialization);
+        self
+    }
+
+    /// Adds one branch-local Pending Work clone to the command.
+    #[must_use]
+    pub fn with_pending_work(mut self, work: Vec<ForkWork>) -> Self {
+        self.pending_work = work;
+        self
+    }
+}
+
+/// Typed failures from the atomic current-head fork boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ForkError {
+    /// The source Timeline does not exist.
+    SourceTimelineNotFound { timeline_id: TimelineId },
+    /// The requested child identity is already present.
+    TimelineAlreadyExists { timeline_id: TimelineId },
+    /// The source changed after Runtime read its head.
+    SourceVersionConflict {
+        expected: TimelineVersion,
+        actual: TimelineVersion,
+    },
+    /// The requested historical position is beyond the committed source head.
+    InvalidForkVersion {
+        requested: TimelineVersion,
+        head: TimelineVersion,
+    },
+    /// The child Work plan is invalid at the atomic boundary.
+    InvalidWork { work_id: WorkId, message: String },
+    /// The authority could not complete the transaction/critical section.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for ForkError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SourceTimelineNotFound { timeline_id } => {
+                write!(formatter, "source Timeline {timeline_id} was not found")
+            }
+            Self::TimelineAlreadyExists { timeline_id } => {
+                write!(formatter, "child Timeline {timeline_id} already exists")
+            }
+            Self::SourceVersionConflict { expected, actual } => write!(
+                formatter,
+                "fork source Timeline changed: expected {expected:?}, actual {actual:?}"
+            ),
+            Self::InvalidForkVersion { requested, head } => write!(
+                formatter,
+                "fork source version {requested:?} is beyond committed head {head:?}"
+            ),
+            Self::InvalidWork { work_id, message } => {
+                write!(formatter, "fork Work {work_id} is invalid: {message}")
+            }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for ForkError {}
 
 /// Typed failures for Durable Work claim, retry and completion checks.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2821,6 +3042,35 @@ pub trait WorldStore {
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         self.snapshot(timeline_id)
     }
+
+    /// Forks one source Timeline at its requested committed position.
+    ///
+    /// Adapters that do not provide the fork port retain source compatibility
+    /// and report an unavailable persistence authority. Concrete adapters
+    /// override this method with their atomic transaction/critical section.
+    fn fork_timeline<'a>(
+        &'a self,
+        _fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
+        Box::pin(async {
+            Err(ForkError::StorageUnavailable {
+                message: "Timeline fork is not implemented by this store".to_owned(),
+            })
+        })
+    }
+}
+
+/// Runtime-owned persistence port for an atomic Timeline fork.
+pub trait TimelineForkStore {
+    /// Forks one source position into a new child Timeline.
+    ///
+    /// The adapter owns the single transaction/critical section and must not
+    /// expose the child before commit. A source CAS conflict or any validation
+    /// failure leaves both source and child state unchanged.
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>>;
 }
 
 /// Runtime-owned read port for deterministic Timeline Logical Commit history.
