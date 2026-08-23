@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - ".github/workflows/ci.yml"
+      - ".env.test.example"
+      - "compose.test-db.yaml"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -18,6 +20,8 @@ on:
   pull_request:
     paths:
       - ".github/workflows/ci.yml"
+      - ".env.test.example"
+      - "compose.test-db.yaml"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -55,6 +59,11 @@ jobs:
 
       - name: Architecture policy
         run: python3 tools/check_architecture.py
+
+      - name: Local PostgreSQL Compose config
+        env:
+          POSTGRES_PASSWORD: loom-ci-placeholder
+        run: docker compose -f compose.test-db.yaml config --quiet
 
       - name: Format
         run: cargo fmt --all -- --check
