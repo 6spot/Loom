@@ -21,6 +21,8 @@ use loom_runtime::{
     ExecutionSessionStatus, ExecutionSessionStore, PersistenceFuture, PlatformTime, ReadError,
     ResolutionBudget, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
     SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkRecord,
     WorkStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
@@ -448,6 +450,36 @@ impl WorldStore for CountingStore {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.inner.snapshot(timeline_id) })
+    }
+}
+
+impl SemanticProjectionStore for CountingStore {
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        SemanticProjectionStore::register_semantic_projection(&self.inner, registration)
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
+        SemanticProjectionStore::query_semantic_projection(&self.inner, query)
+    }
+
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+        SemanticProjectionStore::rebuild_semantic_projection(&self.inner, rebuild)
+    }
+
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        SemanticProjectionStore::delete_semantic_projection(&self.inner, key)
     }
 }
 

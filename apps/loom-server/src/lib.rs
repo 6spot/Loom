@@ -24,8 +24,8 @@ use std::sync::{
 use loom_api::{ApiError, ApiResult, TimelineTarget};
 use loom_runtime::{
     ExecutionSessionStore, PlatformClock, PlatformTime, Runtime, RuntimeControlStore,
-    RuntimeRevisionStore, SchedulerCommitStore, TimelineDriverResult, WorkStore,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
+    RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore, TimelineDriverResult,
+    WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
 };
 
 /// Bounded operational timing supplied by the application composition root.
@@ -188,7 +188,8 @@ where
         + ExecutionSessionStore
         + RuntimeControlStore
         + SchedulerCommitStore
-        + WorldTimeStore,
+        + WorldTimeStore
+        + SemanticProjectionStore,
     C: PlatformClock,
 {
     /// Creates one worker bound to one Timeline and one application clock.

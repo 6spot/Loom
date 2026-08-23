@@ -1,7 +1,10 @@
 //! Runtime-owned execution provenance for candidate validation.
 
-use loom_capability::{CapabilityId, EntropyRequest, EntropySample};
-use loom_core::{ActionTypeId, EntityId, EventId, FacetOwner, FacetTypeId, RelationshipId};
+use loom_capability::{CapabilityId, EntropyRequest, EntropySample, SemanticIndexId};
+use loom_core::{
+    ActionTypeId, EntityId, EventId, EventRef, FacetOwner, FacetTypeId, RelationshipId,
+    SchemaRevision,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::EntropySourceId;
@@ -169,6 +172,23 @@ pub enum ReadDependency {
         event_id: EventId,
         /// Whether the Event was available before the current proposed Event.
         present: bool,
+    },
+    /// One Runtime-mediated semantic projection read and its ordered sources.
+    Semantic {
+        /// Capability-owned semantic index identity.
+        index_id: SemanticIndexId,
+        /// Stable normalized query fingerprint.
+        query_fingerprint: String,
+        /// Canonical normalized query specification.
+        query_spec: String,
+        /// Source schema revision accepted at the read boundary.
+        source_schema_revision: SchemaRevision,
+        /// Projection revision observed by the adapter snapshot.
+        projection_revision: u64,
+        /// Model revision observed by the adapter snapshot.
+        model_revision: String,
+        /// Returned source references in exact result order.
+        source_refs: Vec<EventRef>,
     },
 }
 

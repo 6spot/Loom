@@ -26,10 +26,13 @@ use loom_runtime::{
     PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
     ProposedEvent, ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
     RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
-    SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
-    WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget,
-    WorkTerminalization, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionRow, SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore,
+    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
+    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore, semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -94,6 +97,8 @@ struct StoreState {
     runtime_revisions: BTreeMap<RuntimeRevisionId, RuntimeRevisionDescriptor>,
     active_runtime_revision: Option<RuntimeRevisionSelection>,
     execution_sessions: BTreeMap<ExecutionSessionId, ExecutionSession>,
+    semantic_projections: HashMap<SemanticProjectionKey, SemanticProjectionRegistration>,
+    semantic_projection_rows: HashMap<SemanticProjectionKey, Vec<SemanticProjectionRow>>,
 }
 
 /// Errors raised while creating or seeding an in-memory World fixture.
@@ -1759,6 +1764,296 @@ impl WorldRuntimeBindingStore for InMemoryStore {
         legacy_binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
         Box::pin(async move { InMemoryStore::ensure_binding(self, world_id, legacy_binding) })
+    }
+}
+
+impl SemanticProjectionStore for InMemoryStore {
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        Box::pin(async move {
+            registration.validate()?;
+            let mut guard = self.write_state();
+            let timeline = guard.timelines.get(&registration.key.timeline_id).ok_or(
+                SemanticProjectionError::ScopeNotFound {
+                    world_id: registration.key.world_id,
+                    timeline_id: registration.key.timeline_id,
+                },
+            )?;
+            if timeline.world_id != registration.key.world_id {
+                return Err(SemanticProjectionError::ScopeNotFound {
+                    world_id: registration.key.world_id,
+                    timeline_id: registration.key.timeline_id,
+                });
+            }
+            if let Some(existing) = guard.semantic_projections.get(&registration.key) {
+                ensure_memory_registration_matches(&registration, existing)?;
+                return Ok(());
+            }
+            guard
+                .semantic_projections
+                .insert(registration.key.clone(), registration);
+            Ok(())
+        })
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
+        Box::pin(async move {
+            query.validate()?;
+            let guard = self.read_state();
+            let registration = guard.semantic_projections.get(&query.key).ok_or_else(|| {
+                SemanticProjectionError::IndexNotRegistered {
+                    key: query.key.clone(),
+                }
+            })?;
+            if registration.source.schema_revision != query.source_schema_revision {
+                return Err(SemanticProjectionError::SourceMismatch {
+                    expected: registration.source.schema_revision.value().to_string(),
+                    actual: query.source_schema_revision.value().to_string(),
+                });
+            }
+            if registration.projection_revision != query.projection_revision {
+                return Err(SemanticProjectionError::RevisionMismatch {
+                    expected: registration.projection_revision,
+                    actual: query.projection_revision,
+                });
+            }
+            if registration.model_revision != query.model_revision {
+                return Err(SemanticProjectionError::MetadataMismatch {
+                    field: "model_revision".to_owned(),
+                    expected: registration.model_revision.clone(),
+                    actual: query.model_revision.clone(),
+                });
+            }
+            if usize::try_from(registration.dimensions).unwrap_or(usize::MAX) != query.vector.len()
+            {
+                return Err(SemanticProjectionError::DimensionMismatch {
+                    expected: registration.dimensions.to_string(),
+                    actual: query.vector.len().to_string(),
+                });
+            }
+            let mut hits: Vec<_> = guard
+                .semantic_projection_rows
+                .get(&query.key)
+                .into_iter()
+                .flatten()
+                .filter(|row| {
+                    query.filters.iter().all(|filter| {
+                        filter
+                            .source_hash
+                            .as_ref()
+                            .is_none_or(|expected| expected == &row.source_hash)
+                    })
+                })
+                .map(|row| SemanticProjectionHit {
+                    source_ref: row.source_ref,
+                    source_hash: row.source_hash.clone(),
+                    source_revision: row.source_revision,
+                    projection_revision: row.projection_revision,
+                    model_revision: row.model_revision.clone(),
+                    distance: metric_distance(registration.metric, &query.vector, &row.vector),
+                })
+                .collect();
+            hits.sort_by(|left, right| {
+                left.distance
+                    .total_cmp(&right.distance)
+                    .then_with(|| {
+                        left.source_ref
+                            .timeline_id
+                            .to_string()
+                            .cmp(&right.source_ref.timeline_id.to_string())
+                    })
+                    .then_with(|| {
+                        left.source_ref
+                            .event_id
+                            .to_string()
+                            .cmp(&right.source_ref.event_id.to_string())
+                    })
+            });
+            hits.truncate(query.limit as usize);
+            let result_bytes = hits
+                .iter()
+                .map(semantic_projection_hit_bytes)
+                .sum::<usize>();
+            if result_bytes > query.max_result_bytes as usize {
+                return Err(SemanticProjectionError::LimitExceeded {
+                    limit: query.max_result_bytes,
+                    actual: u32::try_from(result_bytes).unwrap_or(u32::MAX),
+                });
+            }
+            Ok(hits)
+        })
+    }
+
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+        Box::pin(async move {
+            rebuild.validate()?;
+            let mut guard = self.write_state();
+            let current = guard
+                .semantic_projections
+                .get(&rebuild.registration.key)
+                .ok_or_else(|| SemanticProjectionError::IndexNotRegistered {
+                    key: rebuild.registration.key.clone(),
+                })?
+                .clone();
+            if let Some(expected) = rebuild.expected_previous_projection_revision
+                && current.projection_revision != expected
+            {
+                return Err(SemanticProjectionError::RevisionMismatch {
+                    expected,
+                    actual: current.projection_revision,
+                });
+            }
+            ensure_memory_registration_shape_matches(&rebuild.registration, &current)?;
+            validate_memory_rows(&rebuild.registration, &rebuild.rows)?;
+            guard.semantic_projections.insert(
+                rebuild.registration.key.clone(),
+                rebuild.registration.clone(),
+            );
+            guard
+                .semantic_projection_rows
+                .insert(rebuild.registration.key.clone(), rebuild.rows.clone());
+            Ok(())
+        })
+    }
+
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        Box::pin(async move {
+            let mut guard = self.write_state();
+            if guard.semantic_projections.remove(&key).is_none() {
+                return Err(SemanticProjectionError::IndexNotRegistered { key });
+            }
+            guard.semantic_projection_rows.remove(&key);
+            Ok(())
+        })
+    }
+}
+
+fn ensure_memory_registration_matches(
+    expected: &SemanticProjectionRegistration,
+    actual: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    ensure_memory_registration_shape_matches(expected, actual)?;
+    if expected.projection_revision != actual.projection_revision {
+        return Err(SemanticProjectionError::RevisionMismatch {
+            expected: expected.projection_revision,
+            actual: actual.projection_revision,
+        });
+    }
+    Ok(())
+}
+
+fn ensure_memory_registration_shape_matches(
+    expected: &SemanticProjectionRegistration,
+    actual: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    if expected.source != actual.source {
+        return Err(SemanticProjectionError::SourceMismatch {
+            expected: format!("{:?}", expected.source),
+            actual: format!("{:?}", actual.source),
+        });
+    }
+    if expected.schema_revision != actual.schema_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "schema_revision".to_owned(),
+            expected: expected.schema_revision.value().to_string(),
+            actual: actual.schema_revision.value().to_string(),
+        });
+    }
+    if expected.model_revision != actual.model_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "model_revision".to_owned(),
+            expected: expected.model_revision.clone(),
+            actual: actual.model_revision.clone(),
+        });
+    }
+    if expected.dimensions != actual.dimensions {
+        return Err(SemanticProjectionError::DimensionMismatch {
+            expected: expected.dimensions.to_string(),
+            actual: actual.dimensions.to_string(),
+        });
+    }
+    if expected.metric != actual.metric {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "metric".to_owned(),
+            expected: expected.metric.as_str().to_owned(),
+            actual: actual.metric.as_str().to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_memory_rows(
+    registration: &SemanticProjectionRegistration,
+    rows: &[SemanticProjectionRow],
+) -> Result<(), SemanticProjectionError> {
+    if rows.len() > loom_runtime::MAX_SEMANTIC_PROJECTION_ROWS {
+        return Err(SemanticProjectionError::LimitExceeded {
+            limit: u32::try_from(loom_runtime::MAX_SEMANTIC_PROJECTION_ROWS).unwrap_or(u32::MAX),
+            actual: u32::try_from(rows.len()).unwrap_or(u32::MAX),
+        });
+    }
+    for row in rows {
+        if row.projection_revision != registration.projection_revision {
+            return Err(SemanticProjectionError::RevisionMismatch {
+                expected: registration.projection_revision,
+                actual: row.projection_revision,
+            });
+        }
+        if row.model_revision != registration.model_revision {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "model_revision".to_owned(),
+                expected: registration.model_revision.clone(),
+                actual: row.model_revision.clone(),
+            });
+        }
+        if row.vector.len() != registration.dimensions as usize {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: registration.dimensions.to_string(),
+                actual: row.vector.len().to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn metric_distance(metric: SemanticIndexMetric, query: &[f32], vector: &[f32]) -> f32 {
+    match metric {
+        SemanticIndexMetric::Cosine => {
+            let dot: f32 = query
+                .iter()
+                .zip(vector)
+                .map(|(left, right)| left * right)
+                .sum();
+            let query_norm = query.iter().map(|value| value * value).sum::<f32>().sqrt();
+            let vector_norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+            if query_norm == 0.0 || vector_norm == 0.0 {
+                1.0
+            } else {
+                1.0 - dot / (query_norm * vector_norm)
+            }
+        }
+        SemanticIndexMetric::Euclidean => query
+            .iter()
+            .zip(vector)
+            .map(|(left, right)| (left - right) * (left - right))
+            .sum::<f32>()
+            .sqrt(),
+        SemanticIndexMetric::InnerProduct => -query
+            .iter()
+            .zip(vector)
+            .map(|(left, right)| left * right)
+            .sum::<f32>(),
     }
 }
 

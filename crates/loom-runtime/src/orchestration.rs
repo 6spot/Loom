@@ -15,17 +15,21 @@ use std::{
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
-    CreateWorldFromTemplateResult, EventQuery, ExecutionResult, FacetQuery,
-    FacetSnapshot as ApiFacetSnapshot, ForkTimelineRequest, HistoryService, QueryService,
-    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, WorldService,
-    WorldTemplateDescriptor,
+    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal,
+    CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
+    CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
+    ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
+    ForkTimelineRequest, HistoryService, QueryService, ReactionDescriptor, RelationshipDescriptor,
+    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, SemanticIndexDescriptor,
+    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage,
+    WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
+    SemanticQueryError, SemanticQueryRequest, SemanticQueryResult,
 };
-use loom_core::{ActionTypeId, EventId, TimelineId, TimelineVersion, WorkId};
+use loom_core::{ActionTypeId, EventId, EventRef, TimelineId, TimelineVersion, WorkId};
 use loom_protocol::{
     ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
 };
@@ -39,17 +43,21 @@ use crate::{
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
     HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
-    LogicalWorkTransition, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
+    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
-    ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
+    ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
+    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
+    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
     TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
     UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
     WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
     WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition,
+    WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
@@ -833,7 +841,7 @@ where
         retry_available_at: PlatformTime,
     ) -> ApiResult<TimelineDriverResult>
     where
-        S: RuntimeControlStore + SchedulerCommitStore + WorldTimeStore,
+        S: RuntimeControlStore + SchedulerCommitStore + WorldTimeStore + SemanticProjectionStore,
     {
         let snapshot = self.snapshot_for_target(target).await?;
         let pending_head = snapshot
@@ -988,7 +996,7 @@ where
         retry_available_at: PlatformTime,
     ) -> ApiResult<ExecutionResult>
     where
-        S: RuntimeControlStore + SchedulerCommitStore,
+        S: RuntimeControlStore + SchedulerCommitStore + SemanticProjectionStore,
     {
         let snapshot = self.snapshot_for_target(target).await?;
         let work = snapshot
@@ -1064,15 +1072,18 @@ where
         let base = snapshot.world_view();
         let mut dispatch_entropy_evidence =
             EntropyEvidence::new(assembly.entropy_source_id().clone());
-        let (outcome, execution) = match dispatch_root_work(
+        let (outcome, execution) = match dispatch_root_work_async(
             &base,
             &self.registry,
             &assembly,
             &*self.entropy_source,
+            &self.store,
             &mut dispatch_entropy_evidence,
             handler_id,
             &work.payload,
-        ) {
+        )
+        .await
+        {
             Ok(execution) => execution,
             Err(error) => {
                 let error = map_dispatch_error(error);
@@ -1126,6 +1137,7 @@ where
                     .await);
             }
         };
+        validated.append_validated_work(Vec::new(), execution.read_set.clone());
 
         if let Err(error) = self.expand_reactions(
             &base,
@@ -1711,6 +1723,39 @@ where
     }
 }
 
+impl<T> SemanticProjectionStore for &T
+where
+    T: SemanticProjectionStore + ?Sized,
+{
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        (**self).register_semantic_projection(registration)
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
+        (**self).query_semantic_projection(query)
+    }
+
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+        (**self).rebuild_semantic_projection(rebuild)
+    }
+
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        (**self).delete_semantic_projection(key)
+    }
+}
+
 impl<S> WorldService for Runtime<S>
 where
     S: WorldStore
@@ -1840,7 +1885,8 @@ where
         + CommitStore
         + WorkStore
         + RuntimeRevisionStore
-        + ExecutionSessionStore,
+        + ExecutionSessionStore
+        + SemanticProjectionStore,
 {
     #[allow(clippy::too_many_lines)]
     fn invoke(&self, request: ActionRequest) -> ApiFuture<'_, ExecutionResult> {
@@ -1865,14 +1911,17 @@ where
             }
             let mut dispatch_entropy_evidence =
                 EntropyEvidence::new(assembly.entropy_source_id().clone());
-            let (outcome, execution) = match dispatch_root_action(
+            let (outcome, execution) = match dispatch_root_action_async(
                 &base,
                 &self.registry,
                 &assembly,
                 &*self.entropy_source,
+                &self.store,
                 &mut dispatch_entropy_evidence,
                 &request.invocation,
-            ) {
+            )
+            .await
+            {
                 Ok(result) => result,
                 Err(error) => {
                     let error = map_dispatch_error(error);
@@ -1917,6 +1966,7 @@ where
                             return Err(error);
                         }
                     };
+                    validated.append_validated_work(Vec::new(), execution.read_set.clone());
                     if let Err(error) =
                         self.expand_reactions(&base, &assembly, &engine, &mut validated, None)
                     {
@@ -2162,6 +2212,497 @@ where
             child.ancestry(),
         ))
     }
+
+    async fn snapshot_for_event_ref(&self, event_ref: EventRef) -> ApiResult<TimelineSnapshot> {
+        self.store
+            .snapshot(event_ref.timeline_id)
+            .await
+            .map_err(|error| map_read_error(&error))
+    }
+
+    fn project_catalog(&self, available: Option<&HashSet<CapabilityId>>) -> CatalogSnapshot {
+        project_catalog(&self.registry, available)
+    }
+}
+
+impl<S> Runtime<S>
+where
+    S: SemanticProjectionStore + WorldRuntimeBindingStore + RuntimeRevisionStore,
+{
+    /// Registers one projection scope after checking its metadata against the
+    /// Capability-owned semantic index definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed metadata, registry or persistence error.
+    pub async fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> Result<(), SemanticProjectionError> {
+        registration.validate()?;
+        validate_projection_registration(&self.registry, &registration)?;
+        self.store.register_semantic_projection(registration).await
+    }
+
+    /// Queries one registered projection through the Runtime-owned port.
+    /// Storage never receives a Capability registry or a provider handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry, bound, mismatch or persistence error.
+    pub async fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
+        query.validate()?;
+        validate_projection_query_index(&self.registry, &query.key)?;
+        self.ensure_semantic_index_enabled(
+            query.key.world_id,
+            query.key.timeline_id,
+            &query.key.index_id,
+        )
+        .await?;
+        self.store.query_semantic_projection(query).await
+    }
+
+    /// Atomically rebuilds one projection after checking its definition and
+    /// bounded row set.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry, revision, bound or persistence error.
+    pub async fn rebuild_semantic_projection(
+        &self,
+        rebuild: &SemanticProjectionRebuild,
+    ) -> Result<(), SemanticProjectionError> {
+        rebuild.validate()?;
+        validate_projection_registration(&self.registry, &rebuild.registration)?;
+        self.store.rebuild_semantic_projection(rebuild).await
+    }
+
+    /// Deletes only the projection materialization; World authority is not
+    /// addressed by this operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry or persistence error.
+    pub async fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> Result<(), SemanticProjectionError> {
+        validate_projection_query_index(&self.registry, &key)?;
+        self.store.delete_semantic_projection(key).await
+    }
+
+    async fn ensure_semantic_index_enabled(
+        &self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        index_id: &loom_capability::SemanticIndexId,
+    ) -> Result<(), SemanticProjectionError> {
+        let binding = self
+            .store
+            .read_binding(world_id)
+            .await
+            .map_err(|error| match error {
+                BindingError::WorldNotFound { world_id } => {
+                    SemanticProjectionError::ScopeNotFound {
+                        world_id,
+                        timeline_id,
+                    }
+                }
+                BindingError::BindingNotFound { .. }
+                | BindingError::BindingAlreadyExists { .. }
+                | BindingError::StorageUnavailable { .. } => {
+                    SemanticProjectionError::StorageUnavailable {
+                        message: "World Runtime Binding is unavailable".to_owned(),
+                    }
+                }
+            })?;
+        let index = self
+            .registry
+            .semantic_index(index_id)
+            .expect("query index was validated immediately before availability check");
+        let manifest = self
+            .registry
+            .capability(&index.owner)
+            .expect("registered semantic index owner must have a manifest");
+        if !binding.allows(&index.owner, &manifest.version) {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "world_binding".to_owned(),
+                expected: "enabled".to_owned(),
+                actual: "disabled".to_owned(),
+            });
+        }
+        let active = self.store.select_active_revision().await.map_err(|_| {
+            SemanticProjectionError::StorageUnavailable {
+                message: "Runtime Revision selection is unavailable".to_owned(),
+            }
+        })?;
+        if let Some(active) = active
+            && !active
+                .revision()
+                .capability(&index.owner)
+                .is_some_and(|implementation| {
+                    implementation.version() == &manifest.version
+                        && implementation.loom_compatibility() == &manifest.loom_compatibility
+                })
+        {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "runtime_revision".to_owned(),
+                expected: "compatible".to_owned(),
+                actual: "incompatible".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+fn validate_projection_query_index(
+    registry: &CapabilityRegistry,
+    key: &SemanticProjectionKey,
+) -> Result<(), SemanticProjectionError> {
+    if registry.semantic_index(&key.index_id).is_none() {
+        return Err(SemanticProjectionError::IndexNotRegistered { key: key.clone() });
+    }
+    Ok(())
+}
+
+fn validate_projection_registration(
+    registry: &CapabilityRegistry,
+    registration: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    let Some(index) = registry.semantic_index(&registration.key.index_id) else {
+        return Err(SemanticProjectionError::IndexNotRegistered {
+            key: registration.key.clone(),
+        });
+    };
+    let definition = &index.definition;
+    if definition.source != registration.source {
+        return Err(SemanticProjectionError::SourceMismatch {
+            expected: format!("{:?}", definition.source),
+            actual: format!("{:?}", registration.source),
+        });
+    }
+    if definition.schema_revision != registration.schema_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "schema_revision".to_owned(),
+            expected: definition.schema_revision.value().to_string(),
+            actual: registration.schema_revision.value().to_string(),
+        });
+    }
+    if definition.projection_revision != registration.projection_revision {
+        return Err(SemanticProjectionError::RevisionMismatch {
+            expected: definition.projection_revision,
+            actual: registration.projection_revision,
+        });
+    }
+    if definition.model_revision != registration.model_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "model_revision".to_owned(),
+            expected: definition.model_revision.clone(),
+            actual: registration.model_revision.clone(),
+        });
+    }
+    if definition.dimensions != registration.dimensions {
+        return Err(SemanticProjectionError::DimensionMismatch {
+            expected: definition.dimensions.to_string(),
+            actual: registration.dimensions.to_string(),
+        });
+    }
+    if definition.metric != registration.metric {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "metric".to_owned(),
+            expected: definition.metric.as_str().to_owned(),
+            actual: registration.metric.as_str().to_owned(),
+        });
+    }
+    Ok(())
+}
+
+const MAX_QUERY_PAGE_SIZE: u32 = 1_024;
+const MAX_CAUSAL_DEPTH: u32 = 64;
+const MAX_CAUSAL_RESULTS: u32 = 1_024;
+
+fn query_limit(limit: Option<u32>) -> ApiResult<usize> {
+    let limit = limit.unwrap_or(MAX_QUERY_PAGE_SIZE);
+    if limit == 0 || limit > MAX_QUERY_PAGE_SIZE {
+        return Err(ApiError::invalid_request(format!(
+            "query limit must be between 1 and {MAX_QUERY_PAGE_SIZE}"
+        )));
+    }
+    Ok(usize::try_from(limit).expect("the bounded query limit fits usize"))
+}
+
+fn history_page<'a, I>(events: I, query: EventQuery) -> ApiResult<EventPage>
+where
+    I: IntoIterator<Item = &'a CommittedEvent>,
+{
+    let limit = query_limit(query.limit)?;
+    let mut matching: Vec<_> = events
+        .into_iter()
+        .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
+        .take(limit + 1)
+        .collect();
+    let next_after = if matching.len() > limit {
+        matching.truncate(limit);
+        matching.last().map(|event| event.sequence())
+    } else {
+        None
+    };
+    Ok(EventPage {
+        events: matching.into_iter().map(api_event).collect(),
+        next_after,
+    })
+}
+
+fn validate_causal_query(query: CausalQuery) -> ApiResult<()> {
+    if query.max_depth == 0 || query.max_depth > MAX_CAUSAL_DEPTH {
+        return Err(ApiError::invalid_request(format!(
+            "causal max_depth must be between 1 and {MAX_CAUSAL_DEPTH}"
+        )));
+    }
+    if query.limit == 0 || query.limit > MAX_CAUSAL_RESULTS {
+        return Err(ApiError::invalid_request(format!(
+            "causal limit must be between 1 and {MAX_CAUSAL_RESULTS}"
+        )));
+    }
+    Ok(())
+}
+
+fn visible_event(snapshot: &TimelineSnapshot, event_ref: EventRef) -> Option<&CommittedEvent> {
+    snapshot
+        .events
+        .iter()
+        .find(|event| event.event_ref() == event_ref)
+}
+
+fn causal_neighbors(
+    snapshot: &TimelineSnapshot,
+    event: &CommittedEvent,
+    direction: CausalDirection,
+) -> Vec<EventRef> {
+    let mut neighbors: Vec<EventRef> = match direction {
+        CausalDirection::Causes => event
+            .causal_links
+            .iter()
+            .filter_map(|link| {
+                snapshot
+                    .events
+                    .iter()
+                    .find(|candidate| candidate.id == link.event_id())
+                    .map(CommittedEvent::event_ref)
+            })
+            .collect(),
+        CausalDirection::Effects => snapshot
+            .events
+            .iter()
+            .filter(|candidate| {
+                candidate
+                    .causal_links
+                    .iter()
+                    .any(|link| link.event_id() == event.id)
+            })
+            .map(CommittedEvent::event_ref)
+            .collect(),
+    };
+    neighbors.sort_by(|left, right| {
+        let left_event = visible_event(snapshot, *left)
+            .expect("causal neighbor must belong to the visible snapshot");
+        let right_event = visible_event(snapshot, *right)
+            .expect("causal neighbor must belong to the visible snapshot");
+        (left_event.event_seq, left_event.timeline_id, left_event.id).cmp(&(
+            right_event.event_seq,
+            right_event.timeline_id,
+            right_event.id,
+        ))
+    });
+    neighbors.dedup();
+    neighbors
+}
+
+fn catalog_owner_visible(owner: &CapabilityId, available: Option<&HashSet<CapabilityId>>) -> bool {
+    available.is_none_or(|available| available.contains(owner))
+}
+
+fn project_catalog(
+    registry: &CapabilityRegistry,
+    available: Option<&HashSet<CapabilityId>>,
+) -> CatalogSnapshot {
+    let capabilities = registry
+        .capabilities()
+        .filter(|manifest| catalog_owner_visible(&manifest.id, available))
+        .map(api_capability_descriptor)
+        .collect();
+    let actions = registry
+        .actions()
+        .filter(|action| catalog_owner_visible(&action.owner, available))
+        .map(api_action_descriptor)
+        .collect();
+    let facets = registry
+        .facets()
+        .filter(|facet| catalog_owner_visible(&facet.owner, available))
+        .map(api_facet_descriptor)
+        .collect();
+    let relationships = registry
+        .relationships()
+        .filter(|relationship| catalog_owner_visible(&relationship.owner, available))
+        .map(api_relationship_descriptor)
+        .collect();
+    let events = registry
+        .events()
+        .filter(|event| catalog_owner_visible(&event.owner, available))
+        .map(api_event_descriptor)
+        .collect();
+    let work_handlers = registry
+        .work_handlers()
+        .filter(|handler| catalog_owner_visible(&handler.owner, available))
+        .map(api_work_handler_descriptor)
+        .collect();
+    let mut reactions: Vec<_> = registry
+        .reactions()
+        .filter(|reaction| catalog_owner_visible(&reaction.owner, available))
+        .map(api_reaction_descriptor)
+        .collect();
+    reactions.sort_by(|left, right| {
+        (&left.event_type, &left.handler, &left.owner).cmp(&(
+            &right.event_type,
+            &right.handler,
+            &right.owner,
+        ))
+    });
+    let semantic_indexes = registry
+        .semantic_indexes()
+        .filter(|index| catalog_owner_visible(&index.owner, available))
+        .map(api_semantic_index_descriptor)
+        .collect();
+    CatalogSnapshot {
+        capabilities,
+        actions,
+        facets,
+        relationships,
+        events,
+        work_handlers,
+        reactions,
+        semantic_indexes,
+    }
+}
+
+fn api_capability_descriptor(
+    manifest: &loom_capability::CapabilityManifest,
+) -> loom_api::CapabilityDescriptor {
+    loom_api::CapabilityDescriptor {
+        id: manifest.id.as_str().into(),
+        version: manifest.version.to_string(),
+        loom_compatibility: manifest.loom_compatibility.to_string(),
+        description: manifest.description.clone(),
+        dependencies: manifest
+            .dependencies
+            .iter()
+            .map(|dependency| dependency.id.as_str().into())
+            .collect(),
+        dependency_requirements: manifest
+            .dependencies
+            .iter()
+            .map(|dependency| loom_api::CapabilityDependencyDescriptor {
+                id: dependency.id.as_str().into(),
+                version: dependency.version.to_string(),
+            })
+            .collect(),
+    }
+}
+
+fn api_action_descriptor(action: &loom_capability::RegisteredAction) -> ActionDescriptor {
+    ActionDescriptor {
+        id: action.definition.id.clone(),
+        owner: action.owner.as_str().into(),
+        schema_revision: action.definition.schema_revision,
+        description: action.definition.description.clone(),
+        input_schema: action.definition.input_schema.clone(),
+    }
+}
+
+fn api_facet_descriptor(facet: &loom_capability::RegisteredFacet) -> FacetDescriptor {
+    FacetDescriptor {
+        id: facet.definition.id.clone(),
+        owner: facet.owner.as_str().into(),
+        schema_revision: facet.definition.schema_revision,
+        description: facet.definition.description.clone(),
+        schema: facet.definition.schema.clone(),
+    }
+}
+
+fn api_relationship_descriptor(
+    relationship: &loom_capability::RegisteredRelationship,
+) -> RelationshipDescriptor {
+    RelationshipDescriptor {
+        id: relationship.definition.id.clone(),
+        owner: relationship.owner.as_str().into(),
+        schema_revision: relationship.definition.schema_revision,
+        roles: relationship
+            .definition
+            .roles
+            .iter()
+            .map(|role| RelationshipRoleDescriptor {
+                role: role.role.clone(),
+                minimum: role.minimum,
+                maximum: role.maximum,
+            })
+            .collect(),
+        allowed_facets: relationship.definition.allowed_facets.clone(),
+        description: relationship.definition.description.clone(),
+    }
+}
+
+fn api_event_descriptor(event: &loom_capability::RegisteredEvent) -> EventDescriptor {
+    EventDescriptor {
+        id: event.definition.id.clone(),
+        owner: event.owner.as_str().into(),
+        schema_revision: event.definition.schema_revision,
+        payload_schema: event.definition.payload_schema.clone(),
+        participant_roles: event.definition.participant_roles.clone(),
+        relationship_roles: event.definition.relationship_roles.clone(),
+        description: event.definition.description.clone(),
+    }
+}
+
+fn api_work_handler_descriptor(
+    handler: &loom_capability::RegisteredWorkHandler,
+) -> WorkHandlerDescriptor {
+    WorkHandlerDescriptor {
+        id: handler.definition.id.clone(),
+        owner: handler.owner.as_str().into(),
+        schema_revision: handler.definition.schema_revision,
+        payload_schema: handler.definition.payload_schema.clone(),
+        description: handler.definition.description.clone(),
+    }
+}
+
+fn api_reaction_descriptor(reaction: &loom_capability::RegisteredReaction) -> ReactionDescriptor {
+    ReactionDescriptor {
+        owner: reaction.owner.as_str().into(),
+        event_type: reaction.reaction.event_type.clone(),
+        handler: reaction.reaction.handler.clone(),
+    }
+}
+
+fn api_semantic_index_descriptor(
+    index: &loom_capability::RegisteredSemanticIndex,
+) -> SemanticIndexDescriptor {
+    SemanticIndexDescriptor {
+        id: index.definition.id.as_str().to_owned(),
+        owner: index.owner.as_str().into(),
+        source_kind: index.definition.source.kind.clone(),
+        source_type_id: index.definition.source.type_id.clone(),
+        source_schema_revision: index.definition.source.schema_revision,
+        schema_revision: index.definition.schema_revision,
+        projection_revision: index.definition.projection_revision,
+        model_revision: index.definition.model_revision.clone(),
+        dimensions: index.definition.dimensions,
+        metric: index.definition.metric.as_str().to_owned(),
+        configuration: index.definition.configuration.clone(),
+        description: index.definition.description.clone(),
+    }
 }
 
 fn version_before(candidate: TimelineVersion, boundary: TimelineVersion) -> bool {
@@ -2246,16 +2787,126 @@ where
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(query.target).await?;
-            let limit = query.limit.map_or(usize::MAX, |limit| {
-                usize::try_from(limit).unwrap_or(usize::MAX)
-            });
+            Ok(history_page(snapshot.events.iter(), query)?.events)
+        })
+    }
+
+    fn list_events_page(&self, query: EventQuery) -> ApiFuture<'_, EventPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(snapshot.events.iter(), query)
+        })
+    }
+
+    fn get_event(&self, event_ref: EventRef) -> ApiFuture<'_, Option<ApiCommittedEvent>> {
+        Box::pin(async move {
+            let snapshot = self
+                .store
+                .snapshot(event_ref.timeline_id)
+                .await
+                .map_err(|error| map_read_error(&error))?;
             Ok(snapshot
                 .events
                 .iter()
-                .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
-                .take(limit)
-                .map(api_event)
-                .collect())
+                .find(|event| event.event_ref() == event_ref)
+                .map(api_event))
+        })
+    }
+
+    fn direct_causes(&self, event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_event_ref(event_ref).await?;
+            let event = visible_event(&snapshot, event_ref)
+                .ok_or_else(|| ApiError::not_found(format!("Event {event_ref:?} was not found")))?;
+            Ok(causal_neighbors(&snapshot, event, CausalDirection::Causes))
+        })
+    }
+
+    fn direct_effects(&self, event_ref: EventRef) -> ApiFuture<'_, Vec<EventRef>> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_event_ref(event_ref).await?;
+            let event = visible_event(&snapshot, event_ref)
+                .ok_or_else(|| ApiError::not_found(format!("Event {event_ref:?} was not found")))?;
+            Ok(causal_neighbors(&snapshot, event, CausalDirection::Effects))
+        })
+    }
+
+    fn causal_walk(&self, query: CausalQuery) -> ApiFuture<'_, CausalTraversal> {
+        Box::pin(async move {
+            validate_causal_query(query)?;
+            let snapshot = self.snapshot_for_event_ref(query.root).await?;
+            if visible_event(&snapshot, query.root).is_none() {
+                return Err(ApiError::not_found(format!(
+                    "Event {:?} was not found",
+                    query.root
+                )));
+            }
+
+            let mut queue = std::collections::VecDeque::from([(query.root, 0_u32)]);
+            let mut visited = HashSet::from([query.root]);
+            let mut events = Vec::new();
+            let mut truncated = false;
+            while let Some((current, depth)) = queue.pop_front() {
+                if depth >= query.max_depth {
+                    continue;
+                }
+                let Some(current_event) = visible_event(&snapshot, current) else {
+                    continue;
+                };
+                for next in causal_neighbors(&snapshot, current_event, query.direction) {
+                    if !visited.insert(next) {
+                        continue;
+                    }
+                    if events.len() >= usize::try_from(query.limit).unwrap_or(usize::MAX) {
+                        truncated = true;
+                        continue;
+                    }
+                    events.push(next);
+                    queue.push_back((next, depth + 1));
+                }
+            }
+            Ok(CausalTraversal { events, truncated })
+        })
+    }
+
+    fn entity_trajectory(&self, query: EntityTrajectoryQuery) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(
+                snapshot.events.iter().filter(|event| {
+                    event
+                        .participants
+                        .iter()
+                        .any(|participant| participant.entity_id == query.entity_id)
+                }),
+                EventQuery {
+                    target: query.target,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )
+        })
+    }
+
+    fn relationship_trajectory(
+        &self,
+        query: RelationshipTrajectoryQuery,
+    ) -> ApiFuture<'_, TrajectoryPage> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(query.target).await?;
+            history_page(
+                snapshot.events.iter().filter(|event| {
+                    event
+                        .relationship_refs
+                        .iter()
+                        .any(|relationship| relationship.relationship_id == query.relationship_id)
+                }),
+                EventQuery {
+                    target: query.target,
+                    after: query.after,
+                    limit: query.limit,
+                },
+            )
         })
     }
 }
@@ -2270,34 +2921,35 @@ where
         + ExecutionSessionStore,
 {
     fn catalog(&self) -> ApiResult<CatalogSnapshot> {
-        let capabilities = self
-            .registry
-            .capabilities()
-            .map(|manifest| loom_api::CapabilityDescriptor {
-                id: manifest.id.as_str().into(),
-                version: manifest.version.to_string(),
-                description: manifest.description.clone(),
-                dependencies: manifest
-                    .dependencies
-                    .iter()
-                    .map(|dependency| dependency.id.as_str().into())
-                    .collect(),
-            })
-            .collect();
-        let actions = self
-            .registry
-            .actions()
-            .map(|action| ActionDescriptor {
-                id: action.definition.id.clone(),
-                owner: action.owner.as_str().into(),
-                schema_revision: action.definition.schema_revision,
-                description: action.definition.description.clone(),
-                input_schema: action.definition.input_schema.clone(),
-            })
-            .collect();
-        Ok(CatalogSnapshot {
-            capabilities,
-            actions,
+        Ok(self.project_catalog(None))
+    }
+
+    fn catalog_for_world(&self, world_id: loom_core::WorldId) -> ApiFuture<'_, CatalogSnapshot> {
+        Box::pin(async move {
+            let binding = self.binding_for_world(world_id).await?;
+            let active = self
+                .store
+                .select_active_revision()
+                .await
+                .map_err(|error| map_runtime_revision_error(&error))?;
+            let mut available = HashSet::new();
+            for manifest in self.registry.capabilities() {
+                let compatible_binding = binding.allows(&manifest.id, &manifest.version);
+                let current_software = active.as_ref().is_none_or(|selection| {
+                    selection
+                        .revision()
+                        .capability(&manifest.id)
+                        .is_some_and(|implementation| {
+                            implementation.version() == &manifest.version
+                                && implementation.loom_compatibility()
+                                    == &manifest.loom_compatibility
+                        })
+                });
+                if compatible_binding && current_software {
+                    available.insert(manifest.id.clone());
+                }
+            }
+            Ok(self.project_catalog(Some(&available)))
         })
     }
 }
@@ -2316,6 +2968,7 @@ struct ExecutionState {
     segments: Vec<ResolutionSegment>,
     call_provenance: CallProvenance,
     entropy_evidence: EntropyEvidence,
+    read_set: crate::ReadSet,
     failure: Option<String>,
 }
 
@@ -2328,6 +2981,7 @@ impl ExecutionState {
             segments: Vec::new(),
             call_provenance: CallProvenance::default(),
             entropy_evidence: EntropyEvidence::new(entropy_source_id),
+            read_set: crate::ReadSet::default(),
             failure: None,
         }
     }
@@ -2412,6 +3066,49 @@ impl ExecutionState {
     fn record_entropy(&mut self, request: EntropyRequest, sample: EntropySample) {
         self.entropy_evidence.record(request, sample);
     }
+
+    fn reserve_semantic(
+        &mut self,
+        depth: usize,
+        filters: usize,
+        result_limit: usize,
+        result_bytes: usize,
+    ) -> Result<(), BudgetError> {
+        let request_usage = self.usage.with_semantic_request(depth, filters);
+        let worst_case = request_usage.with_semantic_result(result_limit, result_bytes);
+        self.budget.check(worst_case)?;
+        self.usage = request_usage;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_semantic(
+        &mut self,
+        index_id: loom_capability::SemanticIndexId,
+        query_fingerprint: String,
+        query_spec: String,
+        source_schema_revision: loom_core::SchemaRevision,
+        projection_revision: u64,
+        model_revision: String,
+        source_refs: Vec<EventRef>,
+        result_bytes: usize,
+    ) -> Result<(), BudgetError> {
+        let usage = self
+            .usage
+            .with_semantic_result(source_refs.len(), result_bytes);
+        self.budget.check(usage)?;
+        self.usage = usage;
+        self.read_set.record(ReadDependency::Semantic {
+            index_id,
+            query_fingerprint,
+            query_spec,
+            source_schema_revision,
+            projection_revision,
+            model_revision,
+            source_refs,
+        });
+        Ok(())
+    }
 }
 
 fn append_entropy_evidence(target: &mut EntropyEvidence, additional: &EntropyEvidence) {
@@ -2449,6 +3146,7 @@ struct RuntimeResolutionContext<'a> {
     entropy_source: &'a dyn EntropySource,
     state: Rc<RefCell<ExecutionState>>,
     frame: CallFrame,
+    semantic_store: Option<&'a dyn SemanticProjectionStore>,
 }
 
 impl ResolutionContext for RuntimeResolutionContext<'_> {
@@ -2521,6 +3219,262 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
             .record_entropy(request.clone(), sample.clone());
         Ok(sample)
     }
+
+    fn query_semantic<'a>(
+        &'a self,
+        request: &'a SemanticQueryRequest,
+    ) -> loom_capability::SemanticQueryFuture<'a> {
+        Box::pin(async move {
+            let Some(store) = self.semantic_store else {
+                return Err(ResolutionContextError::semantic(
+                    SemanticQueryError::Unavailable {
+                        message: "semantic retrieval is unavailable in this host context"
+                            .to_owned(),
+                    },
+                ));
+            };
+            let result =
+                query_semantic_host(self.registry, self.assembly, store, &self.state, request)
+                    .await
+                    .map_err(|error| {
+                        self.state.borrow_mut().record_failure(error.to_string());
+                        ResolutionContextError::semantic(error)
+                    })?;
+            Ok(result)
+        })
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+async fn query_semantic_host(
+    registry: &CapabilityRegistry,
+    assembly: &ExecutionAssembly,
+    store: &dyn SemanticProjectionStore,
+    state: &Rc<RefCell<ExecutionState>>,
+    request: &SemanticQueryRequest,
+) -> Result<SemanticQueryResult, SemanticQueryError> {
+    let index =
+        registry
+            .semantic_index(&request.index_id)
+            .ok_or_else(|| SemanticQueryError::Missing {
+                index_id: request.index_id.clone(),
+            })?;
+    let manifest =
+        registry
+            .capability(&index.owner)
+            .ok_or_else(|| SemanticQueryError::Unavailable {
+                message: format!("semantic index owner {} is unavailable", index.owner),
+            })?;
+    if !assembly.binding().allows(&index.owner, &manifest.version) {
+        return Err(SemanticQueryError::Mismatch {
+            field: "world_binding".to_owned(),
+            expected: "enabled".to_owned(),
+            actual: "disabled".to_owned(),
+        });
+    }
+    if !assembly
+        .runtime_revision()
+        .revision()
+        .capability(&index.owner)
+        .is_some_and(|implementation| {
+            implementation.version() == &manifest.version
+                && implementation.loom_compatibility() == &manifest.loom_compatibility
+        })
+    {
+        return Err(SemanticQueryError::Mismatch {
+            field: "runtime_revision".to_owned(),
+            expected: "compatible".to_owned(),
+            actual: "incompatible".to_owned(),
+        });
+    }
+    let policy = assembly.execution_policy();
+    let max_result_bytes = u32::try_from(
+        policy
+            .max_semantic_result_bytes()
+            .unwrap_or(MAX_SEMANTIC_QUERY_RESULT_BYTES as usize)
+            .min(MAX_SEMANTIC_QUERY_RESULT_BYTES as usize),
+    )
+    .unwrap_or(MAX_SEMANTIC_QUERY_RESULT_BYTES);
+    let depth = usize::try_from(request.depth).unwrap_or(usize::MAX);
+    let filters = request.filters.len();
+    let result_limit = usize::try_from(request.limit).unwrap_or(usize::MAX);
+    if let Err(error) = state.borrow_mut().reserve_semantic(
+        depth,
+        filters,
+        result_limit,
+        usize::try_from(max_result_bytes).unwrap_or(usize::MAX),
+    ) {
+        return Err(SemanticQueryError::Bounds {
+            dimension: error.dimension.to_string(),
+            limit: error.limit,
+            actual: error.actual,
+        });
+    }
+    let key = SemanticProjectionKey::new(
+        assembly.world_id(),
+        assembly.timeline_id(),
+        request.index_id.clone(),
+    );
+    let mut query = SemanticProjectionQuery::new(
+        key,
+        request.source_schema_revision,
+        request.projection_revision,
+        request.model_revision.clone(),
+        request.vector.clone(),
+        request.limit,
+    )
+    .map_err(map_semantic_projection_error)?
+    .with_max_result_bytes(max_result_bytes)
+    .with_depth(request.depth);
+    for filter in &request.filters {
+        query = query.with_filter(SemanticProjectionFilter {
+            source_hash: filter.source_hash.clone(),
+        });
+    }
+    let hits = store
+        .query_semantic_projection(query)
+        .await
+        .map_err(map_semantic_projection_error)?;
+    let result_bytes = hits
+        .iter()
+        .map(semantic_projection_hit_bytes)
+        .sum::<usize>();
+    if let Some(limit) = policy.max_semantic_result_bytes()
+        && result_bytes > limit
+    {
+        return Err(SemanticQueryError::Bounds {
+            dimension: "semantic_result_bytes".to_owned(),
+            limit,
+            actual: result_bytes,
+        });
+    }
+    let source_refs = hits.iter().map(|hit| hit.source_ref).collect::<Vec<_>>();
+    let query_spec = normalized_semantic_query_spec(request);
+    let query_fingerprint = semantic_query_fingerprint(&query_spec);
+    state
+        .borrow_mut()
+        .record_semantic(
+            request.index_id.clone(),
+            query_fingerprint,
+            query_spec,
+            request.source_schema_revision,
+            request.projection_revision,
+            request.model_revision.clone(),
+            source_refs,
+            result_bytes,
+        )
+        .map_err(|error| SemanticQueryError::Bounds {
+            dimension: error.dimension.to_string(),
+            limit: error.limit,
+            actual: error.actual,
+        })?;
+    Ok(SemanticQueryResult {
+        hits: hits
+            .into_iter()
+            .map(|hit| loom_capability::SemanticQueryHit {
+                source_ref: hit.source_ref,
+                source_hash: hit.source_hash,
+                source_revision: hit.source_revision,
+                projection_revision: hit.projection_revision,
+                model_revision: hit.model_revision,
+                distance: hit.distance,
+            })
+            .collect(),
+    })
+}
+
+fn map_semantic_projection_error(error: SemanticProjectionError) -> SemanticQueryError {
+    match error {
+        SemanticProjectionError::InvalidRequest { message } => {
+            SemanticQueryError::InvalidRequest { message }
+        }
+        SemanticProjectionError::ScopeNotFound { .. } => SemanticQueryError::Missing {
+            index_id: loom_capability::SemanticIndexId::from("unknown"),
+        },
+        SemanticProjectionError::IndexNotRegistered { key } => SemanticQueryError::Missing {
+            index_id: key.index_id,
+        },
+        SemanticProjectionError::MetadataMismatch {
+            field,
+            expected,
+            actual,
+        } => SemanticQueryError::Mismatch {
+            field,
+            expected,
+            actual,
+        },
+        SemanticProjectionError::SourceMismatch { expected, actual } => SemanticQueryError::Stale {
+            field: "source_schema_revision".to_owned(),
+            expected,
+            actual,
+        },
+        SemanticProjectionError::RevisionMismatch { expected, actual } => {
+            SemanticQueryError::Stale {
+                field: "projection_revision".to_owned(),
+                expected: expected.to_string(),
+                actual: actual.to_string(),
+            }
+        }
+        SemanticProjectionError::DimensionMismatch { expected, actual } => {
+            SemanticQueryError::Mismatch {
+                field: "dimensions".to_owned(),
+                expected,
+                actual,
+            }
+        }
+        SemanticProjectionError::LimitExceeded { limit, actual } => SemanticQueryError::Bounds {
+            dimension: if limit == MAX_SEMANTIC_QUERY_RESULT_BYTES {
+                "result_bytes"
+            } else if limit == MAX_SEMANTIC_QUERY_FILTERS {
+                "filter_count"
+            } else if limit == MAX_SEMANTIC_QUERY_DEPTH {
+                "depth"
+            } else {
+                "result_count"
+            }
+            .to_owned(),
+            limit: usize::try_from(limit).unwrap_or(usize::MAX),
+            actual: usize::try_from(actual).unwrap_or(usize::MAX),
+        },
+        SemanticProjectionError::StorageUnavailable { message } => {
+            SemanticQueryError::Unavailable { message }
+        }
+    }
+}
+
+fn normalized_semantic_query_spec(request: &SemanticQueryRequest) -> String {
+    let mut filters = request
+        .filters
+        .iter()
+        .map(|filter| filter.source_hash.as_deref().unwrap_or("<none>").to_owned())
+        .collect::<Vec<_>>();
+    filters.sort();
+    let vector = request
+        .vector
+        .iter()
+        .map(|value| value.to_bits().to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "index={}|source_schema={}|projection={}|model={}|limit={}|depth={}|filters={}|vector={}",
+        request.index_id,
+        request.source_schema_revision,
+        request.projection_revision,
+        request.model_revision,
+        request.limit,
+        request.depth,
+        filters.join(","),
+        vector,
+    )
+}
+
+fn semantic_query_fingerprint(spec: &str) -> String {
+    let mut hash = 14_695_981_039_346_656_037_u64;
+    for byte in spec.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(1_099_511_628_211);
+    }
+    format!("{hash:016x}")
 }
 
 fn dispatch_root_action(
@@ -2558,11 +3512,55 @@ fn dispatch_root_action(
     Ok((outcome?, execution))
 }
 
-fn dispatch_root_work(
+async fn dispatch_root_action_async(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
     assembly: &ExecutionAssembly,
     entropy_source: &dyn EntropySource,
+    semantic_store: &dyn SemanticProjectionStore,
+    entropy_evidence: &mut EntropyEvidence,
+    invocation: &ActionInvocation,
+) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
+    let action = enabled_action(registry, assembly, &invocation.action)?;
+    let frame = CallFrame {
+        owner: action.owner.clone(),
+        action: invocation.action.clone(),
+    };
+    let state = Rc::new(RefCell::new(ExecutionState::new(
+        assembly.execution_policy(),
+        assembly.entropy_source_id().clone(),
+    )));
+    state
+        .borrow_mut()
+        .enter_root(frame.clone())
+        .map_err(internal_dispatch_error)?;
+    let result = {
+        let context = RuntimeResolutionContext {
+            base,
+            registry,
+            assembly,
+            entropy_source,
+            state: Rc::clone(&state),
+            frame: frame.clone(),
+            semantic_store: Some(semantic_store),
+        };
+        registry
+            .resolve_action_async(&invocation.action, &context, &invocation.input)
+            .await
+    };
+    let outcome = capture_outcome(&state, &frame.owner, result);
+    let execution = state.borrow().clone();
+    *entropy_evidence = execution.entropy_evidence.clone();
+    Ok((outcome?, execution))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn dispatch_root_work_async(
+    base: &crate::BaseWorldView,
+    registry: &CapabilityRegistry,
+    assembly: &ExecutionAssembly,
+    entropy_source: &dyn EntropySource,
+    semantic_store: &dyn SemanticProjectionStore,
     entropy_evidence: &mut EntropyEvidence,
     handler_id: &loom_core::WorkHandlerId,
     payload: &serde_json::Value,
@@ -2582,16 +3580,21 @@ fn dispatch_root_work(
         .borrow_mut()
         .enter_root(frame.clone())
         .map_err(internal_dispatch_error)?;
-    let outcome = dispatch_work_frame(
-        base,
-        registry,
-        assembly,
-        entropy_source,
-        &state,
-        &frame,
-        handler_id,
-        payload,
-    );
+    let result = {
+        let context = RuntimeResolutionContext {
+            base,
+            registry,
+            assembly,
+            entropy_source,
+            state: Rc::clone(&state),
+            frame: frame.clone(),
+            semantic_store: Some(semantic_store),
+        };
+        registry
+            .handle_work_async(handler_id, &context, payload)
+            .await
+    };
+    let outcome = capture_outcome(&state, &frame.owner, result);
     let execution = state.borrow().clone();
     *entropy_evidence = execution.entropy_evidence.clone();
     Ok((outcome?, execution))
@@ -2614,33 +3617,9 @@ fn dispatch_action_frame(
             entropy_source,
             state: Rc::clone(state),
             frame: frame.clone(),
+            semantic_store: None,
         };
         registry.resolve_action(&invocation.action, &context, &invocation.input)
-    };
-    capture_outcome(state, &frame.owner, result)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn dispatch_work_frame(
-    base: &crate::BaseWorldView,
-    registry: &CapabilityRegistry,
-    assembly: &ExecutionAssembly,
-    entropy_source: &dyn EntropySource,
-    state: &Rc<RefCell<ExecutionState>>,
-    frame: &CallFrame,
-    handler_id: &loom_core::WorkHandlerId,
-    payload: &serde_json::Value,
-) -> Result<ResolveOutcome, DispatchError> {
-    let result = {
-        let context = RuntimeResolutionContext {
-            base,
-            registry,
-            assembly,
-            entropy_source,
-            state: Rc::clone(state),
-            frame: frame.clone(),
-        };
-        registry.handle_work(handler_id, &context, payload)
     };
     capture_outcome(state, &frame.owner, result)
 }
@@ -3245,6 +4224,7 @@ mod tests {
         ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityManifest,
         CapabilityRegistrar, DispatchError, EntropyBudgetDimension, EntropyError, EntropyRequest,
         RegistrationError, ResolutionContext, ResolverError, ResolverErrorKind,
+        SemanticIndexDefinition, SemanticIndexMetric, SemanticIndexSource, SemanticQueryRequest,
     };
     use loom_core::{
         ActionTypeId, EventSeq, SchemaRevision, StateRevision, TimelineId, TimelineVersion,
@@ -3378,6 +4358,177 @@ mod tests {
                 "entropy test does not mutate the World",
             )))
         }
+    }
+
+    struct SemanticCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for SemanticCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+            registrar.register_semantic_index(SemanticIndexDefinition::new(
+                "semantic.test.index",
+                SemanticIndexSource::new("facet", "semantic.test.facet", SchemaRevision::new(1)),
+                SchemaRevision::new(1),
+                1,
+                "semantic-model-1",
+                2,
+                SemanticIndexMetric::Cosine,
+                json!({}),
+            ))
+        }
+    }
+
+    #[derive(Clone)]
+    struct SemanticTestStore {
+        hits: Vec<SemanticProjectionHit>,
+    }
+
+    impl SemanticProjectionStore for SemanticTestStore {
+        fn register_semantic_projection(
+            &self,
+            _registration: SemanticProjectionRegistration,
+        ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn query_semantic_projection(
+            &self,
+            _query: SemanticProjectionQuery,
+        ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>>
+        {
+            let hits = self.hits.clone();
+            Box::pin(async move { Ok(hits) })
+        }
+
+        fn rebuild_semantic_projection<'a>(
+            &'a self,
+            _rebuild: &'a SemanticProjectionRebuild,
+        ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn delete_semantic_projection(
+            &self,
+            _key: SemanticProjectionKey,
+        ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    fn semantic_registry() -> CapabilityRegistry {
+        CapabilityRegistry::assemble(vec![Box::new(SemanticCapability {
+            manifest: CapabilityManifest::parse("semantic.test", "0.1.0")
+                .expect("semantic test manifest should parse"),
+        })])
+        .expect("semantic test registry should assemble")
+    }
+
+    fn semantic_binding() -> WorldRuntimeBinding {
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from("semantic.test"),
+                VersionReq::parse("^0.1.0").expect("semantic requirement should parse"),
+            )],
+            json!({"fixture": "semantic"}),
+            1,
+            Some("semantic-test".to_owned()),
+        )
+    }
+
+    fn semantic_hit(value: u128) -> SemanticProjectionHit {
+        SemanticProjectionHit {
+            source_ref: loom_core::EventRef::new(id::<TimelineId>(2), id(value)),
+            source_hash: format!("source-{value}"),
+            source_revision: TimelineVersion::default(),
+            projection_revision: 1,
+            model_revision: "semantic-model-1".to_owned(),
+            distance: 0.0,
+        }
+    }
+
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        let mut future = Box::pin(future);
+        let waker = std::task::Waker::noop();
+        let mut context = std::task::Context::from_waker(waker);
+        loop {
+            match future.as_mut().poll(&mut context) {
+                std::task::Poll::Ready(output) => return output,
+                std::task::Poll::Pending => std::thread::yield_now(),
+            }
+        }
+    }
+
+    #[test]
+    fn semantic_host_records_ordered_evidence_and_applies_session_bounds() {
+        let registry = semantic_registry();
+        let assembly = test_assembly(&registry, semantic_binding());
+        let state = Rc::new(RefCell::new(ExecutionState::new(
+            assembly.execution_policy(),
+            assembly.entropy_source_id().clone(),
+        )));
+        let store = SemanticTestStore {
+            hits: vec![semantic_hit(11), semantic_hit(12)],
+        };
+        let request = SemanticQueryRequest::new(
+            "semantic.test.index",
+            SchemaRevision::new(1),
+            1,
+            "semantic-model-1",
+            vec![1.0, 0.0],
+            2,
+        );
+        let result = block_on(query_semantic_host(
+            &registry, &assembly, &store, &state, &request,
+        ))
+        .expect("semantic host should return bounded hits");
+        assert_eq!(result.hits.len(), 2);
+        let reads = state.borrow().read_set.entries().to_vec();
+        assert!(matches!(
+            &reads[0],
+            ReadDependency::Semantic {
+                source_refs,
+                query_fingerprint,
+                query_spec,
+                ..
+            } if source_refs.iter().map(|source| source.event_id).collect::<Vec<_>>()
+                == vec![id(11), id(12)]
+                && !query_fingerprint.is_empty()
+                && query_spec.contains("index=semantic.test.index")
+        ));
+        let repeat = block_on(query_semantic_host(
+            &registry, &assembly, &store, &state, &request,
+        ))
+        .expect("same semantic snapshot should be repeatable");
+        assert_eq!(repeat, result);
+        assert_eq!(state.borrow().read_set.len(), 1);
+
+        let bounded_assembly = test_assembly_with_budget(
+            &registry,
+            semantic_binding(),
+            ResolutionBudget::unlimited().with_max_semantic_results(1),
+        );
+        let bounded_state = Rc::new(RefCell::new(ExecutionState::new(
+            bounded_assembly.execution_policy(),
+            bounded_assembly.entropy_source_id().clone(),
+        )));
+        let error = block_on(query_semantic_host(
+            &registry,
+            &bounded_assembly,
+            &store,
+            &bounded_state,
+            &request,
+        ))
+        .expect_err("session result bound must reject before adapter materialization");
+        assert!(matches!(
+            error,
+            SemanticQueryError::Bounds { ref dimension, .. } if dimension == "semantic_results"
+        ));
+        assert!(bounded_state.borrow().read_set.is_empty());
     }
 
     fn registry() -> CapabilityRegistry {

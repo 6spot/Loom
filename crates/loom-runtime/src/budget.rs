@@ -27,6 +27,16 @@ pub enum BudgetDimension {
     EntropyBytes,
     /// Largest individual mediated entropy request in one root execution.
     EntropyRequestBytes,
+    /// Number of mediated semantic queries made in one root execution.
+    SemanticQueries,
+    /// Number of semantic hits returned in one root execution.
+    SemanticResults,
+    /// Total deterministic bytes returned by semantic queries.
+    SemanticResultBytes,
+    /// Largest semantic query depth observed in one root execution.
+    SemanticDepth,
+    /// Largest semantic filter count observed in one root execution.
+    SemanticFilters,
 }
 
 impl std::fmt::Display for BudgetDimension {
@@ -40,6 +50,11 @@ impl std::fmt::Display for BudgetDimension {
             Self::EntropyRequests => "entropy_requests",
             Self::EntropyBytes => "entropy_bytes",
             Self::EntropyRequestBytes => "entropy_request_bytes",
+            Self::SemanticQueries => "semantic_queries",
+            Self::SemanticResults => "semantic_results",
+            Self::SemanticResultBytes => "semantic_result_bytes",
+            Self::SemanticDepth => "semantic_depth",
+            Self::SemanticFilters => "semantic_filters",
         };
         formatter.write_str(name)
     }
@@ -60,6 +75,11 @@ pub struct BudgetUsage {
     entropy_requests: usize,
     entropy_bytes: usize,
     entropy_request_bytes: usize,
+    semantic_queries: usize,
+    semantic_results: usize,
+    semantic_result_bytes: usize,
+    semantic_depth: usize,
+    semantic_filters: usize,
 }
 
 impl BudgetUsage {
@@ -80,6 +100,11 @@ impl BudgetUsage {
             entropy_requests: 0,
             entropy_bytes: 0,
             entropy_request_bytes: 0,
+            semantic_queries: 0,
+            semantic_results: 0,
+            semantic_result_bytes: 0,
+            semantic_depth: 0,
+            semantic_filters: 0,
         }
     }
 
@@ -131,6 +156,24 @@ impl BudgetUsage {
         self.entropy_request_bytes
     }
 
+    /// Returns the number of mediated semantic queries observed so far.
+    #[must_use]
+    pub const fn semantic_queries(self) -> usize {
+        self.semantic_queries
+    }
+
+    /// Returns the number of semantic hits observed so far.
+    #[must_use]
+    pub const fn semantic_results(self) -> usize {
+        self.semantic_results
+    }
+
+    /// Returns the total deterministic semantic result bytes observed so far.
+    #[must_use]
+    pub const fn semantic_result_bytes(self) -> usize {
+        self.semantic_result_bytes
+    }
+
     pub(crate) fn combine(self, other: Self) -> Self {
         Self {
             events: self.events.saturating_add(other.events),
@@ -143,6 +186,13 @@ impl BudgetUsage {
             entropy_requests: self.entropy_requests.saturating_add(other.entropy_requests),
             entropy_bytes: self.entropy_bytes.saturating_add(other.entropy_bytes),
             entropy_request_bytes: self.entropy_request_bytes.max(other.entropy_request_bytes),
+            semantic_queries: self.semantic_queries.saturating_add(other.semantic_queries),
+            semantic_results: self.semantic_results.saturating_add(other.semantic_results),
+            semantic_result_bytes: self
+                .semantic_result_bytes
+                .saturating_add(other.semantic_result_bytes),
+            semantic_depth: self.semantic_depth.max(other.semantic_depth),
+            semantic_filters: self.semantic_filters.max(other.semantic_filters),
         }
     }
 
@@ -167,6 +217,23 @@ impl BudgetUsage {
             ..self
         }
     }
+
+    pub(crate) fn with_semantic_request(self, depth: usize, filters: usize) -> Self {
+        Self {
+            semantic_queries: self.semantic_queries.saturating_add(1),
+            semantic_depth: self.semantic_depth.max(depth),
+            semantic_filters: self.semantic_filters.max(filters),
+            ..self
+        }
+    }
+
+    pub(crate) fn with_semantic_result(self, results: usize, bytes: usize) -> Self {
+        Self {
+            semantic_results: self.semantic_results.saturating_add(results),
+            semantic_result_bytes: self.semantic_result_bytes.saturating_add(bytes),
+            ..self
+        }
+    }
 }
 
 /// A Runtime policy limiting the amount of protocol data one Resolution may
@@ -187,6 +254,11 @@ pub struct ResolutionBudget {
     entropy_requests: Option<usize>,
     entropy_bytes: Option<usize>,
     entropy_request_bytes: Option<usize>,
+    semantic_queries: Option<usize>,
+    semantic_results: Option<usize>,
+    semantic_result_bytes: Option<usize>,
+    semantic_depth: Option<usize>,
+    semantic_filters: Option<usize>,
 }
 
 impl ResolutionBudget {
@@ -206,6 +278,11 @@ impl ResolutionBudget {
             entropy_requests: None,
             entropy_bytes: None,
             entropy_request_bytes: None,
+            semantic_queries: None,
+            semantic_results: None,
+            semantic_result_bytes: None,
+            semantic_depth: None,
+            semantic_filters: None,
         }
     }
 
@@ -327,6 +404,71 @@ impl ResolutionBudget {
         self.entropy_request_bytes
     }
 
+    /// Returns the configured semantic query limit.
+    #[must_use]
+    pub const fn max_semantic_queries(self) -> Option<usize> {
+        self.semantic_queries
+    }
+
+    /// Returns the configured semantic hit limit.
+    #[must_use]
+    pub const fn max_semantic_results(self) -> Option<usize> {
+        self.semantic_results
+    }
+
+    /// Returns the configured semantic result-byte limit.
+    #[must_use]
+    pub const fn max_semantic_result_bytes(self) -> Option<usize> {
+        self.semantic_result_bytes
+    }
+
+    /// Returns the configured semantic depth limit.
+    #[must_use]
+    pub const fn max_semantic_depth(self) -> Option<usize> {
+        self.semantic_depth
+    }
+
+    /// Returns the configured semantic filter-count limit.
+    #[must_use]
+    pub const fn max_semantic_filters(self) -> Option<usize> {
+        self.semantic_filters
+    }
+
+    /// Sets the maximum semantic queries per root execution.
+    #[must_use]
+    pub const fn with_max_semantic_queries(mut self, limit: usize) -> Self {
+        self.semantic_queries = Some(limit);
+        self
+    }
+
+    /// Sets the maximum semantic hits per root execution.
+    #[must_use]
+    pub const fn with_max_semantic_results(mut self, limit: usize) -> Self {
+        self.semantic_results = Some(limit);
+        self
+    }
+
+    /// Sets the maximum semantic result bytes per root execution.
+    #[must_use]
+    pub const fn with_max_semantic_result_bytes(mut self, limit: usize) -> Self {
+        self.semantic_result_bytes = Some(limit);
+        self
+    }
+
+    /// Sets the maximum semantic query depth per root execution.
+    #[must_use]
+    pub const fn with_max_semantic_depth(mut self, limit: usize) -> Self {
+        self.semantic_depth = Some(limit);
+        self
+    }
+
+    /// Sets the maximum semantic filter count per query.
+    #[must_use]
+    pub const fn with_max_semantic_filters(mut self, limit: usize) -> Self {
+        self.semantic_filters = Some(limit);
+        self
+    }
+
     pub(crate) fn check(self, usage: BudgetUsage) -> Result<(), BudgetError> {
         let dimensions = [
             (BudgetDimension::Events, self.events, usage.events),
@@ -360,6 +502,31 @@ impl ResolutionBudget {
                 BudgetDimension::EntropyRequestBytes,
                 self.entropy_request_bytes,
                 usage.entropy_request_bytes,
+            ),
+            (
+                BudgetDimension::SemanticQueries,
+                self.semantic_queries,
+                usage.semantic_queries,
+            ),
+            (
+                BudgetDimension::SemanticResults,
+                self.semantic_results,
+                usage.semantic_results,
+            ),
+            (
+                BudgetDimension::SemanticResultBytes,
+                self.semantic_result_bytes,
+                usage.semantic_result_bytes,
+            ),
+            (
+                BudgetDimension::SemanticDepth,
+                self.semantic_depth,
+                usage.semantic_depth,
+            ),
+            (
+                BudgetDimension::SemanticFilters,
+                self.semantic_filters,
+                usage.semantic_filters,
             ),
         ];
 

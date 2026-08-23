@@ -21,7 +21,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     .fetch_one(&pool)
     .await
     .expect("migrated Loom tables should be inspectable");
-    assert_eq!(table_count, 17);
+    assert_eq!(table_count, 19);
 
     let reconciliation_tables: Vec<String> = sqlx::query_scalar(
         "SELECT table_name::text FROM information_schema.tables \

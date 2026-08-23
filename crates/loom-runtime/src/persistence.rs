@@ -18,7 +18,9 @@ use std::{
     },
 };
 
-use loom_capability::{CapabilityId, CapabilityManifest};
+use loom_capability::{
+    CapabilityId, CapabilityManifest, SemanticIndexId, SemanticIndexMetric, SemanticIndexSource,
+};
 use loom_core::{
     AssociationRole, EntityId, EventId, EventRef, EventSeq, ExecutionSessionId, RelationshipId,
     SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
@@ -3155,6 +3157,582 @@ pub trait WorldRuntimeBindingStore {
         world_id: WorldId,
         legacy_binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>>;
+}
+
+/// Maximum number of rows materialized by one semantic projection rebuild.
+pub const MAX_SEMANTIC_PROJECTION_ROWS: usize = 16_384;
+/// Maximum vector dimensions accepted by the Runtime projection boundary.
+pub const MAX_SEMANTIC_VECTOR_DIMENSIONS: u32 = 4_096;
+/// Maximum number of similarity hits returned by one query.
+pub const MAX_SEMANTIC_QUERY_RESULTS: u32 = 1_024;
+/// Maximum bytes returned by one semantic query when no Session-specific
+/// result-byte policy is supplied.
+pub const MAX_SEMANTIC_QUERY_RESULT_BYTES: u32 = 1_048_576;
+/// Maximum provider-neutral source filters accepted by one semantic query.
+pub const MAX_SEMANTIC_QUERY_FILTERS: u32 = 1;
+/// Maximum semantic traversal depth accepted by one semantic query.
+pub const MAX_SEMANTIC_QUERY_DEPTH: u32 = 32;
+
+/// Stable key for one World/Timeline semantic projection materialization.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct SemanticProjectionKey {
+    /// World containing the addressed Timeline.
+    pub world_id: WorldId,
+    /// Timeline scope of the projection rows.
+    pub timeline_id: TimelineId,
+    /// Capability-owned index identity.
+    pub index_id: SemanticIndexId,
+}
+
+impl SemanticProjectionKey {
+    /// Creates a projection scope key.
+    #[must_use]
+    pub fn new(world_id: WorldId, timeline_id: TimelineId, index_id: SemanticIndexId) -> Self {
+        Self {
+            world_id,
+            timeline_id,
+            index_id,
+        }
+    }
+}
+
+/// Provider-neutral metadata persisted for one projection scope.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SemanticProjectionRegistration {
+    /// World/Timeline/index scope.
+    pub key: SemanticProjectionKey,
+    /// Source semantic metadata copied from the Capability definition.
+    pub source: SemanticIndexSource,
+    /// Index metadata schema revision.
+    pub schema_revision: SchemaRevision,
+    /// Projection algorithm/configuration revision.
+    pub projection_revision: u64,
+    /// Provider-neutral model revision metadata.
+    pub model_revision: String,
+    /// Required vector dimensions.
+    pub dimensions: u32,
+    /// Similarity metric.
+    pub metric: SemanticIndexMetric,
+}
+
+impl SemanticProjectionRegistration {
+    /// Validates and creates projection metadata for a World scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when scope metadata, model revision or dimensions
+    /// are outside the projection boundary.
+    pub fn new(
+        key: SemanticProjectionKey,
+        source: SemanticIndexSource,
+        schema_revision: SchemaRevision,
+        projection_revision: u64,
+        model_revision: impl Into<String>,
+        dimensions: u32,
+        metric: SemanticIndexMetric,
+    ) -> Result<Self, SemanticProjectionError> {
+        let model_revision = model_revision.into();
+        let registration = Self {
+            key,
+            source,
+            schema_revision,
+            projection_revision,
+            model_revision,
+            dimensions,
+            metric,
+        };
+        registration.validate()?;
+        Ok(registration)
+    }
+
+    /// Revalidates registration metadata at every public Runtime/Storage
+    /// boundary. This remains authoritative even when a caller constructs a
+    /// value through a public struct literal instead of [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when scope metadata, model revision or dimensions
+    /// are outside the projection boundary.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.key.index_id.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "semantic index identity cannot be empty".to_owned(),
+            });
+        }
+        if self.source.kind.is_empty() || self.source.type_id.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "semantic index source metadata cannot be empty".to_owned(),
+            });
+        }
+        if self.projection_revision == 0 {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "projection revision must be greater than zero".to_owned(),
+            });
+        }
+        if self.model_revision.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "model revision cannot be empty".to_owned(),
+            });
+        }
+        if self.dimensions == 0 || self.dimensions > MAX_SEMANTIC_VECTOR_DIMENSIONS {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
+                actual: self.dimensions.to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// One rebuildable projection row. It identifies the authoritative source and
+/// the exact projection/model revision that produced the vector.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SemanticProjectionRow {
+    /// Qualified authoritative source Event identity.
+    pub source_ref: EventRef,
+    /// Content/source fingerprint supplied by the projection builder.
+    pub source_hash: String,
+    /// Authoritative source Timeline version observed by the builder.
+    pub source_revision: TimelineVersion,
+    /// Projection revision that produced `vector`.
+    pub projection_revision: u64,
+    /// Provider-neutral model revision that produced `vector`.
+    pub model_revision: String,
+    /// Vector payload owned by the projection, never World Truth.
+    pub vector: Vec<f32>,
+}
+
+impl SemanticProjectionRow {
+    /// Creates one source-addressed projection row.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when source metadata is absent, a revision is
+    /// invalid or a vector contains a non-finite value.
+    pub fn new(
+        source_ref: EventRef,
+        source_hash: impl Into<String>,
+        source_revision: TimelineVersion,
+        projection_revision: u64,
+        model_revision: impl Into<String>,
+        vector: Vec<f32>,
+    ) -> Result<Self, SemanticProjectionError> {
+        let row = Self {
+            source_ref,
+            source_hash: source_hash.into(),
+            source_revision,
+            projection_revision,
+            model_revision: model_revision.into(),
+            vector,
+        };
+        row.validate()?;
+        Ok(row)
+    }
+
+    /// Revalidates intrinsic row metadata at every public Runtime/Storage
+    /// boundary.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when source metadata is absent, a revision is
+    /// invalid or a vector contains a non-finite value.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.source_hash.is_empty()
+            || self.model_revision.is_empty()
+            || self.projection_revision == 0
+        {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message:
+                    "projection source hash, model revision and projection revision are required"
+                        .to_owned(),
+            });
+        }
+        if self.vector.iter().any(|value| !value.is_finite()) {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "projection vectors must contain only finite values".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// A complete replacement set for one projection scope.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SemanticProjectionRebuild {
+    /// New registration metadata and replacement scope.
+    pub registration: SemanticProjectionRegistration,
+    /// Optional revision fence for the currently registered projection.
+    pub expected_previous_projection_revision: Option<u64>,
+    /// Rows atomically replacing the prior projection rows.
+    pub rows: Vec<SemanticProjectionRow>,
+}
+
+impl SemanticProjectionRebuild {
+    /// Creates and validates a bounded replacement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed bound or metadata mismatch error when the replacement
+    /// set is too large or a row does not match its registration.
+    pub fn new(
+        registration: SemanticProjectionRegistration,
+        expected_previous_projection_revision: Option<u64>,
+        rows: Vec<SemanticProjectionRow>,
+    ) -> Result<Self, SemanticProjectionError> {
+        let rebuild = Self {
+            registration,
+            expected_previous_projection_revision,
+            rows,
+        };
+        rebuild.validate()?;
+        Ok(rebuild)
+    }
+
+    /// Revalidates the complete replacement before any adapter mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed bound or metadata mismatch error when the replacement
+    /// set is too large or a row does not match its registration.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        self.registration.validate()?;
+        if self.rows.len() > MAX_SEMANTIC_PROJECTION_ROWS {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(MAX_SEMANTIC_PROJECTION_ROWS).unwrap_or(u32::MAX),
+                actual: u32::try_from(self.rows.len()).unwrap_or(u32::MAX),
+            });
+        }
+        for row in &self.rows {
+            validate_projection_row(&self.registration, row)?;
+        }
+        Ok(())
+    }
+}
+
+/// Bounded similarity query over one registered projection.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SemanticProjectionQuery {
+    /// Projection scope to query.
+    pub key: SemanticProjectionKey,
+    /// Source schema revision expected by the caller.
+    pub source_schema_revision: SchemaRevision,
+    /// Projection revision expected by the caller.
+    pub projection_revision: u64,
+    /// Model revision expected by the caller.
+    pub model_revision: String,
+    /// Query vector.
+    pub vector: Vec<f32>,
+    /// Maximum number of deterministic hits.
+    pub limit: u32,
+    /// Provider-neutral source metadata filters.
+    pub filters: Vec<SemanticProjectionFilter>,
+    /// Maximum deterministic bytes returned by this query.
+    pub max_result_bytes: u32,
+    /// Semantic traversal/context depth requested by the caller.
+    pub depth: u32,
+}
+
+/// One provider-neutral predicate applied to projection source metadata.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SemanticProjectionFilter {
+    /// Optional exact source fingerprint predicate.
+    pub source_hash: Option<String>,
+}
+
+impl SemanticProjectionFilter {
+    /// Creates an exact source fingerprint predicate.
+    #[must_use]
+    pub fn source_hash(value: impl Into<String>) -> Self {
+        Self {
+            source_hash: Some(value.into()),
+        }
+    }
+}
+
+impl SemanticProjectionQuery {
+    /// Creates a bounded query. Results are ordered by distance, then
+    /// qualified source identity; approximate index behavior is not exposed as
+    /// deterministic authority by this contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when the result bound, vector dimensions or
+    /// revision metadata is invalid.
+    pub fn new(
+        key: SemanticProjectionKey,
+        source_schema_revision: SchemaRevision,
+        projection_revision: u64,
+        model_revision: impl Into<String>,
+        vector: Vec<f32>,
+        limit: u32,
+    ) -> Result<Self, SemanticProjectionError> {
+        let model_revision = model_revision.into();
+        let query = Self {
+            key,
+            source_schema_revision,
+            projection_revision,
+            model_revision,
+            vector,
+            limit,
+            filters: Vec::new(),
+            max_result_bytes: MAX_SEMANTIC_QUERY_RESULT_BYTES,
+            depth: 0,
+        };
+        query.validate()?;
+        Ok(query)
+    }
+
+    /// Revalidates the complete bounded request at every public
+    /// Runtime/Storage boundary. This prevents public struct literals from
+    /// bypassing constructor-only limits or finite-vector checks.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when the result bound, vector dimensions or
+    /// revision metadata is invalid.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.limit == 0 || self.limit > MAX_SEMANTIC_QUERY_RESULTS {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_RESULTS,
+                actual: self.limit,
+            });
+        }
+        if self.max_result_bytes == 0 || self.max_result_bytes > MAX_SEMANTIC_QUERY_RESULT_BYTES {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_RESULT_BYTES,
+                actual: self.max_result_bytes,
+            });
+        }
+        if self.filters.len() > MAX_SEMANTIC_QUERY_FILTERS as usize {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_FILTERS,
+                actual: u32::try_from(self.filters.len()).unwrap_or(u32::MAX),
+            });
+        }
+        if self.depth > MAX_SEMANTIC_QUERY_DEPTH {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_DEPTH,
+                actual: self.depth,
+            });
+        }
+        if self.projection_revision == 0 || self.model_revision.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "projection revision and model revision are required".to_owned(),
+            });
+        }
+        if self.vector.is_empty() || self.vector.len() > MAX_SEMANTIC_VECTOR_DIMENSIONS as usize {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
+                actual: self.vector.len().to_string(),
+            });
+        }
+        if self.vector.iter().any(|value| !value.is_finite()) {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "query vectors must contain only finite values".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl SemanticProjectionQuery {
+    /// Adds one provider-neutral source filter.
+    #[must_use]
+    pub fn with_filter(mut self, filter: SemanticProjectionFilter) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Sets the result-byte bound for this query.
+    #[must_use]
+    pub const fn with_max_result_bytes(mut self, max_result_bytes: u32) -> Self {
+        self.max_result_bytes = max_result_bytes;
+        self
+    }
+
+    /// Sets the semantic traversal/context depth for this query.
+    #[must_use]
+    pub const fn with_depth(mut self, depth: u32) -> Self {
+        self.depth = depth;
+        self
+    }
+}
+
+/// Deterministic read model returned by a similarity query.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SemanticProjectionHit {
+    /// Qualified authoritative source reference.
+    pub source_ref: EventRef,
+    /// Source fingerprint stored with the row.
+    pub source_hash: String,
+    /// Source version stored with the row.
+    pub source_revision: TimelineVersion,
+    /// Projection revision stored with the row.
+    pub projection_revision: u64,
+    /// Model revision stored with the row.
+    pub model_revision: String,
+    /// Metric distance; lower values sort first.
+    pub distance: f32,
+}
+
+/// Typed failures at the rebuildable semantic projection boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SemanticProjectionError {
+    /// Request metadata is structurally invalid.
+    InvalidRequest { message: String },
+    /// A requested World/Timeline scope does not exist.
+    ScopeNotFound {
+        world_id: WorldId,
+        timeline_id: TimelineId,
+    },
+    /// The projection registration does not exist.
+    IndexNotRegistered { key: SemanticProjectionKey },
+    /// Registration or row metadata differs at the storage linearization point.
+    MetadataMismatch {
+        field: String,
+        expected: String,
+        actual: String,
+    },
+    /// Vector dimensions differ from the registered index dimensions.
+    DimensionMismatch { expected: String, actual: String },
+    /// Source schema/hash/revision metadata is stale or inconsistent.
+    SourceMismatch { expected: String, actual: String },
+    /// A projection revision fence failed.
+    RevisionMismatch { expected: u64, actual: u64 },
+    /// A bounded result or rebuild limit was exceeded.
+    LimitExceeded { limit: u32, actual: u32 },
+    /// The projection adapter could not complete its operation.
+    StorageUnavailable { message: String },
+}
+
+/// Returns the deterministic evidence byte size of one semantic hit.
+#[must_use]
+pub fn semantic_projection_hit_bytes(hit: &SemanticProjectionHit) -> usize {
+    hit.source_ref.timeline_id.to_string().len()
+        + hit.source_ref.event_id.to_string().len()
+        + hit.source_hash.len()
+        + format!("{:?}", hit.source_revision).len()
+        + hit.projection_revision.to_string().len()
+        + hit.model_revision.len()
+        + std::mem::size_of::<f32>()
+}
+
+impl fmt::Display for SemanticProjectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRequest { message } | Self::StorageUnavailable { message } => {
+                formatter.write_str(message)
+            }
+            Self::ScopeNotFound {
+                world_id,
+                timeline_id,
+            } => {
+                write!(
+                    formatter,
+                    "projection scope {world_id}/{timeline_id} was not found"
+                )
+            }
+            Self::IndexNotRegistered { key } => {
+                write!(
+                    formatter,
+                    "semantic index {} is not registered",
+                    key.index_id
+                )
+            }
+            Self::MetadataMismatch {
+                field,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "projection {field} mismatch: expected {expected}, got {actual}"
+            ),
+            Self::DimensionMismatch { expected, actual } => {
+                write!(
+                    formatter,
+                    "projection dimensions mismatch: expected {expected}, got {actual}"
+                )
+            }
+            Self::SourceMismatch { expected, actual } => {
+                write!(
+                    formatter,
+                    "projection source mismatch: expected {expected}, got {actual}"
+                )
+            }
+            Self::RevisionMismatch { expected, actual } => {
+                write!(
+                    formatter,
+                    "projection revision mismatch: expected {expected}, got {actual}"
+                )
+            }
+            Self::LimitExceeded { limit, actual } => {
+                write!(
+                    formatter,
+                    "projection bound exceeded: limit {limit}, got {actual}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for SemanticProjectionError {}
+
+fn validate_projection_row(
+    registration: &SemanticProjectionRegistration,
+    row: &SemanticProjectionRow,
+) -> Result<(), SemanticProjectionError> {
+    row.validate()?;
+    if row.projection_revision != registration.projection_revision {
+        return Err(SemanticProjectionError::RevisionMismatch {
+            expected: registration.projection_revision,
+            actual: row.projection_revision,
+        });
+    }
+    if row.model_revision != registration.model_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "model_revision".to_owned(),
+            expected: registration.model_revision.clone(),
+            actual: row.model_revision.clone(),
+        });
+    }
+    if row.vector.len() != registration.dimensions as usize {
+        return Err(SemanticProjectionError::DimensionMismatch {
+            expected: registration.dimensions.to_string(),
+            actual: row.vector.len().to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Runtime-owned persistence boundary for rebuildable semantic projections.
+///
+/// Implementations may use pgvector or another adapter internally. These
+/// methods never mutate Event, State, Timeline version, logical journal or
+/// replay/fork authority.
+pub trait SemanticProjectionStore {
+    /// Registers or idempotently confirms one projection scope metadata row.
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>>;
+
+    /// Performs a bounded, deterministic similarity query.
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>>;
+
+    /// Atomically replaces all rows for one scope under a revision fence.
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>>;
+
+    /// Deletes only projection metadata/rows for one scope.
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>>;
 }
 
 /// Runtime-owned port for explicit, monotonic World-Time transitions.
