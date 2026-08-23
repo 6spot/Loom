@@ -1073,6 +1073,15 @@ pub struct ExecutionSession {
     ended_at: Option<PlatformTime>,
     #[serde(default)]
     entropy_evidence: EntropyEvidence,
+    /// Stable Ingress identity when this root was started by the durable
+    /// Ingress worker. This is Platform provenance, not World state.
+    #[serde(default)]
+    ingress_id: Option<IngressId>,
+    /// Durable semantic result recorded with an Ingress root Session before
+    /// the operational Ingress row is finalized. It closes the commit /
+    /// finalization recovery window without creating another mutation path.
+    #[serde(default)]
+    ingress_completion: Option<IngressCompletion>,
 }
 
 impl ExecutionSession {
@@ -1091,7 +1100,20 @@ impl ExecutionSession {
             status: ExecutionSessionStatus::Started,
             ended_at: None,
             entropy_evidence: EntropyEvidence::new(entropy_source_id),
+            ingress_id: None,
+            ingress_completion: None,
         }
+    }
+
+    pub(crate) fn new_ingress(
+        id: ExecutionSessionId,
+        ingress_id: IngressId,
+        assembly: ExecutionAssembly,
+        started_at: PlatformTime,
+    ) -> Self {
+        let mut session = Self::new(id, ExecutionOrigin::Ingress, assembly, started_at);
+        session.ingress_id = Some(ingress_id);
+        session
     }
 
     /// Returns the stable Runtime Session identity.
@@ -1134,6 +1156,20 @@ impl ExecutionSession {
     #[must_use]
     pub const fn entropy_evidence(&self) -> &EntropyEvidence {
         &self.entropy_evidence
+    }
+
+    /// Returns the durable Ingress identity associated with this root, when
+    /// the Session was created by the Ingress worker.
+    #[must_use]
+    pub const fn ingress_id(&self) -> Option<&IngressId> {
+        self.ingress_id.as_ref()
+    }
+
+    /// Returns the semantic result durably captured by an Ingress root,
+    /// when terminal execution reached the Session provenance boundary.
+    #[must_use]
+    pub const fn ingress_completion(&self) -> Option<&IngressCompletion> {
+        self.ingress_completion.as_ref()
     }
 
     /// Returns a terminal copy used by persistence adapters at the lifecycle
@@ -1189,6 +1225,31 @@ impl ExecutionSession {
         finished.entropy_evidence = entropy_evidence;
         Ok(finished)
     }
+
+    /// Returns a terminal Ingress Session carrying the semantic result used
+    /// to recover an interrupted operational finalization.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle error when this is not an Ingress root, the Session
+    /// is already terminal, or the entropy source does not match the pinned
+    /// Execution Assembly.
+    pub fn finish_with_ingress_completion(
+        &self,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+    ) -> Result<Self, SessionError> {
+        if self.origin != ExecutionOrigin::Ingress || self.ingress_id.is_none() {
+            return Err(SessionError::IngressCompletionUnavailable {
+                session_id: self.id,
+            });
+        }
+        let mut finished = self.finish_with_entropy(status, ended_at, entropy_evidence)?;
+        finished.ingress_completion = Some(completion);
+        Ok(finished)
+    }
 }
 
 /// Typed failures at the Runtime execution Session persistence boundary.
@@ -1211,6 +1272,9 @@ pub enum SessionError {
     EntropyEvidenceUnavailable { session_id: ExecutionSessionId },
     /// The persistence authority could not complete the Session operation.
     StorageUnavailable { message: String },
+    /// The adapter cannot persist the semantic result needed by Ingress
+    /// finalization recovery.
+    IngressCompletionUnavailable { session_id: ExecutionSessionId },
 }
 
 impl fmt::Display for SessionError {
@@ -1239,6 +1303,10 @@ impl fmt::Display for SessionError {
                 "entropy evidence cannot be persisted for Execution Session {session_id}"
             ),
             Self::StorageUnavailable { message } => formatter.write_str(message),
+            Self::IngressCompletionUnavailable { session_id } => write!(
+                formatter,
+                "Ingress completion provenance is unavailable for Execution Session {session_id}"
+            ),
         }
     }
 }
@@ -1283,6 +1351,22 @@ pub trait ExecutionSessionStore {
             });
         }
         self.finish_session(session_id, status, ended_at)
+    }
+
+    /// Persists a terminal Ingress Session together with its semantic result.
+    /// Adapters must retain this result in the existing Session provenance
+    /// record so an interrupted Ingress finalization can be retried without
+    /// rerunning semantic execution.
+    fn finish_session_with_ingress_completion(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        let _ = (status, ended_at, entropy_evidence, completion);
+        Box::pin(async move { Err(SessionError::IngressCompletionUnavailable { session_id }) })
     }
 
     /// Reads one Session record for audit/restart linkage.

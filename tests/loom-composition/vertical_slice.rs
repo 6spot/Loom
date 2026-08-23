@@ -9,8 +9,9 @@ use std::{
 
 use loom_api::{
     ActionRequest, ActionService, ApiErrorCode, CausalDirection, CausalQuery,
-    EntityTrajectoryQuery, EventQuery, ExecutionResult, FacetQuery, LoomApi,
-    RelationshipTrajectoryQuery, TimelineTarget,
+    EntityTrajectoryQuery, EventQuery, ExecutionResult, FacetQuery, IngressAuthorizationContext,
+    IngressEnvelope, IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata,
+    LoomApi, RelationshipTrajectoryQuery, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
@@ -21,7 +22,7 @@ use loom_capability::{
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId, Relationship,
     RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId,
-    WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
     ActionInvocation, CausalLink, EventRelationshipRef, NewWork, ProposedEvent, Rejection,
@@ -775,6 +776,101 @@ async fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_h
             .as_str(),
         COUNTER_CAPABILITY
     );
+}
+
+#[tokio::test]
+async fn ingress_runs_through_the_normal_action_authority_and_persists_provenance() {
+    let store = counter_store();
+    let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
+    let request = IngressEnvelope::new(
+        "ingress-commit-1",
+        "counter-key-1",
+        IngressProvenance::new("composition-test"),
+        counter_target(),
+        IngressAuthorizationContext::new(json!({"role": "test"})),
+        IngressTimeMetadata::none(),
+        ActionInvocation::new(
+            ActionTypeId::from(COUNTER_INCREMENT),
+            json!({"amount": 2, "event_id": event(180).to_string()}),
+        ),
+    );
+
+    let accepted = runtime
+        .submit_ingress(request)
+        .await
+        .expect("Ingress should be accepted");
+    assert!(accepted.is_accepted());
+    let completion = runtime
+        .process_ingress(
+            "ingress-commit-1".into(),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect("Ingress Action should commit through Runtime authority");
+    assert!(completion.is_committed());
+
+    let status = runtime
+        .ingress_status("ingress-commit-1".into())
+        .await
+        .expect("Ingress status should be readable");
+    assert!(matches!(status.status, IngressStatus::Completed(_)));
+    let session = store
+        .list_sessions()
+        .expect("Session provenance should be readable")
+        .into_iter()
+        .find(|session| {
+            session
+                .ingress_id()
+                .is_some_and(|id| id.as_str() == "ingress-commit-1")
+        })
+        .expect("Ingress should have one root Session");
+    assert_eq!(session.origin(), loom_runtime::ExecutionOrigin::Ingress);
+    assert_eq!(session.ingress_completion(), Some(&completion));
+    assert_eq!(store.snapshot(timeline()).unwrap().events.len(), 1);
+}
+
+#[tokio::test]
+async fn ingress_rejection_is_completed_without_world_mutation_or_retry() {
+    let store = counter_store();
+    let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
+    let request = IngressEnvelope::new(
+        "ingress-rejected-1",
+        "counter-key-rejected",
+        IngressProvenance::new("composition-test"),
+        counter_target(),
+        IngressAuthorizationContext::new(json!({})),
+        IngressTimeMetadata::none(),
+        ActionInvocation::new(
+            ActionTypeId::from(COUNTER_INCREMENT),
+            json!({"amount": 0, "event_id": event(181).to_string()}),
+        ),
+    );
+
+    runtime
+        .submit_ingress(request)
+        .await
+        .expect("Ingress should be accepted");
+    let completion = runtime
+        .process_ingress(
+            "ingress-rejected-1".into(),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect("semantic rejection should be terminal");
+    assert!(completion.is_rejected());
+    assert_eq!(
+        store.snapshot(timeline()).unwrap().version(),
+        TimelineVersion::default()
+    );
+    let record = store
+        .ingress("ingress-rejected-1".into())
+        .expect("Ingress record should remain durable");
+    assert!(matches!(record.status, IngressStatus::Completed(_)));
+    assert_eq!(record.attempt_count, 1);
 }
 
 #[tokio::test]

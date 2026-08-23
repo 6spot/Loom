@@ -3,7 +3,7 @@
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
     EntropyEvidence, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
-    PersistenceFuture, PlatformTime, SessionError,
+    IngressCompletion, PersistenceFuture, PlatformTime, SessionError,
 };
 use serde_json::Value;
 use sqlx::Row;
@@ -41,6 +41,27 @@ impl ExecutionSessionStore for PgStorage {
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         Box::pin(async move {
             finish_session_with_entropy(self, session_id, status, ended_at, entropy_evidence).await
+        })
+    }
+
+    fn finish_session_with_ingress_completion(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            finish_session_with_ingress_completion(
+                self,
+                session_id,
+                status,
+                ended_at,
+                entropy_evidence,
+                completion,
+            )
+            .await
         })
     }
 
@@ -95,7 +116,7 @@ async fn finish_session(
     status: ExecutionSessionStatus,
     ended_at: PlatformTime,
 ) -> Result<ExecutionSession, SessionError> {
-    finish_session_inner(storage, session_id, status, ended_at, None).await
+    finish_session_inner(storage, session_id, status, ended_at, None, None).await
 }
 
 async fn finish_session_with_entropy(
@@ -111,6 +132,26 @@ async fn finish_session_with_entropy(
         status,
         ended_at,
         Some(entropy_evidence),
+        None,
+    )
+    .await
+}
+
+async fn finish_session_with_ingress_completion(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    status: ExecutionSessionStatus,
+    ended_at: PlatformTime,
+    entropy_evidence: EntropyEvidence,
+    completion: IngressCompletion,
+) -> Result<ExecutionSession, SessionError> {
+    finish_session_inner(
+        storage,
+        session_id,
+        status,
+        ended_at,
+        Some(entropy_evidence),
+        Some(completion),
     )
     .await
 }
@@ -121,6 +162,7 @@ async fn finish_session_inner(
     status: ExecutionSessionStatus,
     ended_at: PlatformTime,
     entropy_evidence: Option<EntropyEvidence>,
+    ingress_completion: Option<IngressCompletion>,
 ) -> Result<ExecutionSession, SessionError> {
     let current = read_session(storage, session_id).await?;
     if current.status() != ExecutionSessionStatus::Started {
@@ -134,10 +176,21 @@ async fn finish_session_inner(
         });
     }
     let finished = match entropy_evidence {
-        Some(entropy_evidence) => {
-            current.finish_with_entropy(status, ended_at, entropy_evidence)?
-        }
-        None => current.finish(status, ended_at)?,
+        Some(entropy_evidence) => match ingress_completion {
+            Some(completion) => current.finish_with_ingress_completion(
+                status,
+                ended_at,
+                entropy_evidence,
+                completion,
+            )?,
+            None => current.finish_with_entropy(status, ended_at, entropy_evidence)?,
+        },
+        None => match ingress_completion {
+            Some(_) => {
+                return Err(SessionError::IngressCompletionUnavailable { session_id });
+            }
+            None => current.finish(status, ended_at)?,
+        },
     };
     let record =
         serde_json::to_value(&finished).map_err(|error| SessionError::StorageUnavailable {

@@ -19,10 +19,12 @@ use loom_api::{
     CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
     CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
     ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
-    ForkTimelineRequest, HistoryService, QueryService, ReactionDescriptor, RelationshipDescriptor,
-    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, SemanticIndexDescriptor,
-    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage,
-    WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
+    ForkTimelineRequest, HistoryService, IngressAcceptance, IngressCompletion, IngressEnvelope,
+    IngressId, IngressService, IngressStatus, IngressStatusRecord, QueryService,
+    ReactionDescriptor, RelationshipDescriptor, RelationshipRoleDescriptor,
+    RelationshipTrajectoryQuery, SemanticIndexDescriptor, TimelineService,
+    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage, WorkHandlerDescriptor,
+    WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
@@ -42,7 +44,8 @@ use crate::{
     CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
+    HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
+    IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalWorkState,
     LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
@@ -332,6 +335,27 @@ where
         Ok(session)
     }
 
+    async fn start_ingress_execution_session(
+        &self,
+        assembly: ExecutionAssembly,
+        ingress_id: IngressId,
+    ) -> ApiResult<ExecutionSession>
+    where
+        S: ExecutionSessionStore,
+    {
+        let session = ExecutionSession::new_ingress(
+            assembly.session_id(),
+            ingress_id,
+            assembly,
+            self.platform_clock.now(),
+        );
+        self.store
+            .start_session(session.clone())
+            .await
+            .map_err(|error| map_session_error(&error))?;
+        Ok(session)
+    }
+
     async fn finish_execution_session(
         &self,
         session_id: loom_core::ExecutionSessionId,
@@ -355,6 +379,28 @@ where
                 status,
                 self.platform_clock.now(),
                 entropy_evidence,
+            )
+            .await
+            .map_err(|error| map_session_error(&error))
+    }
+
+    async fn finish_ingress_execution_session(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+    ) -> ApiResult<ExecutionSession>
+    where
+        S: ExecutionSessionStore,
+    {
+        self.store
+            .finish_session_with_ingress_completion(
+                session_id,
+                status,
+                self.platform_clock.now(),
+                entropy_evidence,
+                completion,
             )
             .await
             .map_err(|error| map_session_error(&error))
@@ -1267,6 +1313,419 @@ where
         }
     }
 
+    /// Processes one accepted durable Ingress through the normal root Action
+    /// authority path.
+    ///
+    /// The Ingress row is operational state only: Runtime claims it with the
+    /// existing lease/fence port, creates one `ExecutionOrigin::Ingress`
+    /// Session, dispatches the contained normal Action, validates the same
+    /// segments and reactions as [`ActionService::invoke`], and commits only
+    /// through [`CommitStore`]. The Session stores the semantic result before
+    /// the Ingress row is finalized, allowing a later worker to recover a
+    /// commit/finalization interruption without rerunning the Action.
+    ///
+    /// # Errors
+    ///
+    /// Technical failures are recorded through the configured bounded Ingress
+    /// retry policy. Missing or incompatible implementations are preflighted
+    /// before the claim, matching the normal root contract and consuming no
+    /// Ingress attempt.
+    #[allow(clippy::too_many_lines)]
+    pub async fn process_ingress(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+        retry_available_at: PlatformTime,
+    ) -> ApiResult<IngressCompletion>
+    where
+        S: IngressStore + SemanticProjectionStore,
+    {
+        let record = self
+            .store
+            .ingress(ingress_id.clone())
+            .await
+            .map_err(map_ingress_error)?;
+        match &record.status {
+            IngressStatus::Completed(completion) => return Ok(completion.clone()),
+            IngressStatus::Failed(_) => {
+                return Err(ApiError::unavailable(
+                    "Ingress has a terminal technical failure",
+                ));
+            }
+            IngressStatus::Accepted | IngressStatus::Processing | IngressStatus::Retryable(_) => {}
+        }
+
+        let target = record.submission.envelope.target;
+        let invocation = record.submission.envelope.invocation.clone();
+        let snapshot = self.snapshot_for_target(target).await?;
+        let binding = self.binding_for_world(snapshot.world_id()).await?;
+        let assembly = self.execution_assembly(&snapshot, binding).await?;
+        enabled_action(&self.registry, &assembly, &invocation.action)
+            .map_err(map_dispatch_error)?;
+
+        let claim = IngressStore::claim(&self.store, ingress_id.clone(), now, claimed_until)
+            .await
+            .map_err(map_ingress_error)?;
+
+        if let Some((session_id, completion)) = self.recover_ingress(&ingress_id).await? {
+            self.store
+                .complete(&claim, session_id, completion.clone(), now)
+                .await
+                .map_err(map_ingress_error)?;
+            return Ok(completion);
+        }
+
+        let session = match self
+            .start_ingress_execution_session(assembly.clone(), ingress_id.clone())
+            .await
+        {
+            Ok(session) => session,
+            Err(error) => {
+                return Err(self
+                    .record_ingress_failure(&claim, now, retry_available_at, error)
+                    .await);
+            }
+        };
+
+        let base = snapshot.world_view();
+        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
+        if let Err(error) = engine
+            .validate_action_input(&invocation.action, &invocation.input)
+            .map_err(|error| map_action_input_error(&error))
+        {
+            return Err(self
+                .finish_ingress_failure(
+                    &session,
+                    &claim,
+                    now,
+                    retry_available_at,
+                    error,
+                    EntropyEvidence::new(assembly.entropy_source_id().clone()),
+                )
+                .await);
+        }
+
+        let mut dispatch_entropy_evidence =
+            EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let (outcome, execution) = match dispatch_root_action_async(
+            &base,
+            &self.registry,
+            &assembly,
+            &*self.entropy_source,
+            &self.store,
+            &mut dispatch_entropy_evidence,
+            &invocation,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                return Err(self
+                    .finish_ingress_failure(
+                        &session,
+                        &claim,
+                        now,
+                        retry_available_at,
+                        map_dispatch_error(error),
+                        dispatch_entropy_evidence,
+                    )
+                    .await);
+            }
+        };
+
+        let execution_entropy_evidence = execution.entropy_evidence.clone();
+        match outcome {
+            ResolveOutcome::Rejected(rejection) => {
+                let completion = IngressCompletion::Rejected(rejection);
+                self.finish_ingress_execution_session(
+                    session.id(),
+                    ExecutionSessionStatus::Rejected,
+                    execution_entropy_evidence,
+                    completion.clone(),
+                )
+                .await?;
+                self.store
+                    .complete(&claim, session.id(), completion.clone(), now)
+                    .await
+                    .map_err(map_ingress_error)?;
+                Ok(completion)
+            }
+            ResolveOutcome::Resolved(_) => {
+                let mut validated = match engine.validate_segments_with_entropy(
+                    &base,
+                    &execution.segments,
+                    execution.call_provenance,
+                    execution.entropy_evidence,
+                ) {
+                    Ok(validated) => validated,
+                    Err(error) => {
+                        return Err(self
+                            .finish_ingress_failure(
+                                &session,
+                                &claim,
+                                now,
+                                retry_available_at,
+                                map_runtime_error(&error),
+                                execution_entropy_evidence,
+                            )
+                            .await);
+                    }
+                };
+                validated.append_validated_work(Vec::new(), execution.read_set.clone());
+                if let Err(error) =
+                    self.expand_reactions(&base, &assembly, &engine, &mut validated, None)
+                {
+                    return Err(self
+                        .finish_ingress_failure(
+                            &session,
+                            &claim,
+                            now,
+                            retry_available_at,
+                            error,
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await);
+                }
+
+                let changes = changes_runtime_state(&validated, None);
+                match self
+                    .store
+                    .commit(&validated, None, self.platform_clock.now())
+                    .await
+                {
+                    Ok(result) => {
+                        let completion = ingress_completion(&result, changes);
+                        self.finish_ingress_execution_session(
+                            session.id(),
+                            ExecutionSessionStatus::Committed,
+                            validated.entropy_evidence().clone(),
+                            completion.clone(),
+                        )
+                        .await?;
+                        self.store
+                            .complete(&claim, session.id(), completion.clone(), now)
+                            .await
+                            .map_err(map_ingress_error)?;
+                        Ok(completion)
+                    }
+                    Err(CommitError::CommitOutcomeUnknown { .. }) => {
+                        match self
+                            .reconcile_ingress_commit(target, &validated, changes)
+                            .await?
+                        {
+                            Some(completion) => {
+                                self.finish_ingress_execution_session(
+                                    session.id(),
+                                    ExecutionSessionStatus::Committed,
+                                    validated.entropy_evidence().clone(),
+                                    completion.clone(),
+                                )
+                                .await?;
+                                self.store
+                                    .complete(&claim, session.id(), completion.clone(), now)
+                                    .await
+                                    .map_err(map_ingress_error)?;
+                                Ok(completion)
+                            }
+                            None => Err(self
+                                .finish_ingress_failure(
+                                    &session,
+                                    &claim,
+                                    now,
+                                    retry_available_at,
+                                    ApiError::unavailable(
+                                        "Ingress commit was not observed after reconciliation",
+                                    ),
+                                    validated.entropy_evidence().clone(),
+                                )
+                                .await),
+                        }
+                    }
+                    Err(error) => Err(self
+                        .finish_ingress_failure(
+                            &session,
+                            &claim,
+                            now,
+                            retry_available_at,
+                            map_commit_error(&error),
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await),
+                }
+            }
+        }
+    }
+
+    async fn recover_ingress(
+        &self,
+        ingress_id: &IngressId,
+    ) -> ApiResult<Option<(loom_core::ExecutionSessionId, IngressCompletion)>>
+    where
+        S: IngressStore + SemanticProjectionStore,
+    {
+        let sessions = self
+            .store
+            .list_sessions()
+            .await
+            .map_err(|error| map_session_error(&error))?;
+        let matches: Vec<_> = sessions
+            .into_iter()
+            .filter_map(|session| {
+                (session.ingress_id() == Some(ingress_id) && session.status().is_terminal())
+                    .then(|| {
+                        session
+                            .ingress_completion()
+                            .cloned()
+                            .map(|completion| (session.id(), completion))
+                    })
+                    .flatten()
+            })
+            .collect();
+        match matches.as_slice() {
+            [] => Ok(None),
+            [match_] => Ok(Some(match_.clone())),
+            _ => Err(ApiError::unavailable(
+                "Ingress has multiple terminal Session provenance records",
+            )),
+        }
+    }
+
+    async fn reconcile_ingress_commit(
+        &self,
+        target: TimelineTarget,
+        resolution: &ValidatedResolution,
+        changes_runtime_state: bool,
+    ) -> ApiResult<Option<IngressCompletion>>
+    where
+        S: IngressStore + SemanticProjectionStore,
+    {
+        let snapshot = self.snapshot_for_target(target).await?;
+        let expected_event_ids: Vec<_> = resolution.events().iter().map(|event| event.id).collect();
+        if let Some(commit) = snapshot.journal.iter().find(|commit| {
+            commit.timeline_id == resolution.timeline_id()
+                && commit.before_version == resolution.base_version()
+                && commit.event_ids == expected_event_ids
+        }) {
+            return Ok(Some(IngressCompletion::Committed {
+                event_refs: commit
+                    .event_ids
+                    .iter()
+                    .map(|event_id| EventRef::new(resolution.timeline_id(), *event_id))
+                    .collect(),
+                timeline_version: commit.after_version,
+            }));
+        }
+        if !changes_runtime_state && snapshot.version() == resolution.base_version() {
+            return Ok(Some(IngressCompletion::NoChange));
+        }
+        if snapshot.version() == resolution.base_version() {
+            return Ok(None);
+        }
+        Err(ApiError::unavailable(
+            "Ingress commit outcome remains unknown after reconciliation",
+        ))
+    }
+
+    async fn record_ingress_failure(
+        &self,
+        claim: &IngressClaim,
+        now: PlatformTime,
+        retry_available_at: PlatformTime,
+        error: ApiError,
+    ) -> ApiError
+    where
+        S: IngressStore + SemanticProjectionStore,
+    {
+        let failure = IngressTechnicalFailure::new("runtime_failure", error.message.clone());
+        if self.failure_policy.allows_retry(claim.attempt_count()) {
+            let available_at = match self
+                .failure_policy
+                .next_available_at(now, retry_available_at)
+            {
+                Ok(available_at) => available_at,
+                Err(policy_error) => {
+                    return self
+                        .store
+                        .fail(
+                            claim,
+                            now,
+                            IngressTechnicalFailure::new(
+                                "runtime_failure",
+                                policy_error.to_string(),
+                            ),
+                        )
+                        .await
+                        .map_or_else(
+                            |_| {
+                                ApiError::internal(
+                                    "Ingress technical failure could not be recorded",
+                                )
+                            },
+                            |_| error.clone(),
+                        );
+                }
+            };
+            return IngressStore::retry(&self.store, claim, now, available_at, failure)
+                .await
+                .map_or_else(
+                    |_| ApiError::internal("Ingress technical retry could not be recorded"),
+                    |_| error.clone(),
+                );
+        }
+        self.store.fail(claim, now, failure).await.map_or_else(
+            |_| ApiError::internal("Ingress technical failure could not be recorded"),
+            |_| error.clone(),
+        )
+    }
+
+    async fn finish_ingress_failure(
+        &self,
+        session: &ExecutionSession,
+        claim: &IngressClaim,
+        now: PlatformTime,
+        retry_available_at: PlatformTime,
+        error: ApiError,
+        entropy_evidence: EntropyEvidence,
+    ) -> ApiError
+    where
+        S: IngressStore + SemanticProjectionStore,
+    {
+        let error = match self
+            .finish_execution_session_with_entropy(
+                session.id(),
+                ExecutionSessionStatus::Failed,
+                entropy_evidence,
+            )
+            .await
+        {
+            Ok(_) => error,
+            Err(session_error) => session_error,
+        };
+        self.record_ingress_failure(claim, now, retry_available_at, error)
+            .await
+    }
+
+    /// Accepts a pre-canonicalized Ingress submission through the Runtime
+    /// operational port. Acceptance never appends a World Event.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API-level persistence error when the operational acceptance
+    /// authority cannot read or atomically update the Ingress record.
+    pub async fn accept_ingress(
+        &self,
+        submission: IngressSubmission,
+    ) -> ApiResult<IngressAcceptance>
+    where
+        S: IngressStore,
+    {
+        self.store
+            .accept(submission)
+            .await
+            .map_err(map_ingress_error)
+    }
+
     /// Records a technical Work retry through the Runtime-owned Work port.
     ///
     /// The same Work identity remains Pending and no Timeline/Event/Facet
@@ -1618,6 +2077,23 @@ where
         (**self).finish_session_with_entropy(session_id, status, ended_at, entropy_evidence)
     }
 
+    fn finish_session_with_ingress_completion(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).finish_session_with_ingress_completion(
+            session_id,
+            status,
+            ended_at,
+            entropy_evidence,
+            completion,
+        )
+    }
+
     fn read_session(
         &self,
         session_id: loom_core::ExecutionSessionId,
@@ -1627,6 +2103,63 @@ where
 
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
         (**self).list_sessions()
+    }
+}
+
+impl<T> IngressStore for &T
+where
+    T: IngressStore + ?Sized,
+{
+    fn accept(
+        &self,
+        submission: IngressSubmission,
+    ) -> PersistenceFuture<'_, Result<IngressAcceptance, IngressError>> {
+        (**self).accept(submission)
+    }
+
+    fn ingress(
+        &self,
+        ingress_id: IngressId,
+    ) -> PersistenceFuture<'_, Result<crate::IngressOperationalRecord, IngressError>> {
+        (**self).ingress(ingress_id)
+    }
+
+    fn claim(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<IngressClaim, IngressError>> {
+        (**self).claim(ingress_id, now, claimed_until)
+    }
+
+    fn retry<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<crate::IngressOperationalRecord, IngressError>> {
+        (**self).retry(claim, now, available_at, failure)
+    }
+
+    fn complete<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        session_id: loom_core::ExecutionSessionId,
+        completion: IngressCompletion,
+        completed_at: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<crate::IngressOperationalRecord, IngressError>> {
+        (**self).complete(claim, session_id, completion, completed_at)
+    }
+
+    fn fail<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        completed_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<crate::IngressOperationalRecord, IngressError>> {
+        (**self).fail(claim, completed_at, failure)
     }
 }
 
@@ -2007,6 +2540,56 @@ where
                     ))
                 }
             }
+        })
+    }
+}
+
+impl<S> IngressService for Runtime<S>
+where
+    S: IngressStore,
+{
+    fn submit_ingress(&self, request: IngressEnvelope) -> ApiFuture<'_, IngressAcceptance> {
+        Box::pin(async move {
+            let canonical_request = (
+                &request.provenance,
+                &request.target,
+                &request.authorization,
+                &request.time_metadata,
+                &request.invocation,
+            );
+            let request_fingerprint = match serde_json::to_string(&canonical_request) {
+                Ok(serialized) => semantic_query_fingerprint(&serialized),
+                Err(_) => {
+                    return Err(ApiError::internal(
+                        "Ingress request could not be canonicalized",
+                    ));
+                }
+            };
+            let submission = IngressSubmission::new(
+                request.provenance.source.clone(),
+                request,
+                request_fingerprint,
+                self.platform_clock.now(),
+            );
+            self.store
+                .accept(submission)
+                .await
+                .map_err(map_ingress_error)
+        })
+    }
+
+    fn ingress_status(&self, ingress_id: IngressId) -> ApiFuture<'_, IngressStatusRecord> {
+        Box::pin(async move {
+            let record = self
+                .store
+                .ingress(ingress_id)
+                .await
+                .map_err(map_ingress_error)?;
+            Ok(IngressStatusRecord::new(
+                record.ingress_id().clone(),
+                record.idempotency_key().clone(),
+                record.status,
+            ))
         })
     }
 }
@@ -3923,6 +4506,23 @@ fn execution_result(result: &crate::CommitResult, changes_runtime_state: bool) -
     }
 }
 
+fn ingress_completion(
+    result: &crate::CommitResult,
+    changes_runtime_state: bool,
+) -> IngressCompletion {
+    if !changes_runtime_state {
+        return IngressCompletion::NoChange;
+    }
+    IngressCompletion::Committed {
+        event_refs: result
+            .events
+            .iter()
+            .map(CommittedEvent::event_ref)
+            .collect(),
+        timeline_version: result.version,
+    }
+}
+
 fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
     ApiCommittedEvent {
         id: event.id,
@@ -4011,8 +4611,37 @@ fn map_session_error(error: &SessionError) -> ApiError {
         | SessionError::InvalidTransition { .. }
         | SessionError::EntropySourceMismatch { .. }
         | SessionError::EntropyEvidenceUnavailable { .. }
+        | SessionError::IngressCompletionUnavailable { .. }
         | SessionError::StorageUnavailable { .. } => {
             ApiError::unavailable("Execution Session provenance is unavailable")
+        }
+    }
+}
+
+fn map_ingress_error(error: IngressError) -> ApiError {
+    match error {
+        IngressError::IngressNotFound { ingress_id } => {
+            ApiError::not_found(format!("Ingress {ingress_id} was not found"))
+        }
+        IngressError::IngressAlreadyExists { .. } => {
+            ApiError::conflict("Ingress identity already exists")
+        }
+        IngressError::NotClaimable { .. } => ApiError::conflict("Ingress is no longer claimable"),
+        IngressError::AlreadyClaimed { .. } | IngressError::StaleClaim { .. } => {
+            ApiError::conflict("Ingress claim is no longer usable")
+        }
+        IngressError::NotAvailable { .. } => ApiError::unavailable("Ingress is not available yet"),
+        IngressError::InvalidLease { .. } => {
+            ApiError::invalid_request("Ingress lease has invalid timing")
+        }
+        IngressError::MissingLease { .. } | IngressError::LeaseExpired { .. } => {
+            ApiError::conflict("Ingress lease is no longer usable")
+        }
+        IngressError::AttemptOverflow { .. } => {
+            ApiError::internal("Ingress attempt counter overflowed")
+        }
+        IngressError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Ingress persistence is unavailable")
         }
     }
 }
