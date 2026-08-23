@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::{EventRef, TimelineId};
+
 /// Monotonic semantic time in a World Timeline.
 ///
 /// `WorldInstant` is interpreted by the World/Capability contract and is
@@ -179,6 +181,48 @@ impl TimelineVersion {
         Self {
             head_event_seq,
             state_revision,
+        }
+    }
+}
+
+/// Immutable ancestry position recorded for a Timeline fork.
+///
+/// Root Timelines have no parent. A child records the exact parent Timeline
+/// and version at the atomic fork boundary; when the parent had an Event at
+/// that boundary, the qualified Event reference is recorded as well. This is
+/// structural Timeline metadata, not a duplicated Event or Session row.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TimelineAncestry {
+    /// Parent Timeline in the same World, when this Timeline is a fork.
+    pub parent_timeline_id: Option<TimelineId>,
+    /// Exact parent version observed at the fork linearization point.
+    pub fork_parent_version: Option<TimelineVersion>,
+    /// Last parent Event at the fork point, when one exists.
+    pub fork_parent_event: Option<EventRef>,
+}
+
+impl TimelineAncestry {
+    /// Returns root ancestry metadata.
+    #[must_use]
+    pub const fn root() -> Self {
+        Self {
+            parent_timeline_id: None,
+            fork_parent_version: None,
+            fork_parent_event: None,
+        }
+    }
+
+    /// Creates ancestry metadata for one atomic head fork.
+    #[must_use]
+    pub const fn fork(
+        parent_timeline_id: TimelineId,
+        fork_parent_version: TimelineVersion,
+        fork_parent_event: Option<EventRef>,
+    ) -> Self {
+        Self {
+            parent_timeline_id: Some(parent_timeline_id),
+            fork_parent_version: Some(fork_parent_version),
+            fork_parent_event,
         }
     }
 }

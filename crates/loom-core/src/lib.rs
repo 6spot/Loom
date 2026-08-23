@@ -48,10 +48,12 @@ mod structure;
 mod values;
 
 pub use ids::{
-    ActionTypeId, EntityId, EventId, EventTypeId, ExecutionSessionId, FacetTypeId, RelationshipId,
-    RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId,
+    ActionTypeId, EntityId, EventId, EventRef, EventTypeId, ExecutionSessionId, FacetTypeId,
+    RelationshipId, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId,
 };
 pub use structure::{
     AssociationRole, Entity, FacetOwner, Relationship, RelationshipParticipant, WorldEffect,
 };
-pub use values::{EventSeq, StateRevision, TimelineVersion, WorldDuration, WorldInstant};
+pub use values::{
+    EventSeq, StateRevision, TimelineAncestry, TimelineVersion, WorldDuration, WorldInstant,
+};

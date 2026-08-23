@@ -9,24 +9,27 @@
 //! private child modules.
 
 mod commit;
+mod fork;
 mod session;
 mod work;
 
 use std::{fmt::Display, str::FromStr};
 
 use loom_core::{
-    AssociationRole, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
-    Relationship, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
-    StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
+    AssociationRole, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
+    FacetTypeId, Relationship, RelationshipId, RelationshipParticipant, RelationshipTypeId,
+    SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
+    WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommittedEvent,
-    LifecycleError, LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture,
-    PlatformTime, ProposedEvent, ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, TimelineSnapshot,
-    ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorkTarget, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore, WorldTimeTransition,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption,
+    ChronologyBudgetState, CommittedEvent, LifecycleError, LogicalCommit, LogicalJournalStore,
+    LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent, ReadError,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
+    WorkLease, WorkRecord, WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    WorldTimeTransition,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -160,6 +163,40 @@ impl PgStorage {
             "state_revision",
         )?);
         let world_time = WorldInstant::new(row_i64(&timeline_row, "world_time")?);
+        let chronology_world_time =
+            WorldInstant::new(row_i64(&timeline_row, "chronology_budget_world_time")?);
+        let chronology_consumed = parse_u64(
+            &row_string(&timeline_row, "chronology_budget_consumed")?,
+            "chronology_budget_consumed",
+        )?;
+        let parent_timeline =
+            optional_identity::<TimelineId>(&timeline_row, "parent_timeline_id", "TimelineId")?;
+        let parent_head = optional_u64(
+            &timeline_row,
+            "fork_parent_head_event_seq",
+            "fork_parent_head_event_seq",
+        )?;
+        let parent_state = optional_u64(
+            &timeline_row,
+            "fork_parent_state_revision",
+            "fork_parent_state_revision",
+        )?;
+        let parent_event =
+            optional_identity::<EventId>(&timeline_row, "fork_parent_event_id", "EventId")?;
+        let ancestry = match (parent_timeline, parent_head, parent_state) {
+            (None, None, None) => TimelineAncestry::root(),
+            (Some(parent_timeline), Some(parent_head), Some(parent_state)) => {
+                TimelineAncestry::fork(
+                    parent_timeline,
+                    TimelineVersion::new(
+                        EventSeq::new(parent_head),
+                        StateRevision::new(parent_state),
+                    ),
+                    parent_event.map(|event| EventRef::new(parent_timeline, event)),
+                )
+            }
+            _ => return Err(corrupt("persisted Timeline ancestry columns disagree")),
+        };
         let mut base = BaseWorldSnapshot::new(
             world_id,
             timeline_id,
@@ -384,7 +421,14 @@ impl PgStorage {
             .collect::<Result<Vec<_>, _>>()?;
 
         transaction.commit().await.map_err(sql_read_error)?;
-        Ok(TimelineSnapshot::with_journal(base, events, works, journal))
+        Ok(TimelineSnapshot::with_journal_ancestry_and_budget(
+            base,
+            events,
+            works,
+            journal,
+            ancestry,
+            ChronologyBudgetState::new(chronology_world_time, chronology_consumed),
+        ))
     }
 
     async fn read_logical_journal(
@@ -609,6 +653,13 @@ impl WorldStore for PgStorage {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { self.read_snapshot(timeline_id).await })
+    }
+
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, loom_runtime::ForkError>> {
+        TimelineForkStore::fork_timeline(self, fork)
     }
 }
 
@@ -1325,6 +1376,17 @@ where
     row.try_get::<Option<String>, _>(column)
         .map_err(sql_read_error)?
         .map(|value| parse_identity(&value, label))
+        .transpose()
+}
+
+fn optional_u64(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+    label: &str,
+) -> Result<Option<u64>, ReadError> {
+    row.try_get::<Option<String>, _>(column)
+        .map_err(sql_read_error)?
+        .map(|value| parse_u64(&value, label))
         .transpose()
 }
 

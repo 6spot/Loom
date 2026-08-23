@@ -9,20 +9,20 @@ use loom_capability::{
 };
 use loom_core::{
     ActionTypeId, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
-    RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, WorkHandlerId, WorkId,
-    WorldEffect, WorldId, WorldInstant,
+    RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, TimelineVersion,
+    WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine,
+    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine, ForkWork,
     LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore,
-    SchedulerCommitStore, TimelineDriverResult, WorkError, WorkRecord, WorkStatus, WorkTarget,
-    WorkTerminalState, WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldTimeError,
+    SchedulerCommitStore, TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError,
+    WorkRecord, WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -2276,4 +2276,89 @@ async fn concurrent_claims_choose_one_fence_winner() {
         )),
         1
     );
+}
+
+#[tokio::test]
+async fn current_head_fork_clones_only_pending_work_and_is_idempotent_for_child_id() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("source Timeline should be created");
+    let mut source_work = pending_work(work(80));
+    source_work.attempt_count = 4;
+    source_work.claim_generation = 7;
+    source_work.available_at = PlatformTime::new(99);
+    source_work.last_error = Some("transient".to_owned());
+    source_work.lease = Some(loom_runtime::WorkLease::new(100.into(), 7));
+    store
+        .seed_work(source_work.clone())
+        .expect("source Pending Work should be seeded");
+
+    let mut child_work = source_work.clone();
+    child_work.id = work(81);
+    child_work.timeline_id = second_timeline();
+    let fork = TimelineFork::new(timeline(), TimelineVersion::default(), second_timeline())
+        .with_pending_work(vec![ForkWork {
+            source_work_id: source_work.id,
+            work: child_work,
+        }]);
+    let child = TimelineForkStore::fork_timeline(&store, &fork)
+        .await
+        .expect("head fork should commit atomically");
+
+    assert_eq!(child.world_id(), world());
+    assert_eq!(child.ancestry().parent_timeline_id, Some(timeline()));
+    assert_eq!(
+        child.ancestry().fork_parent_version,
+        Some(TimelineVersion::default())
+    );
+    assert!(
+        child.events.is_empty(),
+        "ancestor Events must not be copied"
+    );
+    let inherited = &child.works[0];
+    assert_eq!(inherited.id, work(81));
+    assert_eq!(
+        inherited.effective_due_world_time,
+        source_work.effective_due_world_time
+    );
+    assert_eq!(
+        inherited.logical_schedule_order,
+        source_work.logical_schedule_order
+    );
+    assert_eq!(inherited.attempt_count, 0);
+    assert_eq!(inherited.claim_generation, 0);
+    assert_eq!(inherited.available_at, PlatformTime::default());
+    assert!(inherited.last_error.is_none());
+    assert!(inherited.lease.is_none());
+
+    let second = TimelineForkStore::fork_timeline(&store, &fork)
+        .await
+        .expect("retrying the same child identity should be idempotent");
+    assert_eq!(second.ancestry(), child.ancestry());
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("source should remain readable")
+            .works[0],
+        source_work
+    );
+
+    let mut invalid_work = source_work.clone();
+    invalid_work.id = work(82);
+    invalid_work.timeline_id = id(4);
+    invalid_work.payload = json!({"tampered": true});
+    let invalid_fork = TimelineFork::new(timeline(), TimelineVersion::default(), id(4))
+        .with_pending_work(vec![ForkWork {
+            source_work_id: source_work.id,
+            work: invalid_work,
+        }]);
+    assert!(matches!(
+        TimelineForkStore::fork_timeline(&store, &invalid_fork).await,
+        Err(loom_runtime::ForkError::InvalidWork { .. })
+    ));
+    assert!(matches!(
+        store.snapshot(id(4)),
+        Err(loom_runtime::ReadError::TimelineNotFound { .. })
+    ));
 }
