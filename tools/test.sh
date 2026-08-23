@@ -6,15 +6,8 @@ cd "$ROOT_DIR"
 
 ENV_FILE="${LOOM_TEST_ENV_FILE:-.env.test.local}"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "$ENV_FILE does not exist." >&2
-  echo "Initialize the local PostgreSQL test service first:" >&2
-  echo "  bash tools/postgres-test.sh up" >&2
-  exit 2
-fi
-
-# Keep the repository-owned local PostgreSQL service available before running
-# integration tests. `docker compose up -d` is idempotent when it is already up.
+# Ensure the repository-managed PostgreSQL test service exists and is running.
+# On first use, postgres-test.sh also creates the local ignored env file.
 bash tools/postgres-test.sh up >/dev/null
 
 set -a
