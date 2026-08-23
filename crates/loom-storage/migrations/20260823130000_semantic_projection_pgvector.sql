@@ -23,7 +23,6 @@ CREATE TABLE loom_semantic_projection_index (
     dimensions INTEGER NOT NULL CHECK (dimensions BETWEEN 1 AND 4096),
     metric TEXT NOT NULL CHECK (metric IN ('cosine', 'euclidean', 'inner_product')),
     PRIMARY KEY (world_id, timeline_id, index_id),
-    UNIQUE (timeline_id, index_id),
     CHECK (source_kind <> ''),
     CHECK (source_type_id <> ''),
     FOREIGN KEY (timeline_id) REFERENCES loom_timeline(timeline_id) ON DELETE CASCADE

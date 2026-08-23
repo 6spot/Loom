@@ -292,3 +292,45 @@ async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
     storage.close().await;
     database.cleanup().await;
 }
+
+#[tokio::test]
+async fn postgres_overlapping_register_is_idempotent_on_authoritative_key() {
+    let Some(database) = TestDatabase::provision("semantic_projection_register").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let pool = database.pool().await;
+    let world_id = id::<WorldId>(201);
+    let timeline_id = id::<TimelineId>(202);
+    WorldLifecycleStore::create_world(&storage, world_id, timeline_id, WorldInstant::default())
+        .await
+        .expect("PostgreSQL projection scope should exist");
+    let first = storage.clone();
+    let second = storage.clone();
+    let registration = registration(world_id, timeline_id);
+    let (first_result, second_result) = tokio::join!(
+        SemanticProjectionStore::register_semantic_projection(&first, registration.clone()),
+        SemanticProjectionStore::register_semantic_projection(&second, registration),
+    );
+    assert!(
+        first_result.is_ok(),
+        "first register failed: {first_result:?}"
+    );
+    assert!(
+        second_result.is_ok(),
+        "second register failed: {second_result:?}"
+    );
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM loom_semantic_projection_index WHERE world_id = $1::uuid AND timeline_id = $2::uuid AND index_id = $3",
+    )
+    .bind(world_id.to_string())
+    .bind(timeline_id.to_string())
+    .bind("test.semantic")
+    .fetch_one(&pool)
+    .await
+    .expect("registration count should be readable");
+    assert_eq!(count, 1);
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
