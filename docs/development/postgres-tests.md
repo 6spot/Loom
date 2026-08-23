@@ -1,6 +1,6 @@
 # Local PostgreSQL integration tests
 
-Loom PostgreSQL integration tests use a long-lived local PostgreSQL 18 + pgvector service as a **control database**. Individual test fixtures create a unique child database, apply Loom migrations, run the test, and drop the child database afterwards.
+Loom PostgreSQL integration tests use one long-lived local PostgreSQL 18 + pgvector service as a **control database**. Individual test fixtures create a unique child database, apply Loom migrations, run the test, and drop the child database afterwards.
 
 The local service is intentionally bound only to `127.0.0.1` and is not exposed on the machine's public interfaces.
 
@@ -28,22 +28,28 @@ postgresql://loom:loom@127.0.0.1:15432/loom_control
 
 This means a direct `cargo test` also runs PostgreSQL integration bodies when the local service is already available. If the control database cannot be reached, the PostgreSQL test fails with an instruction to start the repository-managed service instead of reporting a false pass.
 
-`LOOM_TEST_POSTGRES_URL` remains available as an explicit override for CI or a non-default development topology. There is no separate environment switch that enables or disables PostgreSQL test execution.
+`LOOM_TEST_POSTGRES_URL` is the only connection override. Use it for CI or a development topology where the tests cannot reach the repository-managed localhost service. There is no separate environment switch that enables or disables PostgreSQL test execution.
 
-The service uses `pgvector/pgvector:0.8.6-pg18` with local-test-only defaults:
+## Local service contract
+
+The repository-managed service is deliberately fixed:
 
 ```text
+image: pgvector/pgvector:0.8.6-pg18
 user: loom
 password: loom
 database: loom_control
 address: 127.0.0.1:15432
+compose project: loom
 ```
 
-Because the port is bound to loopback only, these credentials are not deployment secrets. `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `POSTGRES_PORT` may still be overridden when using the wrapper. An existing ignored `.env.test.local` is honored for compatibility, but it is no longer created or required.
+These are local-test-only values, not deployment credentials. The fixed Compose project name makes every checkout and Multica worktree on the same host address the same container and named volume instead of creating per-worktree PostgreSQL services.
 
 Docker Compose reuses the existing image, container and named volume when their configuration already matches. It pulls the image or creates service state only when missing. The named volume preserves the control database across normal container restarts.
 
-The configured role must be able to create/drop databases because `crates/loom-storage/tests/support` provisions an isolated database per fixture.
+Older test volumes may have been initialized with a generated password. `tools/postgres-test.sh up` reconciles the local `loom` role to the current fixed test password after PostgreSQL becomes healthy, so an old volume does not require a manual reset.
+
+The configured role can create/drop databases because `crates/loom-storage/tests/support` provisions an isolated database per fixture.
 
 ## Manage the local service
 
