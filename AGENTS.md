@@ -1,118 +1,72 @@
-# Loom Development Guardrails
+# Loom Agent Guide
 
-This repository is architecture-first. `AGENTS.md` is an execution index, **not an independent architecture specification**.
+`AGENTS.md` is the execution entry point for contributors and coding agents. It is **not** an architecture specification, project-status summary, operational runbook, or history of past mistakes.
 
-Before changing code, crate dependencies, public APIs, Capability contracts or Runtime behavior, read:
+## Source of truth
 
-1. `docs/architecture/README.md` — document authority / precedence / reverse supersession / amendments / open questions
-2. `docs/architecture/glossary.md` — canonical terminology
-3. `docs/vision.md`
-4. `docs/principles.md`
-5. the canonical architecture documents required by the task (`core.md`, `layers.md`, `world-runtime.md`, `runtime-contracts.md`, `evolution.md`, `implementation.md`, `governance.md`)
-6. **all accepted `docs/architecture/amendments/*.md` that affect the cited baseline sections**
-7. `docs/tasks/README.md` and the active task file only after the post-architecture implementation plan is rebuilt and activated
+Start with [`docs/README.md`](docs/README.md). It routes each kind of question to the current canonical source:
 
-Do not treat a summary in README, Principles, AGENTS or an old Issue as authority when the Architecture Index points to a canonical source.
+- architecture, semantics, ownership and dependency boundaries → `docs/architecture/`;
+- development and test procedures → `docs/development/`;
+- deployment procedures → `docs/deployment/` when present;
+- implementation plan, status and completion evidence → `docs/tasks/`.
 
-Before converting any frozen baseline section into an implementation task, **resolve it against the Architecture Index reverse supersession table**. If that section is amended, the task must cite the overriding Amendment as part of its acceptance basis.
+Do not recover current requirements or commands from chat history, closed Issues, superseded task records, old documents, or an implementation that conflicts with the canonical documentation.
 
-## Current architecture status
+For architecture work, [`docs/architecture/README.md`](docs/architecture/README.md) defines document precedence, reverse supersession, accepted Amendments and deferred decisions. Resolve affected baseline clauses through that index before implementing them.
 
-The Loom v0 architecture baseline is frozen and may be changed only through explicit Architecture Amendments.
+## Before you work
 
-Accepted Amendment 0001 closes runtime liveness/boundary gaps around:
+1. Read `docs/README.md` and locate the canonical documents for the task.
+2. Identify the active task record and linked GitHub Issue when the work belongs to the V0 implementation plan.
+3. Read the relevant architecture sources and all accepted Amendments that supersede affected clauses before changing semantics, public APIs, crate dependencies or authority boundaries.
+4. Inspect the current code and tests before deciding what must change.
+5. Use the current development or deployment guide for environment setup and operational commands instead of inventing a parallel procedure.
 
-- bounded Runtime Work failure policy and terminal exit;
-- same-World-Time chronology budget;
-- Runtime ownership of Scheduler/Timeline Driver logic;
-- `SKIP LOCKED` scope;
-- Runtime ownership of Event occurrence-time stamping;
-- Ingress as a reliable external envelope around the normal Action path;
-- World Template technical placement / `ValidatedWorldBirthPlan` authority;
-- Intent / Trigger / Reaction / Actor / Agent terminology reconciliation.
+## Execution rules
 
-Accepted Amendment 0002 closes amendment/linkage gaps around:
+- Implement the accepted task scope; do not turn implementation work into an implicit architecture redesign.
+- Follow architecture-owned crate boundaries, dependency rules, public exposure rules and authority placement rather than moving responsibilities for convenience.
+- Do not create a second authority path, API path, initialization path or operational workflow when the repository already defines one.
+- When replacing a workflow or procedure, update the canonical guide and remove obsolete instructions instead of leaving competing alternatives.
+- Keep implementation-specific details out of architecture documents unless they change the architecture contract.
+- Keep operational commands out of `AGENTS.md`; they belong in the appropriate current guide under `docs/development/` or `docs/deployment/`.
+- Keep task files as audit records, not scratchpads or alternate specifications.
+- Add or update tests for behavior changes at the layer that owns the contract.
+- Do not weaken, skip or rewrite a failing contract merely to make a task pass unless the canonical architecture explicitly requires that contract to change.
 
-- exact baseline-clause supersession mapping;
-- one complete Scheduler claim/admission checklist;
-- Chronology Budget consumption as Timeline Logical State;
-- current mandatory CI baseline (Ubuntu; macOS currently deferred);
-- `TimelineBlockedOnMissingImplementation` observability;
-- mandatory exact affected-clause indexes for future Amendments.
+## Task lifecycle
 
-Accepted Amendment 0003 closes the remaining Agency/read-path execution gaps around:
+Follow [`docs/tasks/README.md`](docs/tasks/README.md) for task state and evidence rules.
 
-- Agent Wake as a Scheduler-managed durable execution obligation rather than a hidden timer/provider callback;
-- Runtime-owned Agent-wake Session/claim/provenance/commit orchestration while `loom-agency` owns subjective context/cognition contracts;
-- AgentWorldView production through Runtime-mediated, World-Binding-checked reads;
-- target-specific Capability Work vs Agency Wake compatibility at Scheduler admission;
-- pinned `BaseWorldView` semantics without requiring eager complete World materialization;
-- explicit v0 Timeline-wide successful-commit serialization and deferred fine-grained validation;
-- explicit deferral of worker executor/`Send`-`Sync` topology and historical checkpoint acceleration.
+When implementation starts, keep the active task record in sync with the work. When work is blocked, record the blocker rather than silently changing scope. A task is complete only when its acceptance criteria and required verification pass and its completion evidence is recorded.
 
-The next phase is **re-planning**, not resuming the old roadmap by inertia.
+GitHub Issues are the collaboration surface; repository task files are the durable implementation audit trail. They must agree on the final state.
 
-Until the rebuilt V0 implementation plan, Issues and task records are activated:
+## Verification
 
-- do not start implementation merely because an old Issue/task says it is next;
-- do not reinterpret old task ordering as authoritative;
-- do not change code to prove or invent architecture not already covered by the canonical docs/amendments;
-- do not modify Issues/tasks as part of architecture cleanup unless the planning phase explicitly begins.
+Use the repository's current CI workflow and development guides as the source for required verification.
 
-## Mandatory execution rules
+- Run the checks relevant to the changed code and contract.
+- Run required integration tests against the documented test environment.
+- Do not claim a check passed unless it was actually executed successfully.
+- If a required check cannot be run, report exactly what is unverified and why.
+- Keep CI configuration aligned with supported repository environments rather than adding disposable one-off workflows.
 
-Rather than duplicating every architecture invariant here, follow these canonical sources:
+## Stop conditions
 
-- Core/world semantics: `docs/architecture/core.md`
-- Semantic layers: `docs/architecture/layers.md`
-- World Binding / World Time / Logical Commit / Session / baseline Work chronology: `docs/architecture/world-runtime.md`
-- Detailed Runtime/Capability execution protocol: `docs/architecture/runtime-contracts.md`
-- Runtime liveness / failure / Scheduler / Ingress / Template semantics: `docs/architecture/amendments/0001-runtime-liveness-and-boundaries.md`
-- Supersession mapping / chronology-budget authority / current CI / blocked-state observability: `docs/architecture/amendments/0002-supersession-and-authority-linkage.md`
-- Agent Wake orchestration / pinned-read semantics / Timeline commit-serialization clarification: `docs/architecture/amendments/0003-agency-execution-and-pinned-read-boundary.md`
-- Software evolution: `docs/architecture/evolution.md`
-- Cargo DAG / public exposure / authority type placement: `docs/architecture/governance.md`
-- Technical realization / persistence / dependency choices: `docs/architecture/implementation.md`
+Stop implementation and resolve the source of truth before continuing when any of these occurs:
 
-A few repository-wide guardrails are worth repeating because violating them is almost always a wrong-layer implementation:
+- the requested behavior requires a semantic or authority decision not covered by the current architecture;
+- the active task conflicts with the architecture authority map or an accepted Amendment;
+- two current documents prescribe different procedures for the same workflow;
+- satisfying the task would require changing its accepted scope or violating a documented boundary;
+- the task has been cancelled, superseded or replaced by a newer plan.
 
-- Runtime authority must not be moved into a shared crate for convenience.
-- Capability/Agency contracts must not depend on Runtime.
-- Runtime must not depend on concrete Storage/Boundary/Capability/provider implementations.
-- Storage implements Runtime-owned ports; it does not define World truth, Timeline chronology or scheduler order.
-- Boundary/Application consumers use `loom-api`; no Capability-specific public bypass.
-- Semantic World State mutation requires committed Event + frozen Effects.
-- Timeline logical mutation requires Runtime-owned Logical Commit.
-- PlatformClock/lease/retry/DB order must not become World Time or same-Timeline chronology.
-- Capability `WorkHandler` / `ResolutionContext` must not gain a generic CognitiveExecutor/provider/network handle to implement Agent autonomy; Agent Wake follows Amendment 0003.
-- A pinned `BaseWorldView` means one logical snapshot position, **not** mandatory full-World eager loading. Any scalable read path must still prevent mixed-revision observations and persistence-authority leakage.
-- Successful v0 Logical Commits serialize at Timeline scope; do not claim fine-grained same-Timeline write concurrency until an accepted Amendment changes that authority model.
-- Public Core/Protocol/API/Runtime/Capability abstractions require semantic Rust documentation sufficient to recover ownership/authority without chat history.
+Architecture gaps are resolved through the Amendment process defined by `docs/architecture/README.md`, not by encoding a new decision directly in code or task prose.
 
-For exact terminology such as semantic due-ness, operational claimability, Logical Head, Chronology Budget, Agent Wake, Pinned Read Boundary, Timeline-wide Commit Serialization, Ingress, Intent, Trigger, Reaction, Actor and Agent, use `docs/architecture/glossary.md` instead of inventing local meanings.
+## Maintaining this file
 
-For Scheduler claim/admission, do **not** reconstruct a checklist from older baseline summaries. Use Amendment 0001 §9 + Amendment 0002 §2; when the logical head is Agency Wake, also apply Amendment 0003 §3.2 target-specific compatibility.
+Keep `AGENTS.md` short and stable. Add a rule here only when it is a repository-wide execution rule that applies across tasks.
 
-## Operational documentation
-
-`AGENTS.md` does not duplicate development, testing or deployment commands. Use `docs/README.md` to locate the current operational guide for a topic. Keep one current guide per workflow and remove superseded instructions instead of maintaining competing procedures.
-
-## Task records
-
-GitHub Issues are the collaboration surface; repository task files are the durable audit trail **once the rebuilt implementation plan is active**.
-
-When an approved implementation task starts, update its task file in the implementation branch/PR. When completing it, satisfy its acceptance checklist, record evidence, mark it completed, and close the matching GitHub Issue. Duplicate/cancelled/superseded work must record its reason/replacement rather than being marked completed.
-
-Architecture work itself does not silently rewrite implementation task history.
-
-## Architecture changes
-
-If an implementation requirement cannot be expressed by the frozen baseline + accepted Amendments:
-
-1. stop implementation of that violating design;
-2. write/review an Architecture Amendment with the concrete counterexample;
-3. include the exact affected document + section index;
-4. update the Architecture Index reverse supersession table and glossary as required;
-5. only then re-plan and implement.
-
-Do not make architecture documentation conform to already-written violating code.
+Do **not** append incident-specific warnings, architecture summaries, current milestone summaries, copied runbooks or reminders about one agent's previous mistake. Fix recurring problems at their source: the canonical document, repository script, test contract, CI configuration, or architecture rule that owns the behavior.
