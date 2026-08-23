@@ -6,7 +6,7 @@ depends_on: [173]
 created_at: 2026-08-22
 started_at: 2026-08-24
 completed_at:
-completion_pr:
+completion_pr: 230
 merge_sha:
 ---
 # M8-T1 — Ingress and Subscription API contracts
