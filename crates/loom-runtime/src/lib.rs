@@ -110,16 +110,20 @@ pub use persistence::{
     CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
     ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
     FailurePolicyError, ForkError, ForkMaterialization, ForkWork, LifecycleError, LogicalCommit,
-    LogicalJournalRecord, LogicalJournalStore, LogicalWorkTransition, ManualPlatformClock,
+    LogicalJournalRecord, LogicalJournalStore, LogicalWorkTransition, MAX_SEMANTIC_PROJECTION_ROWS,
+    MAX_SEMANTIC_QUERY_RESULTS, MAX_SEMANTIC_VECTOR_DIMENSIONS, ManualPlatformClock,
     PersistenceFuture, PlatformClock, PlatformTime, ReadError, RuntimeCapabilityImplementation,
     RuntimeControlStore, RuntimeRevision, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SessionError, TimelineBlockedOnMissingImplementation,
-    TimelineDriverBlock, TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
-    WorkClaim, WorkError, WorkLease, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
-    WorkTerminalization, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
+    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionRow, SemanticProjectionStore, SessionError,
+    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord,
+    WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldCreation,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
+    WorldTimeStore, WorldTimeTransition,
 };
 pub use pinned_reads::{
     PinnedFacet, PinnedRead, PinnedReadBoundary, PinnedReadCache, PinnedReadMetrics,
@@ -141,6 +145,8 @@ pub use views::{
 };
 
 pub use loom_capability::SemanticKind;
+/// Generic Capability-owned semantic index metadata used by Runtime ports.
+pub use loom_capability::{SemanticIndexId, SemanticIndexMetric, SemanticIndexSource};
 /// Frozen proposed Event representation consumed by Runtime persistence adapters.
 ///
 /// This explicit export exists because adapters such as `loom-storage` depend on

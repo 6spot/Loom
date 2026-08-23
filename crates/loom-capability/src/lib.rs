@@ -304,6 +304,172 @@ impl CapabilityManifest {
     }
 }
 
+/// Stable Capability-owned identity of a semantic/vector index.
+///
+/// This is registry metadata only. It is not an embedding-provider handle,
+/// storage key or World-State identity.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
+pub struct SemanticIndexId(String);
+
+impl SemanticIndexId {
+    /// Creates a stable semantic index identity.
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Borrows the stable index key.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Reports whether the key is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for SemanticIndexId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for SemanticIndexId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl fmt::Display for SemanticIndexId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+/// Generic semantic source metadata for one Capability-owned index.
+///
+/// `kind` and `type_id` identify the source semantic without importing a
+/// provider or database vocabulary. The source schema revision is retained so
+/// a rebuild cannot silently reinterpret an older source shape.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SemanticIndexSource {
+    /// Capability-defined source category, for example `facet` or `event`.
+    pub kind: String,
+    /// Stable source semantic key within `kind`.
+    pub type_id: String,
+    /// Source schema revision used to derive vectors.
+    pub schema_revision: SchemaRevision,
+}
+
+impl SemanticIndexSource {
+    /// Creates source metadata for a semantic index.
+    #[must_use]
+    pub fn new(
+        kind: impl Into<String>,
+        type_id: impl Into<String>,
+        schema_revision: SchemaRevision,
+    ) -> Self {
+        Self {
+            kind: kind.into(),
+            type_id: type_id.into(),
+            schema_revision,
+        }
+    }
+}
+
+/// Distance/similarity metric understood by the Runtime-owned projection
+/// port. The concrete SQL operator is a Storage implementation detail.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum SemanticIndexMetric {
+    /// Cosine distance; lower values are more similar.
+    Cosine,
+    /// Euclidean (L2) distance; lower values are more similar.
+    Euclidean,
+    /// Negative inner product distance; lower values are more similar.
+    InnerProduct,
+}
+
+impl SemanticIndexMetric {
+    /// Returns the stable metadata spelling used by adapters.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cosine => "cosine",
+            Self::Euclidean => "euclidean",
+            Self::InnerProduct => "inner_product",
+        }
+    }
+}
+
+/// Capability-owned declaration of one rebuildable semantic index.
+///
+/// The definition contains only generic discovery metadata. It deliberately
+/// has no vector client, provider SDK, generated embedding or persistence
+/// handle. Projection rows are subordinate materializations of this contract.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SemanticIndexDefinition {
+    /// Stable index identity.
+    pub id: SemanticIndexId,
+    /// Semantic source and source schema revision.
+    pub source: SemanticIndexSource,
+    /// Revision of this index's interpretation/configuration schema.
+    pub schema_revision: SchemaRevision,
+    /// Monotonic projection algorithm/configuration revision.
+    pub projection_revision: u64,
+    /// Opaque, provider-neutral model revision metadata.
+    pub model_revision: String,
+    /// Required vector dimensions.
+    pub dimensions: u32,
+    /// Similarity metric used by bounded queries.
+    pub metric: SemanticIndexMetric,
+    /// Generic configuration metadata owned by the Capability.
+    pub configuration: Value,
+    /// Human-readable discovery description.
+    pub description: String,
+}
+
+impl SemanticIndexDefinition {
+    /// Creates an index definition with an empty description.
+    #[must_use]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the frozen semantic index metadata is one typed declaration"
+    )]
+    pub fn new(
+        id: impl Into<SemanticIndexId>,
+        source: SemanticIndexSource,
+        schema_revision: SchemaRevision,
+        projection_revision: u64,
+        model_revision: impl Into<String>,
+        dimensions: u32,
+        metric: SemanticIndexMetric,
+        configuration: Value,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            source,
+            schema_revision,
+            projection_revision,
+            model_revision: model_revision.into(),
+            dimensions,
+            metric,
+            configuration,
+            description: String::new(),
+        }
+    }
+
+    /// Sets a human-readable discovery description.
+    #[must_use]
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+}
+
 /// Schema metadata for one Capability-owned Facet semantic type.
 ///
 /// A `FacetDefinition` describes the shape of Timeline-local state; it does not
@@ -1212,6 +1378,8 @@ pub enum SemanticKind {
     WorkHandler,
     /// Event-to-Work reaction registration category.
     Reaction,
+    /// Capability-owned semantic/vector index registration category.
+    SemanticIndex,
 }
 
 impl fmt::Display for SemanticKind {
@@ -1224,6 +1392,7 @@ impl fmt::Display for SemanticKind {
             Self::Action => "action",
             Self::WorkHandler => "work_handler",
             Self::Reaction => "reaction",
+            Self::SemanticIndex => "semantic_index",
         };
         formatter.write_str(name)
     }
@@ -1483,6 +1652,7 @@ pub struct CapabilityRegistrar {
     work_handlers: Vec<(WorkHandlerDefinition, Arc<dyn WorkHandler>)>,
     invariants: Vec<Arc<dyn Invariant>>,
     reactions: Vec<Reaction>,
+    semantic_indexes: Vec<SemanticIndexDefinition>,
     first_error: Option<RegistrationError>,
 }
 
@@ -1499,6 +1669,7 @@ impl CapabilityRegistrar {
             work_handlers: Vec::new(),
             invariants: Vec::new(),
             reactions: Vec::new(),
+            semantic_indexes: Vec::new(),
             first_error: None,
         }
     }
@@ -1687,6 +1858,54 @@ impl CapabilityRegistrar {
         Ok(())
     }
 
+    /// Registers one Capability-owned semantic index definition.
+    ///
+    /// Registration validates only generic metadata. Vector generation and
+    /// projection persistence remain outside the Capability registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a deterministic duplicate or invalid-metadata error.
+    pub fn register_semantic_index(
+        &mut self,
+        definition: SemanticIndexDefinition,
+    ) -> Result<(), RegistrationError> {
+        if self
+            .semantic_indexes
+            .iter()
+            .any(|item| item.id == definition.id)
+        {
+            return self.record_error(RegistrationError::DuplicateLocal {
+                kind: SemanticKind::SemanticIndex,
+                id: definition.id.to_string(),
+            });
+        }
+        let reason = if definition.id.is_empty() {
+            Some("index identity cannot be empty".to_owned())
+        } else if definition.source.kind.is_empty() {
+            Some("index source kind cannot be empty".to_owned())
+        } else if definition.source.type_id.is_empty() {
+            Some("index source type cannot be empty".to_owned())
+        } else if definition.projection_revision == 0 {
+            Some("projection revision must be greater than zero".to_owned())
+        } else if definition.model_revision.is_empty() {
+            Some("model revision cannot be empty".to_owned())
+        } else if definition.dimensions == 0 || definition.dimensions > 4_096 {
+            Some("dimensions must be between 1 and 4096".to_owned())
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return self.record_error(RegistrationError::InvalidDefinition {
+                kind: SemanticKind::SemanticIndex,
+                id: definition.id.to_string(),
+                reason,
+            });
+        }
+        self.semantic_indexes.push(definition);
+        Ok(())
+    }
+
     fn record_error<T>(&mut self, error: RegistrationError) -> Result<T, RegistrationError> {
         if self.first_error.is_none() {
             self.first_error = Some(error.clone());
@@ -1707,6 +1926,7 @@ impl CapabilityRegistrar {
             work_handlers: self.work_handlers,
             invariants: self.invariants,
             reactions: self.reactions,
+            semantic_indexes: self.semantic_indexes,
         })
     }
 }
@@ -1743,6 +1963,7 @@ struct RegistrationBatch {
     work_handlers: Vec<(WorkHandlerDefinition, Arc<dyn WorkHandler>)>,
     invariants: Vec<Arc<dyn Invariant>>,
     reactions: Vec<Reaction>,
+    semantic_indexes: Vec<SemanticIndexDefinition>,
 }
 
 /// A Facet definition together with its unique owning Capability.
@@ -1868,6 +2089,15 @@ pub struct RegisteredReaction {
     pub reaction: Reaction,
 }
 
+/// A semantic index definition together with its unique owning Capability.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RegisteredSemanticIndex {
+    /// Capability that owns and interprets this index.
+    pub owner: CapabilityId,
+    /// Registered generic index metadata.
+    pub definition: SemanticIndexDefinition,
+}
+
 /// Central semantic registry for assembled Capabilities.
 ///
 /// The registry is the single ownership index for Facet, Relationship, Event,
@@ -1887,6 +2117,7 @@ pub struct CapabilityRegistry {
     work_handlers: BTreeMap<WorkHandlerId, RegisteredWorkHandler>,
     invariants: Vec<RegisteredInvariant>,
     reactions: Vec<RegisteredReaction>,
+    semantic_indexes: BTreeMap<SemanticIndexId, RegisteredSemanticIndex>,
 }
 
 impl Default for CapabilityRegistry {
@@ -1915,6 +2146,7 @@ impl CapabilityRegistry {
             work_handlers: BTreeMap::new(),
             invariants: Vec::new(),
             reactions: Vec::new(),
+            semantic_indexes: BTreeMap::new(),
         }
     }
 
@@ -2156,6 +2388,17 @@ impl CapabilityRegistry {
         self.reactions.iter()
     }
 
+    /// Returns a registered semantic index and its owner.
+    #[must_use]
+    pub fn semantic_index(&self, id: &SemanticIndexId) -> Option<&RegisteredSemanticIndex> {
+        self.semantic_indexes.get(id)
+    }
+
+    /// Iterates semantic index definitions in deterministic key order.
+    pub fn semantic_indexes(&self) -> impl Iterator<Item = &RegisteredSemanticIndex> {
+        self.semantic_indexes.values()
+    }
+
     /// Dispatches one Action through its registered resolver.
     ///
     /// # Errors
@@ -2269,6 +2512,16 @@ impl CapabilityRegistry {
                 });
             }
         }
+        for definition in &batch.semantic_indexes {
+            if let Some(existing) = self.semantic_indexes.get(&definition.id) {
+                return Err(RegistryError::DuplicateSemantic {
+                    kind: SemanticKind::SemanticIndex,
+                    id: definition.id.to_string(),
+                    existing_owner: existing.owner.clone(),
+                    attempted_owner: batch.owner.clone(),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -2341,6 +2594,15 @@ impl CapabilityRegistry {
                     reaction,
                 }),
         );
+        for definition in batch.semantic_indexes {
+            self.semantic_indexes.insert(
+                definition.id.clone(),
+                RegisteredSemanticIndex {
+                    owner: owner.clone(),
+                    definition,
+                },
+            );
+        }
     }
 
     fn validate_dependency_cycles(&self) -> Result<(), RegistryError> {

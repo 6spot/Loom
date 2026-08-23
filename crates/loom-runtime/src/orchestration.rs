@@ -20,9 +20,9 @@ use loom_api::{
     CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
     ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
     ForkTimelineRequest, HistoryService, QueryService, ReactionDescriptor, RelationshipDescriptor,
-    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, TimelineService,
-    TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage, WorkHandlerDescriptor,
-    WorldService, WorldTemplateDescriptor,
+    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, SemanticIndexDescriptor,
+    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage,
+    WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
@@ -46,13 +46,15 @@ use crate::{
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
     RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
-    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
-    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError,
+    SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
+    SessionError, TimelineBlockedOnMissingImplementation, TimelineDriverBlock,
+    TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
+    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
 
 use super::validation::ResolutionSegment;
@@ -1714,6 +1716,39 @@ where
     }
 }
 
+impl<T> SemanticProjectionStore for &T
+where
+    T: SemanticProjectionStore + ?Sized,
+{
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        (**self).register_semantic_projection(registration)
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
+        (**self).query_semantic_projection(query)
+    }
+
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+        (**self).rebuild_semantic_projection(rebuild)
+    }
+
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        (**self).delete_semantic_projection(key)
+    }
+}
+
 impl<S> WorldService for Runtime<S>
 where
     S: WorldStore
@@ -2178,6 +2213,198 @@ where
     }
 }
 
+impl<S> Runtime<S>
+where
+    S: SemanticProjectionStore + WorldRuntimeBindingStore + RuntimeRevisionStore,
+{
+    /// Registers one projection scope after checking its metadata against the
+    /// Capability-owned semantic index definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed metadata, registry or persistence error.
+    pub async fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> Result<(), SemanticProjectionError> {
+        validate_projection_registration(&self.registry, &registration)?;
+        self.store.register_semantic_projection(registration).await
+    }
+
+    /// Queries one registered projection through the Runtime-owned port.
+    /// Storage never receives a Capability registry or a provider handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry, bound, mismatch or persistence error.
+    pub async fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
+        validate_projection_query_index(&self.registry, &query.key)?;
+        self.ensure_semantic_index_enabled(
+            query.key.world_id,
+            query.key.timeline_id,
+            &query.key.index_id,
+        )
+        .await?;
+        self.store.query_semantic_projection(query).await
+    }
+
+    /// Atomically rebuilds one projection after checking its definition and
+    /// bounded row set.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry, revision, bound or persistence error.
+    pub async fn rebuild_semantic_projection(
+        &self,
+        rebuild: &SemanticProjectionRebuild,
+    ) -> Result<(), SemanticProjectionError> {
+        validate_projection_registration(&self.registry, &rebuild.registration)?;
+        self.store.rebuild_semantic_projection(rebuild).await
+    }
+
+    /// Deletes only the projection materialization; World authority is not
+    /// addressed by this operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed registry or persistence error.
+    pub async fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> Result<(), SemanticProjectionError> {
+        validate_projection_query_index(&self.registry, &key)?;
+        self.store.delete_semantic_projection(key).await
+    }
+
+    async fn ensure_semantic_index_enabled(
+        &self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        index_id: &loom_capability::SemanticIndexId,
+    ) -> Result<(), SemanticProjectionError> {
+        let binding = self
+            .store
+            .read_binding(world_id)
+            .await
+            .map_err(|error| match error {
+                BindingError::WorldNotFound { world_id } => {
+                    SemanticProjectionError::ScopeNotFound {
+                        world_id,
+                        timeline_id,
+                    }
+                }
+                BindingError::BindingNotFound { .. }
+                | BindingError::BindingAlreadyExists { .. }
+                | BindingError::StorageUnavailable { .. } => {
+                    SemanticProjectionError::StorageUnavailable {
+                        message: "World Runtime Binding is unavailable".to_owned(),
+                    }
+                }
+            })?;
+        let index = self
+            .registry
+            .semantic_index(index_id)
+            .expect("query index was validated immediately before availability check");
+        let manifest = self
+            .registry
+            .capability(&index.owner)
+            .expect("registered semantic index owner must have a manifest");
+        if !binding.allows(&index.owner, &manifest.version) {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "world_binding".to_owned(),
+                expected: "enabled".to_owned(),
+                actual: "disabled".to_owned(),
+            });
+        }
+        let active = self.store.select_active_revision().await.map_err(|_| {
+            SemanticProjectionError::StorageUnavailable {
+                message: "Runtime Revision selection is unavailable".to_owned(),
+            }
+        })?;
+        if let Some(active) = active
+            && !active
+                .revision()
+                .capability(&index.owner)
+                .is_some_and(|implementation| {
+                    implementation.version() == &manifest.version
+                        && implementation.loom_compatibility() == &manifest.loom_compatibility
+                })
+        {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "runtime_revision".to_owned(),
+                expected: "compatible".to_owned(),
+                actual: "incompatible".to_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+fn validate_projection_query_index(
+    registry: &CapabilityRegistry,
+    key: &SemanticProjectionKey,
+) -> Result<(), SemanticProjectionError> {
+    if registry.semantic_index(&key.index_id).is_none() {
+        return Err(SemanticProjectionError::IndexNotRegistered { key: key.clone() });
+    }
+    Ok(())
+}
+
+fn validate_projection_registration(
+    registry: &CapabilityRegistry,
+    registration: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    let Some(index) = registry.semantic_index(&registration.key.index_id) else {
+        return Err(SemanticProjectionError::IndexNotRegistered {
+            key: registration.key.clone(),
+        });
+    };
+    let definition = &index.definition;
+    if definition.source != registration.source {
+        return Err(SemanticProjectionError::SourceMismatch {
+            expected: format!("{:?}", definition.source),
+            actual: format!("{:?}", registration.source),
+        });
+    }
+    if definition.schema_revision != registration.schema_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "schema_revision".to_owned(),
+            expected: definition.schema_revision.value().to_string(),
+            actual: registration.schema_revision.value().to_string(),
+        });
+    }
+    if definition.projection_revision != registration.projection_revision {
+        return Err(SemanticProjectionError::RevisionMismatch {
+            expected: definition.projection_revision,
+            actual: registration.projection_revision,
+        });
+    }
+    if definition.model_revision != registration.model_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "model_revision".to_owned(),
+            expected: definition.model_revision.clone(),
+            actual: registration.model_revision.clone(),
+        });
+    }
+    if definition.dimensions != registration.dimensions {
+        return Err(SemanticProjectionError::DimensionMismatch {
+            expected: definition.dimensions.to_string(),
+            actual: registration.dimensions.to_string(),
+        });
+    }
+    if definition.metric != registration.metric {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "metric".to_owned(),
+            expected: definition.metric.as_str().to_owned(),
+            actual: registration.metric.as_str().to_owned(),
+        });
+    }
+    Ok(())
+}
+
 const MAX_QUERY_PAGE_SIZE: u32 = 1_024;
 const MAX_CAUSAL_DEPTH: u32 = 64;
 const MAX_CAUSAL_RESULTS: u32 = 1_024;
@@ -2329,6 +2556,11 @@ fn project_catalog(
             &right.owner,
         ))
     });
+    let semantic_indexes = registry
+        .semantic_indexes()
+        .filter(|index| catalog_owner_visible(&index.owner, available))
+        .map(api_semantic_index_descriptor)
+        .collect();
     CatalogSnapshot {
         capabilities,
         actions,
@@ -2337,6 +2569,7 @@ fn project_catalog(
         events,
         work_handlers,
         reactions,
+        semantic_indexes,
     }
 }
 
@@ -2435,6 +2668,25 @@ fn api_reaction_descriptor(reaction: &loom_capability::RegisteredReaction) -> Re
         owner: reaction.owner.as_str().into(),
         event_type: reaction.reaction.event_type.clone(),
         handler: reaction.reaction.handler.clone(),
+    }
+}
+
+fn api_semantic_index_descriptor(
+    index: &loom_capability::RegisteredSemanticIndex,
+) -> SemanticIndexDescriptor {
+    SemanticIndexDescriptor {
+        id: index.definition.id.as_str().to_owned(),
+        owner: index.owner.as_str().into(),
+        source_kind: index.definition.source.kind.clone(),
+        source_type_id: index.definition.source.type_id.clone(),
+        source_schema_revision: index.definition.source.schema_revision,
+        schema_revision: index.definition.schema_revision,
+        projection_revision: index.definition.projection_revision,
+        model_revision: index.definition.model_revision.clone(),
+        dimensions: index.definition.dimensions,
+        metric: index.definition.metric.as_str().to_owned(),
+        configuration: index.definition.configuration.clone(),
+        description: index.definition.description.clone(),
     }
 }
 

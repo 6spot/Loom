@@ -10,7 +10,8 @@ use loom_api::{
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityId, CapabilityManifest,
     CapabilityRegistrar, CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError,
-    ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
+    ResolutionContext, ResolverError, SemanticIndexDefinition, SemanticIndexMetric,
+    SemanticIndexSource, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId,
@@ -23,7 +24,8 @@ use loom_protocol::{
 use loom_runtime::{
     EffectEngine, ExecutionSessionStore, FailurePolicy, LogicalWorkTransition, PlatformTime,
     Runtime, RuntimeError, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    SemanticKind, ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
+    SemanticKind, SemanticProjectionError, SemanticProjectionKey, SemanticProjectionQuery,
+    ValidationError, WorkRecord, WorkStatus, WorkTarget, WorldRuntimeBinding,
     WorldRuntimeBindingStore,
 };
 use loom_storage::InMemoryStore;
@@ -38,6 +40,8 @@ const COUNTER_INCREMENTED: &str = "counter.incremented";
 const COUNTER_OBSERVED: &str = "counter.observed";
 const COUNTER_WORK_HANDLER: &str = "counter.increment_work";
 const SECONDARY_CAPABILITY: &str = "counter.secondary";
+const COUNTER_INDEX: &str = "counter.semantic";
+const SECONDARY_INDEX: &str = "secondary.semantic";
 
 fn id<T>(value: u128) -> T
 where
@@ -156,6 +160,16 @@ impl Capability for CounterCapability {
                 entity_id: self.entity_id,
             },
         )?;
+        registrar.register_semantic_index(SemanticIndexDefinition::new(
+            COUNTER_INDEX,
+            SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+            SchemaRevision::new(1),
+            1,
+            "counter-model-1",
+            2,
+            SemanticIndexMetric::Cosine,
+            json!({"normalization": "unit"}),
+        ))?;
         Ok(())
     }
 }
@@ -169,7 +183,17 @@ impl Capability for SecondaryCapability {
         &self.manifest
     }
 
-    fn register(&self, _registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_semantic_index(SemanticIndexDefinition::new(
+            SECONDARY_INDEX,
+            SemanticIndexSource::new("event", COUNTER_OBSERVED, SchemaRevision::new(1)),
+            SchemaRevision::new(1),
+            1,
+            "secondary-model-1",
+            2,
+            SemanticIndexMetric::Euclidean,
+            json!({}),
+        ))?;
         Ok(())
     }
 }
@@ -729,6 +753,7 @@ async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projecti
 
     let global = api.catalog().expect("global catalog should be readable");
     assert_eq!(global.capabilities.len(), 2);
+    assert_eq!(global.semantic_indexes.len(), 2);
     assert_eq!(global.facets.len(), 1);
     assert_eq!(global.events.len(), 2);
     assert_eq!(global.work_handlers.len(), 1);
@@ -740,6 +765,25 @@ async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projecti
     assert_eq!(scoped.capabilities.len(), 1);
     assert_eq!(scoped.capabilities[0].id.as_str(), COUNTER_CAPABILITY);
     assert_eq!(scoped.actions.len(), 2);
+    assert_eq!(scoped.semantic_indexes.len(), 1);
+    assert_eq!(scoped.semantic_indexes[0].id, COUNTER_INDEX);
+    let disabled_query = SemanticProjectionQuery::new(
+        SemanticProjectionKey::new(world(), timeline(), SECONDARY_INDEX.into()),
+        SchemaRevision::new(1),
+        1,
+        "secondary-model-1",
+        vec![0.0, 0.0],
+        1,
+    )
+    .expect("disabled-index query should be structurally valid");
+    let disabled = runtime
+        .query_semantic_projection(disabled_query)
+        .await
+        .expect_err("World Binding should disable the secondary index");
+    assert!(matches!(
+        disabled,
+        SemanticProjectionError::MetadataMismatch { ref field, .. } if field == "world_binding"
+    ));
 
     let first_page = api
         .entity_trajectory(EntityTrajectoryQuery {

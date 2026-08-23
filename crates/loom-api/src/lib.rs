@@ -1091,6 +1091,38 @@ pub struct ReactionDescriptor {
     pub handler: WorkHandlerId,
 }
 
+/// Public descriptor for one Capability-owned rebuildable semantic index.
+///
+/// This is generic discovery metadata only. It exposes no embedding provider,
+/// SQL, pgvector or projection storage handle.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SemanticIndexDescriptor {
+    /// Stable semantic index identity.
+    pub id: String,
+    /// Capability that owns and interprets the index.
+    pub owner: CapabilityId,
+    /// Generic source category and stable source semantic key.
+    pub source_kind: String,
+    /// Stable source semantic key within `source_kind`.
+    pub source_type_id: String,
+    /// Source schema revision used to derive vectors.
+    pub source_schema_revision: SchemaRevision,
+    /// Index metadata schema revision.
+    pub schema_revision: SchemaRevision,
+    /// Projection algorithm/configuration revision.
+    pub projection_revision: u64,
+    /// Provider-neutral model revision metadata.
+    pub model_revision: String,
+    /// Required vector dimensions.
+    pub dimensions: u32,
+    /// Stable metric spelling (`cosine`, `euclidean`, or `inner_product`).
+    pub metric: String,
+    /// Generic Capability-owned configuration metadata.
+    pub configuration: Value,
+    /// Human-readable description.
+    pub description: String,
+}
+
 /// A coherent public snapshot of registered Capability and Action metadata.
 ///
 /// The snapshot is read-only catalog data assembled centrally by Loom. It does
@@ -1117,6 +1149,9 @@ pub struct CatalogSnapshot {
     /// Registered Event-to-Work reaction descriptors visible to the consumer.
     #[serde(default)]
     pub reactions: Vec<ReactionDescriptor>,
+    /// Registered semantic index descriptors visible to the consumer.
+    #[serde(default)]
+    pub semantic_indexes: Vec<SemanticIndexDescriptor>,
 }
 
 impl CatalogSnapshot {
@@ -1494,6 +1529,7 @@ mod tests {
                 events: Vec::new(),
                 work_handlers: Vec::new(),
                 reactions: Vec::new(),
+                semantic_indexes: Vec::new(),
             })
         }
     }

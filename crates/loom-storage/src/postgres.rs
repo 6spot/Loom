@@ -27,10 +27,12 @@ use loom_runtime::{
     LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
     PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
-    WorkLease, WorkRecord, WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition,
+    RuntimeRevisionStore, SemanticIndexMetric, SemanticIndexSource, SemanticProjectionError,
+    SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord,
+    WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgPoolOptions};
@@ -78,6 +80,20 @@ const ACTIVATE_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revisio
 const LOCK_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/lock_world_time.sql");
 const UPDATE_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/update_world_time.sql");
 const SELECT_DUE_PENDING_SQL: &str = include_str!("../sql/work/select_due_pending.sql");
+const REGISTER_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/register.sql");
+const READ_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/read.sql");
+const SEMANTIC_PROJECTION_SCOPE_EXISTS_SQL: &str =
+    include_str!("../sql/projection/scope_exists.sql");
+const DELETE_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/delete.sql");
+const DELETE_SEMANTIC_PROJECTION_ROWS_SQL: &str = include_str!("../sql/projection/delete_rows.sql");
+const INSERT_SEMANTIC_PROJECTION_ROW_SQL: &str = include_str!("../sql/projection/insert_row.sql");
+const UPDATE_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/update.sql");
+const QUERY_SEMANTIC_PROJECTION_COSINE_SQL: &str =
+    include_str!("../sql/projection/query_cosine.sql");
+const QUERY_SEMANTIC_PROJECTION_EUCLIDEAN_SQL: &str =
+    include_str!("../sql/projection/query_euclidean.sql");
+const QUERY_SEMANTIC_PROJECTION_INNER_PRODUCT_SQL: &str =
+    include_str!("../sql/projection/query_inner_product.sql");
 
 /// Concrete `PostgreSQL` persistence adapter owned by `loom-storage`.
 ///
@@ -1172,6 +1188,256 @@ impl PgStorage {
     }
 }
 
+impl SemanticProjectionStore for PgStorage {
+    fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        Box::pin(async move { self.register_semantic_projection(registration).await })
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
+        Box::pin(async move { self.query_semantic_projection(query).await })
+    }
+
+    fn rebuild_semantic_projection<'a>(
+        &'a self,
+        rebuild: &'a SemanticProjectionRebuild,
+    ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+        Box::pin(async move { self.rebuild_semantic_projection(rebuild).await })
+    }
+
+    fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+        Box::pin(async move { self.delete_semantic_projection(key).await })
+    }
+}
+
+impl PgStorage {
+    async fn register_semantic_projection(
+        &self,
+        registration: SemanticProjectionRegistration,
+    ) -> Result<(), SemanticProjectionError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
+        let scope_exists: Option<i32> = sqlx::query_scalar(SEMANTIC_PROJECTION_SCOPE_EXISTS_SQL)
+            .bind(registration.key.timeline_id.to_string())
+            .bind(registration.key.world_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
+        if scope_exists.is_none() {
+            let _ = transaction.rollback().await;
+            return Err(SemanticProjectionError::ScopeNotFound {
+                world_id: registration.key.world_id,
+                timeline_id: registration.key.timeline_id,
+            });
+        }
+        sqlx::query(REGISTER_SEMANTIC_PROJECTION_SQL)
+            .bind(registration.key.world_id.to_string())
+            .bind(registration.key.timeline_id.to_string())
+            .bind(registration.key.index_id.as_str())
+            .bind(&registration.source.kind)
+            .bind(&registration.source.type_id)
+            .bind(i64::from(registration.source.schema_revision.value()))
+            .bind(i64::from(registration.schema_revision.value()))
+            .bind(registration.projection_revision.to_string())
+            .bind(&registration.model_revision)
+            .bind(i32::try_from(registration.dimensions).expect("validated dimensions fit i32"))
+            .bind(registration.metric.as_str())
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
+        let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
+            .bind(registration.key.world_id.to_string())
+            .bind(registration.key.timeline_id.to_string())
+            .bind(registration.key.index_id.as_str())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?
+            .ok_or_else(|| SemanticProjectionError::StorageUnavailable {
+                message: "registered semantic projection disappeared before commit".to_owned(),
+            })?;
+        let actual = semantic_registration_from_row(&row)?;
+        ensure_registration_matches(&registration, &actual)?;
+        transaction.commit().await.map_err(sql_projection_error)
+    }
+
+    async fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
+        let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
+            .bind(query.key.world_id.to_string())
+            .bind(query.key.timeline_id.to_string())
+            .bind(query.key.index_id.as_str())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?
+            .ok_or_else(|| SemanticProjectionError::IndexNotRegistered {
+                key: query.key.clone(),
+            })?;
+        let registration = semantic_registration_from_row(&row)?;
+        if registration.source.schema_revision != query.source_schema_revision {
+            return Err(SemanticProjectionError::SourceMismatch {
+                expected: registration.source.schema_revision.value().to_string(),
+                actual: query.source_schema_revision.value().to_string(),
+            });
+        }
+        if registration.projection_revision != query.projection_revision {
+            return Err(SemanticProjectionError::RevisionMismatch {
+                expected: registration.projection_revision,
+                actual: query.projection_revision,
+            });
+        }
+        if registration.model_revision != query.model_revision {
+            return Err(SemanticProjectionError::MetadataMismatch {
+                field: "model_revision".to_owned(),
+                expected: registration.model_revision,
+                actual: query.model_revision,
+            });
+        }
+        if usize::try_from(registration.dimensions).unwrap_or(usize::MAX) != query.vector.len() {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: registration.dimensions.to_string(),
+                actual: query.vector.len().to_string(),
+            });
+        }
+        let sql = match registration.metric {
+            SemanticIndexMetric::Cosine => QUERY_SEMANTIC_PROJECTION_COSINE_SQL,
+            SemanticIndexMetric::Euclidean => QUERY_SEMANTIC_PROJECTION_EUCLIDEAN_SQL,
+            SemanticIndexMetric::InnerProduct => QUERY_SEMANTIC_PROJECTION_INNER_PRODUCT_SQL,
+        };
+        let rows = sqlx::query(sql)
+            .bind(query.key.world_id.to_string())
+            .bind(query.key.timeline_id.to_string())
+            .bind(query.key.index_id.as_str())
+            .bind(vector_literal(&query.vector))
+            .bind(query.projection_revision.to_string())
+            .bind(&query.model_revision)
+            .bind(i64::from(query.limit))
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
+        let mut hits = Vec::with_capacity(rows.len());
+        for row in rows {
+            hits.push(semantic_projection_hit_from_row(&row)?);
+        }
+        transaction.commit().await.map_err(sql_projection_error)?;
+        Ok(hits)
+    }
+
+    async fn rebuild_semantic_projection(
+        &self,
+        rebuild: &SemanticProjectionRebuild,
+    ) -> Result<(), SemanticProjectionError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
+        let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
+            .bind(rebuild.registration.key.world_id.to_string())
+            .bind(rebuild.registration.key.timeline_id.to_string())
+            .bind(rebuild.registration.key.index_id.as_str())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?
+            .ok_or_else(|| SemanticProjectionError::IndexNotRegistered {
+                key: rebuild.registration.key.clone(),
+            })?;
+        let current = semantic_registration_from_row(&row)?;
+        if let Some(expected) = rebuild.expected_previous_projection_revision
+            && current.projection_revision != expected
+        {
+            return Err(SemanticProjectionError::RevisionMismatch {
+                expected,
+                actual: current.projection_revision,
+            });
+        }
+        ensure_registration_shape_matches(&rebuild.registration, &current)?;
+        sqlx::query(DELETE_SEMANTIC_PROJECTION_ROWS_SQL)
+            .bind(rebuild.registration.key.world_id.to_string())
+            .bind(rebuild.registration.key.timeline_id.to_string())
+            .bind(rebuild.registration.key.index_id.as_str())
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
+        for projection in &rebuild.rows {
+            sqlx::query(INSERT_SEMANTIC_PROJECTION_ROW_SQL)
+                .bind(rebuild.registration.key.world_id.to_string())
+                .bind(rebuild.registration.key.timeline_id.to_string())
+                .bind(rebuild.registration.key.index_id.as_str())
+                .bind(projection.source_ref.timeline_id.to_string())
+                .bind(projection.source_ref.event_id.to_string())
+                .bind(&projection.source_hash)
+                .bind(
+                    projection
+                        .source_revision
+                        .head_event_seq
+                        .value()
+                        .to_string(),
+                )
+                .bind(
+                    projection
+                        .source_revision
+                        .state_revision
+                        .value()
+                        .to_string(),
+                )
+                .bind(projection.projection_revision.to_string())
+                .bind(&projection.model_revision)
+                .bind(vector_literal(&projection.vector))
+                .bind(
+                    i32::try_from(rebuild.registration.dimensions)
+                        .expect("validated dimensions fit i32"),
+                )
+                .execute(&mut *transaction)
+                .await
+                .map_err(sql_projection_error)?;
+        }
+        sqlx::query(UPDATE_SEMANTIC_PROJECTION_SQL)
+            .bind(rebuild.registration.key.world_id.to_string())
+            .bind(rebuild.registration.key.timeline_id.to_string())
+            .bind(rebuild.registration.key.index_id.as_str())
+            .bind(&rebuild.registration.source.kind)
+            .bind(&rebuild.registration.source.type_id)
+            .bind(i64::from(
+                rebuild.registration.source.schema_revision.value(),
+            ))
+            .bind(i64::from(rebuild.registration.schema_revision.value()))
+            .bind(rebuild.registration.projection_revision.to_string())
+            .bind(&rebuild.registration.model_revision)
+            .bind(
+                i32::try_from(rebuild.registration.dimensions)
+                    .expect("validated dimensions fit i32"),
+            )
+            .bind(rebuild.registration.metric.as_str())
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_projection_error)?;
+        transaction.commit().await.map_err(sql_projection_error)
+    }
+
+    async fn delete_semantic_projection(
+        &self,
+        key: SemanticProjectionKey,
+    ) -> Result<(), SemanticProjectionError> {
+        let result = sqlx::query(DELETE_SEMANTIC_PROJECTION_SQL)
+            .bind(key.world_id.to_string())
+            .bind(key.timeline_id.to_string())
+            .bind(key.index_id.as_str())
+            .execute(&self.pool)
+            .await
+            .map_err(sql_projection_error)?;
+        if result.rows_affected() == 0 {
+            return Err(SemanticProjectionError::IndexNotRegistered { key });
+        }
+        Ok(())
+    }
+}
+
 impl RuntimeRevisionStore for PgStorage {
     fn register_revision(
         &self,
@@ -1567,6 +1833,205 @@ fn sql_revision_error(error: sqlx::Error) -> RuntimeRevisionError {
     RuntimeRevisionError::StorageUnavailable {
         message: format!("PostgreSQL Runtime Revision persistence failed: {error}"),
     }
+}
+
+fn sql_projection_error(error: sqlx::Error) -> SemanticProjectionError {
+    SemanticProjectionError::StorageUnavailable {
+        message: format!("PostgreSQL semantic projection persistence failed: {error}"),
+    }
+}
+
+fn semantic_registration_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> Result<SemanticProjectionRegistration, SemanticProjectionError> {
+    let world_id = projection_identity(row, "world_id", "WorldId")?;
+    let timeline_id = projection_identity(row, "timeline_id", "TimelineId")?;
+    let index_id = row
+        .try_get::<String, _>("index_id")
+        .map_err(sql_projection_error)?
+        .into();
+    let source = SemanticIndexSource::new(
+        row.try_get::<String, _>("source_kind")
+            .map_err(sql_projection_error)?,
+        row.try_get::<String, _>("source_type_id")
+            .map_err(sql_projection_error)?,
+        SchemaRevision::new(parse_projection_u32(row, "source_schema_revision")?),
+    );
+    let schema_revision = SchemaRevision::new(parse_projection_u32(row, "schema_revision")?);
+    let projection_revision = parse_projection_u64(row, "projection_revision")?;
+    let model_revision = row
+        .try_get::<String, _>("model_revision")
+        .map_err(sql_projection_error)?;
+    let dimensions = u32::try_from(
+        row.try_get::<i32, _>("dimensions")
+            .map_err(sql_projection_error)?,
+    )
+    .map_err(|_| SemanticProjectionError::StorageUnavailable {
+        message: "persisted semantic projection dimensions exceed u32".to_owned(),
+    })?;
+    let metric = parse_projection_metric(
+        &row.try_get::<String, _>("metric")
+            .map_err(sql_projection_error)?,
+    )?;
+    SemanticProjectionRegistration::new(
+        SemanticProjectionKey::new(world_id, timeline_id, index_id),
+        source,
+        schema_revision,
+        projection_revision,
+        model_revision,
+        dimensions,
+        metric,
+    )
+}
+
+fn semantic_projection_hit_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> Result<SemanticProjectionHit, SemanticProjectionError> {
+    let source_timeline_id = projection_identity(row, "source_timeline_id", "TimelineId")?;
+    let source_event_id = projection_identity(row, "source_event_id", "EventId")?;
+    let source_hash = row
+        .try_get::<String, _>("source_hash")
+        .map_err(sql_projection_error)?;
+    let source_head_event_seq = parse_projection_u64(row, "source_head_event_seq")?;
+    let source_state_revision = parse_projection_u64(row, "source_state_revision")?;
+    let projection_revision = parse_projection_u64(row, "projection_revision")?;
+    let model_revision = row
+        .try_get::<String, _>("model_revision")
+        .map_err(sql_projection_error)?;
+    let distance = row
+        .try_get::<f32, _>("distance")
+        .map_err(sql_projection_error)?;
+    Ok(SemanticProjectionHit {
+        source_ref: EventRef::new(source_timeline_id, source_event_id),
+        source_hash,
+        source_revision: TimelineVersion::new(
+            EventSeq::new(source_head_event_seq),
+            StateRevision::new(source_state_revision),
+        ),
+        projection_revision,
+        model_revision,
+        distance,
+    })
+}
+
+fn ensure_registration_matches(
+    expected: &SemanticProjectionRegistration,
+    actual: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    ensure_registration_shape_matches(expected, actual)?;
+    if expected.projection_revision != actual.projection_revision {
+        return Err(SemanticProjectionError::RevisionMismatch {
+            expected: expected.projection_revision,
+            actual: actual.projection_revision,
+        });
+    }
+    Ok(())
+}
+
+fn ensure_registration_shape_matches(
+    expected: &SemanticProjectionRegistration,
+    actual: &SemanticProjectionRegistration,
+) -> Result<(), SemanticProjectionError> {
+    if expected.key != actual.key {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "scope".to_owned(),
+            expected: format!("{:?}", expected.key),
+            actual: format!("{:?}", actual.key),
+        });
+    }
+    if expected.source != actual.source {
+        return Err(SemanticProjectionError::SourceMismatch {
+            expected: format!("{:?}", expected.source),
+            actual: format!("{:?}", actual.source),
+        });
+    }
+    if expected.schema_revision != actual.schema_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "schema_revision".to_owned(),
+            expected: expected.schema_revision.value().to_string(),
+            actual: actual.schema_revision.value().to_string(),
+        });
+    }
+    if expected.model_revision != actual.model_revision {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "model_revision".to_owned(),
+            expected: expected.model_revision.clone(),
+            actual: actual.model_revision.clone(),
+        });
+    }
+    if expected.dimensions != actual.dimensions {
+        return Err(SemanticProjectionError::DimensionMismatch {
+            expected: expected.dimensions.to_string(),
+            actual: actual.dimensions.to_string(),
+        });
+    }
+    if expected.metric != actual.metric {
+        return Err(SemanticProjectionError::MetadataMismatch {
+            field: "metric".to_owned(),
+            expected: expected.metric.as_str().to_owned(),
+            actual: actual.metric.as_str().to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn projection_identity<T>(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+    label: &str,
+) -> Result<T, SemanticProjectionError>
+where
+    T: FromStr,
+    T::Err: Display,
+{
+    let value = row
+        .try_get::<String, _>(column)
+        .map_err(sql_projection_error)?;
+    value
+        .parse()
+        .map_err(|error| SemanticProjectionError::StorageUnavailable {
+            message: format!("invalid persisted semantic projection {label}: {error}"),
+        })
+}
+
+fn parse_projection_u64(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+) -> Result<u64, SemanticProjectionError> {
+    let value = row
+        .try_get::<String, _>(column)
+        .map_err(sql_projection_error)?;
+    value
+        .parse()
+        .map_err(|error| SemanticProjectionError::StorageUnavailable {
+            message: format!("invalid persisted semantic projection {column}: {error}"),
+        })
+}
+
+fn parse_projection_u32(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+) -> Result<u32, SemanticProjectionError> {
+    let value = parse_projection_u64(row, column)?;
+    u32::try_from(value).map_err(|_| SemanticProjectionError::StorageUnavailable {
+        message: format!("persisted semantic projection {column} exceeds u32"),
+    })
+}
+
+fn parse_projection_metric(value: &str) -> Result<SemanticIndexMetric, SemanticProjectionError> {
+    match value {
+        "cosine" => Ok(SemanticIndexMetric::Cosine),
+        "euclidean" => Ok(SemanticIndexMetric::Euclidean),
+        "inner_product" => Ok(SemanticIndexMetric::InnerProduct),
+        other => Err(SemanticProjectionError::StorageUnavailable {
+            message: format!("invalid persisted semantic projection metric {other}"),
+        }),
+    }
+}
+
+fn vector_literal(vector: &[f32]) -> String {
+    let values = vector.iter().map(ToString::to_string).collect::<Vec<_>>();
+    format!("[{}]", values.join(","))
 }
 
 fn is_unique_violation(error: &sqlx::Error) -> bool {
