@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:18
+        image: pgvector/pgvector:0.8.6-pg18
         env:
           POSTGRES_USER: loom
           POSTGRES_PASSWORD: loom
