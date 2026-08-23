@@ -18,6 +18,9 @@ const CLAIM_WORK_SQL: &str = include_str!("../../sql/work/claim.sql");
 const RETRY_WORK_SQL: &str = include_str!("../../sql/work/retry.sql");
 const SELECT_WORK_FOR_UPDATE_SQL: &str = include_str!("../../sql/work/select_for_update.sql");
 const TIMELINE_EXISTS_SQL: &str = include_str!("../../sql/work/timeline_exists.sql");
+const LOCK_TIMELINE_FOR_CLAIM_SQL: &str =
+    include_str!("../../sql/work/lock_timeline_for_claim.sql");
+const SELECT_LOGICAL_HEAD_SQL: &str = include_str!("../../sql/work/select_logical_head.sql");
 
 impl WorkStore for PgStorage {
     fn claim(
@@ -60,6 +63,13 @@ async fn claim_work(
     claimed_until: PlatformTime,
 ) -> Result<WorkClaim, WorkError> {
     let mut transaction = storage.pool.begin().await.map_err(work_sql_error)?;
+    let timeline_row = sqlx::query(LOCK_TIMELINE_FOR_CLAIM_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(work_sql_error)?
+        .ok_or(WorkError::TimelineNotFound { timeline_id })?;
+    let world_time = WorldInstant::new(timeline_row.try_get("world_time").map_err(work_sql_error)?);
     let Some(mut work) = locked_work(&mut transaction, timeline_id, work_id).await? else {
         return Err(missing_work_error(&mut transaction, timeline_id, work_id).await);
     };
@@ -68,6 +78,35 @@ async fn claim_work(
         return Err(WorkError::NotPending {
             work_id,
             status: work.status,
+        });
+    }
+    if work.effective_due_world_time > world_time {
+        return Err(WorkError::NotDue {
+            work_id,
+            effective_due_world_time: work.effective_due_world_time,
+            world_time,
+        });
+    }
+    let head_row = sqlx::query(SELECT_LOGICAL_HEAD_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(work_sql_error)?
+        .ok_or(WorkError::WorkNotFound {
+            timeline_id,
+            work_id,
+        })?;
+    let head_work_id = head_row
+        .try_get::<String, _>("work_id")
+        .map_err(work_sql_error)?
+        .parse()
+        .map_err(|error| WorkError::StorageUnavailable {
+            message: format!("invalid persisted logical head Work identity: {error}"),
+        })?;
+    if head_work_id != work_id {
+        return Err(WorkError::NotLogicalHead {
+            work_id,
+            head_work_id,
         });
     }
     if now < work.available_at {

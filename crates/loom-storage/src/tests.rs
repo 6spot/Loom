@@ -17,11 +17,12 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, CommitError, EffectEngine, LogicalWorkTransition, PlatformTime,
-    Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, WorkError, WorkRecord,
-    WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldTimeError,
+    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitError, EffectEngine,
+    LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore,
+    SchedulerCommitStore, TimelineDriverResult, WorkError, WorkRecord, WorkStatus, WorkTarget,
+    WorkTerminalState, WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -696,6 +697,184 @@ async fn zero_event_work_completion_commits_runtime_state_atomically() {
             .status,
         WorkStatus::Completed
     );
+}
+
+#[tokio::test]
+async fn chronology_budget_is_atomic_and_due_work_blocks_world_time() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(200)))
+        .expect("first Work fixture should be seeded");
+    let mut second_work = pending_work(work(201));
+    second_work.logical_schedule_order = 2;
+    store
+        .seed_work(second_work)
+        .expect("second Work fixture should be seeded");
+
+    let first_claim = store
+        .claim(
+            timeline(),
+            work(200),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect("logical head should be claimable");
+    let first_token = validated(&store, &registry(), Resolution::default());
+    SchedulerCommitStore::commit_scheduler_work(
+        &store,
+        &first_token,
+        &first_claim,
+        PlatformTime::new(1),
+        1,
+    )
+    .await
+    .expect("first completion should consume the only budget unit");
+
+    let second_claim = store
+        .claim(
+            timeline(),
+            work(201),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect("later Work should become the logical head");
+    let second_token = validated(&store, &registry(), Resolution::default());
+    let before_exhausted_commit = store.snapshot(timeline()).expect("snapshot should exist");
+    let exhausted = SchedulerCommitStore::commit_scheduler_work(
+        &store,
+        &second_token,
+        &second_claim,
+        PlatformTime::new(1),
+        1,
+    )
+    .await
+    .expect_err("the second same-instant completion must be bounded");
+    assert!(matches!(
+        exhausted,
+        CommitError::ChronologyBudgetExceeded(ChronologyBudgetExceeded {
+            timeline_id,
+            world_time,
+            limit: 1,
+            consumed: 1,
+        }) if timeline_id == timeline() && world_time == WorldInstant::new(0)
+    ));
+    let after_exhausted_commit = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(
+        after_exhausted_commit.version(),
+        before_exhausted_commit.version()
+    );
+    assert_eq!(after_exhausted_commit.chronology_budget().consumed, 1);
+    assert_eq!(after_exhausted_commit.journal.len(), 1);
+
+    let transition = AdvanceWorldTime::new(
+        timeline(),
+        after_exhausted_commit.version(),
+        after_exhausted_commit.world_time(),
+        WorldInstant::new(1),
+    )
+    .expect("transition should be structurally monotonic");
+    assert!(matches!(
+        store.advance_world_time(transition),
+        Err(WorldTimeError::DueWorkPending { work_id }) if work_id == work(201)
+    ));
+}
+
+#[tokio::test]
+async fn timeline_driver_executes_head_then_surfaces_exhaustion() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(210)))
+        .expect("first Work fixture should be seeded");
+    let mut second_work = pending_work(work(211));
+    second_work.logical_schedule_order = 2;
+    store
+        .seed_work(second_work)
+        .expect("second Work fixture should be seeded");
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_chronology_budget_limit(1);
+    let target = TimelineTarget::new(world(), timeline());
+
+    let executed = runtime
+        .drive_timeline(
+            target,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect("claimable logical head should execute");
+    assert!(matches!(
+        executed,
+        TimelineDriverResult::Executed { work_id, result }
+            if work_id == work(210) && result.is_committed()
+    ));
+
+    let exhausted = runtime
+        .drive_timeline(
+            target,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect("budget exhaustion is an observable driver state");
+    assert!(matches!(
+        exhausted,
+        TimelineDriverResult::ChronologyBudgetExceeded(ChronologyBudgetExceeded {
+            timeline_id,
+            world_time,
+            limit: 1,
+            consumed: 1,
+        }) if timeline_id == timeline() && world_time == WorldInstant::new(0)
+    ));
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("snapshot should exist")
+            .world_time(),
+        WorldInstant::new(0)
+    );
+}
+
+#[tokio::test]
+async fn timeline_driver_advances_only_to_next_future_due_work() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let mut future = pending_work(work(220));
+    future.effective_due_world_time = WorldInstant::new(7);
+    store
+        .seed_work(future)
+        .expect("future Work fixture should be seeded");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+
+    let result = runtime
+        .drive_timeline(
+            TimelineTarget::new(world(), timeline()),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect("quiescent Timeline should advance through the authority");
+    assert!(matches!(
+        result,
+        TimelineDriverResult::Advanced { transition, .. }
+            if transition.from == WorldInstant::new(0)
+                && transition.to == WorldInstant::new(7)
+    ));
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(snapshot.world_time(), WorldInstant::new(7));
+    assert_eq!(snapshot.chronology_budget().consumed, 0);
+    assert!(snapshot.events.is_empty());
 }
 
 #[tokio::test]
@@ -1888,8 +2067,10 @@ async fn runtime_terminalization_rejects_cross_work_claim_without_mutation() {
     store
         .seed_work(pending_work(claimed_work))
         .expect("claimed Work fixture should be seeded");
+    let mut target_fixture = pending_work(target_work);
+    target_fixture.logical_schedule_order = 2;
     store
-        .seed_work(pending_work(target_work))
+        .seed_work(target_fixture)
         .expect("target Work fixture should be seeded");
     let claim = store
         .claim(
@@ -1918,6 +2099,43 @@ async fn runtime_terminalization_rejects_cross_work_claim_without_mutation() {
         error,
         CommitError::Work(WorkError::WorkMismatch { expected, actual })
             if expected == target_work && actual == claimed_work
+    ));
+
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.events, before.events);
+    assert_eq!(after.journal, before.journal);
+    assert_eq!(after.works, before.works);
+}
+
+#[test]
+fn scheduler_non_head_claim_is_rejected_without_mutation() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(67)))
+        .expect("head Work fixture should be seeded");
+    let mut non_head = pending_work(work(68));
+    non_head.logical_schedule_order = 2;
+    store
+        .seed_work(non_head)
+        .expect("non-head Work fixture should be seeded");
+    let before = store.snapshot(timeline()).expect("snapshot should exist");
+
+    let error = store
+        .claim(
+            timeline(),
+            work(68),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect_err("Scheduler claim must reject a non-head Work");
+    assert!(matches!(
+        error,
+        WorkError::NotLogicalHead { work_id, head_work_id }
+            if work_id == work(68) && head_work_id == work(67)
     ));
 
     let after = store.snapshot(timeline()).expect("snapshot should exist");

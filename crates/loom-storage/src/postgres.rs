@@ -68,6 +68,7 @@ const LOCK_ACTIVE_RUNTIME_REVISION_SQL: &str =
 const ACTIVATE_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/activate.sql");
 const LOCK_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/lock_world_time.sql");
 const UPDATE_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/update_world_time.sql");
+const SELECT_DUE_PENDING_SQL: &str = include_str!("../sql/work/select_due_pending.sql");
 
 /// Concrete `PostgreSQL` persistence adapter owned by `loom-storage`.
 ///
@@ -1053,6 +1054,26 @@ impl WorldTimeStore for PgStorage {
                     expected: transition.current(),
                     actual: current,
                 });
+            }
+            if let Some(row) = sqlx::query(SELECT_DUE_PENDING_SQL)
+                .bind(transition.timeline_id().to_string())
+                .bind(current.value())
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(|error| WorldTimeError::StorageUnavailable {
+                    message: format!("PostgreSQL due-Work recheck failed: {error}"),
+                })?
+            {
+                let work_id = row
+                    .try_get::<String, _>("work_id")
+                    .map_err(|error| WorldTimeError::StorageUnavailable {
+                        message: format!("invalid persisted due Work identity: {error}"),
+                    })?
+                    .parse::<WorkId>()
+                    .map_err(|error| WorldTimeError::StorageUnavailable {
+                        message: format!("invalid persisted due Work identity: {error}"),
+                    })?;
+                return Err(WorldTimeError::DueWorkPending { work_id });
             }
             let next_revision = actual
                 .state_revision

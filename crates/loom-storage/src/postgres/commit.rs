@@ -3,13 +3,13 @@
 use std::collections::HashSet;
 
 use loom_core::{
-    EventId, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorldEffect,
+    EventId, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect,
 };
 use loom_runtime::{
     ChronologyBudgetConsumption, CommitError, CommitResult, CommitStore, CommittedEvent,
     LogicalCommit, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
-    RuntimeControlStore, ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
-    WorkTerminalState, WorkTerminalization,
+    RuntimeControlStore, SchedulerCommitStore, ValidatedResolution, WorkClaim, WorkError,
+    WorkMutation, WorkStatus, WorkTerminalState, WorkTerminalization,
 };
 use sqlx::{Postgres, Row, Transaction};
 
@@ -54,6 +54,7 @@ const SELECT_WORK_STATUS_FOR_UPDATE_SQL: &str =
     include_str!("../../sql/work/select_status_for_update.sql");
 const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
 const INSERT_LOGICAL_JOURNAL_SQL: &str = include_str!("../../sql/logical_journal/insert.sql");
+const SELECT_LOGICAL_HEAD_SQL: &str = include_str!("../../sql/work/select_logical_head.sql");
 
 #[derive(Clone, Copy)]
 struct LockedTimeline {
@@ -70,7 +71,28 @@ impl CommitStore for PgStorage {
         current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
-        Box::pin(async move { commit_resolution(self, resolution, current_work, now).await })
+        Box::pin(async move { commit_resolution(self, resolution, current_work, now, None).await })
+    }
+}
+
+impl SchedulerCommitStore for PgStorage {
+    fn commit_scheduler_work<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            commit_resolution(
+                self,
+                resolution,
+                Some(current_work),
+                now,
+                Some(max_completions),
+            )
+            .await
+        })
     }
 }
 
@@ -202,6 +224,7 @@ async fn commit_resolution(
     resolution: &ValidatedResolution,
     current_work: Option<&WorkClaim>,
     now: PlatformTime,
+    chronology_budget_limit: Option<u64>,
 ) -> Result<CommitResult, CommitError> {
     let timeline_id = resolution.timeline_id();
     let mut transaction = storage.pool.begin().await.map_err(storage_error)?;
@@ -214,6 +237,19 @@ async fn commit_resolution(
     }
     if let Some(claim) = current_work {
         validate_current_work(&mut transaction, timeline_id, claim, now).await?;
+        validate_logical_head(&mut transaction, timeline_id, claim.work_id()).await?;
+        if let Some(limit) = chronology_budget_limit
+            && locked.chronology_budget_consumed >= limit
+        {
+            return Err(CommitError::ChronologyBudgetExceeded(
+                loom_runtime::ChronologyBudgetExceeded {
+                    timeline_id,
+                    world_time: locked.world_time,
+                    limit,
+                    consumed: locked.chronology_budget_consumed,
+                },
+            ));
+        }
     }
     let before_version = locked.version;
     let before_budget = locked.chronology_budget_consumed;
@@ -329,7 +365,15 @@ async fn commit_resolution(
         .await?;
     }
 
-    transaction.commit().await.map_err(storage_error)?;
+    transaction.commit().await.map_err(|error| {
+        if chronology_budget_limit.is_some() {
+            CommitError::CommitOutcomeUnknown {
+                message: format!("PostgreSQL Scheduler commit outcome is unknown: {error}"),
+            }
+        } else {
+            storage_error(error)
+        }
+    })?;
     Ok(CommitResult {
         timeline_id,
         version,
@@ -1001,6 +1045,40 @@ async fn validate_current_work(
             work_id: claim.work_id(),
             claimed_until: PlatformTime::new(claimed_until),
             now,
+        }
+        .into());
+    }
+    Ok(())
+}
+
+async fn validate_logical_head(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+    work_id: WorkId,
+) -> Result<(), CommitError> {
+    let Some(row) = sqlx::query(SELECT_LOGICAL_HEAD_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+    else {
+        return Err(WorkError::WorkNotFound {
+            timeline_id,
+            work_id,
+        }
+        .into());
+    };
+    let head_work_id = row
+        .try_get::<String, _>("work_id")
+        .map_err(storage_error)?
+        .parse::<WorkId>()
+        .map_err(|error| CommitError::StorageUnavailable {
+            message: format!("invalid persisted logical head Work identity: {error}"),
+        })?;
+    if head_work_id != work_id {
+        return Err(WorkError::NotLogicalHead {
+            work_id,
+            head_work_id,
         }
         .into());
     }

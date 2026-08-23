@@ -311,6 +311,146 @@ impl Default for FailurePolicy {
     }
 }
 
+/// Runtime policy limiting successful Scheduler Work completions at one
+/// Timeline `WorldInstant`.
+///
+/// This is an admission policy, not Timeline state. The consumed position is
+/// persisted with the logical completion; this value only supplies the bound
+/// used by Runtime when admitting the next completion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChronologyBudgetPolicy {
+    max_completions: u64,
+}
+
+impl ChronologyBudgetPolicy {
+    /// Creates a chronology budget with an explicit per-WorldInstant limit.
+    #[must_use]
+    pub const fn new(max_completions: u64) -> Self {
+        Self { max_completions }
+    }
+
+    /// Returns the maximum successful Scheduler Work completions permitted at
+    /// one `WorldInstant`.
+    #[must_use]
+    pub const fn max_completions(self) -> u64 {
+        self.max_completions
+    }
+}
+
+impl Default for ChronologyBudgetPolicy {
+    fn default() -> Self {
+        // The exact value is Runtime policy, not an architectural constant.
+        // A finite default is required so an Immediate chain cannot run
+        // forever when an application does not provide its own policy.
+        Self::new(1_024)
+    }
+}
+
+/// Reconstructable same-World-Time chronology consumption for one Timeline.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChronologyBudgetState {
+    /// `WorldInstant` to which the consumption applies.
+    pub world_time: WorldInstant,
+    /// Successful Scheduler Work completions at `world_time`.
+    pub consumed: u64,
+}
+
+impl ChronologyBudgetState {
+    /// Creates a chronology budget state.
+    #[must_use]
+    pub const fn new(world_time: WorldInstant, consumed: u64) -> Self {
+        Self {
+            world_time,
+            consumed,
+        }
+    }
+}
+
+/// Operator-visible Runtime liveness state raised when the current
+/// `WorldInstant` cannot admit another Scheduler Work completion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChronologyBudgetExceeded {
+    /// Timeline whose Scheduler progression is stopped.
+    pub timeline_id: TimelineId,
+    /// Current `WorldInstant` at which the bound was reached.
+    pub world_time: WorldInstant,
+    /// Configured Runtime admission limit.
+    pub limit: u64,
+    /// Authoritative consumption observed at the linearization point/read.
+    pub consumed: u64,
+}
+
+impl fmt::Display for ChronologyBudgetExceeded {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "Timeline {} chronology budget exhausted at {:?}: {} of {} completions",
+            self.timeline_id, self.world_time, self.consumed, self.limit
+        )
+    }
+}
+
+impl std::error::Error for ChronologyBudgetExceeded {}
+
+/// Why a semantically due logical head cannot currently execute.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TimelineDriverBlock {
+    /// The head remains in technical retry backoff.
+    NotAvailable {
+        /// Blocked logical head.
+        work_id: WorkId,
+        /// Platform time at which retry becomes available.
+        available_at: PlatformTime,
+        /// Platform time observed by the driver.
+        now: PlatformTime,
+    },
+    /// The head is held by another valid worker lease.
+    LeaseActive {
+        /// Blocked logical head.
+        work_id: WorkId,
+        /// Platform lease deadline.
+        claimed_until: PlatformTime,
+    },
+    /// The head cannot be assembled by the active Runtime Revision.
+    MissingImplementation(TimelineBlockedOnMissingImplementation),
+}
+
+/// One legal result of a Runtime Timeline Driver step.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TimelineDriverResult {
+    /// The driver admitted and executed the current logical head.
+    Executed {
+        /// Work completed by this driver step.
+        work_id: WorkId,
+        /// Normal Runtime execution outcome, including semantic rejection.
+        result: loom_api::ExecutionResult,
+    },
+    /// The current due head remains Pending and blocks progression.
+    Blocked {
+        /// Due logical head that owns the chronology barrier.
+        work_id: WorkId,
+        /// Operational or implementation reason for the block.
+        reason: TimelineDriverBlock,
+    },
+    /// The budget stopped automatic Scheduler progression at the current
+    /// `WorldInstant`. This never authorizes World-Time advancement.
+    ChronologyBudgetExceeded(ChronologyBudgetExceeded),
+    /// World Time advanced through one explicit logical commit.
+    Advanced {
+        /// World-Time transition selected by the driver's next-due policy.
+        transition: WorldTimeTransition,
+        /// Timeline version after the logical commit.
+        version: TimelineVersion,
+    },
+    /// No Pending Work exists, so the driver has no automatic transition.
+    Idle {
+        /// Current Timeline logical version.
+        version: TimelineVersion,
+        /// Current `WorldInstant`.
+        world_time: WorldInstant,
+    },
+}
+
 /// Stable identity of one immutable Runtime software revision.
 ///
 /// This is Platform History metadata. It is deliberately not a Core identity,
@@ -1927,6 +2067,10 @@ pub enum WorldTimeError {
         expected: WorldInstant,
         actual: WorldInstant,
     },
+    /// A semantically due Pending Work blocks the Timeline quiescence
+    /// barrier, regardless of operational backoff, lease or implementation
+    /// availability.
+    DueWorkPending { work_id: WorkId },
     /// The logical revision cannot be incremented.
     RevisionOverflow,
     /// The persistence authority could not complete the transition.
@@ -1955,6 +2099,12 @@ impl fmt::Display for WorldTimeError {
                 write!(
                     formatter,
                     "World Time mismatch: expected {expected:?}, actual {actual:?}"
+                )
+            }
+            Self::DueWorkPending { work_id } => {
+                write!(
+                    formatter,
+                    "Timeline has semantically due Pending Work {work_id}"
                 )
             }
             Self::RevisionOverflow => formatter.write_str("Timeline revision overflow"),
@@ -2068,6 +2218,24 @@ impl TimelineSnapshot {
         &self.journal
     }
 
+    /// Reconstructs the current same-World-Time chronology consumption from
+    /// the authoritative logical journal.
+    #[must_use]
+    pub fn chronology_budget(&self) -> ChronologyBudgetState {
+        let consumed = self
+            .journal
+            .iter()
+            .rev()
+            .find_map(|commit| {
+                commit
+                    .chronology_budget
+                    .filter(|budget| budget.world_time == self.world_time())
+                    .map(|budget| budget.after)
+            })
+            .unwrap_or_default();
+        ChronologyBudgetState::new(self.world_time(), consumed)
+    }
+
     /// Returns the pinned Timeline identity.
     #[must_use]
     pub const fn timeline_id(&self) -> TimelineId {
@@ -2155,6 +2323,18 @@ pub enum WorkError {
     WorkMismatch { expected: WorkId, actual: WorkId },
     /// Claiming/completing is only valid for Pending Work.
     NotPending { work_id: WorkId, status: WorkStatus },
+    /// The Work is not yet due at the current Timeline World Time.
+    NotDue {
+        work_id: WorkId,
+        effective_due_world_time: WorldInstant,
+        world_time: WorldInstant,
+    },
+    /// A later Work attempted to bypass the Timeline's deterministic logical
+    /// head.
+    NotLogicalHead {
+        work_id: WorkId,
+        head_work_id: WorkId,
+    },
     /// A live lease already owns this Pending Work.
     AlreadyClaimed {
         work_id: WorkId,
@@ -2224,6 +2404,21 @@ impl fmt::Display for WorkError {
             Self::NotPending { work_id, status } => {
                 write!(formatter, "Work {work_id} is {status}, not Pending")
             }
+            Self::NotDue {
+                work_id,
+                effective_due_world_time,
+                world_time,
+            } => write!(
+                formatter,
+                "Work {work_id} is due at {effective_due_world_time:?}, after World Time {world_time:?}"
+            ),
+            Self::NotLogicalHead {
+                work_id,
+                head_work_id,
+            } => write!(
+                formatter,
+                "Work {work_id} cannot bypass logical head {head_work_id}"
+            ),
             Self::AlreadyClaimed {
                 work_id,
                 claimed_until,
@@ -2314,6 +2509,12 @@ pub enum CommitError {
     InvalidEffect { event_id: EventId, message: String },
     /// A Work mutation or current Work claim failed its typed checks.
     Work(WorkError),
+    /// The current Scheduler Work would exceed the configured same-instant
+    /// chronology budget. No logical state was changed.
+    ChronologyBudgetExceeded(ChronologyBudgetExceeded),
+    /// The authority returned an error while finalizing a Scheduler commit;
+    /// the commit outcome must be reconciled before any retry decision.
+    CommitOutcomeUnknown { message: String },
     /// The persistence authority could not complete the atomic transaction.
     StorageUnavailable { message: String },
     /// The revision or Event sequence cannot be represented by its value type.
@@ -2350,7 +2551,10 @@ impl fmt::Display for CommitError {
                 )
             }
             Self::Work(error) => error.fmt(formatter),
-            Self::StorageUnavailable { message } => formatter.write_str(message),
+            Self::ChronologyBudgetExceeded(error) => error.fmt(formatter),
+            Self::CommitOutcomeUnknown { message } | Self::StorageUnavailable { message } => {
+                formatter.write_str(message)
+            }
             Self::RevisionOverflow => {
                 formatter.write_str("Timeline revision or Event sequence overflow")
             }
@@ -2650,6 +2854,23 @@ pub trait CommitStore {
         resolution: &'a ValidatedResolution,
         current_work: Option<&'a WorkClaim>,
         now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>>;
+}
+
+/// Runtime persistence port for a Scheduler Work completion with an explicit
+/// same-World-Time chronology admission bound.
+///
+/// The bound is checked by the adapter while it owns the same Timeline
+/// transaction/lock that completes the Work. This keeps a stale Runtime read
+/// from admitting a completion after another worker consumed the last unit.
+pub trait SchedulerCommitStore: CommitStore {
+    /// Atomically completes one Scheduler Work subject to `max_completions`.
+    fn commit_scheduler_work<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>>;
 }
 

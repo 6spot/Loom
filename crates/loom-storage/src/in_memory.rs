@@ -23,11 +23,11 @@ use loom_runtime::{
     ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
     LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
     ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SessionError,
-    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
-    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
+    SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease,
+    WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -477,6 +477,10 @@ impl InMemoryStore {
         if timeline.works.contains_key(&work.id) {
             return Err(SetupError::WorkAlreadyExists { work_id: work.id });
         }
+        let mut work = work;
+        if work.logical_schedule_order == 0 && !timeline.works.is_empty() {
+            work.logical_schedule_order = timeline.logical_schedule_order.saturating_add(1);
+        }
         timeline.logical_schedule_order = timeline
             .logical_schedule_order
             .max(work.logical_schedule_order);
@@ -746,15 +750,25 @@ impl InMemoryStore {
     ///
     /// Returns a typed [`CommitError`] before swapping staged state when CAS,
     /// Event/Effect, Work or claim checks fail.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the atomic in-memory commit keeps authority, Work and journal staging together"
-    )]
     pub fn commit(
         &self,
         resolution: &ValidatedResolution,
         current_work: Option<&WorkClaim>,
         now: PlatformTime,
+    ) -> Result<CommitResult, CommitError> {
+        self.commit_with_chronology_budget(resolution, current_work, now, None)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the atomic in-memory commit keeps authority, Work and journal staging together"
+    )]
+    fn commit_with_chronology_budget(
+        &self,
+        resolution: &ValidatedResolution,
+        current_work: Option<&WorkClaim>,
+        now: PlatformTime,
+        chronology_budget_limit: Option<u64>,
     ) -> Result<CommitResult, CommitError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
@@ -772,6 +786,18 @@ impl InMemoryStore {
         }
         if let Some(claim) = current_work {
             validate_claim(timeline, claim, now)?;
+            if let Some(limit) = chronology_budget_limit
+                && timeline.chronology_budget_consumed >= limit
+            {
+                return Err(CommitError::ChronologyBudgetExceeded(
+                    loom_runtime::ChronologyBudgetExceeded {
+                        timeline_id,
+                        world_time: timeline.world_time,
+                        limit,
+                        consumed: timeline.chronology_budget_consumed,
+                    },
+                ));
+            }
         }
         let before_version = timeline.version;
         let before_budget = timeline.chronology_budget_consumed;
@@ -900,6 +926,16 @@ impl InMemoryStore {
                 actual: timeline.world_time,
             });
         }
+        if let Some(work) = timeline
+            .works
+            .values()
+            .filter(|work| {
+                work.is_pending() && work.effective_due_world_time <= timeline.world_time
+            })
+            .min_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order))
+        {
+            return Err(WorldTimeError::DueWorkPending { work_id: work.id });
+        }
         let before_version = timeline.version;
         let state_revision = timeline
             .version
@@ -949,6 +985,27 @@ impl InMemoryStore {
             .timelines
             .get_mut(&timeline_id)
             .ok_or(WorkError::TimelineNotFound { timeline_id })?;
+        let work_snapshot = timeline
+            .works
+            .get(&work_id)
+            .ok_or(WorkError::WorkNotFound {
+                timeline_id,
+                work_id,
+            })?;
+        if !work_snapshot.is_pending() {
+            return Err(WorkError::NotPending {
+                work_id,
+                status: work_snapshot.status,
+            });
+        }
+        if work_snapshot.effective_due_world_time > timeline.world_time {
+            return Err(WorkError::NotDue {
+                work_id,
+                effective_due_world_time: work_snapshot.effective_due_world_time,
+                world_time: timeline.world_time,
+            });
+        }
+        validate_logical_head(timeline, work_id)?;
         let work = timeline
             .works
             .get_mut(&work_id)
@@ -956,12 +1013,6 @@ impl InMemoryStore {
                 timeline_id,
                 work_id,
             })?;
-        if !work.is_pending() {
-            return Err(WorkError::NotPending {
-                work_id,
-                status: work.status,
-            });
-        }
         if now < work.available_at {
             return Err(WorkError::NotAvailable {
                 work_id,
@@ -1491,6 +1542,26 @@ impl CommitStore for InMemoryStore {
     }
 }
 
+impl SchedulerCommitStore for InMemoryStore {
+    fn commit_scheduler_work<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            InMemoryStore::commit_with_chronology_budget(
+                self,
+                resolution,
+                Some(current_work),
+                now,
+                Some(max_completions),
+            )
+        })
+    }
+}
+
 impl WorldTimeStore for InMemoryStore {
     fn advance_world_time(
         &self,
@@ -1885,6 +1956,32 @@ fn validate_claim(
             work_id: claim.work_id(),
             claimed_until: lease.claimed_until(),
             now,
+        });
+    }
+    Ok(())
+}
+
+fn validate_logical_head(
+    timeline: &TimelineState,
+    work_id: loom_core::WorkId,
+) -> Result<(), WorkError> {
+    let head_work_id = timeline
+        .works
+        .values()
+        .filter(|candidate| candidate.is_pending())
+        .min_by_key(|candidate| {
+            (
+                candidate.effective_due_world_time,
+                candidate.logical_schedule_order,
+            )
+        })
+        .map(|candidate| candidate.id);
+    if head_work_id != Some(work_id)
+        && let Some(head_work_id) = head_work_id
+    {
+        return Err(WorkError::NotLogicalHead {
+            work_id,
+            head_work_id,
         });
     }
     Ok(())
