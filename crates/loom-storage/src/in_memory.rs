@@ -22,7 +22,8 @@ use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommitError,
     CommitResult, CommitStore, CommittedEvent, EntropyEvidence, ExecutionSession,
     ExecutionSessionStatus, ExecutionSessionStore, ForkError, ForkWork, LifecycleError,
-    LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime,
+    LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet,
+    PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
     ProposedEvent, ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
     RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
     SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
@@ -1582,6 +1583,149 @@ impl WorldStore for InMemoryStore {
     ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
         TimelineForkStore::fork_timeline(self, fork)
     }
+}
+
+impl PinnedWorldReadStore for InMemoryStore {
+    fn open_pinned_read<'a>(
+        &'a self,
+        assembly: &'a loom_runtime::ExecutionAssembly,
+    ) -> PersistenceFuture<'a, Result<PinnedReadSession, ReadError>> {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let timeline = guard.timelines.get(&assembly.timeline_id()).ok_or(
+                ReadError::TimelineNotFound {
+                    timeline_id: assembly.timeline_id(),
+                },
+            )?;
+            ensure_pinned_version(timeline, assembly.expected_version())?;
+            if timeline.world_id != assembly.world_id() {
+                return Err(ReadError::PinnedWorldMismatch {
+                    timeline_id: assembly.timeline_id(),
+                    expected: assembly.world_id(),
+                    actual: timeline.world_id,
+                });
+            }
+            Ok(PinnedReadSession::new(
+                assembly.session_id(),
+                timeline.world_id,
+                timeline.timeline_id,
+                timeline.version,
+                timeline.world_time,
+            ))
+        })
+    }
+
+    fn read_entity<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        entity_id: EntityId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Entity>>, ReadError>> {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let timeline = pinned_timeline(&guard, session)?;
+            let value = timeline.entities.get(&entity_id).cloned();
+            Ok(PinnedRead::new(value, PinnedReadMetrics::new(1, 16, 0)))
+        })
+    }
+
+    fn read_relationship<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        relationship_id: RelationshipId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<loom_core::Relationship>>, ReadError>> {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let timeline = pinned_timeline(&guard, session)?;
+            let value = timeline
+                .relationships
+                .get(&relationship_id)
+                .filter(|record| record.active)
+                .map(|record| record.relationship.clone());
+            let bytes = value.as_ref().map_or(0, |relationship| {
+                relationship.participants().len() as u64 * 32 + 32
+            });
+            Ok(PinnedRead::new(value, PinnedReadMetrics::new(1, bytes, 0)))
+        })
+    }
+
+    fn read_facet<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        owner: FacetOwner,
+        facet_type: &'a FacetTypeId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<PinnedFacet>>, ReadError>> {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let timeline = pinned_timeline(&guard, session)?;
+            let value = timeline
+                .facets
+                .get(&(owner, facet_type.clone()))
+                .map(|facet| PinnedFacet::new(facet.schema_revision, facet.value.clone()));
+            let bytes = value
+                .as_ref()
+                .map_or(0, |facet| facet.value.to_string().len() as u64);
+            Ok(PinnedRead::new(value, PinnedReadMetrics::new(1, bytes, 0)))
+        })
+    }
+
+    fn read_event<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        event_id: EventId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<loom_runtime::CommittedEvent>>, ReadError>>
+    {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let _timeline = pinned_timeline(&guard, session)?;
+            let events = visible_events(&guard, session.timeline_id());
+            let rows_read = events.len() as u64;
+            let bytes_read = events
+                .iter()
+                .map(|event| event.payload.to_string().len() as u64)
+                .sum();
+            let value = events.into_iter().find(|event| event.id == event_id);
+            Ok(PinnedRead::new(
+                value,
+                PinnedReadMetrics::new(rows_read, bytes_read, 0),
+            ))
+        })
+    }
+}
+
+fn ensure_pinned_version(
+    timeline: &TimelineState,
+    expected: loom_core::TimelineVersion,
+) -> Result<(), ReadError> {
+    if timeline.version != expected {
+        return Err(ReadError::PinnedVersionMismatch {
+            timeline_id: timeline.timeline_id,
+            expected,
+            actual: timeline.version,
+        });
+    }
+    Ok(())
+}
+
+fn pinned_timeline<'a>(
+    state: &'a StoreState,
+    session: &PinnedReadSession,
+) -> Result<&'a TimelineState, ReadError> {
+    let timeline =
+        state
+            .timelines
+            .get(&session.timeline_id())
+            .ok_or(ReadError::TimelineNotFound {
+                timeline_id: session.timeline_id(),
+            })?;
+    ensure_pinned_version(timeline, session.version())?;
+    if timeline.world_id != session.world_id() {
+        return Err(ReadError::PinnedWorldMismatch {
+            timeline_id: session.timeline_id(),
+            expected: session.world_id(),
+            actual: timeline.world_id,
+        });
+    }
+    Ok(timeline)
 }
 
 impl LogicalJournalStore for InMemoryStore {
