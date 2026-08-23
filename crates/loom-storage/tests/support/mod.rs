@@ -1,5 +1,6 @@
 use std::{
-    process,
+    path::Path,
+    process::{self, Command},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -16,9 +17,10 @@ const DEFAULT_POSTGRES_CONTROL_URL: &str =
 ///
 /// `LOOM_TEST_POSTGRES_URL` may override the repository-local control database.
 /// When it is unset or empty, tests use Loom's localhost-only default control
-/// database. The configured role must be allowed to create/drop databases.
-/// Each fixture creates a unique child database, applies Loom migrations from
-/// scratch, and requires explicit async cleanup at the end of the test.
+/// database and start the repository-managed PostgreSQL service on demand if it
+/// is not already reachable. The configured role must be allowed to create/drop
+/// databases. Each fixture creates a unique child database, applies Loom
+/// migrations from scratch, and requires explicit async cleanup at the end.
 pub struct TestDatabase {
     control_pool: PgPool,
     database_name: String,
@@ -28,17 +30,12 @@ pub struct TestDatabase {
 impl TestDatabase {
     /// Creates a unique empty database and applies the embedded Loom migrations.
     ///
-    /// PostgreSQL integration tests never self-skip. If the control database is
-    /// unavailable, this function fails the test with an actionable message.
+    /// PostgreSQL integration tests never self-skip. The repository-local
+    /// service is started on demand when the default control URL is in use. An
+    /// explicit unreachable `LOOM_TEST_POSTGRES_URL` fails the test directly.
     pub async fn provision(label: &str) -> Option<Self> {
-        let control_url = postgres_control_url();
-        let control_pool = PgPool::connect(&control_url).await.unwrap_or_else(|error| {
-            panic!(
-                "PostgreSQL integration test control database is unavailable. \
-                 Start the repository-managed service with `bash tools/postgres-test.sh up` \
-                 or set LOOM_TEST_POSTGRES_URL to a reachable control database: {error}"
-            )
-        });
+        let (control_url, uses_repository_default) = postgres_control_url();
+        let control_pool = connect_control_database(&control_url, uses_repository_default).await;
         let database_name = unique_database_name(label);
         let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
         sqlx::query(AssertSqlSafe(create_sql))
@@ -85,11 +82,48 @@ impl TestDatabase {
     }
 }
 
-fn postgres_control_url() -> String {
-    std::env::var("LOOM_TEST_POSTGRES_URL")
-        .ok()
-        .filter(|url| !url.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_POSTGRES_CONTROL_URL.to_owned())
+fn postgres_control_url() -> (String, bool) {
+    match std::env::var("LOOM_TEST_POSTGRES_URL") {
+        Ok(url) if !url.trim().is_empty() => (url, false),
+        _ => (DEFAULT_POSTGRES_CONTROL_URL.to_owned(), true),
+    }
+}
+
+async fn connect_control_database(control_url: &str, uses_repository_default: bool) -> PgPool {
+    match PgPool::connect(control_url).await {
+        Ok(pool) => pool,
+        Err(error) if uses_repository_default => {
+            start_repository_postgres(&error);
+            PgPool::connect(control_url).await.unwrap_or_else(|retry_error| {
+                panic!(
+                    "repository-managed PostgreSQL test service is still unreachable after startup: \
+                     {retry_error}"
+                )
+            })
+        }
+        Err(error) => panic!(
+            "PostgreSQL integration test control database from LOOM_TEST_POSTGRES_URL is unavailable: \
+             {error}"
+        ),
+    }
+}
+
+fn start_repository_postgres(initial_error: &sqlx::Error) {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/postgres-test.sh");
+    let status = Command::new("bash").arg(&script).arg("up").status();
+    match status {
+        Ok(status) if status.success() => {}
+        Ok(status) => panic!(
+            "default PostgreSQL control database was unreachable ({initial_error}); \
+             `{}` exited with {status}",
+            script.display()
+        ),
+        Err(error) => panic!(
+            "default PostgreSQL control database was unreachable ({initial_error}); \
+             failed to start `{}`: {error}",
+            script.display()
+        ),
+    }
 }
 
 fn child_database_url(control_url: &str, database_name: &str) -> String {
