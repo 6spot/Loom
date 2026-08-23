@@ -4,21 +4,31 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${LOOM_TEST_ENV_FILE:-.env.test.local}"
 COMPOSE_FILE="compose.test-db.yaml"
 COMPOSE_PROJECT="${LOOM_TEST_COMPOSE_PROJECT:-loom}"
+LOCK_FILE="${LOOM_TEST_POSTGRES_LOCK_FILE:-${TMPDIR:-/tmp}/loom-postgres-test.lock}"
 
 compose() {
-  if [[ -f "$ENV_FILE" ]]; then
-    docker compose --project-name "$COMPOSE_PROJECT" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
-  else
-    docker compose --project-name "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" "$@"
+  docker compose --project-name "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" "$@"
+}
+
+lock_startup() {
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    flock 9
   fi
 }
 
 case "${1:-up}" in
   up)
+    lock_startup
     compose up -d --wait --wait-timeout 60
+    # Older local volumes may have been initialized when the repository used a
+    # generated password. Local socket authentication inside the container is
+    # trusted, so reconcile the test-only role to today's fixed credential.
+    compose exec -T postgres-test \
+      psql -v ON_ERROR_STOP=1 -U loom -d postgres \
+      -c "ALTER ROLE loom WITH PASSWORD 'loom';" >/dev/null
     compose ps
     ;;
   down)
