@@ -1,6 +1,8 @@
 //! `PostgreSQL` atomic current-head Timeline fork.
 
-use loom_core::{EventId, EventSeq, StateRevision, TimelineId, TimelineVersion, WorkId};
+use std::collections::HashSet;
+
+use loom_core::{EventId, EventRef, EventSeq, StateRevision, TimelineId, TimelineVersion, WorkId};
 use loom_runtime::{
     ForkError, ForkWork, PersistenceFuture, TimelineFork, TimelineForkStore, TimelineSnapshot,
     WorkTarget,
@@ -78,24 +80,8 @@ async fn fork_timeline(
     let chronology_consumed = parse_u64(&source, "chronology_budget_consumed")?;
     // `EventSeq(0)` has no EventRef. The parent head Event is found by the
     // source version's sequence, without copying its row into the child.
-    let parent_event = if actual.head_event_seq.value() == 0 {
-        None
-    } else {
-        sqlx::query_scalar::<_, String>(READ_PARENT_EVENT_SQL)
-            .bind(fork.source_timeline_id.to_string())
-            .bind(actual.head_event_seq.value().to_string())
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(storage_error)?
-            .map(|value| {
-                value
-                    .parse::<EventId>()
-                    .map_err(|error| ForkError::StorageUnavailable {
-                        message: format!("invalid persisted fork parent EventId: {error}"),
-                    })
-            })
-            .transpose()?
-    };
+    let parent_event =
+        resolve_parent_event_ref(&mut transaction, fork.source_timeline_id, actual).await?;
 
     sqlx::query(INSERT_TIMELINE_SQL)
         .bind(fork.child_timeline_id.to_string())
@@ -108,7 +94,7 @@ async fn fork_timeline(
         .bind(fork.source_timeline_id.to_string())
         .bind(actual.head_event_seq.value().to_string())
         .bind(actual.state_revision.value().to_string())
-        .bind(parent_event.map(|event| event.to_string()))
+        .bind(parent_event.map(|event| event.event_id.to_string()))
         .execute(&mut *transaction)
         .await
         .map_err(storage_error)?;
@@ -196,6 +182,78 @@ async fn fork_timeline(
         })
 }
 
+async fn resolve_parent_event_ref(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    source_timeline_id: TimelineId,
+    source_version: TimelineVersion,
+) -> Result<Option<EventRef>, ForkError> {
+    let mut timeline_id = source_timeline_id;
+    let mut visible_head = source_version.head_event_seq;
+    let mut visited = HashSet::new();
+
+    loop {
+        if !visited.insert(timeline_id) {
+            return Err(ForkError::StorageUnavailable {
+                message: "Timeline ancestry contains a cycle".to_owned(),
+            });
+        }
+        let event = sqlx::query_scalar::<_, String>(READ_PARENT_EVENT_SQL)
+            .bind(timeline_id.to_string())
+            .bind(visible_head.value().to_string())
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(storage_error)?;
+        if let Some(event) = event {
+            let event_id =
+                event
+                    .parse::<EventId>()
+                    .map_err(|error| ForkError::StorageUnavailable {
+                        message: format!("invalid persisted fork parent EventId: {error}"),
+                    })?;
+            return Ok(Some(EventRef::new(timeline_id, event_id)));
+        }
+
+        let Some(ancestry) = sqlx::query(READ_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(storage_error)?
+        else {
+            return Ok(None);
+        };
+        let parent_timeline: Option<TimelineId> =
+            optional_identity(&ancestry, "parent_timeline_id", "TimelineId")?;
+        let parent_head = optional_u64(
+            &ancestry,
+            "fork_parent_head_event_seq",
+            "fork_parent_head_event_seq",
+        )?;
+        let parent_state = optional_u64(
+            &ancestry,
+            "fork_parent_state_revision",
+            "fork_parent_state_revision",
+        )?;
+        let parent_event: Option<EventId> =
+            optional_identity(&ancestry, "fork_parent_event_id", "EventId")?;
+        let (Some(parent_timeline), Some(parent_head), Some(_parent_state)) =
+            (parent_timeline, parent_head, parent_state)
+        else {
+            if parent_timeline.is_none()
+                && parent_head.is_none()
+                && parent_state.is_none()
+                && parent_event.is_none()
+            {
+                return Ok(None);
+            }
+            return Err(ForkError::StorageUnavailable {
+                message: "persisted Timeline ancestry columns disagree".to_owned(),
+            });
+        };
+        timeline_id = parent_timeline;
+        visible_head = EventSeq::new(parent_head);
+    }
+}
+
 fn validate_work(
     source_work_id: &WorkId,
     work: &loom_runtime::WorkRecord,
@@ -245,4 +303,42 @@ fn parse_u64(row: &sqlx::postgres::PgRow, column: &str) -> Result<u64, ForkError
 
 fn row_i64(row: &sqlx::postgres::PgRow, column: &str) -> Result<i64, ForkError> {
     row.try_get(column).map_err(storage_error)
+}
+
+fn optional_identity<T>(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+    label: &str,
+) -> Result<Option<T>, ForkError>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    row.try_get::<Option<String>, _>(column)
+        .map_err(storage_error)?
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|error| ForkError::StorageUnavailable {
+                    message: format!("invalid persisted {label}: {error}"),
+                })
+        })
+        .transpose()
+}
+
+fn optional_u64(
+    row: &sqlx::postgres::PgRow,
+    column: &str,
+    label: &str,
+) -> Result<Option<u64>, ForkError> {
+    row.try_get::<Option<String>, _>(column)
+        .map_err(storage_error)?
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|error| ForkError::StorageUnavailable {
+                    message: format!("invalid persisted {label}: {error}"),
+                })
+        })
+        .transpose()
 }

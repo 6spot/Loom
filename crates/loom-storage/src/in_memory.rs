@@ -1306,10 +1306,6 @@ impl InMemoryStore {
         ))
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "the atomic fixture applies source, ancestry and Pending Work validation together"
-    )]
     fn fork_timeline_internal(&self, fork: &TimelineFork) -> Result<TimelineSnapshot, ForkError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
@@ -1327,11 +1323,7 @@ impl InMemoryStore {
             });
         }
 
-        let parent_event = source
-            .events
-            .iter()
-            .find(|event| event.event_seq == source.version.head_event_seq)
-            .map(|event| EventRef::new(source.timeline_id, event.id));
+        let parent_event = resolve_parent_event_ref(&staged.timelines, &source);
         let ancestry = TimelineAncestry::fork(source.timeline_id, source.version, parent_event);
 
         if let Some(existing) = staged.timelines.get(&fork.child_timeline_id) {
@@ -1793,6 +1785,38 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
             timeline.chronology_budget_consumed,
         ),
     )
+}
+
+fn resolve_parent_event_ref(
+    timelines: &HashMap<TimelineId, TimelineState>,
+    source: &TimelineState,
+) -> Option<EventRef> {
+    let mut timeline_id = source.timeline_id;
+    let mut visible_head = source.version.head_event_seq;
+    let mut visited = HashSet::new();
+
+    loop {
+        if !visited.insert(timeline_id) {
+            return None;
+        }
+        let timeline = timelines.get(&timeline_id)?;
+        if let Some(event) = timeline
+            .events
+            .iter()
+            .filter(|event| event.event_seq <= visible_head)
+            .max_by_key(|event| event.event_seq)
+        {
+            return Some(EventRef::new(timeline_id, event.id));
+        }
+
+        let parent_version = timeline.ancestry.fork_parent_version?;
+        timeline_id = timeline
+            .ancestry
+            .fork_parent_event
+            .map(|event| event.timeline_id)
+            .or(timeline.ancestry.parent_timeline_id)?;
+        visible_head = parent_version.head_event_seq;
+    }
 }
 
 fn validate_event(

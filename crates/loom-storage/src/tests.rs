@@ -8,9 +8,9 @@ use loom_capability::{
     WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, Entity, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
-    RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId, TimelineVersion,
-    WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
+    FacetTypeId, RelationshipParticipant, RelationshipTypeId, SchemaRevision, TimelineId,
+    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
     ActionInvocation, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
@@ -2348,17 +2348,76 @@ async fn current_head_fork_clones_only_pending_work_and_is_idempotent_for_child_
     invalid_work.id = work(82);
     invalid_work.timeline_id = id(4);
     invalid_work.payload = json!({"tampered": true});
-    let invalid_fork = TimelineFork::new(timeline(), TimelineVersion::default(), id(4))
+    let tampered_fork = TimelineFork::new(timeline(), TimelineVersion::default(), id(4))
         .with_pending_work(vec![ForkWork {
             source_work_id: source_work.id,
             work: invalid_work,
         }]);
     assert!(matches!(
-        TimelineForkStore::fork_timeline(&store, &invalid_fork).await,
+        TimelineForkStore::fork_timeline(&store, &tampered_fork).await,
         Err(loom_runtime::ForkError::InvalidWork { .. })
     ));
     assert!(matches!(
         store.snapshot(id(4)),
         Err(loom_runtime::ReadError::TimelineNotFound { .. })
     ));
+}
+
+#[tokio::test]
+async fn current_head_fork_resolves_parent_event_through_ancestry() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("source Timeline should be created");
+    let registry = registry();
+    let event_id = event(90);
+    let token = validated(
+        &store,
+        &registry,
+        Resolution::new(
+            vec![ProposedEvent::new(
+                event_id,
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"kind": "ancestry-event"}),
+            )],
+            Vec::new(),
+        ),
+    );
+    store
+        .commit(&token, None, PlatformTime::new(1))
+        .expect("source Event should commit at a non-default version");
+    let source_before = store.snapshot(timeline()).expect("source snapshot");
+
+    let child_b = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(timeline(), source_before.version(), second_timeline()),
+    )
+    .await
+    .expect("first fork should commit");
+    assert!(child_b.events.is_empty());
+    assert_eq!(
+        child_b.ancestry().fork_parent_event,
+        Some(EventRef::new(timeline(), event_id))
+    );
+
+    let child_c_id: TimelineId = id(4);
+    let child_c = TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(second_timeline(), child_b.version(), child_c_id),
+    )
+    .await
+    .expect("second fork should commit");
+    assert!(child_c.events.is_empty());
+    assert_eq!(
+        child_c.ancestry().fork_parent_event,
+        Some(EventRef::new(timeline(), event_id))
+    );
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("source remains readable")
+            .version(),
+        source_before.version()
+    );
 }
