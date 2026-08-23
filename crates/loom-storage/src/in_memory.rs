@@ -21,18 +21,21 @@ use loom_core::{
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommitError,
     CommitResult, CommitStore, CommittedEvent, EntropyEvidence, ExecutionSession,
-    ExecutionSessionStatus, ExecutionSessionStore, ForkError, ForkWork, LifecycleError,
-    LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet,
-    PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
-    ProposedEvent, ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
-    SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey,
-    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
-    SemanticProjectionRow, SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore,
-    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
-    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore, semantic_projection_hit_bytes,
+    ExecutionSessionStatus, ExecutionSessionStore, ForkError, ForkWork, IdempotencyConflict,
+    IngressAcceptance, IngressClaim, IngressCompletion, IngressError, IngressId, IngressLease,
+    IngressOperationalRecord, IngressReceipt, IngressStatus, IngressStore, IngressSubmission,
+    IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalJournalStore,
+    LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
+    PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
+    RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticIndexMetric,
+    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
+    SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
+    WorkStore, WorkTarget, WorkTerminalization, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -97,6 +100,7 @@ struct StoreState {
     runtime_revisions: BTreeMap<RuntimeRevisionId, RuntimeRevisionDescriptor>,
     active_runtime_revision: Option<RuntimeRevisionSelection>,
     execution_sessions: BTreeMap<ExecutionSessionId, ExecutionSession>,
+    ingresses: HashMap<loom_runtime::IngressId, IngressOperationalRecord>,
     semantic_projections: HashMap<SemanticProjectionKey, SemanticProjectionRegistration>,
     semantic_projection_rows: HashMap<SemanticProjectionKey, Vec<SemanticProjectionRow>>,
 }
@@ -182,6 +186,253 @@ impl InMemoryStore {
         Self {
             state: RwLock::new(StoreState::default()),
         }
+    }
+
+    /// Atomically accepts, deduplicates or conflicts one external submission.
+    ///
+    /// # Errors
+    ///
+    /// Returns an identity conflict when the stable Ingress ID names another
+    /// submission, or when the staged state cannot be read.
+    pub fn accept_ingress(
+        &self,
+        submission: IngressSubmission,
+    ) -> Result<IngressAcceptance, IngressError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        if let Some(existing) = staged.ingresses.get(submission.ingress_id())
+            && (existing.idempotency_scope() != submission.idempotency_scope
+                || existing.idempotency_key() != submission.idempotency_key())
+        {
+            return Err(IngressError::IngressAlreadyExists {
+                ingress_id: submission.ingress_id().clone(),
+            });
+        }
+
+        let existing = staged
+            .ingresses
+            .values()
+            .find(|record| {
+                record.idempotency_scope() == submission.idempotency_scope
+                    && record.idempotency_key() == submission.idempotency_key()
+            })
+            .cloned();
+        if let Some(existing) = existing {
+            if existing.request_fingerprint() == submission.request_fingerprint {
+                return Ok(IngressAcceptance::deduplicated(IngressReceipt::new(
+                    existing.ingress_id().clone(),
+                    submission.idempotency_key().clone(),
+                )));
+            }
+            return Ok(IngressAcceptance::conflict(IdempotencyConflict::new(
+                submission.idempotency_key().clone(),
+                existing.ingress_id().clone(),
+                existing.request_fingerprint(),
+                submission.request_fingerprint,
+            )));
+        }
+
+        let ingress_id = submission.ingress_id().clone();
+        let idempotency_key = submission.idempotency_key().clone();
+        staged.ingresses.insert(
+            ingress_id.clone(),
+            IngressOperationalRecord::accepted(submission),
+        );
+        *guard = staged;
+        Ok(IngressAcceptance::accepted(IngressReceipt::new(
+            ingress_id,
+            idempotency_key,
+        )))
+    }
+
+    /// Reads one durable Ingress operational record.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngressError::IngressNotFound`] when the identity is absent.
+    pub fn ingress(&self, ingress_id: IngressId) -> Result<IngressOperationalRecord, IngressError> {
+        self.read_state()
+            .ingresses
+            .get(&ingress_id)
+            .cloned()
+            .ok_or(IngressError::IngressNotFound { ingress_id })
+    }
+
+    /// Claims one Accepted/Retryable Ingress with a new operational fence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle, availability, lease or fence error when the
+    /// operational transition cannot be applied.
+    pub fn claim_ingress(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> Result<IngressClaim, IngressError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let record =
+            staged
+                .ingresses
+                .get_mut(&ingress_id)
+                .ok_or_else(|| IngressError::IngressNotFound {
+                    ingress_id: ingress_id.clone(),
+                })?;
+        if matches!(
+            record.status,
+            IngressStatus::Completed(_) | IngressStatus::Failed(_)
+        ) {
+            return Err(IngressError::NotClaimable {
+                ingress_id: ingress_id.clone(),
+                status: record.status.clone(),
+            });
+        }
+        if matches!(record.status, IngressStatus::Processing) && record.lease.is_none() {
+            return Err(IngressError::MissingLease {
+                ingress_id: ingress_id.clone(),
+            });
+        }
+        if now < record.available_at {
+            return Err(IngressError::NotAvailable {
+                ingress_id: ingress_id.clone(),
+                available_at: record.available_at,
+                now,
+            });
+        }
+        if let Some(lease) = record.lease
+            && now < lease.claimed_until()
+        {
+            return Err(IngressError::AlreadyClaimed {
+                ingress_id: ingress_id.clone(),
+                claimed_until: lease.claimed_until(),
+            });
+        }
+        if claimed_until <= now {
+            return Err(IngressError::InvalidLease {
+                ingress_id: ingress_id.clone(),
+                now,
+                claimed_until,
+            });
+        }
+        let next_fence =
+            record
+                .claim_fence
+                .checked_add(1)
+                .ok_or_else(|| IngressError::AttemptOverflow {
+                    ingress_id: ingress_id.clone(),
+                })?;
+        let next_attempt =
+            record
+                .attempt_count
+                .checked_add(1)
+                .ok_or_else(|| IngressError::AttemptOverflow {
+                    ingress_id: ingress_id.clone(),
+                })?;
+        record.status = IngressStatus::Processing;
+        record.attempt_count = next_attempt;
+        record.claim_fence = next_fence;
+        record.lease = Some(IngressLease::new(claimed_until, next_fence));
+        let claim = IngressClaim::new(ingress_id, claimed_until, next_fence, next_attempt);
+        *guard = staged;
+        Ok(claim)
+    }
+
+    /// Records a technical retry after validating the current claim fence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stale, missing or expired lease error when the claim is not
+    /// the current operational owner.
+    pub fn retry_ingress(
+        &self,
+        claim: &IngressClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> Result<IngressOperationalRecord, IngressError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let record = staged
+            .ingresses
+            .get_mut(claim.ingress_id())
+            .ok_or_else(|| IngressError::IngressNotFound {
+                ingress_id: claim.ingress_id().clone(),
+            })?;
+        validate_ingress_claim(record, claim, now)?;
+        record.status = IngressStatus::Retryable(failure.clone());
+        record.available_at = available_at;
+        record.last_error = Some(failure);
+        record.lease = None;
+        let result = record.clone();
+        *guard = staged;
+        Ok(result)
+    }
+
+    /// Records a semantic completion and its normal Session/Event references.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stale, missing or expired lease error when the claim is not
+    /// the current operational owner.
+    pub fn complete_ingress(
+        &self,
+        claim: &IngressClaim,
+        session_id: ExecutionSessionId,
+        completion: IngressCompletion,
+        completed_at: PlatformTime,
+    ) -> Result<IngressOperationalRecord, IngressError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let record = staged
+            .ingresses
+            .get_mut(claim.ingress_id())
+            .ok_or_else(|| IngressError::IngressNotFound {
+                ingress_id: claim.ingress_id().clone(),
+            })?;
+        validate_ingress_claim(record, claim, completed_at)?;
+        record.completed_event_refs = match &completion {
+            IngressCompletion::Committed { event_refs, .. } => event_refs.clone(),
+            IngressCompletion::NoChange | IngressCompletion::Rejected(_) => Vec::new(),
+        };
+        record.status = IngressStatus::Completed(completion);
+        record.completed_session_id = Some(session_id);
+        record.completed_at = Some(completed_at);
+        record.last_error = None;
+        record.lease = None;
+        let result = record.clone();
+        *guard = staged;
+        Ok(result)
+    }
+
+    /// Terminalizes a technical failure after validating the current fence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stale, missing or expired lease error when the claim is not
+    /// the current operational owner.
+    pub fn fail_ingress(
+        &self,
+        claim: &IngressClaim,
+        completed_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> Result<IngressOperationalRecord, IngressError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let record = staged
+            .ingresses
+            .get_mut(claim.ingress_id())
+            .ok_or_else(|| IngressError::IngressNotFound {
+                ingress_id: claim.ingress_id().clone(),
+            })?;
+        validate_ingress_claim(record, claim, completed_at)?;
+        record.status = IngressStatus::Failed(failure.clone());
+        record.last_error = Some(failure);
+        record.completed_at = Some(completed_at);
+        record.lease = None;
+        let result = record.clone();
+        *guard = staged;
+        Ok(result)
     }
 
     /// Persists one immutable started Session in the in-memory Platform
@@ -1225,6 +1476,39 @@ impl InMemoryStore {
     }
 }
 
+fn validate_ingress_claim(
+    record: &IngressOperationalRecord,
+    claim: &IngressClaim,
+    now: PlatformTime,
+) -> Result<(), IngressError> {
+    if !matches!(record.status, IngressStatus::Processing) {
+        return Err(IngressError::NotClaimable {
+            ingress_id: claim.ingress_id().clone(),
+            status: record.status.clone(),
+        });
+    }
+    let Some(lease) = record.lease else {
+        return Err(IngressError::MissingLease {
+            ingress_id: claim.ingress_id().clone(),
+        });
+    };
+    if lease.fence() != claim.fence() || lease.claimed_until() != claim.claimed_until() {
+        return Err(IngressError::StaleClaim {
+            ingress_id: claim.ingress_id().clone(),
+            expected_fence: claim.fence(),
+            actual_fence: Some(lease.fence()),
+        });
+    }
+    if now >= lease.claimed_until() {
+        return Err(IngressError::LeaseExpired {
+            ingress_id: claim.ingress_id().clone(),
+            claimed_until: lease.claimed_until(),
+            now,
+        });
+    }
+    Ok(())
+}
+
 impl WorldLifecycleStore for InMemoryStore {
     fn create_world(
         &self,
@@ -2100,6 +2384,64 @@ impl RuntimeRevisionStore for InMemoryStore {
         Box::pin(async move {
             InMemoryStore::activate_revision(self, revision_id, expected_generation, activated_at)
         })
+    }
+}
+
+impl IngressStore for InMemoryStore {
+    fn accept(
+        &self,
+        submission: IngressSubmission,
+    ) -> PersistenceFuture<'_, Result<IngressAcceptance, IngressError>> {
+        Box::pin(async move { InMemoryStore::accept_ingress(self, submission) })
+    }
+
+    fn ingress(
+        &self,
+        ingress_id: IngressId,
+    ) -> PersistenceFuture<'_, Result<IngressOperationalRecord, IngressError>> {
+        Box::pin(async move { InMemoryStore::ingress(self, ingress_id) })
+    }
+
+    fn claim(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<IngressClaim, IngressError>> {
+        Box::pin(async move { InMemoryStore::claim_ingress(self, ingress_id, now, claimed_until) })
+    }
+
+    fn retry<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        Box::pin(
+            async move { InMemoryStore::retry_ingress(self, claim, now, available_at, failure) },
+        )
+    }
+
+    fn complete<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        session_id: ExecutionSessionId,
+        completion: IngressCompletion,
+        completed_at: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        Box::pin(async move {
+            InMemoryStore::complete_ingress(self, claim, session_id, completion, completed_at)
+        })
+    }
+
+    fn fail<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        completed_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        Box::pin(async move { InMemoryStore::fail_ingress(self, claim, completed_at, failure) })
     }
 }
 

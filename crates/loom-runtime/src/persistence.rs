@@ -18,6 +18,10 @@ use std::{
     },
 };
 
+use loom_api::{
+    IdempotencyKey, IngressAcceptance, IngressCompletion, IngressEnvelope, IngressId,
+    IngressStatus, IngressTechnicalFailure,
+};
 use loom_capability::{
     CapabilityId, CapabilityManifest, SemanticIndexId, SemanticIndexMetric, SemanticIndexSource,
 };
@@ -1289,6 +1293,442 @@ pub trait ExecutionSessionStore {
 
     /// Reads all Session records in deterministic identity order.
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>>;
+}
+
+/// Immutable input captured at the Ingress acceptance boundary.
+///
+/// The fingerprint is computed by the transport/boundary canonicalization
+/// policy and is persisted as an idempotency fact. The envelope remains the
+/// normal Action input and provenance; it is not an alternate commit path.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct IngressSubmission {
+    /// Scope in which the caller's key is unique (for example, tenant/source).
+    pub idempotency_scope: String,
+    /// Transport-neutral external input envelope.
+    pub envelope: IngressEnvelope,
+    /// Canonical request fingerprint supplied by the boundary.
+    pub request_fingerprint: String,
+    /// Platform receipt time; this is operational metadata, not World Time.
+    pub received_at: PlatformTime,
+}
+
+impl IngressSubmission {
+    /// Creates one accepted-input candidate for the Runtime persistence port.
+    #[must_use]
+    pub fn new(
+        idempotency_scope: impl Into<String>,
+        envelope: IngressEnvelope,
+        request_fingerprint: impl Into<String>,
+        received_at: PlatformTime,
+    ) -> Self {
+        Self {
+            idempotency_scope: idempotency_scope.into(),
+            envelope,
+            request_fingerprint: request_fingerprint.into(),
+            received_at,
+        }
+    }
+
+    /// Returns the stable platform identity of the candidate.
+    #[must_use]
+    pub const fn ingress_id(&self) -> &IngressId {
+        &self.envelope.ingress_id
+    }
+
+    /// Returns the scoped idempotency key.
+    #[must_use]
+    pub const fn idempotency_key(&self) -> &IdempotencyKey {
+        &self.envelope.idempotency_key
+    }
+}
+
+/// Operational lease returned by a successful Ingress claim.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct IngressLease {
+    claimed_until: PlatformTime,
+    fence: u64,
+}
+
+impl IngressLease {
+    /// Creates lease evidence for one fence generation.
+    #[must_use]
+    pub const fn new(claimed_until: PlatformTime, fence: u64) -> Self {
+        Self {
+            claimed_until,
+            fence,
+        }
+    }
+
+    /// Returns the platform deadline of the lease.
+    #[must_use]
+    pub const fn claimed_until(self) -> PlatformTime {
+        self.claimed_until
+    }
+
+    /// Returns the monotonic claim fence.
+    #[must_use]
+    pub const fn fence(self) -> u64 {
+        self.fence
+    }
+}
+
+/// Fence evidence required for every state transition after an Ingress claim.
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct IngressClaim {
+    ingress_id: IngressId,
+    claimed_until: PlatformTime,
+    fence: u64,
+    attempt_count: u32,
+}
+
+impl IngressClaim {
+    /// Creates claim evidence. Adapters still validate it against authority
+    /// state; construction alone does not grant a worker authority.
+    #[must_use]
+    pub fn new(
+        ingress_id: impl Into<IngressId>,
+        claimed_until: PlatformTime,
+        fence: u64,
+        attempt_count: u32,
+    ) -> Self {
+        Self {
+            ingress_id: ingress_id.into(),
+            claimed_until,
+            fence,
+            attempt_count,
+        }
+    }
+
+    /// Returns the claimed Ingress identity.
+    #[must_use]
+    pub const fn ingress_id(&self) -> &IngressId {
+        &self.ingress_id
+    }
+
+    /// Returns the platform lease deadline.
+    #[must_use]
+    pub const fn claimed_until(&self) -> PlatformTime {
+        self.claimed_until
+    }
+
+    /// Returns the current fence generation.
+    #[must_use]
+    pub const fn fence(&self) -> u64 {
+        self.fence
+    }
+
+    /// Returns the attempt number assigned by claim linearization.
+    #[must_use]
+    pub const fn attempt_count(&self) -> u32 {
+        self.attempt_count
+    }
+}
+
+/// Durable operational record for one accepted external input.
+///
+/// This record is Platform Operational State. Acceptance, claim, retry and
+/// terminal technical failure never append Events or advance a Timeline. The
+/// optional Session/Event references are populated only after the normal
+/// Runtime semantic authority path has produced its result.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct IngressOperationalRecord {
+    /// Accepted envelope and canonical idempotency identity.
+    pub submission: IngressSubmission,
+    /// Current platform lifecycle/result state.
+    pub status: IngressStatus,
+    /// Number of claims assigned by the operational authority.
+    pub attempt_count: u32,
+    /// Current worker lease and fence, if processing is in flight.
+    pub lease: Option<IngressLease>,
+    /// Last allocated fence, retained after release for monotonic reclaim.
+    pub claim_fence: u64,
+    /// Earliest platform time at which a pending/retryable record may claim.
+    pub available_at: PlatformTime,
+    /// Last technical failure retained for operator/retry recovery.
+    pub last_error: Option<IngressTechnicalFailure>,
+    /// Session provenance created by normal Runtime execution, when present.
+    pub completed_session_id: Option<ExecutionSessionId>,
+    /// Event provenance returned by the normal semantic commit, when present.
+    pub completed_event_refs: Vec<EventRef>,
+    /// Platform completion/terminalization time, when terminal.
+    pub completed_at: Option<PlatformTime>,
+}
+
+/// Compatibility spelling for callers that refer to the durable row as an
+/// Ingress record rather than an operational record.
+pub type IngressRecord = IngressOperationalRecord;
+
+impl IngressOperationalRecord {
+    /// Creates the accepted-only operational record for one new submission.
+    #[must_use]
+    pub fn accepted(submission: IngressSubmission) -> Self {
+        let available_at = submission.received_at;
+        Self {
+            submission,
+            status: IngressStatus::Accepted,
+            attempt_count: 0,
+            lease: None,
+            claim_fence: 0,
+            available_at,
+            last_error: None,
+            completed_session_id: None,
+            completed_event_refs: Vec::new(),
+            completed_at: None,
+        }
+    }
+
+    /// Returns the stable Ingress identity.
+    #[must_use]
+    pub const fn ingress_id(&self) -> &IngressId {
+        self.submission.ingress_id()
+    }
+
+    /// Returns the scoped idempotency key identity.
+    #[must_use]
+    pub fn idempotency_scope(&self) -> &str {
+        &self.submission.idempotency_scope
+    }
+
+    /// Returns the caller idempotency key.
+    #[must_use]
+    pub const fn idempotency_key(&self) -> &IdempotencyKey {
+        self.submission.idempotency_key()
+    }
+
+    /// Returns the canonical request fingerprint.
+    #[must_use]
+    pub fn request_fingerprint(&self) -> &str {
+        &self.submission.request_fingerprint
+    }
+}
+
+/// Typed failures from the Runtime-owned Ingress operational port.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IngressError {
+    /// The requested Ingress identity is absent.
+    IngressNotFound { ingress_id: IngressId },
+    /// The stable Ingress identity already names a different submission.
+    IngressAlreadyExists { ingress_id: IngressId },
+    /// The requested record is not claimable in its current lifecycle state.
+    NotClaimable {
+        ingress_id: IngressId,
+        status: IngressStatus,
+    },
+    /// Another worker currently owns an unexpired lease.
+    AlreadyClaimed {
+        ingress_id: IngressId,
+        claimed_until: PlatformTime,
+    },
+    /// The requested retry/claim time is not yet available.
+    NotAvailable {
+        ingress_id: IngressId,
+        available_at: PlatformTime,
+        now: PlatformTime,
+    },
+    /// A lease deadline is not strictly after the claim time.
+    InvalidLease {
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    },
+    /// A worker tried to update a record without a current lease.
+    MissingLease { ingress_id: IngressId },
+    /// A worker supplied an old or mismatched fence.
+    StaleClaim {
+        ingress_id: IngressId,
+        expected_fence: u64,
+        actual_fence: Option<u64>,
+    },
+    /// The current lease has expired and cannot mutate operational state.
+    LeaseExpired {
+        ingress_id: IngressId,
+        claimed_until: PlatformTime,
+        now: PlatformTime,
+    },
+    /// The bounded attempt counter cannot be incremented.
+    AttemptOverflow { ingress_id: IngressId },
+    /// A storage adapter could not complete the operation.
+    StorageUnavailable { message: String },
+}
+
+impl fmt::Display for IngressError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::IngressNotFound { ingress_id } => {
+                write!(formatter, "Ingress {ingress_id} was not found")
+            }
+            Self::IngressAlreadyExists { ingress_id } => {
+                write!(formatter, "Ingress {ingress_id} already exists")
+            }
+            Self::NotClaimable { ingress_id, status } => {
+                write!(
+                    formatter,
+                    "Ingress {ingress_id} is not claimable in {status:?}"
+                )
+            }
+            Self::AlreadyClaimed {
+                ingress_id,
+                claimed_until,
+            } => write!(
+                formatter,
+                "Ingress {ingress_id} is claimed until {claimed_until}"
+            ),
+            Self::NotAvailable {
+                ingress_id,
+                available_at,
+                now,
+            } => write!(
+                formatter,
+                "Ingress {ingress_id} is unavailable until {available_at}, now {now}"
+            ),
+            Self::InvalidLease {
+                ingress_id,
+                now,
+                claimed_until,
+            } => write!(
+                formatter,
+                "Ingress {ingress_id} lease {claimed_until} is not after {now}"
+            ),
+            Self::MissingLease { ingress_id } => {
+                write!(formatter, "Ingress {ingress_id} has no active lease")
+            }
+            Self::StaleClaim {
+                ingress_id,
+                expected_fence,
+                actual_fence,
+            } => write!(
+                formatter,
+                "Ingress {ingress_id} claim fence {expected_fence} is stale; actual {actual_fence:?}"
+            ),
+            Self::LeaseExpired {
+                ingress_id,
+                claimed_until,
+                now,
+            } => write!(
+                formatter,
+                "Ingress {ingress_id} lease expired at {claimed_until}, now {now}"
+            ),
+            Self::AttemptOverflow { ingress_id } => {
+                write!(formatter, "Ingress {ingress_id} attempt count overflowed")
+            }
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for IngressError {}
+
+/// Runtime-owned persistence port for durable Ingress operational state.
+///
+/// The accept operation is linearized by the adapter's unique
+/// `(idempotency_scope, idempotency_key)` constraint or equivalent atomic
+/// state swap. Claim/retry/terminal transitions are linearized by the current
+/// lease fence. None of these methods mutate Timeline/Event authority.
+pub trait IngressStore {
+    /// Atomically accepts a new submission, deduplicates an equivalent one or
+    /// returns an explicit idempotency conflict.
+    fn accept(
+        &self,
+        submission: IngressSubmission,
+    ) -> PersistenceFuture<'_, Result<IngressAcceptance, IngressError>>;
+
+    /// Reads the authoritative operational record for one submission.
+    fn ingress(
+        &self,
+        ingress_id: IngressId,
+    ) -> PersistenceFuture<'_, Result<IngressOperationalRecord, IngressError>>;
+
+    /// Claims an Accepted/Retryable record using a new operational fence.
+    fn claim(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<IngressClaim, IngressError>>;
+
+    /// Records a technical retry while releasing the current lease.
+    fn retry<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>>;
+
+    /// Records a normal semantic result and its Session/Event provenance.
+    fn complete<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        session_id: ExecutionSessionId,
+        completion: IngressCompletion,
+        completed_at: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>>;
+
+    /// Terminalizes a technical failure while releasing the current lease.
+    fn fail<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        completed_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>>;
+
+    /// Compatibility alias for Runtime callers naming the acceptance action.
+    fn accept_ingress(
+        &self,
+        submission: IngressSubmission,
+    ) -> PersistenceFuture<'_, Result<IngressAcceptance, IngressError>> {
+        self.accept(submission)
+    }
+
+    /// Compatibility alias for Runtime callers naming the read action.
+    fn read_ingress(
+        &self,
+        ingress_id: IngressId,
+    ) -> PersistenceFuture<'_, Result<IngressOperationalRecord, IngressError>> {
+        self.ingress(ingress_id)
+    }
+
+    /// Compatibility alias for the claim action.
+    fn claim_ingress(
+        &self,
+        ingress_id: IngressId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> PersistenceFuture<'_, Result<IngressClaim, IngressError>> {
+        self.claim(ingress_id, now, claimed_until)
+    }
+
+    /// Compatibility alias for the retry action.
+    fn retry_ingress<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        self.retry(claim, now, available_at, failure)
+    }
+
+    /// Compatibility alias for the semantic completion action.
+    fn complete_ingress<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        session_id: ExecutionSessionId,
+        completion: IngressCompletion,
+        completed_at: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        self.complete(claim, session_id, completion, completed_at)
+    }
+
+    /// Compatibility alias for the terminal technical failure action.
+    fn fail_ingress<'a>(
+        &'a self,
+        claim: &'a IngressClaim,
+        completed_at: PlatformTime,
+        failure: IngressTechnicalFailure,
+    ) -> PersistenceFuture<'a, Result<IngressOperationalRecord, IngressError>> {
+        self.fail(claim, completed_at, failure)
+    }
 }
 
 /// Errors from the immutable Runtime Revision and active-selection port.

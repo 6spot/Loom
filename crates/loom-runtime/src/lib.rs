@@ -114,15 +114,17 @@ pub use persistence::{
     ChronologyBudgetExceeded, ChronologyBudgetPolicy, ChronologyBudgetState, CommitError,
     CommitResult, CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin,
     ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
-    FailurePolicyError, ForkError, ForkMaterialization, ForkWork, LifecycleError, LogicalCommit,
-    LogicalJournalRecord, LogicalJournalStore, LogicalWorkTransition, MAX_SEMANTIC_PROJECTION_ROWS,
-    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
-    MAX_SEMANTIC_QUERY_RESULTS, MAX_SEMANTIC_VECTOR_DIMENSIONS, ManualPlatformClock,
-    PersistenceFuture, PlatformClock, PlatformTime, ReadError, RuntimeCapabilityImplementation,
-    RuntimeControlStore, RuntimeRevision, RuntimeRevisionAssembly, RuntimeRevisionCapability,
-    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
+    FailurePolicyError, ForkError, ForkMaterialization, ForkWork, IngressClaim, IngressError,
+    IngressLease, IngressOperationalRecord, IngressRecord, IngressStore, IngressSubmission,
+    LifecycleError, LogicalCommit, LogicalJournalRecord, LogicalJournalStore,
+    LogicalWorkTransition, MAX_SEMANTIC_PROJECTION_ROWS, MAX_SEMANTIC_QUERY_DEPTH,
+    MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES, MAX_SEMANTIC_QUERY_RESULTS,
+    MAX_SEMANTIC_VECTOR_DIMENSIONS, ManualPlatformClock, PersistenceFuture, PlatformClock,
+    PlatformTime, ReadError, RuntimeCapabilityImplementation, RuntimeControlStore, RuntimeRevision,
+    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
+    RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError, RuntimeRevisionError,
+    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
+    SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
     SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
     SemanticProjectionRegistration, SemanticProjectionRow, SemanticProjectionStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
@@ -150,6 +152,14 @@ pub use views::{
     BaseWorldSnapshot, BaseWorldView, CandidateWorldView, FacetSnapshot, RelationshipSnapshot,
 };
 
+/// Transport-neutral Ingress values are re-exported here so concrete storage
+/// adapters can implement the Runtime-owned Ingress port without depending on
+/// the higher-level API crate directly.
+pub use loom_api::{
+    IdempotencyConflict, IdempotencyKey, IngressAcceptance, IngressAuthorizationContext,
+    IngressCompletion, IngressEnvelope, IngressId, IngressProvenance, IngressReceipt,
+    IngressStatus, IngressStatusRecord, IngressTechnicalFailure, IngressTimeMetadata,
+};
 pub use loom_capability::SemanticKind;
 /// Generic Capability-owned semantic index metadata used by Runtime ports.
 pub use loom_capability::{SemanticIndexId, SemanticIndexMetric, SemanticIndexSource};
