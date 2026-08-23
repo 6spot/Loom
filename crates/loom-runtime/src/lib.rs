@@ -87,6 +87,7 @@ mod identity;
 mod orchestration;
 mod persistence;
 mod provenance;
+mod replay;
 mod validation;
 mod views;
 
@@ -117,6 +118,10 @@ pub use persistence::{
 pub use provenance::{
     CallProvenance, EntropyEvidence, EntropyObservation, ReadDependency, ReadSet,
     ResolutionCallEdge,
+};
+pub use replay::{
+    ReplayEffectError, ReplayEngine, ReplayError, ReplayEventError, ReplayResult,
+    replay_world_state,
 };
 pub use validation::{
     EffectEngine, RuntimeError, ValidatedResolution, ValidationError, ValidationOutcome,
