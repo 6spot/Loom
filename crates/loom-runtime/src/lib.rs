@@ -84,6 +84,7 @@
 mod budget;
 mod entropy;
 mod identity;
+mod logical_replay;
 mod orchestration;
 mod persistence;
 mod provenance;
@@ -97,6 +98,10 @@ pub use entropy::{
     UnavailableEntropySource,
 };
 pub use identity::{IdentityAllocator, UuidV7IdentityAllocator};
+pub use logical_replay::{
+    HistoricalTimelineState, LogicalCommitReplayError, LogicalReplayEngine, LogicalReplayError,
+    LogicalWorkReplayError, LogicalWorkState, TimelineLogicalState, replay_timeline,
+};
 pub use orchestration::Runtime;
 pub use persistence::{
     ActiveRuntimeRevision, AdvanceWorldTime, BindingError, ChronologyBudgetConsumption,
