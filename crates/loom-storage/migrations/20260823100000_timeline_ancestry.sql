@@ -13,15 +13,21 @@ ALTER TABLE loom_timeline
     ADD COLUMN fork_parent_state_revision NUMERIC(20, 0)
         CHECK (fork_parent_state_revision IS NULL
             OR fork_parent_state_revision BETWEEN 0 AND 18446744073709551615),
+    ADD COLUMN fork_parent_event_timeline_id UUID,
     ADD COLUMN fork_parent_event_id UUID,
     ADD CONSTRAINT loom_timeline_fork_position_ck CHECK (
         (parent_timeline_id IS NULL
             AND fork_parent_head_event_seq IS NULL
             AND fork_parent_state_revision IS NULL
+            AND fork_parent_event_timeline_id IS NULL
             AND fork_parent_event_id IS NULL)
         OR (parent_timeline_id IS NOT NULL
             AND fork_parent_head_event_seq IS NOT NULL
-            AND fork_parent_state_revision IS NOT NULL)
+            AND fork_parent_state_revision IS NOT NULL
+            AND ((fork_parent_event_timeline_id IS NULL
+                    AND fork_parent_event_id IS NULL)
+                OR (fork_parent_event_timeline_id IS NOT NULL
+                    AND fork_parent_event_id IS NOT NULL)))
     );
 
 CREATE INDEX loom_timeline_parent_idx

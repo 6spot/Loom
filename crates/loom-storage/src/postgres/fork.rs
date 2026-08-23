@@ -94,6 +94,7 @@ async fn fork_timeline(
         .bind(fork.source_timeline_id.to_string())
         .bind(actual.head_event_seq.value().to_string())
         .bind(actual.state_revision.value().to_string())
+        .bind(parent_event.map(|event| event.timeline_id.to_string()))
         .bind(parent_event.map(|event| event.event_id.to_string()))
         .execute(&mut *transaction)
         .await
@@ -233,6 +234,8 @@ async fn resolve_parent_event_ref(
             "fork_parent_state_revision",
             "fork_parent_state_revision",
         )?;
+        let parent_event_timeline: Option<TimelineId> =
+            optional_identity(&ancestry, "fork_parent_event_timeline_id", "TimelineId")?;
         let parent_event: Option<EventId> =
             optional_identity(&ancestry, "fork_parent_event_id", "EventId")?;
         let (Some(parent_timeline), Some(parent_head), Some(_parent_state)) =
@@ -241,6 +244,7 @@ async fn resolve_parent_event_ref(
             if parent_timeline.is_none()
                 && parent_head.is_none()
                 && parent_state.is_none()
+                && parent_event_timeline.is_none()
                 && parent_event.is_none()
             {
                 return Ok(None);
@@ -249,6 +253,11 @@ async fn resolve_parent_event_ref(
                 message: "persisted Timeline ancestry columns disagree".to_owned(),
             });
         };
+        if parent_event_timeline.is_some() != parent_event.is_some() {
+            return Err(ForkError::StorageUnavailable {
+                message: "persisted Timeline ancestry EventRef columns disagree".to_owned(),
+            });
+        }
         timeline_id = parent_timeline;
         visible_head = EventSeq::new(parent_head);
     }
