@@ -459,6 +459,47 @@ async fn postgres_18_work_expiry_reclaim_and_retry_fence_preserve_world_truth() 
 }
 
 #[tokio::test]
+async fn postgres_18_scheduler_non_head_claim_is_rejected_without_mutation() {
+    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2150).await else {
+        return;
+    };
+    let head_work: WorkId = id(0x2160);
+    let non_head_work: WorkId = id(0x2161);
+    seed_work(&pool, timeline_id, head_work, 0, None).await;
+    seed_work(&pool, timeline_id, non_head_work, 0, None).await;
+    let before = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("initial Timeline should be readable");
+
+    let error = WorkStore::claim(
+        &storage,
+        timeline_id,
+        non_head_work,
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect_err("Scheduler claim must reject a non-head Work");
+    assert!(matches!(
+        error,
+        WorkError::NotLogicalHead { work_id, head_work_id }
+            if work_id == non_head_work && head_work_id == head_work
+    ));
+
+    let after = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("post-rejection Timeline should be readable");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.events, before.events);
+    assert_eq!(after.journal, before.journal);
+    assert_eq!(after.works, before.works);
+
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
 async fn postgres_18_work_future_availability_and_world_due_are_not_claimed_early() {
     let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2300).await else {
         return;

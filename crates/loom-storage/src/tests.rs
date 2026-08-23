@@ -2067,8 +2067,10 @@ async fn runtime_terminalization_rejects_cross_work_claim_without_mutation() {
     store
         .seed_work(pending_work(claimed_work))
         .expect("claimed Work fixture should be seeded");
+    let mut target_fixture = pending_work(target_work);
+    target_fixture.logical_schedule_order = 2;
     store
-        .seed_work(pending_work(target_work))
+        .seed_work(target_fixture)
         .expect("target Work fixture should be seeded");
     let claim = store
         .claim(
@@ -2097,6 +2099,43 @@ async fn runtime_terminalization_rejects_cross_work_claim_without_mutation() {
         error,
         CommitError::Work(WorkError::WorkMismatch { expected, actual })
             if expected == target_work && actual == claimed_work
+    ));
+
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(after.version(), before.version());
+    assert_eq!(after.events, before.events);
+    assert_eq!(after.journal, before.journal);
+    assert_eq!(after.works, before.works);
+}
+
+#[test]
+fn scheduler_non_head_claim_is_rejected_without_mutation() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(67)))
+        .expect("head Work fixture should be seeded");
+    let mut non_head = pending_work(work(68));
+    non_head.logical_schedule_order = 2;
+    store
+        .seed_work(non_head)
+        .expect("non-head Work fixture should be seeded");
+    let before = store.snapshot(timeline()).expect("snapshot should exist");
+
+    let error = store
+        .claim(
+            timeline(),
+            work(68),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+        )
+        .expect_err("Scheduler claim must reject a non-head Work");
+    assert!(matches!(
+        error,
+        WorkError::NotLogicalHead { work_id, head_work_id }
+            if work_id == work(68) && head_work_id == work(67)
     ));
 
     let after = store.snapshot(timeline()).expect("snapshot should exist");

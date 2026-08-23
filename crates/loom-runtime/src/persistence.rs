@@ -2512,6 +2512,9 @@ pub enum CommitError {
     /// The current Scheduler Work would exceed the configured same-instant
     /// chronology budget. No logical state was changed.
     ChronologyBudgetExceeded(ChronologyBudgetExceeded),
+    /// The authority returned an error while finalizing a Scheduler commit;
+    /// the commit outcome must be reconciled before any retry decision.
+    CommitOutcomeUnknown { message: String },
     /// The persistence authority could not complete the atomic transaction.
     StorageUnavailable { message: String },
     /// The revision or Event sequence cannot be represented by its value type.
@@ -2549,7 +2552,9 @@ impl fmt::Display for CommitError {
             }
             Self::Work(error) => error.fmt(formatter),
             Self::ChronologyBudgetExceeded(error) => error.fmt(formatter),
-            Self::StorageUnavailable { message } => formatter.write_str(message),
+            Self::CommitOutcomeUnknown { message } | Self::StorageUnavailable { message } => {
+                formatter.write_str(message)
+            }
             Self::RevisionOverflow => {
                 formatter.write_str("Timeline revision or Event sequence overflow")
             }

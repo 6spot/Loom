@@ -365,7 +365,15 @@ async fn commit_resolution(
         .await?;
     }
 
-    transaction.commit().await.map_err(storage_error)?;
+    transaction.commit().await.map_err(|error| {
+        if chronology_budget_limit.is_some() {
+            CommitError::CommitOutcomeUnknown {
+                message: format!("PostgreSQL Scheduler commit outcome is unknown: {error}"),
+            }
+        } else {
+            storage_error(error)
+        }
+    })?;
     Ok(CommitResult {
         timeline_id,
         version,

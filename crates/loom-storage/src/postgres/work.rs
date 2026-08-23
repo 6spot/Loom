@@ -20,6 +20,7 @@ const SELECT_WORK_FOR_UPDATE_SQL: &str = include_str!("../../sql/work/select_for
 const TIMELINE_EXISTS_SQL: &str = include_str!("../../sql/work/timeline_exists.sql");
 const LOCK_TIMELINE_FOR_CLAIM_SQL: &str =
     include_str!("../../sql/work/lock_timeline_for_claim.sql");
+const SELECT_LOGICAL_HEAD_SQL: &str = include_str!("../../sql/work/select_logical_head.sql");
 
 impl WorkStore for PgStorage {
     fn claim(
@@ -84,6 +85,28 @@ async fn claim_work(
             work_id,
             effective_due_world_time: work.effective_due_world_time,
             world_time,
+        });
+    }
+    let head_row = sqlx::query(SELECT_LOGICAL_HEAD_SQL)
+        .bind(timeline_id.to_string())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(work_sql_error)?
+        .ok_or(WorkError::WorkNotFound {
+            timeline_id,
+            work_id,
+        })?;
+    let head_work_id = head_row
+        .try_get::<String, _>("work_id")
+        .map_err(work_sql_error)?
+        .parse()
+        .map_err(|error| WorkError::StorageUnavailable {
+            message: format!("invalid persisted logical head Work identity: {error}"),
+        })?;
+    if head_work_id != work_id {
+        return Err(WorkError::NotLogicalHead {
+            work_id,
+            head_work_id,
         });
     }
     if now < work.available_at {

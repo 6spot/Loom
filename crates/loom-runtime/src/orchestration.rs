@@ -22,7 +22,7 @@ use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
 };
-use loom_core::{ActionTypeId, TimelineId, WorkId};
+use loom_core::{ActionTypeId, EventId, TimelineId, WorkId};
 use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome, WorkTarget};
 use semver::VersionReq;
 use serde_json::json;
@@ -32,14 +32,14 @@ use crate::{
     CallProvenance, CandidateWorldView, ChronologyBudgetExceeded, ChronologyBudgetPolicy,
     CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
     EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, IdentityAllocator, LifecycleError, ManualPlatformClock,
-    PersistenceFuture, PlatformClock, PlatformTime, ReadError, ResolutionBudget,
-    RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly, RuntimeRevisionCapability,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SchedulerCommitStore, SessionError,
+    ExecutionSessionStore, FailurePolicy, IdentityAllocator, LifecycleError, LogicalWorkTransition,
+    ManualPlatformClock, PersistenceFuture, PlatformClock, PlatformTime, ReadError,
+    ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
     TimelineSnapshot, UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution,
-    ValidationError, WorkClaim, WorkError, WorkRecord, WorkStore, WorkTerminalState,
+    ValidationError, WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
     WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
     WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
 };
@@ -1056,6 +1056,65 @@ where
                 .await?;
                 Err(ApiError::unavailable(exhausted.to_string()))
             }
+            Err(error @ CommitError::CommitOutcomeUnknown { .. }) => {
+                let mapped = map_commit_error(&error);
+                let reconciliation = match self
+                    .reconcile_scheduler_commit(target, &validated, &claim)
+                    .await
+                {
+                    Ok(reconciliation) => reconciliation,
+                    Err(reconcile_error) => {
+                        self.finish_execution_session_with_entropy(
+                            session.id(),
+                            ExecutionSessionStatus::Failed,
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await?;
+                        return Err(reconcile_error);
+                    }
+                };
+                match reconciliation {
+                    SchedulerCommitReconciliation::Committed { event_ids, version } => {
+                        let status = if rejection.is_some() {
+                            ExecutionSessionStatus::Rejected
+                        } else {
+                            ExecutionSessionStatus::Committed
+                        };
+                        self.finish_execution_session_with_entropy(
+                            session.id(),
+                            status,
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await?;
+                        match rejection {
+                            Some(rejection) => Ok(ExecutionResult::rejected(rejection)),
+                            None => Ok(ExecutionResult::committed(event_ids, version)),
+                        }
+                    }
+                    SchedulerCommitReconciliation::Absent => Err(self
+                        .finish_failure_and_apply_policy(
+                            snapshot.version(),
+                            &session,
+                            &claim,
+                            now,
+                            retry_available_at,
+                            mapped,
+                            Some(validated.entropy_evidence().clone()),
+                        )
+                        .await),
+                    SchedulerCommitReconciliation::Ambiguous => {
+                        self.finish_execution_session_with_entropy(
+                            session.id(),
+                            ExecutionSessionStatus::Failed,
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await?;
+                        Err(ApiError::unavailable(
+                            "Scheduler commit outcome remains unknown after reconciliation",
+                        ))
+                    }
+                }
+            }
             Err(error) => {
                 let error = map_commit_error(&error);
                 Err(self
@@ -1106,6 +1165,18 @@ where
             )));
         }
         Ok(snapshot)
+    }
+
+    async fn reconcile_scheduler_commit(
+        &self,
+        target: TimelineTarget,
+        resolution: &ValidatedResolution,
+        claim: &WorkClaim,
+    ) -> ApiResult<SchedulerCommitReconciliation> {
+        let snapshot = self.snapshot_for_target(target).await?;
+        Ok(reconcile_scheduler_commit_snapshot(
+            &snapshot, resolution, claim,
+        ))
     }
 
     async fn apply_failure_policy(
@@ -2377,6 +2448,56 @@ fn changes_runtime_state(
     !resolution.events().is_empty() || !resolution.work().is_empty() || current_work.is_some()
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum SchedulerCommitReconciliation {
+    Committed {
+        event_ids: Vec<EventId>,
+        version: loom_core::TimelineVersion,
+    },
+    Absent,
+    Ambiguous,
+}
+
+fn reconcile_scheduler_commit_snapshot(
+    snapshot: &TimelineSnapshot,
+    resolution: &ValidatedResolution,
+    claim: &WorkClaim,
+) -> SchedulerCommitReconciliation {
+    let expected_event_ids: Vec<_> = resolution.events().iter().map(|event| event.id).collect();
+    if let Some(commit) = snapshot.journal.iter().find(|commit| {
+        commit.timeline_id == resolution.timeline_id()
+            && commit.before_version == resolution.base_version()
+            && commit.event_ids == expected_event_ids
+            && commit.work_transitions.iter().any(|transition| {
+                matches!(
+                    transition,
+                    LogicalWorkTransition::Complete { work_id } if *work_id == claim.work_id()
+                )
+            })
+    }) {
+        return SchedulerCommitReconciliation::Committed {
+            event_ids: commit.event_ids.clone(),
+            version: commit.after_version,
+        };
+    }
+
+    let claim_is_still_current = snapshot
+        .works
+        .iter()
+        .find(|work| work.id == claim.work_id())
+        .is_some_and(|work| {
+            work.status == WorkStatus::Pending
+                && work.lease.is_some_and(|lease| {
+                    lease.fence() == claim.fence() && lease.claimed_until() == claim.claimed_until()
+                })
+        });
+    if snapshot.version() == resolution.base_version() && claim_is_still_current {
+        SchedulerCommitReconciliation::Absent
+    } else {
+        SchedulerCommitReconciliation::Ambiguous
+    }
+}
+
 fn execution_result(result: &crate::CommitResult, changes_runtime_state: bool) -> ExecutionResult {
     if changes_runtime_state {
         ExecutionResult::committed(
@@ -2627,6 +2748,9 @@ fn map_commit_error(error: &CommitError) -> ApiError {
         CommitError::ChronologyBudgetExceeded(_) => {
             ApiError::unavailable("Timeline chronology budget is exhausted")
         }
+        CommitError::CommitOutcomeUnknown { .. } => {
+            ApiError::unavailable("Scheduler commit outcome is unknown")
+        }
         CommitError::TimelineMismatch { .. } => {
             ApiError::invalid_request("Commit target does not match the pinned Timeline")
         }
@@ -2659,7 +2783,8 @@ mod tests {
         RegistrationError, ResolutionContext, ResolverError, ResolverErrorKind,
     };
     use loom_core::{
-        ActionTypeId, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId, WorldInstant,
+        ActionTypeId, EventSeq, SchemaRevision, StateRevision, TimelineId, TimelineVersion,
+        WorkHandlerId, WorkId, WorldId, WorldInstant,
     };
     use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
     use semver::Version;
@@ -2818,6 +2943,52 @@ mod tests {
         ))
     }
 
+    fn reconciliation_token_and_claim() -> (ValidatedResolution, WorkClaim) {
+        let registry = registry();
+        let resolution = EffectEngine::new(&registry)
+            .validate(
+                &base(),
+                "provenance.parent",
+                loom_protocol::Resolution::default(),
+            )
+            .expect("test resolution should validate");
+        let claim = WorkClaim::with_attempt_count(
+            id::<TimelineId>(2),
+            id::<WorkId>(7),
+            PlatformTime::new(10),
+            1,
+            1,
+        );
+        (resolution, claim)
+    }
+
+    fn reconciliation_work(
+        work_id: WorkId,
+        status: WorkStatus,
+        lease: Option<crate::WorkLease>,
+    ) -> WorkRecord {
+        WorkRecord {
+            id: work_id,
+            timeline_id: id::<TimelineId>(2),
+            target: WorkTarget::CapabilityWork {
+                owner: None,
+                handler: WorkHandlerId::from("test.handler"),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status,
+            attempt_count: 1,
+            claim_generation: 1,
+            available_at: PlatformTime::new(0),
+            last_error: None,
+            lease,
+        }
+    }
+
     fn test_assembly(
         registry: &CapabilityRegistry,
         binding: WorldRuntimeBinding,
@@ -2880,6 +3051,97 @@ mod tests {
             1,
             Some("entropy-test".to_owned()),
         )
+    }
+
+    #[test]
+    fn scheduler_commit_reconciliation_distinguishes_committed_absent_and_ambiguous() {
+        let (resolution, claim) = reconciliation_token_and_claim();
+        let base_version = resolution.base_version();
+        let after_version = TimelineVersion::new(EventSeq::new(0), StateRevision::new(1));
+        let committed_journal = vec![crate::LogicalCommit {
+            timeline_id: claim.timeline_id(),
+            before_version: base_version,
+            after_version,
+            world_time: None,
+            event_ids: Vec::new(),
+            work_transitions: vec![LogicalWorkTransition::Complete {
+                work_id: claim.work_id(),
+            }],
+            chronology_budget: Some(crate::ChronologyBudgetConsumption {
+                world_time: WorldInstant::new(0),
+                before: 0,
+                after: 1,
+            }),
+        }];
+        let committed = TimelineSnapshot::with_journal(
+            BaseWorldSnapshot::new(
+                id::<WorldId>(1),
+                claim.timeline_id(),
+                after_version,
+                WorldInstant::new(0),
+            ),
+            Vec::new(),
+            vec![reconciliation_work(
+                claim.work_id(),
+                WorkStatus::Completed,
+                None,
+            )],
+            committed_journal,
+        );
+        assert_eq!(
+            reconcile_scheduler_commit_snapshot(&committed, &resolution, &claim),
+            SchedulerCommitReconciliation::Committed {
+                event_ids: Vec::new(),
+                version: after_version,
+            }
+        );
+        assert_eq!(committed.journal.len(), 1);
+        assert_eq!(committed.chronology_budget().consumed, 1);
+
+        let live_lease = crate::WorkLease::new(claim.claimed_until(), claim.fence());
+        let absent = TimelineSnapshot::with_journal(
+            BaseWorldSnapshot::new(
+                id::<WorldId>(1),
+                claim.timeline_id(),
+                base_version,
+                WorldInstant::new(0),
+            ),
+            Vec::new(),
+            vec![reconciliation_work(
+                claim.work_id(),
+                WorkStatus::Pending,
+                Some(live_lease),
+            )],
+            Vec::new(),
+        );
+        assert_eq!(
+            reconcile_scheduler_commit_snapshot(&absent, &resolution, &claim),
+            SchedulerCommitReconciliation::Absent
+        );
+        assert!(absent.journal.is_empty());
+        assert_eq!(absent.chronology_budget().consumed, 0);
+
+        let ambiguous = TimelineSnapshot::with_journal(
+            BaseWorldSnapshot::new(
+                id::<WorldId>(1),
+                claim.timeline_id(),
+                after_version,
+                WorldInstant::new(0),
+            ),
+            Vec::new(),
+            vec![reconciliation_work(
+                claim.work_id(),
+                WorkStatus::Pending,
+                Some(live_lease),
+            )],
+            Vec::new(),
+        );
+        assert_eq!(
+            reconcile_scheduler_commit_snapshot(&ambiguous, &resolution, &claim),
+            SchedulerCommitReconciliation::Ambiguous
+        );
+        assert!(ambiguous.journal.is_empty());
+        assert_eq!(ambiguous.chronology_budget().consumed, 0);
     }
 
     #[test]
