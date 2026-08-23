@@ -8,7 +8,8 @@ use loom_composition_tests::neutral::{
 use loom_core::{EntityId, EventId, WorldId, WorldInstant};
 use loom_runtime::{
     ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, Runtime,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, WorkStatus,
+    WorkTarget,
 };
 use loom_storage::InMemoryStore;
 use serde_json::json;
@@ -409,4 +410,99 @@ fn neutral_registry_declares_work_and_reactions_without_running_a_scheduler() {
         registered.reaction.event_type.as_str() == OBSERVER_EVENT
             && registered.reaction.handler.as_str() == neutral::OBSERVER_WORK
     }));
+}
+
+#[tokio::test]
+async fn enabled_reaction_expands_to_atomic_immediate_work_and_chains() {
+    let store = InMemoryStore::new();
+    let world_id = neutral::identity::<WorldId>(0x5200);
+    let timeline_id = neutral::identity(0x5201);
+    let entity_id = neutral::identity::<EntityId>(0x5202);
+    let trigger_event_id = neutral::identity::<EventId>(0x5203);
+    let runtime = Runtime::new(&store, neutral::registry())
+        .expect("neutral Runtime should assemble")
+        .with_identity_allocator(neutral::FixedIdentityAllocator {
+            world_id,
+            timeline_id,
+        });
+
+    let target = runtime
+        .create_world_from_template(loom_api::CreateWorldFromTemplateRequest::new(
+            neutral::template_revision_one(
+                WorldInstant::new(7),
+                neutral::identity(0x5204),
+                entity_id,
+            ),
+        ))
+        .await
+        .expect("neutral World should be created")
+        .target;
+
+    runtime
+        .invoke(loom_api::ActionRequest::new(
+            target,
+            loom_protocol::ActionInvocation::new(
+                COUNTER_INCREMENT_ACTION.into(),
+                json!({
+                    "event_id": trigger_event_id.to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1,
+                }),
+            ),
+        ))
+        .await
+        .expect("increment Action should commit with its Reaction Work");
+
+    let after_action = store
+        .snapshot(timeline_id)
+        .expect("Timeline snapshot should be readable");
+    assert_eq!(after_action.events.len(), 2);
+    assert_eq!(after_action.works.len(), 1);
+    let reaction_work = &after_action.works[0];
+    assert_eq!(reaction_work.status, WorkStatus::Pending);
+    assert_eq!(reaction_work.effective_due_world_time, WorldInstant::new(7));
+    assert_eq!(reaction_work.logical_schedule_order, 1);
+    assert_eq!(reaction_work.causal_event_id, Some(trigger_event_id));
+    assert_eq!(reaction_work.origin_work_id, None);
+    assert!(matches!(
+        reaction_work.target,
+        WorkTarget::CapabilityWork { .. }
+    ));
+    let generated_event_id = reaction_work
+        .payload
+        .get("event_id")
+        .and_then(serde_json::Value::as_str)
+        .expect("Reaction Work should carry a fresh handler Event identity")
+        .parse::<EventId>()
+        .expect("Reaction Work Event identity should be valid");
+    assert_ne!(generated_event_id, trigger_event_id);
+    assert_eq!(reaction_work.payload["amount"], json!(1));
+
+    runtime
+        .execute_work(
+            target,
+            reaction_work.id,
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(1),
+        )
+        .await
+        .expect("Reaction Work should execute through the normal Work path");
+
+    let after_work = store
+        .snapshot(timeline_id)
+        .expect("Timeline snapshot after Reaction Work should be readable");
+    assert_eq!(after_work.events.len(), 3);
+    assert_eq!(after_work.works.len(), 2);
+    assert_eq!(after_work.works[0].status, WorkStatus::Completed);
+    let chained_work = after_work
+        .works
+        .iter()
+        .find(|work| work.status == WorkStatus::Pending)
+        .expect("the committed Event should schedule the next Reaction Work");
+    assert_eq!(chained_work.origin_work_id, Some(reaction_work.id));
+    assert_eq!(chained_work.causal_event_id, Some(generated_event_id));
+    assert_eq!(chained_work.effective_due_world_time, WorldInstant::new(7));
+    assert_eq!(chained_work.logical_schedule_order, 2);
+    assert_eq!(after_work.chronology_budget().consumed, 1);
 }

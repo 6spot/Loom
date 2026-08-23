@@ -1,10 +1,10 @@
 ---
 task: M5-T6
 issue: 158
-status: planned
+status: in_review
 depends_on: [153, 154, 157]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-23
 completed_at:
 completion_pr:
 merge_sha:
@@ -20,13 +20,23 @@ merge_sha:
 - Validate handler/schema/Binding before commit; fan-out participates in existing budgets.
 
 ## Acceptance
-- [ ] Event+Reaction Work are all-or-nothing.
-- [ ] Same-time fan-out order is deterministic.
-- [ ] Failure leaves no partial Event/Work.
-- [ ] Reaction chain is bounded and head-ordered.
+- [x] Event+Reaction Work are all-or-nothing.
+- [x] Same-time fan-out order is deterministic.
+- [x] Failure leaves no partial Event/Work.
+- [x] Reaction chain is bounded and head-ordered.
 - [ ] Restart + standard gates pass.
 
 Architecture: Amendment 0001 §8.2 + chronology rules.
 
 ## Verification evidence
-Pending.
+
+- `python3 tools/check_architecture.py` → storage SQL ownership and Loom architecture dependency checks passed.
+- `cargo fmt --all -- --check` → passed.
+- `CARGO_TARGET_DIR=/tmp/loom-target ... cargo check -p loom-runtime -p loom-storage -p loom-composition-tests` → passed.
+- `CARGO_TARGET_DIR=/tmp/loom-target ... cargo clippy -p loom-runtime -p loom-storage -p loom-composition-tests --all-targets -- -D warnings` → passed.
+- `cargo test -p loom-runtime --lib` → 31 tests passed.
+- `cargo test -p loom-storage --lib` → 30 tests passed, including atomic staged-commit, chronology and logical journal coverage.
+- `cargo test -p loom-composition-tests --test neutral_templates` → 3 tests passed, including enabled Immediate Reaction Work expansion and chained scheduling assertions.
+- `cargo test -p loom-composition-tests --test vertical_slice` → 9 tests passed, including durable Work execution and failure/assembly gates.
+
+PostgreSQL integration/restart and the full workspace gate remain for the repository standard gate.

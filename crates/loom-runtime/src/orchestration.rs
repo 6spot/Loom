@@ -23,9 +23,11 @@ use loom_capability::{
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
 };
 use loom_core::{ActionTypeId, EventId, TimelineId, WorkId};
-use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome, WorkTarget};
+use loom_protocol::{
+    ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
+};
 use semver::VersionReq;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::{
     AdvanceWorldTime, BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage,
@@ -553,7 +555,7 @@ where
                     invocation.action
                 )));
             };
-            let validated = engine
+            let mut validated = engine
                 .validate_segments_with_entropy(
                     &base,
                     &execution.segments,
@@ -561,6 +563,7 @@ where
                     execution.entropy_evidence,
                 )
                 .map_err(|error| map_runtime_error(&error))?;
+            self.expand_reactions(&base, assembly, &engine, &mut validated, None)?;
             total_usage = total_usage.combine(BudgetUsage::from_resolution(validated.resolution()));
             assembly
                 .execution_policy()
@@ -585,6 +588,100 @@ where
             binding: assembly.binding().clone(),
             bootstrap,
         })
+    }
+
+    /// Expands matching enabled Reactions into validated Immediate Work while
+    /// retaining the enclosing Resolution's single commit boundary.
+    ///
+    /// Reaction expansion copies an Event payload into the Work input and adds
+    /// the authoritative Event identity as `event_id`. It records the Event as
+    /// Work causality and, for Scheduler execution, records the current Work
+    /// as derivation provenance. No handler is called from this method.
+    fn expand_reactions(
+        &self,
+        base: &BaseWorldView,
+        assembly: &ExecutionAssembly,
+        engine: &EffectEngine<'_>,
+        validated: &mut ValidatedResolution,
+        origin_work_id: Option<WorkId>,
+    ) -> ApiResult<()> {
+        let mut additions = Vec::new();
+        let mut generated_ids = Vec::new();
+        let mut generated_event_ids = Vec::new();
+
+        for event in validated.events() {
+            for registered in self.registry.reactions() {
+                if registered.reaction.event_type != event.event_type {
+                    continue;
+                }
+
+                // A globally registered Reaction is inert unless both its
+                // Reaction owner and its target Work owner are enabled by the
+                // pinned World Binding and assembled in this Session.
+                if !enabled_capability(&self.registry, assembly, &registered.owner) {
+                    continue;
+                }
+                let Some(handler) = self.registry.work_handler(&registered.reaction.handler) else {
+                    return Err(ApiError::internal(
+                        "Runtime registry contains a Reaction with no Work handler",
+                    ));
+                };
+                if !enabled_capability(&self.registry, assembly, &handler.owner) {
+                    continue;
+                }
+
+                let work_id = self.identity_allocator.allocate_work_id();
+                if work_id.is_nil() {
+                    return Err(ApiError::internal(
+                        "Runtime identity allocator returned an invalid Reaction Work identity",
+                    ));
+                }
+                let event_id = self.identity_allocator.allocate_event_id();
+                if event_id.is_nil() {
+                    return Err(ApiError::internal(
+                        "Runtime identity allocator returned an invalid Reaction Event identity",
+                    ));
+                }
+                if validated.events().iter().any(|event| event.id == event_id)
+                    || generated_event_ids.contains(&event_id)
+                {
+                    return Err(ApiError::internal(
+                        "Runtime generated a duplicate Reaction Event identity",
+                    ));
+                }
+                generated_event_ids.push(event_id);
+                if validated.work().iter().any(|mutation| {
+                    matches!(mutation, WorkMutation::Schedule(work) if work.id == work_id)
+                }) || generated_ids.contains(&work_id)
+                {
+                    return Err(ApiError::internal(
+                        "Runtime generated a duplicate Reaction Work identity",
+                    ));
+                }
+                generated_ids.push(work_id);
+
+                additions.push((
+                    handler.owner.clone(),
+                    NewWork {
+                        id: work_id,
+                        timeline_id: validated.timeline_id(),
+                        target: WorkTarget::CapabilityWork {
+                            owner: Some(handler.owner.to_string()),
+                            handler: registered.reaction.handler.clone(),
+                        },
+                        schema_revision: handler.definition.schema_revision,
+                        payload: reaction_work_payload(event, event_id),
+                        schedule: WorkSchedule::Immediate,
+                        causal_event_id: Some(event.id),
+                        origin_work_id,
+                    },
+                ));
+            }
+        }
+
+        engine
+            .append_reaction_work(base, validated, additions)
+            .map_err(|error| map_runtime_error(&error))
     }
 
     /// Observes whether the requested due logical head is blocked because its
@@ -1006,7 +1103,7 @@ where
                 execution.entropy_evidence.clone(),
             ),
         };
-        let validated = match validation {
+        let mut validated = match validation {
             Ok(validated) => validated,
             Err(error) => {
                 let error = map_runtime_error(&error);
@@ -1023,6 +1120,26 @@ where
                     .await);
             }
         };
+
+        if let Err(error) = self.expand_reactions(
+            &base,
+            &assembly,
+            &engine,
+            &mut validated,
+            Some(claim.work_id()),
+        ) {
+            return Err(self
+                .finish_failure_and_apply_policy(
+                    snapshot.version(),
+                    &session,
+                    &claim,
+                    now,
+                    retry_available_at,
+                    error,
+                    Some(validated.entropy_evidence().clone()),
+                )
+                .await);
+        }
 
         let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
         match self
@@ -1728,7 +1845,7 @@ where
                     Ok(ExecutionResult::rejected(rejection))
                 }
                 ResolveOutcome::Resolved(_) => {
-                    let validated = match engine
+                    let mut validated = match engine
                         .validate_segments_with_entropy(
                             &base,
                             &execution.segments,
@@ -1748,6 +1865,17 @@ where
                             return Err(error);
                         }
                     };
+                    if let Err(error) =
+                        self.expand_reactions(&base, &assembly, &engine, &mut validated, None)
+                    {
+                        self.finish_execution_session_with_entropy(
+                            session.id(),
+                            ExecutionSessionStatus::Failed,
+                            validated.entropy_evidence().clone(),
+                        )
+                        .await?;
+                        return Err(error);
+                    }
                     let result = match self
                         .store
                         .commit(&validated, None, self.platform_clock.now())
@@ -2318,6 +2446,34 @@ fn dispatch_child_action(
 
 fn internal_dispatch_error(message: impl Into<String>) -> DispatchError {
     DispatchError::Resolver(ResolverError::new(message))
+}
+
+fn enabled_capability(
+    registry: &CapabilityRegistry,
+    assembly: &ExecutionAssembly,
+    capability: &CapabilityId,
+) -> bool {
+    let Some(manifest) = registry.capability(capability) else {
+        return false;
+    };
+    assembly.binding().allows(capability, &manifest.version)
+        && assembly
+            .implementations()
+            .capability(capability)
+            .is_some_and(|implementation| implementation.version() == &manifest.version)
+}
+
+fn reaction_work_payload(event: &crate::ProposedEvent, event_id: EventId) -> Value {
+    let mut payload = match &event.payload {
+        Value::Object(object) => object.clone(),
+        value => {
+            let mut object = serde_json::Map::new();
+            object.insert("event".to_owned(), value.clone());
+            object
+        }
+    };
+    payload.insert("event_id".to_owned(), Value::String(event_id.to_string()));
+    Value::Object(payload)
 }
 
 fn enabled_action<'a>(

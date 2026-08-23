@@ -5,7 +5,7 @@
 //! while applications/tests may inject a deterministic allocator. Capability
 //! resolution and the public Loom API never receive the allocator itself.
 
-use loom_core::{ExecutionSessionId, TimelineId, WorldId};
+use loom_core::{EventId, ExecutionSessionId, TimelineId, WorkId, WorldId};
 
 /// Allocates fresh technical identities for Runtime-owned World lifecycle work.
 ///
@@ -30,6 +30,22 @@ pub trait IdentityAllocator {
     fn allocate_execution_session_id(&self) -> ExecutionSessionId {
         ExecutionSessionId::from_uuid(uuid::Uuid::now_v7())
     }
+
+    /// Allocates a fresh Runtime-generated Durable Work identity.
+    ///
+    /// The identity is technical metadata only. Timeline-local logical order
+    /// remains assigned by the atomic scheduling commit and never comes from
+    /// this allocator or the UUID timestamp.
+    fn allocate_work_id(&self) -> WorkId {
+        WorkId::from_uuid(uuid::Uuid::now_v7())
+    }
+
+    /// Allocates a fresh Runtime-generated Event identity for reaction Work
+    /// input. The Event's Timeline sequence remains assigned by the commit
+    /// authority; this identity does not determine World ordering.
+    fn allocate_event_id(&self) -> EventId {
+        EventId::from_uuid(uuid::Uuid::now_v7())
+    }
 }
 
 /// Default Runtime allocator using RFC 9562 UUID version 7 identities.
@@ -51,6 +67,14 @@ impl IdentityAllocator for UuidV7IdentityAllocator {
 
     fn allocate_execution_session_id(&self) -> ExecutionSessionId {
         ExecutionSessionId::from_uuid(uuid::Uuid::now_v7())
+    }
+
+    fn allocate_work_id(&self) -> WorkId {
+        WorkId::from_uuid(uuid::Uuid::now_v7())
+    }
+
+    fn allocate_event_id(&self) -> EventId {
+        EventId::from_uuid(uuid::Uuid::now_v7())
     }
 }
 
