@@ -1228,6 +1228,14 @@ impl InMemoryStore {
             loom_core::StateRevision::new(next_state_revision),
         );
 
+        let provenance = context.provenance.as_ref().map(|provenance| {
+            let mut committed = provenance.clone();
+            committed
+                .logical_work_transitions
+                .clone_from(&work_transitions);
+            committed
+        });
+
         if changes_runtime_state {
             timeline.journal.push(LogicalCommit {
                 timeline_id,
@@ -1237,7 +1245,7 @@ impl InMemoryStore {
                 event_ids,
                 work_transitions,
                 chronology_budget,
-                provenance: context.provenance.clone(),
+                provenance: provenance.clone(),
             });
         }
 
@@ -1246,6 +1254,7 @@ impl InMemoryStore {
             version: timeline.version,
             events: committed_events,
             completed_work,
+            provenance,
         };
         *guard = staged;
         Ok(result)

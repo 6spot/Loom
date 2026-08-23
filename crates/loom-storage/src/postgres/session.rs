@@ -12,6 +12,7 @@ use super::PgStorage;
 
 const START_SESSION_SQL: &str = include_str!("../../sql/session/start.sql");
 const FINISH_SESSION_SQL: &str = include_str!("../../sql/session/finish.sql");
+const PREPARE_PROVENANCE_SQL: &str = include_str!("../../sql/session/prepare_provenance.sql");
 const READ_SESSION_SQL: &str = include_str!("../../sql/session/read.sql");
 const LIST_SESSIONS_SQL: &str = include_str!("../../sql/session/list.sql");
 
@@ -244,10 +245,8 @@ async fn record_ingress_provenance(
         serde_json::to_value(&prepared).map_err(|error| SessionError::StorageUnavailable {
             message: format!("Execution Session serialization failed: {error}"),
         })?;
-    let result = sqlx::query(FINISH_SESSION_SQL)
+    let result = sqlx::query(PREPARE_PROVENANCE_SQL)
         .bind(session_id.to_string())
-        .bind(session_status(ExecutionSessionStatus::Started))
-        .bind(prepared.started_at().value())
         .bind(record)
         .execute(&storage.pool)
         .await

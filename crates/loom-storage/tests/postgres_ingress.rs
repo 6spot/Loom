@@ -199,3 +199,41 @@ async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
     pool.close().await;
     database.cleanup().await;
 }
+
+#[tokio::test]
+async fn postgres_started_provenance_update_keeps_ended_at_null() {
+    let Some(database) = TestDatabase::provision("session-provenance").await else {
+        return;
+    };
+    let pool = database.pool().await;
+    let session_id = id::<loom_core::ExecutionSessionId>(0xb201);
+    sqlx::query(
+        "INSERT INTO loom_execution_session \
+         (session_id, world_id, timeline_id, origin, status, started_at, ended_at, record) \
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'Ingress', 'Started', 10, NULL, $4::jsonb)",
+    )
+    .bind(session_id.to_string())
+    .bind(id::<WorldId>(0xb202).to_string())
+    .bind(id::<TimelineId>(0xb203).to_string())
+    .bind(json!({"status": "Started"}))
+    .execute(&pool)
+    .await
+    .expect("Started Session should insert");
+    let result = sqlx::query(include_str!("../sql/session/prepare_provenance.sql"))
+        .bind(session_id.to_string())
+        .bind(json!({"status": "Started", "prepared": true}))
+        .execute(&pool)
+        .await
+        .expect("prepared provenance should update the non-terminal record");
+    assert_eq!(result.rows_affected(), 1);
+    let ended_at: Option<i64> = sqlx::query_scalar(
+        "SELECT ended_at FROM loom_execution_session WHERE session_id = $1::uuid",
+    )
+    .bind(session_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("Started Session should remain readable");
+    assert_eq!(ended_at, None);
+    pool.close().await;
+    database.cleanup().await;
+}

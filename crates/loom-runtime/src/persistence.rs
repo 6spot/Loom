@@ -1561,7 +1561,7 @@ impl IngressClaim {
 
 /// Durable identity tying one root Session to the complete logical proposal
 /// submitted to Timeline authority.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct CommitProvenance {
     /// Root Runtime Session that produced the proposal.
     pub session_id: ExecutionSessionId,
@@ -1569,7 +1569,14 @@ pub struct CommitProvenance {
     pub ingress_id: IngressId,
     /// Deterministic identity of the complete validated logical proposal.
     pub proposal_identity: String,
+    /// Complete logical Work transitions produced by the authority commit.
+    /// This is empty while the Session holds its prepared proposal and is
+    /// filled by the linearized commit journal before finalization.
+    #[serde(default)]
+    pub logical_work_transitions: Vec<LogicalWorkTransition>,
 }
+
+impl Eq for CommitProvenance {}
 
 impl CommitProvenance {
     /// Creates durable provenance for one Ingress authority proposal.
@@ -1583,6 +1590,7 @@ impl CommitProvenance {
             session_id,
             ingress_id,
             proposal_identity: proposal_identity.into(),
+            logical_work_transitions: Vec::new(),
         }
     }
 }
@@ -3022,6 +3030,8 @@ pub struct CommitResult {
     pub events: Vec<CommittedEvent>,
     /// Current Work completed by this commit, if a claim was supplied.
     pub completed_work: Option<WorkId>,
+    /// Durable provenance as written with the authority journal.
+    pub provenance: Option<CommitProvenance>,
 }
 
 /// A failure reading a Runtime Timeline snapshot.

@@ -376,6 +376,14 @@ async fn commit_resolution(
         .as_ref()
         .map_or(before_budget, |consumption| consumption.after);
 
+    let provenance = provenance.map(|provenance| {
+        let mut committed = provenance.clone();
+        committed
+            .logical_work_transitions
+            .clone_from(&work_transitions);
+        committed
+    });
+
     if changes_runtime_state {
         sqlx::query(UPDATE_TIMELINE_VERSION_SQL)
             .bind(timeline_id.to_string())
@@ -400,7 +408,7 @@ async fn commit_resolution(
                 event_ids,
                 work_transitions,
                 chronology_budget,
-                provenance: provenance.cloned(),
+                provenance: provenance.clone(),
             },
         )
         .await?;
@@ -417,6 +425,7 @@ async fn commit_resolution(
         version,
         events: committed_events,
         completed_work,
+        provenance,
     })
 }
 
