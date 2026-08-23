@@ -59,7 +59,7 @@ async fn postgres_18_schema_contract() {
     .fetch_one(&storage.pool)
     .await
     .expect("schema tables should be inspectable");
-    assert_eq!(loom_table_count, 17);
+    assert_eq!(loom_table_count, 19);
 
     sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
         .bind(WORLD_ID)
