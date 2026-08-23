@@ -9,12 +9,16 @@ use url::Url;
 
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 
+const DEFAULT_POSTGRES_CONTROL_URL: &str =
+    "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+
 /// One isolated `PostgreSQL` database created for an integration-test fixture.
 ///
-/// `LOOM_TEST_POSTGRES_URL` is a control-database connection. The configured
-/// role must be allowed to create/drop databases. Each fixture creates a unique
-/// child database, applies Loom migrations from scratch, and requires explicit
-/// async cleanup at the end of the test.
+/// `LOOM_TEST_POSTGRES_URL` may override the repository-local control database.
+/// When it is unset or empty, tests use Loom's localhost-only default control
+/// database. The configured role must be allowed to create/drop databases.
+/// Each fixture creates a unique child database, applies Loom migrations from
+/// scratch, and requires explicit async cleanup at the end of the test.
 pub struct TestDatabase {
     control_pool: PgPool,
     database_name: String,
@@ -23,11 +27,18 @@ pub struct TestDatabase {
 
 impl TestDatabase {
     /// Creates a unique empty database and applies the embedded Loom migrations.
+    ///
+    /// PostgreSQL integration tests never self-skip. If the control database is
+    /// unavailable, this function fails the test with an actionable message.
     pub async fn provision(label: &str) -> Option<Self> {
-        let control_url = postgres_control_url()?;
-        let control_pool = PgPool::connect(&control_url)
-            .await
-            .expect("PostgreSQL test control database should accept connections");
+        let control_url = postgres_control_url();
+        let control_pool = PgPool::connect(&control_url).await.unwrap_or_else(|error| {
+            panic!(
+                "PostgreSQL integration test control database is unavailable. \
+                 Start the repository-managed service with `bash tools/postgres-test.sh up` \
+                 or set LOOM_TEST_POSTGRES_URL to a reachable control database: {error}"
+            )
+        });
         let database_name = unique_database_name(label);
         let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
         sqlx::query(AssertSqlSafe(create_sql))
@@ -74,14 +85,11 @@ impl TestDatabase {
     }
 }
 
-fn postgres_control_url() -> Option<String> {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
-        }
-        Err(_) => None,
-    }
+fn postgres_control_url() -> String {
+    std::env::var("LOOM_TEST_POSTGRES_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_POSTGRES_CONTROL_URL.to_owned())
 }
 
 fn child_database_url(control_url: &str, database_name: &str) -> String {
