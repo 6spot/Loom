@@ -6,7 +6,21 @@ The local service is intentionally bound only to `127.0.0.1` and is not exposed 
 
 ## Run tests
 
-The recommended entry point is the repository test wrapper:
+Normal Cargo commands are valid:
+
+```bash
+cargo test --workspace --all-features
+```
+
+PostgreSQL integration tests do **not** self-skip. When `LOOM_TEST_POSTGRES_URL` is unset or empty, the fixture uses the repository-local default:
+
+```text
+postgresql://loom:loom@127.0.0.1:15432/loom_control
+```
+
+If that default service is not reachable, the fixture invokes `tools/postgres-test.sh up`, waits for the repository-managed PostgreSQL service, and retries the connection. This keeps a direct `cargo test` from producing a false pass or requiring the caller to remember a special pre-test command.
+
+The repository wrapper remains available when explicitly managing the local service before Cargo is useful:
 
 ```bash
 bash tools/test.sh --workspace --all-features
@@ -18,17 +32,9 @@ For one PostgreSQL integration test:
 bash tools/test.sh -p loom-storage --test postgres_schema -- --nocapture
 ```
 
-When `LOOM_TEST_POSTGRES_URL` is not already set, `tools/test.sh` ensures the repository-managed service is running, waits for its health check, exports the local control-database URL, and then delegates to `cargo test`. When an explicit `LOOM_TEST_POSTGRES_URL` is already set, the wrapper uses it as-is and does not start the local Compose service.
+When `LOOM_TEST_POSTGRES_URL` is not already set, `tools/test.sh` starts/reuses the repository-managed service, exports the local control-database URL, and delegates to `cargo test`. When an explicit `LOOM_TEST_POSTGRES_URL` is already set, the wrapper uses it as-is and does not start the local Compose service.
 
-PostgreSQL integration tests do **not** self-skip. When `LOOM_TEST_POSTGRES_URL` is unset or empty, the test fixture itself uses the repository-local default:
-
-```text
-postgresql://loom:loom@127.0.0.1:15432/loom_control
-```
-
-This means a direct `cargo test` also runs PostgreSQL integration bodies when the local service is already available. If the control database cannot be reached, the PostgreSQL test fails with an instruction to start the repository-managed service instead of reporting a false pass.
-
-`LOOM_TEST_POSTGRES_URL` is the only connection override. Use it for CI or a development topology where the tests cannot reach the repository-managed localhost service. There is no separate environment switch that enables or disables PostgreSQL test execution.
+`LOOM_TEST_POSTGRES_URL` is the only connection override. Use it for CI or a development topology where the tests cannot reach the repository-managed localhost service. An explicit unreachable URL fails directly; it never falls back to or starts a different database. There is no separate environment switch that enables or disables PostgreSQL test execution.
 
 ## Local service contract
 
@@ -53,7 +59,7 @@ The configured role can create/drop databases because `crates/loom-storage/tests
 
 ## Manage the local service
 
-The test wrapper normally manages startup automatically. These commands are available when the service needs to be inspected or managed explicitly:
+These commands are available when the service needs to be inspected or managed explicitly:
 
 ```bash
 bash tools/postgres-test.sh up
@@ -68,8 +74,8 @@ bash tools/postgres-test.sh down
 
 The repository-owned local test environment is defined by `compose.test-db.yaml`, `tools/postgres-test.sh`, `tools/test.sh`, the PostgreSQL test fixture under `crates/loom-storage/tests/support`, and this document. Keep these definitions aligned when the test database configuration changes instead of creating a second operational guide for the same workflow.
 
-If development commands run inside a separate container/network namespace, `127.0.0.1` refers to that container rather than the host. In that deployment model, set `LOOM_TEST_POSTGRES_URL` explicitly to the reachable control database address.
+If development commands run inside a separate container/network namespace, `127.0.0.1` refers to that container rather than the host. In that deployment model, set `LOOM_TEST_POSTGRES_URL` explicitly to the reachable control database address; the fixture will not try to start the host-local service when an explicit URL is present.
 
 ## CI
 
-GitHub Actions uses the same pinned database family, `pgvector/pgvector:0.8.6-pg18`. The general Rust test job uses `tools/test.sh` so workspace tests cannot silently omit PostgreSQL integration bodies. The dedicated PostgreSQL contract job uses an ephemeral service and an explicit `LOOM_TEST_POSTGRES_URL` on port 5432.
+GitHub Actions uses the same pinned database family, `pgvector/pgvector:0.8.6-pg18`. The general Rust test job uses `tools/test.sh` so its service lifecycle is explicit in CI. The dedicated PostgreSQL contract job uses an ephemeral service and an explicit `LOOM_TEST_POSTGRES_URL` on port 5432.
