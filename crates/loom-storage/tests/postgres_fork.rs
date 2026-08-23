@@ -9,8 +9,8 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, ChronologyBudgetState, ForkMaterialization, Runtime, TimelineFork,
-    TimelineForkStore, WorldStore,
+    BaseWorldSnapshot, ChronologyBudgetState, CommittedEvent, ForkMaterialization, Runtime,
+    TimelineFork, TimelineForkStore, WorldStore,
 };
 use support::TestDatabase;
 
@@ -36,6 +36,24 @@ async fn seed_world(pool: &sqlx::PgPool, world_id: WorldId, timeline_id: Timelin
         .execute(pool)
         .await
         .expect("fork fixture Timeline should insert");
+}
+
+async fn insert_event(pool: &sqlx::PgPool, timeline_id: TimelineId, event_id: EventId, seq: u64) {
+    sqlx::query(
+        "INSERT INTO loom_event \\
+         (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \\
+         VALUES ($1::uuid, $2::uuid, $3::numeric, 'test.history.event', 1, 0, '{}'::jsonb, '[]'::jsonb)",
+    )
+    .bind(timeline_id.to_string())
+    .bind(event_id.to_string())
+    .bind(seq.to_string())
+    .execute(pool)
+    .await
+    .expect("history Event should insert");
+}
+
+fn refs(events: &[CommittedEvent]) -> Vec<EventRef> {
+    events.iter().map(CommittedEvent::event_ref).collect()
 }
 
 #[tokio::test]
@@ -88,7 +106,10 @@ async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_e
     )
     .await
     .expect("A to B fork should commit");
-    assert!(child_b.events.is_empty());
+    assert_eq!(
+        refs(&child_b.events),
+        vec![EventRef::new(timeline_a, event_id)]
+    );
     assert_eq!(
         child_b.ancestry().parent_timeline_id,
         Some(timeline_a),
@@ -126,7 +147,10 @@ async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_e
     )
     .await
     .expect("B to C fork should commit");
-    assert!(child_c.events.is_empty());
+    assert_eq!(
+        refs(&child_c.events),
+        vec![EventRef::new(timeline_a, event_id)]
+    );
     assert_eq!(
         child_c.ancestry().parent_timeline_id,
         Some(timeline_b),
@@ -374,6 +398,126 @@ async fn postgres_historical_fork_persists_materialization_after_restart() {
             .world_time(),
         WorldInstant::default()
     );
+
+    restarted.close().await;
+    pool.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL visible ancestry fixture covers several immutable branch boundaries"
+)]
+async fn postgres_18_visible_history_is_bounded_across_grandchild_and_restart() {
+    let Some(database) = TestDatabase::provision("visible_history").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let pool = database.pool().await;
+    let world_id = id::<WorldId>(0x5301);
+    let timeline_a = id::<TimelineId>(0x5302);
+    let timeline_b = id::<TimelineId>(0x5303);
+    let timeline_c = id::<TimelineId>(0x5304);
+    let event_a1 = id::<EventId>(0x5311);
+    let event_a2 = id::<EventId>(0x5312);
+    let event_a3 = id::<EventId>(0x5313);
+    let event_b3 = id::<EventId>(0x5323);
+
+    seed_world(&pool, world_id, timeline_a).await;
+    insert_event(&pool, timeline_a, event_a1, 1).await;
+    insert_event(&pool, timeline_a, event_a2, 2).await;
+    sqlx::query(
+        "UPDATE loom_timeline SET head_event_seq = 2, state_revision = 2 WHERE timeline_id = $1::uuid",
+    )
+    .bind(timeline_a.to_string())
+    .execute(&pool)
+    .await
+    .expect("source head should update");
+
+    let source = WorldStore::snapshot(&storage, timeline_a)
+        .await
+        .expect("source history should read");
+    assert_eq!(
+        refs(&source.events),
+        vec![
+            EventRef::new(timeline_a, event_a1),
+            EventRef::new(timeline_a, event_a2),
+        ]
+    );
+    let child_b = TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_a, source.version(), timeline_b),
+    )
+    .await
+    .expect("child fork should commit");
+    assert_eq!(refs(&child_b.events), refs(&source.events));
+
+    insert_event(&pool, timeline_b, event_b3, 3).await;
+    sqlx::query(
+        "UPDATE loom_timeline SET head_event_seq = 3, state_revision = 3 WHERE timeline_id = $1::uuid",
+    )
+    .bind(timeline_b.to_string())
+    .execute(&pool)
+    .await
+    .expect("child head should update");
+    let child = WorldStore::snapshot(&storage, timeline_b)
+        .await
+        .expect("child history should include its local Event");
+    assert_eq!(
+        refs(&child.events),
+        vec![
+            EventRef::new(timeline_a, event_a1),
+            EventRef::new(timeline_a, event_a2),
+            EventRef::new(timeline_b, event_b3),
+        ]
+    );
+
+    let grandchild = TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_b, child.version(), timeline_c),
+    )
+    .await
+    .expect("grandchild fork should commit");
+    assert_eq!(refs(&grandchild.events), refs(&child.events));
+    assert_eq!(
+        grandchild.ancestry().fork_parent_event,
+        Some(EventRef::new(timeline_b, event_b3))
+    );
+
+    insert_event(&pool, timeline_a, event_a3, 3).await;
+    sqlx::query(
+        "UPDATE loom_timeline SET head_event_seq = 3, state_revision = 3 WHERE timeline_id = $1::uuid",
+    )
+    .bind(timeline_a.to_string())
+    .execute(&pool)
+    .await
+    .expect("source future should update");
+    assert_eq!(
+        refs(
+            &WorldStore::snapshot(&storage, timeline_b)
+                .await
+                .expect("child history should remain bounded")
+                .events
+        ),
+        refs(&child.events)
+    );
+    assert_eq!(
+        refs(
+            &WorldStore::snapshot(&storage, timeline_c)
+                .await
+                .expect("grandchild history should remain bounded")
+                .events
+        ),
+        refs(&grandchild.events)
+    );
+
+    storage.close().await;
+    let restarted = database.storage().await;
+    let after_restart = WorldStore::snapshot(&restarted, timeline_c)
+        .await
+        .expect("visible ancestry should survive restart");
+    assert_eq!(refs(&after_restart.events), refs(&grandchild.events));
 
     restarted.close().await;
     pool.close().await;

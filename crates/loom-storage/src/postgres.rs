@@ -47,7 +47,7 @@ const READ_RELATIONSHIP_PARTICIPANTS_SQL: &str =
 const READ_ENTITY_FACETS_SQL: &str = include_str!("../sql/world/read_entity_facets.sql");
 const READ_RELATIONSHIP_FACETS_SQL: &str =
     include_str!("../sql/world/read_relationship_facets.sql");
-const READ_EVENTS_SQL: &str = include_str!("../sql/event/read_events.sql");
+const READ_VISIBLE_EVENTS_SQL: &str = include_str!("../sql/ancestry/read_visible_events.sql");
 const READ_EVENT_PARTICIPANTS_SQL: &str = include_str!("../sql/event/read_participants.sql");
 const READ_EVENT_RELATIONSHIP_REFS_SQL: &str =
     include_str!("../sql/event/read_relationship_refs.sql");
@@ -309,13 +309,15 @@ impl PgStorage {
             );
         }
 
-        let event_rows = sqlx::query(READ_EVENTS_SQL)
+        let event_rows = sqlx::query(READ_VISIBLE_EVENTS_SQL)
             .bind(timeline_id.to_string())
             .fetch_all(&mut *transaction)
             .await
             .map_err(sql_read_error)?;
         let mut events = Vec::with_capacity(event_rows.len());
         for row in event_rows {
+            let event_timeline_id =
+                parse_identity::<TimelineId>(&row_string(&row, "timeline_id")?, "TimelineId")?;
             let event_id = parse_identity::<EventId>(&row_string(&row, "event_id")?, "EventId")?;
             let effects_value = row_json(&row, "effects")?;
             let effects: Vec<WorldEffect> = serde_json::from_value(effects_value)
@@ -329,14 +331,14 @@ impl PgStorage {
             );
             proposal.effects = effects;
             let mut event = CommittedEvent::from_proposed(
-                timeline_id,
+                event_timeline_id,
                 event_seq,
                 &proposal,
                 WorldInstant::new(row_i64(&row, "occurred_at")?),
             );
 
             let participant_rows = sqlx::query(READ_EVENT_PARTICIPANTS_SQL)
-                .bind(timeline_id.to_string())
+                .bind(event_timeline_id.to_string())
                 .bind(event_id.to_string())
                 .fetch_all(&mut *transaction)
                 .await
@@ -352,7 +354,7 @@ impl PgStorage {
             }
 
             let relationship_rows = sqlx::query(READ_EVENT_RELATIONSHIP_REFS_SQL)
-                .bind(timeline_id.to_string())
+                .bind(event_timeline_id.to_string())
                 .bind(event_id.to_string())
                 .fetch_all(&mut *transaction)
                 .await
@@ -368,7 +370,7 @@ impl PgStorage {
             }
 
             let causal_rows = sqlx::query(READ_EVENT_CAUSAL_LINKS_SQL)
-                .bind(timeline_id.to_string())
+                .bind(event_timeline_id.to_string())
                 .bind(event_id.to_string())
                 .fetch_all(&mut *transaction)
                 .await

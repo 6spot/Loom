@@ -20,7 +20,7 @@ use std::{
 
 use loom_capability::{CapabilityId, CapabilityManifest};
 use loom_core::{
-    AssociationRole, EntityId, EventId, EventSeq, ExecutionSessionId, RelationshipId,
+    AssociationRole, EntityId, EventId, EventRef, EventSeq, ExecutionSessionId, RelationshipId,
     SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
     WorldEffect, WorldId, WorldInstant,
 };
@@ -1979,6 +1979,12 @@ pub struct CommittedEvent {
 }
 
 impl CommittedEvent {
+    /// Returns the explicit Timeline-qualified identity of this Event.
+    #[must_use]
+    pub const fn event_ref(&self) -> EventRef {
+        EventRef::new(self.timeline_id, self.id)
+    }
+
     /// Builds an authoritative read model from one proposal and assigned seq.
     #[must_use]
     pub fn from_proposed(

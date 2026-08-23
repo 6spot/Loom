@@ -734,6 +734,14 @@ pub struct CommittedEvent {
     pub effects: Vec<WorldEffect>,
 }
 
+impl CommittedEvent {
+    /// Returns the explicit Timeline-qualified identity of this Event.
+    #[must_use]
+    pub const fn event_ref(&self) -> EventRef {
+        EventRef::new(self.timeline_id, self.id)
+    }
+}
+
 /// Stable identity used by the public Capability catalog.
 ///
 /// Capability ownership is software metadata, not a World Entity or Runtime

@@ -499,11 +499,10 @@ impl InMemoryStore {
     /// Returns [`ReadError::TimelineNotFound`] when the Timeline is absent.
     pub fn snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
         let guard = self.read_state();
-        let timeline = guard
-            .timelines
-            .get(&timeline_id)
-            .ok_or(ReadError::TimelineNotFound { timeline_id })?;
-        Ok(snapshot_from_timeline(timeline))
+        if !guard.timelines.contains_key(&timeline_id) {
+            return Err(ReadError::TimelineNotFound { timeline_id });
+        }
+        Ok(snapshot_from_state(&guard, timeline_id))
     }
 
     /// Reads the Timeline Logical Commit journal in its persisted logical
@@ -776,6 +775,7 @@ impl InMemoryStore {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
         let timeline_id = resolution.timeline_id();
+        let visible_event_ids = visible_event_ids(&staged, timeline_id);
         let timeline = staged
             .timelines
             .get_mut(&timeline_id)
@@ -813,7 +813,7 @@ impl InMemoryStore {
         let mut seen_events = HashSet::new();
         let mut next_sequence = timeline.version.head_event_seq.value();
         for event in resolution.events() {
-            *timeline = validate_event(timeline, event, &seen_events)?;
+            *timeline = validate_event(timeline, event, &seen_events, &visible_event_ids)?;
             next_sequence = next_sequence
                 .checked_add(1)
                 .ok_or(CommitError::RevisionOverflow)?;
@@ -1335,7 +1335,10 @@ impl InMemoryStore {
             });
         }
 
-        let parent_event = resolve_parent_event_ref(&staged.timelines, &source, fork.fork_version);
+        let parent_event = visible_events(&staged, source.timeline_id)
+            .into_iter()
+            .find(|event| event.event_seq == fork.fork_version.head_event_seq)
+            .map(|event| EventRef::new(event.timeline_id, event.id));
         let ancestry = TimelineAncestry::fork(source.timeline_id, fork.fork_version, parent_event);
 
         if let Some(existing) = staged.timelines.get(&fork.child_timeline_id) {
@@ -1343,7 +1346,7 @@ impl InMemoryStore {
                 && existing.ancestry == ancestry
                 && existing.version == fork.fork_version
             {
-                return Ok(snapshot_from_timeline(existing));
+                return Ok(snapshot_from_state(&staged, fork.child_timeline_id));
             }
             return Err(ForkError::TimelineAlreadyExists {
                 timeline_id: fork.child_timeline_id,
@@ -1461,12 +1464,7 @@ impl InMemoryStore {
             child.logical_schedule_order = source.logical_schedule_order;
         }
         staged.timelines.insert(fork.child_timeline_id, child);
-        let snapshot = snapshot_from_timeline(
-            staged
-                .timelines
-                .get(&fork.child_timeline_id)
-                .expect("fork child inserted above"),
-        );
+        let snapshot = snapshot_from_state(&staged, fork.child_timeline_id);
         *guard = staged;
         Ok(snapshot)
     }
@@ -1495,6 +1493,7 @@ impl InMemoryStore {
         staged.world_bindings.insert(world_id, binding);
         staged.timelines.insert(timeline_id, timeline);
 
+        let visible_event_ids = visible_event_ids(&staged, timeline_id);
         let timeline = staged
             .timelines
             .get_mut(&timeline_id)
@@ -1516,7 +1515,7 @@ impl InMemoryStore {
                 });
             }
             for event in resolution.events() {
-                *timeline = validate_event(timeline, event, &seen_events)
+                *timeline = validate_event(timeline, event, &seen_events, &visible_event_ids)
                     .map_err(|error| birth_commit_error(&error))?;
                 next_sequence = next_sequence
                     .checked_add(1)
@@ -1803,7 +1802,12 @@ impl RuntimeControlStore for InMemoryStore {
     }
 }
 
-fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
+fn snapshot_from_state(state: &StoreState, timeline_id: TimelineId) -> TimelineSnapshot {
+    let timeline = state
+        .timelines
+        .get(&timeline_id)
+        .expect("snapshot Timeline should exist");
+    let events = visible_events(state, timeline_id);
     let mut base = BaseWorldSnapshot::new(
         timeline.world_id,
         timeline.timeline_id,
@@ -1824,14 +1828,14 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
             facet.value.clone(),
         );
     }
-    for event in &timeline.events {
+    for event in &events {
         base.insert_event(event.id);
     }
     let mut works: Vec<_> = timeline.works.values().cloned().collect();
     works.sort_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order));
     TimelineSnapshot::with_journal_ancestry_and_budget(
         base,
-        timeline.events.clone(),
+        events,
         works,
         timeline.journal.clone(),
         timeline.ancestry,
@@ -1842,43 +1846,62 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
     )
 }
 
-fn resolve_parent_event_ref(
-    timelines: &HashMap<TimelineId, TimelineState>,
-    source: &TimelineState,
-    source_version: TimelineVersion,
-) -> Option<EventRef> {
-    let mut timeline_id = source.timeline_id;
-    let mut visible_head = source_version.head_event_seq;
+/// Derives visible Event history from immutable Timeline ancestry segments.
+/// Event rows remain owned by their original Timeline; this is only a read
+/// projection bounded by each fork position.
+fn visible_events(state: &StoreState, timeline_id: TimelineId) -> Vec<CommittedEvent> {
+    let mut events = Vec::new();
+    let mut current_timeline_id = timeline_id;
+    let mut upper_sequence = state
+        .timelines
+        .get(&timeline_id)
+        .map_or(0, |timeline| timeline.version.head_event_seq.value());
     let mut visited = HashSet::new();
 
-    loop {
-        if !visited.insert(timeline_id) {
-            return None;
-        }
-        let timeline = timelines.get(&timeline_id)?;
-        if let Some(event) = timeline
-            .events
-            .iter()
-            .filter(|event| event.event_seq <= visible_head)
-            .max_by_key(|event| event.event_seq)
-        {
-            return Some(EventRef::new(timeline_id, event.id));
-        }
-
-        let parent_version = timeline.ancestry.fork_parent_version?;
-        timeline_id = timeline
+    while visited.insert(current_timeline_id) {
+        let Some(timeline) = state.timelines.get(&current_timeline_id) else {
+            break;
+        };
+        let lower_sequence = timeline
             .ancestry
-            .fork_parent_event
-            .map(|event| event.timeline_id)
-            .or(timeline.ancestry.parent_timeline_id)?;
-        visible_head = parent_version.head_event_seq;
+            .fork_parent_version
+            .map_or(0, |version| version.head_event_seq.value());
+        if upper_sequence < lower_sequence {
+            break;
+        }
+        events.extend(
+            timeline
+                .events
+                .iter()
+                .filter(|event| {
+                    event.event_seq.value() > lower_sequence
+                        && event.event_seq.value() <= upper_sequence
+                })
+                .cloned(),
+        );
+        let Some(parent_timeline_id) = timeline.ancestry.parent_timeline_id else {
+            break;
+        };
+        current_timeline_id = parent_timeline_id;
+        upper_sequence = lower_sequence;
     }
+
+    events.sort_by_key(|event| event.event_seq);
+    events
+}
+
+fn visible_event_ids(state: &StoreState, timeline_id: TimelineId) -> HashSet<EventId> {
+    visible_events(state, timeline_id)
+        .into_iter()
+        .map(|event| event.id)
+        .collect()
 }
 
 fn validate_event(
     timeline: &TimelineState,
     event: &ProposedEvent,
     seen_events: &HashSet<EventId>,
+    visible_event_ids: &HashSet<EventId>,
 ) -> Result<TimelineState, CommitError> {
     if event.id.is_nil() {
         return Err(CommitError::InvalidEvent {
@@ -1929,7 +1952,7 @@ fn validate_event(
     }
     for causal_link in &event.causal_links {
         let cause_event_id = causal_link.event_id();
-        if !timeline.event_ids.contains(&cause_event_id) && !seen_events.contains(&cause_event_id) {
+        if !visible_event_ids.contains(&cause_event_id) && !seen_events.contains(&cause_event_id) {
             return Err(CommitError::InvalidEvent {
                 event_id: event.id,
                 message: format!(
