@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 COMPOSE_FILE="compose.test-db.yaml"
-COMPOSE_PROJECT="${LOOM_TEST_COMPOSE_PROJECT:-loom}"
-LOCK_FILE="${LOOM_TEST_POSTGRES_LOCK_FILE:-${TMPDIR:-/tmp}/loom-postgres-test.lock}"
+COMPOSE_PROJECT="loom"
+LOCK_FILE="${TMPDIR:-/tmp}/loom-postgres-test.lock"
 
 compose() {
   docker compose --project-name "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" "$@"
