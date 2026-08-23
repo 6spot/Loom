@@ -2265,6 +2265,53 @@ impl TimelineSnapshot {
     pub fn world_view(&self) -> BaseWorldView {
         BaseWorldView::new(self.base.clone())
     }
+
+    /// Replays this root Timeline read to one exact committed `TimelineVersion`.
+    /// The initial materialized state is the empty version-zero state, and the
+    /// initial World Time is recovered from the first logical time transition
+    /// when one exists. Current Work records are intentionally not read by this
+    /// operation; technical lease/retry metadata cannot affect the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::LogicalReplayError`] when the target is not a journal
+    /// boundary or the Event/logical streams are inconsistent.
+    pub fn replay_to(
+        &self,
+        target: TimelineVersion,
+    ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
+        let initial_world_time = self
+            .journal
+            .iter()
+            .find_map(|commit| commit.world_time.map(|transition| transition.from))
+            .unwrap_or(self.world_time());
+        let initial = BaseWorldSnapshot::new(
+            self.world_id(),
+            self.timeline_id(),
+            TimelineVersion::default(),
+            initial_world_time,
+        );
+        self.replay_from(initial, target)
+    }
+
+    /// Replays a coherent Event/journal suffix from an explicit initial
+    /// snapshot to one exact committed `TimelineVersion`.
+    ///
+    /// This form is used when the caller owns an initial materialization (for
+    /// example, a branch ancestry checkpoint). Current Work records remain
+    /// excluded from reconstruction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::LogicalReplayError`] when the target is not a journal
+    /// boundary or the Event/logical streams are inconsistent.
+    pub fn replay_from(
+        &self,
+        initial: BaseWorldSnapshot,
+        target: TimelineVersion,
+    ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
+        crate::replay_timeline(initial, &self.events, &self.journal, target)
+    }
 }
 
 /// Result of a successful atomic Timeline commit.

@@ -1,10 +1,10 @@
 ---
 task: M6-T2
 issue: 163
-status: planned
+status: in_review
 depends_on: [154, 162]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-23
 completed_at:
 completion_pr:
 merge_sha:
@@ -18,13 +18,21 @@ merge_sha:
 - Support initial version and Event-only/Work-only/time-only versions; reject gaps/inconsistency.
 
 ## Acceptance
-- [ ] Historical Pending Work intervals are exact.
-- [ ] World Time comes only from time transitions.
-- [ ] Budget/order restore exactly after restart.
-- [ ] Operational retry noise cannot change reconstruction.
-- [ ] InMemory/PostgreSQL parity + standard gates pass.
+- [x] Historical Pending Work intervals are exact.
+- [x] World Time comes only from time transitions.
+- [x] Budget/order restore exactly after restart.
+- [x] Operational retry noise cannot change reconstruction.
+- [x] InMemory/PostgreSQL parity + standard gates pass.
 
 Architecture: `world-runtime.md`; A0002 §3.
 
 ## Verification evidence
-Pending.
+
+- `python3 tools/check_architecture.py` → storage SQL ownership and Loom architecture dependency checks passed.
+- `cargo fmt --all -- --check` → passed.
+- `cargo check --workspace --all-targets --all-features` → passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed.
+- `cargo test --workspace --all-features` → all workspace tests passed.
+- `LOOM_REQUIRE_POSTGRES_TESTS=1 bash tools/test.sh --workspace --all-features` → all PostgreSQL 18 and workspace tests passed.
+- `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` → passed.
+- Focused `cargo test -p loom-runtime --lib logical_replay` → 3 tests passed, covering version zero, Event/Work/time intervals, chronology/order, technical metadata exclusion and deterministic corruption failures.

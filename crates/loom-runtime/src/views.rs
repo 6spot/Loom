@@ -172,6 +172,20 @@ impl BaseWorldSnapshot {
         self.version = TimelineVersion::new(event_head, self.version.state_revision);
         self
     }
+
+    pub(crate) fn with_timeline_position(
+        mut self,
+        version: TimelineVersion,
+        world_time: WorldInstant,
+    ) -> Self {
+        self.version = version;
+        self.world_time = world_time;
+        self
+    }
+
+    pub(crate) fn event_exists(&self, event_id: EventId) -> bool {
+        self.events.contains(&event_id)
+    }
 }
 
 /// A read-only Runtime view over one pinned `BaseWorldSnapshot`.
