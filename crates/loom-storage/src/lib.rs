@@ -72,6 +72,7 @@
 
 #![forbid(unsafe_code)]
 
+mod blob;
 mod in_memory;
 #[expect(
     clippy::too_many_lines,
@@ -80,6 +81,10 @@ mod in_memory;
 )]
 mod postgres;
 
+pub use blob::{
+    BlobStoreInitError, InMemoryBlobStore, LocalBlobStore, ObjectStorageBlobStore,
+    ObjectStoreBlobStore, S3BlobStore, S3CompatibleBlobStore,
+};
 pub use in_memory::{InMemoryStore, SetupError};
 pub use postgres::PgStorage;
 
