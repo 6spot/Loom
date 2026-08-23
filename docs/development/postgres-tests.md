@@ -18,9 +18,9 @@ For one PostgreSQL integration test:
 bash tools/test.sh -p loom-storage --test postgres_schema -- --nocapture
 ```
 
-No separate PostgreSQL setup step is required when using the wrapper. `tools/test.sh` ensures the repository-managed service is running, waits for its health check, exports the effective control-database URL, and then delegates to `cargo test`.
+When `LOOM_TEST_POSTGRES_URL` is not already set, `tools/test.sh` ensures the repository-managed service is running, waits for its health check, exports the local control-database URL, and then delegates to `cargo test`. When an explicit `LOOM_TEST_POSTGRES_URL` is already set, the wrapper uses it as-is and does not start the local Compose service.
 
-PostgreSQL integration tests do **not** self-skip. When `LOOM_TEST_POSTGRES_URL` is unset or empty, the test fixture uses the repository-local default:
+PostgreSQL integration tests do **not** self-skip. When `LOOM_TEST_POSTGRES_URL` is unset or empty, the test fixture itself uses the repository-local default:
 
 ```text
 postgresql://loom:loom@127.0.0.1:15432/loom_control
