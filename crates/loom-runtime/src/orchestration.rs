@@ -7,6 +7,8 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashSet},
+    future::Future,
+    pin::Pin,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -1964,71 +1966,49 @@ where
         self.fork_head(request).await
     }
 
-    async fn replay_visible_to(
+    fn replay_visible_to(
         &self,
         source: TimelineSnapshot,
         target: TimelineVersion,
-    ) -> ApiResult<HistoricalTimelineState> {
-        let mut snapshots = vec![source];
-        let mut boundaries = Vec::new();
-        let mut seen = HashSet::new();
-        seen.insert(snapshots[0].timeline_id());
+    ) -> Pin<Box<dyn Future<Output = ApiResult<HistoricalTimelineState>> + '_>> {
+        self.replay_visible_to_inner(source, target, HashSet::new())
+    }
 
-        loop {
-            let child = snapshots.last().expect("ancestry chain is non-empty");
-            let ancestry = child.ancestry();
+    fn replay_visible_to_inner(
+        &self,
+        source: TimelineSnapshot,
+        target: TimelineVersion,
+        mut seen: HashSet<TimelineId>,
+    ) -> Pin<Box<dyn Future<Output = ApiResult<HistoricalTimelineState>> + '_>> {
+        Box::pin(async move {
+            if !seen.insert(source.timeline_id()) {
+                return Err(map_historical_fork_error());
+            }
+            let ancestry = source.ancestry();
             let Some(parent_timeline_id) = ancestry.parent_timeline_id else {
-                break;
+                return source
+                    .replay_to(target)
+                    .map_err(|_| map_historical_fork_error());
             };
             let Some(boundary) = ancestry.fork_parent_version else {
                 return Err(map_historical_fork_error());
             };
-            if !seen.insert(parent_timeline_id) {
-                return Err(map_historical_fork_error());
-            }
             let parent = self
-                .snapshot_for_target(TimelineTarget::new(child.world_id(), parent_timeline_id))
+                .snapshot_for_target(TimelineTarget::new(source.world_id(), parent_timeline_id))
                 .await?;
-            boundaries.push(boundary);
-            snapshots.push(parent);
-        }
-
-        let first_child_index = boundaries
-            .iter()
-            .position(|boundary| !version_before(target, *boundary))
-            .unwrap_or(boundaries.len());
-        let mut historical = if first_child_index == boundaries.len() {
-            snapshots
-                .last()
-                .expect("ancestry chain is non-empty")
-                .replay_to(target)
-                .map_err(|_| map_historical_fork_error())?
-        } else {
-            let root_target = *boundaries.last().expect("non-empty ancestry chain");
-            snapshots
-                .last()
-                .expect("ancestry chain is non-empty")
-                .replay_to(root_target)
-                .map_err(|_| map_historical_fork_error())?
-        };
-
-        for index in (first_child_index..boundaries.len()).rev() {
-            let child = &snapshots[index];
-            let boundary = boundaries[index];
-            let child_target = if index == 0 {
-                target
-            } else {
-                boundaries[index - 1]
-            };
-            if version_before(child_target, boundary) {
-                return Err(map_historical_fork_error());
+            if version_before(target, boundary) {
+                return self
+                    .replay_visible_to_inner(parent, target, seen)
+                    .await
+                    .map(|historical| historical.retarget_timeline(source.timeline_id()));
             }
 
-            let parent_logical = historical.logical_state();
-            let initial = historical.materialization().retarget(
-                child.timeline_id(),
+            let historical_parent = self.replay_visible_to_inner(parent, boundary, seen).await?;
+            let parent_logical = historical_parent.logical_state();
+            let initial = historical_parent.materialization().retarget(
+                source.timeline_id(),
                 boundary,
-                historical.world_time(),
+                historical_parent.world_time(),
             );
             let logical_order_high_water = parent_logical
                 .works
@@ -2037,27 +2017,22 @@ where
                 .max()
                 .unwrap_or_default();
             let initial_chronology_budget = parent_logical.chronology_budget;
-            let initial_works = child
+            let initial_works = source
                 .works
                 .iter()
                 .filter(|work| work.logical_schedule_order <= logical_order_high_water)
                 .map(logical_work_seed)
                 .collect();
-            historical = child
+            source
                 .replay_from_seed(
                     initial,
                     initial_works,
                     initial_chronology_budget,
                     logical_order_high_water,
-                    child_target,
+                    target,
                 )
-                .map_err(|_| map_historical_fork_error())?;
-        }
-
-        if first_child_index > 0 {
-            historical = historical.retarget_timeline(snapshots[0].timeline_id());
-        }
-        Ok(historical)
+                .map_err(|_| map_historical_fork_error())
+        })
     }
 
     async fn fork_head(&self, request: ForkTimelineRequest) -> ApiResult<ApiTimelineSnapshot> {

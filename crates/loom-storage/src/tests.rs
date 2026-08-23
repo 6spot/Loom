@@ -2571,6 +2571,49 @@ async fn historical_runtime_fork_replays_pending_future_without_parent_tail() {
     assert!(ancestor_snapshot.world_view().entity(entity(100)).is_none());
     assert!(ancestor_snapshot.works.is_empty());
 
+    let child_c = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("B should fork C at the visible inherited zero position");
+    let grandchild_current = runtime
+        .fork(ForkTimelineRequest::new(child_c.target))
+        .await
+        .expect("C current inherited position should be forkable");
+    let grandchild_boundary = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child_c.target,
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("C inherited boundary should be forkable");
+    for forked_child in [grandchild_current, grandchild_boundary] {
+        let snapshot = store
+            .snapshot(forked_child.target.timeline_id)
+            .expect("grandchild should be readable");
+        assert_eq!(snapshot.version(), TimelineVersion::default());
+        assert_eq!(
+            snapshot.ancestry().parent_timeline_id,
+            Some(child_c.target.timeline_id)
+        );
+        assert!(snapshot.events.is_empty());
+        assert!(snapshot.logical_journal().is_empty());
+        assert!(snapshot.world_view().entity(entity(100)).is_none());
+        assert!(snapshot.world_view().entity(entity(101)).is_none());
+        assert!(snapshot.works.is_empty());
+    }
+
+    let invalid_child_target = runtime
+        .fork(ForkTimelineRequest::at_version(
+            child_c.target,
+            fork_version,
+        ))
+        .await
+        .expect_err("C cannot fork at B's post-boundary version");
+    assert_eq!(invalid_child_target.code, ApiErrorCode::InvalidRequest);
+
     let invalid = runtime
         .fork(ForkTimelineRequest::at_version(
             child.target,
