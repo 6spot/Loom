@@ -2,7 +2,9 @@
 
 use std::collections::HashSet;
 
-use loom_core::{EventId, EventRef, EventSeq, StateRevision, TimelineId, TimelineVersion, WorkId};
+use loom_core::{
+    EventId, EventRef, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorkId,
+};
 use loom_runtime::{
     ForkError, ForkWork, PersistenceFuture, TimelineFork, TimelineForkStore, TimelineSnapshot,
     WorkTarget,
@@ -20,6 +22,13 @@ const COPY_PARTICIPANTS_SQL: &str =
 const COPY_ENTITY_FACETS_SQL: &str = include_str!("../../sql/ancestry/copy_entity_facets.sql");
 const COPY_RELATIONSHIP_FACETS_SQL: &str =
     include_str!("../../sql/ancestry/copy_relationship_facets.sql");
+const INSERT_ENTITY_SQL: &str = include_str!("../../sql/world/insert_entity.sql");
+const INSERT_RELATIONSHIP_PARTICIPANT_SQL: &str =
+    include_str!("../../sql/world/insert_relationship_participant.sql");
+const UPSERT_ENTITY_FACET_SQL: &str = include_str!("../../sql/world/upsert_entity_facet.sql");
+const UPSERT_RELATIONSHIP_FACET_SQL: &str =
+    include_str!("../../sql/world/upsert_relationship_facet.sql");
+const INSERT_RELATIONSHIP_STATE_SQL: &str = "INSERT INTO loom_relationship\n     (timeline_id, relationship_id, relationship_type, active)\nVALUES ($1::uuid, $2::uuid, $3, $4)";
 const INSERT_WORK_SQL: &str = include_str!("../../sql/ancestry/insert_work.sql");
 const READ_TIMELINE_SQL: &str = include_str!("../../sql/world/read_timeline.sql");
 const READ_PARENT_EVENT_SQL: &str = include_str!("../../sql/ancestry/read_parent_event.sql");
@@ -57,62 +66,129 @@ async fn fork_timeline(
             actual,
         });
     }
+    if fork.fork_version.head_event_seq > actual.head_event_seq
+        || fork.fork_version.state_revision > actual.state_revision
+    {
+        return Err(ForkError::InvalidForkVersion {
+            requested: fork.fork_version,
+            head: actual,
+        });
+    }
     if fork.child_timeline_id.is_nil() {
         return Err(ForkError::StorageUnavailable {
             message: "fork child Timeline identity is nil".to_owned(),
         });
     }
-    if sqlx::query(READ_TIMELINE_SQL)
+    let world_id = parse_identity::<loom_core::WorldId>(&source, "world_id")?;
+    let existing_child = sqlx::query(READ_TIMELINE_SQL)
         .bind(fork.child_timeline_id.to_string())
         .fetch_optional(&mut *transaction)
         .await
-        .map_err(storage_error)?
-        .is_some()
-    {
+        .map_err(storage_error)?;
+    if let Some(existing) = existing_child {
+        let existing_world = parse_identity::<loom_core::WorldId>(&existing, "world_id")?;
+        let existing_version = TimelineVersion::new(
+            EventSeq::new(parse_u64(&existing, "head_event_seq")?),
+            StateRevision::new(parse_u64(&existing, "state_revision")?),
+        );
+        let parent_timeline =
+            optional_identity::<TimelineId>(&existing, "parent_timeline_id", "TimelineId")?;
+        let parent_head = optional_u64(
+            &existing,
+            "fork_parent_head_event_seq",
+            "fork_parent_head_event_seq",
+        )?;
+        let parent_state = optional_u64(
+            &existing,
+            "fork_parent_state_revision",
+            "fork_parent_state_revision",
+        )?;
+        let matches = existing_world == world_id
+            && existing_version == fork.fork_version
+            && parent_timeline == Some(fork.source_timeline_id)
+            && parent_head == Some(fork.fork_version.head_event_seq.value())
+            && parent_state == Some(fork.fork_version.state_revision.value());
+        if matches {
+            transaction.commit().await.map_err(storage_error)?;
+            return storage
+                .read_snapshot(fork.child_timeline_id)
+                .await
+                .map_err(|error| ForkError::StorageUnavailable {
+                    message: error.to_string(),
+                });
+        }
         return Err(ForkError::TimelineAlreadyExists {
             timeline_id: fork.child_timeline_id,
         });
     }
 
-    let world_id = parse_identity::<loom_core::WorldId>(&source, "world_id")?;
-    let world_time = row_i64(&source, "world_time")?;
-    let chronology_world_time = row_i64(&source, "chronology_budget_world_time")?;
-    let chronology_consumed = parse_u64(&source, "chronology_budget_consumed")?;
+    let (world_time, chronology_world_time, chronology_consumed, logical_schedule_order) =
+        if let Some(materialization) = &fork.materialization {
+            let base = &materialization.base;
+            if base.world_id() != world_id
+                || base.timeline_id() != fork.source_timeline_id
+                || base.version() != fork.fork_version
+                || materialization.chronology_budget.world_time != base.world_time()
+            {
+                return Err(ForkError::StorageUnavailable {
+                    message: "fork materialization does not match its source position".to_owned(),
+                });
+            }
+            (
+                base.world_time().value(),
+                materialization.chronology_budget.world_time.value(),
+                materialization.chronology_budget.consumed,
+                materialization.logical_schedule_order,
+            )
+        } else {
+            (
+                row_i64(&source, "world_time")?,
+                row_i64(&source, "chronology_budget_world_time")?,
+                parse_u64(&source, "chronology_budget_consumed")?,
+                parse_u64(&source, "logical_schedule_order")?,
+            )
+        };
     // `EventSeq(0)` has no EventRef. The parent head Event is found by the
     // source version's sequence, without copying its row into the child.
     let parent_event =
-        resolve_parent_event_ref(&mut transaction, fork.source_timeline_id, actual).await?;
+        resolve_parent_event_ref(&mut transaction, fork.source_timeline_id, fork.fork_version)
+            .await?;
 
     sqlx::query(INSERT_TIMELINE_SQL)
         .bind(fork.child_timeline_id.to_string())
         .bind(world_id.to_string())
-        .bind(actual.head_event_seq.value().to_string())
-        .bind(actual.state_revision.value().to_string())
+        .bind(fork.fork_version.head_event_seq.value().to_string())
+        .bind(fork.fork_version.state_revision.value().to_string())
         .bind(world_time)
         .bind(chronology_world_time)
         .bind(chronology_consumed.to_string())
         .bind(fork.source_timeline_id.to_string())
-        .bind(actual.head_event_seq.value().to_string())
-        .bind(actual.state_revision.value().to_string())
+        .bind(fork.fork_version.head_event_seq.value().to_string())
+        .bind(fork.fork_version.state_revision.value().to_string())
         .bind(parent_event.map(|event| event.timeline_id.to_string()))
         .bind(parent_event.map(|event| event.event_id.to_string()))
+        .bind(logical_schedule_order.to_string())
         .execute(&mut *transaction)
         .await
         .map_err(storage_error)?;
 
-    for sql in [
-        COPY_ENTITIES_SQL,
-        COPY_RELATIONSHIPS_SQL,
-        COPY_PARTICIPANTS_SQL,
-        COPY_ENTITY_FACETS_SQL,
-        COPY_RELATIONSHIP_FACETS_SQL,
-    ] {
-        sqlx::query(sql)
-            .bind(fork.child_timeline_id.to_string())
-            .bind(fork.source_timeline_id.to_string())
-            .execute(&mut *transaction)
-            .await
-            .map_err(storage_error)?;
+    if let Some(materialization) = &fork.materialization {
+        insert_materialization(&mut transaction, fork.child_timeline_id, materialization).await?;
+    } else {
+        for sql in [
+            COPY_ENTITIES_SQL,
+            COPY_RELATIONSHIPS_SQL,
+            COPY_PARTICIPANTS_SQL,
+            COPY_ENTITY_FACETS_SQL,
+            COPY_RELATIONSHIP_FACETS_SQL,
+        ] {
+            sqlx::query(sql)
+                .bind(fork.child_timeline_id.to_string())
+                .bind(fork.source_timeline_id.to_string())
+                .execute(&mut *transaction)
+                .await
+                .map_err(storage_error)?;
+        }
     }
 
     let mut child_ids = std::collections::HashSet::new();
@@ -131,12 +207,14 @@ async fn fork_timeline(
                 work_id: *source_work_id,
                 message: "source Work is not present at the fork head".to_owned(),
             })?;
-        let status: String = source_work.try_get("status").map_err(storage_error)?;
-        if status != "pending" {
-            return Err(ForkError::InvalidWork {
-                work_id: *source_work_id,
-                message: "only Pending Work may be forked".to_owned(),
-            });
+        if fork.materialization.is_none() {
+            let status: String = source_work.try_get("status").map_err(storage_error)?;
+            if status != "pending" {
+                return Err(ForkError::InvalidWork {
+                    work_id: *source_work_id,
+                    message: "only Pending Work may be forked".to_owned(),
+                });
+            }
         }
         validate_work(source_work_id, work, fork.child_timeline_id, &mut child_ids)?;
         let (kind, owner, handler, agent, cognition) = match &work.target {
@@ -181,6 +259,73 @@ async fn fork_timeline(
         .map_err(|error| ForkError::StorageUnavailable {
             message: error.to_string(),
         })
+}
+
+async fn insert_materialization(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    child_timeline_id: TimelineId,
+    materialization: &loom_runtime::ForkMaterialization,
+) -> Result<(), ForkError> {
+    let base = &materialization.base;
+    for entity in base.entities() {
+        sqlx::query(INSERT_ENTITY_SQL)
+            .bind(child_timeline_id.to_string())
+            .bind(entity.id.to_string())
+            .execute(&mut **transaction)
+            .await
+            .map_err(storage_error)?;
+    }
+    for (relationship, active) in base.relationships() {
+        sqlx::query(INSERT_RELATIONSHIP_STATE_SQL)
+            .bind(child_timeline_id.to_string())
+            .bind(relationship.id.to_string())
+            .bind(relationship.relationship_type.as_str())
+            .bind(active)
+            .execute(&mut **transaction)
+            .await
+            .map_err(storage_error)?;
+        for (order, participant) in relationship.participants().iter().enumerate() {
+            let order = i32::try_from(order).map_err(|_| ForkError::StorageUnavailable {
+                message: "fork Relationship participant order exceeds storage range".to_owned(),
+            })?;
+            sqlx::query(INSERT_RELATIONSHIP_PARTICIPANT_SQL)
+                .bind(child_timeline_id.to_string())
+                .bind(relationship.id.to_string())
+                .bind(order)
+                .bind(participant.entity_id.to_string())
+                .bind(participant.role.as_str())
+                .execute(&mut **transaction)
+                .await
+                .map_err(storage_error)?;
+        }
+    }
+    for (owner, facet_type, schema_revision, value) in base.facets() {
+        match owner {
+            FacetOwner::Entity(entity_id) => {
+                sqlx::query(UPSERT_ENTITY_FACET_SQL)
+                    .bind(child_timeline_id.to_string())
+                    .bind(entity_id.to_string())
+                    .bind(facet_type.as_str())
+                    .bind(i64::from(schema_revision.value()))
+                    .bind(value.clone())
+                    .execute(&mut **transaction)
+                    .await
+                    .map_err(storage_error)?;
+            }
+            FacetOwner::Relationship(relationship_id) => {
+                sqlx::query(UPSERT_RELATIONSHIP_FACET_SQL)
+                    .bind(child_timeline_id.to_string())
+                    .bind(relationship_id.to_string())
+                    .bind(facet_type.as_str())
+                    .bind(i64::from(schema_revision.value()))
+                    .bind(value.clone())
+                    .execute(&mut **transaction)
+                    .await
+                    .map_err(storage_error)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn resolve_parent_event_ref(

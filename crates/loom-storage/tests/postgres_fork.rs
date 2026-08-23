@@ -2,8 +2,14 @@ mod support;
 
 use std::str::FromStr;
 
-use loom_core::{EventId, EventRef, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId};
-use loom_runtime::{TimelineFork, TimelineForkStore, WorldStore};
+use loom_core::{
+    Entity, EventId, EventRef, EventSeq, StateRevision, TimelineId, TimelineVersion, WorldId,
+    WorldInstant,
+};
+use loom_runtime::{
+    BaseWorldSnapshot, ChronologyBudgetState, ForkMaterialization, TimelineFork, TimelineForkStore,
+    WorldStore,
+};
 use support::TestDatabase;
 
 fn id<T>(value: u128) -> T
@@ -90,6 +96,13 @@ async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_e
         child_b.ancestry().fork_parent_event,
         Some(EventRef::new(timeline_a, event_id))
     );
+    let retried_child_b = TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_a, source_before.version(), timeline_b),
+    )
+    .await
+    .expect("retrying the same child identity should be idempotent");
+    assert_eq!(retried_child_b.ancestry(), child_b.ancestry());
 
     storage.close().await;
     let restarted = database.storage().await;
@@ -186,5 +199,59 @@ async fn postgres_18_current_head_fork_without_event_round_trips_none() {
 
     pool.close().await;
     storage.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test]
+async fn postgres_historical_fork_persists_materialization_after_restart() {
+    let Some(database) = TestDatabase::provision("historical_fork_materialization").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let pool = database.pool().await;
+    let world_id = id::<WorldId>(0x5301);
+    let timeline_a = id::<TimelineId>(0x5302);
+    let timeline_b = id::<TimelineId>(0x5303);
+    let entity_id = id(0x5310);
+
+    seed_world(&pool, world_id, timeline_a).await;
+    let version = TimelineVersion::default();
+    let materialization = ForkMaterialization::new(
+        BaseWorldSnapshot::new(world_id, timeline_a, version, WorldInstant::new(7)).with_entity(
+            Entity {
+                id: entity_id,
+                world_id,
+            },
+        ),
+        ChronologyBudgetState::new(WorldInstant::new(7), 2),
+        9,
+    );
+    let child = TimelineForkStore::fork_timeline(
+        &storage,
+        &TimelineFork::new(timeline_a, version, timeline_b).with_materialization(materialization),
+    )
+    .await
+    .expect("historical materialization should commit atomically");
+    assert_eq!(child.world_time(), WorldInstant::new(7));
+    assert!(child.world_view().entity(entity_id).is_some());
+    assert_eq!(child.version(), version);
+
+    storage.close().await;
+    let restarted = database.storage().await;
+    let after_restart = WorldStore::snapshot(&restarted, timeline_b)
+        .await
+        .expect("historical child should survive restart");
+    assert_eq!(after_restart.world_time(), WorldInstant::new(7));
+    assert!(after_restart.world_view().entity(entity_id).is_some());
+    assert_eq!(
+        WorldStore::snapshot(&restarted, timeline_a)
+            .await
+            .expect("source should remain immutable")
+            .world_time(),
+        WorldInstant::default()
+    );
+
+    restarted.close().await;
+    pool.close().await;
     database.cleanup().await;
 }

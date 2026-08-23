@@ -62,6 +62,7 @@ struct LockedTimeline {
     world_time: loom_core::WorldInstant,
     chronology_budget_world_time: loom_core::WorldInstant,
     chronology_budget_consumed: u64,
+    logical_schedule_order: u64,
 }
 
 impl CommitStore for PgStorage {
@@ -190,6 +191,7 @@ async fn terminalize_work_internal(
         .bind(version.state_revision.value().to_string())
         .bind(locked.chronology_budget_world_time.value())
         .bind(locked.chronology_budget_consumed.to_string())
+        .bind(locked.logical_schedule_order.to_string())
         .execute(&mut *transaction)
         .await
         .map_err(storage_error)?;
@@ -344,6 +346,7 @@ async fn commit_resolution(
             .bind(next_state_revision.to_string())
             .bind(locked.chronology_budget_world_time.value())
             .bind(next_budget.to_string())
+            .bind(logical_schedule_order.to_string())
             .execute(&mut *transaction)
             .await
             .map_err(storage_error)?;
@@ -484,6 +487,7 @@ pub(super) async fn commit_birth_in_transaction(
             .bind(next_state_revision.to_string())
             .bind(locked.chronology_budget_world_time.value())
             .bind(locked.chronology_budget_consumed.to_string())
+            .bind(logical_schedule_order.to_string())
             .execute(&mut **transaction)
             .await
             .map_err(storage_error)?;
@@ -526,6 +530,7 @@ async fn lock_timeline(
                 .map_err(storage_error)?,
         ),
         chronology_budget_consumed: parse_u64(&row, "chronology_budget_consumed")?,
+        logical_schedule_order: parse_u64(&row, "logical_schedule_order")?,
     })
 }
 

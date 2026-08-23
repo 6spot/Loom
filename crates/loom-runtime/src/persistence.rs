@@ -2389,7 +2389,39 @@ impl fmt::Display for ReadError {
 
 impl std::error::Error for ReadError {}
 
-/// One branch-local Pending Work record supplied to the atomic head-fork
+/// Reconstructed branch-local materialization supplied to the atomic fork
+/// boundary.
+///
+/// Runtime creates this value only from the deterministic Event and Logical
+/// Journal replay APIs. Storage persists it as child-local materialized state;
+/// it never consults a later parent state to fill in omitted fields.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForkMaterialization {
+    /// Materialized semantic state at the requested fork version.
+    pub base: BaseWorldSnapshot,
+    /// Same-instant chronology position at the requested fork version.
+    pub chronology_budget: ChronologyBudgetState,
+    /// Highest logical schedule order visible at the requested version.
+    pub logical_schedule_order: u64,
+}
+
+impl ForkMaterialization {
+    /// Creates a reconstructed fork materialization.
+    #[must_use]
+    pub const fn new(
+        base: BaseWorldSnapshot,
+        chronology_budget: ChronologyBudgetState,
+        logical_schedule_order: u64,
+    ) -> Self {
+        Self {
+            base,
+            chronology_budget,
+            logical_schedule_order,
+        }
+    }
+}
+
+/// One branch-local Pending Work record supplied to the atomic fork
 /// boundary. Runtime allocates the new Work identity and rewrites any origin
 /// reference that points at another cloned Pending Work before persistence.
 #[derive(Clone, Debug, PartialEq)]
@@ -2400,7 +2432,7 @@ pub struct ForkWork {
     pub work: WorkRecord,
 }
 
-/// Runtime-owned atomic current-head fork command.
+/// Runtime-owned atomic Timeline fork command.
 ///
 /// The adapter rechecks `expected_version` while locking the source Timeline,
 /// reconstructs/copies materialized state, records immutable ancestry and
@@ -2411,8 +2443,14 @@ pub struct TimelineFork {
     pub source_timeline_id: TimelineId,
     /// Source version observed before Runtime allocated the child plan.
     pub expected_version: TimelineVersion,
+    /// Exact source version represented by the child, which may be earlier
+    /// than `expected_version` when a historical fork is requested.
+    pub fork_version: TimelineVersion,
     /// Runtime-allocated child Timeline identity.
     pub child_timeline_id: TimelineId,
+    /// Replay-derived materialization to persist, when supplied by Runtime.
+    /// `None` retains the M6-T3 adapter-only current-head compatibility path.
+    pub materialization: Option<ForkMaterialization>,
     /// Only source Pending Work is represented here; operational fields are
     /// ignored/reset by the persistence adapter.
     pub pending_work: Vec<ForkWork>,
@@ -2429,9 +2467,25 @@ impl TimelineFork {
         Self {
             source_timeline_id,
             expected_version,
+            fork_version: expected_version,
             child_timeline_id,
+            materialization: None,
             pending_work: Vec::new(),
         }
+    }
+
+    /// Selects the exact source version represented by the child.
+    #[must_use]
+    pub const fn at_version(mut self, fork_version: TimelineVersion) -> Self {
+        self.fork_version = fork_version;
+        self
+    }
+
+    /// Supplies the replay-derived semantic state for the child.
+    #[must_use]
+    pub fn with_materialization(mut self, materialization: ForkMaterialization) -> Self {
+        self.materialization = Some(materialization);
+        self
     }
 
     /// Adds one branch-local Pending Work clone to the command.
@@ -2454,6 +2508,11 @@ pub enum ForkError {
         expected: TimelineVersion,
         actual: TimelineVersion,
     },
+    /// The requested historical position is beyond the committed source head.
+    InvalidForkVersion {
+        requested: TimelineVersion,
+        head: TimelineVersion,
+    },
     /// The child Work plan is invalid at the atomic boundary.
     InvalidWork { work_id: WorkId, message: String },
     /// The authority could not complete the transaction/critical section.
@@ -2472,6 +2531,10 @@ impl fmt::Display for ForkError {
             Self::SourceVersionConflict { expected, actual } => write!(
                 formatter,
                 "fork source Timeline changed: expected {expected:?}, actual {actual:?}"
+            ),
+            Self::InvalidForkVersion { requested, head } => write!(
+                formatter,
+                "fork source version {requested:?} is beyond committed head {head:?}"
             ),
             Self::InvalidWork { work_id, message } => {
                 write!(formatter, "fork Work {work_id} is invalid: {message}")
@@ -2954,7 +3017,7 @@ pub trait WorldStore {
         self.snapshot(timeline_id)
     }
 
-    /// Forks one source Timeline at its current committed head.
+    /// Forks one source Timeline at its requested committed position.
     ///
     /// Adapters that do not provide the fork port retain source compatibility
     /// and report an unavailable persistence authority. Concrete adapters
@@ -2971,9 +3034,9 @@ pub trait WorldStore {
     }
 }
 
-/// Runtime-owned persistence port for an atomic current-head Timeline fork.
+/// Runtime-owned persistence port for an atomic Timeline fork.
 pub trait TimelineForkStore {
-    /// Forks one source head into a new child Timeline.
+    /// Forks one source position into a new child Timeline.
     ///
     /// The adapter owns the single transaction/critical section and must not
     /// expose the child before commit. A source CAS conflict or any validation

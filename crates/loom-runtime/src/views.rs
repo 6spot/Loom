@@ -25,7 +25,7 @@ struct FacetRecord {
     value: Value,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct RelationshipRecord {
     relationship: Relationship,
     active: bool,
@@ -38,7 +38,7 @@ struct RelationshipRecord {
 /// unmodified read side while candidate Effects are applied to a separate
 /// overlay. Storage adapters may populate this value, but they do not gain
 /// authority to construct `ValidatedResolution` from it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BaseWorldSnapshot {
     world_id: WorldId,
     timeline_id: TimelineId,
@@ -166,6 +166,27 @@ impl BaseWorldSnapshot {
     #[must_use]
     pub const fn world_time(&self) -> WorldInstant {
         self.world_time
+    }
+
+    /// Iterates the materialized Entities in this snapshot.
+    pub fn entities(&self) -> impl Iterator<Item = &Entity> {
+        self.entities.values()
+    }
+
+    /// Iterates the materialized Relationships with their lifecycle marker.
+    pub fn relationships(&self) -> impl Iterator<Item = (&Relationship, bool)> {
+        self.relationships
+            .values()
+            .map(|record| (&record.relationship, record.active))
+    }
+
+    /// Iterates the materialized Facets and their schema/value data.
+    pub fn facets(
+        &self,
+    ) -> impl Iterator<Item = (FacetOwner, &FacetTypeId, loom_core::SchemaRevision, &Value)> {
+        self.facets.iter().map(|((owner, facet_type), record)| {
+            (*owner, facet_type, record.schema_revision, &record.value)
+        })
     }
 
     pub(crate) fn with_event_head(mut self, event_head: EventSeq) -> Self {

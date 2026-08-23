@@ -1322,14 +1322,22 @@ impl InMemoryStore {
                 actual: source.version,
             });
         }
+        if fork.fork_version.head_event_seq > source.version.head_event_seq
+            || fork.fork_version.state_revision > source.version.state_revision
+        {
+            return Err(ForkError::InvalidForkVersion {
+                requested: fork.fork_version,
+                head: source.version,
+            });
+        }
 
-        let parent_event = resolve_parent_event_ref(&staged.timelines, &source);
-        let ancestry = TimelineAncestry::fork(source.timeline_id, source.version, parent_event);
+        let parent_event = resolve_parent_event_ref(&staged.timelines, &source, fork.fork_version);
+        let ancestry = TimelineAncestry::fork(source.timeline_id, fork.fork_version, parent_event);
 
         if let Some(existing) = staged.timelines.get(&fork.child_timeline_id) {
             if existing.world_id == source.world_id
                 && existing.ancestry == ancestry
-                && existing.version == source.version
+                && existing.version == fork.fork_version
             {
                 return Ok(snapshot_from_timeline(existing));
             }
@@ -1343,7 +1351,47 @@ impl InMemoryStore {
             });
         }
 
-        let mut child = source.clone();
+        let mut child = if let Some(materialization) = &fork.materialization {
+            let base = &materialization.base;
+            if base.world_id() != source.world_id
+                || base.timeline_id() != source.timeline_id
+                || base.version() != fork.fork_version
+                || materialization.chronology_budget.world_time != base.world_time()
+            {
+                return Err(ForkError::StorageUnavailable {
+                    message: "fork materialization does not match its source position".to_owned(),
+                });
+            }
+            let mut child = TimelineState::empty(source.world_id, fork.child_timeline_id);
+            child.version = fork.fork_version;
+            child.world_time = base.world_time();
+            child.chronology_budget_consumed = materialization.chronology_budget.consumed;
+            child.logical_schedule_order = materialization.logical_schedule_order;
+            for entity in base.entities() {
+                child.entities.insert(entity.id, entity.clone());
+            }
+            for (relationship, active) in base.relationships() {
+                child.relationships.insert(
+                    relationship.id,
+                    RelationshipRecord {
+                        relationship: relationship.clone(),
+                        active,
+                    },
+                );
+            }
+            for (owner, facet_type, schema_revision, value) in base.facets() {
+                child.facets.insert(
+                    (owner, facet_type.clone()),
+                    FacetRecord {
+                        schema_revision,
+                        value: value.clone(),
+                    },
+                );
+            }
+            child
+        } else {
+            source.clone()
+        };
         child.timeline_id = fork.child_timeline_id;
         child.ancestry = ancestry;
         // Ancestor Event rows and Logical Journal rows are intentionally not
@@ -1360,19 +1408,18 @@ impl InMemoryStore {
             work,
         } in &fork.pending_work
         {
-            let source_work =
-                source
-                    .works
-                    .get(source_work_id)
-                    .ok_or_else(|| ForkError::InvalidWork {
-                        work_id: *source_work_id,
-                        message: "source Work is not present at the fork head".to_owned(),
-                    })?;
-            if !source_work.is_pending() {
-                return Err(ForkError::InvalidWork {
+            let source_work = source.works.get(source_work_id);
+            if fork.materialization.is_none() {
+                let source_work = source_work.ok_or_else(|| ForkError::InvalidWork {
                     work_id: *source_work_id,
-                    message: "only Pending Work may be forked".to_owned(),
-                });
+                    message: "source Work is not present at the fork head".to_owned(),
+                })?;
+                if !source_work.is_pending() {
+                    return Err(ForkError::InvalidWork {
+                        work_id: *source_work_id,
+                        message: "only Pending Work may be forked".to_owned(),
+                    });
+                }
             }
             if work.timeline_id != child.timeline_id
                 || !work.is_pending()
@@ -1384,17 +1431,20 @@ impl InMemoryStore {
                     message: "child Work identity or Timeline is invalid".to_owned(),
                 });
             }
-            if work.target != source_work.target
-                || work.schema_revision != source_work.schema_revision
-                || work.payload != source_work.payload
-                || work.effective_due_world_time != source_work.effective_due_world_time
-                || work.logical_schedule_order != source_work.logical_schedule_order
-                || work.causal_event_id != source_work.causal_event_id
-            {
-                return Err(ForkError::InvalidWork {
-                    work_id: *source_work_id,
-                    message: "child Work changed semantic fields".to_owned(),
-                });
+            if let Some(source_work) = source_work {
+                if fork.materialization.is_none()
+                    && (work.target != source_work.target
+                        || work.schema_revision != source_work.schema_revision
+                        || work.payload != source_work.payload
+                        || work.effective_due_world_time != source_work.effective_due_world_time
+                        || work.logical_schedule_order != source_work.logical_schedule_order
+                        || work.causal_event_id != source_work.causal_event_id)
+                {
+                    return Err(ForkError::InvalidWork {
+                        work_id: *source_work_id,
+                        message: "child Work changed semantic fields".to_owned(),
+                    });
+                }
             }
             let mut cloned = work.clone();
             cloned.attempt_count = 0;
@@ -1404,7 +1454,9 @@ impl InMemoryStore {
             cloned.lease = None;
             child.works.insert(cloned.id, cloned);
         }
-        child.logical_schedule_order = source.logical_schedule_order;
+        if fork.materialization.is_none() {
+            child.logical_schedule_order = source.logical_schedule_order;
+        }
         staged.timelines.insert(fork.child_timeline_id, child);
         let snapshot = snapshot_from_timeline(
             staged
@@ -1790,9 +1842,10 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
 fn resolve_parent_event_ref(
     timelines: &HashMap<TimelineId, TimelineState>,
     source: &TimelineState,
+    source_version: TimelineVersion,
 ) -> Option<EventRef> {
     let mut timeline_id = source.timeline_id;
-    let mut visible_head = source.version.head_event_seq;
+    let mut visible_head = source_version.head_event_seq;
     let mut visited = HashSet::new();
 
     loop {

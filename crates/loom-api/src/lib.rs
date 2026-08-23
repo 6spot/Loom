@@ -75,22 +75,45 @@ impl TimelineTarget {
     }
 }
 
-/// Public request for a current-head Timeline fork.
+/// Public request for a Timeline fork.
 ///
-/// Runtime reads the source head and allocates the child Timeline identity;
-/// callers cannot choose a storage transaction, copy ancestor rows or provide
-/// a stale version as an authority token.
+/// Runtime reads the source head and allocates the child Timeline identity.
+/// When `source_version` is absent, the current head is used as a convenience
+/// default. An explicit version must be an exact committed visible position;
+/// it is a historical selector, not a storage transaction or commit token.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ForkTimelineRequest {
-    /// World and source Timeline to fork at its current head.
+    /// World and source Timeline to fork.
     pub source: TimelineTarget,
+    /// Optional exact committed source version; `None` selects the head.
+    #[serde(default)]
+    pub source_version: Option<TimelineVersion>,
 }
 
 impl ForkTimelineRequest {
     /// Creates a current-head fork request.
     #[must_use]
     pub const fn new(source: TimelineTarget) -> Self {
-        Self { source }
+        Self {
+            source,
+            source_version: None,
+        }
+    }
+
+    /// Creates a fork request from one exact committed source version.
+    #[must_use]
+    pub const fn at_version(source: TimelineTarget, source_version: TimelineVersion) -> Self {
+        Self {
+            source,
+            source_version: Some(source_version),
+        }
+    }
+
+    /// Returns a copy of this request selecting one exact source version.
+    #[must_use]
+    pub const fn with_source_version(mut self, source_version: TimelineVersion) -> Self {
+        self.source_version = Some(source_version);
+        self
     }
 
     /// Creates a fork request from separate World/Timeline identities.
@@ -570,7 +593,7 @@ impl TimelineSnapshot {
     }
 }
 
-/// The public result of a successful current-head fork.
+/// The public result of a successful Timeline fork.
 pub type ForkTimelineResult = TimelineSnapshot;
 
 /// Query for one current Facet value in a Timeline.
@@ -907,7 +930,8 @@ pub trait TimelineService {
     /// Returns an `ApiError` when the World/Timeline cannot be found or read.
     fn inspect_timeline(&self, target: TimelineTarget) -> ApiFuture<'_, TimelineSnapshot>;
 
-    /// Allocates a child Timeline from the source's current committed head.
+    /// Allocates a child Timeline from an exact committed source position, or
+    /// from the current head when the request omits a version.
     ///
     /// The default keeps focused API test doubles source-compatible. Runtime's
     /// implementation is the authority for the atomic reconstruction and
