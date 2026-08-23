@@ -10,7 +10,7 @@ use loom_capability::{
     FacetValue, ResolutionContextError,
 };
 use loom_core::{
-    Entity, EntityId, EventId, FacetOwner, FacetTypeId, Relationship, RelationshipId,
+    Entity, EntityId, EventId, EventSeq, FacetOwner, FacetTypeId, Relationship, RelationshipId,
     RelationshipTypeId, TimelineId, TimelineVersion, WorldEffect, WorldId, WorldInstant,
 };
 use serde_json::Value;
@@ -166,6 +166,11 @@ impl BaseWorldSnapshot {
     #[must_use]
     pub const fn world_time(&self) -> WorldInstant {
         self.world_time
+    }
+
+    pub(crate) fn with_event_head(mut self, event_head: EventSeq) -> Self {
+        self.version = TimelineVersion::new(event_head, self.version.state_revision);
+        self
     }
 }
 
