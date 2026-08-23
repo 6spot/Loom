@@ -14,20 +14,21 @@ use std::{
 };
 
 use loom_core::{
-    Entity, EntityId, EventId, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
-    RelationshipId, TimelineId, TimelineVersion, WorldEffect, WorldId, WorldInstant,
+    Entity, EntityId, EventId, EventRef, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
+    RelationshipId, TimelineAncestry, TimelineId, TimelineVersion, WorldEffect, WorldId,
+    WorldInstant,
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption, CommitError,
     CommitResult, CommitStore, CommittedEvent, EntropyEvidence, ExecutionSession,
-    ExecutionSessionStatus, ExecutionSessionStore, LifecycleError, LogicalCommit,
-    LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent,
-    ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
+    ExecutionSessionStatus, ExecutionSessionStore, ForkError, ForkWork, LifecycleError,
+    LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PlatformTime,
+    ProposedEvent, ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
     RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
-    SessionError, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease,
-    WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization,
-    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
-    WorldTimeError, WorldTimeStore,
+    SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution,
+    WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget,
+    WorkTerminalization, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
 };
 use serde_json::Value;
 
@@ -60,6 +61,7 @@ struct TimelineState {
     logical_schedule_order: u64,
     chronology_budget_consumed: u64,
     journal: Vec<LogicalCommit>,
+    ancestry: TimelineAncestry,
 }
 
 impl TimelineState {
@@ -78,6 +80,7 @@ impl TimelineState {
             logical_schedule_order: 0,
             chronology_budget_consumed: 0,
             journal: Vec::new(),
+            ancestry: TimelineAncestry::root(),
         }
     }
 }
@@ -1262,6 +1265,15 @@ impl WorldLifecycleStore for InMemoryStore {
     }
 }
 
+impl TimelineForkStore for InMemoryStore {
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
+        Box::pin(async move { self.fork_timeline_internal(fork) })
+    }
+}
+
 impl InMemoryStore {
     fn create_world_internal(
         &self,
@@ -1292,6 +1304,124 @@ impl InMemoryStore {
             timeline_id,
             initial_world_time,
         ))
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the atomic fixture applies source, ancestry and Pending Work validation together"
+    )]
+    fn fork_timeline_internal(&self, fork: &TimelineFork) -> Result<TimelineSnapshot, ForkError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let source = staged
+            .timelines
+            .get(&fork.source_timeline_id)
+            .cloned()
+            .ok_or(ForkError::SourceTimelineNotFound {
+                timeline_id: fork.source_timeline_id,
+            })?;
+        if source.version != fork.expected_version {
+            return Err(ForkError::SourceVersionConflict {
+                expected: fork.expected_version,
+                actual: source.version,
+            });
+        }
+
+        let parent_event = source
+            .events
+            .iter()
+            .find(|event| event.event_seq == source.version.head_event_seq)
+            .map(|event| EventRef::new(source.timeline_id, event.id));
+        let ancestry = TimelineAncestry::fork(source.timeline_id, source.version, parent_event);
+
+        if let Some(existing) = staged.timelines.get(&fork.child_timeline_id) {
+            if existing.world_id == source.world_id
+                && existing.ancestry == ancestry
+                && existing.version == source.version
+            {
+                return Ok(snapshot_from_timeline(existing));
+            }
+            return Err(ForkError::TimelineAlreadyExists {
+                timeline_id: fork.child_timeline_id,
+            });
+        }
+        if fork.child_timeline_id.is_nil() {
+            return Err(ForkError::StorageUnavailable {
+                message: "fork child Timeline identity is nil".to_owned(),
+            });
+        }
+
+        let mut child = source.clone();
+        child.timeline_id = fork.child_timeline_id;
+        child.ancestry = ancestry;
+        // Ancestor Event rows and Logical Journal rows are intentionally not
+        // copied. The materialized state and explicit ancestry establish the
+        // child head; later tasks add ancestry-aware history reconstruction.
+        child.events.clear();
+        child.event_ids.clear();
+        child.journal.clear();
+        child.works.clear();
+
+        let mut child_ids = HashSet::new();
+        for ForkWork {
+            source_work_id,
+            work,
+        } in &fork.pending_work
+        {
+            let source_work =
+                source
+                    .works
+                    .get(source_work_id)
+                    .ok_or_else(|| ForkError::InvalidWork {
+                        work_id: *source_work_id,
+                        message: "source Work is not present at the fork head".to_owned(),
+                    })?;
+            if !source_work.is_pending() {
+                return Err(ForkError::InvalidWork {
+                    work_id: *source_work_id,
+                    message: "only Pending Work may be forked".to_owned(),
+                });
+            }
+            if work.timeline_id != child.timeline_id
+                || !work.is_pending()
+                || work.id.is_nil()
+                || !child_ids.insert(work.id)
+            {
+                return Err(ForkError::InvalidWork {
+                    work_id: work.id,
+                    message: "child Work identity or Timeline is invalid".to_owned(),
+                });
+            }
+            if work.target != source_work.target
+                || work.schema_revision != source_work.schema_revision
+                || work.payload != source_work.payload
+                || work.effective_due_world_time != source_work.effective_due_world_time
+                || work.logical_schedule_order != source_work.logical_schedule_order
+                || work.causal_event_id != source_work.causal_event_id
+            {
+                return Err(ForkError::InvalidWork {
+                    work_id: *source_work_id,
+                    message: "child Work changed semantic fields".to_owned(),
+                });
+            }
+            let mut cloned = work.clone();
+            cloned.attempt_count = 0;
+            cloned.claim_generation = 0;
+            cloned.available_at = PlatformTime::default();
+            cloned.last_error = None;
+            cloned.lease = None;
+            child.works.insert(cloned.id, cloned);
+        }
+        child.logical_schedule_order = source.logical_schedule_order;
+        staged.timelines.insert(fork.child_timeline_id, child);
+        let snapshot = snapshot_from_timeline(
+            staged
+                .timelines
+                .get(&fork.child_timeline_id)
+                .expect("fork child inserted above"),
+        );
+        *guard = staged;
+        Ok(snapshot)
     }
 
     fn create_world_with_bootstrap_internal(
@@ -1401,6 +1531,13 @@ impl WorldStore for InMemoryStore {
         timeline_id: TimelineId,
     ) -> PersistenceFuture<'_, Result<TimelineSnapshot, ReadError>> {
         Box::pin(async move { InMemoryStore::snapshot(self, timeline_id) })
+    }
+
+    fn fork_timeline<'a>(
+        &'a self,
+        fork: &'a TimelineFork,
+    ) -> PersistenceFuture<'a, Result<TimelineSnapshot, ForkError>> {
+        TimelineForkStore::fork_timeline(self, fork)
     }
 }
 
@@ -1645,11 +1782,16 @@ fn snapshot_from_timeline(timeline: &TimelineState) -> TimelineSnapshot {
     }
     let mut works: Vec<_> = timeline.works.values().cloned().collect();
     works.sort_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order));
-    TimelineSnapshot::with_journal(
+    TimelineSnapshot::with_journal_ancestry_and_budget(
         base,
         timeline.events.clone(),
         works,
         timeline.journal.clone(),
+        timeline.ancestry,
+        loom_runtime::ChronologyBudgetState::new(
+            timeline.world_time,
+            timeline.chronology_budget_consumed,
+        ),
     )
 }
 
