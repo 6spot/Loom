@@ -3225,33 +3225,7 @@ impl SemanticProjectionRegistration {
         metric: SemanticIndexMetric,
     ) -> Result<Self, SemanticProjectionError> {
         let model_revision = model_revision.into();
-        if key.index_id.is_empty() {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "semantic index identity cannot be empty".to_owned(),
-            });
-        }
-        if source.kind.is_empty() || source.type_id.is_empty() {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "semantic index source metadata cannot be empty".to_owned(),
-            });
-        }
-        if projection_revision == 0 {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "projection revision must be greater than zero".to_owned(),
-            });
-        }
-        if model_revision.is_empty() {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "model revision cannot be empty".to_owned(),
-            });
-        }
-        if dimensions == 0 || dimensions > MAX_SEMANTIC_VECTOR_DIMENSIONS {
-            return Err(SemanticProjectionError::DimensionMismatch {
-                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
-                actual: dimensions.to_string(),
-            });
-        }
-        Ok(Self {
+        let registration = Self {
             key,
             source,
             schema_revision,
@@ -3259,7 +3233,47 @@ impl SemanticProjectionRegistration {
             model_revision,
             dimensions,
             metric,
-        })
+        };
+        registration.validate()?;
+        Ok(registration)
+    }
+
+    /// Revalidates registration metadata at every public Runtime/Storage
+    /// boundary. This remains authoritative even when a caller constructs a
+    /// value through a public struct literal instead of [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when scope metadata, model revision or dimensions
+    /// are outside the projection boundary.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.key.index_id.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "semantic index identity cannot be empty".to_owned(),
+            });
+        }
+        if self.source.kind.is_empty() || self.source.type_id.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "semantic index source metadata cannot be empty".to_owned(),
+            });
+        }
+        if self.projection_revision == 0 {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "projection revision must be greater than zero".to_owned(),
+            });
+        }
+        if self.model_revision.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "model revision cannot be empty".to_owned(),
+            });
+        }
+        if self.dimensions == 0 || self.dimensions > MAX_SEMANTIC_VECTOR_DIMENSIONS {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
+                actual: self.dimensions.to_string(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -3296,28 +3310,42 @@ impl SemanticProjectionRow {
         model_revision: impl Into<String>,
         vector: Vec<f32>,
     ) -> Result<Self, SemanticProjectionError> {
-        let source_hash = source_hash.into();
-        let model_revision = model_revision.into();
-        if source_hash.is_empty() || model_revision.is_empty() || projection_revision == 0 {
+        let row = Self {
+            source_ref,
+            source_hash: source_hash.into(),
+            source_revision,
+            projection_revision,
+            model_revision: model_revision.into(),
+            vector,
+        };
+        row.validate()?;
+        Ok(row)
+    }
+
+    /// Revalidates intrinsic row metadata at every public Runtime/Storage
+    /// boundary.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when source metadata is absent, a revision is
+    /// invalid or a vector contains a non-finite value.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.source_hash.is_empty()
+            || self.model_revision.is_empty()
+            || self.projection_revision == 0
+        {
             return Err(SemanticProjectionError::InvalidRequest {
                 message:
                     "projection source hash, model revision and projection revision are required"
                         .to_owned(),
             });
         }
-        if vector.iter().any(|value| !value.is_finite()) {
+        if self.vector.iter().any(|value| !value.is_finite()) {
             return Err(SemanticProjectionError::InvalidRequest {
                 message: "projection vectors must contain only finite values".to_owned(),
             });
         }
-        Ok(Self {
-            source_ref,
-            source_hash,
-            source_revision,
-            projection_revision,
-            model_revision,
-            vector,
-        })
+        Ok(())
     }
 }
 
@@ -3344,20 +3372,33 @@ impl SemanticProjectionRebuild {
         expected_previous_projection_revision: Option<u64>,
         rows: Vec<SemanticProjectionRow>,
     ) -> Result<Self, SemanticProjectionError> {
-        if rows.len() > MAX_SEMANTIC_PROJECTION_ROWS {
-            return Err(SemanticProjectionError::LimitExceeded {
-                limit: u32::try_from(MAX_SEMANTIC_PROJECTION_ROWS).unwrap_or(u32::MAX),
-                actual: u32::try_from(rows.len()).unwrap_or(u32::MAX),
-            });
-        }
-        for row in &rows {
-            validate_projection_row(&registration, row)?;
-        }
-        Ok(Self {
+        let rebuild = Self {
             registration,
             expected_previous_projection_revision,
             rows,
-        })
+        };
+        rebuild.validate()?;
+        Ok(rebuild)
+    }
+
+    /// Revalidates the complete replacement before any adapter mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed bound or metadata mismatch error when the replacement
+    /// set is too large or a row does not match its registration.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        self.registration.validate()?;
+        if self.rows.len() > MAX_SEMANTIC_PROJECTION_ROWS {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(MAX_SEMANTIC_PROJECTION_ROWS).unwrap_or(u32::MAX),
+                actual: u32::try_from(self.rows.len()).unwrap_or(u32::MAX),
+            });
+        }
+        for row in &self.rows {
+            validate_projection_row(&self.registration, row)?;
+        }
+        Ok(())
     }
 }
 
@@ -3396,36 +3437,50 @@ impl SemanticProjectionQuery {
         limit: u32,
     ) -> Result<Self, SemanticProjectionError> {
         let model_revision = model_revision.into();
-        if limit == 0 || limit > MAX_SEMANTIC_QUERY_RESULTS {
-            return Err(SemanticProjectionError::LimitExceeded {
-                limit: MAX_SEMANTIC_QUERY_RESULTS,
-                actual: limit,
-            });
-        }
-        if projection_revision == 0 || model_revision.is_empty() {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "projection revision and model revision are required".to_owned(),
-            });
-        }
-        if vector.is_empty() || vector.len() > MAX_SEMANTIC_VECTOR_DIMENSIONS as usize {
-            return Err(SemanticProjectionError::DimensionMismatch {
-                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
-                actual: vector.len().to_string(),
-            });
-        }
-        if vector.iter().any(|value| !value.is_finite()) {
-            return Err(SemanticProjectionError::InvalidRequest {
-                message: "query vectors must contain only finite values".to_owned(),
-            });
-        }
-        Ok(Self {
+        let query = Self {
             key,
             source_schema_revision,
             projection_revision,
             model_revision,
             vector,
             limit,
-        })
+        };
+        query.validate()?;
+        Ok(query)
+    }
+
+    /// Revalidates the complete bounded request at every public
+    /// Runtime/Storage boundary. This prevents public struct literals from
+    /// bypassing constructor-only limits or finite-vector checks.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error when the result bound, vector dimensions or
+    /// revision metadata is invalid.
+    pub fn validate(&self) -> Result<(), SemanticProjectionError> {
+        if self.limit == 0 || self.limit > MAX_SEMANTIC_QUERY_RESULTS {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: MAX_SEMANTIC_QUERY_RESULTS,
+                actual: self.limit,
+            });
+        }
+        if self.projection_revision == 0 || self.model_revision.is_empty() {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "projection revision and model revision are required".to_owned(),
+            });
+        }
+        if self.vector.is_empty() || self.vector.len() > MAX_SEMANTIC_VECTOR_DIMENSIONS as usize {
+            return Err(SemanticProjectionError::DimensionMismatch {
+                expected: format!("1..={MAX_SEMANTIC_VECTOR_DIMENSIONS}"),
+                actual: self.vector.len().to_string(),
+            });
+        }
+        if self.vector.iter().any(|value| !value.is_finite()) {
+            return Err(SemanticProjectionError::InvalidRequest {
+                message: "query vectors must contain only finite values".to_owned(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -3540,6 +3595,7 @@ fn validate_projection_row(
     registration: &SemanticProjectionRegistration,
     row: &SemanticProjectionRow,
 ) -> Result<(), SemanticProjectionError> {
+    row.validate()?;
     if row.projection_revision != registration.projection_revision {
         return Err(SemanticProjectionError::RevisionMismatch {
             expected: registration.projection_revision,

@@ -776,6 +776,21 @@ async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projecti
         1,
     )
     .expect("disabled-index query should be structurally valid");
+    let invalid_limit_query = SemanticProjectionQuery {
+        limit: 0,
+        ..disabled_query.clone()
+    };
+    let invalid_limit = runtime
+        .query_semantic_projection(invalid_limit_query)
+        .await
+        .expect_err("Runtime must not trust constructor-only query bounds");
+    assert!(matches!(
+        invalid_limit,
+        SemanticProjectionError::LimitExceeded {
+            limit: 1_024,
+            actual: 0
+        }
+    ));
     let disabled = runtime
         .query_semantic_projection(disabled_query)
         .await

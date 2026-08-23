@@ -4,9 +4,9 @@ use std::str::FromStr;
 
 use loom_core::{EventRef, SchemaRevision, TimelineId, TimelineVersion, WorldId, WorldInstant};
 use loom_runtime::{
-    SemanticIndexMetric, SemanticIndexSource, SemanticProjectionKey, SemanticProjectionQuery,
-    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
-    SemanticProjectionStore, WorldLifecycleStore, WorldStore,
+    MAX_SEMANTIC_PROJECTION_ROWS, SemanticIndexMetric, SemanticIndexSource, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionRow, SemanticProjectionStore, WorldLifecycleStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
 
@@ -67,6 +67,31 @@ async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
         .await
         .expect("projection scope World should exist");
     let registration = registration(world_id, timeline_id);
+    let invalid_registration = SemanticProjectionRegistration {
+        dimensions: 0,
+        ..registration.clone()
+    };
+    let invalid_registration_error =
+        SemanticProjectionStore::register_semantic_projection(&store, invalid_registration)
+            .await
+            .expect_err("public struct literal must not bypass registration bounds");
+    assert!(matches!(
+        invalid_registration_error,
+        loom_runtime::SemanticProjectionError::DimensionMismatch { .. }
+    ));
+    let too_many_rows = SemanticProjectionRebuild {
+        registration: registration.clone(),
+        expected_previous_projection_revision: Some(1),
+        rows: vec![rows().remove(0); MAX_SEMANTIC_PROJECTION_ROWS + 1],
+    };
+    let too_many_rows_error =
+        SemanticProjectionStore::rebuild_semantic_projection(&store, &too_many_rows)
+            .await
+            .expect_err("public struct literal must not bypass rebuild row bounds");
+    assert!(matches!(
+        too_many_rows_error,
+        loom_runtime::SemanticProjectionError::LimitExceeded { .. }
+    ));
     SemanticProjectionStore::register_semantic_projection(&store, registration.clone())
         .await
         .expect("projection registration should succeed");
@@ -87,6 +112,39 @@ async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
         1,
     )
     .expect("bounded query should be valid");
+    let invalid_limit_query = SemanticProjectionQuery {
+        limit: 0,
+        ..query.clone()
+    };
+    let invalid_limit =
+        SemanticProjectionStore::query_semantic_projection(&store, invalid_limit_query)
+            .await
+            .expect_err("public struct literal must not bypass query bounds");
+    assert!(matches!(
+        invalid_limit,
+        loom_runtime::SemanticProjectionError::LimitExceeded {
+            limit: 1_024,
+            actual: 0
+        }
+    ));
+    let mut invalid_rows = rows();
+    invalid_rows[0].projection_revision = 2;
+    let invalid_rebuild = SemanticProjectionRebuild {
+        registration: registration.clone(),
+        expected_previous_projection_revision: Some(1),
+        rows: invalid_rows,
+    };
+    let invalid_rebuild_error =
+        SemanticProjectionStore::rebuild_semantic_projection(&store, &invalid_rebuild)
+            .await
+            .expect_err("public struct literal must not bypass row revision checks");
+    assert!(matches!(
+        invalid_rebuild_error,
+        loom_runtime::SemanticProjectionError::RevisionMismatch {
+            expected: 1,
+            actual: 2
+        }
+    ));
     let hits = SemanticProjectionStore::query_semantic_projection(&store, query)
         .await
         .expect("projection query should succeed");
@@ -103,6 +161,10 @@ async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
     assert_eq!(before.base, after.base);
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one PostgreSQL fixture covers the complete projection boundary"
+)]
 #[tokio::test]
 async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
     let Some(database) = TestDatabase::provision("semantic_projection").await else {
@@ -116,6 +178,31 @@ async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
         .await
         .expect("PostgreSQL projection scope should exist");
     let registration = registration(world_id, timeline_id);
+    let invalid_registration = SemanticProjectionRegistration {
+        dimensions: 0,
+        ..registration.clone()
+    };
+    let invalid_registration_error =
+        SemanticProjectionStore::register_semantic_projection(&storage, invalid_registration)
+            .await
+            .expect_err("public struct literal must not bypass registration bounds");
+    assert!(matches!(
+        invalid_registration_error,
+        loom_runtime::SemanticProjectionError::DimensionMismatch { .. }
+    ));
+    let too_many_rows = SemanticProjectionRebuild {
+        registration: registration.clone(),
+        expected_previous_projection_revision: Some(1),
+        rows: vec![rows().remove(0); MAX_SEMANTIC_PROJECTION_ROWS + 1],
+    };
+    let too_many_rows_error =
+        SemanticProjectionStore::rebuild_semantic_projection(&storage, &too_many_rows)
+            .await
+            .expect_err("public struct literal must not bypass rebuild row bounds");
+    assert!(matches!(
+        too_many_rows_error,
+        loom_runtime::SemanticProjectionError::LimitExceeded { .. }
+    ));
     SemanticProjectionStore::register_semantic_projection(&storage, registration.clone())
         .await
         .expect("pgvector projection registration should succeed");
@@ -133,10 +220,46 @@ async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
         1,
     )
     .expect("pgvector query should be valid");
-    let hits = SemanticProjectionStore::query_semantic_projection(&storage, query)
+    let hits = SemanticProjectionStore::query_semantic_projection(&storage, query.clone())
         .await
         .expect("pgvector query should succeed");
     assert_eq!(hits[0].source_ref.event_id, id(11));
+    let invalid_limit_query = SemanticProjectionQuery {
+        limit: 0,
+        ..query.clone()
+    };
+    let invalid_limit =
+        SemanticProjectionStore::query_semantic_projection(&storage, invalid_limit_query)
+            .await
+            .expect_err("public struct literal must not bypass query bounds");
+    assert!(matches!(
+        invalid_limit,
+        loom_runtime::SemanticProjectionError::LimitExceeded {
+            limit: 1_024,
+            actual: 0
+        }
+    ));
+    let mut invalid_rows = rows();
+    invalid_rows[0].model_revision = "wrong-model".to_owned();
+    let invalid_rebuild = SemanticProjectionRebuild {
+        registration: registration.clone(),
+        expected_previous_projection_revision: Some(1),
+        rows: invalid_rows,
+    };
+    let invalid_rebuild_error =
+        SemanticProjectionStore::rebuild_semantic_projection(&storage, &invalid_rebuild)
+            .await
+            .expect_err("public struct literal must not bypass row model checks");
+    assert!(matches!(
+        invalid_rebuild_error,
+        loom_runtime::SemanticProjectionError::MetadataMismatch { ref field, .. }
+            if field == "model_revision"
+    ));
+    let hits_after_invalid_rebuild =
+        SemanticProjectionStore::query_semantic_projection(&storage, query.clone())
+            .await
+            .expect("invalid rebuild must leave the prior projection readable");
+    assert_eq!(hits_after_invalid_rebuild[0].source_ref.event_id, id(11));
     let before_delete = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("authority snapshot should be readable before projection delete");

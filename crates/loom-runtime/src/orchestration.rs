@@ -2227,6 +2227,7 @@ where
         &self,
         registration: SemanticProjectionRegistration,
     ) -> Result<(), SemanticProjectionError> {
+        registration.validate()?;
         validate_projection_registration(&self.registry, &registration)?;
         self.store.register_semantic_projection(registration).await
     }
@@ -2241,6 +2242,7 @@ where
         &self,
         query: SemanticProjectionQuery,
     ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
+        query.validate()?;
         validate_projection_query_index(&self.registry, &query.key)?;
         self.ensure_semantic_index_enabled(
             query.key.world_id,
@@ -2261,6 +2263,7 @@ where
         &self,
         rebuild: &SemanticProjectionRebuild,
     ) -> Result<(), SemanticProjectionError> {
+        rebuild.validate()?;
         validate_projection_registration(&self.registry, &rebuild.registration)?;
         self.store.rebuild_semantic_projection(rebuild).await
     }

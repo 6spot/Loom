@@ -1773,6 +1773,7 @@ impl SemanticProjectionStore for InMemoryStore {
         registration: SemanticProjectionRegistration,
     ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
         Box::pin(async move {
+            registration.validate()?;
             let mut guard = self.write_state();
             let timeline = guard.timelines.get(&registration.key.timeline_id).ok_or(
                 SemanticProjectionError::ScopeNotFound {
@@ -1802,6 +1803,7 @@ impl SemanticProjectionStore for InMemoryStore {
         query: SemanticProjectionQuery,
     ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>> {
         Box::pin(async move {
+            query.validate()?;
             let guard = self.read_state();
             let registration = guard.semantic_projections.get(&query.key).ok_or_else(|| {
                 SemanticProjectionError::IndexNotRegistered {
@@ -1874,6 +1876,7 @@ impl SemanticProjectionStore for InMemoryStore {
         rebuild: &'a SemanticProjectionRebuild,
     ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
         Box::pin(async move {
+            rebuild.validate()?;
             let mut guard = self.write_state();
             let current = guard
                 .semantic_projections

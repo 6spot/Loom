@@ -1223,6 +1223,7 @@ impl PgStorage {
         &self,
         registration: SemanticProjectionRegistration,
     ) -> Result<(), SemanticProjectionError> {
+        registration.validate()?;
         let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
         let scope_exists: Option<i32> = sqlx::query_scalar(SEMANTIC_PROJECTION_SCOPE_EXISTS_SQL)
             .bind(registration.key.timeline_id.to_string())
@@ -1271,6 +1272,7 @@ impl PgStorage {
         &self,
         query: SemanticProjectionQuery,
     ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
+        query.validate()?;
         let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
         let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
             .bind(query.key.world_id.to_string())
@@ -1336,6 +1338,7 @@ impl PgStorage {
         &self,
         rebuild: &SemanticProjectionRebuild,
     ) -> Result<(), SemanticProjectionError> {
+        rebuild.validate()?;
         let mut transaction = self.pool.begin().await.map_err(sql_projection_error)?;
         let row = sqlx::query(READ_SEMANTIC_PROJECTION_SQL)
             .bind(rebuild.registration.key.world_id.to_string())
