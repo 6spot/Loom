@@ -40,8 +40,8 @@ async fn seed_world(pool: &sqlx::PgPool, world_id: WorldId, timeline_id: Timelin
 
 async fn insert_event(pool: &sqlx::PgPool, timeline_id: TimelineId, event_id: EventId, seq: u64) {
     sqlx::query(
-        "INSERT INTO loom_event \\
-         (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \\
+        "INSERT INTO loom_event \
+         (timeline_id, event_id, event_seq, event_type, schema_revision, occurred_at, payload, effects) \
          VALUES ($1::uuid, $2::uuid, $3::numeric, 'test.history.event', 1, 0, '{}'::jsonb, '[]'::jsonb)",
     )
     .bind(timeline_id.to_string())
@@ -325,9 +325,29 @@ async fn postgres_runtime_fork_replays_child_visible_boundary_after_restart() {
             .await
             .expect("forked child should be readable after restart");
         assert_eq!(snapshot.version(), version);
-        assert!(snapshot.events.is_empty());
+        assert_eq!(
+            refs(&snapshot.events),
+            vec![EventRef::new(timeline_a, event_one)]
+        );
         assert_eq!(snapshot.ancestry().parent_timeline_id, Some(timeline_b));
     }
+
+    let child_before_boundary = restarted_runtime
+        .fork(ForkTimelineRequest::at_version(
+            TimelineTarget::new(world_id, timeline_b),
+            TimelineVersion::default(),
+        ))
+        .await
+        .expect("B should fork at its visible ancestor boundary");
+    let before_boundary_snapshot =
+        WorldStore::snapshot(&restarted, child_before_boundary.target.timeline_id)
+            .await
+            .expect("before-boundary child should be readable");
+    assert!(before_boundary_snapshot.events.is_empty());
+    assert_eq!(
+        before_boundary_snapshot.ancestry().parent_timeline_id,
+        Some(timeline_b)
+    );
     assert_eq!(
         WorldStore::snapshot(&restarted, timeline_a)
             .await
@@ -407,6 +427,7 @@ async fn postgres_historical_fork_persists_materialization_after_restart() {
 #[tokio::test]
 #[expect(
     clippy::too_many_lines,
+    clippy::similar_names,
     reason = "the PostgreSQL visible ancestry fixture covers several immutable branch boundaries"
 )]
 async fn postgres_18_visible_history_is_bounded_across_grandchild_and_restart() {

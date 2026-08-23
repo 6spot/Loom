@@ -17,6 +17,7 @@ WITH RECURSIVE timeline_segments(timeline_id, upper_event_seq, lower_event_seq) 
       ON child.timeline_id = child_segment.timeline_id
     JOIN loom_timeline AS parent
       ON parent.timeline_id = child.parent_timeline_id
+    WHERE child_segment.upper_event_seq >= child_segment.lower_event_seq
 )
 SELECT event.event_id::text
 FROM timeline_segments

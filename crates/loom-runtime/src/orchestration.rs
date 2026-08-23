@@ -2023,12 +2023,22 @@ where
                 .filter(|work| work.logical_schedule_order <= logical_order_high_water)
                 .map(logical_work_seed)
                 .collect();
+            let branch_events = source
+                .events
+                .iter()
+                .filter(|event| {
+                    event.timeline_id == source.timeline_id()
+                        && event.event_seq > boundary.head_event_seq
+                })
+                .cloned()
+                .collect::<Vec<_>>();
             source
-                .replay_from_seed(
+                .replay_from_seed_with_events(
                     initial,
                     initial_works,
                     initial_chronology_budget,
                     logical_order_high_water,
+                    &branch_events,
                     target,
                 )
                 .map_err(|_| map_historical_fork_error())

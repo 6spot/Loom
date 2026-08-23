@@ -10,14 +10,13 @@ use url::Url;
 
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 
-const DEFAULT_POSTGRES_CONTROL_URL: &str =
-    "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 /// One isolated `PostgreSQL` database created for an integration-test fixture.
 ///
 /// `LOOM_TEST_POSTGRES_URL` may override the repository-local control database.
 /// When it is unset or empty, tests use Loom's localhost-only default control
-/// database and start the repository-managed PostgreSQL service on demand if it
+/// database and start the repository-managed `PostgreSQL` service on demand if it
 /// is not already reachable. The configured role must be allowed to create/drop
 /// databases. Each fixture creates a unique child database, applies Loom
 /// migrations from scratch, and requires explicit async cleanup at the end.
@@ -30,7 +29,7 @@ pub struct TestDatabase {
 impl TestDatabase {
     /// Creates a unique empty database and applies the embedded Loom migrations.
     ///
-    /// PostgreSQL integration tests never self-skip. The repository-local
+    /// `PostgreSQL` integration tests never self-skip. The repository-local
     /// service is started on demand when the default control URL is in use. An
     /// explicit unreachable `LOOM_TEST_POSTGRES_URL` fails the test directly.
     pub async fn provision(label: &str) -> Option<Self> {

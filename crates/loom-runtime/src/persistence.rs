@@ -2357,12 +2357,13 @@ impl TimelineSnapshot {
         crate::replay_timeline(initial, &self.events, &self.journal, target)
     }
 
-    pub(crate) fn replay_from_seed(
+    pub(crate) fn replay_from_seed_with_events(
         &self,
         initial: BaseWorldSnapshot,
         initial_works: Vec<crate::LogicalWorkState>,
         initial_chronology_budget: ChronologyBudgetState,
         initial_logical_order_high_water: u64,
+        events: &[CommittedEvent],
         target: TimelineVersion,
     ) -> Result<crate::HistoricalTimelineState, crate::LogicalReplayError> {
         crate::LogicalReplayEngine::replay_with_seed(
@@ -2370,7 +2371,7 @@ impl TimelineSnapshot {
             initial_works,
             initial_chronology_budget,
             initial_logical_order_high_water,
-            &self.events,
+            events,
             &self.journal,
             target,
         )
