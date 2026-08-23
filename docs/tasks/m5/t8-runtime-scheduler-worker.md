@@ -1,10 +1,10 @@
 ---
 task: M5-T8
 issue: 160
-status: planned
+status: in_review
 depends_on: [156, 157]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-23
 completed_at:
 completion_pr:
 merge_sha:
@@ -28,4 +28,23 @@ merge_sha:
 Architecture: Amendment 0001 §3; Amendment 0003 §§5/7.
 
 ## Verification evidence
-Pending.
+- `apps/loom-server` provides one `Runtime` plus one `TimelineTarget` per
+  application-owned worker, bounded polling, external graceful shutdown, and
+  supervisor-owned restart/error handling without adding `Send`/`Sync` to
+  executor-neutral Runtime futures.
+- `docs/development/runtime-worker.md` records the current-thread v0 topology,
+  complete Send/Sync audit boundary, resolver/cognition transaction boundary,
+  head-aware same-Timeline rule, and PostgreSQL fencing/CAS recovery model.
+- `postgres_work` runs the independent-Timeline worker-instance concurrency
+  scenario plus same-Timeline claim/fence, non-head admission, expiry/reclaim,
+  terminalization, completion-race, and durable-budget restart scenarios.
+- `cargo fmt --all -- --check`, `git diff --check`,
+  `python3 tools/check_architecture.py`, and
+  `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo clippy -p loom-server
+  --all-targets -- -D warnings` pass.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test -p loom-server`
+  passes 2 unit tests and `cargo test -p loom-runtime --lib` passes 31 tests.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test --workspace
+  --all-features` passes the workspace unit, integration, and doc tests,
+  including all 11 `postgres_work` tests against the repository PostgreSQL 18
+  service.

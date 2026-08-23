@@ -1,18 +1,22 @@
 mod support;
 
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    sync::{Arc, Barrier},
+};
 
 use loom_api::{ApiErrorCode, TimelineTarget};
 use loom_capability::{
     Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, RegistrationError,
     ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
-use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
+use loom_core::{ExecutionSessionId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
 use loom_protocol::{NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule};
 use loom_runtime::{
-    ChronologyBudgetExceeded, CommitError, CommitStore, EffectEngine, LogicalJournalStore,
-    LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore, TimelineDriverResult,
-    WorkError, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldStore,
+    ChronologyBudgetExceeded, CommitError, CommitStore, EffectEngine, IdentityAllocator,
+    LogicalJournalStore, LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore,
+    TimelineDriverResult, WorkError, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization,
+    WorldStore,
 };
 use loom_storage::PgStorage;
 use serde_json::Value;
@@ -34,6 +38,25 @@ where
 
 struct WorkCapability {
     manifest: CapabilityManifest,
+}
+
+#[derive(Clone, Copy)]
+struct TestIdentityAllocator {
+    session_id: ExecutionSessionId,
+}
+
+impl IdentityAllocator for TestIdentityAllocator {
+    fn allocate_world_id(&self) -> WorldId {
+        id(0x2aff)
+    }
+
+    fn allocate_timeline_id(&self) -> TimelineId {
+        id(0x2afe)
+    }
+
+    fn allocate_execution_session_id(&self) -> ExecutionSessionId {
+        self.session_id
+    }
 }
 
 struct EmptyHandler;
@@ -662,6 +685,114 @@ async fn postgres_18_scheduler_budget_is_durable_across_restart() {
     ));
 
     restarted.close().await;
+    database.cleanup().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
+    let Some((database, storage, pool, world_a, timeline_a)) = authority(0x2a00).await else {
+        return;
+    };
+    let world_b: WorldId = id(0x2a02);
+    let timeline_b: TimelineId = id(0x2a03);
+    let work_a: WorkId = id(0x2a10);
+    let work_b: WorkId = id(0x2a11);
+    sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+        .bind(world_b.to_string())
+        .execute(&pool)
+        .await
+        .expect("second test World should insert");
+    sqlx::query("INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)")
+        .bind(timeline_b.to_string())
+        .bind(world_b.to_string())
+        .execute(&pool)
+        .await
+        .expect("second test Timeline should insert");
+    seed_work(&pool, timeline_a, work_a, 0, None).await;
+    seed_work(&pool, timeline_b, work_b, 0, None).await;
+
+    let first_storage = database.storage().await;
+    let second_storage = database.storage().await;
+    let result = std::thread::scope(|scope| {
+        let start = Arc::new(Barrier::new(2));
+        let first_start = start.clone();
+        let second_start = start.clone();
+        let first = scope.spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("first worker executor should build");
+            first_start.wait();
+            runtime.block_on(async move {
+                Runtime::new(first_storage, registry())
+                    .expect("first worker Runtime should assemble")
+                    .with_identity_allocator(TestIdentityAllocator {
+                        session_id: id(0x2a20),
+                    })
+                    .drive_timeline(
+                        TimelineTarget::new(world_a, timeline_a),
+                        PlatformTime::new(10),
+                        PlatformTime::new(20),
+                        PlatformTime::new(30),
+                    )
+                    .await
+            })
+        });
+        let second = scope.spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("second worker executor should build");
+            second_start.wait();
+            runtime.block_on(async move {
+                Runtime::new(second_storage, registry())
+                    .expect("second worker Runtime should assemble")
+                    .with_identity_allocator(TestIdentityAllocator {
+                        session_id: id(0x2a21),
+                    })
+                    .drive_timeline(
+                        TimelineTarget::new(world_b, timeline_b),
+                        PlatformTime::new(10),
+                        PlatformTime::new(20),
+                        PlatformTime::new(30),
+                    )
+                    .await
+            })
+        });
+        (
+            first.join().expect("first worker should finish"),
+            second.join().expect("second worker should finish"),
+        )
+    });
+
+    let first = result.0.expect("first independent Timeline should drive");
+    let second = result.1.expect("second independent Timeline should drive");
+    assert!(matches!(
+        first,
+        TimelineDriverResult::Executed { work_id, result }
+            if work_id == work_a && result.is_committed()
+    ));
+    assert!(matches!(
+        second,
+        TimelineDriverResult::Executed { work_id, result }
+            if work_id == work_b && result.is_committed()
+    ));
+
+    let first_work = WorkStore::work(&storage, timeline_a, work_a)
+        .await
+        .expect("first Work should remain readable")
+        .expect("first Work should remain present")
+        .status;
+    let second_work = WorkStore::work(&storage, timeline_b, work_b)
+        .await
+        .expect("second Work should remain readable")
+        .expect("second Work should remain present")
+        .status;
+    assert_eq!(first_work, WorkStatus::Completed);
+    assert_eq!(second_work, WorkStatus::Completed);
+
+    pool.close().await;
+    storage.close().await;
     database.cleanup().await;
 }
 
