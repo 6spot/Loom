@@ -1,0 +1,59 @@
+# cargo-deny 0.18.9 policy for the long-lived Ubuntu CI gate.
+#
+# This file is intentionally explicit: a new advisory, dependency source,
+# license, or duplicate version fails the gate until its narrow, reviewable
+# exception is recorded here with a reason.
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+highlight = "all"
+
+# These are not blanket duplicate ignores. They are the small set of known
+# transitive version splits in the current locked graph; each entry is pinned
+# to the exact versions and may be removed when the graph converges.
+skip = [
+    { crate = "block-buffer@0.10.4", reason = "sha2 0.10 remains required by SQLx alongside sha2 0.11" },
+    { crate = "cpufeatures@0.2.17", reason = "ring and sha2 0.10 retain this ABI-compatible transitive line" },
+    { crate = "crypto-common@0.1.6", reason = "digest 0.10 is retained by SQLx's sha2 0.10 branch" },
+    { crate = "digest@0.10.7", reason = "sha2 0.10 is retained by SQLx alongside its sha2 0.11 branch" },
+    { crate = "getrandom@0.2.17", reason = "ring 0.17 has not converged with the workspace's newer getrandom lines" },
+    { crate = "getrandom@0.3.4", reason = "jsonschema and UUID consumers retain this line while SQLx uses getrandom 0.4" },
+    { crate = "hashbrown@0.16.1", reason = "SQLx hashlink requires this line while jsonschema uses 0.17" },
+    { crate = "r-efi@5.3.0", reason = "getrandom 0.3's platform support retains this firmware ABI line" },
+    { crate = "sha2@0.10.9", reason = "SQLx and ring still require the 0.10 digest API" },
+    { crate = "syn@2.0.119", reason = "existing procedural macros require syn 2 while the current graph also contains syn 3" },
+    { crate = "windows-sys@0.52.0", reason = "ring's supported Windows ABI line is independent of current Tokio/SQLx" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[licenses.private]
+ignore = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

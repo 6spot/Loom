@@ -194,3 +194,6 @@ pub use loom_protocol::WorkTarget;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod property_fault_security;

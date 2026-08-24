@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STORAGE = ROOT / "crates" / "loom-storage"
 BENCH = ROOT / "crates" / "loom-bench"
+VALIDATOR = ROOT / "apps" / "loom-validator"
 ALLOWED_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
 
 FORBIDDEN_RUST_PATTERNS = {
@@ -39,6 +40,35 @@ INLINE_SQL_PATTERN = re.compile(
     r"sqlx::(?:query|query_scalar)(?:\s*::<[^)]*>)?\s*\(\s*\"",
     re.MULTILINE,
 )
+
+VALIDATOR_FORBIDDEN_RUST_PATTERNS = {
+    "loom-storage import": re.compile(r"\bloom_storage\b"),
+    "loom-runtime import": re.compile(r"\bloom_runtime\b"),
+    "loom-boundary import": re.compile(r"\bloom_boundary\b"),
+    "loom-core import": re.compile(r"\bloom_core\b"),
+    "loom-protocol import": re.compile(r"\bloom_protocol\b"),
+    "loom-capability import": re.compile(r"\bloom_capability\b"),
+    "loom-agency import": re.compile(r"\bloom_agency\b"),
+    "loom-neutral import": re.compile(r"\bloom_neutral\b"),
+    "sqlx path": re.compile(r"\bsqlx::"),
+    "tokio-postgres path": re.compile(r"\btokio_postgres::"),
+    "postgres client path": re.compile(r"\bpostgres::(?:Client|Config|Transaction)\b"),
+    "PgStorage authority": re.compile(r"\bPgStorage\b"),
+}
+
+VALIDATOR_FORBIDDEN_CARGO_PATTERNS = {
+    "implementation workspace dependency": re.compile(
+        r"(?m)^\s*loom-(?:server|storage|runtime|boundary|core|protocol|capability|agency|neutral)\s*="
+    ),
+    "sqlx dependency": re.compile(r"(?m)^\s*sqlx\s*="),
+    "tokio-postgres dependency": re.compile(r"(?m)^\s*tokio-postgres\s*="),
+    "postgres dependency": re.compile(r"(?m)^\s*postgres\s*="),
+    "pgvector dependency": re.compile(r"(?m)^\s*pgvector\s*="),
+    "diesel dependency": re.compile(r"(?m)^\s*diesel\s*="),
+    "object-store dependency": re.compile(r"(?m)^\s*object_store\s*="),
+    "axum dependency": re.compile(r"(?m)^\s*axum\s*="),
+    "reqwest dependency": re.compile(r"(?m)^\s*reqwest\s*="),
+}
 
 
 def is_under(path: Path, parent: Path) -> bool:
@@ -134,12 +164,33 @@ def check_storage_inline_sql(errors: list[str]) -> None:
         )
 
 
+def check_validator_boundary(errors: list[str]) -> None:
+    """Keep the validator on supported public consumer surfaces only."""
+    if not VALIDATOR.exists():
+        return
+
+    for path in VALIDATOR.rglob("*.rs"):
+        text = path.read_text(encoding="utf-8")
+        for label, pattern in VALIDATOR_FORBIDDEN_RUST_PATTERNS.items():
+            if pattern.search(text):
+                errors.append(
+                    f"{label} leaked into validator: {path.relative_to(ROOT)}"
+                )
+
+    for path in VALIDATOR.rglob("Cargo.toml"):
+        text = path.read_text(encoding="utf-8")
+        for label, pattern in VALIDATOR_FORBIDDEN_CARGO_PATTERNS.items():
+            if pattern.search(text):
+                errors.append(f"{label} in validator: {path.relative_to(ROOT)}")
+
+
 def main() -> int:
     errors: list[str] = []
     check_sql_file_locations(errors)
     check_non_storage_rust(errors)
     check_non_storage_cargo(errors)
     check_storage_inline_sql(errors)
+    check_validator_boundary(errors)
 
     if errors:
         print("storage SQL ownership check failed:", file=sys.stderr)
