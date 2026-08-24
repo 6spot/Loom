@@ -14,7 +14,10 @@ use std::{
 };
 
 #[cfg(test)]
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 
 use loom_core::{
     Entity, EntityId, EventId, EventRef, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
@@ -183,6 +186,8 @@ pub struct InMemoryStore {
     fail_next_ingress_commit_unknown: AtomicBool,
     #[cfg(test)]
     ingress_authority_commit_attempts: AtomicUsize,
+    #[cfg(test)]
+    scheduler_conflict_work_once: Mutex<Option<loom_core::WorkId>>,
 }
 
 impl Default for InMemoryStore {
@@ -203,6 +208,8 @@ impl InMemoryStore {
             fail_next_ingress_commit_unknown: AtomicBool::new(false),
             #[cfg(test)]
             ingress_authority_commit_attempts: AtomicUsize::new(0),
+            #[cfg(test)]
+            scheduler_conflict_work_once: Mutex::new(None),
         }
     }
 
@@ -222,6 +229,31 @@ impl InMemoryStore {
     pub fn ingress_authority_commit_attempts_for_test(&self) -> usize {
         self.ingress_authority_commit_attempts
             .load(Ordering::Acquire)
+    }
+
+    /// Arms one deterministic Scheduler CAS conflict for a feature test.
+    ///
+    /// The seam uses the normal Runtime terminalization authority to commit a
+    /// logical Work change immediately before the armed Scheduler commit. It
+    /// therefore changes the Timeline version through the same authority as a
+    /// concurrent worker, rather than returning a synthetic error.
+    #[cfg(test)]
+    pub(crate) fn inject_scheduler_conflict_once_for_test(
+        &self,
+        conflict_work_id: loom_core::WorkId,
+    ) {
+        *self
+            .scheduler_conflict_work_once
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(conflict_work_id);
+    }
+
+    #[cfg(test)]
+    fn take_scheduler_conflict_work_once(&self) -> Option<loom_core::WorkId> {
+        self.scheduler_conflict_work_once
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
     }
 
     /// Atomically accepts, deduplicates or conflicts one external submission.
@@ -3029,6 +3061,17 @@ impl SchedulerCommitStore for InMemoryStore {
         session_id: ExecutionSessionId,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move {
+            #[cfg(test)]
+            if let Some(conflict_work_id) = self.take_scheduler_conflict_work_once() {
+                let terminalization = WorkTerminalization::new(
+                    resolution.timeline_id(),
+                    resolution.base_version(),
+                    conflict_work_id,
+                    loom_runtime::WorkTerminalState::Cancelled,
+                    now,
+                );
+                self.terminalize_current_work(&terminalization)?;
+            }
             InMemoryStore::commit_with_chronology_budget(
                 self,
                 resolution,

@@ -138,6 +138,17 @@ impl SchedulerCommitStore for PgStorage {
         session_id: ExecutionSessionId,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move {
+            #[cfg(test)]
+            if let Some(conflict_work_id) = self.take_scheduler_conflict_work_once() {
+                let terminalization = WorkTerminalization::new(
+                    resolution.timeline_id(),
+                    resolution.base_version(),
+                    conflict_work_id,
+                    WorkTerminalState::Cancelled,
+                    now,
+                );
+                terminalize_current_work(self, &terminalization).await?;
+            }
             commit_resolution(
                 self,
                 resolution,

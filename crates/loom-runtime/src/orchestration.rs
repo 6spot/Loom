@@ -1305,6 +1305,11 @@ where
     /// the current Timeline snapshot, validates the explicit Agency target and
     /// commits the logical schedule with the normal Timeline CAS. No provider,
     /// timer, Agent queue or second Work authority is involved.
+    ///
+    /// # Errors
+    ///
+    /// Returns a public conflict when the expected Timeline version is stale,
+    /// or a validation/commit error when the requested Work cannot be admitted.
     pub async fn schedule_agency_wake(
         &self,
         request: AdminScheduleAgencyWakeRequest,
@@ -1482,20 +1487,19 @@ where
         };
 
         if let WorkTarget::AgencyWake { agent, cognition } = work.target.clone() {
-            return self
-                .execute_agency_wake(
-                    target,
-                    snapshot,
-                    assembly,
-                    claim,
-                    session,
-                    agent,
-                    cognition,
-                    now,
-                    retry_available_at,
-                    limit,
-                )
-                .await;
+            return Box::pin(self.execute_agency_wake(
+                target,
+                snapshot,
+                assembly,
+                claim,
+                session,
+                agent,
+                cognition,
+                now,
+                retry_available_at,
+                limit,
+            ))
+            .await;
         }
 
         let handler_id = handler_id.expect("Capability Work must have a handler");
@@ -2289,7 +2293,7 @@ where
             &*self.cognitive_executor,
             &assembly,
             &pinned,
-            view,
+            &view,
             &decision,
             &mut evidence,
         ) {
@@ -4496,7 +4500,7 @@ where
             &*self.cognitive_executor,
             assembly,
             session,
-            view,
+            &view,
             evidence,
         )
         .await

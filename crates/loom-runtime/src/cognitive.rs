@@ -130,10 +130,10 @@ pub(crate) async fn execute_cognitive(
     executor: &dyn CognitiveExecutor,
     assembly: &ExecutionAssembly,
     session: &PinnedReadSession,
-    view: AgentWorldView,
+    view: &AgentWorldView,
     evidence: &mut ExecutionEvidence,
 ) -> Result<Decision, CognitiveGatewayError> {
-    validate_coordinate(assembly, session, &view)?;
+    validate_coordinate(assembly, session, view)?;
     validate_budget(
         &assembly.cognitive().policy().context_budget,
         view.context.usage,
@@ -187,11 +187,11 @@ pub(crate) fn record_reused_cognitive(
     executor: &dyn CognitiveExecutor,
     assembly: &ExecutionAssembly,
     session: &PinnedReadSession,
-    view: AgentWorldView,
+    view: &AgentWorldView,
     decision: &Decision,
     evidence: &mut ExecutionEvidence,
 ) -> Result<(), CognitiveGatewayError> {
-    validate_coordinate(assembly, session, &view)?;
+    validate_coordinate(assembly, session, view)?;
     validate_budget(
         &assembly.cognitive().policy().context_budget,
         view.context.usage,
@@ -453,7 +453,7 @@ mod tests {
                 &fake,
                 &assembly,
                 &session,
-                view(&assembly),
+                &view(&assembly),
                 &mut evidence,
             )),
             Ok(Decision::NoAction)
@@ -463,7 +463,7 @@ mod tests {
                 &fake,
                 &assembly,
                 &session,
-                view(&assembly),
+                &view(&assembly),
                 &mut evidence,
             )),
             Err(CognitiveGatewayError::Executor(
@@ -518,7 +518,7 @@ mod tests {
             &fake,
             &assembly,
             &session,
-            view(&assembly),
+            &view(&assembly),
             &mut evidence,
         ))
         .expect("scripted Action should be returned");
