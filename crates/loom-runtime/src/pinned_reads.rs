@@ -673,6 +673,51 @@ pub trait PinnedWorldReadStore {
     ) -> PersistenceFuture<'a, Result<PinnedRead<Option<CommittedEvent>>, ReadError>>;
 }
 
+impl<T> PinnedWorldReadStore for &T
+where
+    T: PinnedWorldReadStore + ?Sized,
+{
+    fn open_pinned_read<'a>(
+        &'a self,
+        assembly: &'a ExecutionAssembly,
+    ) -> PersistenceFuture<'a, Result<PinnedReadSession, ReadError>> {
+        (**self).open_pinned_read(assembly)
+    }
+
+    fn read_entity<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        entity_id: EntityId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Entity>>, ReadError>> {
+        (**self).read_entity(session, entity_id)
+    }
+
+    fn read_relationship<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        relationship_id: RelationshipId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Relationship>>, ReadError>> {
+        (**self).read_relationship(session, relationship_id)
+    }
+
+    fn read_facet<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        owner: FacetOwner,
+        facet_type: &'a FacetTypeId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<PinnedFacet>>, ReadError>> {
+        (**self).read_facet(session, owner, facet_type)
+    }
+
+    fn read_event<'a>(
+        &'a self,
+        session: &'a PinnedReadSession,
+        event_id: EventId,
+    ) -> PersistenceFuture<'a, Result<PinnedRead<Option<CommittedEvent>>, ReadError>> {
+        (**self).read_event(session, event_id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use loom_core::{EventSeq, StateRevision};

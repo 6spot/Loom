@@ -24,18 +24,18 @@ use loom_core::{
     TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    ActionInvocation, CausalLink, NewWork, ProposedEvent, Resolution, ResolveOutcome, WorkMutation,
-    WorkSchedule,
+    ActionInvocation, CausalLink, NewWork, ProposedEvent, Rejection, Resolution, ResolveOutcome,
+    WorkMutation, WorkSchedule,
 };
 use loom_runtime::{
     AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded,
-    CommitAuthorityContext, CommitError, CommitStore, EffectEngine, ForkWork, IngressStore,
-    IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PlatformTime, Runtime,
-    RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
-    TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
-    WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldTimeError,
+    CommitAuthorityContext, CommitError, CommitStore, DeterministicCognitiveExecutor,
+    DeterministicCognitiveStep, EffectEngine, ForkWork, IngressStore, IngressSubmission,
+    LogicalWorkTransition, ManualPlatformClock, PlatformTime, Runtime, RuntimeControlStore,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionStore, SchedulerCommitStore, TimelineDriverResult, TimelineFork,
+    TimelineForkStore, WorkError, WorkRecord, WorkStatus, WorkTarget, WorkTerminalState,
+    WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -549,6 +549,26 @@ fn pending_work_with_handler(work_id: WorkId, handler: WorkHandlerId) -> WorkRec
     }
 }
 
+fn pending_agency_work(work_id: WorkId, agent: EntityId, cognition: &str) -> WorkRecord {
+    WorkRecord {
+        id: work_id,
+        timeline_id: timeline(),
+        target: WorkTarget::agency_wake(agent, cognition),
+        schema_revision: SchemaRevision::new(0),
+        payload: json!({}),
+        effective_due_world_time: WorldInstant::new(0),
+        logical_schedule_order: 1,
+        causal_event_id: None,
+        origin_work_id: None,
+        status: WorkStatus::Pending,
+        attempt_count: 0,
+        claim_generation: 0,
+        available_at: PlatformTime::new(0),
+        last_error: None,
+        lease: None,
+    }
+}
+
 fn event_with_effect(event_id: EventId, effect: WorldEffect, source_time: i64) -> ProposedEvent {
     ProposedEvent::new(
         event_id,
@@ -712,6 +732,7 @@ struct TestCapability {
 const NO_CHANGE_CAPABILITY: &str = "test.no_change";
 const NO_CHANGE_ACTION: &str = "test.no_change_action";
 const EVENT_ACTION: &str = "test.event_action";
+const SEMANTIC_REJECT_ACTION: &str = "test.semantic_reject_action";
 const SCHEDULE_ACTION: &str = "test.schedule_work";
 const CANCEL_ACTION: &str = "test.cancel_work";
 const EMPTY_WORK_HANDLER: &str = "test.empty_work";
@@ -766,6 +787,21 @@ fn no_change_registry() -> CapabilityRegistry {
 
 struct FailOnceResolver {
     failed: Arc<AtomicBool>,
+}
+
+struct RejectResolver;
+
+impl ActionResolver for RejectResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        Ok(ResolveOutcome::Rejected(Rejection::new(
+            "test.rejected",
+            "the test Action was semantically refused",
+        )))
+    }
 }
 
 struct EventResolver;
@@ -941,6 +977,13 @@ impl Capability for TestCapability {
         registrar.register_action(
             ActionDefinition::new(ActionTypeId::from(EVENT_ACTION), SchemaRevision::new(1)),
             EventResolver,
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(
+                ActionTypeId::from(SEMANTIC_REJECT_ACTION),
+                SchemaRevision::new(1),
+            ),
+            RejectResolver,
         )?;
         registrar.register_work_handler(
             WorkHandlerDefinition::new(
@@ -1343,6 +1386,203 @@ async fn zero_event_work_completion_commits_runtime_state_atomically() {
             .status,
         WorkStatus::Completed
     );
+}
+
+fn agency_executor(
+    steps: impl IntoIterator<Item = DeterministicCognitiveStep>,
+) -> DeterministicCognitiveExecutor {
+    DeterministicCognitiveExecutor::new(steps)
+}
+
+#[tokio::test]
+async fn agency_no_action_completes_wake_without_world_event() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    store
+        .seed_work(pending_agency_work(
+            work(400),
+            entity(10),
+            "deterministic.fake",
+        ))
+        .expect("Agency Wake should be seeded");
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::no_action()]));
+
+    let result = runtime
+        .execute_work(
+            TimelineTarget::new(world(), timeline()),
+            work(400),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("NoAction Wake should complete");
+    assert!(matches!(
+        result,
+        ExecutionResult::Committed { ref event_ids, .. } if event_ids.is_empty()
+    ));
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert!(snapshot.events.is_empty());
+    assert_eq!(snapshot.chronology_budget().consumed, 1);
+    assert_eq!(snapshot.works[0].status, WorkStatus::Completed);
+    let session = store.list_sessions().unwrap().pop().unwrap();
+    assert_eq!(
+        session.status(),
+        loom_runtime::ExecutionSessionStatus::Committed
+    );
+    assert_eq!(session.cognitive_evidence().len(), 1);
+}
+
+#[tokio::test]
+async fn agency_act_reuses_action_authority_and_commits_atomically() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    let event_id = event(401);
+    store
+        .seed_work(pending_agency_work(
+            work(401),
+            entity(10),
+            "deterministic.fake",
+        ))
+        .expect("Agency Wake should be seeded");
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::act(
+            ActionInvocation::new(
+                ActionTypeId::from(EVENT_ACTION),
+                json!({"event_id": event_id.to_string()}),
+            ),
+        )]));
+
+    let result = runtime
+        .execute_work(
+            TimelineTarget::new(world(), timeline()),
+            work(401),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("Act Wake should complete");
+    assert!(matches!(
+        result,
+        ExecutionResult::Committed { ref event_ids, .. } if event_ids == &[event_id]
+    ));
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(snapshot.events.len(), 1);
+    assert_eq!(snapshot.events[0].id, event_id);
+    assert_eq!(snapshot.works[0].status, WorkStatus::Completed);
+    assert_eq!(snapshot.chronology_budget().consumed, 1);
+}
+
+#[tokio::test]
+async fn agency_semantic_rejection_completes_wake_without_fake_event() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    store
+        .seed_work(pending_agency_work(
+            work(402),
+            entity(10),
+            "deterministic.fake",
+        ))
+        .expect("Agency Wake should be seeded");
+    let runtime = Runtime::new(&store, registry())
+        .expect("Runtime should assemble")
+        .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::act(
+            ActionInvocation::new(ActionTypeId::from(SEMANTIC_REJECT_ACTION), json!({})),
+        )]));
+
+    let result = runtime
+        .execute_work(
+            TimelineTarget::new(world(), timeline()),
+            work(402),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(2),
+        )
+        .await
+        .expect("semantic rejection should determine the Wake");
+    assert!(result.is_rejected());
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert!(snapshot.events.is_empty());
+    assert_eq!(snapshot.works[0].status, WorkStatus::Completed);
+    assert_eq!(snapshot.chronology_budget().consumed, 1);
+}
+
+#[tokio::test]
+async fn agency_technical_failure_retries_pending_wake_without_commit() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    store
+        .seed_work(pending_agency_work(work(403), entity(10), "unconfigured"))
+        .expect("Agency Wake should be seeded");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+
+    assert!(
+        runtime
+            .execute_work(
+                TimelineTarget::new(world(), timeline()),
+                work(403),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(2),
+            )
+            .await
+            .is_err()
+    );
+    let snapshot = store.snapshot(timeline()).expect("snapshot should exist");
+    assert!(snapshot.events.is_empty());
+    assert_eq!(snapshot.version(), TimelineVersion::default());
+    assert_eq!(snapshot.works[0].status, WorkStatus::Pending);
+    assert!(snapshot.works[0].lease.is_none());
+    assert_eq!(snapshot.works[0].attempt_count, 1);
+    assert_eq!(snapshot.chronology_budget().consumed, 0);
 }
 
 #[tokio::test]

@@ -14,7 +14,8 @@ use std::{
 };
 
 use loom_agency::{
-    AgentWorldView, CognitiveExecutor, CognitiveMetadata, Decision, ExecutionPolicy,
+    AgentContextRequest, AgentRef, AgentWorldView, CognitiveExecutor, CognitiveMetadata, Decision,
+    ExecutionPolicy,
 };
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
@@ -52,19 +53,19 @@ use semver::VersionReq;
 use serde_json::{Value, json};
 
 use crate::{
-    AdvanceWorldTime, BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage,
-    CallProvenance, CandidateWorldView, ChangeFeedStore, ChronologyBudgetExceeded,
-    ChronologyBudgetPolicy, CognitiveAssembly, CognitiveGatewayError, CommitAuthorityContext,
-    CommitError, CommitProvenance, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
-    EntropySource, EntropySourceId, ExecutionAssembly, ExecutionEvidence, ExecutionOrigin,
-    ExecutionRoot, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
-    ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState, IdentityAllocator,
-    IngressClaim, IngressError, IngressStore, IngressSubmission, IngressTechnicalFailure,
-    LifecycleError, LogicalCommit, LogicalWorkState, LogicalWorkTransition,
-    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
-    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
-    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
-    ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    AdvanceWorldTime, AgentContextPlan, AgentWorldViewBuilder, BaseWorldSnapshot, BaseWorldView,
+    BindingError, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ChangeFeedStore,
+    ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly, CognitiveGatewayError,
+    CommitAuthorityContext, CommitError, CommitProvenance, CommitStore, CommittedEvent,
+    EffectEngine, EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly,
+    ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
+    HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
+    IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
+    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
+    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
+    ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
@@ -90,6 +91,21 @@ struct AuthorityFailure {
     validated: Option<ValidatedResolution>,
     changes_runtime_state: bool,
     provenance: Option<CommitProvenance>,
+}
+
+struct PreparedAuthority {
+    context: CommitAuthorityContext,
+    validated: ValidatedResolution,
+    changes_runtime_state: bool,
+    provenance: Option<CommitProvenance>,
+}
+
+enum PreparedAuthorityOutcome {
+    Rejected {
+        rejection: loom_protocol::Rejection,
+        evidence: ExecutionEvidence,
+    },
+    Prepared(Box<PreparedAuthority>),
 }
 
 enum AuthorityExecution {
@@ -1061,14 +1077,24 @@ where
         };
         let active_runtime_revision = selection.revision().id().clone();
         let implementations = selection.revision().compatible_with(&compatibility_binding);
+        let target_has_compatible_implementation = match &work.target {
+            WorkTarget::CapabilityWork { .. } => {
+                implementations.as_ref().is_ok_and(|implementations| {
+                    work_target_has_compatible_implementation(
+                        &self.registry,
+                        &compatibility_binding,
+                        implementations,
+                        work,
+                    )
+                })
+            }
+            WorkTarget::AgencyWake { cognition, .. } => {
+                self.cognitive_executor.metadata().executor.id == *cognition
+            }
+        };
         if let Ok(implementations) = implementations.as_ref()
             && runtime_revision_matches_registry(&self.registry, implementations)
-            && work_target_has_compatible_implementation(
-                &self.registry,
-                &compatibility_binding,
-                implementations,
-                work,
-            )
+            && target_has_compatible_implementation
         {
             self.missing_implementation_observations
                 .lock()
@@ -1135,7 +1161,11 @@ where
         retry_available_at: PlatformTime,
     ) -> ApiResult<TimelineDriverResult>
     where
-        S: RuntimeControlStore + SchedulerCommitStore + WorldTimeStore + SemanticProjectionStore,
+        S: RuntimeControlStore
+            + SchedulerCommitStore
+            + WorldTimeStore
+            + SemanticProjectionStore
+            + PinnedWorldReadStore,
     {
         let snapshot = self.snapshot_for_target(target).await?;
         let pending_head = snapshot
@@ -1194,9 +1224,14 @@ where
                 });
             }
 
-            let result = self
-                .execute_work(target, head.id, now, claimed_until, retry_available_at)
-                .await?;
+            let result = Box::pin(self.execute_work(
+                target,
+                head.id,
+                now,
+                claimed_until,
+                retry_available_at,
+            ))
+            .await?;
             return Ok(TimelineDriverResult::Executed {
                 work_id: head.id,
                 result,
@@ -1280,7 +1315,11 @@ where
     /// Runtime validation failure, or an unsuccessful atomic commit. The
     /// current Work remains Pending after a technical failure only when the
     /// bounded policy records a retry; exhaustion leaves it terminally Dead.
-    #[allow(clippy::too_many_lines)]
+    ///
+    /// # Panics
+    ///
+    /// Panics if a Capability Work reaches the dispatch path without the
+    /// handler identity established by preflight target validation.
     pub async fn execute_work(
         &self,
         target: TimelineTarget,
@@ -1290,7 +1329,29 @@ where
         retry_available_at: PlatformTime,
     ) -> ApiResult<ExecutionResult>
     where
-        S: RuntimeControlStore + SchedulerCommitStore + SemanticProjectionStore,
+        S: RuntimeControlStore
+            + SchedulerCommitStore
+            + SemanticProjectionStore
+            + PinnedWorldReadStore,
+    {
+        Box::pin(self.execute_work_inner(target, work_id, now, claimed_until, retry_available_at))
+            .await
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn execute_work_inner(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+        retry_available_at: PlatformTime,
+    ) -> ApiResult<ExecutionResult>
+    where
+        S: RuntimeControlStore
+            + SchedulerCommitStore
+            + SemanticProjectionStore
+            + PinnedWorldReadStore,
     {
         let snapshot = self.snapshot_for_target(target).await?;
         let work = snapshot
@@ -1325,18 +1386,18 @@ where
             ));
         }
 
-        let handler_id = match &work.target {
-            WorkTarget::CapabilityWork { handler, .. } => handler,
-            WorkTarget::AgencyWake { .. } => {
-                return Err(ApiError::unavailable(
-                    "Agency Wake execution is not available in this Runtime",
-                ));
-            }
-        };
-
         let binding = self.binding_for_world(snapshot.world_id()).await?;
         let assembly = self.execution_assembly(&snapshot, binding).await?;
-        validate_work_target(&self.registry, &assembly, &work)?;
+        let handler_id = match &work.target {
+            WorkTarget::CapabilityWork { handler, .. } => {
+                validate_work_target(&self.registry, &assembly, &work)?;
+                Some(handler)
+            }
+            WorkTarget::AgencyWake { agent, cognition } => {
+                validate_agency_wake_target(&assembly, *agent, cognition)?;
+                None
+            }
+        };
 
         // Compatibility and exact handler assembly are checked before claim.
         // A missing software implementation therefore cannot consume the
@@ -1346,13 +1407,14 @@ where
             .claim(target.timeline_id, work_id, now, claimed_until)
             .await
             .map_err(|error| map_work_error(&error))?;
+        let mut root = ExecutionRoot::work(work_id);
+        if let Some(handler_id) = handler_id {
+            root = root.with_action(ActionTypeId::from(format!("work:{handler_id}")));
+        } else if let WorkTarget::AgencyWake { agent, cognition } = &work.target {
+            root = root.with_agency(format!("agent:{agent};cognition:{cognition}"));
+        }
         let session = match self
-            .start_execution_session_with_root(
-                assembly.clone(),
-                ExecutionOrigin::Runtime,
-                ExecutionRoot::work(work_id)
-                    .with_action(ActionTypeId::from(format!("work:{handler_id}"))),
-            )
+            .start_execution_session_with_root(assembly.clone(), ExecutionOrigin::Runtime, root)
             .await
         {
             Ok(session) => session,
@@ -1368,6 +1430,25 @@ where
                     .await);
             }
         };
+
+        if let WorkTarget::AgencyWake { agent, cognition } = work.target.clone() {
+            return self
+                .execute_agency_wake(
+                    target,
+                    snapshot,
+                    assembly,
+                    claim,
+                    session,
+                    agent,
+                    cognition,
+                    now,
+                    retry_available_at,
+                    limit,
+                )
+                .await;
+        }
+
+        let handler_id = handler_id.expect("Capability Work must have a handler");
         let base = snapshot.world_view();
         let mut dispatch_entropy_evidence =
             EntropyEvidence::new(assembly.entropy_source_id().clone());
@@ -1581,6 +1662,423 @@ where
         }
     }
 
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    async fn execute_agency_wake(
+        &self,
+        target: TimelineTarget,
+        snapshot: TimelineSnapshot,
+        assembly: ExecutionAssembly,
+        claim: WorkClaim,
+        session: ExecutionSession,
+        agent: loom_core::EntityId,
+        cognition: String,
+        now: PlatformTime,
+        retry_available_at: PlatformTime,
+        chronology_budget_limit: u64,
+    ) -> ApiResult<ExecutionResult>
+    where
+        S: RuntimeControlStore
+            + SchedulerCommitStore
+            + SemanticProjectionStore
+            + PinnedWorldReadStore,
+    {
+        let mut agency_evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
+        let pinned = match self.open_pinned_read(&assembly).await {
+            Ok(pinned) => pinned,
+            Err(error) => {
+                return Err(self
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
+                        &session,
+                        &claim,
+                        now,
+                        retry_available_at,
+                        ApiError::unavailable(error.to_string()),
+                        Some(agency_evidence),
+                    )
+                    .await);
+            }
+        };
+        let request = AgentContextRequest::new(
+            AgentRef::new(agent),
+            assembly.timeline_id(),
+            assembly.expected_version(),
+            assembly.world_time(),
+            assembly.cognitive().policy().context_budget,
+        );
+        let mut builder = AgentWorldViewBuilder::new(&self.store, PinnedReadPolicy::default());
+        let view = match builder
+            .build(
+                &pinned,
+                request,
+                &AgentContextPlan::new(),
+                &self.registry,
+                &assembly,
+            )
+            .await
+        {
+            Ok(view) => view,
+            Err(error) => {
+                agency_evidence.read_set.extend(pinned.read_set());
+                return Err(self
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
+                        &session,
+                        &claim,
+                        now,
+                        retry_available_at,
+                        ApiError::unavailable(error.to_string()),
+                        Some(agency_evidence),
+                    )
+                    .await);
+            }
+        };
+        let decision = match self
+            .execute_cognitive_for(&cognition, &assembly, &pinned, view, &mut agency_evidence)
+            .await
+        {
+            Ok(decision) => decision,
+            Err(error) => {
+                return Err(self
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
+                        &session,
+                        &claim,
+                        now,
+                        retry_available_at,
+                        ApiError::unavailable(error.to_string()),
+                        Some(agency_evidence),
+                    )
+                    .await);
+            }
+        };
+        let base = snapshot.world_view();
+
+        match decision {
+            Decision::NoAction => {
+                let validated =
+                    match self.empty_validated_resolution(&base, &assembly, &agency_evidence) {
+                        Ok(validated) => validated,
+                        Err(error) => {
+                            return Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    &claim,
+                                    now,
+                                    retry_available_at,
+                                    error,
+                                    Some(agency_evidence),
+                                )
+                                .await);
+                        }
+                    };
+                let mut evidence = agency_evidence.clone();
+                evidence.append(&validated_evidence(&validated));
+                match self
+                    .store
+                    .commit_scheduler_work_with_session(
+                        &validated,
+                        &claim,
+                        self.platform_clock.now(),
+                        chronology_budget_limit,
+                        session.id(),
+                    )
+                    .await
+                {
+                    Ok(result) => {
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Committed,
+                            evidence,
+                        )
+                        .await?;
+                        Ok(ExecutionResult::committed(Vec::new(), result.version))
+                    }
+                    Err(CommitError::ChronologyBudgetExceeded(error)) => {
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Failed,
+                            evidence,
+                        )
+                        .await?;
+                        Err(ApiError::unavailable(error.to_string()))
+                    }
+                    Err(error @ CommitError::CommitOutcomeUnknown { .. }) => {
+                        let mapped = map_commit_error(&error);
+                        match self
+                            .reconcile_scheduler_commit(target, &validated, &claim)
+                            .await?
+                        {
+                            SchedulerCommitReconciliation::Committed { version, .. } => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Committed,
+                                    evidence,
+                                )
+                                .await?;
+                                Ok(ExecutionResult::committed(Vec::new(), version))
+                            }
+                            SchedulerCommitReconciliation::Absent => Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    &claim,
+                                    now,
+                                    retry_available_at,
+                                    mapped,
+                                    Some(evidence),
+                                )
+                                .await),
+                            SchedulerCommitReconciliation::Ambiguous => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Failed,
+                                    evidence,
+                                )
+                                .await?;
+                                Err(ApiError::unavailable(
+                                    "Scheduler commit outcome remains unknown after reconciliation",
+                                ))
+                            }
+                        }
+                    }
+                    Err(error) => Err(self
+                        .finish_failure_and_apply_policy(
+                            snapshot.version(),
+                            &session,
+                            &claim,
+                            now,
+                            retry_available_at,
+                            map_commit_error(&error),
+                            Some(evidence),
+                        )
+                        .await),
+                }
+            }
+            Decision::Act(invocation) => {
+                let context =
+                    CommitAuthorityContext::direct(Some(claim)).with_session(session.id());
+                match self
+                    .execute_scheduler_action_authority(
+                        &snapshot,
+                        &base,
+                        &assembly,
+                        &invocation,
+                        context,
+                        &claim,
+                        chronology_budget_limit,
+                    )
+                    .await
+                {
+                    Ok(AuthorityExecution::Committed {
+                        result,
+                        validated,
+                        changes_runtime_state,
+                        ..
+                    }) => {
+                        let mut evidence = agency_evidence;
+                        evidence.append(&validated_evidence(&validated));
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Committed,
+                            evidence,
+                        )
+                        .await?;
+                        Ok(execution_result(&result, changes_runtime_state))
+                    }
+                    Ok(AuthorityExecution::Rejected {
+                        rejection,
+                        evidence: action_evidence,
+                    }) => {
+                        let mut evidence = agency_evidence;
+                        evidence.append(&action_evidence);
+                        let validated =
+                            match self.empty_validated_resolution(&base, &assembly, &evidence) {
+                                Ok(validated) => validated,
+                                Err(error) => {
+                                    return Err(self
+                                        .finish_failure_and_apply_policy(
+                                            snapshot.version(),
+                                            &session,
+                                            &claim,
+                                            now,
+                                            retry_available_at,
+                                            error,
+                                            Some(evidence),
+                                        )
+                                        .await);
+                                }
+                            };
+                        evidence.append(&validated_evidence(&validated));
+                        match self
+                            .store
+                            .commit_scheduler_work_with_session(
+                                &validated,
+                                &claim,
+                                self.platform_clock.now(),
+                                chronology_budget_limit,
+                                session.id(),
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Rejected,
+                                    evidence,
+                                )
+                                .await?;
+                                Ok(ExecutionResult::rejected(rejection))
+                            }
+                            Err(CommitError::ChronologyBudgetExceeded(error)) => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Failed,
+                                    evidence,
+                                )
+                                .await?;
+                                Err(ApiError::unavailable(error.to_string()))
+                            }
+                            Err(error @ CommitError::CommitOutcomeUnknown { .. }) => {
+                                let mapped = map_commit_error(&error);
+                                match self
+                                    .reconcile_scheduler_commit(target, &validated, &claim)
+                                    .await?
+                                {
+                                    SchedulerCommitReconciliation::Committed { .. } => {
+                                        self.finish_execution_session_with_evidence(
+                                            session.id(),
+                                            ExecutionSessionStatus::Rejected,
+                                            evidence,
+                                        )
+                                        .await?;
+                                        Ok(ExecutionResult::rejected(rejection))
+                                    }
+                                    SchedulerCommitReconciliation::Absent => Err(self
+                                        .finish_failure_and_apply_policy(
+                                            snapshot.version(),
+                                            &session,
+                                            &claim,
+                                            now,
+                                            retry_available_at,
+                                            mapped,
+                                            Some(evidence),
+                                        )
+                                        .await),
+                                    SchedulerCommitReconciliation::Ambiguous => {
+                                        self.finish_execution_session_with_evidence(
+                                            session.id(),
+                                            ExecutionSessionStatus::Failed,
+                                            evidence,
+                                        )
+                                        .await?;
+                                        Err(ApiError::unavailable(
+                                            "Scheduler commit outcome remains unknown after reconciliation",
+                                        ))
+                                    }
+                                }
+                            }
+                            Err(error) => Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    &claim,
+                                    now,
+                                    retry_available_at,
+                                    map_commit_error(&error),
+                                    Some(evidence),
+                                )
+                                .await),
+                        }
+                    }
+                    Err(failure) => {
+                        let mut evidence = agency_evidence;
+                        evidence.append(&failure.evidence);
+                        if let Some(commit_error @ CommitError::CommitOutcomeUnknown { .. }) =
+                            failure.commit_error
+                        {
+                            let validated = failure.validated.ok_or_else(|| {
+                                ApiError::unavailable(
+                                    "Scheduler unknown commit lost its validated proposal",
+                                )
+                            })?;
+                            match self
+                                .reconcile_scheduler_commit(target, &validated, &claim)
+                                .await?
+                            {
+                                SchedulerCommitReconciliation::Committed { event_ids, version } => {
+                                    self.finish_execution_session_with_evidence(
+                                        session.id(),
+                                        ExecutionSessionStatus::Committed,
+                                        evidence,
+                                    )
+                                    .await?;
+                                    Ok(ExecutionResult::committed(event_ids, version))
+                                }
+                                SchedulerCommitReconciliation::Absent => Err(self
+                                    .finish_failure_and_apply_policy(
+                                        snapshot.version(),
+                                        &session,
+                                        &claim,
+                                        now,
+                                        retry_available_at,
+                                        map_commit_error(&commit_error),
+                                        Some(evidence),
+                                    )
+                                    .await),
+                                SchedulerCommitReconciliation::Ambiguous => {
+                                    self.finish_execution_session_with_evidence(
+                                        session.id(),
+                                        ExecutionSessionStatus::Failed,
+                                        evidence,
+                                    )
+                                    .await?;
+                                    Err(ApiError::unavailable(
+                                        "Scheduler commit outcome remains unknown after reconciliation",
+                                    ))
+                                }
+                            }
+                        } else {
+                            Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    &claim,
+                                    now,
+                                    retry_available_at,
+                                    failure.error,
+                                    Some(evidence),
+                                )
+                                .await)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn empty_validated_resolution(
+        &self,
+        base: &BaseWorldView,
+        assembly: &ExecutionAssembly,
+        evidence: &ExecutionEvidence,
+    ) -> ApiResult<ValidatedResolution> {
+        let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
+        let mut validation_read_set = ReadSet::default();
+        let mut validated = engine
+            .validate_segments_with_entropy_and_reads(
+                base,
+                &[],
+                evidence.call_provenance.clone(),
+                evidence.entropy_evidence.clone(),
+                &mut validation_read_set,
+            )
+            .map_err(|error| map_runtime_error(&error))?;
+        validated.append_validated_work(Vec::new(), evidence.read_set.clone());
+        Ok(validated)
+    }
+
     /// Executes the normal root Action authority once. Both direct Actions
     /// and durable Ingress provide only a pinned root, invocation and generic
     /// authority context; validation, subresolution, reactions and commit are
@@ -1594,6 +2092,66 @@ where
         invocation: &ActionInvocation,
         context: CommitAuthorityContext,
     ) -> Result<AuthorityExecution, AuthorityFailure>
+    where
+        S: SemanticProjectionStore,
+    {
+        let prepared = match self
+            .prepare_root_authority(snapshot, base, assembly, invocation, context, None)
+            .await?
+        {
+            PreparedAuthorityOutcome::Rejected {
+                rejection,
+                evidence,
+            } => {
+                return Ok(AuthorityExecution::Rejected {
+                    rejection,
+                    evidence,
+                });
+            }
+            PreparedAuthorityOutcome::Prepared(prepared) => *prepared,
+        };
+        let PreparedAuthority {
+            context,
+            validated,
+            changes_runtime_state,
+            provenance,
+        } = prepared;
+        let result = match self
+            .store
+            .commit_with_authority(&validated, context, self.platform_clock.now())
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                return Err(AuthorityFailure {
+                    error: map_commit_error(&error),
+                    evidence: validated_evidence(&validated),
+                    commit_error: Some(error),
+                    validated: Some(validated),
+                    changes_runtime_state,
+                    provenance,
+                });
+            }
+        };
+        let committed_provenance = result.provenance.clone().or(provenance);
+        Ok(AuthorityExecution::Committed {
+            result: Box::new(result),
+            validated: Box::new(validated),
+            changes_runtime_state,
+            provenance: committed_provenance,
+        })
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn prepare_root_authority(
+        &self,
+        snapshot: &TimelineSnapshot,
+        base: &BaseWorldView,
+        assembly: &ExecutionAssembly,
+        invocation: &ActionInvocation,
+        context: CommitAuthorityContext,
+        origin_work_id: Option<WorkId>,
+    ) -> Result<PreparedAuthorityOutcome, AuthorityFailure>
     where
         S: SemanticProjectionStore,
     {
@@ -1638,7 +2196,7 @@ where
         })?;
         let execution_evidence = dispatch_final_evidence;
         match outcome {
-            ResolveOutcome::Rejected(rejection) => Ok(AuthorityExecution::Rejected {
+            ResolveOutcome::Rejected(rejection) => Ok(PreparedAuthorityOutcome::Rejected {
                 rejection,
                 evidence: execution_evidence,
             }),
@@ -1664,7 +2222,7 @@ where
                         provenance: None,
                     })?;
                 validated.append_validated_work(Vec::new(), execution.read_set.clone());
-                self.expand_reactions(base, assembly, &engine, &mut validated, None)
+                self.expand_reactions(base, assembly, &engine, &mut validated, origin_work_id)
                     .map_err(|error| AuthorityFailure {
                         error,
                         evidence: validated_evidence(&validated),
@@ -1705,32 +2263,90 @@ where
                         })?;
                     context.provenance = Some(provenance);
                 }
-                let result = match self
-                    .store
-                    .commit_with_authority(&validated, context, self.platform_clock.now())
-                    .await
-                {
-                    Ok(result) => result,
-                    Err(error) => {
-                        return Err(AuthorityFailure {
-                            error: map_commit_error(&error),
-                            evidence: validated_evidence(&validated),
-                            commit_error: Some(error),
-                            validated: Some(validated),
-                            changes_runtime_state,
-                            provenance,
-                        });
-                    }
-                };
-                let committed_provenance = result.provenance.clone().or(provenance);
-                Ok(AuthorityExecution::Committed {
-                    result: Box::new(result),
-                    validated: Box::new(validated),
-                    changes_runtime_state,
-                    provenance: committed_provenance,
-                })
+                Ok(PreparedAuthorityOutcome::Prepared(Box::new(
+                    PreparedAuthority {
+                        context,
+                        validated,
+                        changes_runtime_state,
+                        provenance,
+                    },
+                )))
             }
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn execute_scheduler_action_authority(
+        &self,
+        snapshot: &TimelineSnapshot,
+        base: &BaseWorldView,
+        assembly: &ExecutionAssembly,
+        invocation: &ActionInvocation,
+        context: CommitAuthorityContext,
+        claim: &WorkClaim,
+        chronology_budget_limit: u64,
+    ) -> Result<AuthorityExecution, AuthorityFailure>
+    where
+        S: SchedulerCommitStore + SemanticProjectionStore,
+    {
+        let prepared = self
+            .prepare_root_authority(
+                snapshot,
+                base,
+                assembly,
+                invocation,
+                context,
+                Some(claim.work_id()),
+            )
+            .await?;
+        let prepared = match prepared {
+            PreparedAuthorityOutcome::Rejected {
+                rejection,
+                evidence,
+            } => {
+                return Ok(AuthorityExecution::Rejected {
+                    rejection,
+                    evidence,
+                });
+            }
+            PreparedAuthorityOutcome::Prepared(prepared) => *prepared,
+        };
+        let PreparedAuthority {
+            context: _context,
+            validated,
+            changes_runtime_state,
+            provenance,
+        } = prepared;
+        let result = match self
+            .store
+            .commit_scheduler_work_with_session(
+                &validated,
+                claim,
+                self.platform_clock.now(),
+                chronology_budget_limit,
+                assembly.session_id(),
+            )
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                return Err(AuthorityFailure {
+                    error: map_commit_error(&error),
+                    evidence: validated_evidence(&validated),
+                    commit_error: Some(error),
+                    validated: Some(validated),
+                    changes_runtime_state,
+                    provenance,
+                });
+            }
+        };
+        let committed_provenance = result.provenance.clone().or(provenance);
+        Ok(AuthorityExecution::Committed {
+            result: Box::new(result),
+            validated: Box::new(validated),
+            changes_runtime_state,
+            provenance: committed_provenance,
+        })
     }
 
     /// Processes one accepted durable Ingress through the normal root Action
@@ -5770,6 +6386,24 @@ fn validate_work_target(
         return Err(ApiError::unavailable(
             "Work handler has no compatible pinned implementation",
         ));
+    }
+    Ok(())
+}
+
+fn validate_agency_wake_target(
+    assembly: &ExecutionAssembly,
+    agent: loom_core::EntityId,
+    cognition: &str,
+) -> ApiResult<()> {
+    if agent.is_nil() {
+        return Err(ApiError::invalid_request(
+            "Agency Wake Agent identity must not be nil",
+        ));
+    }
+    if assembly.cognitive().metadata().executor.id != cognition {
+        return Err(ApiError::unavailable(format!(
+            "Agency Wake cognition requirement {cognition} is not available"
+        )));
     }
     Ok(())
 }

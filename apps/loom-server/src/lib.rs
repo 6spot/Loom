@@ -33,9 +33,9 @@ use std::sync::{
 
 use loom_api::{ApiError, ApiResult, TimelineTarget};
 use loom_runtime::{
-    ExecutionSessionStore, PlatformClock, PlatformTime, Runtime, RuntimeControlStore,
-    RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore, TimelineDriverResult,
-    WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
+    ExecutionSessionStore, PinnedWorldReadStore, PlatformClock, PlatformTime, Runtime,
+    RuntimeControlStore, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore,
+    TimelineDriverResult, WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
 };
 use tokio::sync::Notify;
 
@@ -219,7 +219,8 @@ where
         + RuntimeControlStore
         + SchedulerCommitStore
         + WorldTimeStore
-        + SemanticProjectionStore,
+        + SemanticProjectionStore
+        + PinnedWorldReadStore,
     C: PlatformClock,
 {
     /// Creates one worker bound to one Timeline and one application clock.
