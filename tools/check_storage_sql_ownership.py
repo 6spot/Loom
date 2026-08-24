@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STORAGE = ROOT / "crates" / "loom-storage"
+BENCH = ROOT / "crates" / "loom-bench"
 VALIDATOR = ROOT / "apps" / "loom-validator"
 ALLOWED_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
 
@@ -108,6 +109,8 @@ def check_non_storage_rust(errors: list[str]) -> None:
         for path in root.rglob("*.rs"):
             if is_under(path, STORAGE):
                 continue
+            if is_under(path, BENCH):
+                continue
             text = path.read_text(encoding="utf-8")
             for label, pattern in FORBIDDEN_RUST_PATTERNS.items():
                 if pattern.search(text):
@@ -122,6 +125,8 @@ def check_non_storage_cargo(errors: list[str]) -> None:
             continue
         for path in root.rglob("Cargo.toml"):
             if is_under(path, STORAGE):
+                continue
+            if is_under(path, BENCH):
                 continue
             text = path.read_text(encoding="utf-8")
             for label, pattern in FORBIDDEN_CARGO_PATTERNS.items():

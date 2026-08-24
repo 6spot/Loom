@@ -13,9 +13,9 @@ all -> #197 hardening/capacity gate
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M11-T1 | #193 | planned |
+| M11-T1 | #193 | done |
 | M11-T2 | #194 | planned |
-| M11-T3 | #195 | planned |
+| M11-T3 | #195 | completed — see `t3-capacity-benchmarks.md` (reproducible `loom-bench` + Postgres evidence; thresholds are evidence not invariants) |
 | M11-T4 | #196 | planned |
 | M11-T5 | #197 | planned |
 
