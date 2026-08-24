@@ -10,12 +10,12 @@
 //!
 //! # Public domains
 //!
-//! This v0 surface contains only the World-facing contracts needed by the
-//! in-memory vertical slice: Action invocation, Timeline inspection, current
-//! Facet queries, committed Event history, external Ingress, committed Change
-//! Feed/Subscription reads and central Capability/Action discovery. Runtime
-//! administration is a separate API namespace and is deliberately not
-//! represented by these traits.
+//! This v0 surface contains focused World-facing contracts for Action
+//! invocation, Timeline inspection, current Facet queries, committed Event
+//! history, external Ingress, committed Change Feed/Subscription reads and
+//! central Capability/Action discovery. Runtime administration is defined in
+//! the separate Admin service module and namespace; it is deliberately not mixed
+//! into these ordinary World service traits.
 //!
 //! # Dependency and exposure rules
 //!
@@ -32,13 +32,17 @@
 
 #![forbid(unsafe_code)]
 
+mod admin;
+
+pub use admin::*;
+
 use std::{fmt, future::Future, pin::Pin};
 
 pub use loom_core::{
-    ActionTypeId, AssociationRole, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
-    FacetTypeId, RelationshipId, RelationshipParticipant, RelationshipTypeId, SchemaRevision,
-    StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkHandlerId, WorldEffect,
-    WorldId, WorldInstant,
+    ActionTypeId, AssociationRole, EntityId, EventId, EventRef, EventSeq, EventTypeId,
+    ExecutionSessionId, FacetOwner, FacetTypeId, RelationshipId, RelationshipParticipant,
+    RelationshipTypeId, SchemaRevision, StateRevision, TimelineAncestry, TimelineId,
+    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 pub use loom_protocol::{
     ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, Rejection, RejectionCode,
@@ -1207,6 +1211,12 @@ pub enum ApiErrorCode {
     /// The service cannot currently perform the operation but the request is
     /// otherwise valid.
     Unavailable,
+    /// The caller did not present credentials accepted by the boundary's
+    /// authorization hook.
+    Unauthorized,
+    /// The caller is authenticated but is not permitted to perform the
+    /// requested operation.
+    Forbidden,
     /// A failure occurred inside the service boundary and has no more specific
     /// public classification.
     Internal,
@@ -1262,6 +1272,18 @@ impl ApiError {
         Self::new(ApiErrorCode::Unavailable, message)
     }
 
+    /// Creates an authentication failure.
+    #[must_use]
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(ApiErrorCode::Unauthorized, message)
+    }
+
+    /// Creates an authorization-policy failure.
+    #[must_use]
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::new(ApiErrorCode::Forbidden, message)
+    }
+
     /// Creates an internal service error without retaining an implementation
     /// error object in the public contract.
     #[must_use]
@@ -1283,6 +1305,8 @@ impl fmt::Display for ApiErrorCode {
             Self::NotFound => "not_found",
             Self::Conflict => "conflict",
             Self::Unavailable => "unavailable",
+            Self::Unauthorized => "unauthorized",
+            Self::Forbidden => "forbidden",
             Self::Internal => "internal",
         };
         formatter.write_str(code)

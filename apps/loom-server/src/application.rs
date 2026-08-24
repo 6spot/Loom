@@ -8,16 +8,21 @@ use std::{
 
 use axum::Router;
 use loom_api::{
-    ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService, CatalogSnapshot,
-    CausalQuery, CausalTraversal, CommittedEvent, CreateWorldFromTemplateRequest,
-    CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventPage, EventQuery, EventRef,
-    ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest, HistoryService,
-    IngressAcceptance, IngressEnvelope, IngressId, IngressService, IngressStatusRecord,
-    QueryService, RelationshipTrajectoryQuery, SubscriptionRequest, SubscriptionResult,
-    SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget, TrajectoryPage,
-    WorldService,
+    ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
+    AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminEventSessionLookup,
+    AdminExecutionSession, AdminExecutionSessionRequest, AdminFuture,
+    AdminMissingImplementationBlock, AdminMissingImplementationRequest, AdminRuntimeRevision,
+    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminService,
+    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError,
+    ApiFuture, ApiResult, CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal,
+    CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult,
+    EntityTrajectoryQuery, EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery,
+    FacetSnapshot, ForkTimelineRequest, HistoryService, IngressAcceptance, IngressEnvelope,
+    IngressId, IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
+    SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineService,
+    TimelineSnapshot, TimelineTarget, TrajectoryPage, WorldService,
 };
-use loom_boundary::router as boundary_router;
+use loom_boundary::{RequireAdminAuthorization, router_with_admin as boundary_router_with_admin};
 use loom_neutral::registry as neutral_registry;
 use loom_runtime::{
     CapabilityRegistry, EntropyRequest, EntropySample, EntropySource, EntropySourceError,
@@ -231,6 +236,106 @@ impl IngressService for ApplicationApi {
     }
 }
 
+impl AdminService for ApplicationApi {
+    fn active_runtime_revision(&self) -> AdminFuture<'_, Option<AdminRuntimeRevisionSelection>> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::active_runtime_revision(runtime_api).await
+        })
+    }
+
+    fn list_runtime_revisions(&self) -> AdminFuture<'_, Vec<AdminRuntimeRevision>> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::list_runtime_revisions(runtime_api).await
+        })
+    }
+
+    fn get_runtime_revision(
+        &self,
+        request: AdminRuntimeRevisionRequest,
+    ) -> AdminFuture<'_, AdminRuntimeRevision> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::get_runtime_revision(runtime_api, request).await
+        })
+    }
+
+    fn activate_runtime_revision(
+        &self,
+        request: AdminActivateRuntimeRevisionRequest,
+    ) -> AdminFuture<'_, AdminRuntimeRevisionSelection> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::activate_runtime_revision(runtime_api, request).await
+        })
+    }
+
+    fn list_execution_sessions(&self) -> AdminFuture<'_, Vec<AdminExecutionSession>> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::list_execution_sessions(runtime_api).await
+        })
+    }
+
+    fn get_execution_session(
+        &self,
+        request: AdminExecutionSessionRequest,
+    ) -> AdminFuture<'_, AdminExecutionSession> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::get_execution_session(runtime_api, request).await
+        })
+    }
+
+    fn session_for_event(&self, event_ref: EventRef) -> AdminFuture<'_, AdminEventSessionLookup> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::session_for_event(runtime_api, event_ref).await
+        })
+    }
+
+    fn timeline_logical_status(
+        &self,
+        target: TimelineTarget,
+    ) -> AdminFuture<'_, AdminTimelineLogicalStatus> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::timeline_logical_status(runtime_api, target).await
+        })
+    }
+
+    fn missing_implementation(
+        &self,
+        request: AdminMissingImplementationRequest,
+    ) -> AdminFuture<'_, Option<AdminMissingImplementationBlock>> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::missing_implementation(runtime_api, request).await
+        })
+    }
+
+    fn terminalize_work(
+        &self,
+        request: AdminTerminalizeWorkRequest,
+    ) -> AdminFuture<'_, AdminTerminalizeWorkResult> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::terminalize_work(runtime_api, request).await
+        })
+    }
+
+    fn advance_world_time(
+        &self,
+        request: AdminAdvanceWorldTimeRequest,
+    ) -> AdminFuture<'_, AdminAdvanceWorldTimeResult> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::advance_world_time(runtime_api, request).await
+        })
+    }
+}
+
 /// The assembled production-like Loom server.
 pub struct LoomServer {
     config: ServerConfig,
@@ -347,7 +452,11 @@ impl LoomServer {
         }
         let shutdown = ShutdownSignal::new();
         let api = Arc::new(ApplicationApi::new(Arc::new(runtime), ingress_sender));
-        let router = boundary_router(Arc::clone(&api), config.boundary_config);
+        let router = boundary_router_with_admin(
+            Arc::clone(&api),
+            Arc::new(RequireAdminAuthorization),
+            config.boundary_config,
+        );
         let ingress_worker = Some(IngressWorker::new(
             ingress_runtime,
             ingress_receiver,

@@ -18,15 +18,21 @@ use std::{fmt, str, time::Duration};
 
 use futures_util::StreamExt;
 use loom_api::{
-    ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CausalQuery, CausalTraversal, ChangeFeedCursor, ChangeFeedPage,
-    CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage,
-    EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest,
-    ForkTimelineResult, HistoryService, IngressAcceptance, IngressEnvelope, IngressId,
-    IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
-    SubscriptionEnd, SubscriptionReconnect, SubscriptionRequest, SubscriptionResult,
-    SubscriptionResume, SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget,
-    TrajectoryPage, WorldId, WorldService,
+    ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
+    AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminEventSessionLookup,
+    AdminExecutionSession, AdminExecutionSessionRequest, AdminFuture,
+    AdminMissingImplementationBlock, AdminMissingImplementationRequest, AdminRuntimeRevision,
+    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminService,
+    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError,
+    ApiErrorCode, ApiFuture, ApiResult, CatalogService, CatalogSnapshot, CausalQuery,
+    CausalTraversal, ChangeFeedCursor, ChangeFeedPage, CommittedEvent,
+    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage, EventQuery, EventRef,
+    ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest, ForkTimelineResult,
+    HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
+    IngressStatusRecord, QueryService, RelationshipTrajectoryQuery, SubscriptionEnd,
+    SubscriptionReconnect, SubscriptionRequest, SubscriptionResult, SubscriptionResume,
+    SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget, TrajectoryPage,
+    WorldId, WorldService,
 };
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::{
@@ -37,6 +43,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// The versioned public API path implemented by `loom-boundary`.
 pub const API_PREFIX: &str = "/v1";
+/// The isolated Runtime administration path prefix.
+pub const ADMIN_API_PREFIX: &str = loom_api::ADMIN_API_PREFIX;
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
@@ -169,6 +177,24 @@ impl ClientBuilder {
         let value = HeaderValue::try_from(format!("Bearer {}", token.as_ref()))
             .map_err(|error| ClientConfigError::InvalidHeader(error.to_string()))?;
         self.headers.insert("authorization", value);
+        Ok(self)
+    }
+
+    /// Adds the credential consumed by the isolated Admin authorization hook.
+    ///
+    /// This header is intentionally distinct from the ordinary API bearer
+    /// token. Applications with a different policy should provide their own
+    /// Boundary hook and header mapping.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClientConfigError::InvalidHeader`] when the token cannot be
+    /// represented as an HTTP header value.
+    pub fn admin_token(mut self, token: impl AsRef<str>) -> Result<Self, ClientConfigError> {
+        let value = HeaderValue::try_from(token.as_ref())
+            .map_err(|error| ClientConfigError::InvalidHeader(error.to_string()))?;
+        self.headers
+            .insert(HeaderName::from_static("x-loom-admin-authorization"), value);
         Ok(self)
     }
 
@@ -617,6 +643,132 @@ impl SubscriptionService for LoomClient {
     }
 }
 
+impl AdminService for LoomClient {
+    fn active_runtime_revision(&self) -> AdminFuture<'_, Option<AdminRuntimeRevisionSelection>> {
+        Box::pin(self.send_empty(
+            Method::GET,
+            format!("{ADMIN_API_PREFIX}/runtime-revisions/active"),
+        ))
+    }
+
+    fn list_runtime_revisions(&self) -> AdminFuture<'_, Vec<AdminRuntimeRevision>> {
+        Box::pin(self.send_empty(Method::GET, format!("{ADMIN_API_PREFIX}/runtime-revisions")))
+    }
+
+    fn get_runtime_revision(
+        &self,
+        request: AdminRuntimeRevisionRequest,
+    ) -> AdminFuture<'_, AdminRuntimeRevision> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/runtime-revisions/get"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn activate_runtime_revision(
+        &self,
+        request: AdminActivateRuntimeRevisionRequest,
+    ) -> AdminFuture<'_, AdminRuntimeRevisionSelection> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/runtime-revisions/activate"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn list_execution_sessions(&self) -> AdminFuture<'_, Vec<AdminExecutionSession>> {
+        Box::pin(self.send_empty(Method::GET, format!("{ADMIN_API_PREFIX}/sessions")))
+    }
+
+    fn get_execution_session(
+        &self,
+        request: AdminExecutionSessionRequest,
+    ) -> AdminFuture<'_, AdminExecutionSession> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/sessions/get"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn session_for_event(&self, event_ref: EventRef) -> AdminFuture<'_, AdminEventSessionLookup> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/sessions/event"),
+                &event_ref,
+            )
+            .await
+        })
+    }
+
+    fn timeline_logical_status(
+        &self,
+        target: TimelineTarget,
+    ) -> AdminFuture<'_, AdminTimelineLogicalStatus> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/timelines/status"),
+                &target,
+            )
+            .await
+        })
+    }
+
+    fn missing_implementation(
+        &self,
+        request: AdminMissingImplementationRequest,
+    ) -> AdminFuture<'_, Option<AdminMissingImplementationBlock>> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/timelines/missing-implementation"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn terminalize_work(
+        &self,
+        request: AdminTerminalizeWorkRequest,
+    ) -> AdminFuture<'_, AdminTerminalizeWorkResult> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/work/terminalize"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn advance_world_time(
+        &self,
+        request: AdminAdvanceWorldTimeRequest,
+    ) -> AdminFuture<'_, AdminAdvanceWorldTimeResult> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/world-time/advance"),
+                &request,
+            )
+            .await
+        })
+    }
+}
+
 impl CatalogService for LoomClient {
     fn catalog(&self) -> ApiResult<CatalogSnapshot> {
         let client = self.clone();
@@ -708,6 +860,8 @@ fn parse_error_code(code: &str) -> ApiErrorCode {
         "not_found" | "NotFound" => ApiErrorCode::NotFound,
         "conflict" | "Conflict" => ApiErrorCode::Conflict,
         "unavailable" | "Unavailable" => ApiErrorCode::Unavailable,
+        "unauthorized" | "Unauthorized" => ApiErrorCode::Unauthorized,
+        "forbidden" | "Forbidden" => ApiErrorCode::Forbidden,
         _ => ApiErrorCode::Internal,
     }
 }
