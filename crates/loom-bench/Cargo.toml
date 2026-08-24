@@ -2,15 +2,16 @@
 name = "loom-bench"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
-loom-agency = { path = "../loom-agency" }
-loom-api = { path = "../loom-api" }
-loom-capability = { path = "../loom-capability" }
-loom-core = { path = "../loom-core" }
-loom-protocol = { path = "../loom-protocol" }
-loom-runtime = { path = "../loom-runtime" }
-loom-storage = { path = "../loom-storage" }
+loom-agency = { path = "../loom-agency", version = "0.1.0" }
+loom-api = { path = "../loom-api", version = "0.1.0" }
+loom-capability = { path = "../loom-capability", version = "0.1.0" }
+loom-core = { path = "../loom-core", version = "0.1.0" }
+loom-protocol = { path = "../loom-protocol", version = "0.1.0" }
+loom-runtime = { path = "../loom-runtime", version = "0.1.0" }
+loom-storage = { path = "../loom-storage", version = "0.1.0" }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
