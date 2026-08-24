@@ -97,10 +97,11 @@ use futures_util::stream;
 use loom_api::{
     ActionRequest, AdminActivateRuntimeRevisionRequest, AdminAdvanceWorldTimeRequest,
     AdminExecutionSessionRequest, AdminMissingImplementationRequest, AdminOperation,
-    AdminRuntimeRevisionRequest, AdminService, AdminTerminalizeWorkRequest, ApiError, ApiResult,
-    CausalQuery, ChangeFeedCursor, CreateWorldFromTemplateRequest, EventQuery, EventRef,
-    FacetQuery, IngressId, IngressService, LoomApi, RelationshipTrajectoryQuery,
-    SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineTarget, WorldId,
+    AdminRuntimeRevisionRequest, AdminScheduleAgencyWakeRequest, AdminService,
+    AdminTerminalizeWorkRequest, ApiError, ApiResult, CausalQuery, ChangeFeedCursor,
+    CreateWorldFromTemplateRequest, EventQuery, EventRef, FacetQuery, IngressId, IngressService,
+    LoomApi, RelationshipTrajectoryQuery, SubscriptionRequest, SubscriptionResult,
+    SubscriptionService, TimelineTarget, WorldId,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer};
@@ -433,6 +434,10 @@ where
             post(admin_terminalize_work::<S, A>),
         )
         .route(
+            "/v1/admin/work/agency-wake/schedule",
+            post(admin_schedule_agency_wake::<S, A>),
+        )
+        .route(
             "/v1/admin/world-time/advance",
             post(admin_advance_world_time::<S, A>),
         )
@@ -666,6 +671,27 @@ where
         Err(error) => return error_response(error, state.config),
     };
     match block_on_api(state.api.terminalize_work(body)) {
+        Ok(result) => json_response(StatusCode::OK, &result, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_schedule_agency_wake<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ScheduleAgencyWake) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminScheduleAgencyWakeRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.schedule_agency_wake(body)) {
         Ok(result) => json_response(StatusCode::OK, &result, state.config),
         Err(error) => error_response(error, state.config),
     }

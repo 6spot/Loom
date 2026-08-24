@@ -13,7 +13,8 @@ use loom_agency::{
 };
 
 use crate::{
-    CognitiveObservation, CognitiveOutcome, ExecutionAssembly, ExecutionEvidence, PinnedReadSession,
+    CognitiveDisposition, CognitiveObservation, CognitiveOutcome, ExecutionAssembly,
+    ExecutionEvidence, PinnedReadSession,
 };
 
 /// Runtime-owned technical errors around the Agency cognition boundary.
@@ -170,8 +171,62 @@ pub(crate) async fn execute_cognitive(
         context_usage: view.context.usage,
         context_read_set,
         outcome,
+        disposition: CognitiveDisposition::Fresh,
     });
     result.map_err(CognitiveGatewayError::Executor)
+}
+
+/// Records an explicitly reusable decision after Runtime rebuilt the
+/// subjective context at a fresh Timeline coordinate.
+///
+/// No executor is called here. The caller must have selected
+/// `DecisionReusePolicy::ReuseDeterministic`; this function still repeats the
+/// gateway coordinate, budget and executor metadata checks so a reused result
+/// cannot bypass the pinned Agency boundary.
+pub(crate) fn record_reused_cognitive(
+    executor: &dyn CognitiveExecutor,
+    assembly: &ExecutionAssembly,
+    session: &PinnedReadSession,
+    view: AgentWorldView,
+    decision: &Decision,
+    evidence: &mut ExecutionEvidence,
+) -> Result<(), CognitiveGatewayError> {
+    validate_coordinate(assembly, session, &view)?;
+    validate_budget(
+        &assembly.cognitive().policy().context_budget,
+        view.context.usage,
+    )?;
+    if evidence.entropy_evidence.source_id() != assembly.entropy_source_id() {
+        return Err(CognitiveGatewayError::EvidenceSourceMismatch);
+    }
+    let pinned_metadata = assembly.cognitive().metadata().clone();
+    let actual_metadata = executor.metadata();
+    if actual_metadata != pinned_metadata {
+        return Err(CognitiveGatewayError::ExecutorMetadataChanged {
+            expected: Box::new(pinned_metadata),
+            actual: Box::new(actual_metadata),
+        });
+    }
+    let context_read_set = session.read_set();
+    evidence.read_set.extend(context_read_set.clone());
+    let outcome = match decision {
+        Decision::Act(_) => CognitiveOutcome::Act,
+        Decision::NoAction => CognitiveOutcome::NoAction,
+    };
+    evidence.cognitive_evidence.record(CognitiveObservation {
+        ordinal: 0,
+        metadata: assembly.cognitive().metadata().clone(),
+        policy: assembly.cognitive().policy().clone(),
+        agent: view.agent,
+        timeline_id: view.timeline_id,
+        version: view.version,
+        world_time: view.world_time,
+        context_usage: view.context.usage,
+        context_read_set,
+        outcome,
+        disposition: CognitiveDisposition::Reused,
+    });
+    Ok(())
 }
 
 fn validate_coordinate(

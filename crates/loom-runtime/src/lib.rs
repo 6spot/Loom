@@ -146,8 +146,9 @@ pub use pinned_reads::{
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore,
 };
 pub use provenance::{
-    CallProvenance, CognitiveEvidence, CognitiveObservation, CognitiveOutcome, EntropyEvidence,
-    EntropyObservation, ExecutionEvidence, ReadDependency, ReadSet, ResolutionCallEdge,
+    CallProvenance, CognitiveDisposition, CognitiveEvidence, CognitiveObservation,
+    CognitiveOutcome, EntropyEvidence, EntropyObservation, ExecutionEvidence, ReadDependency,
+    ReadSet, ResolutionCallEdge,
 };
 pub use replay::{
     ReplayEffectError, ReplayEngine, ReplayError, ReplayEventError, ReplayResult,

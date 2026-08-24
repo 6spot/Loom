@@ -7,8 +7,9 @@ use std::{
 };
 
 use loom_api::{
-    ActionRequest, ActionService, ApiErrorCode, ChangeFeedCursor, ExecutionResult,
-    ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
+    ActionRequest, ActionService, AdminScheduleAgencyWakeRequest, AdminService,
+    AdminTerminalWorkState, AdminTerminalizeWorkRequest, ApiErrorCode, ChangeFeedCursor,
+    ExecutionResult, ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
     IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata, SubscriptionRequest,
     SubscriptionResult, SubscriptionService, TimelineTarget,
 };
@@ -1392,6 +1393,66 @@ fn agency_executor(
     steps: impl IntoIterator<Item = DeterministicCognitiveStep>,
 ) -> DeterministicCognitiveExecutor {
     DeterministicCognitiveExecutor::new(steps)
+}
+
+#[tokio::test]
+async fn admin_agency_wake_schedule_and_cancel_use_logical_work_authority() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let target = TimelineTarget::new(world(), timeline());
+    let initial = store
+        .snapshot(timeline())
+        .expect("initial snapshot should exist");
+
+    let scheduled = AdminService::schedule_agency_wake(
+        &runtime,
+        AdminScheduleAgencyWakeRequest {
+            target,
+            expected_version: initial.version(),
+            work_id: work(410),
+            agent: entity(10),
+            cognition: "deterministic.fake".to_owned(),
+            payload: json!({"policy": "default"}),
+            schedule: WorkSchedule::Immediate,
+        },
+    )
+    .await
+    .expect("explicit Wake schedule should commit");
+    let scheduled_snapshot = store
+        .snapshot(timeline())
+        .expect("scheduled snapshot should exist");
+    assert_eq!(scheduled.version, scheduled_snapshot.version());
+    assert_eq!(scheduled_snapshot.works[0].id, work(410));
+    assert_eq!(scheduled_snapshot.works[0].status, WorkStatus::Pending);
+
+    let cancelled = AdminService::terminalize_work(
+        &runtime,
+        AdminTerminalizeWorkRequest {
+            target,
+            work_id: work(410),
+            expected_version: scheduled.version,
+            terminal_state: AdminTerminalWorkState::Cancelled,
+        },
+    )
+    .await
+    .expect("explicit Wake cancellation should commit");
+    let cancelled_snapshot = store
+        .snapshot(timeline())
+        .expect("cancelled snapshot should exist");
+    assert_eq!(cancelled.version, cancelled_snapshot.version());
+    assert_eq!(cancelled_snapshot.works[0].status, WorkStatus::Cancelled);
 }
 
 #[tokio::test]
