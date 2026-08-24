@@ -212,6 +212,7 @@ pub struct ScenarioResult {
     scenario_id: ScenarioId,
     outcome: ScenarioOutcome,
     finding: Finding,
+    capability_area: Option<String>,
 }
 
 impl ScenarioResult {
@@ -222,7 +223,16 @@ impl ScenarioResult {
             scenario_id,
             outcome,
             finding,
+            capability_area: None,
         }
+    }
+
+    /// Attaches the stable capability area from the selected scenario
+    /// descriptor.
+    #[must_use]
+    pub fn with_capability_area(mut self, capability_area: impl Into<String>) -> Self {
+        self.capability_area = Some(capability_area.into());
+        self
     }
 
     /// Creates an explicit prerequisite result without executing scenario
@@ -295,6 +305,13 @@ impl ScenarioResult {
         &self.finding
     }
 
+    /// Returns the selected scenario's capability area, when the runner had
+    /// descriptor metadata available.
+    #[must_use]
+    pub fn capability_area(&self) -> Option<&str> {
+        self.capability_area.as_deref()
+    }
+
     /// Serializes the result to a stable string.
     ///
     /// Missing prerequisites never serialize as `pass`.
@@ -326,6 +343,9 @@ pub struct ValidationReport {
     run_metadata: RunMetadata,
     runner_error: Option<String>,
 }
+
+/// Public name for the canonical machine-readable validator report.
+pub type MachineReport = ValidationReport;
 
 impl ValidationReport {
     pub(crate) fn from_scenario_count(scenario_count: usize) -> Self {
@@ -588,6 +608,12 @@ impl ValidationReport {
         self.serialize_json()
     }
 
+    /// Serializes the report using the canonical deterministic machine format.
+    #[must_use]
+    pub fn to_json_deterministic(&self) -> String {
+        self.serialize_json()
+    }
+
     /// Serializes this report using the canonical machine-readable format.
     #[must_use]
     pub fn serialize(&self) -> String {
@@ -609,6 +635,7 @@ impl ValidationReport {
             self.backend
                 .map_or(Value::Null, |backend| json!(backend.as_str())),
         );
+        report.insert("counts".to_owned(), self.json_counts());
         report.insert("findings".to_owned(), Value::Array(self.json_findings()));
         report.insert(
             "prerequisites".to_owned(),
@@ -618,8 +645,10 @@ impl ValidationReport {
             "result_state".to_owned(),
             json!(self.result_state().as_str()),
         );
+        report.insert("results".to_owned(), Value::Array(self.json_results()));
         report.insert("run".to_owned(), self.json_run_metadata());
         report.insert("schema_version".to_owned(), json!(REPORT_SCHEMA_VERSION));
+        report.insert("summary".to_owned(), json!(self.human_summary()));
         report.insert(
             "selected_scenario_ids".to_owned(),
             json!(self.selected_scenario_ids),
@@ -670,6 +699,11 @@ impl ValidationReport {
 
     fn json_run_metadata(&self) -> Value {
         let mut run = Map::new();
+        run.insert(
+            "backend".to_owned(),
+            self.backend
+                .map_or(Value::Null, |backend| json!(backend.as_str())),
+        );
         run.insert("command".to_owned(), json!(self.run_metadata.command));
         run.insert(
             "evidence".to_owned(),
@@ -681,7 +715,66 @@ impl ValidationReport {
             ),
         );
         run.insert("run_id".to_owned(), json!(self.run_metadata.run_id));
+        run.insert(
+            "policy".to_owned(),
+            json!({
+                "required_live": self.policy.requires_live(),
+                "strict": self.policy.is_strict(),
+            }),
+        );
+        run.insert("selected_ids".to_owned(), json!(self.selected_scenario_ids));
         Value::Object(run)
+    }
+
+    fn json_counts(&self) -> Value {
+        json!({
+            "fail": self.failed_count(),
+            "pass": self.passed_count(),
+            "skipped": self.skipped_count(),
+            "total": self.scenario_count(),
+            "unavailable": self.unavailable_count(),
+        })
+    }
+
+    fn json_results(&self) -> Vec<Value> {
+        self.results
+            .iter()
+            .map(|result| {
+                let finding = result.finding();
+                let mut value = Map::new();
+                value.insert("actual".to_owned(), json!(finding.actual()));
+                value.insert("backend".to_owned(), json!(finding.backend().as_str()));
+                value.insert(
+                    "capability_area".to_owned(),
+                    json!(result.capability_area().unwrap_or_default()),
+                );
+                value.insert("context".to_owned(), json!(finding.context()));
+                value.insert(
+                    "evidence".to_owned(),
+                    json!(
+                        canonical_evidence(finding.evidence())
+                            .iter()
+                            .map(|reference| reference.as_str())
+                            .collect::<Vec<_>>()
+                    ),
+                );
+                value.insert("expected".to_owned(), json!(finding.expected()));
+                value.insert("name".to_owned(), json!(finding.scenario_name()));
+                value.insert("outcome".to_owned(), json!(result.outcome().as_str()));
+                value.insert(
+                    "reason".to_owned(),
+                    result
+                        .outcome()
+                        .reason()
+                        .map_or(Value::Null, |reason| json!(reason)),
+                );
+                value.insert(
+                    "scenario_id".to_owned(),
+                    json!(result.scenario_id().as_str()),
+                );
+                Value::Object(value)
+            })
+            .collect()
     }
 
     fn json_findings(&self) -> Vec<Value> {
@@ -913,7 +1006,7 @@ mod tests {
             evidence,
             outcome.clone(),
         );
-        ScenarioResult::new(ScenarioId::new(id), outcome, finding)
+        ScenarioResult::new(ScenarioId::new(id), outcome, finding).with_capability_area("test")
     }
 
     #[test]
@@ -938,10 +1031,25 @@ mod tests {
             .with_run_metadata(metadata);
 
         assert_eq!(left.serialize_json(), right.serialize_json());
+        assert_eq!(left.to_json_deterministic(), right.to_json_deterministic());
         let value: serde_json::Value = serde_json::from_str(&left.serialize_json()).unwrap();
         assert_eq!(value["schema_version"], 1);
         assert_eq!(value["backend"], "in-memory");
         assert_eq!(value["result_state"], "scenario_failure");
+        assert_eq!(value["counts"]["total"], 2);
+        assert_eq!(value["counts"]["fail"], 1);
+        assert_eq!(value["run"]["command"], "loom-validator --all");
+        assert_eq!(
+            value["run"]["selected_ids"],
+            serde_json::json!(["CV-001", "CV-002"])
+        );
+        assert_eq!(value["run"]["backend"], "in-memory");
+        assert_eq!(value["run"]["policy"]["strict"], false);
+        assert_eq!(value["results"][0]["scenario_id"], "CV-001");
+        assert_eq!(value["results"][0]["name"], "scenario CV-001");
+        assert_eq!(value["results"][0]["capability_area"], "test");
+        assert_eq!(value["results"][0]["outcome"], "pass");
+        assert!(value["summary"].is_string());
         assert_eq!(
             value["selected_scenario_ids"],
             serde_json::json!(["CV-001", "CV-002"])
@@ -951,7 +1059,10 @@ mod tests {
             serde_json::json!(["path:reports/run-1.json"])
         );
         assert_eq!(value["findings"][0]["scenario_id"], "CV-001");
-        assert!(!left.serialize_json().contains("remediation"));
+        let serialized = left.serialize_json();
+        assert!(!serialized.contains("remediation"));
+        assert!(!serialized.contains("suggested_fix"));
+        assert!(!serialized.contains("suggested_remediation"));
     }
 
     #[test]

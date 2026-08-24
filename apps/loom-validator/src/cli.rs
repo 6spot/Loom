@@ -24,9 +24,10 @@
 //!   These are never represented as fake scenario findings.
 //!
 //! Human-readable summary is concise and printed to stdout; runner errors
-//! go to stderr. An explicit `--report <PATH>` writes the machine-readable
-//! report artifact and points the summary at that evidence. Raw logs remain
-//! separate and are never appended to task records.
+//! go to stderr. An explicit `--json <PATH>` (with `--report` retained as a
+//! compatibility alias) writes the machine-readable report artifact and
+//! points the summary at that evidence. Raw logs remain separate and are
+//! never appended to task records.
 
 use crate::backend::BackendContext;
 use crate::finding::{EvidenceReference, Finding};
@@ -59,6 +60,8 @@ pub struct CliArgs {
     pub help: bool,
     /// Optional path for an explicit machine-readable report artifact.
     pub report_path: Option<String>,
+    /// Preferred path for an explicit machine-readable JSON report artifact.
+    pub json_path: Option<String>,
 }
 
 impl CliArgs {
@@ -72,6 +75,12 @@ impl CliArgs {
     #[must_use]
     pub fn is_fail_fast(&self) -> bool {
         self.fail_fast
+    }
+
+    /// Returns the explicitly requested machine report path, if any.
+    #[must_use]
+    pub fn machine_report_path(&self) -> Option<&str> {
+        self.json_path.as_deref().or(self.report_path.as_deref())
     }
 }
 
@@ -92,6 +101,7 @@ impl CliArgs {
 /// # Errors
 ///
 /// Returns an error string for unknown options or missing values.
+#[allow(clippy::too_many_lines)]
 pub fn parse_args<I, S>(args: I) -> Result<CliArgs, String>
 where
     I: IntoIterator<Item = S>,
@@ -139,11 +149,15 @@ where
                 cli.groups.push(raw[i + 1].clone());
                 i += 2;
             }
-            "--report" => {
+            "--json" | "--report" => {
                 if i + 1 >= raw.len() {
                     return Err(format!("option {arg} requires a value"));
                 }
-                cli.report_path = Some(raw[i + 1].clone());
+                if arg == "--json" {
+                    cli.json_path = Some(raw[i + 1].clone());
+                } else {
+                    cli.report_path = Some(raw[i + 1].clone());
+                }
                 i += 2;
             }
             "--" => {
@@ -176,6 +190,14 @@ where
                     return Err("option --report requires a value".to_string());
                 }
                 cli.report_path = Some(val);
+                i += 1;
+            }
+            s if s.starts_with("--json=") => {
+                let val = s.strip_prefix("--json=").unwrap_or("").to_string();
+                if val.is_empty() {
+                    return Err("option --json requires a value".to_string());
+                }
+                cli.json_path = Some(val);
                 i += 1;
             }
             s if s.starts_with('-') && s.len() > 1 => {
@@ -213,7 +235,8 @@ OPTIONS:
     -g, --group <GROUP>     Select scenarios by capability-area group
                             (repeatable, comma-separated). Exact match on
                             capability_area.
-        --report <PATH>      Write the machine-readable report to PATH.
+        --json <PATH>        Write the machine-readable report to PATH.
+        --report <PATH>      Compatibility alias for --json.
         --all               Run all available scenarios (explicit)
         --fail-fast         Stop after first failure and exit 1 if any
                             scenario failed. Without this flag the runner
@@ -348,13 +371,15 @@ where
         Ok(sel) => sel,
         Err(err) => {
             let message = format!("error: {err}");
-            if let Some(path) = args.report_path.as_deref() {
+            if let Some(path) = args.machine_report_path() {
                 let report = ValidationReport::runner_config_failure(
                     args.scenario_ids.clone(),
                     message.clone(),
                 )
                 .with_run_metadata(
-                    crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+                    crate::RunMetadata::default()
+                        .with_command("loom-validator")
+                        .with_evidence(EvidenceReference::path(path)),
                 );
                 if let Err(write_error) = report.write_json(path) {
                     error_output(&format!("{message}; failed to write report: {write_error}"));
@@ -369,9 +394,11 @@ where
     if selection.is_empty() {
         output("loom-validator: 0 scenario(s) selected");
         let report = ValidationReport::from_results(Vec::new());
-        if let Some(path) = args.report_path.as_deref() {
+        if let Some(path) = args.machine_report_path() {
             let report = report.with_run_metadata(
-                crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+                crate::RunMetadata::default()
+                    .with_command("loom-validator")
+                    .with_evidence(EvidenceReference::path(path)),
             );
             if let Err(write_error) = report.write_json(path) {
                 error_output(&format!("failed to write report: {write_error}"));
@@ -385,9 +412,11 @@ where
     }
 
     let mut report = runner.run_selected(&selection, backend, execute, args.fail_fast);
-    let has_machine_evidence = if let Some(path) = args.report_path.as_deref() {
+    let has_machine_evidence = if let Some(path) = args.machine_report_path() {
         report = report.with_run_metadata(
-            crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+            crate::RunMetadata::default()
+                .with_command("loom-validator")
+                .with_evidence(EvidenceReference::path(path)),
         );
         if let Err(write_error) = report.write_json(path) {
             error_output(&format!("failed to write report: {write_error}"));
@@ -624,16 +653,12 @@ mod tests {
 
     #[test]
     fn parse_report_path() {
-        let args = parse_args(vec![
-            "loom-validator",
-            "--report",
-            "artifacts/validator.json",
-        ])
-        .unwrap();
-        assert_eq!(
-            args.report_path.as_deref(),
-            Some("artifacts/validator.json")
-        );
+        let args =
+            parse_args(vec!["loom-validator", "--json", "artifacts/validator.json"]).unwrap();
+        assert_eq!(args.machine_report_path(), Some("artifacts/validator.json"));
+
+        let alias = parse_args(vec!["loom-validator", "--report", "legacy.json"]).unwrap();
+        assert_eq!(alias.machine_report_path(), Some("legacy.json"));
     }
 
     #[test]

@@ -35,8 +35,8 @@ Task Ledger feedback without copying raw diagnostics into Markdown task files.
 - `RunMetadata` and `EvidenceReference` carry explicit run/command/path/CI
   references suitable for a Task Ledger handoff.
 - The CLI can write a machine-readable report only when an explicit
-  `--report <PATH>` destination is supplied; the human summary points to that
-  artifact.
+  `--json <PATH>` destination is supplied (`--report <PATH>` remains a
+  compatibility alias); the human summary points to that artifact.
 - Runner/configuration failures are represented without synthesizing a scenario
   finding. Raw logs and task-file mutation remain outside the validator.
 
@@ -48,13 +48,16 @@ or raw-log ingestion is part of this task.
 - 2026-08-25 — Added the stable report schema, aggregate result-state
   classification, canonical serialization, Task Ledger evidence-reference
   helpers, explicit CLI report artifact output, and focused contract tests.
+- 2026-08-25 — Extended the canonical artifact with deterministic `counts`,
+  `run` policy/backend/selection metadata, and `results[]` fields for
+  capability area, outcome, reason, expected/actual/context, and evidence.
 
 ## Verification Evidence
 
-- `cargo fmt --all` → passed.
+- `cargo fmt --all -- --check` → passed.
 - `cargo check -p loom-validator --all-targets --all-features` → passed.
-- `cargo test -p loom-validator` → passed.
-- `cargo run -q -p loom-validator -- --report ./validator-report.json` → wrote
+- `cargo test -p loom-validator --all-features` → passed (67 tests).
+- `cargo run -q -p loom-validator -- --json ./validator-report.json` → wrote
   JSON report and pointed the summary at `path:./validator-report.json`; the
   temporary artifact was removed after inspection.
 
