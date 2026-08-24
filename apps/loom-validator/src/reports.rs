@@ -2,7 +2,79 @@
 
 use crate::finding::Finding;
 use crate::outcome::ScenarioOutcome;
-use crate::scenario::ScenarioId;
+use crate::scenario::{BackendKind, ScenarioId};
+
+/// Gate policy for a validator report.
+///
+/// Best-effort mode keeps optional live backends observable without turning an
+/// unavailable prerequisite into a synthetic scenario failure. Strict mode
+/// requires every selected scenario to pass. Required-live mode additionally
+/// requires at least one passing `PostgreSQL` result, so a missing or
+/// unavailable `PostgreSQL` prerequisite cannot satisfy the gate.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ValidationPolicy {
+    strict: bool,
+    required_live: bool,
+}
+
+impl ValidationPolicy {
+    /// Creates the default best-effort policy.
+    #[must_use]
+    pub const fn best_effort() -> Self {
+        Self {
+            strict: false,
+            required_live: false,
+        }
+    }
+
+    /// Creates a strict policy in which skipped/unavailable results fail the
+    /// runner gate.
+    #[must_use]
+    pub const fn strict() -> Self {
+        Self {
+            strict: true,
+            required_live: false,
+        }
+    }
+
+    /// Creates a policy that requires passing `PostgreSQL` evidence.
+    #[must_use]
+    pub const fn required_live() -> Self {
+        Self {
+            strict: true,
+            required_live: true,
+        }
+    }
+
+    /// Sets whether all selected results must be `pass`.
+    #[must_use]
+    pub const fn with_strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
+        self
+    }
+
+    /// Sets whether at least one `PostgreSQL` result must pass.
+    #[must_use]
+    pub const fn with_required_live(mut self, required_live: bool) -> Self {
+        self.required_live = required_live;
+        if required_live {
+            self.strict = true;
+        }
+        self
+    }
+
+    /// Reports whether strict result evaluation is enabled.
+    #[must_use]
+    pub const fn is_strict(self) -> bool {
+        self.strict
+    }
+
+    /// Reports whether live `PostgreSQL` evidence is required.
+    #[must_use]
+    pub const fn requires_live(self) -> bool {
+        self.required_live
+    }
+}
 
 /// The result of a single scenario execution, combining outcome and finding.
 ///
@@ -24,6 +96,58 @@ impl ScenarioResult {
             outcome,
             finding,
         }
+    }
+
+    /// Creates an explicit prerequisite result without executing scenario
+    /// code. The result is never a pass.
+    #[must_use]
+    pub fn prerequisite(
+        scenario_id: ScenarioId,
+        scenario_name: impl Into<String>,
+        backend: BackendKind,
+        reason: impl Into<String>,
+    ) -> Self {
+        let reason = reason.into();
+        let outcome = ScenarioOutcome::Skipped {
+            reason: reason.clone(),
+        };
+        let finding = Finding::new(
+            scenario_id.clone(),
+            scenario_name,
+            "backend prerequisite is available",
+            reason,
+            backend,
+            "backend-harness",
+            vec![],
+            outcome.clone(),
+        );
+        Self::new(scenario_id, outcome, finding)
+    }
+
+    /// Creates an explicit unavailable result without executing scenario code.
+    /// The result is never a pass.
+    #[must_use]
+    pub fn unavailable(
+        scenario_id: ScenarioId,
+        scenario_name: impl Into<String>,
+        backend: BackendKind,
+        reason: impl Into<String>,
+    ) -> Self {
+        let reason = reason.into();
+        let outcome = ScenarioOutcome::Unavailable {
+            reason: reason.clone(),
+        };
+        let finding = Finding::new(
+            scenario_id.clone(),
+            scenario_name,
+            "public backend is available",
+            reason,
+            backend,
+            "backend-harness",
+            vec![],
+            outcome.clone(),
+        );
+        Self::new(scenario_id, outcome, finding)
     }
 
     /// Returns the scenario identifier.
@@ -69,6 +193,7 @@ impl ScenarioResult {
 pub struct ValidationReport {
     scenario_count: usize,
     results: Vec<ScenarioResult>,
+    policy: ValidationPolicy,
 }
 
 impl ValidationReport {
@@ -76,17 +201,67 @@ impl ValidationReport {
         Self {
             scenario_count,
             results: Vec::new(),
+            policy: ValidationPolicy::default(),
         }
     }
 
     /// Creates a report from explicit scenario results.
     #[must_use]
     pub fn from_results(results: Vec<ScenarioResult>) -> Self {
+        Self::from_results_with_policy(results, ValidationPolicy::default())
+    }
+
+    /// Creates a report from explicit results and a gate policy.
+    #[must_use]
+    pub fn from_results_with_policy(
+        results: Vec<ScenarioResult>,
+        policy: ValidationPolicy,
+    ) -> Self {
         let count = results.len();
         Self {
             scenario_count: count,
             results,
+            policy,
         }
+    }
+
+    /// Returns the policy used to evaluate this report.
+    #[must_use]
+    pub const fn policy(&self) -> ValidationPolicy {
+        self.policy
+    }
+
+    /// Reports whether this report satisfies its configured runner gate.
+    #[must_use]
+    pub fn gate_passes(&self) -> bool {
+        if self.results.is_empty() {
+            return false;
+        }
+
+        // Prerequisite/unavailable results are deliberately non-pass in every
+        // mode. Best-effort mode may continue executing later scenarios, but
+        // it must not turn an incomplete report into a passing gate.
+        if self
+            .results
+            .iter()
+            .any(|result| !result.outcome().is_pass())
+        {
+            return false;
+        }
+
+        if self.policy.required_live {
+            return self.results.iter().any(|result| {
+                result.finding().backend() == &BackendKind::PostgreSQL && result.outcome().is_pass()
+            });
+        }
+
+        !self.results.iter().any(|result| result.outcome().is_fail())
+    }
+
+    /// Reports whether the configured runner gate passes.
+    #[must_use]
+    pub fn is_pass(&self) -> bool {
+        self.gate_passes()
     }
 
     /// Returns the number of scenario entries enumerated by the run.
@@ -169,7 +344,7 @@ impl ValidationReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{ScenarioResult, ValidationReport};
+    use super::{ScenarioResult, ValidationPolicy, ValidationReport};
     use crate::finding::Finding;
     use crate::outcome::ScenarioOutcome;
     use crate::scenario::{BackendKind, ScenarioId};
@@ -206,5 +381,43 @@ mod tests {
         let serialized = result.serialize();
         assert!(serialized.contains("skipped"));
         assert!(!serialized.contains("outcome=pass"));
+    }
+
+    #[test]
+    fn unavailable_result_never_passes_any_gate() {
+        let result = ScenarioResult::unavailable(
+            ScenarioId::new("CV-003"),
+            "live backend",
+            BackendKind::PostgreSQL,
+            "missing LOOM_TEST_POSTGRES_URL",
+        );
+        assert!(!ValidationReport::from_results(vec![result.clone()]).gate_passes());
+        assert!(
+            !ValidationReport::from_results_with_policy(
+                vec![result],
+                ValidationPolicy::required_live(),
+            )
+            .gate_passes()
+        );
+    }
+
+    #[test]
+    fn required_live_needs_a_passing_postgres_result() {
+        let finding = Finding::new(
+            ScenarioId::new("CV-004"),
+            "live backend",
+            "service responds",
+            "service responded",
+            BackendKind::PostgreSQL,
+            "backend-harness",
+            vec![],
+            ScenarioOutcome::Pass,
+        );
+        let result = ScenarioResult::new(ScenarioId::new("CV-004"), ScenarioOutcome::Pass, finding);
+        let report = ValidationReport::from_results_with_policy(
+            vec![result],
+            ValidationPolicy::required_live(),
+        );
+        assert!(report.gate_passes());
     }
 }

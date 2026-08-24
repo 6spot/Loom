@@ -26,7 +26,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use crate::backend::BackendContext;
+use crate::backend::{BackendContext, BackendHarness, BackendStart};
 use crate::registry::ScenarioRegistry;
 use crate::reports::{ScenarioResult, ValidationReport};
 use crate::scenario::ScenarioDescriptor;
@@ -293,6 +293,57 @@ impl Runner {
         let selection = self.resolve_with_groups(ids, groups, all)?;
         Ok(self.run_selected(&selection, backend, execute, fail_fast))
     }
+
+    /// Executes the registry against one lifecycle-managed backend harness.
+    ///
+    /// A fresh public context is started and disposed for every supported
+    /// scenario. Backend prerequisite/unavailable states become explicit
+    /// scenario results and never invoke scenario code or become `pass`.
+    #[must_use]
+    pub fn run_with_harness<F>(&self, harness: &BackendHarness, execute: F) -> ValidationReport
+    where
+        F: Fn(&ScenarioDescriptor, &BackendContext) -> ScenarioResult,
+    {
+        let results = self
+            .registry
+            .iter()
+            .map(|descriptor| {
+                let backend = harness.backend_kind();
+                if !descriptor.supported_backends().contains(backend) {
+                    return ScenarioResult::prerequisite(
+                        descriptor.id().clone(),
+                        descriptor.name(),
+                        *backend,
+                        format!(
+                            "scenario does not declare backend {} as supported",
+                            backend.as_str()
+                        ),
+                    );
+                }
+
+                match harness.start(descriptor.id_str()) {
+                    BackendStart::Ready(context) => {
+                        let result = execute(descriptor, &context);
+                        harness.dispose(context);
+                        result
+                    }
+                    BackendStart::Prerequisite { backend, reason } => ScenarioResult::prerequisite(
+                        descriptor.id().clone(),
+                        descriptor.name(),
+                        backend,
+                        reason,
+                    ),
+                    BackendStart::Unavailable { backend, reason } => ScenarioResult::unavailable(
+                        descriptor.id().clone(),
+                        descriptor.name(),
+                        backend,
+                        reason,
+                    ),
+                }
+            })
+            .collect();
+        ValidationReport::from_results_with_policy(results, harness.policy())
+    }
 }
 
 /// Expands a slice of strings that may each contain comma-separated values
@@ -313,7 +364,7 @@ fn expand_csv(input: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{Runner, RunnerError, ScenarioRegistry};
-    use crate::backend::BackendContext;
+    use crate::backend::{BackendContext, BackendHarness};
     use crate::finding::{EvidenceReference, Finding};
     use crate::outcome::ScenarioOutcome;
     use crate::reports::ScenarioResult;
@@ -369,7 +420,7 @@ mod tests {
                 desc.name(),
                 "expected",
                 "actual",
-                desc.supported_backends()[0].clone(),
+                desc.supported_backends()[0],
                 "test-context",
                 vec![EvidenceReference::new("evidence:test")],
                 ScenarioOutcome::Pass,
@@ -698,5 +749,35 @@ mod tests {
             .unwrap();
         let ids: Vec<_> = sel.iter().map(|d| d.id_str().to_string()).collect();
         assert_eq!(ids, vec!["CV-001", "CV-002"]);
+    }
+    #[test]
+    fn harness_starts_and_disposes_a_fresh_context_per_scenario() {
+        use std::cell::RefCell;
+
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        registry.register(descriptor("CV-002")).unwrap();
+        let runner = Runner::new(registry);
+        let harness = BackendHarness::connect(BackendKind::LoomClient, "http://localhost:8080")
+            .expect("public client should build");
+
+        let scopes = RefCell::new(Vec::new());
+        let report = runner.run_with_harness(&harness, |descriptor, context| {
+            scopes.borrow_mut().push(context.scope().to_owned());
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "context is fresh",
+                context.scope(),
+                BackendKind::LoomClient,
+                "harness",
+                vec![],
+                ScenarioOutcome::Pass,
+            );
+            ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Pass, finding)
+        });
+
+        assert!(report.gate_passes());
+        assert_eq!(*scopes.borrow(), vec!["CV-001", "CV-002"]);
     }
 }

@@ -400,7 +400,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
             "actual: scenario passed",
             desc.supported_backends()
                 .first()
-                .cloned()
+                .copied()
                 .unwrap_or(BackendKind::LoomClient),
             "loom-validator: bootstrap executor",
             vec![EvidenceReference::new("validator:bootstrap")],

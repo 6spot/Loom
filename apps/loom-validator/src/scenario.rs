@@ -90,12 +90,14 @@ fn is_valid_cv_id(id: &str) -> bool {
 /// This is a closed set for the current contract but is designed to be
 /// extensible without runner branching. New backends are added as variants
 /// and the runner/executor remains generic over the set.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum BackendKind {
     /// The public Loom client / HTTP boundary (default for consumers).
     LoomClient,
     /// In-memory test backend used for unit testing.
     InMemory,
+    /// Repository-composed `PostgreSQL` backend used for live evidence.
+    PostgreSQL,
 }
 
 impl BackendKind {
@@ -105,7 +107,14 @@ impl BackendKind {
         match self {
             Self::LoomClient => "loom-client",
             Self::InMemory => "in-memory",
+            Self::PostgreSQL => "postgresql",
         }
+    }
+
+    /// Reports whether this backend requires live `PostgreSQL` evidence.
+    #[must_use]
+    pub const fn is_postgres(self) -> bool {
+        matches!(self, Self::PostgreSQL)
     }
 }
 
@@ -291,6 +300,7 @@ mod tests {
     fn backend_kind_display() {
         assert_eq!(BackendKind::LoomClient.as_str(), "loom-client");
         assert_eq!(BackendKind::InMemory.as_str(), "in-memory");
+        assert_eq!(BackendKind::PostgreSQL.as_str(), "postgresql");
     }
 
     #[test]
