@@ -2,13 +2,14 @@
 name = "loom-runtime"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
-loom-agency = { path = "../loom-agency" }
-loom-api = { path = "../loom-api" }
-loom-capability = { path = "../loom-capability" }
-loom-core = { path = "../loom-core" }
-loom-protocol = { path = "../loom-protocol" }
+loom-agency = { path = "../loom-agency", version = "0.1.0" }
+loom-api = { path = "../loom-api", version = "0.1.0" }
+loom-capability = { path = "../loom-capability", version = "0.1.0" }
+loom-core = { path = "../loom-core", version = "0.1.0" }
+loom-protocol = { path = "../loom-protocol", version = "0.1.0" }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
