@@ -4,6 +4,7 @@ use std::{net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 use loom_api::{TimelineId, TimelineTarget, WorldId};
 use loom_boundary::BoundaryConfig;
+use loom_runtime::{ChronologyBudgetPolicy, FailurePolicy, HistoryBudget, ResolutionBudget};
 
 use crate::WorkerConfig;
 
@@ -25,6 +26,10 @@ pub struct ServerConfig {
     pub(crate) ingress_queue_capacity: usize,
     pub(crate) scheduler_target: Option<TimelineTarget>,
     pub(crate) boundary_config: BoundaryConfig,
+    pub(crate) resolution_budget: ResolutionBudget,
+    pub(crate) history_budget: HistoryBudget,
+    pub(crate) failure_policy: FailurePolicy,
+    pub(crate) chronology_budget: ChronologyBudgetPolicy,
 }
 
 impl ServerConfig {
@@ -38,6 +43,10 @@ impl ServerConfig {
     ///
     /// Returns a variable-specific error when a required value is absent or a
     /// bounded value cannot be parsed.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the composition root keeps all startup policy validation together"
+    )]
     pub fn from_env() -> Result<Self, ServerConfigError> {
         let database_url = required_env("LOOM_DATABASE_URL")?;
         let bind_addr =
@@ -66,6 +75,98 @@ impl ServerConfig {
             });
         }
         let ingress_queue_capacity = parse_positive_env("LOOM_INGRESS_QUEUE_CAPACITY", &256)?;
+
+        let resolution_budget = ResolutionBudget::default()
+            .with_max_action_payload_bytes(parse_positive_env(
+                "LOOM_RUNTIME_MAX_ACTION_PAYLOAD_BYTES",
+                &262_144_usize,
+            )?)
+            .with_max_ingress_payload_bytes(parse_positive_env(
+                "LOOM_INGRESS_MAX_PAYLOAD_BYTES",
+                &524_288_usize,
+            )?)
+            .with_max_session_provenance_bytes(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SESSION_PROVENANCE_BYTES",
+                &4_194_304_usize,
+            )?)
+            .with_max_event_payload_bytes(parse_positive_env(
+                "LOOM_RUNTIME_MAX_EVENT_PAYLOAD_BYTES",
+                &262_144_usize,
+            )?)
+            .with_max_work_payload_bytes(parse_positive_env(
+                "LOOM_RUNTIME_MAX_WORK_PAYLOAD_BYTES",
+                &262_144_usize,
+            )?)
+            .with_max_events(parse_positive_env("LOOM_RUNTIME_MAX_EVENTS", &256_usize)?)
+            .with_max_effects(parse_positive_env(
+                "LOOM_RUNTIME_MAX_EFFECTS",
+                &1_024_usize,
+            )?)
+            .with_max_work_mutations(parse_positive_env(
+                "LOOM_RUNTIME_MAX_WORK_MUTATIONS",
+                &256_usize,
+            )?)
+            .with_max_reaction_schedules(parse_positive_env(
+                "LOOM_RUNTIME_MAX_REACTION_SCHEDULES",
+                &256_usize,
+            )?)
+            .with_max_subresolution_depth(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SUBRESOLUTION_DEPTH",
+                &8_usize,
+            )?)
+            .with_max_subresolution_count(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SUBRESOLUTION_COUNT",
+                &64_usize,
+            )?)
+            .with_max_semantic_queries(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SEMANTIC_QUERIES",
+                &64_usize,
+            )?)
+            .with_max_semantic_results(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SEMANTIC_RESULTS",
+                &1_024_usize,
+            )?)
+            .with_max_semantic_result_bytes(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SEMANTIC_RESULT_BYTES",
+                &1_048_576_usize,
+            )?)
+            .with_max_semantic_depth(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SEMANTIC_DEPTH",
+                &32_usize,
+            )?)
+            .with_max_semantic_filters(parse_positive_env(
+                "LOOM_RUNTIME_MAX_SEMANTIC_FILTERS",
+                &1_usize,
+            )?);
+        let max_change_feed_page_size =
+            parse_positive_env("LOOM_RUNTIME_MAX_CHANGE_FEED_PAGE_SIZE", &256_u32)?;
+        if max_change_feed_page_size > loom_api::MAX_CHANGE_FEED_PAGE_SIZE {
+            return Err(ServerConfigError::InvalidValue {
+                name: "LOOM_RUNTIME_MAX_CHANGE_FEED_PAGE_SIZE",
+                message: format!(
+                    "must not exceed the public Change Feed bound {}",
+                    loom_api::MAX_CHANGE_FEED_PAGE_SIZE
+                ),
+            });
+        }
+        let history_budget = HistoryBudget::new(
+            parse_positive_env("LOOM_RUNTIME_MAX_HISTORY_PAGE_SIZE", &1_024_u32)?,
+            parse_positive_env("LOOM_RUNTIME_MAX_CAUSAL_DEPTH", &64_u32)?,
+            parse_positive_env("LOOM_RUNTIME_MAX_CAUSAL_RESULTS", &1_024_u32)?,
+        )
+        .with_max_change_feed_page_size(max_change_feed_page_size);
+        let failure_policy = FailurePolicy::new(
+            parse_env("LOOM_INGRESS_MAX_RETRY_ATTEMPTS", &3_u32)?,
+            retry_backoff,
+        )
+        .map_err(|error| ServerConfigError::InvalidValue {
+            name: "LOOM_INGRESS_MAX_RETRY_ATTEMPTS/LOOM_WORKER_RETRY_BACKOFF_MS",
+            message: error.to_string(),
+        })?;
+        let chronology_budget = ChronologyBudgetPolicy::new(parse_positive_env(
+            "LOOM_RUNTIME_MAX_CHRONOLOGY_COMPLETIONS",
+            &1_024_u64,
+        )?);
 
         let max_body_bytes = parse_positive_env("LOOM_HTTP_MAX_BODY_BYTES", &(1024 * 1024))?;
         let max_header_bytes = parse_positive_env("LOOM_HTTP_MAX_HEADER_BYTES", &(16 * 1024))?;
@@ -104,6 +205,10 @@ impl ServerConfig {
             ingress_queue_capacity,
             scheduler_target,
             boundary_config,
+            resolution_budget,
+            history_budget,
+            failure_policy,
+            chronology_budget,
         })
     }
 
@@ -141,6 +246,10 @@ impl std::fmt::Debug for ServerConfig {
             .field("ingress_queue_capacity", &self.ingress_queue_capacity)
             .field("scheduler_target", &self.scheduler_target)
             .field("boundary_config", &self.boundary_config)
+            .field("resolution_budget", &self.resolution_budget)
+            .field("history_budget", &self.history_budget)
+            .field("failure_policy", &self.failure_policy)
+            .field("chronology_budget", &self.chronology_budget)
             .finish()
     }
 }

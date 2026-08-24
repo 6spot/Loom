@@ -1,10 +1,10 @@
 ---
 task: M11-T1
 issue: 193
-status: planned
+status: in_review
 depends_on: [192]
 created_at: 2026-08-22
-started_at:
+started_at: 2026-08-24
 completed_at:
 completion_pr:
 merge_sha:
@@ -27,4 +27,9 @@ No HTTP-only protection, unbounded production recursive/query defaults, silent t
 - [ ] Standard/integration gates pass.
 
 ## Verification evidence
-Pending.
+
+- `cargo fmt --all -- --check`
+- `cargo check --workspace --all-targets --all-features`
+- `cargo test --workspace --all-features` (all workspace, integration, PostgreSQL and doc tests passed)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- `python3 tools/check_architecture.py`

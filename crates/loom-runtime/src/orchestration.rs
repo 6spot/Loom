@@ -56,19 +56,19 @@ use serde_json::{Value, json};
 
 use crate::{
     AdvanceWorldTime, AgentContextPlan, AgentWorldViewBuilder, BaseWorldSnapshot, BaseWorldView,
-    BindingError, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ChangeFeedStore,
-    ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly, CognitiveDisposition,
-    CognitiveEvidence, CognitiveGatewayError, CognitiveOutcome, CommitAuthorityContext,
-    CommitError, CommitProvenance, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
-    EntropySource, EntropySourceId, ExecutionAssembly, ExecutionEvidence, ExecutionOrigin,
-    ExecutionRoot, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
-    ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState, IdentityAllocator,
-    IngressClaim, IngressError, IngressStore, IngressSubmission, IngressTechnicalFailure,
-    LifecycleError, LogicalCommit, LogicalWorkState, LogicalWorkTransition,
-    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
-    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
-    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
-    ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    BindingError, BudgetDimension, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView,
+    ChangeFeedStore, ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly,
+    CognitiveDisposition, CognitiveEvidence, CognitiveGatewayError, CognitiveOutcome,
+    CommitAuthorityContext, CommitError, CommitProvenance, CommitStore, CommittedEvent,
+    EffectEngine, EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly,
+    ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
+    HistoricalTimelineState, HistoryBudget, IdentityAllocator, IngressClaim, IngressError,
+    IngressStore, IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit,
+    LogicalWorkState, LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
+    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
+    ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
@@ -155,6 +155,7 @@ pub struct Runtime<S> {
     cognitive_policy: ExecutionPolicy,
     identity_allocator: Arc<dyn IdentityAllocator>,
     resolution_budget: ResolutionBudget,
+    history_budget: HistoryBudget,
     failure_policy: FailurePolicy,
     chronology_budget: ChronologyBudgetPolicy,
     missing_implementation_observations: MissingImplementationObservations,
@@ -209,7 +210,8 @@ where
             cognitive_executor: Arc::new(crate::UnavailableCognitiveExecutor),
             cognitive_policy: ExecutionPolicy::default(),
             identity_allocator: Arc::new(UuidV7IdentityAllocator),
-            resolution_budget: ResolutionBudget::unlimited(),
+            resolution_budget: ResolutionBudget::default(),
+            history_budget: HistoryBudget::default(),
             failure_policy: FailurePolicy::default(),
             chronology_budget: ChronologyBudgetPolicy::default(),
             missing_implementation_observations: Arc::new(Mutex::new(BTreeMap::new())),
@@ -289,6 +291,13 @@ where
     #[must_use]
     pub fn with_resolution_budget(mut self, budget: ResolutionBudget) -> Self {
         self.resolution_budget = budget;
+        self
+    }
+
+    /// Injects Runtime-owned history and causal traversal bounds.
+    #[must_use]
+    pub fn with_history_budget(mut self, budget: HistoryBudget) -> Self {
+        self.history_budget = budget;
         self
     }
 
@@ -384,7 +393,7 @@ where
             binding,
             selection,
             implementations,
-            self.resolution_budget,
+            &self.resolution_budget,
             self.entropy_source.source_id(),
         )
         .with_cognitive(cognitive))
@@ -479,6 +488,7 @@ where
         status: ExecutionSessionStatus,
         evidence: ExecutionEvidence,
     ) -> ApiResult<ExecutionSession> {
+        check_session_provenance_budget(&self.resolution_budget, &evidence, None)?;
         self.store
             .finish_session_with_evidence(session_id, status, self.platform_clock.now(), evidence)
             .await
@@ -496,6 +506,7 @@ where
     where
         S: ExecutionSessionStore,
     {
+        check_session_provenance_budget(&self.resolution_budget, &evidence, provenance.as_ref())?;
         self.store
             .finish_session_with_ingress_completion_and_evidence(
                 session_id,
@@ -955,6 +966,13 @@ where
                 };
                 if !enabled_capability(&self.registry, assembly, &handler.owner) {
                     continue;
+                }
+                if let Some(limit) = assembly.execution_policy().max_reaction_schedules()
+                    && additions.len() >= limit
+                {
+                    return Err(ApiError::invalid_request(
+                        "Reaction scheduling exceeds the Runtime resource bound",
+                    ));
                 }
 
                 let work_id = self.identity_allocator.allocate_work_id();
@@ -2824,6 +2842,21 @@ where
                         .clone_from(&expected_work_transitions);
                     provenance.clone()
                 });
+                let evidence = validated_evidence(&validated);
+                if let Err(error) = check_session_provenance_budget(
+                    &assembly.execution_policy(),
+                    &evidence,
+                    provenance.as_ref(),
+                ) {
+                    return Err(AuthorityFailure {
+                        error,
+                        evidence,
+                        commit_error: None,
+                        validated: None,
+                        changes_runtime_state: false,
+                        provenance,
+                    });
+                }
                 if let Some(provenance) = provenance.clone() {
                     self.record_ingress_provenance(provenance.session_id, provenance.clone())
                         .await
@@ -3664,6 +3697,31 @@ fn validated_evidence(resolution: &ValidatedResolution) -> ExecutionEvidence {
         resolution.call_provenance().clone(),
         resolution.entropy_evidence().clone(),
     )
+}
+
+fn check_session_provenance_budget(
+    policy: &ResolutionBudget,
+    evidence: &ExecutionEvidence,
+    provenance: Option<&CommitProvenance>,
+) -> ApiResult<()> {
+    let Some(limit) = policy.max_session_provenance_bytes() else {
+        return Ok(());
+    };
+    let evidence_bytes = serde_json::to_vec(evidence)
+        .map_err(|_| ApiError::invalid_request("execution provenance could not be encoded"))?;
+    let provenance_bytes = provenance
+        .map(serde_json::to_vec)
+        .transpose()
+        .map_err(|_| ApiError::invalid_request("commit provenance could not be encoded"))?;
+    let actual = evidence_bytes
+        .len()
+        .saturating_add(provenance_bytes.as_ref().map_or(0, Vec::len));
+    if actual > limit {
+        return Err(ApiError::invalid_request(
+            "execution provenance exceeds the Runtime resource bound",
+        ));
+    }
+    Ok(())
 }
 
 fn execution_evidence(base: &BaseWorldView, execution: &ExecutionState) -> ExecutionEvidence {
@@ -4633,6 +4691,14 @@ where
 {
     fn submit_ingress(&self, request: IngressEnvelope) -> ApiFuture<'_, IngressAcceptance> {
         Box::pin(async move {
+            let ingress_bytes = serde_json::to_vec(&request)
+                .map_err(|_| ApiError::invalid_request("Ingress payload could not be encoded"))?
+                .len();
+            self.resolution_budget
+                .check_value(BudgetDimension::IngressPayloadBytes, ingress_bytes)
+                .map_err(|_| {
+                    ApiError::invalid_request("Ingress payload exceeds the Runtime bound")
+                })?;
             let canonical_request = (
                 &request.provenance,
                 &request.target,
@@ -4921,6 +4987,39 @@ where
         query: SemanticProjectionQuery,
     ) -> Result<Vec<SemanticProjectionHit>, SemanticProjectionError> {
         query.validate()?;
+        let policy = self.resolution_budget;
+        if let Some(limit) = policy.max_semantic_results()
+            && usize::try_from(query.limit).unwrap_or(usize::MAX) > limit
+        {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: query.limit,
+            });
+        }
+        if let Some(limit) = policy.max_semantic_result_bytes()
+            && usize::try_from(query.max_result_bytes).unwrap_or(usize::MAX) > limit
+        {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: query.max_result_bytes,
+            });
+        }
+        if let Some(limit) = policy.max_semantic_depth()
+            && usize::try_from(query.depth).unwrap_or(usize::MAX) > limit
+        {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: query.depth,
+            });
+        }
+        if let Some(limit) = policy.max_semantic_filters()
+            && query.filters.len() > limit
+        {
+            return Err(SemanticProjectionError::LimitExceeded {
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: u32::try_from(query.filters.len()).unwrap_or(u32::MAX),
+            });
+        }
         validate_projection_query_index(&self.registry, &query.key)?;
         self.ensure_semantic_index_enabled(
             query.key.world_id,
@@ -5086,29 +5185,27 @@ fn validate_projection_registration(
     Ok(())
 }
 
-const MAX_QUERY_PAGE_SIZE: u32 = 1_024;
 /// Lower operational bound used by Runtime even though the public API permits
 /// a larger request. The page reader receives this bound before any history
 /// access, so over-demand cannot turn into an oversized read.
 pub const MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE: u32 = 256;
-const MAX_CAUSAL_DEPTH: u32 = 64;
-const MAX_CAUSAL_RESULTS: u32 = 1_024;
 
-fn query_limit(limit: Option<u32>) -> ApiResult<usize> {
-    let limit = limit.unwrap_or(MAX_QUERY_PAGE_SIZE);
-    if limit == 0 || limit > MAX_QUERY_PAGE_SIZE {
+fn query_limit(limit: Option<u32>, budget: HistoryBudget) -> ApiResult<usize> {
+    let max_limit = budget.max_query_page_size();
+    let limit = limit.unwrap_or(max_limit);
+    if limit == 0 || limit > max_limit {
         return Err(ApiError::invalid_request(format!(
-            "query limit must be between 1 and {MAX_QUERY_PAGE_SIZE}"
+            "query limit must be between 1 and {max_limit}"
         )));
     }
     Ok(usize::try_from(limit).expect("the bounded query limit fits usize"))
 }
 
-fn history_page<'a, I>(events: I, query: EventQuery) -> ApiResult<EventPage>
+fn history_page<'a, I>(events: I, query: EventQuery, budget: HistoryBudget) -> ApiResult<EventPage>
 where
     I: IntoIterator<Item = &'a CommittedEvent>,
 {
-    let limit = query_limit(query.limit)?;
+    let limit = query_limit(query.limit, budget)?;
     let mut matching: Vec<_> = events
         .into_iter()
         .filter(|event| query.after.is_none_or(|after| event.event_seq > after))
@@ -5126,15 +5223,17 @@ where
     })
 }
 
-fn validate_causal_query(query: CausalQuery) -> ApiResult<()> {
-    if query.max_depth == 0 || query.max_depth > MAX_CAUSAL_DEPTH {
+fn validate_causal_query(query: CausalQuery, budget: HistoryBudget) -> ApiResult<()> {
+    let max_depth = budget.max_causal_depth();
+    let max_results = budget.max_causal_results();
+    if query.max_depth == 0 || query.max_depth > max_depth {
         return Err(ApiError::invalid_request(format!(
-            "causal max_depth must be between 1 and {MAX_CAUSAL_DEPTH}"
+            "causal max_depth must be between 1 and {max_depth}"
         )));
     }
-    if query.limit == 0 || query.limit > MAX_CAUSAL_RESULTS {
+    if query.limit == 0 || query.limit > max_results {
         return Err(ApiError::invalid_request(format!(
-            "causal limit must be between 1 and {MAX_CAUSAL_RESULTS}"
+            "causal limit must be between 1 and {max_results}"
         )));
     }
     Ok(())
@@ -5731,14 +5830,14 @@ where
     fn list_events(&self, query: EventQuery) -> ApiFuture<'_, Vec<ApiCommittedEvent>> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(query.target).await?;
-            Ok(history_page(snapshot.events.iter(), query)?.events)
+            Ok(history_page(snapshot.events.iter(), query, self.history_budget)?.events)
         })
     }
 
     fn list_events_page(&self, query: EventQuery) -> ApiFuture<'_, EventPage> {
         Box::pin(async move {
             let snapshot = self.snapshot_for_target(query.target).await?;
-            history_page(snapshot.events.iter(), query)
+            history_page(snapshot.events.iter(), query, self.history_budget)
         })
     }
 
@@ -5777,7 +5876,7 @@ where
 
     fn causal_walk(&self, query: CausalQuery) -> ApiFuture<'_, CausalTraversal> {
         Box::pin(async move {
-            validate_causal_query(query)?;
+            validate_causal_query(query, self.history_budget)?;
             let snapshot = self.snapshot_for_event_ref(query.root).await?;
             if visible_event(&snapshot, query.root).is_none() {
                 return Err(ApiError::not_found(format!(
@@ -5828,6 +5927,7 @@ where
                     after: query.after,
                     limit: query.limit,
                 },
+                self.history_budget,
             )
         })
     }
@@ -5850,6 +5950,7 @@ where
                     after: query.after,
                     limit: query.limit,
                 },
+                self.history_budget,
             )
         })
     }
@@ -5862,11 +5963,12 @@ where
     fn subscribe(&self, request: SubscriptionRequest) -> ApiFuture<'_, SubscriptionResult> {
         Box::pin(async move {
             request.validate()?;
-            if request.limit > MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE {
+            let operational_limit = self.history_budget.max_change_feed_page_size();
+            if request.limit > operational_limit {
                 return Ok(SubscriptionResult::Backpressure(SubscriptionBackpressure {
                     resume_from: request.resume_from,
                     retry_after_ms: None,
-                    max_events: MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE,
+                    max_events: operational_limit,
                 }));
             }
 
@@ -6176,9 +6278,9 @@ struct ExecutionState {
 }
 
 impl ExecutionState {
-    fn new(budget: ResolutionBudget, entropy_source_id: EntropySourceId) -> Self {
+    fn new(budget: &ResolutionBudget, entropy_source_id: EntropySourceId) -> Self {
         Self {
-            budget,
+            budget: *budget,
             usage: BudgetUsage::default(),
             stack: Vec::new(),
             segments: Vec::new(),
@@ -6699,7 +6801,7 @@ fn dispatch_root_action(
         action: invocation.action.clone(),
     };
     let state = Rc::new(RefCell::new(ExecutionState::new(
-        assembly.execution_policy(),
+        &assembly.execution_policy(),
         assembly.entropy_source_id().clone(),
     )));
     state
@@ -6738,7 +6840,7 @@ async fn dispatch_root_action_async(
         action: invocation.action.clone(),
     };
     let state = Rc::new(RefCell::new(ExecutionState::new(
-        assembly.execution_policy(),
+        &assembly.execution_policy(),
         assembly.entropy_source_id().clone(),
     )));
     state
@@ -6786,7 +6888,7 @@ async fn dispatch_root_work_async(
         action: ActionTypeId::from(format!("work:{handler_id}")),
     };
     let state = Rc::new(RefCell::new(ExecutionState::new(
-        assembly.execution_policy(),
+        &assembly.execution_policy(),
         assembly.entropy_source_id().clone(),
     )));
     state
@@ -6870,6 +6972,7 @@ fn dispatch_child_action(
 ) -> Result<ResolveOutcome, DispatchError> {
     let action = enabled_action(registry, assembly, &invocation.action)?;
     EffectEngine::new(registry)
+        .with_budget(assembly.execution_policy())
         .validate_action_input(&invocation.action, &invocation.input)
         .map_err(|error| {
             let message = format!("child Action input rejected: {error}");
@@ -7479,6 +7582,8 @@ fn map_action_input_error(error: &RuntimeError) -> ApiError {
         })
     ) {
         ApiError::invalid_request("Action input does not match its registered schema")
+    } else if matches!(error, RuntimeError::Budget(_)) {
+        ApiError::invalid_request("Action input exceeds the Runtime resource bound")
     } else {
         map_runtime_error(error)
     }
@@ -7880,7 +7985,7 @@ mod tests {
         let registry = semantic_registry();
         let assembly = test_assembly(&registry, semantic_binding());
         let state = Rc::new(RefCell::new(ExecutionState::new(
-            assembly.execution_policy(),
+            &assembly.execution_policy(),
             assembly.entropy_source_id().clone(),
         )));
         let store = SemanticTestStore {
@@ -7932,10 +8037,10 @@ mod tests {
         let bounded_assembly = test_assembly_with_budget(
             &registry,
             semantic_binding(),
-            ResolutionBudget::unlimited().with_max_semantic_results(1),
+            &ResolutionBudget::unlimited().with_max_semantic_results(1),
         );
         let bounded_state = Rc::new(RefCell::new(ExecutionState::new(
-            bounded_assembly.execution_policy(),
+            &bounded_assembly.execution_policy(),
             bounded_assembly.entropy_source_id().clone(),
         )));
         let error = block_on(query_semantic_host(
@@ -8129,13 +8234,13 @@ mod tests {
         registry: &CapabilityRegistry,
         binding: WorldRuntimeBinding,
     ) -> ExecutionAssembly {
-        test_assembly_with_budget(registry, binding, ResolutionBudget::unlimited())
+        test_assembly_with_budget(registry, binding, &ResolutionBudget::unlimited())
     }
 
     fn test_assembly_with_budget(
         registry: &CapabilityRegistry,
         binding: WorldRuntimeBinding,
-        execution_policy: ResolutionBudget,
+        execution_policy: &ResolutionBudget,
     ) -> ExecutionAssembly {
         let revision = RuntimeRevisionDescriptor::new(
             RuntimeRevisionId::from("test-revision"),
@@ -8549,7 +8654,7 @@ mod tests {
         let assembly = test_assembly_with_budget(
             &registry,
             entropy_binding(),
-            ResolutionBudget::unlimited().with_max_entropy_requests(1),
+            &ResolutionBudget::unlimited().with_max_entropy_requests(1),
         );
         let source =
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
@@ -8594,7 +8699,7 @@ mod tests {
         let total_bytes_assembly = test_assembly_with_budget(
             &registry,
             entropy_binding(),
-            ResolutionBudget::unlimited().with_max_entropy_bytes(2),
+            &ResolutionBudget::unlimited().with_max_entropy_bytes(2),
         );
         let total_bytes_source =
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
@@ -8618,7 +8723,7 @@ mod tests {
         let request_bytes_assembly = test_assembly_with_budget(
             &registry,
             entropy_binding(),
-            ResolutionBudget::unlimited().with_max_entropy_request_bytes(1),
+            &ResolutionBudget::unlimited().with_max_entropy_request_bytes(1),
         );
         let request_bytes_source =
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);

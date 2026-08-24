@@ -16,7 +16,8 @@ use loom_protocol::{
 use serde_json::Value;
 
 use crate::{
-    BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, EntropyEvidence, ResolutionBudget,
+    BudgetDimension, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, EntropyEvidence,
+    ResolutionBudget,
 };
 
 /// A typed failure raised while an untrusted Resolution crosses the Runtime
@@ -424,7 +425,7 @@ impl<'registry> EffectEngine<'registry> {
     pub fn new(registry: &'registry CapabilityRegistry) -> Self {
         Self {
             registry,
-            budget: ResolutionBudget::unlimited(),
+            budget: ResolutionBudget::default(),
         }
     }
 
@@ -478,6 +479,16 @@ impl<'registry> EffectEngine<'registry> {
                     kind: SemanticKind::Action,
                     key: action.to_string(),
                 })?;
+        let input_bytes = serde_json::to_vec(input)
+            .map_err(|error| ValidationError::SchemaViolation {
+                kind: SemanticKind::Action,
+                key: action.to_string(),
+                message: format!("action input could not be encoded: {error}"),
+            })?
+            .len();
+        self.budget
+            .check_value(BudgetDimension::ActionPayloadBytes, input_bytes)
+            .map_err(RuntimeError::Budget)?;
         validate_json_schema(
             definition.definition.input_schema.as_ref(),
             input,
@@ -670,7 +681,8 @@ impl<'registry> EffectEngine<'registry> {
                 .collect(),
         );
         let total_usage = BudgetUsage::from_resolution(validated.resolution())
-            .combine(BudgetUsage::from_resolution(&additions_resolution));
+            .combine(BudgetUsage::from_resolution(&additions_resolution))
+            .with_reaction_schedules(additions.len());
         self.budget
             .check(total_usage)
             .map_err(RuntimeError::Budget)?;

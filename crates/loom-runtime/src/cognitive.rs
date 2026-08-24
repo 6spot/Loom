@@ -173,6 +173,7 @@ pub(crate) async fn execute_cognitive(
         outcome,
         disposition: CognitiveDisposition::Fresh,
     });
+    ensure_provenance_budget(assembly, evidence)?;
     result.map_err(CognitiveGatewayError::Executor)
 }
 
@@ -226,6 +227,32 @@ pub(crate) fn record_reused_cognitive(
         outcome,
         disposition: CognitiveDisposition::Reused,
     });
+    ensure_provenance_budget(assembly, evidence)?;
+    Ok(())
+}
+
+fn ensure_provenance_budget(
+    assembly: &ExecutionAssembly,
+    evidence: &ExecutionEvidence,
+) -> Result<(), CognitiveGatewayError> {
+    let Some(limit) = assembly.execution_policy().max_session_provenance_bytes() else {
+        return Ok(());
+    };
+    let limit = u64::try_from(limit).unwrap_or(u64::MAX);
+    let actual = serde_json::to_vec(evidence)
+        .map_err(|_| CognitiveGatewayError::ContextBudgetExceeded {
+            dimension: "session_provenance_bytes".to_owned(),
+            limit,
+            actual: limit.saturating_add(1),
+        })?
+        .len() as u64;
+    if actual > limit {
+        return Err(CognitiveGatewayError::ContextBudgetExceeded {
+            dimension: "session_provenance_bytes".to_owned(),
+            limit,
+            actual,
+        });
+    }
     Ok(())
 }
 
@@ -407,7 +434,7 @@ mod tests {
             binding,
             RuntimeRevisionSelection::new(revision, 1, crate::PlatformTime::default()),
             implementations,
-            crate::ResolutionBudget::unlimited(),
+            &crate::ResolutionBudget::unlimited(),
             EntropySourceId::from("cognitive-test-entropy"),
         )
         .with_cognitive(CognitiveAssembly::new(

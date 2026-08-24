@@ -19,9 +19,9 @@ use semver::{Version, VersionReq};
 use serde_json::json;
 
 use super::{
-    BaseWorldSnapshot, BaseWorldView, EffectEngine, ReadDependency, RuntimeRevisionCapability,
-    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    ValidationError, ValidationOutcome, WorldRuntimeBinding,
+    BaseWorldSnapshot, BaseWorldView, EffectEngine, ReadDependency, ResolutionBudget,
+    RuntimeRevisionCapability, RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor,
+    RuntimeRevisionId, ValidationError, ValidationOutcome, WorldRuntimeBinding,
 };
 
 const OWNER: &str = "counter";
@@ -835,6 +835,39 @@ fn invalid_event_payload_cannot_produce_validated_resolution() {
         error,
         super::RuntimeError::Validation(ValidationError::SchemaViolation {
             kind: loom_capability::SemanticKind::Event,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn event_payload_budget_accepts_exact_size_and_rejects_over_without_a_token() {
+    let event = proposed_event(1);
+    let payload_bytes = serde_json::to_vec(&event.payload)
+        .expect("JSON payload should encode")
+        .len();
+    let registry = registry();
+    EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_event_payload_bytes(payload_bytes))
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event.clone()], Vec::new()),
+        )
+        .expect("the exact Event payload boundary should be accepted");
+
+    let error = EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_event_payload_bytes(payload_bytes - 1))
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event], Vec::new()),
+        )
+        .expect_err("an over-limit Event payload must fail before validation");
+    assert!(matches!(
+        error,
+        super::RuntimeError::Budget(crate::BudgetError {
+            dimension: crate::BudgetDimension::EventPayloadBytes,
             ..
         })
     ));
