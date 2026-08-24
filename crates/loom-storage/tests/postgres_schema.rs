@@ -21,7 +21,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     .fetch_one(&pool)
     .await
     .expect("migrated Loom tables should be inspectable");
-    assert_eq!(table_count, 21);
+    assert_eq!(table_count, 22);
 
     let reconciliation_tables: Vec<String> = sqlx::query_scalar(
         "SELECT table_name::text FROM information_schema.tables \
@@ -31,7 +31,8 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
              'loom_runtime_revision',\
              'loom_runtime_active_revision',\
              'loom_runtime_revision_activation',\
-             'loom_execution_session'\
+             'loom_execution_session',\
+             'loom_execution_session_event'\
            ) \
          ORDER BY table_name",
     )
@@ -42,6 +43,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
         reconciliation_tables,
         vec![
             "loom_execution_session",
+            "loom_execution_session_event",
             "loom_runtime_active_revision",
             "loom_runtime_revision",
             "loom_runtime_revision_activation",

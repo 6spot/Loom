@@ -1350,6 +1350,11 @@ pub struct ExecutionSession {
     /// Durable identity of the logical proposal prepared by this Session.
     #[serde(default)]
     commit_provenance: Option<CommitProvenance>,
+    /// Event identities committed by this root Session, in authoritative
+    /// commit order. This is updated at the Event commit linearization point,
+    /// before the later terminal Session transition.
+    #[serde(default)]
+    event_refs: Vec<EventRef>,
 }
 
 impl ExecutionSession {
@@ -1392,6 +1397,7 @@ impl ExecutionSession {
             ingress_id: None,
             ingress_completion: None,
             commit_provenance: None,
+            event_refs: Vec::new(),
         }
     }
 
@@ -1513,6 +1519,47 @@ impl ExecutionSession {
     #[must_use]
     pub const fn commit_provenance(&self) -> Option<&CommitProvenance> {
         self.commit_provenance.as_ref()
+    }
+
+    /// Returns the Event identities produced by this Session in commit order.
+    #[must_use]
+    pub fn event_refs(&self) -> &[EventRef] {
+        &self.event_refs
+    }
+
+    /// Returns a Started Session copy with its committed Event identities.
+    ///
+    /// Storage calls this only while holding the same atomic authority boundary
+    /// that appends the corresponding Event rows. Event references must belong
+    /// to the Session's pinned Timeline and may only be attached once.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError::InvalidTransition`] when the Session is not
+    /// Started, already owns Event references, or a reference targets another
+    /// Timeline/appears more than once.
+    pub fn with_event_refs(&self, event_refs: Vec<EventRef>) -> Result<Self, SessionError> {
+        if self.status != ExecutionSessionStatus::Started
+            || !self.event_refs.is_empty()
+            || event_refs
+                .iter()
+                .any(|event_ref| event_ref.timeline_id != self.assembly.timeline_id())
+            || {
+                let mut unique = std::collections::HashSet::with_capacity(event_refs.len());
+                event_refs
+                    .iter()
+                    .any(|event_ref| !unique.insert(*event_ref))
+            }
+        {
+            return Err(SessionError::InvalidTransition {
+                session_id: self.id,
+                from: self.status,
+                to: self.status,
+            });
+        }
+        let mut linked = self.clone();
+        linked.event_refs = event_refs;
+        Ok(linked)
     }
 
     /// Returns a Started Session copy with its authority proposal identity.
@@ -1870,6 +1917,31 @@ pub trait ExecutionSessionStore {
 
     /// Reads all Session records in deterministic identity order.
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>>;
+
+    /// Resolves one committed Event to its producing Session identity.
+    fn session_for_event(
+        &self,
+        event_ref: EventRef,
+    ) -> PersistenceFuture<'_, Result<Option<ExecutionSessionId>, SessionError>> {
+        Box::pin(async move {
+            let sessions = self.list_sessions().await?;
+            Ok(sessions.into_iter().find_map(|session| {
+                session
+                    .event_refs()
+                    .contains(&event_ref)
+                    .then_some(session.id())
+            }))
+        })
+    }
+
+    /// Lists the Event identities produced by one Session in deterministic
+    /// commit order.
+    fn events_for_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<Vec<EventRef>, SessionError>> {
+        Box::pin(async move { Ok(self.read_session(session_id).await?.event_refs().to_vec()) })
+    }
 }
 
 /// Immutable input captured at the Ingress acceptance boundary.
@@ -2054,6 +2126,9 @@ pub struct CommitAuthorityContext {
     pub ingress_claim: Option<IngressClaim>,
     /// Optional durable provenance written into the logical journal.
     pub provenance: Option<CommitProvenance>,
+    /// Root Session that produced and validated this commit. When present,
+    /// Event links are written by the same authority transaction as the Event.
+    pub session_id: Option<ExecutionSessionId>,
 }
 
 impl CommitAuthorityContext {
@@ -2064,7 +2139,15 @@ impl CommitAuthorityContext {
             current_work,
             ingress_claim: None,
             provenance: None,
+            session_id: None,
         }
+    }
+
+    /// Attaches the producing root Session to this authority context.
+    #[must_use]
+    pub const fn with_session(mut self, session_id: ExecutionSessionId) -> Self {
+        self.session_id = Some(session_id);
+        self
     }
 }
 
@@ -3991,6 +4074,8 @@ pub enum CommitError {
     CommitOutcomeUnknown { message: String },
     /// The persistence authority could not complete the atomic transaction.
     StorageUnavailable { message: String },
+    /// The requested producing Session cannot own this Event commit.
+    SessionLink { message: String },
     /// The revision or Event sequence cannot be represented by its value type.
     RevisionOverflow,
 }
@@ -4026,10 +4111,10 @@ impl fmt::Display for CommitError {
             }
             Self::Work(error) => error.fmt(formatter),
             Self::ChronologyBudgetExceeded(error) => error.fmt(formatter),
-            Self::IngressClaim { message } => formatter.write_str(message),
-            Self::CommitOutcomeUnknown { message } | Self::StorageUnavailable { message } => {
-                formatter.write_str(message)
-            }
+            Self::IngressClaim { message }
+            | Self::CommitOutcomeUnknown { message }
+            | Self::StorageUnavailable { message }
+            | Self::SessionLink { message } => formatter.write_str(message),
             Self::RevisionOverflow => {
                 formatter.write_str("Timeline revision or Event sequence overflow")
             }
@@ -4220,6 +4305,33 @@ pub trait WorldLifecycleStore {
                     .to_owned(),
             })
         })
+    }
+
+    /// Template birth variant that binds bootstrap Events to the root Session
+    /// inside the same World/Timeline transaction.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the lifecycle port mirrors the atomic bootstrap boundary"
+    )]
+    fn create_world_with_bootstrap_for_session<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        let _ = session_id;
+        self.create_world_with_bootstrap(
+            world_id,
+            timeline_id,
+            initial_world_time,
+            binding,
+            bootstrap,
+            now,
+        )
     }
 }
 
@@ -4992,6 +5104,21 @@ pub trait SchedulerCommitStore: CommitStore {
         now: PlatformTime,
         max_completions: u64,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>>;
+
+    /// Scheduler commit variant carrying the producing root Session. Concrete
+    /// adapters override this to link Events atomically; the default preserves
+    /// compatibility for older adapters that do not persist Session links.
+    fn commit_scheduler_work_with_session<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        let _ = session_id;
+        self.commit_scheduler_work(resolution, current_work, now, max_completions)
+    }
 }
 
 /// Runtime Work/claim port for operational metadata and current-Work fences.

@@ -1,6 +1,6 @@
 //! `PostgreSQL` implementation of Runtime Execution Session persistence.
 
-use loom_core::ExecutionSessionId;
+use loom_core::{EventId, EventRef, ExecutionSessionId, TimelineId};
 use loom_runtime::{
     CommitProvenance, EntropyEvidence, ExecutionEvidence, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, IngressCompletion, PersistenceFuture, PlatformTime, SessionError,
@@ -15,6 +15,8 @@ const FINISH_SESSION_SQL: &str = include_str!("../../sql/session/finish.sql");
 const PREPARE_PROVENANCE_SQL: &str = include_str!("../../sql/session/prepare_provenance.sql");
 const READ_SESSION_SQL: &str = include_str!("../../sql/session/read.sql");
 const LIST_SESSIONS_SQL: &str = include_str!("../../sql/session/list.sql");
+const READ_EVENT_SESSION_SQL: &str = include_str!("../../sql/session/read_event_session.sql");
+const READ_SESSION_EVENTS_SQL: &str = include_str!("../../sql/session/read_session_events.sql");
 
 impl ExecutionSessionStore for PgStorage {
     fn start_session(
@@ -114,6 +116,20 @@ impl ExecutionSessionStore for PgStorage {
 
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
         Box::pin(async move { list_sessions(self).await })
+    }
+
+    fn session_for_event(
+        &self,
+        event_ref: EventRef,
+    ) -> PersistenceFuture<'_, Result<Option<ExecutionSessionId>, SessionError>> {
+        Box::pin(async move { session_for_event(self, event_ref).await })
+    }
+
+    fn events_for_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<Vec<EventRef>, SessionError>> {
+        Box::pin(async move { events_for_session(self, session_id).await })
     }
 }
 
@@ -373,6 +389,58 @@ async fn list_sessions(storage: &PgStorage) -> Result<Vec<ExecutionSession>, Ses
             serde_json::from_value(record).map_err(|error| SessionError::StorageUnavailable {
                 message: format!("invalid persisted Execution Session: {error}"),
             })
+        })
+        .collect()
+}
+
+async fn session_for_event(
+    storage: &PgStorage,
+    event_ref: EventRef,
+) -> Result<Option<ExecutionSessionId>, SessionError> {
+    let row = sqlx::query(READ_EVENT_SESSION_SQL)
+        .bind(event_ref.timeline_id.to_string())
+        .bind(event_ref.event_id.to_string())
+        .fetch_optional(&storage.pool)
+        .await
+        .map_err(sql_session_error)?;
+    row.map(|row| {
+        let value: String = row.try_get("session_id").map_err(sql_session_error)?;
+        value
+            .parse::<ExecutionSessionId>()
+            .map_err(|error| SessionError::StorageUnavailable {
+                message: format!("invalid producing Session identity: {error}"),
+            })
+    })
+    .transpose()
+}
+
+async fn events_for_session(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+) -> Result<Vec<EventRef>, SessionError> {
+    // Preserve the existing read_session not-found contract.
+    let _ = read_session(storage, session_id).await?;
+    let rows = sqlx::query(READ_SESSION_EVENTS_SQL)
+        .bind(session_id.to_string())
+        .fetch_all(&storage.pool)
+        .await
+        .map_err(sql_session_error)?;
+    rows.into_iter()
+        .map(|row| {
+            let timeline: String = row.try_get("timeline_id").map_err(sql_session_error)?;
+            let event: String = row.try_get("event_id").map_err(sql_session_error)?;
+            let timeline_id = timeline.parse::<TimelineId>().map_err(|error| {
+                SessionError::StorageUnavailable {
+                    message: format!("invalid Event Timeline identity: {error}"),
+                }
+            })?;
+            let event_id =
+                event
+                    .parse::<EventId>()
+                    .map_err(|error| SessionError::StorageUnavailable {
+                        message: format!("invalid Event identity: {error}"),
+                    })?;
+            Ok(EventRef::new(timeline_id, event_id))
         })
         .collect()
 }
