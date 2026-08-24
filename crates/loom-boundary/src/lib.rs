@@ -940,7 +940,7 @@ where
             config,
         );
     }
-    response_with_bytes(status, "application/json", bytes)
+    response_with_bytes(status, "application/json", bytes, config.response_bytes)
 }
 
 fn error_response(error: ApiError, config: BoundaryConfig) -> Response {
@@ -962,10 +962,18 @@ fn error_response(error: ApiError, config: BoundaryConfig) -> Response {
     } else {
         br#"{"code":"internal","message":"API boundary error"}"#.to_vec()
     };
-    response_with_bytes(status, "application/json", bytes)
+    response_with_bytes(status, "application/json", bytes, config.response_bytes)
 }
 
-fn response_with_bytes(status: StatusCode, content_type: &'static str, bytes: Vec<u8>) -> Response {
+fn response_with_bytes(
+    status: StatusCode,
+    content_type: &'static str,
+    mut bytes: Vec<u8>,
+    max_bytes: usize,
+) -> Response {
+    if bytes.len() > max_bytes {
+        bytes.truncate(max_bytes);
+    }
     Response::builder()
         .status(status)
         .header(header::CONTENT_TYPE, content_type)
@@ -1000,6 +1008,7 @@ mod tests {
         TimelineService, TimelineSnapshot, TimelineTarget, WorldInstant, WorldService,
     };
     use loom_api::{CommittedEvent, TimelineId, TimelineVersion, WorldId};
+    use serde::{Serialize, Serializer};
     use serde_json::json;
     use tower::ServiceExt;
 
@@ -1125,11 +1134,16 @@ mod tests {
             .expect("test request is valid")
     }
 
-    async fn body(response: Response) -> String {
-        let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+    async fn body_bytes(response: Response) -> Vec<u8> {
+        axum::body::to_bytes(response.into_body(), 1024 * 1024)
             .await
-            .expect("test response body can be read");
-        String::from_utf8(bytes.to_vec()).expect("test response is UTF-8")
+            .expect("test response body can be read")
+            .to_vec()
+    }
+
+    async fn body(response: Response) -> String {
+        let bytes = body_bytes(response).await;
+        String::from_utf8(bytes).expect("test response is UTF-8")
     }
 
     #[tokio::test]
@@ -1170,6 +1184,75 @@ mod tests {
             body(response).await,
             r#"{"code":"not_found","message":"missing ingress"}"#
         );
+    }
+
+    #[tokio::test]
+    async fn error_response_is_capped_when_config_is_smaller_than_fallback() {
+        let config = BoundaryConfig::new(1024, 1024, 8, 1024, 10, 1).expect("valid limits");
+        let response = super::error_response(ApiError::internal("internal details"), config);
+        let declared_length = response
+            .headers()
+            .get("content-length")
+            .expect("content length")
+            .to_str()
+            .expect("content length is ASCII")
+            .parse::<usize>()
+            .expect("content length is numeric");
+        let bytes = body_bytes(response).await;
+
+        assert!(bytes.len() <= config.max_response_bytes());
+        assert_eq!(declared_length, bytes.len());
+    }
+
+    #[tokio::test]
+    async fn oversized_json_response_is_capped_and_preserves_typed_error() {
+        let config = BoundaryConfig::new(1024, 1024, 256, 1024, 10, 1).expect("valid limits");
+        let value = json!({ "payload": "x".repeat(1024) });
+        let response = super::json_response(StatusCode::OK, &value, config);
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let declared_length = response
+            .headers()
+            .get("content-length")
+            .expect("content length")
+            .to_str()
+            .expect("content length is ASCII")
+            .parse::<usize>()
+            .expect("content length is numeric");
+        let bytes = body_bytes(response).await;
+        let error: serde_json::Value = serde_json::from_slice(&bytes).expect("typed error JSON");
+
+        assert!(bytes.len() <= config.max_response_bytes());
+        assert_eq!(declared_length, bytes.len());
+        assert_eq!(error["code"], "unavailable");
+    }
+
+    struct FailingSerialize;
+
+    impl Serialize for FailingSerialize {
+        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            Err(serde::ser::Error::custom("forced serialization failure"))
+        }
+    }
+
+    #[tokio::test]
+    async fn serialization_failure_response_is_capped() {
+        let config = BoundaryConfig::new(1024, 1024, 8, 1024, 10, 1).expect("valid limits");
+        let response = super::json_response(StatusCode::OK, &FailingSerialize, config);
+        let declared_length = response
+            .headers()
+            .get("content-length")
+            .expect("content length")
+            .to_str()
+            .expect("content length is ASCII")
+            .parse::<usize>()
+            .expect("content length is numeric");
+        let bytes = body_bytes(response).await;
+
+        assert!(bytes.len() <= config.max_response_bytes());
+        assert_eq!(declared_length, bytes.len());
     }
 
     #[tokio::test]
