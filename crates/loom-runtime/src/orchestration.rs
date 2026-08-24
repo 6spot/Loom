@@ -15,12 +15,14 @@ use std::{
 
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal,
-    CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
-    CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
-    ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
-    ForkTimelineRequest, HistoryService, QueryService, ReactionDescriptor, RelationshipDescriptor,
-    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, SemanticIndexDescriptor,
+    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
+    ChangeFeedPage as ApiChangeFeedPage, CommittedEvent as ApiCommittedEvent,
+    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
+    EventDescriptor, EventPage, EventQuery, ExecutionResult, FacetDescriptor, FacetQuery,
+    FacetSnapshot as ApiFacetSnapshot, ForkTimelineRequest, HistoryService, QueryService,
+    ReactionDescriptor, RelationshipDescriptor, RelationshipRoleDescriptor,
+    RelationshipTrajectoryQuery, SemanticIndexDescriptor, SubscriptionBackpressure,
+    SubscriptionRequest, SubscriptionResult, SubscriptionResume, SubscriptionService,
     TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage,
     WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
 };
@@ -29,7 +31,7 @@ use loom_capability::{
     EntropyRequest, EntropySample, ResolutionContext, ResolutionContextError, ResolverError,
     SemanticQueryError, SemanticQueryRequest, SemanticQueryResult,
 };
-use loom_core::{ActionTypeId, EventId, EventRef, TimelineId, TimelineVersion, WorkId};
+use loom_core::{ActionTypeId, EventId, EventRef, EventSeq, TimelineId, TimelineVersion, WorkId};
 use loom_protocol::{
     ActionInvocation, NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule, WorkTarget,
 };
@@ -38,12 +40,12 @@ use serde_json::{Value, json};
 
 use crate::{
     AdvanceWorldTime, BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage,
-    CallProvenance, CandidateWorldView, ChronologyBudgetExceeded, ChronologyBudgetPolicy,
-    CommitError, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence, EntropySource,
-    EntropySourceId, ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, IdentityAllocator, LifecycleError, LogicalWorkState,
-    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    CallProvenance, CandidateWorldView, ChangeFeedStore, ChronologyBudgetExceeded,
+    ChronologyBudgetPolicy, CommitError, CommitStore, CommittedEvent, EffectEngine,
+    EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly, ExecutionOrigin,
+    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy, ForkError,
+    ForkMaterialization, ForkWork, HistoricalTimelineState, IdentityAllocator, LifecycleError,
+    LogicalWorkState, LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
@@ -1501,6 +1503,20 @@ where
     }
 }
 
+impl<T> ChangeFeedStore for &T
+where
+    T: ChangeFeedStore + ?Sized,
+{
+    fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: EventSeq,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<crate::ChangeFeedRead, ReadError>> {
+        (**self).read_change_feed(timeline_id, after, limit)
+    }
+}
+
 impl<T> TimelineForkStore for &T
 where
     T: TimelineForkStore + ?Sized,
@@ -2421,6 +2437,10 @@ fn validate_projection_registration(
 }
 
 const MAX_QUERY_PAGE_SIZE: u32 = 1_024;
+/// Lower operational bound used by Runtime even though the public API permits
+/// a larger request. The page reader receives this bound before any history
+/// access, so over-demand cannot turn into an oversized read.
+pub const MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE: u32 = 256;
 const MAX_CAUSAL_DEPTH: u32 = 64;
 const MAX_CAUSAL_RESULTS: u32 = 1_024;
 
@@ -2907,6 +2927,57 @@ where
                     limit: query.limit,
                 },
             )
+        })
+    }
+}
+
+impl<S> SubscriptionService for Runtime<S>
+where
+    S: ChangeFeedStore,
+{
+    fn subscribe(&self, request: SubscriptionRequest) -> ApiFuture<'_, SubscriptionResult> {
+        Box::pin(async move {
+            request.validate()?;
+            if request.limit > MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE {
+                return Ok(SubscriptionResult::Backpressure(SubscriptionBackpressure {
+                    resume_from: request.resume_from,
+                    retry_after_ms: None,
+                    max_events: MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE,
+                }));
+            }
+
+            let after = request
+                .resume_from
+                .map_or_else(|| EventSeq::new(0), |cursor| cursor.after);
+            let limit = usize::try_from(request.limit)
+                .expect("validated Change Feed limit must fit the platform usize");
+            let page = self
+                .store
+                .read_change_feed(request.target.timeline_id, after, limit)
+                .await
+                .map_err(|error| map_read_error(&error))?;
+            if page.world_id != request.target.world_id {
+                return Err(ApiError::not_found(format!(
+                    "Timeline {} is not in World {}",
+                    request.target.timeline_id, request.target.world_id
+                )));
+            }
+
+            let next_cursor = page
+                .events
+                .last()
+                .map(|event| ChangeFeedCursor::after(request.target, event.sequence()));
+            if page.events.is_empty()
+                && let Some(cursor) = request.resume_from
+            {
+                return Ok(SubscriptionResult::Resumed(SubscriptionResume { cursor }));
+            }
+
+            Ok(SubscriptionResult::Events(ApiChangeFeedPage {
+                events: page.events.iter().map(api_event).collect(),
+                next_cursor,
+                has_more: page.has_more,
+            }))
         })
     }
 }

@@ -2482,6 +2482,39 @@ impl CommittedEvent {
     }
 }
 
+/// One bounded read from the authoritative committed Event ledger.
+///
+/// The adapter computes this projection at one read boundary. `world_id` is
+/// returned alongside the page so Runtime can reject a public target whose
+/// World identity does not match the addressed Timeline without exposing any
+/// storage metadata to the API layer. `events` contains at most the requested
+/// page bound; `has_more` is decided from one additional authoritative row.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChangeFeedRead {
+    /// World that owns the addressed Timeline at the read boundary.
+    pub world_id: WorldId,
+    /// Committed Events visible from the requested Timeline, in `EventSeq` order.
+    pub events: Vec<CommittedEvent>,
+    /// Whether another committed Event followed this page at the read boundary.
+    pub has_more: bool,
+}
+
+impl ChangeFeedRead {
+    /// Creates one bounded committed-history page.
+    #[must_use]
+    pub fn new(world_id: WorldId, events: Vec<CommittedEvent>, has_more: bool) -> Self {
+        Self {
+            world_id,
+            events,
+            has_more,
+        }
+    }
+}
+
+/// Compatibility spelling for callers that call the Runtime port result a
+/// page rather than a read projection.
+pub type ChangeFeedPage = ChangeFeedRead;
+
 /// Runtime-owned authority value for an explicit Timeline World-Time change.
 ///
 /// The expected version and current time are both pinned by the caller. The
@@ -3538,6 +3571,24 @@ pub trait WorldStore {
             })
         })
     }
+}
+
+/// Runtime-owned read port for bounded, ancestry-aware committed history.
+///
+/// Implementations must read the authoritative Event ledger and immutable
+/// Timeline ancestry at one read boundary. `after` is a strict `EventSeq` lower
+/// bound and `limit` is the maximum number of Events returned to Runtime; an
+/// adapter may inspect one additional committed row solely to determine
+/// `has_more`. The port contains no SQL, transaction, notification or queue
+/// handle, and subscriber delivery never participates in a World commit.
+pub trait ChangeFeedStore {
+    /// Reads one bounded page of visible committed Events.
+    fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: EventSeq,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<ChangeFeedRead, ReadError>>;
 }
 
 /// Runtime-owned persistence port for an atomic Timeline fork.

@@ -4,8 +4,8 @@ mod support;
 use std::str::FromStr;
 
 use loom_api::{
-    ActionRequest, CreateWorldFromTemplateRequest, EventQuery, FacetQuery, LoomApi,
-    WorldTemplateDescriptor,
+    ActionRequest, ChangeFeedCursor, CreateWorldFromTemplateRequest, EventQuery, FacetQuery,
+    LoomApi, SubscriptionRequest, SubscriptionResult, SubscriptionService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
@@ -354,6 +354,18 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
             .len(),
         1
     );
+    let first_feed =
+        SubscriptionService::subscribe(&first_runtime, SubscriptionRequest::new(target, 1))
+            .await
+            .expect("PostgreSQL Change Feed should read the committed Event");
+    match first_feed {
+        SubscriptionResult::Events(page) => {
+            assert_eq!(page.events.len(), 1);
+            assert_eq!(page.events[0].id, bootstrap_event_id);
+            assert!(!page.has_more);
+        }
+        other => panic!("expected one committed Event page, got {other:?}"),
+    }
     let sessions_before_restart = ExecutionSessionStore::list_sessions(&first_storage)
         .await
         .expect("PostgreSQL Session records should be readable before restart");
@@ -468,6 +480,33 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     assert_eq!(completed.attempt_count, 1);
     assert_eq!(completed.claim_generation, 1);
     assert!(completed.lease.is_none());
+    let resumed_feed = SubscriptionService::subscribe(
+        &second_runtime,
+        SubscriptionRequest::resume(
+            target,
+            ChangeFeedCursor::after(target, loom_core::EventSeq::new(1)),
+            2,
+        ),
+    )
+    .await
+    .expect("Change Feed should resume from the acknowledged cursor after restart");
+    match resumed_feed {
+        SubscriptionResult::Events(page) => {
+            assert_eq!(
+                page.events.iter().map(|event| event.id).collect::<Vec<_>>(),
+                vec![
+                    id::<EventId>(CONTINUE_EVENT_ID),
+                    id::<EventId>(WORK_EVENT_ID)
+                ]
+            );
+            assert!(!page.has_more);
+            assert_eq!(
+                page.next_cursor,
+                Some(ChangeFeedCursor::after(target, loom_core::EventSeq::new(3)))
+            );
+        }
+        other => panic!("expected resumed committed Event page, got {other:?}"),
+    }
     let sessions_after_resume = ExecutionSessionStore::list_sessions(&second_storage)
         .await
         .expect("all resumed Session records should remain readable");
