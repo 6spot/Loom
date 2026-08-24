@@ -1163,6 +1163,7 @@ dependencies = [
  "loom-api",
  "loom-capability",
  "loom-core",
+ "loom-neutral",
  "loom-protocol",
  "loom-runtime",
  "loom-storage",
@@ -1178,6 +1179,17 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "loom-neutral"
+version = "0.1.0"
+dependencies = [
+ "loom-capability",
+ "loom-core",
+ "loom-protocol",
+ "semver",
+ "serde_json",
 ]
 
 [[package]]
@@ -1213,6 +1225,7 @@ dependencies = [
  "loom-boundary",
  "loom-capability",
  "loom-core",
+ "loom-neutral",
  "loom-runtime",
  "loom-storage",
  "tokio",

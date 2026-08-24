@@ -526,6 +526,27 @@ where
             .await
     }
 
+    /// Enumerates one bounded durable Ingress recovery batch through the
+    /// existing persistence port. The caller supplies the operational clock;
+    /// Runtime does not introduce a second recovery state model.
+    ///
+    /// # Errors
+    ///
+    /// Returns the API-mapped persistence error from the Ingress adapter.
+    pub async fn list_recoverable_ingress_ids(
+        &self,
+        now: PlatformTime,
+        limit: usize,
+    ) -> ApiResult<Vec<IngressId>>
+    where
+        S: IngressStore,
+    {
+        self.store
+            .list_recoverable(now, limit)
+            .await
+            .map_err(map_ingress_error)
+    }
+
     async fn binding_for_world(
         &self,
         world_id: loom_core::WorldId,
@@ -2613,6 +2634,14 @@ where
         ingress_id: IngressId,
     ) -> PersistenceFuture<'_, Result<crate::IngressOperationalRecord, IngressError>> {
         (**self).ingress(ingress_id)
+    }
+
+    fn list_recoverable(
+        &self,
+        now: PlatformTime,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<Vec<IngressId>, IngressError>> {
+        (**self).list_recoverable(now, limit)
     }
 
     fn claim(

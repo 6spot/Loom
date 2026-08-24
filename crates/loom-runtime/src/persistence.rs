@@ -1840,6 +1840,15 @@ pub trait IngressStore {
         ingress_id: IngressId,
     ) -> PersistenceFuture<'_, Result<IngressOperationalRecord, IngressError>>;
 
+    /// Enumerates a bounded, deterministic recovery batch from durable state.
+    /// Accepted and retryable records are always eligible; processing records
+    /// are eligible only after their persisted lease deadline has expired.
+    fn list_recoverable(
+        &self,
+        now: PlatformTime,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<Vec<IngressId>, IngressError>>;
+
     /// Claims an Accepted/Retryable record using a new operational fence.
     fn claim(
         &self,

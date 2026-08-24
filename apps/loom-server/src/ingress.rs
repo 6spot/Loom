@@ -12,6 +12,8 @@ use tokio::{sync::mpsc, time::timeout};
 
 use crate::{ShutdownSignal, WorkerConfig, add_platform_duration};
 
+const RECOVERY_BATCH_SIZE: usize = 256;
+
 /// Why one bounded Ingress worker run returned.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IngressWorkerStopReason {
@@ -140,13 +142,7 @@ where
                     });
                 }
             };
-            let now = self.clock.now();
-            let claimed_until = add_platform_duration(now, self.worker_config.lease_duration())?;
-            let retry_available_at =
-                add_platform_duration(now, self.worker_config.retry_backoff())?;
-            self.runtime
-                .process_ingress(ingress_id.clone(), now, claimed_until, retry_available_at)
-                .await?;
+            self.process_ingress_id(ingress_id.clone()).await?;
             processed += 1;
             last_ingress_id = Some(ingress_id);
         }
@@ -173,6 +169,28 @@ where
             if report.stop_reason() == IngressWorkerStopReason::QueueClosed {
                 return Ok(());
             }
+            if report.stop_reason() == IngressWorkerStopReason::NoWorkAvailable {
+                let recovery_ids = self
+                    .runtime
+                    .list_recoverable_ingress_ids(self.clock.now(), RECOVERY_BATCH_SIZE)
+                    .await?;
+                for ingress_id in recovery_ids {
+                    if self.shutdown.is_requested() {
+                        return Ok(());
+                    }
+                    self.process_ingress_id(ingress_id).await?;
+                }
+            }
         }
+    }
+
+    async fn process_ingress_id(&self, ingress_id: IngressId) -> ApiResult<()> {
+        let now = self.clock.now();
+        let claimed_until = add_platform_duration(now, self.worker_config.lease_duration())?;
+        let retry_available_at = add_platform_duration(now, self.worker_config.retry_backoff())?;
+        self.runtime
+            .process_ingress(ingress_id, now, claimed_until, retry_available_at)
+            .await
+            .map(|_| ())
     }
 }

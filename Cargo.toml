@@ -10,6 +10,7 @@ members = [
     "crates/loom-storage",
     "crates/loom-boundary",
     "crates/loom-client",
+    "capabilities/loom-neutral",
     "apps/loom-server",
     "tests/loom-composition",
 ]

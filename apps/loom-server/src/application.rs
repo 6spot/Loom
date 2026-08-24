@@ -18,6 +18,7 @@ use loom_api::{
     WorldService,
 };
 use loom_boundary::router as boundary_router;
+use loom_neutral::registry as neutral_registry;
 use loom_runtime::{
     CapabilityRegistry, EntropyRequest, EntropySample, EntropySource, EntropySourceError,
     EntropySourceId, ExecutionSessionStore, PlatformClock, PlatformTime, Runtime,
@@ -251,6 +252,10 @@ impl LoomServer {
     ///
     /// Returns a redacted startup error when the database, migrations, local
     /// `BlobStore`, registry or Runtime Revision cannot be validated.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the composition root keeps startup gates and worker assembly together"
+    )]
     pub async fn build(config: ServerConfig) -> Result<Self, ServerError> {
         fs::create_dir_all(config.blob_dir()).map_err(|_| ServerError::Filesystem)?;
         let blob_store = LocalBlobStore::new(config.blob_dir()).map_err(map_blob_error)?;
@@ -271,7 +276,7 @@ impl LoomServer {
 
         let registry = installed_registry()?;
         let now = SystemClock.now();
-        let revision = RuntimeRevisionDescriptor::new(
+        let candidate_revision = RuntimeRevisionDescriptor::new(
             config.revision_id.clone(),
             now,
             config.core_build_ref.clone(),
@@ -293,8 +298,16 @@ impl LoomServer {
             })?
             .with_platform_clock(SystemClock)
             .with_entropy_source(SystemEntropySource);
-        runtime
-            .confirm_runtime_revision(revision.clone())
+        let revision =
+            match RuntimeRevisionStore::read_revision(&storage, config.revision_id.clone().into())
+                .await
+            {
+                Ok(existing) => existing,
+                Err(RuntimeRevisionError::RevisionNotFound { .. }) => candidate_revision,
+                Err(error) => return Err(map_revision_error(error)),
+            };
+        let revision = runtime
+            .confirm_runtime_revision(revision)
             .await
             .map_err(map_revision_error)?;
         ensure_active_revision(&runtime, &revision, now).await?;
@@ -316,6 +329,19 @@ impl LoomServer {
             .with_entropy_source(SystemEntropySource);
 
         let (ingress_sender, ingress_receiver) = mpsc::channel(config.ingress_queue_capacity);
+        let recovery_ids = ingress_runtime
+            .list_recoverable_ingress_ids(now, config.ingress_queue_capacity)
+            .await
+            .map_err(|_| ServerError::Startup {
+                stage: "Ingress recovery enumeration",
+            })?;
+        for ingress_id in recovery_ids {
+            ingress_sender
+                .try_send(ingress_id)
+                .map_err(|_| ServerError::Startup {
+                    stage: "Ingress recovery queue",
+                })?;
+        }
         let shutdown = ShutdownSignal::new();
         let api = Arc::new(ApplicationApi::new(Arc::new(runtime), ingress_sender));
         let router = boundary_router(Arc::clone(&api), config.boundary_config);
@@ -530,7 +556,7 @@ fn map_revision_error(_error: RuntimeRevisionError) -> ServerError {
 }
 
 fn installed_registry() -> Result<CapabilityRegistry, ServerError> {
-    let registry = CapabilityRegistry::new();
+    let registry = neutral_registry();
     registry.validate().map_err(|_| ServerError::Startup {
         stage: "Capability registry",
     })?;

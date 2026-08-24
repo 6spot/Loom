@@ -2604,6 +2604,45 @@ impl IngressStore for InMemoryStore {
         Box::pin(async move { InMemoryStore::ingress(self, ingress_id) })
     }
 
+    fn list_recoverable(
+        &self,
+        now: PlatformTime,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<Vec<IngressId>, IngressError>> {
+        Box::pin(async move {
+            let guard = self.read_state();
+            let mut candidates: Vec<_> = guard
+                .ingresses
+                .values()
+                .filter_map(|record| {
+                    let eligible = record.submission.received_at <= now
+                        && match &record.status {
+                            IngressStatus::Accepted | IngressStatus::Retryable(_) => {
+                                record.available_at <= now
+                            }
+                            IngressStatus::Processing => record
+                                .lease
+                                .is_some_and(|lease| lease.claimed_until() <= now),
+                            IngressStatus::Completed(_) | IngressStatus::Failed(_) => false,
+                        };
+                    eligible.then(|| {
+                        (
+                            record.submission.received_at.value(),
+                            record.ingress_id().as_str().to_owned(),
+                            record.ingress_id().clone(),
+                        )
+                    })
+                })
+                .collect();
+            candidates.sort_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)));
+            candidates.truncate(limit.min(1024));
+            Ok(candidates
+                .into_iter()
+                .map(|candidate| candidate.2)
+                .collect())
+        })
+    }
+
     fn claim(
         &self,
         ingress_id: IngressId,
