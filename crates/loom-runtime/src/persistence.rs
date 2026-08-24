@@ -1569,6 +1569,12 @@ pub struct CommitProvenance {
     pub ingress_id: IngressId,
     /// Deterministic identity of the complete validated logical proposal.
     pub proposal_identity: String,
+    /// Expected Timeline version after this proposal's authority commit.
+    #[serde(default)]
+    pub expected_after_version: Option<TimelineVersion>,
+    /// Event identities expected in the authority journal record.
+    #[serde(default)]
+    pub expected_event_ids: Vec<EventId>,
     /// Complete logical Work transitions produced by the authority commit.
     /// This is empty while the Session holds its prepared proposal and is
     /// filled by the linearized commit journal before finalization.
@@ -1590,6 +1596,8 @@ impl CommitProvenance {
             session_id,
             ingress_id,
             proposal_identity: proposal_identity.into(),
+            expected_after_version: None,
+            expected_event_ids: Vec::new(),
             logical_work_transitions: Vec::new(),
         }
     }

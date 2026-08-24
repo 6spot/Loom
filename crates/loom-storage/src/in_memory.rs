@@ -13,6 +13,9 @@ use std::{
     sync::RwLock,
 };
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use loom_core::{
     Entity, EntityId, EventId, EventRef, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
     RelationshipId, TimelineAncestry, TimelineId, TimelineVersion, WorldEffect, WorldId,
@@ -171,6 +174,12 @@ impl std::error::Error for SetupError {}
 /// authority. Callers supply platform-time values to claim, retry and commit.
 pub struct InMemoryStore {
     state: RwLock<StoreState>,
+    #[cfg(test)]
+    fail_next_ingress_finalization: AtomicBool,
+    #[cfg(test)]
+    fail_next_ingress_commit_unknown: AtomicBool,
+    #[cfg(test)]
+    ingress_authority_commit_attempts: AtomicUsize,
 }
 
 impl Default for InMemoryStore {
@@ -185,7 +194,31 @@ impl InMemoryStore {
     pub fn new() -> Self {
         Self {
             state: RwLock::new(StoreState::default()),
+            #[cfg(test)]
+            fail_next_ingress_finalization: AtomicBool::new(false),
+            #[cfg(test)]
+            fail_next_ingress_commit_unknown: AtomicBool::new(false),
+            #[cfg(test)]
+            ingress_authority_commit_attempts: AtomicUsize::new(0),
         }
+    }
+
+    #[cfg(test)]
+    pub fn fail_next_ingress_finalization_for_test(&self) {
+        self.fail_next_ingress_finalization
+            .store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub fn fail_next_ingress_commit_unknown_for_test(&self) {
+        self.fail_next_ingress_commit_unknown
+            .store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub fn ingress_authority_commit_attempts_for_test(&self) -> usize {
+        self.ingress_authority_commit_attempts
+            .load(Ordering::Acquire)
     }
 
     /// Atomically accepts, deduplicates or conflicts one external submission.
@@ -516,6 +549,15 @@ impl InMemoryStore {
         completion: IngressCompletion,
         provenance: Option<loom_runtime::CommitProvenance>,
     ) -> Result<ExecutionSession, SessionError> {
+        #[cfg(test)]
+        if self
+            .fail_next_ingress_finalization
+            .swap(false, Ordering::AcqRel)
+        {
+            return Err(SessionError::StorageUnavailable {
+                message: "test finalization interruption".to_owned(),
+            });
+        }
         self.finish_session_inner(
             session_id,
             status,
@@ -1267,6 +1309,19 @@ impl InMemoryStore {
         now: PlatformTime,
         chronology_budget_limit: Option<u64>,
     ) -> Result<CommitResult, CommitError> {
+        #[cfg(test)]
+        if context.ingress_claim.is_some() {
+            self.ingress_authority_commit_attempts
+                .fetch_add(1, Ordering::AcqRel);
+            if self
+                .fail_next_ingress_commit_unknown
+                .swap(false, Ordering::AcqRel)
+            {
+                return Err(CommitError::CommitOutcomeUnknown {
+                    message: "test unknown ingress commit outcome".to_owned(),
+                });
+            }
+        }
         self.commit_with_chronology_budget(resolution, context, now, chronology_budget_limit)
     }
 

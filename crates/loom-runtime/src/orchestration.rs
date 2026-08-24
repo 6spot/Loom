@@ -46,21 +46,22 @@ use crate::{
     ExecutionOrigin, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore,
     FailurePolicy, ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState,
     IdentityAllocator, IngressClaim, IngressError, IngressStore, IngressSubmission,
-    IngressTechnicalFailure, LifecycleError, LogicalWorkState, LogicalWorkTransition,
-    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
-    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
-    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
-    ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError, RuntimeRevisionAssembly,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError,
-    SemanticProjectionFilter, SemanticProjectionHit, SemanticProjectionKey,
-    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
-    SemanticProjectionStore, SessionError, TimelineBlockedOnMissingImplementation,
-    TimelineDriverBlock, TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
-    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
-    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
-    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
+    IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
+    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
+    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
+    ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
+    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
+    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
+    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
+    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
+    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
@@ -83,7 +84,7 @@ enum AuthorityExecution {
         entropy_evidence: EntropyEvidence,
     },
     Committed {
-        result: crate::CommitResult,
+        result: Box<crate::CommitResult>,
         validated: Box<ValidatedResolution>,
         changes_runtime_state: bool,
         provenance: Option<CommitProvenance>,
@@ -1364,6 +1365,7 @@ where
     #[allow(clippy::too_many_lines)]
     async fn execute_root_authority(
         &self,
+        snapshot: &TimelineSnapshot,
         base: &BaseWorldView,
         assembly: &ExecutionAssembly,
         invocation: &ActionInvocation,
@@ -1441,8 +1443,22 @@ where
                     })?;
 
                 let mut context = context;
+                let changes_runtime_state =
+                    changes_runtime_state(&validated, context.current_work.as_ref());
+                let expected_event_ids: Vec<_> =
+                    validated.events().iter().map(|event| event.id).collect();
+                let expected_after_version =
+                    expected_after_version(&validated, changes_runtime_state);
+                let expected_work_transitions = expected_work_transitions(snapshot, &validated);
                 let provenance = context.provenance.as_mut().map(|provenance| {
                     provenance.proposal_identity = logical_proposal_identity(&validated);
+                    provenance.expected_after_version = Some(expected_after_version);
+                    provenance
+                        .expected_event_ids
+                        .clone_from(&expected_event_ids);
+                    provenance
+                        .logical_work_transitions
+                        .clone_from(&expected_work_transitions);
                     provenance.clone()
                 });
                 if let Some(provenance) = provenance.clone() {
@@ -1458,8 +1474,6 @@ where
                         })?;
                     context.provenance = Some(provenance);
                 }
-                let changes_runtime_state =
-                    changes_runtime_state(&validated, context.current_work.as_ref());
                 let result = match self
                     .store
                     .commit_with_authority(&validated, context, self.platform_clock.now())
@@ -1479,7 +1493,7 @@ where
                 };
                 let committed_provenance = result.provenance.clone().or(provenance);
                 Ok(AuthorityExecution::Committed {
-                    result,
+                    result: Box::new(result),
                     validated: Box::new(validated),
                     changes_runtime_state,
                     provenance: committed_provenance,
@@ -1551,12 +1565,14 @@ where
             }
             IngressStatus::Accepted | IngressStatus::Processing | IngressStatus::Retryable(_) => {}
         }
+        let retryable = matches!(&record.status, IngressStatus::Retryable(_));
 
         // Recovery is provenance-first: inspect durable Sessions before any
         // fresh snapshot/assembly/action preflight.
         let existing_session = match self.recover_ingress(&ingress_id).await? {
             IngressRecovery::None => None,
             IngressRecovery::Resumable(session) => Some(*session),
+            IngressRecovery::TerminalFailed if retryable => None,
             IngressRecovery::TerminalFailed => {
                 return Err(ApiError::unavailable(
                     "Ingress terminal Failed Session is not resumable",
@@ -1600,16 +1616,15 @@ where
         if let Some(session) = existing_session.as_ref()
             && let Some(provenance) = session.commit_provenance()
             && let Some(commit) = snapshot.journal.iter().find(|commit| {
-                commit.timeline_id == session.assembly().timeline_id()
-                    && commit.before_version == session.assembly().expected_version()
-                    && commit.world_time.is_none()
-                    && commit.chronology_budget.is_none()
-                    && committed_provenance_matches(commit.provenance.as_ref(), Some(provenance))
-                    && commit.work_transitions
-                        == commit
-                            .provenance
-                            .as_ref()
-                            .map_or_else(Vec::new, |value| value.logical_work_transitions.clone())
+                exact_logical_commit_matches(
+                    commit,
+                    Some(provenance),
+                    session.assembly().timeline_id(),
+                    session.assembly().expected_version(),
+                    commit.after_version,
+                    &commit.event_ids,
+                    Some(&provenance.logical_work_transitions),
+                )
             })
         {
             let claim_ref = claim.as_ref().ok_or_else(|| {
@@ -1734,7 +1749,13 @@ where
             )),
         };
         match self
-            .execute_root_authority(&snapshot.world_view(), &assembly, &invocation, context)
+            .execute_root_authority(
+                &snapshot,
+                &snapshot.world_view(),
+                &assembly,
+                &invocation,
+                context,
+            )
             .await
         {
             Ok(AuthorityExecution::Rejected {
@@ -1865,26 +1886,7 @@ where
             .into_iter()
             .filter(|session| session.ingress_id() == Some(ingress_id))
             .collect();
-        let resumable: Vec<_> = matches
-            .iter()
-            .filter(|session| {
-                session.status() == ExecutionSessionStatus::Started
-                    || session.ingress_completion().is_some()
-            })
-            .collect();
-        match resumable.as_slice() {
-            [] if matches
-                .iter()
-                .any(|session| session.status() == ExecutionSessionStatus::Failed) =>
-            {
-                Ok(IngressRecovery::TerminalFailed)
-            }
-            [] => Ok(IngressRecovery::None),
-            [session] => Ok(IngressRecovery::Resumable(Box::new((*session).clone()))),
-            _ => Err(ApiError::unavailable(
-                "Ingress has multiple resumable Session provenance records",
-            )),
-        }
+        classify_ingress_sessions(&matches)
     }
 
     async fn reconcile_ingress_commit(
@@ -1900,27 +1902,17 @@ where
         let snapshot = self.snapshot_for_target(target).await?;
         let expected_event_ids: Vec<_> = resolution.events().iter().map(|event| event.id).collect();
         let expected_work_transitions = expected_work_transitions(&snapshot, resolution);
-        let expected_after_version = TimelineVersion::new(
-            loom_core::EventSeq::new(
-                resolution.base_version().head_event_seq.value()
-                    + u64::try_from(expected_event_ids.len()).unwrap_or(u64::MAX),
-            ),
-            loom_core::StateRevision::new(
-                resolution.base_version().state_revision.value() + u64::from(changes_runtime_state),
-            ),
-        );
+        let expected_after_version = expected_after_version(resolution, changes_runtime_state);
         if let Some(commit) = snapshot.journal.iter().find(|commit| {
-            commit.timeline_id == resolution.timeline_id()
-                && commit.before_version == resolution.base_version()
-                && commit.after_version == expected_after_version
-                && commit.event_ids == expected_event_ids
-                && committed_provenance_matches(commit.provenance.as_ref(), provenance)
-                && commit.work_transitions == expected_work_transitions
-                && commit.provenance.as_ref().is_some_and(|value| {
-                    value.logical_work_transitions == expected_work_transitions
-                })
-                && commit.world_time.is_none()
-                && commit.chronology_budget.is_none()
+            exact_logical_commit_matches(
+                commit,
+                provenance,
+                resolution.timeline_id(),
+                resolution.base_version(),
+                expected_after_version,
+                &expected_event_ids,
+                Some(&expected_work_transitions),
+            )
         }) {
             return Ok(Some((
                 IngressCompletion::Committed {
@@ -2237,6 +2229,72 @@ fn committed_provenance_matches(
     actual.session_id == expected.session_id
         && actual.ingress_id == expected.ingress_id
         && actual.proposal_identity == expected.proposal_identity
+        && actual.expected_after_version == expected.expected_after_version
+        && actual.expected_event_ids == expected.expected_event_ids
+        && actual.logical_work_transitions == expected.logical_work_transitions
+}
+
+fn classify_ingress_sessions(matches: &[ExecutionSession]) -> ApiResult<IngressRecovery> {
+    let resumable: Vec<_> = matches
+        .iter()
+        .filter(|session| {
+            session.status() == ExecutionSessionStatus::Started
+                || session.ingress_completion().is_some()
+        })
+        .collect();
+    match resumable.as_slice() {
+        [] if matches
+            .iter()
+            .any(|session| session.status() == ExecutionSessionStatus::Failed) =>
+        {
+            Ok(IngressRecovery::TerminalFailed)
+        }
+        [] => Ok(IngressRecovery::None),
+        [session] => Ok(IngressRecovery::Resumable(Box::new((*session).clone()))),
+        _ => Err(ApiError::unavailable(
+            "Ingress has multiple resumable Session provenance records",
+        )),
+    }
+}
+
+fn exact_logical_commit_matches(
+    commit: &LogicalCommit,
+    expected: Option<&CommitProvenance>,
+    timeline_id: TimelineId,
+    before_version: TimelineVersion,
+    after_version: TimelineVersion,
+    event_ids: &[EventId],
+    work_transitions: Option<&[LogicalWorkTransition]>,
+) -> bool {
+    let (Some(actual), Some(expected)) = (commit.provenance.as_ref(), expected) else {
+        return false;
+    };
+    commit.timeline_id == timeline_id
+        && commit.before_version == before_version
+        && commit.after_version == after_version
+        && commit.event_ids == event_ids
+        && expected.expected_after_version == Some(after_version)
+        && expected.expected_event_ids == event_ids
+        && commit.world_time.is_none()
+        && commit.chronology_budget.is_none()
+        && committed_provenance_matches(Some(actual), Some(expected))
+        && actual.logical_work_transitions == commit.work_transitions
+        && work_transitions.is_none_or(|expected| commit.work_transitions == expected)
+}
+
+fn expected_after_version(
+    resolution: &ValidatedResolution,
+    changes_runtime_state: bool,
+) -> TimelineVersion {
+    TimelineVersion::new(
+        loom_core::EventSeq::new(
+            resolution.base_version().head_event_seq.value()
+                + u64::try_from(resolution.events().len()).unwrap_or(u64::MAX),
+        ),
+        loom_core::StateRevision::new(
+            resolution.base_version().state_revision.value() + u64::from(changes_runtime_state),
+        ),
+    )
 }
 
 fn expected_work_transitions(
@@ -2861,6 +2919,7 @@ where
                 .await?;
             match self
                 .execute_root_authority(
+                    &snapshot,
                     &snapshot.world_view(),
                     &assembly,
                     &request.invocation,
@@ -5598,6 +5657,84 @@ mod tests {
             last_error: None,
             lease,
         }
+    }
+
+    #[test]
+    fn ingress_exact_recovery_rejects_after_event_and_work_mismatch() {
+        let timeline_id = id::<TimelineId>(91);
+        let before = TimelineVersion::default();
+        let after = TimelineVersion::new(EventSeq::default(), StateRevision::new(1));
+        let transition = LogicalWorkTransition::Schedule {
+            work_id: id::<WorkId>(92),
+            target: WorkTarget::CapabilityWork {
+                owner: Some("test".to_owned()),
+                handler: WorkHandlerId::from("test.handler"),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: json!({"value": 1}),
+            effective_due_world_time: WorldInstant::new(0),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+        };
+        let mut provenance = CommitProvenance::new(
+            id::<loom_core::ExecutionSessionId>(93),
+            IngressId::from("ingress-regression"),
+            "canonical-proposal",
+        );
+        provenance.expected_after_version = Some(after);
+        provenance.expected_event_ids = Vec::new();
+        provenance.logical_work_transitions = vec![transition.clone()];
+        let commit = LogicalCommit {
+            timeline_id,
+            before_version: before,
+            after_version: after,
+            world_time: None,
+            event_ids: Vec::new(),
+            work_transitions: vec![transition.clone()],
+            chronology_budget: None,
+            provenance: Some(provenance.clone()),
+        };
+        let matches = |commit: &LogicalCommit| {
+            exact_logical_commit_matches(
+                commit,
+                Some(&provenance),
+                timeline_id,
+                before,
+                after,
+                &[],
+                Some(std::slice::from_ref(&transition)),
+            )
+        };
+        assert!(matches(&commit));
+        let mut tampered = commit.clone();
+        tampered.after_version = TimelineVersion::new(EventSeq::new(1), StateRevision::new(1));
+        assert!(!matches(&tampered));
+        let mut tampered = commit.clone();
+        tampered.event_ids.push(id::<loom_core::EventId>(94));
+        assert!(!matches(&tampered));
+        let mut tampered = commit;
+        if let LogicalWorkTransition::Schedule { payload, .. } = &mut tampered.work_transitions[0] {
+            *payload = json!({"value": 2});
+        }
+        assert!(!matches(&tampered));
+    }
+
+    #[test]
+    fn failed_ingress_session_is_classified_non_resumable() {
+        let ingress_id = IngressId::from("failed-ingress");
+        let session = ExecutionSession::new_ingress(
+            id::<loom_core::ExecutionSessionId>(95),
+            ingress_id,
+            test_assembly(&semantic_registry(), semantic_binding()),
+            PlatformTime::new(1),
+        )
+        .finish(ExecutionSessionStatus::Failed, PlatformTime::new(2))
+        .expect("Started Session should transition to Failed");
+        assert!(matches!(
+            classify_ingress_sessions(&[session]),
+            Ok(IngressRecovery::TerminalFailed)
+        ));
     }
 
     fn test_assembly(
