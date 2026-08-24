@@ -81,6 +81,7 @@
 
 #![forbid(unsafe_code)]
 
+mod agent_world_view;
 mod blob;
 mod budget;
 mod entropy;
@@ -94,6 +95,9 @@ mod replay;
 mod validation;
 mod views;
 
+pub use agent_world_view::{
+    AgentContextItem, AgentContextPlan, AgentWorldViewBuilder, AgentWorldViewError,
+};
 pub use blob::{
     BLOB_HASH_SIZE, BlobError, BlobHash, BlobHashParseError, BlobId, BlobMetadata, BlobObject,
     BlobRef, BlobStore,

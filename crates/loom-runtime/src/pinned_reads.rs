@@ -12,9 +12,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use loom_capability::SemanticIndexId;
 use loom_core::{
-    Entity, EntityId, EventId, FacetOwner, FacetTypeId, Relationship, RelationshipId, TimelineId,
-    TimelineVersion, WorldId, WorldInstant,
+    Entity, EntityId, EventId, EventRef, FacetOwner, FacetTypeId, Relationship, RelationshipId,
+    SchemaRevision, TimelineId, TimelineVersion, WorldId, WorldInstant,
 };
 use serde_json::Value;
 
@@ -248,6 +249,32 @@ impl PinnedReadSession {
         self.record(ReadDependency::Event { event_id, present });
     }
 
+    /// Records one Runtime-mediated semantic projection read.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the provenance fields mirror one semantic ReadDependency"
+    )]
+    pub fn record_semantic(
+        &self,
+        index_id: SemanticIndexId,
+        query_fingerprint: String,
+        query_spec: String,
+        source_schema_revision: SchemaRevision,
+        projection_revision: u64,
+        model_revision: String,
+        source_refs: Vec<EventRef>,
+    ) {
+        self.record(ReadDependency::Semantic {
+            index_id,
+            query_fingerprint,
+            query_spec,
+            source_schema_revision,
+            projection_revision,
+            model_revision,
+            source_refs,
+        });
+    }
+
     fn record(&self, dependency: ReadDependency) {
         self.reads
             .lock()
@@ -446,6 +473,10 @@ where
     #[must_use]
     pub const fn policy(&self) -> PinnedReadPolicy {
         self.policy
+    }
+
+    pub(crate) const fn store(&self) -> &'store S {
+        self.store
     }
 
     /// Reads one Entity, using only an exact-version cache hit or the fenced port.
