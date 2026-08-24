@@ -302,7 +302,10 @@ impl LoomServer {
             match RuntimeRevisionStore::read_revision(&storage, config.revision_id.clone().into())
                 .await
             {
-                Ok(existing) => existing,
+                Ok(existing) => {
+                    ensure_candidate_revision_matches_published(&candidate_revision, &existing)?;
+                    existing
+                }
                 Err(RuntimeRevisionError::RevisionNotFound { .. }) => candidate_revision,
                 Err(error) => return Err(map_revision_error(error)),
             };
@@ -507,6 +510,30 @@ async fn ensure_active_revision(
     }
 }
 
+fn ensure_candidate_revision_matches_published(
+    candidate: &RuntimeRevisionDescriptor,
+    published: &RuntimeRevisionDescriptor,
+) -> Result<(), ServerError> {
+    // The startup candidate is freshly timestamped; publication time is
+    // immutable history metadata and is intentionally excluded from this
+    // software identity comparison.
+    let matches = candidate.id() == published.id()
+        && candidate.core_build_ref() == published.core_build_ref()
+        && candidate.loom_version() == published.loom_version()
+        && candidate.capabilities() == published.capabilities()
+        && candidate.execution_policy_id() == published.execution_policy_id()
+        && candidate.provider_policy_id() == published.provider_policy_id()
+        && candidate.change_summary() == published.change_summary()
+        && candidate.semantic_behavior_changed() == published.semantic_behavior_changed();
+    if matches {
+        Ok(())
+    } else {
+        Err(ServerError::Startup {
+            stage: "Runtime Revision candidate validation",
+        })
+    }
+}
+
 async fn wait_for_shutdown(shutdown: ShutdownSignal) {
     tokio::select! {
         () = shutdown.wait() => {}
@@ -556,4 +583,81 @@ fn installed_registry() -> Result<CapabilityRegistry, ServerError> {
         stage: "Capability registry",
     })?;
     Ok(registry)
+}
+
+#[cfg(test)]
+mod tests {
+    use loom_runtime::{PlatformTime, RuntimeRevisionCapability, RuntimeRevisionDescriptor};
+
+    use super::{ServerError, ensure_candidate_revision_matches_published, installed_registry};
+
+    fn revision(
+        core_build_ref: &str,
+        implementation_override: Option<&str>,
+    ) -> RuntimeRevisionDescriptor {
+        let registry = installed_registry().expect("the installed test registry should validate");
+        let first_capability = registry
+            .capabilities()
+            .next()
+            .expect("the installed test registry should contain a Capability")
+            .id
+            .clone();
+        let capabilities = registry.capabilities().map(|manifest| {
+            let implementation_id = if manifest.id == first_capability {
+                implementation_override
+                    .unwrap_or("neutral-test@expected")
+                    .to_owned()
+            } else {
+                format!("{}@{}", manifest.id, manifest.version)
+            };
+            RuntimeRevisionCapability::from_manifest(manifest, implementation_id)
+        });
+        RuntimeRevisionDescriptor::new(
+            "loom-server-restart-test",
+            PlatformTime::new(1),
+            core_build_ref,
+            registry.loom_version().clone(),
+            capabilities,
+        )
+        .expect("the test Runtime Revision descriptor should be valid")
+    }
+
+    #[test]
+    fn startup_accepts_same_build_after_restart_despite_new_publication_time() {
+        let persisted_build_one = revision("build-1", None);
+        let restarted_build_one = revision("build-1", None);
+
+        ensure_candidate_revision_matches_published(&restarted_build_one, &persisted_build_one)
+            .expect("a restart with the same registered build should reuse the publication");
+    }
+
+    #[test]
+    fn startup_rejects_same_revision_id_when_restart_changes_core_build_ref() {
+        let persisted_build_one = revision("build-1", None);
+        let restarted_build_two = revision("build-2", None);
+
+        assert!(matches!(
+            ensure_candidate_revision_matches_published(&restarted_build_two, &persisted_build_one),
+            Err(ServerError::Startup {
+                stage: "Runtime Revision candidate validation"
+            })
+        ));
+    }
+
+    #[test]
+    fn startup_rejects_same_revision_id_when_restart_changes_implementation_identity() {
+        let persisted_build_one = revision("build-1", None);
+        let restarted_with_different_implementation =
+            revision("build-1", Some("implementation-build-2"));
+
+        assert!(matches!(
+            ensure_candidate_revision_matches_published(
+                &restarted_with_different_implementation,
+                &persisted_build_one,
+            ),
+            Err(ServerError::Startup {
+                stage: "Runtime Revision candidate validation"
+            })
+        ));
+    }
 }
