@@ -95,10 +95,12 @@ use axum::{
 };
 use futures_util::stream;
 use loom_api::{
-    ActionRequest, ApiError, ApiResult, CausalQuery, ChangeFeedCursor,
-    CreateWorldFromTemplateRequest, EventQuery, EventRef, FacetQuery, IngressId, IngressService,
-    LoomApi, RelationshipTrajectoryQuery, SubscriptionRequest, SubscriptionResult,
-    SubscriptionService, TimelineTarget, WorldId,
+    ActionRequest, AdminActivateRuntimeRevisionRequest, AdminAdvanceWorldTimeRequest,
+    AdminExecutionSessionRequest, AdminMissingImplementationRequest, AdminOperation,
+    AdminRuntimeRevisionRequest, AdminService, AdminTerminalizeWorkRequest, ApiError, ApiResult,
+    CausalQuery, ChangeFeedCursor, CreateWorldFromTemplateRequest, EventQuery, EventRef,
+    FacetQuery, IngressId, IngressService, LoomApi, RelationshipTrajectoryQuery,
+    SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineTarget, WorldId,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer};
@@ -258,9 +260,67 @@ impl<T> BoundaryApi for T where
 {
 }
 
+/// API capabilities required by the isolated Runtime admin router.
+pub trait AdminBoundaryApi: BoundaryApi + AdminService {}
+
+impl<T> AdminBoundaryApi for T where T: BoundaryApi + AdminService {}
+
+/// Authorization hook for the Admin/Runtime Control namespace.
+///
+/// The hook is deliberately owned by the Boundary composition root rather
+/// than inferred from ordinary World API access. It receives the stable
+/// operation identity and transport headers, and must return a typed failure
+/// before any Admin service method is called.
+pub trait AdminAuthorizationHook: Send + Sync + 'static {
+    /// Authorizes one isolated Admin operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed `Unauthorized` or `Forbidden` error when the request
+    /// does not satisfy the composition root's Admin policy.
+    fn authorize(&self, operation: AdminOperation, headers: &HeaderMap) -> ApiResult<()>;
+}
+
+/// Minimal composition-root hook requiring a distinct Admin credential.
+///
+/// Applications with a real identity/policy provider should replace this hook.
+/// It intentionally does not interpret ordinary bearer tokens or grant World
+/// API authority; it only demonstrates the independent Admin boundary gate.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RequireAdminAuthorization;
+
+impl AdminAuthorizationHook for RequireAdminAuthorization {
+    fn authorize(&self, _operation: AdminOperation, headers: &HeaderMap) -> ApiResult<()> {
+        if headers
+            .get("x-loom-admin-authorization")
+            .is_some_and(|value| !value.as_bytes().is_empty())
+        {
+            Ok(())
+        } else {
+            Err(ApiError::unauthorized("Admin authorization is required"))
+        }
+    }
+}
+
 struct AppState<S> {
     api: Arc<S>,
     config: BoundaryConfig,
+}
+
+struct AdminAppState<S, A> {
+    api: Arc<S>,
+    authorizer: Arc<A>,
+    config: BoundaryConfig,
+}
+
+impl<S, A> Clone for AdminAppState<S, A> {
+    fn clone(&self) -> Self {
+        Self {
+            api: Arc::clone(&self.api),
+            authorizer: Arc::clone(&self.authorizer),
+            config: self.config,
+        }
+    }
 }
 
 impl<S> Clone for AppState<S> {
@@ -324,6 +384,312 @@ where
     S: BoundaryApi,
 {
     router(api, config)
+}
+
+/// Builds the isolated `/v1/admin` Runtime Control router.
+pub fn admin_router<S, A>(api: Arc<S>, authorizer: Arc<A>, config: BoundaryConfig) -> Router
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    let state = AdminAppState {
+        api,
+        authorizer,
+        config,
+    };
+    Router::new()
+        .route(
+            "/v1/admin/runtime-revisions/active",
+            get(admin_active_runtime_revision::<S, A>),
+        )
+        .route(
+            "/v1/admin/runtime-revisions",
+            get(admin_list_runtime_revisions::<S, A>),
+        )
+        .route(
+            "/v1/admin/runtime-revisions/get",
+            post(admin_get_runtime_revision::<S, A>),
+        )
+        .route(
+            "/v1/admin/runtime-revisions/activate",
+            post(admin_activate_runtime_revision::<S, A>),
+        )
+        .route("/v1/admin/sessions", get(admin_list_sessions::<S, A>))
+        .route("/v1/admin/sessions/get", post(admin_get_session::<S, A>))
+        .route(
+            "/v1/admin/sessions/event",
+            post(admin_session_for_event::<S, A>),
+        )
+        .route(
+            "/v1/admin/timelines/status",
+            post(admin_timeline_status::<S, A>),
+        )
+        .route(
+            "/v1/admin/timelines/missing-implementation",
+            post(admin_missing_implementation::<S, A>),
+        )
+        .route(
+            "/v1/admin/work/terminalize",
+            post(admin_terminalize_work::<S, A>),
+        )
+        .route(
+            "/v1/admin/world-time/advance",
+            post(admin_advance_world_time::<S, A>),
+        )
+        .with_state(state)
+        .layer(ServiceBuilder::new().layer(ConcurrencyLimitLayer::new(config.concurrent_requests)))
+}
+
+/// Builds the ordinary World router plus the isolated Admin router.
+pub fn router_with_admin<S, A>(api: Arc<S>, authorizer: Arc<A>, config: BoundaryConfig) -> Router
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    router(Arc::clone(&api), config).merge(admin_router(api, authorizer, config))
+}
+
+/// Alias for [`router_with_admin`] for composition roots that call their HTTP
+/// value an application.
+pub fn app_with_admin<S, A>(api: Arc<S>, authorizer: Arc<A>, config: BoundaryConfig) -> Router
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    router_with_admin(api, authorizer, config)
+}
+
+fn authorize_admin<S, A>(
+    state: &AdminAppState<S, A>,
+    request: &Request,
+    operation: AdminOperation,
+) -> ApiResult<()>
+where
+    A: AdminAuthorizationHook,
+{
+    validate_headers(request, state.config)?;
+    state.authorizer.authorize(operation, request.headers())
+}
+
+async fn admin_active_runtime_revision<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ReadActiveRevision) {
+        return error_response(error, state.config);
+    }
+    match block_on_api(state.api.active_runtime_revision()) {
+        Ok(selection) => json_response(StatusCode::OK, &selection, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_list_runtime_revisions<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ListRevisions) {
+        return error_response(error, state.config);
+    }
+    match block_on_api(state.api.list_runtime_revisions()) {
+        Ok(revisions) => json_response(StatusCode::OK, &revisions, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_get_runtime_revision<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ReadRevision) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminRuntimeRevisionRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.get_runtime_revision(body)) {
+        Ok(revision) => json_response(StatusCode::OK, &revision, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_activate_runtime_revision<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ActivateRevision) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminActivateRuntimeRevisionRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.activate_runtime_revision(body)) {
+        Ok(selection) => json_response(StatusCode::OK, &selection, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_list_sessions<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ListSessions) {
+        return error_response(error, state.config);
+    }
+    match block_on_api(state.api.list_execution_sessions()) {
+        Ok(sessions) => json_response(StatusCode::OK, &sessions, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_get_session<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ReadSession) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminExecutionSessionRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.get_execution_session(body)) {
+        Ok(session) => json_response(StatusCode::OK, &session, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_session_for_event<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::SessionForEvent) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<EventRef>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.session_for_event(body)) {
+        Ok(lookup) => json_response(StatusCode::OK, &lookup, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_timeline_status<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ReadTimelineLogicalStatus)
+    {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<TimelineTarget>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.timeline_logical_status(body)) {
+        Ok(status) => json_response(StatusCode::OK, &status, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_missing_implementation<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::ReadMissingImplementation)
+    {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminMissingImplementationRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.missing_implementation(body)) {
+        Ok(block) => json_response(StatusCode::OK, &block, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_terminalize_work<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::TerminalizeWork) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminTerminalizeWorkRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.terminalize_work(body)) {
+        Ok(result) => json_response(StatusCode::OK, &result, state.config),
+        Err(error) => error_response(error, state.config),
+    }
+}
+
+async fn admin_advance_world_time<S, A>(
+    State(state): State<AdminAppState<S, A>>,
+    request: Request,
+) -> Response
+where
+    S: AdminBoundaryApi,
+    A: AdminAuthorizationHook,
+{
+    if let Err(error) = authorize_admin(&state, &request, AdminOperation::AdvanceWorldTime) {
+        return error_response(error, state.config);
+    }
+    let body = match json_body::<AdminAdvanceWorldTimeRequest>(request, state.config).await {
+        Ok(body) => body,
+        Err(error) => return error_response(error, state.config),
+    };
+    match block_on_api(state.api.advance_world_time(body)) {
+        Ok(result) => json_response(StatusCode::OK, &result, state.config),
+        Err(error) => error_response(error, state.config),
+    }
 }
 
 async fn create_world<S>(State(state): State<AppState<S>>, request: Request) -> Response
@@ -995,6 +1361,8 @@ fn error_response(error: ApiError, config: BoundaryConfig) -> Response {
         "not_found" => StatusCode::NOT_FOUND,
         "conflict" => StatusCode::CONFLICT,
         "unavailable" => StatusCode::SERVICE_UNAVAILABLE,
+        "unauthorized" => StatusCode::UNAUTHORIZED,
+        "forbidden" => StatusCode::FORBIDDEN,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     let bytes = serde_json::to_vec(&body)

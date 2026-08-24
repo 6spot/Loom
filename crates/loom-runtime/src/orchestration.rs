@@ -14,8 +14,17 @@ use std::{
 };
 
 use loom_api::{
-    ActionDescriptor, ActionRequest, ActionService, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
+    ActionDescriptor, ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
+    AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminChronologyBudget,
+    AdminCommitProvenance, AdminEntropyEvidence, AdminEntropyObservation, AdminEventSessionLookup,
+    AdminExecutionOrigin, AdminExecutionRoot, AdminExecutionSession, AdminExecutionSessionRequest,
+    AdminExecutionSessionStatus, AdminLogicalWorkStatus, AdminMissingImplementationBlock,
+    AdminMissingImplementationRequest, AdminReadDependency, AdminResolutionCallEdge,
+    AdminRuntimeRevision, AdminRuntimeRevisionCapability, AdminRuntimeRevisionRequest,
+    AdminRuntimeRevisionSelection, AdminService, AdminTerminalWorkState,
+    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus,
+    AdminWorkStatus, ApiError, ApiFuture, ApiResult, CatalogService, CatalogSnapshot,
+    CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
     ChangeFeedPage as ApiChangeFeedPage, CommittedEvent as ApiCommittedEvent,
     CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
     EventDescriptor, EventPage, EventQuery, ExecutionResult, FacetDescriptor, FacetQuery,
@@ -4057,6 +4066,200 @@ fn api_semantic_index_descriptor(
     }
 }
 
+fn api_admin_revision(revision: &RuntimeRevisionDescriptor) -> AdminRuntimeRevision {
+    AdminRuntimeRevision {
+        revision_id: revision.id().to_string(),
+        published_at: revision.published_at().value(),
+        core_build_ref: revision.core_build_ref().to_owned(),
+        loom_version: revision.loom_version().to_string(),
+        capabilities: revision
+            .capabilities()
+            .values()
+            .map(|capability| AdminRuntimeRevisionCapability {
+                capability_id: capability.capability_id().to_string(),
+                implementation_id: capability.implementation_id().to_owned(),
+                version: capability.version().to_string(),
+                loom_compatibility: capability.loom_compatibility().to_string(),
+            })
+            .collect(),
+        execution_policy_id: revision.execution_policy_id().map(str::to_owned),
+        provider_policy_id: revision.provider_policy_id().map(str::to_owned),
+        change_summary: revision.change_summary().map(str::to_owned),
+        semantic_behavior_changed: revision.semantic_behavior_changed(),
+    }
+}
+
+fn api_admin_revision_selection(
+    selection: &RuntimeRevisionSelection,
+) -> AdminRuntimeRevisionSelection {
+    AdminRuntimeRevisionSelection {
+        revision: api_admin_revision(selection.revision()),
+        generation: selection.generation(),
+        activated_at: selection.activated_at().value(),
+    }
+}
+
+fn api_admin_origin(origin: ExecutionOrigin) -> AdminExecutionOrigin {
+    match origin {
+        ExecutionOrigin::Application => AdminExecutionOrigin::Application,
+        ExecutionOrigin::Ingress => AdminExecutionOrigin::Ingress,
+        ExecutionOrigin::Operator => AdminExecutionOrigin::Operator,
+        ExecutionOrigin::Runtime => AdminExecutionOrigin::Runtime,
+    }
+}
+
+fn api_admin_session_status(status: ExecutionSessionStatus) -> AdminExecutionSessionStatus {
+    match status {
+        ExecutionSessionStatus::Started => AdminExecutionSessionStatus::Started,
+        ExecutionSessionStatus::Committed => AdminExecutionSessionStatus::Committed,
+        ExecutionSessionStatus::NoChange => AdminExecutionSessionStatus::NoChange,
+        ExecutionSessionStatus::Rejected => AdminExecutionSessionStatus::Rejected,
+        ExecutionSessionStatus::Failed => AdminExecutionSessionStatus::Failed,
+        ExecutionSessionStatus::Blocked => AdminExecutionSessionStatus::Blocked,
+    }
+}
+
+fn api_admin_read_dependency(dependency: &ReadDependency) -> AdminReadDependency {
+    match dependency {
+        ReadDependency::Entity { entity_id, present } => AdminReadDependency::Entity {
+            entity_id: *entity_id,
+            present: *present,
+        },
+        ReadDependency::Relationship {
+            relationship_id,
+            present,
+        } => AdminReadDependency::Relationship {
+            relationship_id: *relationship_id,
+            present: *present,
+        },
+        ReadDependency::Facet {
+            owner,
+            facet_type,
+            schema_revision,
+        } => AdminReadDependency::Facet {
+            owner: *owner,
+            facet_type: facet_type.clone(),
+            schema_revision: *schema_revision,
+        },
+        ReadDependency::Event { event_id, present } => AdminReadDependency::Event {
+            event_id: *event_id,
+            present: *present,
+        },
+        ReadDependency::Semantic {
+            index_id,
+            query_fingerprint,
+            source_schema_revision,
+            projection_revision,
+            model_revision,
+            source_refs,
+            ..
+        } => AdminReadDependency::Semantic {
+            index_id: index_id.to_string(),
+            query_fingerprint: query_fingerprint.clone(),
+            source_schema_revision: *source_schema_revision,
+            projection_revision: *projection_revision,
+            model_revision: model_revision.clone(),
+            source_refs: source_refs.clone(),
+        },
+    }
+}
+
+fn api_admin_session(session: &ExecutionSession) -> AdminExecutionSession {
+    let assembly = session.assembly();
+    let root = session.root();
+    AdminExecutionSession {
+        id: session.id(),
+        origin: api_admin_origin(session.origin()),
+        target: TimelineTarget::new(assembly.world_id(), assembly.timeline_id()),
+        expected_version: assembly.expected_version(),
+        world_time: assembly.world_time(),
+        runtime_revision_id: assembly.runtime_revision().revision().id().to_string(),
+        root: AdminExecutionRoot {
+            action: root.action.clone(),
+            target_work: root.target_work,
+            current_work: root.current_work,
+            ingress: root
+                .ingress
+                .as_ref()
+                .map(|ingress| ingress.as_str().to_owned()),
+            bootstrap: root.bootstrap.clone(),
+            agency: root.agency.clone(),
+        },
+        started_at: session.started_at().value(),
+        ended_at: session.ended_at().map(PlatformTime::value),
+        status: api_admin_session_status(session.status()),
+        no_change: session.is_no_change(),
+        event_refs: session.event_refs().to_vec(),
+        read_set: session
+            .read_set()
+            .entries()
+            .iter()
+            .map(api_admin_read_dependency)
+            .collect(),
+        call_provenance: session
+            .call_provenance()
+            .edges()
+            .iter()
+            .map(|edge| AdminResolutionCallEdge {
+                caller_capability: edge.caller_capability.to_string(),
+                caller_action: edge.caller_action.clone(),
+                target_capability: edge.target_capability.to_string(),
+                target_action: edge.target_action.clone(),
+            })
+            .collect(),
+        entropy_evidence: AdminEntropyEvidence {
+            source_id: session.entropy_evidence().source_id().to_string(),
+            observations: session
+                .entropy_evidence()
+                .observations()
+                .iter()
+                .map(|observation| AdminEntropyObservation {
+                    ordinal: observation.ordinal,
+                    requested_bytes: observation.request.byte_count(),
+                })
+                .collect(),
+        },
+        commit_provenance: session
+            .commit_provenance()
+            .map(|provenance| AdminCommitProvenance {
+                session_id: provenance.session_id,
+                ingress_id: provenance.ingress_id.as_str().to_owned(),
+                proposal_identity: provenance.proposal_identity.clone(),
+                expected_after_version: provenance.expected_after_version,
+                expected_event_ids: provenance.expected_event_ids.clone(),
+                logical_work_transition_count: u64::try_from(
+                    provenance.logical_work_transitions.len(),
+                )
+                .expect("logical Work transition count must fit the public count"),
+            }),
+    }
+}
+
+fn api_admin_work_status(status: WorkStatus) -> AdminWorkStatus {
+    match status {
+        WorkStatus::Pending => AdminWorkStatus::Pending,
+        WorkStatus::Completed => AdminWorkStatus::Completed,
+        WorkStatus::Cancelled => AdminWorkStatus::Cancelled,
+        WorkStatus::Dead => AdminWorkStatus::Dead,
+    }
+}
+
+fn api_admin_missing_implementation(
+    block: TimelineBlockedOnMissingImplementation,
+) -> ApiResult<AdminMissingImplementationBlock> {
+    let semantic_requirement = serde_json::to_value(block.semantic_requirement)
+        .map_err(|_| ApiError::internal("Runtime liveness value could not be projected"))?;
+    Ok(AdminMissingImplementationBlock {
+        world_id: block.world_id,
+        timeline_id: block.timeline_id,
+        work_id: block.work_id,
+        semantic_requirement,
+        active_runtime_revision: block.active_runtime_revision.to_string(),
+        first_observed_platform_time: block.first_observed_platform_time.map(PlatformTime::value),
+        last_observed_platform_time: block.last_observed_platform_time.value(),
+    })
+}
+
 fn version_before(candidate: TimelineVersion, boundary: TimelineVersion) -> bool {
     candidate.head_event_seq < boundary.head_event_seq
         || candidate.state_revision < boundary.state_revision
@@ -4353,6 +4556,207 @@ where
                 }
             }
             Ok(self.project_catalog(Some(&available)))
+        })
+    }
+}
+
+impl<S> AdminService for Runtime<S>
+where
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore
+        + RuntimeControlStore
+        + WorldTimeStore,
+{
+    fn active_runtime_revision(
+        &self,
+    ) -> loom_api::AdminFuture<'_, Option<AdminRuntimeRevisionSelection>> {
+        Box::pin(async move {
+            self.active_runtime_revision()
+                .await
+                .map(|selection| selection.as_ref().map(api_admin_revision_selection))
+                .map_err(|error| map_admin_runtime_revision_error(&error))
+        })
+    }
+
+    fn list_runtime_revisions(&self) -> loom_api::AdminFuture<'_, Vec<AdminRuntimeRevision>> {
+        Box::pin(async move {
+            self.runtime_revisions()
+                .await
+                .map(|revisions| revisions.iter().map(api_admin_revision).collect())
+                .map_err(|error| map_admin_runtime_revision_error(&error))
+        })
+    }
+
+    fn get_runtime_revision(
+        &self,
+        request: AdminRuntimeRevisionRequest,
+    ) -> loom_api::AdminFuture<'_, AdminRuntimeRevision> {
+        Box::pin(async move {
+            self.runtime_revision(RuntimeRevisionId::from(request.revision_id))
+                .await
+                .map(|revision| api_admin_revision(&revision))
+                .map_err(|error| map_admin_runtime_revision_error(&error))
+        })
+    }
+
+    fn activate_runtime_revision(
+        &self,
+        request: AdminActivateRuntimeRevisionRequest,
+    ) -> loom_api::AdminFuture<'_, AdminRuntimeRevisionSelection> {
+        Box::pin(async move {
+            self.activate_runtime_revision(
+                RuntimeRevisionId::from(request.revision_id),
+                request.expected_generation,
+                self.platform_clock.now(),
+            )
+            .await
+            .map(|selection| api_admin_revision_selection(&selection))
+            .map_err(|error| map_admin_runtime_revision_error(&error))
+        })
+    }
+
+    fn list_execution_sessions(&self) -> loom_api::AdminFuture<'_, Vec<AdminExecutionSession>> {
+        Box::pin(async move {
+            self.store
+                .list_sessions()
+                .await
+                .map(|sessions| sessions.iter().map(api_admin_session).collect())
+                .map_err(|error| map_admin_session_error(&error))
+        })
+    }
+
+    fn get_execution_session(
+        &self,
+        request: AdminExecutionSessionRequest,
+    ) -> loom_api::AdminFuture<'_, AdminExecutionSession> {
+        Box::pin(async move {
+            self.store
+                .read_session(request.session_id)
+                .await
+                .map(|session| api_admin_session(&session))
+                .map_err(|error| map_admin_session_error(&error))
+        })
+    }
+
+    fn session_for_event(
+        &self,
+        event_ref: EventRef,
+    ) -> loom_api::AdminFuture<'_, AdminEventSessionLookup> {
+        Box::pin(async move {
+            let session_id = self
+                .store
+                .session_for_event(event_ref)
+                .await
+                .map_err(|error| map_admin_session_error(&error))?;
+            Ok(AdminEventSessionLookup {
+                event_ref,
+                session_id,
+            })
+        })
+    }
+
+    fn timeline_logical_status(
+        &self,
+        target: TimelineTarget,
+    ) -> loom_api::AdminFuture<'_, AdminTimelineLogicalStatus> {
+        Box::pin(async move {
+            let snapshot = self.snapshot_for_target(target).await?;
+            let chronology = snapshot.chronology_budget();
+            let works = snapshot
+                .works
+                .iter()
+                .map(|work| AdminLogicalWorkStatus {
+                    work_id: work.id,
+                    status: api_admin_work_status(work.status),
+                    effective_due_world_time: work.effective_due_world_time,
+                    logical_schedule_order: work.logical_schedule_order,
+                })
+                .collect();
+            Ok(AdminTimelineLogicalStatus {
+                target,
+                version: snapshot.version(),
+                world_time: snapshot.world_time(),
+                chronology_budget: AdminChronologyBudget {
+                    world_time: chronology.world_time,
+                    consumed: chronology.consumed,
+                },
+                logical_revision: snapshot.version().state_revision,
+                logical_commit_count: u64::try_from(snapshot.logical_journal().len())
+                    .expect("logical journal length must fit the public count"),
+                works,
+            })
+        })
+    }
+
+    fn missing_implementation(
+        &self,
+        request: AdminMissingImplementationRequest,
+    ) -> loom_api::AdminFuture<'_, Option<AdminMissingImplementationBlock>> {
+        Box::pin(async move {
+            let block = self
+                .missing_implementation_block(request.target, request.work_id)
+                .await?;
+            block.map(api_admin_missing_implementation).transpose()
+        })
+    }
+
+    fn terminalize_work(
+        &self,
+        request: AdminTerminalizeWorkRequest,
+    ) -> loom_api::AdminFuture<'_, AdminTerminalizeWorkResult> {
+        Box::pin(async move {
+            let terminal_state = match request.terminal_state {
+                AdminTerminalWorkState::Dead => WorkTerminalState::Dead,
+                AdminTerminalWorkState::Cancelled => WorkTerminalState::Cancelled,
+            };
+            let version = self
+                .terminalize_work(
+                    request.target,
+                    request.work_id,
+                    request.expected_version,
+                    terminal_state,
+                )
+                .await?;
+            Ok(AdminTerminalizeWorkResult {
+                target: request.target,
+                version,
+                terminal_state: request.terminal_state,
+            })
+        })
+    }
+
+    fn advance_world_time(
+        &self,
+        request: AdminAdvanceWorldTimeRequest,
+    ) -> loom_api::AdminFuture<'_, AdminAdvanceWorldTimeResult> {
+        Box::pin(async move {
+            // Resolve the public World/Timeline pair before touching the
+            // Runtime-owned Timeline CAS port. The storage port is keyed by
+            // TimelineId only and therefore must not be used as a World
+            // authorization shortcut.
+            let snapshot = self.snapshot_for_target(request.target).await?;
+            let transition = AdvanceWorldTime::new(
+                snapshot.timeline_id(),
+                request.expected_version,
+                request.current,
+                request.next,
+            )
+            .map_err(|error| map_world_time_error(&error))?;
+            let version = self
+                .store
+                .advance_world_time(transition)
+                .await
+                .map_err(|error| map_world_time_error(&error))?;
+            Ok(AdminAdvanceWorldTimeResult {
+                target: request.target,
+                from: request.current,
+                to: request.next,
+                version,
+            })
         })
     }
 }
@@ -5443,6 +5847,27 @@ fn map_runtime_revision_error(error: &RuntimeRevisionError) -> ApiError {
     }
 }
 
+fn map_admin_runtime_revision_error(error: &RuntimeRevisionError) -> ApiError {
+    match error {
+        RuntimeRevisionError::RevisionNotFound { revision_id } => {
+            ApiError::not_found(format!("Runtime Revision {revision_id} was not found"))
+        }
+        RuntimeRevisionError::RevisionAlreadyExists { .. }
+        | RuntimeRevisionError::RevisionDescriptorMismatch { .. }
+        | RuntimeRevisionError::ActiveRevisionConflict { .. }
+        | RuntimeRevisionError::IncompatibleActiveRevision { .. }
+        | RuntimeRevisionError::ActivationGenerationOverflow => {
+            ApiError::conflict("Runtime Revision operation conflicted with current selection")
+        }
+        RuntimeRevisionError::NoActiveRevision => {
+            ApiError::not_found("no active Runtime Revision is selected")
+        }
+        RuntimeRevisionError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Runtime Revision persistence is unavailable")
+        }
+    }
+}
+
 fn map_revision_compatibility_error(error: &crate::RuntimeRevisionCompatibilityError) -> ApiError {
     match error {
         crate::RuntimeRevisionCompatibilityError::MissingCapability { .. }
@@ -5465,6 +5890,25 @@ fn map_session_error(error: &SessionError) -> ApiError {
         | SessionError::IngressCompletionUnavailable { .. }
         | SessionError::StorageUnavailable { .. } => {
             ApiError::unavailable("Execution Session provenance is unavailable")
+        }
+    }
+}
+
+fn map_admin_session_error(error: &SessionError) -> ApiError {
+    match error {
+        SessionError::SessionNotFound { session_id } => {
+            ApiError::not_found(format!("Execution Session {session_id} was not found"))
+        }
+        SessionError::SessionAlreadyExists { .. }
+        | SessionError::InvalidTransition { .. }
+        | SessionError::EntropySourceMismatch { .. }
+        | SessionError::EntropyEvidenceUnavailable { .. }
+        | SessionError::ProvenanceUnavailable { .. }
+        | SessionError::IngressCompletionUnavailable { .. } => {
+            ApiError::conflict("Execution Session provenance is not readable in this state")
+        }
+        SessionError::StorageUnavailable { .. } => {
+            ApiError::unavailable("Execution Session persistence is unavailable")
         }
     }
 }

@@ -426,6 +426,14 @@ World Time advancement 是 Timeline runtime control，不是领域 Action。它�
 
 Runtime admin 操作不能伪装成领域 Action；Capability 也不能借 Action 获取平台管理权限。
 
+当前 v0 实现将该边界落实为 `loom_api::AdminService` 与独立的
+`/v1/admin` Boundary router。Boundary 通过独立的 `AdminAuthorizationHook`
+在调用 Admin service 前完成授权；Runtime 只把 Revision、Session/安全
+provenance、Timeline logical status 和 liveness 条件投影为稳定 Loom 值。
+Work terminalization 与 World-Time advancement 仍分别进入
+`RuntimeControlStore`/`WorldTimeStore` 的 CAS + Logical Journal authority
+路径，不能由 Boundary 或 Client 直接写存储。
+
 ### 5.3 Capability Discovery
 
 必须区分两种 Catalog：
