@@ -18,6 +18,7 @@ use std::{
     },
 };
 
+use loom_agency::{CognitiveMetadata, ExecutionPolicy};
 use loom_api::{
     IdempotencyKey, IngressAcceptance, IngressCompletion, IngressEnvelope, IngressId,
     IngressStatus, IngressTechnicalFailure,
@@ -1062,6 +1063,38 @@ pub struct ExecutionRoot {
     pub agency: Option<String>,
 }
 
+/// Immutable Agency cognition selection pinned into one Execution Assembly.
+///
+/// The metadata is an audit-safe identity for the injected executor/provider/
+/// model implementation. The policy is the value-only Agency policy supplied
+/// to that executor. Neither field contains a client, provider credential,
+/// World read handle or mutation authority.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CognitiveAssembly {
+    metadata: CognitiveMetadata,
+    policy: ExecutionPolicy,
+}
+
+impl CognitiveAssembly {
+    /// Creates a pinned cognition selection for one Execution Assembly.
+    #[must_use]
+    pub fn new(metadata: CognitiveMetadata, policy: ExecutionPolicy) -> Self {
+        Self { metadata, policy }
+    }
+
+    /// Returns the pinned executor/provider/model identity.
+    #[must_use]
+    pub const fn metadata(&self) -> &CognitiveMetadata {
+        &self.metadata
+    }
+
+    /// Returns the pinned Agency execution policy.
+    #[must_use]
+    pub const fn policy(&self) -> &ExecutionPolicy {
+        &self.policy
+    }
+}
+
 impl ExecutionRoot {
     /// Creates an empty root reference set.
     #[must_use]
@@ -1107,6 +1140,12 @@ impl ExecutionRoot {
     #[must_use]
     pub fn bootstrap(provenance: impl Into<String>) -> Self {
         Self::new().with_bootstrap(provenance)
+    }
+
+    /// Creates an Agency/cognition root reference.
+    #[must_use]
+    pub fn agency(provenance: impl Into<String>) -> Self {
+        Self::new().with_agency(provenance)
     }
 
     /// Attaches the root Action reference.
@@ -1175,6 +1214,8 @@ pub struct ExecutionAssembly {
     execution_policy: ResolutionBudget,
     #[serde(default)]
     entropy_source_id: EntropySourceId,
+    #[serde(default)]
+    cognitive: CognitiveAssembly,
 }
 
 impl ExecutionAssembly {
@@ -1206,6 +1247,7 @@ impl ExecutionAssembly {
             implementations,
             execution_policy,
             entropy_source_id,
+            cognitive: CognitiveAssembly::default(),
         }
     }
 
@@ -1283,6 +1325,18 @@ impl ExecutionAssembly {
     pub const fn entropy_source_id(&self) -> &EntropySourceId {
         &self.entropy_source_id
     }
+
+    /// Returns the immutable Agency cognition selection pinned for this
+    /// Session, before Agent context construction or executor invocation.
+    #[must_use]
+    pub const fn cognitive(&self) -> &CognitiveAssembly {
+        &self.cognitive
+    }
+
+    pub(crate) fn with_cognitive(mut self, cognitive: CognitiveAssembly) -> Self {
+        self.cognitive = cognitive;
+        self
+    }
 }
 
 /// Lifecycle state of one persisted Runtime execution Session.
@@ -1334,6 +1388,9 @@ pub struct ExecutionSession {
     read_set: ReadSet,
     #[serde(default)]
     call_provenance: CallProvenance,
+    /// Ordered Agency cognition/provider/model evidence observed by Runtime.
+    #[serde(default)]
+    cognitive_evidence: crate::CognitiveEvidence,
     /// Explicit no-change outcome marker retained separately from the
     /// historical `Committed` lifecycle status used by the v0 path.
     #[serde(default)]
@@ -1393,6 +1450,7 @@ impl ExecutionSession {
             entropy_evidence: EntropyEvidence::new(entropy_source_id),
             read_set: ReadSet::default(),
             call_provenance: CallProvenance::default(),
+            cognitive_evidence: crate::CognitiveEvidence::default(),
             no_change: false,
             ingress_id: None,
             ingress_completion: None,
@@ -1491,6 +1549,13 @@ impl ExecutionSession {
     #[must_use]
     pub const fn call_provenance(&self) -> &CallProvenance {
         &self.call_provenance
+    }
+
+    /// Returns ordered Agency cognition/provider/model evidence captured for
+    /// this Session, when the root used the `CognitiveExecutor` gateway.
+    #[must_use]
+    pub const fn cognitive_evidence(&self) -> &crate::CognitiveEvidence {
+        &self.cognitive_evidence
     }
 
     /// Reports whether this terminal Session completed successfully without
@@ -1673,6 +1738,7 @@ impl ExecutionSession {
         finished.ended_at = Some(ended_at);
         finished.read_set = evidence.read_set;
         finished.call_provenance = evidence.call_provenance;
+        finished.cognitive_evidence = evidence.cognitive_evidence;
         finished.no_change =
             evidence.no_change || matches!(status, ExecutionSessionStatus::NoChange);
         finished.entropy_evidence = evidence.entropy_evidence;

@@ -13,6 +13,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use loom_agency::{
+    AgentWorldView, CognitiveExecutor, CognitiveMetadata, Decision, ExecutionPolicy,
+};
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
     AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminChronologyBudget,
@@ -51,16 +54,17 @@ use serde_json::{Value, json};
 use crate::{
     AdvanceWorldTime, BaseWorldSnapshot, BaseWorldView, BindingError, BudgetError, BudgetUsage,
     CallProvenance, CandidateWorldView, ChangeFeedStore, ChronologyBudgetExceeded,
-    ChronologyBudgetPolicy, CommitAuthorityContext, CommitError, CommitProvenance, CommitStore,
-    CommittedEvent, EffectEngine, EntropyEvidence, EntropySource, EntropySourceId,
-    ExecutionAssembly, ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession,
-    ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization,
-    ForkWork, HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
-    IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
-    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
-    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
-    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
-    ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    ChronologyBudgetPolicy, CognitiveAssembly, CognitiveGatewayError, CommitAuthorityContext,
+    CommitError, CommitProvenance, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
+    EntropySource, EntropySourceId, ExecutionAssembly, ExecutionEvidence, ExecutionOrigin,
+    ExecutionRoot, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
+    ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState, IdentityAllocator,
+    IngressClaim, IngressError, IngressStore, IngressSubmission, IngressTechnicalFailure,
+    LifecycleError, LogicalCommit, LogicalWorkState, LogicalWorkTransition,
+    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
+    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
+    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
+    ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
@@ -128,6 +132,8 @@ pub struct Runtime<S> {
     store: S,
     platform_clock: Arc<dyn PlatformClock>,
     entropy_source: Arc<dyn EntropySource>,
+    cognitive_executor: crate::cognitive::CognitiveExecutorHandle,
+    cognitive_policy: ExecutionPolicy,
     identity_allocator: Arc<dyn IdentityAllocator>,
     resolution_budget: ResolutionBudget,
     failure_policy: FailurePolicy,
@@ -181,6 +187,8 @@ where
             store,
             platform_clock: Arc::new(ManualPlatformClock::default()),
             entropy_source: Arc::new(UnavailableEntropySource),
+            cognitive_executor: Arc::new(crate::UnavailableCognitiveExecutor),
+            cognitive_policy: ExecutionPolicy::default(),
             identity_allocator: Arc::new(UuidV7IdentityAllocator),
             resolution_budget: ResolutionBudget::unlimited(),
             failure_policy: FailurePolicy::default(),
@@ -214,6 +222,27 @@ where
         E: EntropySource + 'static,
     {
         self.entropy_source = Arc::new(source);
+        self
+    }
+
+    /// Injects the Agency `CognitiveExecutor` selected by the application
+    /// composition root. Runtime retains only the SPI object; provider/vendor
+    /// clients remain inside the concrete adapter.
+    #[must_use]
+    pub fn with_cognitive_executor<E>(mut self, executor: E) -> Self
+    where
+        E: CognitiveExecutor + Send + Sync + 'static,
+    {
+        self.cognitive_executor = Arc::new(executor);
+        self
+    }
+
+    /// Pins the value-only Agency execution policy for future root Sessions.
+    /// The active Runtime Revision supplies the policy revision/identity when
+    /// the Execution Assembly is created.
+    #[must_use]
+    pub fn with_cognitive_policy(mut self, policy: ExecutionPolicy) -> Self {
+        self.cognitive_policy = policy;
         self
     }
 
@@ -324,6 +353,9 @@ where
                 "Runtime identity allocator returned an invalid Execution Session identity",
             ));
         }
+        let cognitive_policy = self.cognitive_policy_for(&selection);
+        let cognitive =
+            CognitiveAssembly::new(self.cognitive_executor.metadata(), cognitive_policy);
         Ok(ExecutionAssembly::new(
             session_id,
             snapshot.world_id(),
@@ -335,7 +367,18 @@ where
             implementations,
             self.resolution_budget,
             self.entropy_source.source_id(),
-        ))
+        )
+        .with_cognitive(cognitive))
+    }
+
+    fn cognitive_policy_for(&self, selection: &RuntimeRevisionSelection) -> ExecutionPolicy {
+        let mut policy = self.cognitive_policy.clone();
+        policy.policy_id = selection
+            .revision()
+            .execution_policy_id()
+            .map_or_else(|| policy.policy_id.clone(), str::to_owned);
+        policy.revision = selection.revision().id().to_string();
+        policy
     }
 
     fn legacy_runtime_revision(&self) -> RuntimeRevisionSelection {
@@ -3239,6 +3282,82 @@ where
         assembly: &ExecutionAssembly,
     ) -> Result<PinnedReadSession, ReadError> {
         self.store.open_pinned_read(assembly).await
+    }
+
+    /// Invokes the pinned Agency `CognitiveExecutor` over one restricted
+    /// `AgentWorldView` and appends its typed result/provenance to the current
+    /// Session evidence envelope.
+    ///
+    /// The method intentionally accepts no `BaseWorldView`, `WorldStore`,
+    /// provider client or mutation authority. Context construction must happen
+    /// through [`AgentWorldViewBuilder`](crate::AgentWorldViewBuilder) and the
+    /// supplied [`PinnedReadSession`]; the executor sees only the resulting
+    /// Agency value.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed gateway error when the Session/view coordinate or
+    /// context budget is not pinned, the evidence source does not match, the
+    /// executor identity changed, or cognition returned a technical error.
+    pub async fn execute_cognitive(
+        &self,
+        assembly: &ExecutionAssembly,
+        session: &PinnedReadSession,
+        view: AgentWorldView,
+        evidence: &mut ExecutionEvidence,
+    ) -> Result<Decision, CognitiveGatewayError> {
+        crate::cognitive::execute_cognitive(
+            &*self.cognitive_executor,
+            assembly,
+            session,
+            view,
+            evidence,
+        )
+        .await
+    }
+
+    /// Returns the audit-safe metadata of the executor selected by the
+    /// application composition root. This is an identity value, not a client
+    /// handle or a provider authority.
+    #[must_use]
+    pub fn cognitive_executor_metadata(&self) -> CognitiveMetadata {
+        self.cognitive_executor.metadata()
+    }
+
+    /// Reports whether the currently composed executor can satisfy a stable
+    /// Agency Wake cognition requirement before context construction begins.
+    #[must_use]
+    pub fn cognitive_requirement_available(&self, requirement: &str) -> bool {
+        self.cognitive_executor_metadata().executor.id == requirement
+    }
+
+    /// Invokes cognition after checking the Agency Wake's pinned requirement.
+    /// This is the target-aware form used by Wake orchestration; the generic
+    /// [`Self::execute_cognitive`] form is useful when the target was already
+    /// admitted by the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed gateway error when the target requirement differs from
+    /// the pinned executor or the delegated cognition boundary rejects the
+    /// pinned context/evidence or returns a technical failure.
+    pub async fn execute_cognitive_for(
+        &self,
+        requirement: &str,
+        assembly: &ExecutionAssembly,
+        session: &PinnedReadSession,
+        view: AgentWorldView,
+        evidence: &mut ExecutionEvidence,
+    ) -> Result<Decision, CognitiveGatewayError> {
+        let pinned = &assembly.cognitive().metadata().executor.id;
+        if pinned != requirement {
+            return Err(CognitiveGatewayError::CognitiveRequirementMismatch {
+                requirement: requirement.to_owned(),
+                pinned: pinned.clone(),
+            });
+        }
+        self.execute_cognitive(assembly, session, view, evidence)
+            .await
     }
 }
 
