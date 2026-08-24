@@ -606,6 +606,7 @@ async fn ingress_authority_rejects_stale_fence_before_no_change_commit() {
             current_work: None,
             ingress_claim: Some(first),
             provenance: None,
+            session_id: None,
         },
         PlatformTime::new(10),
     )
@@ -710,6 +711,7 @@ struct TestCapability {
 
 const NO_CHANGE_CAPABILITY: &str = "test.no_change";
 const NO_CHANGE_ACTION: &str = "test.no_change_action";
+const EVENT_ACTION: &str = "test.event_action";
 const SCHEDULE_ACTION: &str = "test.schedule_work";
 const CANCEL_ACTION: &str = "test.cancel_work";
 const EMPTY_WORK_HANDLER: &str = "test.empty_work";
@@ -764,6 +766,32 @@ fn no_change_registry() -> CapabilityRegistry {
 
 struct FailOnceResolver {
     failed: Arc<AtomicBool>,
+}
+
+struct EventResolver;
+
+impl ActionResolver for EventResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let event_id = input
+            .get("event_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ResolverError::new("event_id must be a UUID string"))?
+            .parse()
+            .map_err(|_| ResolverError::new("event_id must be a UUID string"))?;
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            vec![ProposedEvent::new(
+                event_id,
+                EventTypeId::from("test.changed"),
+                SchemaRevision::new(1),
+                json!({"event": event_id.to_string()}),
+            )],
+            Vec::new(),
+        )))
+    }
 }
 
 fn ingress_test_request(id: &str, action: &str, input: Value) -> IngressEnvelope {
@@ -910,6 +938,10 @@ impl Capability for TestCapability {
             EventTypeId::from("test.changed"),
             SchemaRevision::new(1),
         ))?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(EVENT_ACTION), SchemaRevision::new(1)),
+            EventResolver,
+        )?;
         registrar.register_work_handler(
             WorkHandlerDefinition::new(
                 WorkHandlerId::from(TEST_WORK_HANDLER),
@@ -946,6 +978,45 @@ async fn empty_public_action_returns_no_change_without_advancing_timeline_versio
         .expect("test Timeline should be readable");
     assert_eq!(after.version(), before);
     assert!(after.events.is_empty());
+    let session = store.list_sessions().unwrap().pop().unwrap();
+    assert!(session.event_refs().is_empty());
+}
+
+#[tokio::test]
+async fn committed_event_has_atomic_bidirectional_session_provenance() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let event_id = event(900);
+    let result = runtime
+        .invoke(ActionRequest::new(
+            TimelineTarget::new(world(), timeline()),
+            ActionInvocation::new(
+                ActionTypeId::from(EVENT_ACTION),
+                json!({"event_id": event_id.to_string()}),
+            ),
+        ))
+        .await
+        .expect("Event Action should commit");
+    assert!(matches!(result, ExecutionResult::Committed { .. }));
+
+    let event_ref = EventRef::new(timeline(), event_id);
+    let session_id = loom_runtime::ExecutionSessionStore::session_for_event(&store, event_ref)
+        .await
+        .expect("Event provenance should be readable")
+        .expect("committed Event should have one producing Session");
+    let session = store
+        .read_session(session_id)
+        .expect("Session should be readable");
+    assert_eq!(session.event_refs(), &[event_ref]);
+    assert_eq!(
+        loom_runtime::ExecutionSessionStore::events_for_session(&store, session_id)
+            .await
+            .expect("Session Event query should be readable"),
+        vec![event_ref]
+    );
 }
 
 #[tokio::test]

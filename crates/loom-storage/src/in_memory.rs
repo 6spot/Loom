@@ -105,6 +105,7 @@ struct StoreState {
     active_runtime_revision: Option<RuntimeRevisionSelection>,
     runtime_activation_history: Vec<RuntimeRevisionActivation>,
     execution_sessions: BTreeMap<ExecutionSessionId, ExecutionSession>,
+    event_sessions: BTreeMap<(TimelineId, EventId), ExecutionSessionId>,
     ingresses: HashMap<loom_runtime::IngressId, IngressOperationalRecord>,
     semantic_projections: HashMap<SemanticProjectionKey, SemanticProjectionRegistration>,
     semantic_projection_rows: HashMap<SemanticProjectionKey, Vec<SemanticProjectionRow>>,
@@ -1383,10 +1384,20 @@ impl InMemoryStore {
                 provenance: provenance.clone(),
             });
         }
+        let committed_version = timeline.version;
+        let _ = timeline;
+        link_events_to_session(
+            &mut staged,
+            context.session_id,
+            &committed_events,
+            timeline_id,
+            resolution.base_version(),
+        )
+        .map_err(|error| CommitError::SessionLink { message: error })?;
 
         let result = CommitResult {
             timeline_id,
-            version: timeline.version,
+            version: committed_version,
             events: committed_events,
             completed_work,
             provenance,
@@ -1416,6 +1427,40 @@ impl InMemoryStore {
             }
         }
         self.commit_with_chronology_budget(resolution, context, now, chronology_budget_limit)
+    }
+
+    /// Resolves one committed Event to its producing Session.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Session persistence error if the adapter cannot inspect its
+    /// provenance state.
+    pub fn session_for_event(
+        &self,
+        event_ref: EventRef,
+    ) -> Result<Option<ExecutionSessionId>, SessionError> {
+        Ok(self
+            .read_state()
+            .event_sessions
+            .get(&(event_ref.timeline_id, event_ref.event_id))
+            .copied())
+    }
+
+    /// Lists one Session's committed Events in authoritative sequence order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SessionError::SessionNotFound`] when the Session is absent.
+    pub fn events_for_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> Result<Vec<EventRef>, SessionError> {
+        let guard = self.read_state();
+        let session = guard
+            .execution_sessions
+            .get(&session_id)
+            .ok_or(SessionError::SessionNotFound { session_id })?;
+        Ok(session.event_refs().to_vec())
     }
 
     /// Applies an explicit monotonic World-Time transition with Timeline CAS.
@@ -1813,6 +1858,30 @@ impl WorldLifecycleStore for InMemoryStore {
                 binding,
                 bootstrap,
                 now,
+                None,
+            )
+        })
+    }
+
+    fn create_world_with_bootstrap_for_session<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_with_bootstrap_internal(
+                world_id,
+                timeline_id,
+                initial_world_time,
+                binding,
+                bootstrap,
+                now,
+                Some(session_id),
             )
         })
     }
@@ -2019,6 +2088,11 @@ impl InMemoryStore {
         Ok(snapshot)
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        clippy::too_many_lines,
+        reason = "the in-memory birth boundary mirrors the atomic lifecycle contract"
+    )]
     fn create_world_with_bootstrap_internal(
         &self,
         world_id: WorldId,
@@ -2027,6 +2101,7 @@ impl InMemoryStore {
         binding: WorldRuntimeBinding,
         bootstrap: &[ValidatedResolution],
         now: PlatformTime,
+        session_id: Option<ExecutionSessionId>,
     ) -> Result<WorldCreation, LifecycleError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
@@ -2111,7 +2186,23 @@ impl InMemoryStore {
                 provenance: None,
             });
         }
+        let committed_events: Vec<_> = timeline
+            .events
+            .iter()
+            .filter(|event| event.event_seq.value() > 0)
+            .filter(|event| event.event_seq.value() <= next_sequence)
+            .cloned()
+            .collect();
         let version = timeline.version;
+        let _ = timeline;
+        link_events_to_session(
+            &mut staged,
+            session_id,
+            &committed_events,
+            timeline_id,
+            TimelineVersion::default(),
+        )
+        .map_err(|error| birth_commit_error(&CommitError::SessionLink { message: error }))?;
         *guard = staged;
         Ok(WorldCreation::with_version(
             world_id,
@@ -2872,6 +2963,20 @@ impl ExecutionSessionStore for InMemoryStore {
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
         Box::pin(async move { InMemoryStore::list_sessions(self) })
     }
+
+    fn session_for_event(
+        &self,
+        event_ref: EventRef,
+    ) -> PersistenceFuture<'_, Result<Option<ExecutionSessionId>, SessionError>> {
+        Box::pin(async move { InMemoryStore::session_for_event(self, event_ref) })
+    }
+
+    fn events_for_session(
+        &self,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<Vec<EventRef>, SessionError>> {
+        Box::pin(async move { InMemoryStore::events_for_session(self, session_id) })
+    }
 }
 
 impl CommitStore for InMemoryStore {
@@ -2909,6 +3014,25 @@ impl SchedulerCommitStore for InMemoryStore {
                 self,
                 resolution,
                 &CommitAuthorityContext::direct(Some(*current_work)),
+                now,
+                Some(max_completions),
+            )
+        })
+    }
+
+    fn commit_scheduler_work_with_session<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            InMemoryStore::commit_with_chronology_budget(
+                self,
+                resolution,
+                &CommitAuthorityContext::direct(Some(*current_work)).with_session(session_id),
                 now,
                 Some(max_completions),
             )
@@ -3426,6 +3550,60 @@ fn apply_work_mutations(
         }
     }
     Ok(transitions)
+}
+
+fn link_events_to_session(
+    staged: &mut StoreState,
+    session_id: Option<ExecutionSessionId>,
+    committed_events: &[CommittedEvent],
+    timeline_id: TimelineId,
+    expected_version: TimelineVersion,
+) -> Result<(), String> {
+    let Some(session_id) = session_id else {
+        return Ok(());
+    };
+    let session = staged
+        .execution_sessions
+        .get(&session_id)
+        .ok_or_else(|| format!("Execution Session {session_id} was not found"))?;
+    if session.status() != ExecutionSessionStatus::Started {
+        return Err(format!("Execution Session {session_id} is not Started"));
+    }
+    if session.assembly().timeline_id() != timeline_id {
+        return Err(format!(
+            "Execution Session {session_id} targets Timeline {}, expected {timeline_id}",
+            session.assembly().timeline_id()
+        ));
+    }
+    if session.assembly().expected_version() != expected_version {
+        return Err(format!(
+            "Execution Session {session_id} is pinned to a different Timeline version"
+        ));
+    }
+    let refs: Vec<_> = committed_events
+        .iter()
+        .map(CommittedEvent::event_ref)
+        .collect();
+    for event_ref in &refs {
+        if let Some(existing) = staged
+            .event_sessions
+            .get(&(event_ref.timeline_id, event_ref.event_id))
+        {
+            return Err(format!(
+                "Event {event_ref:?} is already linked to Execution Session {existing}"
+            ));
+        }
+    }
+    let linked = session
+        .with_event_refs(refs.clone())
+        .map_err(|error| error.to_string())?;
+    for event_ref in refs {
+        staged
+            .event_sessions
+            .insert((event_ref.timeline_id, event_ref.event_id), session_id);
+    }
+    staged.execution_sessions.insert(session_id, linked);
+    Ok(())
 }
 
 fn validate_claim(

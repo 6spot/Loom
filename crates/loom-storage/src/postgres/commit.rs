@@ -3,15 +3,16 @@
 use std::collections::HashSet;
 
 use loom_core::{
-    EventId, EventSeq, FacetOwner, StateRevision, TimelineId, TimelineVersion, WorkId, WorldEffect,
+    EventId, EventRef, EventSeq, ExecutionSessionId, FacetOwner, StateRevision, TimelineId,
+    TimelineVersion, WorkId, WorldEffect,
 };
 use loom_runtime::{
     ChronologyBudgetConsumption, CommitAuthorityContext, CommitError, CommitProvenance,
-    CommitResult, CommitStore, CommittedEvent, IngressClaim, IngressError,
-    IngressOperationalRecord, IngressStatus, LogicalCommit, LogicalWorkTransition,
-    PersistenceFuture, PlatformTime, ProposedEvent, RuntimeControlStore, SchedulerCommitStore,
-    ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus, WorkTerminalState,
-    WorkTerminalization,
+    CommitResult, CommitStore, CommittedEvent, ExecutionSession, ExecutionSessionStatus,
+    IngressClaim, IngressError, IngressOperationalRecord, IngressStatus, LogicalCommit,
+    LogicalWorkTransition, PersistenceFuture, PlatformTime, ProposedEvent, RuntimeControlStore,
+    SchedulerCommitStore, ValidatedResolution, WorkClaim, WorkError, WorkMutation, WorkStatus,
+    WorkTerminalState, WorkTerminalization,
 };
 use sqlx::{Postgres, Row, Transaction};
 
@@ -60,6 +61,7 @@ const WORK_EXISTS_SQL: &str = include_str!("../../sql/work/exists.sql");
 const INSERT_LOGICAL_JOURNAL_SQL: &str = include_str!("../../sql/logical_journal/insert.sql");
 const SELECT_LOGICAL_HEAD_SQL: &str = include_str!("../../sql/work/select_logical_head.sql");
 const SELECT_INGRESS_FOR_UPDATE_SQL: &str = include_str!("../../sql/ingress/select_for_update.sql");
+const INSERT_SESSION_EVENT_SQL: &str = "INSERT INTO loom_execution_session_event (timeline_id, event_id, event_seq, session_id) VALUES ($1::uuid, $2::uuid, $3::numeric, $4::uuid)";
 
 #[derive(Clone, Copy)]
 struct LockedTimeline {
@@ -78,7 +80,7 @@ impl CommitStore for PgStorage {
         now: PlatformTime,
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move {
-            commit_resolution(self, resolution, current_work, None, None, now, None).await
+            commit_resolution(self, resolution, current_work, None, None, None, now, None).await
         })
     }
 
@@ -95,6 +97,7 @@ impl CommitStore for PgStorage {
                 context.current_work.as_ref(),
                 context.ingress_claim.as_ref(),
                 context.provenance.as_ref(),
+                context.session_id,
                 now,
                 None,
             )
@@ -118,6 +121,30 @@ impl SchedulerCommitStore for PgStorage {
                 Some(current_work),
                 None,
                 None,
+                None,
+                now,
+                Some(max_completions),
+            )
+            .await
+        })
+    }
+
+    fn commit_scheduler_work_with_session<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            commit_resolution(
+                self,
+                resolution,
+                Some(current_work),
+                None,
+                None,
+                Some(session_id),
                 now,
                 Some(max_completions),
             )
@@ -251,12 +278,17 @@ async fn terminalize_work_internal(
     Ok(version)
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the PostgreSQL commit boundary carries all authority inputs"
+)]
 async fn commit_resolution(
     storage: &PgStorage,
     resolution: &ValidatedResolution,
     current_work: Option<&WorkClaim>,
     ingress_claim: Option<&IngressClaim>,
     provenance: Option<&CommitProvenance>,
+    session_id: Option<ExecutionSessionId>,
     now: PlatformTime,
     chronology_budget_limit: Option<u64>,
 ) -> Result<CommitResult, CommitError> {
@@ -288,6 +320,13 @@ async fn commit_resolution(
             ));
         }
     }
+    validate_session_link(
+        &mut transaction,
+        timeline_id,
+        resolution.base_version(),
+        session_id,
+    )
+    .await?;
     let before_version = locked.version;
     let before_budget = locked.chronology_budget_consumed;
     let visible_event_ids = read_visible_event_ids(&mut transaction, timeline_id).await?;
@@ -414,6 +453,8 @@ async fn commit_resolution(
         .await?;
     }
 
+    link_committed_events(&mut transaction, timeline_id, session_id, &committed_events).await?;
+
     transaction
         .commit()
         .await
@@ -435,6 +476,116 @@ async fn commit_resolution(
     })
 }
 
+async fn validate_session_link(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+    expected_version: TimelineVersion,
+    session_id: Option<ExecutionSessionId>,
+) -> Result<(), CommitError> {
+    let Some(session_id) = session_id else {
+        return Ok(());
+    };
+    let row = sqlx::query(
+        "SELECT timeline_id::text AS timeline_id, status, record FROM loom_execution_session WHERE session_id = $1::uuid FOR UPDATE",
+    )
+    .bind(session_id.to_string())
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(storage_error)?
+    .ok_or_else(|| CommitError::SessionLink {
+        message: format!("Execution Session {session_id} was not found"),
+    })?;
+    let stored_timeline: String = row.try_get("timeline_id").map_err(storage_error)?;
+    let stored_status: String = row.try_get("status").map_err(storage_error)?;
+    let parsed_timeline =
+        stored_timeline
+            .parse::<TimelineId>()
+            .map_err(|error| CommitError::SessionLink {
+                message: format!("invalid Session Timeline identity: {error}"),
+            })?;
+    if parsed_timeline != timeline_id {
+        return Err(CommitError::SessionLink {
+            message: format!("Execution Session {session_id} targets another Timeline"),
+        });
+    }
+    if stored_status != "Started" {
+        return Err(CommitError::SessionLink {
+            message: format!("Execution Session {session_id} is not Started"),
+        });
+    }
+    let record: serde_json::Value = row.try_get("record").map_err(storage_error)?;
+    let session: ExecutionSession =
+        serde_json::from_value(record).map_err(|error| CommitError::SessionLink {
+            message: format!("invalid persisted Execution Session: {error}"),
+        })?;
+    if session.status() != ExecutionSessionStatus::Started
+        || session.assembly().expected_version() != expected_version
+    {
+        return Err(CommitError::SessionLink {
+            message: format!("Execution Session {session_id} is not pinned to this commit"),
+        });
+    }
+    if !session.event_refs().is_empty() {
+        return Err(CommitError::SessionLink {
+            message: format!("Execution Session {session_id} already owns committed Events"),
+        });
+    }
+    Ok(())
+}
+
+async fn link_committed_events(
+    transaction: &mut PgTransaction<'_>,
+    timeline_id: TimelineId,
+    session_id: Option<ExecutionSessionId>,
+    committed_events: &[CommittedEvent],
+) -> Result<(), CommitError> {
+    let Some(session_id) = session_id else {
+        return Ok(());
+    };
+    if committed_events.is_empty() {
+        return Ok(());
+    }
+    let event_refs: Vec<EventRef> = committed_events
+        .iter()
+        .map(CommittedEvent::event_ref)
+        .collect();
+    for committed in committed_events {
+        sqlx::query(INSERT_SESSION_EVENT_SQL)
+            .bind(timeline_id.to_string())
+            .bind(committed.id.to_string())
+            .bind(committed.event_seq.value().to_string())
+            .bind(session_id.to_string())
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| {
+                if super::is_unique_violation(&error) {
+                    CommitError::SessionLink {
+                        message: format!("Event {} already has a producing Session", committed.id),
+                    }
+                } else {
+                    storage_error(error)
+                }
+            })?;
+    }
+    let refs = serde_json::to_value(event_refs).map_err(|error| CommitError::SessionLink {
+        message: format!("Event provenance serialization failed: {error}"),
+    })?;
+    let updated = sqlx::query(
+        "UPDATE loom_execution_session SET record = jsonb_set(record, '{event_refs}', $2::jsonb, true) WHERE session_id = $1::uuid AND status = 'Started'",
+    )
+    .bind(session_id.to_string())
+    .bind(refs)
+    .execute(&mut **transaction)
+    .await
+    .map_err(storage_error)?;
+    if updated.rows_affected() != 1 {
+        return Err(CommitError::SessionLink {
+            message: format!("Execution Session {session_id} link update was lost"),
+        });
+    }
+    Ok(())
+}
+
 /// Applies Runtime-validated Template bootstrap resolutions inside the caller's
 /// already-open World birth transaction. The caller owns the final commit or
 /// rollback, so World, Binding, Timeline, Events, Effects and Work share one
@@ -445,6 +596,7 @@ pub(super) async fn commit_birth_in_transaction(
     initial_world_time: loom_core::WorldInstant,
     bootstrap: &[ValidatedResolution],
     now: PlatformTime,
+    session_id: Option<ExecutionSessionId>,
 ) -> Result<TimelineVersion, CommitError> {
     let locked = lock_timeline(transaction, timeline_id).await?;
     if locked.version != TimelineVersion::default() {
@@ -453,11 +605,19 @@ pub(super) async fn commit_birth_in_transaction(
             actual: locked.version,
         });
     }
+    validate_session_link(
+        transaction,
+        timeline_id,
+        TimelineVersion::default(),
+        session_id,
+    )
+    .await?;
 
     let mut next_sequence = locked.version.head_event_seq.value();
     let mut seen_events = HashSet::new();
     let mut changes_runtime_state = false;
     let mut event_ids = Vec::new();
+    let mut committed_events = Vec::new();
     let mut work_transitions = Vec::new();
     let mut logical_schedule_order = next_logical_schedule_order(transaction, timeline_id).await?;
 
@@ -484,7 +644,7 @@ pub(super) async fn commit_birth_in_transaction(
             next_sequence = next_sequence
                 .checked_add(1)
                 .ok_or(CommitError::RevisionOverflow)?;
-            apply_event(
+            let committed = apply_event(
                 transaction,
                 timeline_id,
                 EventSeq::new(next_sequence),
@@ -496,6 +656,7 @@ pub(super) async fn commit_birth_in_transaction(
             .await?;
             seen_events.insert(event.id);
             event_ids.push(event.id);
+            committed_events.push(committed);
             changes_runtime_state = true;
         }
         for mutation in resolution.work() {
@@ -557,6 +718,8 @@ pub(super) async fn commit_birth_in_transaction(
         )
         .await?;
     }
+
+    link_committed_events(transaction, timeline_id, session_id, &committed_events).await?;
 
     Ok(version)
 }

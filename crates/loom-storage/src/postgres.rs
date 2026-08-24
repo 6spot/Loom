@@ -22,10 +22,10 @@ use std::sync::{
 use std::{fmt::Display, str::FromStr, time::Instant};
 
 use loom_core::{
-    AssociationRole, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
-    FacetTypeId, Relationship, RelationshipId, RelationshipParticipant, RelationshipTypeId,
-    SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
-    WorldEffect, WorldId, WorldInstant,
+    AssociationRole, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId,
+    ExecutionSessionId, FacetOwner, FacetTypeId, Relationship, RelationshipId,
+    RelationshipParticipant, RelationshipTypeId, SchemaRevision, StateRevision, TimelineAncestry,
+    TimelineId, TimelineVersion, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChangeFeedRead, ChangeFeedStore,
@@ -981,6 +981,31 @@ impl WorldLifecycleStore for PgStorage {
                 binding,
                 bootstrap,
                 now,
+                None,
+            )
+            .await
+        })
+    }
+
+    fn create_world_with_bootstrap_for_session<'a>(
+        &'a self,
+        world_id: WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+        session_id: ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<WorldCreation, LifecycleError>> {
+        Box::pin(async move {
+            self.create_world_with_bootstrap_internal(
+                world_id,
+                timeline_id,
+                initial_world_time,
+                binding,
+                bootstrap,
+                now,
+                Some(session_id),
             )
             .await
         })
@@ -1048,6 +1073,10 @@ impl PgStorage {
         ))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the PostgreSQL birth boundary mirrors the atomic lifecycle contract"
+    )]
     async fn create_world_with_bootstrap_internal(
         &self,
         world_id: WorldId,
@@ -1056,6 +1085,7 @@ impl PgStorage {
         binding: WorldRuntimeBinding,
         bootstrap: &[ValidatedResolution],
         now: PlatformTime,
+        session_id: Option<ExecutionSessionId>,
     ) -> Result<WorldCreation, LifecycleError> {
         let binding_value =
             serde_json::to_value(binding).map_err(|error| LifecycleError::StorageUnavailable {
@@ -1105,6 +1135,7 @@ impl PgStorage {
             initial_world_time,
             bootstrap,
             now,
+            session_id,
         )
         .await
         {

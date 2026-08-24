@@ -1418,7 +1418,7 @@ where
         let changes_runtime_state = changes_runtime_state(&validated, Some(&claim));
         match self
             .store
-            .commit_scheduler_work(&validated, &claim, now, limit)
+            .commit_scheduler_work_with_session(&validated, &claim, now, limit, session.id())
             .await
         {
             Ok(result) => {
@@ -1546,6 +1546,7 @@ where
         S: SemanticProjectionStore,
     {
         let engine = EffectEngine::new(&self.registry).with_budget(assembly.execution_policy());
+        let mut context = context.with_session(assembly.session_id());
         if let Err(error) = engine
             .validate_action_input(&invocation.action, &invocation.input)
             .map_err(|error| map_action_input_error(&error))
@@ -1621,7 +1622,6 @@ where
                         provenance: None,
                     })?;
 
-                let mut context = context;
                 let changes_runtime_state =
                     changes_runtime_state(&validated, context.current_work.as_ref());
                 let expected_event_ids: Vec<_> =
@@ -1938,6 +1938,7 @@ where
                 ingress_id.clone(),
                 "pending",
             )),
+            session_id: Some(session.id()),
         };
         match self
             .execute_root_authority(
@@ -2629,6 +2630,27 @@ where
             now,
         )
     }
+
+    fn create_world_with_bootstrap_for_session<'a>(
+        &'a self,
+        world_id: loom_core::WorldId,
+        timeline_id: TimelineId,
+        initial_world_time: loom_core::WorldInstant,
+        binding: WorldRuntimeBinding,
+        bootstrap: &'a [ValidatedResolution],
+        now: PlatformTime,
+        session_id: loom_core::ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<crate::WorldCreation, LifecycleError>> {
+        (**self).create_world_with_bootstrap_for_session(
+            world_id,
+            timeline_id,
+            initial_world_time,
+            binding,
+            bootstrap,
+            now,
+            session_id,
+        )
+    }
 }
 
 impl<T> WorldStore for &T
@@ -2848,6 +2870,20 @@ where
     fn list_sessions(&self) -> PersistenceFuture<'_, Result<Vec<ExecutionSession>, SessionError>> {
         (**self).list_sessions()
     }
+
+    fn session_for_event(
+        &self,
+        event_ref: loom_core::EventRef,
+    ) -> PersistenceFuture<'_, Result<Option<loom_core::ExecutionSessionId>, SessionError>> {
+        (**self).session_for_event(event_ref)
+    }
+
+    fn events_for_session(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+    ) -> PersistenceFuture<'_, Result<Vec<loom_core::EventRef>, SessionError>> {
+        (**self).events_for_session(session_id)
+    }
 }
 
 impl<T> IngressStore for &T
@@ -2950,6 +2986,23 @@ where
         max_completions: u64,
     ) -> PersistenceFuture<'a, Result<crate::CommitResult, CommitError>> {
         (**self).commit_scheduler_work(resolution, current_work, now, max_completions)
+    }
+
+    fn commit_scheduler_work_with_session<'a>(
+        &'a self,
+        resolution: &'a crate::ValidatedResolution,
+        current_work: &'a WorkClaim,
+        now: PlatformTime,
+        max_completions: u64,
+        session_id: loom_core::ExecutionSessionId,
+    ) -> PersistenceFuture<'a, Result<crate::CommitResult, CommitError>> {
+        (**self).commit_scheduler_work_with_session(
+            resolution,
+            current_work,
+            now,
+            max_completions,
+            session_id,
+        )
     }
 }
 
@@ -3116,13 +3169,14 @@ where
             };
             let created = match self
                 .store
-                .create_world_with_bootstrap(
+                .create_world_with_bootstrap_for_session(
                     plan.world_id,
                     plan.timeline_id,
                     plan.initial_world_time,
                     plan.binding,
                     &plan.bootstrap,
                     self.platform_clock.now(),
+                    session.id(),
                 )
                 .await
             {
@@ -5629,6 +5683,9 @@ fn map_commit_error(error: &CommitError) -> ApiError {
         CommitError::Work(_) => ApiError::conflict("Work state changed before commit"),
         CommitError::StorageUnavailable { .. } => {
             ApiError::unavailable("Persistence authority is temporarily unavailable")
+        }
+        CommitError::SessionLink { .. } => {
+            ApiError::internal("Commit Session provenance link was rejected")
         }
         CommitError::DuplicateEvent { .. }
         | CommitError::InvalidEvent { .. }

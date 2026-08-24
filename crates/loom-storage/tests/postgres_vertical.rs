@@ -9,11 +9,11 @@ use loom_capability::{
     ResolverError,
 };
 use loom_core::{
-    ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, EntityId, EventId, EventRef, EventTypeId, FacetOwner, FacetTypeId,
+    SchemaRevision, TimelineId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Rejection, Resolution, ResolveOutcome};
-use loom_runtime::{Runtime, WorldStore};
+use loom_runtime::{ExecutionSessionStore, Runtime, WorldStore};
 use loom_storage::PgStorage;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -370,6 +370,38 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
             .iter()
             .all(|event| event.occurred_at == WorldInstant::new(0)),
         "PostgreSQL Events must use the pinned World Time"
+    );
+    for event in &history {
+        let event_ref = EventRef::new(target.timeline_id, event.id);
+        let session_id = ExecutionSessionStore::session_for_event(&storage, event_ref)
+            .await
+            .expect("PostgreSQL Event provenance should be readable")
+            .expect("every committed Event should have one producing Session");
+        let session = ExecutionSessionStore::read_session(&storage, session_id)
+            .await
+            .expect("producing Session should be readable");
+        assert_eq!(session.event_refs(), &[event_ref]);
+        assert_eq!(
+            ExecutionSessionStore::events_for_session(&storage, session_id)
+                .await
+                .expect("Session Event provenance should be readable"),
+            vec![event_ref]
+        );
+    }
+    let sessions = ExecutionSessionStore::list_sessions(&storage)
+        .await
+        .expect("PostgreSQL Session history should be readable");
+    assert_eq!(
+        sessions
+            .iter()
+            .filter(|session| !session.event_refs().is_empty())
+            .count(),
+        history.len()
+    );
+    assert!(
+        sessions
+            .iter()
+            .any(|session| session.event_refs().is_empty())
     );
 
     let before_no_change = WorldStore::snapshot(&storage, timeline_id)
