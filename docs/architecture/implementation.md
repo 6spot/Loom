@@ -125,6 +125,7 @@ L4  Adapters
 
 L5  Applications / Composition Roots
     loom-server
+    loom-validator (public-consumer validation)
     loom-cli
     loom-studio
 ```

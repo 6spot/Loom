@@ -10,6 +10,13 @@ The current post-Amendment V0 plan is [`v0-roadmap.md`](v0-roadmap.md), covering
 
 Milestones 1–3 remain historical completed implementation baselines. The old unmerged M4–M13 planning in issues #60–#134 / draft PR #135 is superseded and must not be used as the current execution plan.
 
+## Cross-cutting validator initiative
+
+The first-party public-consumer validator is tracked in the
+[`validator/README.md`](validator/README.md) initiative index. Its individual
+implementation tasks continue to follow the same one-task/one-file audit rule;
+the initiative index does not replace a task record.
+
 Before implementing any planned task:
 
 1. read `docs/architecture/README.md`;
