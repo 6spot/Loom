@@ -7,6 +7,7 @@ SELECT timeline_id::text AS timeline_id,
        world_time_after,
        event_ids,
        work_transitions,
+       provenance,
        chronology_budget_world_time,
        chronology_budget_before::text AS chronology_budget_before,
        chronology_budget_after::text AS chronology_budget_after

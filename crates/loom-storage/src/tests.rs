@@ -1,9 +1,16 @@
-use std::{str::FromStr, sync::Arc};
+use std::{
+    str::FromStr,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use loom_api::{
     ActionRequest, ActionService, ApiErrorCode, ChangeFeedCursor, ExecutionResult,
-    ForkTimelineRequest, SubscriptionRequest, SubscriptionResult, SubscriptionService,
-    TimelineTarget,
+    ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
+    IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata, SubscriptionRequest,
+    SubscriptionResult, SubscriptionService, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
@@ -21,12 +28,14 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded, CommitError,
-    EffectEngine, ForkWork, LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionStore, SchedulerCommitStore, TimelineDriverResult, TimelineFork,
-    TimelineForkStore, WorkError, WorkRecord, WorkStatus, WorkTarget, WorkTerminalState,
-    WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded,
+    CommitAuthorityContext, CommitError, CommitStore, EffectEngine, ForkWork, IngressStore,
+    IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PlatformTime, Runtime,
+    RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
+    TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
+    WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -529,6 +538,67 @@ fn event_with_effect(event_id: EventId, effect: WorldEffect, source_time: i64) -
     .with_effect(effect)
 }
 
+#[tokio::test]
+async fn ingress_authority_rejects_stale_fence_before_no_change_commit() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let submission = IngressSubmission::new(
+        "tenant-a",
+        IngressEnvelope::new(
+            IngressId::from("ingress-authority"),
+            "key-authority",
+            IngressProvenance::new("test"),
+            TimelineTarget::new(world(), timeline()),
+            IngressAuthorizationContext::new(json!({"policy": "test"})),
+            IngressTimeMetadata::from_source("source-time"),
+            ActionInvocation::new(ActionTypeId::from("test.action"), json!({})),
+        ),
+        "fingerprint",
+        PlatformTime::new(0),
+    );
+    IngressStore::accept(&store, submission)
+        .await
+        .expect("Ingress should be accepted");
+    let first = IngressStore::claim(
+        &store,
+        IngressId::from("ingress-authority"),
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect("first claim should succeed");
+    let _second = IngressStore::claim(
+        &store,
+        IngressId::from("ingress-authority"),
+        PlatformTime::new(10),
+        PlatformTime::new(20),
+    )
+    .await
+    .expect("expired claim should be reclaimed");
+    let validated = validated(&store, &registry(), Resolution::new(Vec::new(), Vec::new()));
+    let result = CommitStore::commit_with_authority(
+        &store,
+        &validated,
+        CommitAuthorityContext {
+            current_work: None,
+            ingress_claim: Some(first),
+            provenance: None,
+        },
+        PlatformTime::new(10),
+    )
+    .await;
+    assert!(matches!(result, Err(CommitError::IngressClaim { .. })));
+    assert_eq!(
+        store
+            .snapshot(timeline())
+            .expect("snapshot should exist")
+            .version(),
+        TimelineVersion::default()
+    );
+}
+
 fn with_entity_participant(mut event: ProposedEvent, entity_id: EntityId) -> ProposedEvent {
     event.participants = serde_json::from_value(json!([{
         "entity_id": entity_id.to_string(),
@@ -567,6 +637,7 @@ const SCHEDULE_ACTION: &str = "test.schedule_work";
 const CANCEL_ACTION: &str = "test.cancel_work";
 const EMPTY_WORK_HANDLER: &str = "test.empty_work";
 const TEST_WORK_HANDLER: &str = "test.handler";
+const RETRY_ACTION: &str = "test.ingress_retry_action";
 
 struct NoChangeCapability {
     manifest: CapabilityManifest,
@@ -590,6 +661,12 @@ impl Capability for NoChangeCapability {
             ActionDefinition::new(ActionTypeId::from(CANCEL_ACTION), SchemaRevision::new(1)),
             CancelResolver,
         )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(RETRY_ACTION), SchemaRevision::new(1)),
+            FailOnceResolver {
+                failed: Arc::new(AtomicBool::new(false)),
+            },
+        )?;
         registrar.register_work_handler(
             WorkHandlerDefinition::new(
                 WorkHandlerId::from(EMPTY_WORK_HANDLER),
@@ -606,6 +683,62 @@ fn no_change_registry() -> CapabilityRegistry {
             .expect("no-change Capability manifest should parse"),
     }])
     .expect("no-change Capability registry should assemble")
+}
+
+struct FailOnceResolver {
+    failed: Arc<AtomicBool>,
+}
+
+fn ingress_test_request(id: &str, action: &str, input: Value) -> IngressEnvelope {
+    IngressEnvelope::new(
+        IngressId::from(id),
+        format!("{id}-key"),
+        IngressProvenance::new("in-memory-test"),
+        TimelineTarget::new(world(), timeline()),
+        IngressAuthorizationContext::new(json!({})),
+        IngressTimeMetadata::none(),
+        ActionInvocation::new(ActionTypeId::from(action), input),
+    )
+}
+
+fn ingress_test_runtime(store: &InMemoryStore) -> (Runtime<&InMemoryStore>, ManualPlatformClock) {
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let clock = ManualPlatformClock::new(PlatformTime::new(0));
+    let runtime = Runtime::new(store, no_change_registry())
+        .expect("Runtime should assemble")
+        .with_platform_clock(clock.clone());
+    (runtime, clock)
+}
+
+impl ActionResolver for FailOnceResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        if !self.failed.swap(true, Ordering::AcqRel) {
+            return Err(ResolverError::new("deterministic technical failure"));
+        }
+        let work_id = input
+            .get("work_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ResolverError::new("work_id must be a UUID string"))?
+            .parse()
+            .map_err(|_| ResolverError::new("work_id must be a UUID string"))?;
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            Vec::new(),
+            vec![WorkMutation::Schedule(NewWork::new(
+                work_id,
+                timeline(),
+                WorkHandlerId::from(EMPTY_WORK_HANDLER),
+                SchemaRevision::new(1),
+                json!({"retry": true}),
+                WorkSchedule::Immediate,
+            ))],
+        )))
+    }
 }
 
 struct EmptyResolver;
@@ -736,6 +869,193 @@ async fn empty_public_action_returns_no_change_without_advancing_timeline_versio
         .expect("test Timeline should be readable");
     assert_eq!(after.version(), before);
     assert!(after.events.is_empty());
+}
+
+#[tokio::test]
+async fn ingress_finalization_crash_recovers_without_repeating_authority_mutation() {
+    let store = InMemoryStore::new();
+    let (runtime, clock) = ingress_test_runtime(&store);
+    runtime
+        .submit_ingress(ingress_test_request(
+            "ingress-finalization-crash",
+            SCHEDULE_ACTION,
+            json!({"work_id": work(301).to_string()}),
+        ))
+        .await
+        .unwrap();
+    store.fail_next_ingress_finalization_for_test();
+    assert!(
+        runtime
+            .process_ingress(
+                IngressId::from("ingress-finalization-crash"),
+                0.into(),
+                10.into(),
+                0.into()
+            )
+            .await
+            .is_err()
+    );
+    let after_commit = store.snapshot(timeline()).unwrap();
+    assert_eq!(
+        (
+            after_commit.events.len(),
+            after_commit.works.len(),
+            after_commit.journal.len()
+        ),
+        (0, 1, 1)
+    );
+    let started = store.list_sessions().unwrap().pop().unwrap();
+    assert!(
+        started.status() == loom_runtime::ExecutionSessionStatus::Started
+            && started.commit_provenance().is_some()
+    );
+
+    clock.set(PlatformTime::new(10));
+    let completion = runtime
+        .process_ingress(
+            IngressId::from("ingress-finalization-crash"),
+            10.into(),
+            20.into(),
+            10.into(),
+        )
+        .await
+        .unwrap();
+    assert!(completion.is_committed());
+    let after_recovery = store.snapshot(timeline()).unwrap();
+    assert_eq!(after_recovery.version(), after_commit.version());
+    assert_eq!(
+        (
+            after_recovery.events.len(),
+            after_recovery.works.len(),
+            after_recovery.journal.len()
+        ),
+        (0, 1, 1)
+    );
+    assert_eq!(store.ingress_authority_commit_attempts_for_test(), 1);
+    let sessions = store.list_sessions().unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(
+        sessions[0].status(),
+        loom_runtime::ExecutionSessionStatus::Committed
+    );
+    assert_eq!(sessions[0].ingress_completion(), Some(&completion));
+}
+
+#[tokio::test]
+async fn ingress_unknown_outcome_retries_reconciliation_without_dispatching_again() {
+    let store = InMemoryStore::new();
+    let (runtime, _clock) = ingress_test_runtime(&store);
+    runtime
+        .submit_ingress(ingress_test_request(
+            "ingress-unknown",
+            SCHEDULE_ACTION,
+            json!({"work_id": work(302).to_string()}),
+        ))
+        .await
+        .unwrap();
+    store.fail_next_ingress_commit_unknown_for_test();
+    assert!(
+        runtime
+            .process_ingress(
+                IngressId::from("ingress-unknown"),
+                0.into(),
+                10.into(),
+                0.into()
+            )
+            .await
+            .is_err()
+    );
+    let first_session = store.list_sessions().unwrap().pop().unwrap();
+    assert!(first_session.commit_provenance().is_some());
+    assert!(matches!(
+        store
+            .ingress(IngressId::from("ingress-unknown"))
+            .unwrap()
+            .status,
+        IngressStatus::Retryable(_)
+    ));
+    assert!(
+        runtime
+            .process_ingress(
+                IngressId::from("ingress-unknown"),
+                0.into(),
+                10.into(),
+                0.into()
+            )
+            .await
+            .is_err()
+    );
+    let second_session = store.list_sessions().unwrap().pop().unwrap();
+    assert_eq!(second_session.id(), first_session.id());
+    assert_eq!(
+        second_session.commit_provenance(),
+        first_session.commit_provenance()
+    );
+    assert_eq!(store.ingress_authority_commit_attempts_for_test(), 1);
+    let snapshot = store.snapshot(timeline()).unwrap();
+    assert!(snapshot.events.is_empty() && snapshot.works.is_empty() && snapshot.journal.is_empty());
+}
+
+#[tokio::test]
+async fn retryable_ingress_with_only_failed_session_starts_a_fresh_attempt() {
+    let store = InMemoryStore::new();
+    let (runtime, _clock) = ingress_test_runtime(&store);
+    runtime
+        .submit_ingress(ingress_test_request(
+            "ingress-failed-session",
+            RETRY_ACTION,
+            json!({"work_id": work(303).to_string()}),
+        ))
+        .await
+        .unwrap();
+    runtime
+        .process_ingress(
+            IngressId::from("ingress-failed-session"),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .expect_err("first attempt should fail technically");
+    let first = store.list_sessions().unwrap().pop().unwrap();
+    assert_eq!(first.status(), loom_runtime::ExecutionSessionStatus::Failed);
+    assert!(matches!(
+        store
+            .ingress(IngressId::from("ingress-failed-session"))
+            .unwrap()
+            .status,
+        IngressStatus::Retryable(_)
+    ));
+
+    let completion = runtime
+        .process_ingress(
+            IngressId::from("ingress-failed-session"),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(0),
+        )
+        .await
+        .unwrap();
+    assert!(completion.is_committed());
+    let sessions = store.list_sessions().unwrap();
+    assert_eq!(sessions.len(), 2);
+    assert!(
+        sessions
+            .iter()
+            .any(|session| { session.status() == loom_runtime::ExecutionSessionStatus::Failed })
+    );
+    let committed = sessions
+        .iter()
+        .find(|session| session.status() == loom_runtime::ExecutionSessionStatus::Committed)
+        .expect("fresh attempt should be committed");
+    assert_ne!(committed.id(), first.id());
+    assert_eq!(store.snapshot(timeline()).unwrap().works.len(), 1);
+    let record = store
+        .ingress(IngressId::from("ingress-failed-session"))
+        .unwrap();
+    assert!(matches!(record.status, IngressStatus::Completed(_)));
+    assert_eq!(record.attempt_count, 2);
+    assert_eq!(record.claim_fence, 2);
 }
 
 #[tokio::test]

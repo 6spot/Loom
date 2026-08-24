@@ -749,7 +749,7 @@ impl IngressAcceptance {
 /// Only `Committed` carries World history identity. `Rejected` is a completed
 /// semantic result, not a technical failure. `NoChange` is also complete but
 /// intentionally carries no claim that a new Event was appended.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum IngressCompletion {
     /// Normal Runtime commit succeeded and produced the listed Event history.
     Committed {

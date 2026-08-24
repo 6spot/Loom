@@ -14,6 +14,11 @@ mod ingress;
 mod session;
 mod work;
 
+#[cfg(test)]
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::{fmt::Display, str::FromStr, time::Instant};
 
 use loom_core::{
@@ -108,6 +113,10 @@ const QUERY_SEMANTIC_PROJECTION_INNER_PRODUCT_SQL: &str =
 #[derive(Clone, Debug)]
 pub struct PgStorage {
     pool: PgPool,
+    #[cfg(test)]
+    test_unknown_commit_once: Arc<AtomicBool>,
+    #[cfg(test)]
+    test_fail_ingress_finalization_once: Arc<AtomicBool>,
 }
 
 impl PgStorage {
@@ -122,7 +131,35 @@ impl PgStorage {
     /// Returns [`sqlx::Error`] when `SQLx` cannot establish the `PostgreSQL` pool.
     pub async fn connect(database_url: &str) -> Result<Self, sqlx::Error> {
         let pool = PgPoolOptions::new().connect(database_url).await?;
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            #[cfg(test)]
+            test_unknown_commit_once: Arc::new(AtomicBool::new(false)),
+            #[cfg(test)]
+            test_fail_ingress_finalization_once: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_commit_outcome_unknown_for_test(&self) {
+        self.test_unknown_commit_once.store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_ingress_finalization_for_test(&self) {
+        self.test_fail_ingress_finalization_once
+            .store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_test_unknown_commit_once(&self) -> bool {
+        self.test_unknown_commit_once.swap(false, Ordering::AcqRel)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_test_ingress_finalization_failure(&self) -> bool {
+        self.test_fail_ingress_finalization_once
+            .swap(false, Ordering::AcqRel)
     }
 
     /// Applies the embedded, repository-versioned `SQLx` migrations.
@@ -1877,6 +1914,7 @@ impl WorldTimeStore for PgStorage {
                     event_ids: Vec::new(),
                     work_transitions: Vec::new(),
                     chronology_budget: None,
+                    provenance: None,
                 },
             )
             .await
@@ -2304,6 +2342,14 @@ fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit,
             .map_err(|error| {
                 corrupt(format!("invalid logical journal Work transitions: {error}"))
             })?;
+    let provenance = row
+        .try_get::<Option<serde_json::Value>, _>("provenance")
+        .map_err(sql_read_error)?
+        .map(|value| {
+            serde_json::from_value(value)
+                .map_err(|error| corrupt(format!("invalid logical journal provenance: {error}")))
+        })
+        .transpose()?;
 
     let budget_world_time: Option<i64> = row
         .try_get("chronology_budget_world_time")
@@ -2336,6 +2382,7 @@ fn logical_commit_from_row(row: &sqlx::postgres::PgRow) -> Result<LogicalCommit,
         event_ids,
         work_transitions,
         chronology_budget,
+        provenance,
     })
 }
 

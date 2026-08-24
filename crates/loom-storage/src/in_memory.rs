@@ -13,6 +13,9 @@ use std::{
     sync::RwLock,
 };
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use loom_core::{
     Entity, EntityId, EventId, EventRef, ExecutionSessionId, FacetOwner, FacetTypeId, Relationship,
     RelationshipId, TimelineAncestry, TimelineId, TimelineVersion, WorldEffect, WorldId,
@@ -20,22 +23,23 @@ use loom_core::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChangeFeedRead, ChangeFeedStore,
-    ChronologyBudgetConsumption, CommitError, CommitResult, CommitStore, CommittedEvent,
-    EntropyEvidence, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, ForkError,
-    ForkWork, IdempotencyConflict, IngressAcceptance, IngressClaim, IngressCompletion,
-    IngressError, IngressId, IngressLease, IngressOperationalRecord, IngressReceipt, IngressStatus,
-    IngressStore, IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit,
-    LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead,
-    PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent,
-    ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
-    SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey,
-    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
-    SemanticProjectionRow, SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore,
-    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
-    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore, semantic_projection_hit_bytes,
+    ChronologyBudgetConsumption, CommitAuthorityContext, CommitError, CommitResult, CommitStore,
+    CommittedEvent, EntropyEvidence, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, ForkError, ForkWork, IdempotencyConflict, IngressAcceptance,
+    IngressClaim, IngressCompletion, IngressError, IngressId, IngressLease,
+    IngressOperationalRecord, IngressReceipt, IngressStatus, IngressStore, IngressSubmission,
+    IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalJournalStore,
+    LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
+    PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
+    RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticIndexMetric,
+    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
+    SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
+    WorkStore, WorkTarget, WorkTerminalization, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -171,6 +175,12 @@ impl std::error::Error for SetupError {}
 /// authority. Callers supply platform-time values to claim, retry and commit.
 pub struct InMemoryStore {
     state: RwLock<StoreState>,
+    #[cfg(test)]
+    fail_next_ingress_finalization: AtomicBool,
+    #[cfg(test)]
+    fail_next_ingress_commit_unknown: AtomicBool,
+    #[cfg(test)]
+    ingress_authority_commit_attempts: AtomicUsize,
 }
 
 impl Default for InMemoryStore {
@@ -185,7 +195,31 @@ impl InMemoryStore {
     pub fn new() -> Self {
         Self {
             state: RwLock::new(StoreState::default()),
+            #[cfg(test)]
+            fail_next_ingress_finalization: AtomicBool::new(false),
+            #[cfg(test)]
+            fail_next_ingress_commit_unknown: AtomicBool::new(false),
+            #[cfg(test)]
+            ingress_authority_commit_attempts: AtomicUsize::new(0),
         }
+    }
+
+    #[cfg(test)]
+    pub fn fail_next_ingress_finalization_for_test(&self) {
+        self.fail_next_ingress_finalization
+            .store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub fn fail_next_ingress_commit_unknown_for_test(&self) {
+        self.fail_next_ingress_commit_unknown
+            .store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub fn ingress_authority_commit_attempts_for_test(&self) -> usize {
+        self.ingress_authority_commit_attempts
+            .load(Ordering::Acquire)
     }
 
     /// Atomically accepts, deduplicates or conflicts one external submission.
@@ -473,7 +507,7 @@ impl InMemoryStore {
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
     ) -> Result<ExecutionSession, SessionError> {
-        self.finish_session_inner(session_id, status, ended_at, None)
+        self.finish_session_inner(session_id, status, ended_at, None, None, None)
     }
 
     /// Linearizes a terminal Session transition with ordered entropy evidence.
@@ -489,7 +523,50 @@ impl InMemoryStore {
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
     ) -> Result<ExecutionSession, SessionError> {
-        self.finish_session_inner(session_id, status, ended_at, Some(entropy_evidence))
+        self.finish_session_inner(
+            session_id,
+            status,
+            ended_at,
+            Some(entropy_evidence),
+            None,
+            None,
+        )
+    }
+
+    /// Linearizes a terminal Ingress Session with its semantic completion
+    /// provenance so operational finalization can recover without rerunning
+    /// the Action.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Runtime Session lifecycle error when the Session is absent,
+    /// already terminal, or cannot retain Ingress completion provenance.
+    pub fn finish_session_with_ingress_completion(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+        provenance: Option<loom_runtime::CommitProvenance>,
+    ) -> Result<ExecutionSession, SessionError> {
+        #[cfg(test)]
+        if self
+            .fail_next_ingress_finalization
+            .swap(false, Ordering::AcqRel)
+        {
+            return Err(SessionError::StorageUnavailable {
+                message: "test finalization interruption".to_owned(),
+            });
+        }
+        self.finish_session_inner(
+            session_id,
+            status,
+            ended_at,
+            Some(entropy_evidence),
+            Some(completion),
+            provenance,
+        )
     }
 
     fn finish_session_inner(
@@ -498,6 +575,8 @@ impl InMemoryStore {
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
         entropy_evidence: Option<EntropyEvidence>,
+        ingress_completion: Option<IngressCompletion>,
+        provenance: Option<loom_runtime::CommitProvenance>,
     ) -> Result<ExecutionSession, SessionError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
@@ -517,16 +596,55 @@ impl InMemoryStore {
             });
         }
         let finished = match entropy_evidence {
-            Some(entropy_evidence) => {
-                current.finish_with_entropy(status, ended_at, entropy_evidence)?
-            }
-            None => current.finish(status, ended_at)?,
+            Some(entropy_evidence) => match ingress_completion {
+                Some(completion) => current.finish_with_ingress_completion(
+                    status,
+                    ended_at,
+                    entropy_evidence,
+                    completion,
+                    provenance,
+                )?,
+                None => current.finish_with_entropy(status, ended_at, entropy_evidence)?,
+            },
+            None => match ingress_completion {
+                Some(_) => {
+                    return Err(SessionError::IngressCompletionUnavailable { session_id });
+                }
+                None => current.finish(status, ended_at)?,
+            },
         };
         staged
             .execution_sessions
             .insert(session_id, finished.clone());
         *guard = staged;
         Ok(finished)
+    }
+
+    /// Records Ingress proposal provenance while the root Session is still
+    /// Started, making crash-window recovery provenance-first.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Session lifecycle error when the Session is absent, terminal
+    /// or belongs to another execution origin/Ingress.
+    pub fn record_ingress_provenance(
+        &self,
+        session_id: ExecutionSessionId,
+        provenance: loom_runtime::CommitProvenance,
+    ) -> Result<ExecutionSession, SessionError> {
+        let mut guard = self.write_state();
+        let mut staged = guard.clone();
+        let current = staged
+            .execution_sessions
+            .get(&session_id)
+            .cloned()
+            .ok_or(SessionError::SessionNotFound { session_id })?;
+        let prepared = current.with_commit_provenance(provenance)?;
+        staged
+            .execution_sessions
+            .insert(session_id, prepared.clone());
+        *guard = staged;
+        Ok(prepared)
     }
 
     /// Reads one Session record without exposing mutable adapter state.
@@ -1034,7 +1152,12 @@ impl InMemoryStore {
         current_work: Option<&WorkClaim>,
         now: PlatformTime,
     ) -> Result<CommitResult, CommitError> {
-        self.commit_with_chronology_budget(resolution, current_work, now, None)
+        self.commit_with_authority(
+            resolution,
+            &CommitAuthorityContext::direct(current_work.copied()),
+            now,
+            None,
+        )
     }
 
     #[expect(
@@ -1044,13 +1167,14 @@ impl InMemoryStore {
     fn commit_with_chronology_budget(
         &self,
         resolution: &ValidatedResolution,
-        current_work: Option<&WorkClaim>,
+        context: &CommitAuthorityContext,
         now: PlatformTime,
         chronology_budget_limit: Option<u64>,
     ) -> Result<CommitResult, CommitError> {
         let mut guard = self.write_state();
         let mut staged = guard.clone();
         let timeline_id = resolution.timeline_id();
+        let current_work = context.current_work.as_ref();
         let visible_event_ids = visible_event_ids(&staged, timeline_id);
         let timeline = staged
             .timelines
@@ -1062,6 +1186,18 @@ impl InMemoryStore {
                 expected: resolution.base_version(),
                 actual: timeline.version,
             });
+        }
+        if let Some(claim) = context.ingress_claim.as_ref() {
+            let record = staged.ingresses.get(claim.ingress_id()).ok_or_else(|| {
+                CommitError::IngressClaim {
+                    message: format!("Ingress {} was not found", claim.ingress_id()),
+                }
+            })?;
+            validate_ingress_claim(record, claim, now).map_err(|error| {
+                CommitError::IngressClaim {
+                    message: error.to_string(),
+                }
+            })?;
         }
         if let Some(claim) = current_work {
             validate_claim(timeline, claim, now)?;
@@ -1154,6 +1290,14 @@ impl InMemoryStore {
             loom_core::StateRevision::new(next_state_revision),
         );
 
+        let provenance = context.provenance.as_ref().map(|provenance| {
+            let mut committed = provenance.clone();
+            committed
+                .logical_work_transitions
+                .clone_from(&work_transitions);
+            committed
+        });
+
         if changes_runtime_state {
             timeline.journal.push(LogicalCommit {
                 timeline_id,
@@ -1163,6 +1307,7 @@ impl InMemoryStore {
                 event_ids,
                 work_transitions,
                 chronology_budget,
+                provenance: provenance.clone(),
             });
         }
 
@@ -1171,9 +1316,33 @@ impl InMemoryStore {
             version: timeline.version,
             events: committed_events,
             completed_work,
+            provenance,
         };
         *guard = staged;
         Ok(result)
+    }
+
+    fn commit_with_authority(
+        &self,
+        resolution: &ValidatedResolution,
+        context: &CommitAuthorityContext,
+        now: PlatformTime,
+        chronology_budget_limit: Option<u64>,
+    ) -> Result<CommitResult, CommitError> {
+        #[cfg(test)]
+        if context.ingress_claim.is_some() {
+            self.ingress_authority_commit_attempts
+                .fetch_add(1, Ordering::AcqRel);
+            if self
+                .fail_next_ingress_commit_unknown
+                .swap(false, Ordering::AcqRel)
+            {
+                return Err(CommitError::CommitOutcomeUnknown {
+                    message: "test unknown ingress commit outcome".to_owned(),
+                });
+            }
+        }
+        self.commit_with_chronology_budget(resolution, context, now, chronology_budget_limit)
     }
 
     /// Applies an explicit monotonic World-Time transition with Timeline CAS.
@@ -1239,6 +1408,7 @@ impl InMemoryStore {
             event_ids: Vec::new(),
             work_transitions: Vec::new(),
             chronology_budget: None,
+            provenance: None,
         });
         let version = timeline.version;
         *guard = staged;
@@ -1476,6 +1646,7 @@ impl InMemoryStore {
             event_ids: Vec::new(),
             work_transitions: vec![transition],
             chronology_budget: None,
+            provenance: None,
         });
         let version = timeline.version;
         *guard = staged;
@@ -1864,6 +2035,7 @@ impl InMemoryStore {
                 event_ids,
                 work_transitions,
                 chronology_budget: None,
+                provenance: None,
             });
         }
         let version = timeline.version;
@@ -2510,6 +2682,38 @@ impl ExecutionSessionStore for InMemoryStore {
         })
     }
 
+    fn finish_session_with_ingress_completion(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        entropy_evidence: EntropyEvidence,
+        completion: IngressCompletion,
+        provenance: Option<loom_runtime::CommitProvenance>,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            InMemoryStore::finish_session_with_ingress_completion(
+                self,
+                session_id,
+                status,
+                ended_at,
+                entropy_evidence,
+                completion,
+                provenance,
+            )
+        })
+    }
+
+    fn record_ingress_provenance(
+        &self,
+        session_id: ExecutionSessionId,
+        provenance: loom_runtime::CommitProvenance,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(
+            async move { InMemoryStore::record_ingress_provenance(self, session_id, provenance) },
+        )
+    }
+
     fn read_session(
         &self,
         session_id: ExecutionSessionId,
@@ -2531,6 +2735,17 @@ impl CommitStore for InMemoryStore {
     ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
         Box::pin(async move { InMemoryStore::commit(self, resolution, current_work, now) })
     }
+
+    fn commit_with_authority<'a>(
+        &'a self,
+        resolution: &'a ValidatedResolution,
+        context: CommitAuthorityContext,
+        now: PlatformTime,
+    ) -> PersistenceFuture<'a, Result<CommitResult, CommitError>> {
+        Box::pin(async move {
+            InMemoryStore::commit_with_authority(self, resolution, &context, now, None)
+        })
+    }
 }
 
 impl SchedulerCommitStore for InMemoryStore {
@@ -2545,7 +2760,7 @@ impl SchedulerCommitStore for InMemoryStore {
             InMemoryStore::commit_with_chronology_budget(
                 self,
                 resolution,
-                Some(current_work),
+                &CommitAuthorityContext::direct(Some(*current_work)),
                 now,
                 Some(max_completions),
             )
