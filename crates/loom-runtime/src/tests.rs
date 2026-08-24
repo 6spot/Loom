@@ -1,19 +1,20 @@
 use std::str::FromStr;
 
 use loom_capability::{
-    CandidateWorldView as CapabilityCandidateWorldView, Capability, CapabilityManifest,
-    CapabilityRegistrar, CapabilityRegistry, EventDefinition as CapabilityEventDefinition,
-    FacetDefinition as CapabilityFacetDefinition, Invariant, InvariantViolation,
-    RelationshipDefinition as CapabilityRelationshipDefinition, RelationshipRole,
+    ActionDefinition, ActionResolver, CandidateWorldView as CapabilityCandidateWorldView,
+    Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry,
+    EventDefinition as CapabilityEventDefinition, FacetDefinition as CapabilityFacetDefinition,
+    Invariant, InvariantViolation, RelationshipDefinition as CapabilityRelationshipDefinition,
+    RelationshipRole, ResolutionContext, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
     Entity, EntityId, EventId, EventSeq, FacetOwner, FacetTypeId, Relationship, RelationshipId,
     RelationshipParticipant, RelationshipTypeId, SchemaRevision, StateRevision, TimelineId,
-    TimelineVersion, WorldEffect, WorldId, WorldInstant,
+    TimelineVersion, WorkHandlerId, WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{
-    CausalLink, EventParticipant, EventRelationshipRef, ProposedEvent, Rejection, Resolution,
-    ResolveOutcome,
+    CausalLink, EventParticipant, EventRelationshipRef, NewWork, ProposedEvent, Rejection,
+    Resolution, ResolveOutcome, WorkMutation, WorkSchedule,
 };
 use semver::{Version, VersionReq};
 use serde_json::json;
@@ -151,6 +152,17 @@ fn runtime_revision_selects_exact_compatible_capabilities_without_mutating_bindi
 fn register_basic_semantics(
     registrar: &mut CapabilityRegistrar,
 ) -> Result<(), loom_capability::RegistrationError> {
+    registrar.register_action(
+        ActionDefinition::new(
+            loom_core::ActionTypeId::from("counter.increment"),
+            SchemaRevision::new(1),
+        ),
+        NoopResolver,
+    )?;
+    registrar.register_work_handler(
+        WorkHandlerDefinition::new(WorkHandlerId::from("counter.tick"), SchemaRevision::new(1)),
+        NoopWorkHandler,
+    )?;
     registrar.register_facet(CapabilityFacetDefinition::new(
         FacetTypeId::from("counter.value"),
         SchemaRevision::new(1),
@@ -180,6 +192,30 @@ fn register_basic_semantics(
         .with_role(RelationshipRole::new("right".into(), 1, Some(1))),
     )?;
     Ok(())
+}
+
+struct NoopResolver;
+
+impl ActionResolver for NoopResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &serde_json::Value,
+    ) -> loom_capability::CapabilityResult<ResolveOutcome> {
+        Ok(ResolveOutcome::Resolved(Resolution::default()))
+    }
+}
+
+struct NoopWorkHandler;
+
+impl WorkHandler for NoopWorkHandler {
+    fn handle(
+        &self,
+        _context: &dyn ResolutionContext,
+        _payload: &serde_json::Value,
+    ) -> loom_capability::CapabilityResult<ResolveOutcome> {
+        Ok(ResolveOutcome::Resolved(Resolution::default()))
+    }
 }
 
 fn proposed_event(value: u128) -> ProposedEvent {
@@ -841,12 +877,20 @@ fn invalid_event_payload_cannot_produce_validated_resolution() {
 }
 
 #[test]
-fn event_payload_budget_accepts_exact_size_and_rejects_over_without_a_token() {
+fn event_payload_budget_accepts_under_and_exact_and_rejects_over_without_a_token() {
     let event = proposed_event(1);
     let payload_bytes = serde_json::to_vec(&event.payload)
         .expect("JSON payload should encode")
         .len();
     let registry = registry();
+    EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_event_payload_bytes(payload_bytes + 1))
+        .validate(
+            &base_view(),
+            OWNER,
+            Resolution::new(vec![event.clone()], Vec::new()),
+        )
+        .expect("an under-limit Event payload should pass");
     EffectEngine::new(&registry)
         .with_budget(ResolutionBudget::unlimited().with_max_event_payload_bytes(payload_bytes))
         .validate(
@@ -870,6 +914,158 @@ fn event_payload_budget_accepts_exact_size_and_rejects_over_without_a_token() {
             dimension: crate::BudgetDimension::EventPayloadBytes,
             ..
         })
+    ));
+}
+
+#[test]
+fn action_input_budget_accepts_under_and_exact_and_rejects_over() {
+    let registry = registry();
+    let action = loom_core::ActionTypeId::from("counter.increment");
+    let input = json!({"amount": 1});
+    let payload_bytes = serde_json::to_vec(&input)
+        .expect("JSON input should encode")
+        .len();
+
+    EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_action_payload_bytes(payload_bytes - 1))
+        .validate_action_input(&action, &json!(1))
+        .expect("an under-limit Action input should pass");
+    EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_action_payload_bytes(payload_bytes))
+        .validate_action_input(&action, &input)
+        .expect("the exact Action input boundary should pass");
+    let error = EffectEngine::new(&registry)
+        .with_budget(ResolutionBudget::unlimited().with_max_action_payload_bytes(payload_bytes + 1))
+        .validate_action_input(&action, &json!({"amount": 123_456_789}))
+        .expect_err("an over-limit Action input must fail");
+    assert!(matches!(
+        error,
+        super::RuntimeError::Budget(crate::BudgetError {
+            dimension: crate::BudgetDimension::ActionPayloadBytes,
+            ..
+        })
+    ));
+}
+
+fn proposed_work(value: u128, payload: serde_json::Value) -> NewWork {
+    NewWork::new(
+        id::<WorkId>(value),
+        timeline(),
+        WorkHandlerId::from("counter.tick"),
+        SchemaRevision::new(1),
+        payload,
+        WorkSchedule::Immediate,
+    )
+}
+
+#[test]
+fn work_payload_budget_accepts_under_and_exact_and_rejects_over() {
+    let input = json!({"amount": 1});
+    let payload_bytes = serde_json::to_vec(&input)
+        .expect("JSON payload should encode")
+        .len();
+    let registry = registry();
+    for (limit, payload, expected) in [
+        (payload_bytes + 1, input.clone(), true),
+        (payload_bytes, input.clone(), true),
+        (payload_bytes - 1, input, false),
+    ] {
+        let result = EffectEngine::new(&registry)
+            .with_budget(ResolutionBudget::unlimited().with_max_work_payload_bytes(limit))
+            .validate(
+                &base_view(),
+                OWNER,
+                Resolution::new(
+                    Vec::new(),
+                    vec![WorkMutation::Schedule(proposed_work(
+                        100 + limit as u128,
+                        payload,
+                    ))],
+                ),
+            );
+        if expected {
+            result.expect("work payload at or below the limit should pass");
+        } else {
+            assert!(matches!(
+                result,
+                Err(super::RuntimeError::Budget(crate::BudgetError {
+                    dimension: crate::BudgetDimension::WorkPayloadBytes,
+                    ..
+                }))
+            ));
+        }
+    }
+}
+
+#[test]
+fn resolution_count_budgets_reject_without_authority() {
+    let registry = registry();
+    let event_resolution = |limit: usize| {
+        EffectEngine::new(&registry)
+            .with_budget(ResolutionBudget::unlimited().with_max_events(limit))
+            .validate(
+                &base_view(),
+                OWNER,
+                Resolution::new(vec![proposed_event(1)], Vec::new()),
+            )
+    };
+    event_resolution(2).expect("under Event count should pass");
+    event_resolution(1).expect("exact Event count should pass");
+    assert!(matches!(
+        event_resolution(0),
+        Err(super::RuntimeError::Budget(crate::BudgetError {
+            dimension: crate::BudgetDimension::Events,
+            ..
+        }))
+    ));
+
+    let effect_resolution = |limit: usize| {
+        EffectEngine::new(&registry)
+            .with_budget(ResolutionBudget::unlimited().with_max_effects(limit))
+            .validate(
+                &base_view(),
+                OWNER,
+                Resolution::new(
+                    vec![proposed_event(2).with_effect(WorldEffect::CreateEntity {
+                        entity_id: entity(20),
+                    })],
+                    Vec::new(),
+                ),
+            )
+    };
+    effect_resolution(2).expect("under Effect count should pass");
+    effect_resolution(1).expect("exact Effect count should pass");
+    assert!(matches!(
+        effect_resolution(0),
+        Err(super::RuntimeError::Budget(crate::BudgetError {
+            dimension: crate::BudgetDimension::Effects,
+            ..
+        }))
+    ));
+
+    let work_resolution = |limit: usize| {
+        EffectEngine::new(&registry)
+            .with_budget(ResolutionBudget::unlimited().with_max_work_mutations(limit))
+            .validate(
+                &base_view(),
+                OWNER,
+                Resolution::new(
+                    Vec::new(),
+                    vec![WorkMutation::Schedule(proposed_work(
+                        200 + limit as u128,
+                        json!({"amount": 1}),
+                    ))],
+                ),
+            )
+    };
+    work_resolution(2).expect("under Work mutation count should pass");
+    work_resolution(1).expect("exact Work mutation count should pass");
+    assert!(matches!(
+        work_resolution(0),
+        Err(super::RuntimeError::Budget(crate::BudgetError {
+            dimension: crate::BudgetDimension::WorkMutations,
+            ..
+        }))
     ));
 }
 

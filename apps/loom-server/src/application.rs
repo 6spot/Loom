@@ -572,6 +572,7 @@ impl LoomServer {
             let result = run_scheduler_until_shutdown(
                 &mut worker,
                 config.worker_poll_interval,
+                config.worker_config.scheduler_poll_limit(),
                 scheduler_shutdown.clone(),
             )
             .await
@@ -605,6 +606,7 @@ pub async fn run_from_env() -> Result<(), ServerError> {
 async fn run_scheduler_until_shutdown<S>(
     worker: &mut SchedulerWorker<S, SystemClock>,
     poll_interval: std::time::Duration,
+    poll_limit: usize,
     shutdown: ShutdownSignal,
 ) -> ApiResult<()>
 where
@@ -620,7 +622,7 @@ where
         + PinnedWorldReadStore,
 {
     while !shutdown.is_requested() {
-        worker.run_bounded(1).await?;
+        worker.run_bounded(poll_limit).await?;
         sleep(poll_interval).await;
     }
     Ok(())

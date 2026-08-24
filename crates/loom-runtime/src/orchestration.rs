@@ -3704,22 +3704,35 @@ fn check_session_provenance_budget(
     evidence: &ExecutionEvidence,
     provenance: Option<&CommitProvenance>,
 ) -> ApiResult<()> {
-    let Some(limit) = policy.max_session_provenance_bytes() else {
-        return Ok(());
-    };
-    let evidence_bytes = serde_json::to_vec(evidence)
-        .map_err(|_| ApiError::invalid_request("execution provenance could not be encoded"))?;
-    let provenance_bytes = provenance
-        .map(serde_json::to_vec)
-        .transpose()
-        .map_err(|_| ApiError::invalid_request("commit provenance could not be encoded"))?;
-    let actual = evidence_bytes
+    let entries = evidence
+        .read_set
         .len()
-        .saturating_add(provenance_bytes.as_ref().map_or(0, Vec::len));
-    if actual > limit {
+        .saturating_add(evidence.call_provenance.len())
+        .saturating_add(evidence.entropy_evidence.len())
+        .saturating_add(evidence.cognitive_evidence.len());
+    if let Some(limit) = policy.max_session_provenance_entries()
+        && entries > limit
+    {
         return Err(ApiError::invalid_request(
-            "execution provenance exceeds the Runtime resource bound",
+            "execution provenance entry count exceeds the Runtime resource bound",
         ));
+    }
+
+    if let Some(limit) = policy.max_session_provenance_bytes() {
+        let evidence_bytes = serde_json::to_vec(evidence)
+            .map_err(|_| ApiError::invalid_request("execution provenance could not be encoded"))?;
+        let provenance_bytes = provenance
+            .map(serde_json::to_vec)
+            .transpose()
+            .map_err(|_| ApiError::invalid_request("commit provenance could not be encoded"))?;
+        let actual = evidence_bytes
+            .len()
+            .saturating_add(provenance_bytes.as_ref().map_or(0, Vec::len));
+        if actual > limit {
+            return Err(ApiError::invalid_request(
+                "execution provenance exceeds the Runtime resource bound",
+            ));
+        }
     }
     Ok(())
 }
@@ -8034,6 +8047,28 @@ mod tests {
         assert_eq!(repeat, result);
         assert_eq!(state.borrow().read_set.len(), 1);
 
+        for limit in [3, 2] {
+            let bounded_assembly = test_assembly_with_budget(
+                &registry,
+                semantic_binding(),
+                &ResolutionBudget::unlimited().with_max_semantic_results(limit),
+            );
+            let bounded_state = Rc::new(RefCell::new(ExecutionState::new(
+                &bounded_assembly.execution_policy(),
+                bounded_assembly.entropy_source_id().clone(),
+            )));
+            let bounded_result = block_on(query_semantic_host(
+                &base(),
+                &registry,
+                &bounded_assembly,
+                &store,
+                &bounded_state,
+                &request,
+            ))
+            .expect("under and exact semantic result bounds should pass");
+            assert_eq!(bounded_result.hits.len(), 2);
+        }
+
         let bounded_assembly = test_assembly_with_budget(
             &registry,
             semantic_binding(),
@@ -8057,6 +8092,35 @@ mod tests {
             SemanticQueryError::Bounds { ref dimension, .. } if dimension == "semantic_results"
         ));
         assert!(bounded_state.borrow().read_set.is_empty());
+    }
+
+    #[test]
+    fn session_provenance_entry_budget_accepts_under_exact_and_rejects_over() {
+        let registry = semantic_registry();
+        let assembly = test_assembly(&registry, semantic_binding());
+        let mut evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
+        for value in [10, 11, 12] {
+            evidence.read_set.record(ReadDependency::Entity {
+                entity_id: id(value),
+                present: true,
+            });
+        }
+
+        for limit in [4, 3] {
+            check_session_provenance_budget(
+                &ResolutionBudget::unlimited().with_max_session_provenance_entries(limit),
+                &evidence,
+                None,
+            )
+            .expect("under and exact provenance entry bounds should pass");
+        }
+        let error = check_session_provenance_budget(
+            &ResolutionBudget::unlimited().with_max_session_provenance_entries(2),
+            &evidence,
+            None,
+        )
+        .expect_err("over provenance entry bound should fail");
+        assert!(error.to_string().contains("entry count"));
     }
 
     fn registry() -> CapabilityRegistry {

@@ -17,6 +17,8 @@ pub enum BudgetDimension {
     IngressPayloadBytes,
     /// Serialized Runtime evidence retained for one Execution Session.
     SessionProvenanceBytes,
+    /// Number of Runtime evidence entries retained for one Execution Session.
+    SessionProvenanceEntries,
     /// Largest serialized payload in one proposed Event.
     EventPayloadBytes,
     /// Largest serialized payload in one proposed Work item.
@@ -57,6 +59,7 @@ impl std::fmt::Display for BudgetDimension {
             Self::ActionPayloadBytes => "action_payload_bytes",
             Self::IngressPayloadBytes => "ingress_payload_bytes",
             Self::SessionProvenanceBytes => "session_provenance_bytes",
+            Self::SessionProvenanceEntries => "session_provenance_entries",
             Self::EventPayloadBytes => "event_payload_bytes",
             Self::WorkPayloadBytes => "work_payload_bytes",
             Self::Events => "events",
@@ -335,6 +338,7 @@ pub struct ResolutionBudget {
     action_payload_bytes: Option<usize>,
     ingress_payload_bytes: Option<usize>,
     session_provenance_bytes: Option<usize>,
+    session_provenance_entries: Option<usize>,
     event_payload_bytes: Option<usize>,
     work_payload_bytes: Option<usize>,
     events: Option<usize>,
@@ -365,6 +369,7 @@ impl ResolutionBudget {
             action_payload_bytes: None,
             ingress_payload_bytes: None,
             session_provenance_bytes: None,
+            session_provenance_entries: None,
             event_payload_bytes: None,
             work_payload_bytes: None,
             events: max_events,
@@ -397,6 +402,7 @@ impl ResolutionBudget {
             action_payload_bytes: Some(256 * 1024),
             ingress_payload_bytes: Some(512 * 1024),
             session_provenance_bytes: Some(4 * 1024 * 1024),
+            session_provenance_entries: Some(4_096),
             event_payload_bytes: Some(256 * 1024),
             work_payload_bytes: Some(256 * 1024),
             events: Some(256),
@@ -437,6 +443,13 @@ impl ResolutionBudget {
         self
     }
 
+    /// Sets the maximum number of evidence entries retained for one Session.
+    #[must_use]
+    pub const fn with_max_session_provenance_entries(mut self, limit: usize) -> Self {
+        self.session_provenance_entries = Some(limit);
+        self
+    }
+
     /// Sets the maximum serialized Event payload size.
     #[must_use]
     pub const fn with_max_event_payload_bytes(mut self, limit: usize) -> Self {
@@ -474,6 +487,13 @@ impl ResolutionBudget {
     #[must_use]
     pub const fn max_session_provenance_bytes(self) -> Option<usize> {
         self.session_provenance_bytes
+    }
+
+    /// Returns the maximum number of evidence entries retained for one
+    /// Session.
+    #[must_use]
+    pub const fn max_session_provenance_entries(self) -> Option<usize> {
+        self.session_provenance_entries
     }
 
     /// Returns the maximum Event payload size.
@@ -693,6 +713,11 @@ impl ResolutionBudget {
                 usage.session_provenance_bytes,
             ),
             (
+                BudgetDimension::SessionProvenanceEntries,
+                self.session_provenance_entries,
+                0,
+            ),
+            (
                 BudgetDimension::EventPayloadBytes,
                 self.event_payload_bytes,
                 usage.event_payload_bytes,
@@ -789,6 +814,7 @@ impl ResolutionBudget {
             BudgetDimension::ActionPayloadBytes => self.action_payload_bytes,
             BudgetDimension::IngressPayloadBytes => self.ingress_payload_bytes,
             BudgetDimension::SessionProvenanceBytes => self.session_provenance_bytes,
+            BudgetDimension::SessionProvenanceEntries => self.session_provenance_entries,
             BudgetDimension::EventPayloadBytes => self.event_payload_bytes,
             BudgetDimension::WorkPayloadBytes => self.work_payload_bytes,
             _ => None,

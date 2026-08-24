@@ -12,8 +12,6 @@ use tokio::{sync::mpsc, time::timeout};
 
 use crate::{ShutdownSignal, WorkerConfig, add_platform_duration};
 
-const RECOVERY_BATCH_SIZE: usize = 256;
-
 /// Why one bounded Ingress worker run returned.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IngressWorkerStopReason {
@@ -172,7 +170,10 @@ where
             if report.stop_reason() == IngressWorkerStopReason::NoWorkAvailable {
                 let recovery_ids = self
                     .runtime
-                    .list_recoverable_ingress_ids(self.clock.now(), RECOVERY_BATCH_SIZE)
+                    .list_recoverable_ingress_ids(
+                        self.clock.now(),
+                        self.worker_config.recovery_batch_size(),
+                    )
                     .await?;
                 for ingress_id in recovery_ids {
                     if self.shutdown.is_requested() {
