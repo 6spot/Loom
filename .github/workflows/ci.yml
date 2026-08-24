@@ -13,6 +13,7 @@ on:
       - ".env.example"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "deny.toml"
       - "rust-toolchain.toml"
       - "rustfmt.toml"
       - "apps/**"
@@ -28,6 +29,7 @@ on:
       - ".env.example"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "deny.toml"
       - "rust-toolchain.toml"
       - "rustfmt.toml"
       - "apps/**"
@@ -44,6 +46,7 @@ concurrency:
 
 env:
   RUST_VERSION: "1.97.1"
+  CARGO_DENY_VERSION: "0.18.9"
 
 jobs:
   rust:
@@ -60,6 +63,11 @@ jobs:
           rustup default "$RUST_VERSION"
           rustc --version
           cargo --version
+
+      - name: Dependency and security policy
+        run: |
+          cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
+          cargo deny check advisories bans licenses sources
 
       - name: Architecture policy
         run: python3 tools/check_architecture.py

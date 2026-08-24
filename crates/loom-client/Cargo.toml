@@ -2,10 +2,11 @@
 name = "loom-client"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 futures-util = "0.3"
-loom-api = { path = "../loom-api" }
+loom-api = { path = "../loom-api", version = "0.1.0" }
 percent-encoding = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
@@ -19,5 +20,5 @@ workspace = true
 [dev-dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 futures-util = "0.3"
-loom-boundary = { path = "../loom-boundary" }
+loom-boundary = { path = "../loom-boundary", version = "0.1.0" }
 tokio = { version = "~1.51", features = ["macros", "net", "rt-multi-thread", "time"] }
