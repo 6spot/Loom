@@ -28,7 +28,10 @@ pub use feedback::TaskLedgerFeedback;
 pub use finding::{EvidenceReference, Finding};
 pub use outcome::ScenarioOutcome;
 pub use registry::{RegistryError, ScenarioRegistry};
-pub use reports::{ScenarioResult, ValidationPolicy, ValidationReport};
+pub use reports::{
+    PrerequisiteDetail, PrerequisiteState, REPORT_KIND, REPORT_SCHEMA_VERSION, ReportResultState,
+    RunMetadata, ScenarioResult, ValidationPolicy, ValidationReport,
+};
 pub use runner::{Runner, RunnerError};
 pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
 

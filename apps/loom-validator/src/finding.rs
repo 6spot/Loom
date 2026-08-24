@@ -18,6 +18,30 @@ impl EvidenceReference {
         Self(evidence.into())
     }
 
+    /// Creates a Task Ledger reference to the command that produced evidence.
+    #[must_use]
+    pub fn command(command: impl Into<String>) -> Self {
+        Self::new(format!("command:{}", command.into()))
+    }
+
+    /// Creates a Task Ledger reference to a validator run identifier.
+    #[must_use]
+    pub fn run(run_id: impl Into<String>) -> Self {
+        Self::new(format!("run:{}", run_id.into()))
+    }
+
+    /// Creates a Task Ledger reference to a report or diagnostic artifact.
+    #[must_use]
+    pub fn path(path: impl Into<String>) -> Self {
+        Self::new(format!("path:{}", path.into()))
+    }
+
+    /// Creates a Task Ledger reference to a CI run or check.
+    #[must_use]
+    pub fn ci(reference: impl Into<String>) -> Self {
+        Self::new(format!("ci:{}", reference.into()))
+    }
+
     /// Borrows the evidence as a string.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -124,12 +148,13 @@ impl Finding {
     /// evidence, and outcome, but never serializes a skipped finding as `pass`.
     #[must_use]
     pub fn render(&self) -> String {
-        let evidence = self
+        let mut evidence = self
             .evidence
             .iter()
             .map(EvidenceReference::as_str)
-            .collect::<Vec<_>>()
-            .join(", ");
+            .collect::<Vec<_>>();
+        evidence.sort_unstable();
+        let evidence = evidence.join(", ");
         format!(
             "finding: scenario={} name={} expected={} actual={} backend={} context={} evidence=[{}] outcome={}",
             self.scenario_id,

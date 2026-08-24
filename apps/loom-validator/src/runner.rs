@@ -99,7 +99,7 @@ impl Runner {
             .iter()
             .map(|descriptor| execute(descriptor, backend))
             .collect();
-        ValidationReport::from_results(results)
+        ValidationReport::from_results(results).with_backend(*backend.backend_kind())
     }
 
     /// Returns the deterministic list of all registered scenarios.
@@ -266,6 +266,13 @@ impl Runner {
             }
         }
         ValidationReport::from_results(results)
+            .with_selected_scenario_ids(
+                selection
+                    .iter()
+                    .map(|descriptor| descriptor.id_str().to_owned())
+                    .collect(),
+            )
+            .with_backend(*backend.backend_kind())
     }
 
     /// Executes a selection derived from raw ID and group strings.
@@ -343,6 +350,7 @@ impl Runner {
             })
             .collect();
         ValidationReport::from_results_with_policy(results, harness.policy())
+            .with_backend(*harness.backend_kind())
     }
 }
 

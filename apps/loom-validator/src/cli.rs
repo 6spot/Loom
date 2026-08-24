@@ -24,8 +24,9 @@
 //!   These are never represented as fake scenario findings.
 //!
 //! Human-readable summary is concise and printed to stdout; runner errors
-//! go to stderr. Machine-readable reports are handled by a later task and
-//! raw logs remain separate.
+//! go to stderr. An explicit `--report <PATH>` writes the machine-readable
+//! report artifact and points the summary at that evidence. Raw logs remain
+//! separate and are never appended to task records.
 
 use crate::backend::BackendContext;
 use crate::finding::{EvidenceReference, Finding};
@@ -56,6 +57,8 @@ pub struct CliArgs {
     pub fail_fast: bool,
     /// When true, show help and exit.
     pub help: bool,
+    /// Optional path for an explicit machine-readable report artifact.
+    pub report_path: Option<String>,
 }
 
 impl CliArgs {
@@ -136,6 +139,13 @@ where
                 cli.groups.push(raw[i + 1].clone());
                 i += 2;
             }
+            "--report" => {
+                if i + 1 >= raw.len() {
+                    return Err(format!("option {arg} requires a value"));
+                }
+                cli.report_path = Some(raw[i + 1].clone());
+                i += 2;
+            }
             "--" => {
                 i += 1;
                 while i < raw.len() {
@@ -158,6 +168,14 @@ where
                     return Err("option --group requires a value".to_string());
                 }
                 cli.groups.push(val);
+                i += 1;
+            }
+            s if s.starts_with("--report=") => {
+                let val = s.strip_prefix("--report=").unwrap_or("").to_string();
+                if val.is_empty() {
+                    return Err("option --report requires a value".to_string());
+                }
+                cli.report_path = Some(val);
                 i += 1;
             }
             s if s.starts_with('-') && s.len() > 1 => {
@@ -195,6 +213,7 @@ OPTIONS:
     -g, --group <GROUP>     Select scenarios by capability-area group
                             (repeatable, comma-separated). Exact match on
                             capability_area.
+        --report <PATH>      Write the machine-readable report to PATH.
         --all               Run all available scenarios (explicit)
         --fail-fast         Stop after first failure and exit 1 if any
                             scenario failed. Without this flag the runner
@@ -328,18 +347,56 @@ where
     let selection = match runner.resolve_with_groups(&args.scenario_ids, &args.groups, args.all) {
         Ok(sel) => sel,
         Err(err) => {
-            error_output(&format!("error: {err}"));
+            let message = format!("error: {err}");
+            if let Some(path) = args.report_path.as_deref() {
+                let report = ValidationReport::runner_config_failure(
+                    args.scenario_ids.clone(),
+                    message.clone(),
+                )
+                .with_run_metadata(
+                    crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+                );
+                if let Err(write_error) = report.write_json(path) {
+                    error_output(&format!("{message}; failed to write report: {write_error}"));
+                    return EXIT_RUNNER_ERROR;
+                }
+            }
+            error_output(&message);
             return EXIT_RUNNER_ERROR;
         }
     };
 
     if selection.is_empty() {
         output("loom-validator: 0 scenario(s) selected");
-        output(&ValidationReport::from_results(Vec::new()).summary_line());
+        let report = ValidationReport::from_results(Vec::new());
+        if let Some(path) = args.report_path.as_deref() {
+            let report = report.with_run_metadata(
+                crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+            );
+            if let Err(write_error) = report.write_json(path) {
+                error_output(&format!("failed to write report: {write_error}"));
+                return EXIT_RUNNER_ERROR;
+            }
+            output(&report.human_summary());
+        } else {
+            output(&report.summary_line());
+        }
         return EXIT_SUCCESS;
     }
 
-    let report = runner.run_selected(&selection, backend, execute, args.fail_fast);
+    let mut report = runner.run_selected(&selection, backend, execute, args.fail_fast);
+    let has_machine_evidence = if let Some(path) = args.report_path.as_deref() {
+        report = report.with_run_metadata(
+            crate::RunMetadata::default().with_evidence(EvidenceReference::path(path)),
+        );
+        if let Err(write_error) = report.write_json(path) {
+            error_output(&format!("failed to write report: {write_error}"));
+            return EXIT_RUNNER_ERROR;
+        }
+        true
+    } else {
+        false
+    };
 
     // Concise per-scenario lines + summary. Each line is deterministic.
     for result in report.results() {
@@ -350,7 +407,11 @@ where
             result.finding().scenario_name()
         ));
     }
-    output(&format!("loom-validator: {}", report.summary_line()));
+    if has_machine_evidence {
+        output(&format!("loom-validator: {}", report.human_summary()));
+    } else {
+        output(&format!("loom-validator: {}", report.summary_line()));
+    }
 
     if args.fail_fast && report.has_failures() {
         EXIT_SCENARIO_FAILURE
@@ -559,6 +620,20 @@ mod tests {
         .unwrap();
         assert!(args.all);
         assert!(args.fail_fast);
+    }
+
+    #[test]
+    fn parse_report_path() {
+        let args = parse_args(vec![
+            "loom-validator",
+            "--report",
+            "artifacts/validator.json",
+        ])
+        .unwrap();
+        assert_eq!(
+            args.report_path.as_deref(),
+            Some("artifacts/validator.json")
+        );
     }
 
     #[test]
