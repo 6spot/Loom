@@ -12,13 +12,14 @@ use loom_api::{
     AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminEventSessionLookup,
     AdminExecutionSession, AdminExecutionSessionRequest, AdminFuture,
     AdminMissingImplementationBlock, AdminMissingImplementationRequest, AdminRuntimeRevision,
-    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminService,
-    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError,
-    ApiFuture, ApiResult, CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal,
-    CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult,
-    EntityTrajectoryQuery, EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery,
-    FacetSnapshot, ForkTimelineRequest, HistoryService, IngressAcceptance, IngressEnvelope,
-    IngressId, IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
+    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminScheduleAgencyWakeRequest,
+    AdminScheduleAgencyWakeResult, AdminService, AdminTerminalizeWorkRequest,
+    AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError, ApiFuture, ApiResult,
+    CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal, CommittedEvent,
+    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
+    EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot,
+    ForkTimelineRequest, HistoryService, IngressAcceptance, IngressEnvelope, IngressId,
+    IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
     SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineService,
     TimelineSnapshot, TimelineTarget, TrajectoryPage, WorldService,
 };
@@ -322,6 +323,16 @@ impl AdminService for ApplicationApi {
         Box::pin(async move {
             let runtime_api = &*self.runtime;
             loom_api::AdminService::terminalize_work(runtime_api, request).await
+        })
+    }
+
+    fn schedule_agency_wake(
+        &self,
+        request: AdminScheduleAgencyWakeRequest,
+    ) -> AdminFuture<'_, AdminScheduleAgencyWakeResult> {
+        Box::pin(async move {
+            let runtime_api = &*self.runtime;
+            loom_api::AdminService::schedule_agency_wake(runtime_api, request).await
         })
     }
 

@@ -15,20 +15,22 @@ use std::{
 
 use loom_agency::{
     AgentContextRequest, AgentRef, AgentWorldView, CognitiveExecutor, CognitiveMetadata, Decision,
-    ExecutionPolicy,
+    DecisionReusePolicy, ExecutionPolicy,
 };
 use loom_api::{
     ActionDescriptor, ActionRequest, ActionService, AdminActivateRuntimeRevisionRequest,
     AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminChronologyBudget,
-    AdminCommitProvenance, AdminEntropyEvidence, AdminEntropyObservation, AdminEventSessionLookup,
-    AdminExecutionOrigin, AdminExecutionRoot, AdminExecutionSession, AdminExecutionSessionRequest,
-    AdminExecutionSessionStatus, AdminLogicalWorkStatus, AdminMissingImplementationBlock,
-    AdminMissingImplementationRequest, AdminReadDependency, AdminResolutionCallEdge,
-    AdminRuntimeRevision, AdminRuntimeRevisionCapability, AdminRuntimeRevisionRequest,
-    AdminRuntimeRevisionSelection, AdminService, AdminTerminalWorkState,
-    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus,
-    AdminWorkStatus, ApiError, ApiFuture, ApiResult, CatalogService, CatalogSnapshot,
-    CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
+    AdminCognitiveDisposition, AdminCognitiveEvidence, AdminCognitiveObservation,
+    AdminCognitiveOutcome, AdminCommitProvenance, AdminDecisionReusePolicy, AdminEntropyEvidence,
+    AdminEntropyObservation, AdminEventSessionLookup, AdminExecutionOrigin, AdminExecutionRoot,
+    AdminExecutionSession, AdminExecutionSessionRequest, AdminExecutionSessionStatus,
+    AdminLogicalWorkStatus, AdminMissingImplementationBlock, AdminMissingImplementationRequest,
+    AdminReadDependency, AdminResolutionCallEdge, AdminRuntimeRevision,
+    AdminRuntimeRevisionCapability, AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection,
+    AdminScheduleAgencyWakeRequest, AdminScheduleAgencyWakeResult, AdminService,
+    AdminTerminalWorkState, AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult,
+    AdminTimelineLogicalStatus, AdminWorkStatus, ApiError, ApiFuture, ApiResult, CatalogService,
+    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
     ChangeFeedPage as ApiChangeFeedPage, CommittedEvent as ApiCommittedEvent,
     CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
     EventDescriptor, EventPage, EventQuery, ExecutionResult, FacetDescriptor, FacetQuery,
@@ -55,17 +57,18 @@ use serde_json::{Value, json};
 use crate::{
     AdvanceWorldTime, AgentContextPlan, AgentWorldViewBuilder, BaseWorldSnapshot, BaseWorldView,
     BindingError, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ChangeFeedStore,
-    ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly, CognitiveGatewayError,
-    CommitAuthorityContext, CommitError, CommitProvenance, CommitStore, CommittedEvent,
-    EffectEngine, EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly,
-    ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
-    IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
-    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
-    MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
-    PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
-    ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly, CognitiveDisposition,
+    CognitiveEvidence, CognitiveGatewayError, CognitiveOutcome, CommitAuthorityContext,
+    CommitError, CommitProvenance, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
+    EntropySource, EntropySourceId, ExecutionAssembly, ExecutionEvidence, ExecutionOrigin,
+    ExecutionRoot, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
+    ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState, IdentityAllocator,
+    IngressClaim, IngressError, IngressStore, IngressSubmission, IngressTechnicalFailure,
+    LifecycleError, LogicalCommit, LogicalWorkState, LogicalWorkTransition,
+    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
+    ManualPlatformClock, PersistenceFuture, PinnedReadBoundary, PinnedReadPolicy,
+    PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime, ReadDependency,
+    ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
@@ -1295,6 +1298,58 @@ where
             .map_err(|error| map_commit_error(&error))
     }
 
+    /// Schedules one explicit Agency Wake through the existing Durable Work
+    /// logical model.
+    ///
+    /// The API-control request carries only semantic Work data. Runtime pins
+    /// the current Timeline snapshot, validates the explicit Agency target and
+    /// commits the logical schedule with the normal Timeline CAS. No provider,
+    /// timer, Agent queue or second Work authority is involved.
+    ///
+    /// # Errors
+    ///
+    /// Returns a public conflict when the expected Timeline version is stale,
+    /// or a validation/commit error when the requested Work cannot be admitted.
+    pub async fn schedule_agency_wake(
+        &self,
+        request: AdminScheduleAgencyWakeRequest,
+    ) -> ApiResult<AdminScheduleAgencyWakeResult>
+    where
+        S: CommitStore,
+    {
+        let snapshot = self.snapshot_for_target(request.target).await?;
+        if snapshot.version() != request.expected_version {
+            return Err(ApiError::conflict(format!(
+                "Timeline version changed: expected {:?}, actual {:?}",
+                request.expected_version,
+                snapshot.version()
+            )));
+        }
+        let work = NewWork::agency_wake(
+            request.work_id,
+            snapshot.timeline_id(),
+            request.agent,
+            request.cognition,
+            request.payload,
+            request.schedule,
+        );
+        let resolution = Resolution::new(Vec::new(), vec![WorkMutation::Schedule(work)]);
+        let engine = EffectEngine::new(&self.registry).with_budget(self.resolution_budget);
+        let validated = engine
+            .validate(&snapshot.world_view(), "runtime", resolution)
+            .map_err(|error| map_runtime_error(&error))?;
+        let result = self
+            .store
+            .commit(&validated, None, self.platform_clock.now())
+            .await
+            .map_err(|error| map_commit_error(&error))?;
+        Ok(AdminScheduleAgencyWakeResult {
+            target: request.target,
+            work_id: request.work_id,
+            version: result.version,
+        })
+    }
+
     /// Executes one claimed Durable Work obligation through the same
     /// Resolution → validation → authority commit path as a public Action.
     ///
@@ -1432,20 +1487,19 @@ where
         };
 
         if let WorkTarget::AgencyWake { agent, cognition } = work.target.clone() {
-            return self
-                .execute_agency_wake(
-                    target,
-                    snapshot,
-                    assembly,
-                    claim,
-                    session,
-                    agent,
-                    cognition,
-                    now,
-                    retry_available_at,
-                    limit,
-                )
-                .await;
+            return Box::pin(self.execute_agency_wake(
+                target,
+                snapshot,
+                assembly,
+                claim,
+                session,
+                agent,
+                cognition,
+                now,
+                retry_available_at,
+                limit,
+            ))
+            .await;
         }
 
         let handler_id = handler_id.expect("Capability Work must have a handler");
@@ -1843,17 +1897,42 @@ where
                             }
                         }
                     }
-                    Err(error) => Err(self
-                        .finish_failure_and_apply_policy(
-                            snapshot.version(),
-                            &session,
-                            &claim,
-                            now,
-                            retry_available_at,
-                            map_commit_error(&error),
-                            Some(evidence),
-                        )
-                        .await),
+                    Err(error) => {
+                        if matches!(&error, CommitError::TimelineConflict { .. })
+                            && assembly.cognitive().policy().decision_reuse
+                                == DecisionReusePolicy::ReuseDeterministic
+                        {
+                            return self
+                                .reuse_agency_decision_after_conflict(
+                                    target,
+                                    &session,
+                                    &claim,
+                                    agent,
+                                    &cognition,
+                                    Decision::NoAction,
+                                    now,
+                                    retry_available_at,
+                                    chronology_budget_limit,
+                                    evidence,
+                                )
+                                .await;
+                        }
+                        let mut evidence = evidence;
+                        if matches!(&error, CommitError::TimelineConflict { .. }) {
+                            evidence.cognitive_evidence.mark_last_discarded();
+                        }
+                        Err(self
+                            .finish_failure_and_apply_policy(
+                                snapshot.version(),
+                                &session,
+                                &claim,
+                                now,
+                                retry_available_at,
+                                map_commit_error(&error),
+                                Some(evidence),
+                            )
+                            .await)
+                    }
                 }
             }
             Decision::Act(invocation) => {
@@ -1993,6 +2072,29 @@ where
                         }
                     }
                     Err(failure) => {
+                        if matches!(
+                            &failure.commit_error,
+                            Some(CommitError::TimelineConflict { .. })
+                        ) && assembly.cognitive().policy().decision_reuse
+                            == DecisionReusePolicy::ReuseDeterministic
+                        {
+                            let mut discarded_evidence = agency_evidence;
+                            discarded_evidence.append(&failure.evidence);
+                            return self
+                                .reuse_agency_decision_after_conflict(
+                                    target,
+                                    &session,
+                                    &claim,
+                                    agent,
+                                    &cognition,
+                                    Decision::Act(invocation),
+                                    now,
+                                    retry_available_at,
+                                    chronology_budget_limit,
+                                    discarded_evidence,
+                                )
+                                .await;
+                        }
                         let mut evidence = agency_evidence;
                         evidence.append(&failure.evidence);
                         if let Some(commit_error @ CommitError::CommitOutcomeUnknown { .. }) =
@@ -2040,11 +2142,483 @@ where
                                 }
                             }
                         } else {
+                            if matches!(
+                                &failure.commit_error,
+                                Some(CommitError::TimelineConflict { .. })
+                            ) {
+                                evidence.cognitive_evidence.mark_last_discarded();
+                            }
                             Err(self
                                 .finish_failure_and_apply_policy(
                                     snapshot.version(),
                                     &session,
                                     &claim,
+                                    now,
+                                    retry_available_at,
+                                    failure.error,
+                                    Some(evidence),
+                                )
+                                .await)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    async fn reuse_agency_decision_after_conflict(
+        &self,
+        target: TimelineTarget,
+        previous_session: &ExecutionSession,
+        claim: &WorkClaim,
+        agent: loom_core::EntityId,
+        cognition: &str,
+        decision: Decision,
+        now: PlatformTime,
+        retry_available_at: PlatformTime,
+        chronology_budget_limit: u64,
+        mut discarded_evidence: ExecutionEvidence,
+    ) -> ApiResult<ExecutionResult>
+    where
+        S: RuntimeControlStore
+            + SchedulerCommitStore
+            + SemanticProjectionStore
+            + PinnedWorldReadStore,
+    {
+        // The old Session remains useful Platform History, but its pinned
+        // version can no longer authorize a commit. Marking the observation
+        // discarded makes the lost cognition cost measurable before the new
+        // fresh Session is started.
+        discarded_evidence.cognitive_evidence.mark_last_discarded();
+        self.finish_execution_session_with_evidence(
+            previous_session.id(),
+            ExecutionSessionStatus::Failed,
+            discarded_evidence,
+        )
+        .await?;
+
+        let snapshot = self.snapshot_for_target(target).await?;
+        let is_current_head = snapshot
+            .works
+            .iter()
+            .filter(|work| {
+                work.is_pending() && work.effective_due_world_time <= snapshot.world_time()
+            })
+            .min_by_key(|work| (work.effective_due_world_time, work.logical_schedule_order))
+            .is_some_and(|work| work.id == claim.work_id());
+        let work_is_pending = snapshot
+            .works
+            .iter()
+            .find(|work| work.id == claim.work_id())
+            .is_some_and(WorkRecord::is_pending);
+        if !work_is_pending || !is_current_head {
+            return Err(ApiError::unavailable(
+                "Agency Wake lost its Work claim before deterministic reuse",
+            ));
+        }
+
+        let binding = self.binding_for_world(snapshot.world_id()).await?;
+        let assembly = self.execution_assembly(&snapshot, binding).await?;
+        validate_agency_wake_target(&assembly, agent, cognition)?;
+        let session = match self
+            .start_execution_session_with_root(
+                assembly.clone(),
+                ExecutionOrigin::Runtime,
+                ExecutionRoot::work(claim.work_id())
+                    .with_agency(format!("agent:{agent};cognition:{cognition};reuse")),
+            )
+            .await
+        {
+            Ok(session) => session,
+            Err(error) => {
+                return Err(self
+                    .apply_failure_policy(snapshot.version(), claim, now, retry_available_at, error)
+                    .await);
+            }
+        };
+
+        let mut evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
+        let pinned = match self.open_pinned_read(&assembly).await {
+            Ok(pinned) => pinned,
+            Err(error) => {
+                return Err(self
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
+                        &session,
+                        claim,
+                        now,
+                        retry_available_at,
+                        ApiError::unavailable(error.to_string()),
+                        Some(evidence),
+                    )
+                    .await);
+            }
+        };
+        let request = AgentContextRequest::new(
+            AgentRef::new(agent),
+            assembly.timeline_id(),
+            assembly.expected_version(),
+            assembly.world_time(),
+            assembly.cognitive().policy().context_budget,
+        );
+        let mut builder = AgentWorldViewBuilder::new(&self.store, PinnedReadPolicy::default());
+        let view = match builder
+            .build(
+                &pinned,
+                request,
+                &AgentContextPlan::new(),
+                &self.registry,
+                &assembly,
+            )
+            .await
+        {
+            Ok(view) => view,
+            Err(error) => {
+                evidence.read_set.extend(pinned.read_set());
+                return Err(self
+                    .finish_failure_and_apply_policy(
+                        snapshot.version(),
+                        &session,
+                        claim,
+                        now,
+                        retry_available_at,
+                        ApiError::unavailable(error.to_string()),
+                        Some(evidence),
+                    )
+                    .await);
+            }
+        };
+        if let Err(error) = crate::cognitive::record_reused_cognitive(
+            &*self.cognitive_executor,
+            &assembly,
+            &pinned,
+            &view,
+            &decision,
+            &mut evidence,
+        ) {
+            return Err(self
+                .finish_failure_and_apply_policy(
+                    snapshot.version(),
+                    &session,
+                    claim,
+                    now,
+                    retry_available_at,
+                    ApiError::unavailable(error.to_string()),
+                    Some(evidence),
+                )
+                .await);
+        }
+
+        let base = snapshot.world_view();
+        match decision {
+            Decision::NoAction => {
+                let validated = match self.empty_validated_resolution(&base, &assembly, &evidence) {
+                    Ok(validated) => validated,
+                    Err(error) => {
+                        return Err(self
+                            .finish_failure_and_apply_policy(
+                                snapshot.version(),
+                                &session,
+                                claim,
+                                now,
+                                retry_available_at,
+                                error,
+                                Some(evidence),
+                            )
+                            .await);
+                    }
+                };
+                let mut evidence = evidence;
+                evidence.append(&validated_evidence(&validated));
+                match self
+                    .store
+                    .commit_scheduler_work_with_session(
+                        &validated,
+                        claim,
+                        self.platform_clock.now(),
+                        chronology_budget_limit,
+                        session.id(),
+                    )
+                    .await
+                {
+                    Ok(result) => {
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Committed,
+                            evidence,
+                        )
+                        .await?;
+                        Ok(ExecutionResult::committed(Vec::new(), result.version))
+                    }
+                    Err(CommitError::ChronologyBudgetExceeded(error)) => {
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Failed,
+                            evidence,
+                        )
+                        .await?;
+                        Err(ApiError::unavailable(error.to_string()))
+                    }
+                    Err(error @ CommitError::CommitOutcomeUnknown { .. }) => {
+                        let mapped = map_commit_error(&error);
+                        match self
+                            .reconcile_scheduler_commit(target, &validated, claim)
+                            .await?
+                        {
+                            SchedulerCommitReconciliation::Committed { version, .. } => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Committed,
+                                    evidence,
+                                )
+                                .await?;
+                                Ok(ExecutionResult::committed(Vec::new(), version))
+                            }
+                            SchedulerCommitReconciliation::Absent => Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    claim,
+                                    now,
+                                    retry_available_at,
+                                    mapped,
+                                    Some(evidence),
+                                )
+                                .await),
+                            SchedulerCommitReconciliation::Ambiguous => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Failed,
+                                    evidence,
+                                )
+                                .await?;
+                                Err(ApiError::unavailable(
+                                    "Scheduler commit outcome remains unknown after reuse",
+                                ))
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        let mut evidence = evidence;
+                        if matches!(&error, CommitError::TimelineConflict { .. }) {
+                            evidence.cognitive_evidence.mark_last_discarded();
+                        }
+                        Err(self
+                            .finish_failure_and_apply_policy(
+                                snapshot.version(),
+                                &session,
+                                claim,
+                                now,
+                                retry_available_at,
+                                map_commit_error(&error),
+                                Some(evidence),
+                            )
+                            .await)
+                    }
+                }
+            }
+            Decision::Act(invocation) => {
+                let context =
+                    CommitAuthorityContext::direct(Some(*claim)).with_session(session.id());
+                match self
+                    .execute_scheduler_action_authority(
+                        &snapshot,
+                        &base,
+                        &assembly,
+                        &invocation,
+                        context,
+                        claim,
+                        chronology_budget_limit,
+                    )
+                    .await
+                {
+                    Ok(AuthorityExecution::Committed {
+                        result,
+                        validated,
+                        changes_runtime_state,
+                        ..
+                    }) => {
+                        let mut evidence = evidence;
+                        evidence.append(&validated_evidence(&validated));
+                        self.finish_execution_session_with_evidence(
+                            session.id(),
+                            ExecutionSessionStatus::Committed,
+                            evidence,
+                        )
+                        .await?;
+                        Ok(execution_result(&result, changes_runtime_state))
+                    }
+                    Ok(AuthorityExecution::Rejected {
+                        rejection,
+                        evidence: action_evidence,
+                    }) => {
+                        let mut evidence = evidence;
+                        evidence.append(&action_evidence);
+                        let validated =
+                            match self.empty_validated_resolution(&base, &assembly, &evidence) {
+                                Ok(validated) => validated,
+                                Err(error) => {
+                                    return Err(self
+                                        .finish_failure_and_apply_policy(
+                                            snapshot.version(),
+                                            &session,
+                                            claim,
+                                            now,
+                                            retry_available_at,
+                                            error,
+                                            Some(evidence),
+                                        )
+                                        .await);
+                                }
+                            };
+                        evidence.append(&validated_evidence(&validated));
+                        match self
+                            .store
+                            .commit_scheduler_work_with_session(
+                                &validated,
+                                claim,
+                                self.platform_clock.now(),
+                                chronology_budget_limit,
+                                session.id(),
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Rejected,
+                                    evidence,
+                                )
+                                .await?;
+                                Ok(ExecutionResult::rejected(rejection))
+                            }
+                            Err(CommitError::ChronologyBudgetExceeded(error)) => {
+                                self.finish_execution_session_with_evidence(
+                                    session.id(),
+                                    ExecutionSessionStatus::Failed,
+                                    evidence,
+                                )
+                                .await?;
+                                Err(ApiError::unavailable(error.to_string()))
+                            }
+                            Err(error @ CommitError::CommitOutcomeUnknown { .. }) => {
+                                let mapped = map_commit_error(&error);
+                                match self
+                                    .reconcile_scheduler_commit(target, &validated, claim)
+                                    .await?
+                                {
+                                    SchedulerCommitReconciliation::Committed { .. } => {
+                                        self.finish_execution_session_with_evidence(
+                                            session.id(),
+                                            ExecutionSessionStatus::Rejected,
+                                            evidence,
+                                        )
+                                        .await?;
+                                        Ok(ExecutionResult::rejected(rejection))
+                                    }
+                                    SchedulerCommitReconciliation::Absent => Err(self
+                                        .finish_failure_and_apply_policy(
+                                            snapshot.version(),
+                                            &session,
+                                            claim,
+                                            now,
+                                            retry_available_at,
+                                            mapped,
+                                            Some(evidence),
+                                        )
+                                        .await),
+                                    SchedulerCommitReconciliation::Ambiguous => {
+                                        self.finish_execution_session_with_evidence(
+                                            session.id(),
+                                            ExecutionSessionStatus::Failed,
+                                            evidence,
+                                        )
+                                        .await?;
+                                        Err(ApiError::unavailable(
+                                            "Scheduler commit outcome remains unknown after reuse",
+                                        ))
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                let mut evidence = evidence;
+                                if matches!(&error, CommitError::TimelineConflict { .. }) {
+                                    evidence.cognitive_evidence.mark_last_discarded();
+                                }
+                                Err(self
+                                    .finish_failure_and_apply_policy(
+                                        snapshot.version(),
+                                        &session,
+                                        claim,
+                                        now,
+                                        retry_available_at,
+                                        map_commit_error(&error),
+                                        Some(evidence),
+                                    )
+                                    .await)
+                            }
+                        }
+                    }
+                    Err(failure) => {
+                        let mut evidence = evidence;
+                        evidence.append(&failure.evidence);
+                        if let Some(commit_error @ CommitError::CommitOutcomeUnknown { .. }) =
+                            failure.commit_error
+                        {
+                            let validated = failure.validated.ok_or_else(|| {
+                                ApiError::unavailable(
+                                    "Scheduler unknown reuse commit lost its validated proposal",
+                                )
+                            })?;
+                            match self
+                                .reconcile_scheduler_commit(target, &validated, claim)
+                                .await?
+                            {
+                                SchedulerCommitReconciliation::Committed { event_ids, version } => {
+                                    self.finish_execution_session_with_evidence(
+                                        session.id(),
+                                        ExecutionSessionStatus::Committed,
+                                        evidence,
+                                    )
+                                    .await?;
+                                    Ok(ExecutionResult::committed(event_ids, version))
+                                }
+                                SchedulerCommitReconciliation::Absent => Err(self
+                                    .finish_failure_and_apply_policy(
+                                        snapshot.version(),
+                                        &session,
+                                        claim,
+                                        now,
+                                        retry_available_at,
+                                        map_commit_error(&commit_error),
+                                        Some(evidence),
+                                    )
+                                    .await),
+                                SchedulerCommitReconciliation::Ambiguous => {
+                                    self.finish_execution_session_with_evidence(
+                                        session.id(),
+                                        ExecutionSessionStatus::Failed,
+                                        evidence,
+                                    )
+                                    .await?;
+                                    Err(ApiError::unavailable(
+                                        "Scheduler commit outcome remains unknown after reuse",
+                                    ))
+                                }
+                            }
+                        } else {
+                            if matches!(
+                                &failure.commit_error,
+                                Some(CommitError::TimelineConflict { .. })
+                            ) {
+                                evidence.cognitive_evidence.mark_last_discarded();
+                            }
+                            Err(self
+                                .finish_failure_and_apply_policy(
+                                    snapshot.version(),
+                                    &session,
+                                    claim,
                                     now,
                                     retry_available_at,
                                     failure.error,
@@ -3926,7 +4500,7 @@ where
             &*self.cognitive_executor,
             assembly,
             session,
-            view,
+            &view,
             evidence,
         )
         .await
@@ -4854,6 +5428,85 @@ fn api_admin_session_status(status: ExecutionSessionStatus) -> AdminExecutionSes
     }
 }
 
+fn api_admin_cognitive_disposition(disposition: CognitiveDisposition) -> AdminCognitiveDisposition {
+    match disposition {
+        CognitiveDisposition::Fresh => AdminCognitiveDisposition::Fresh,
+        CognitiveDisposition::Reused => AdminCognitiveDisposition::Reused,
+        CognitiveDisposition::Discarded => AdminCognitiveDisposition::Discarded,
+    }
+}
+
+fn api_admin_cognitive_outcome(outcome: &CognitiveOutcome) -> AdminCognitiveOutcome {
+    match outcome {
+        CognitiveOutcome::Act => AdminCognitiveOutcome::Act,
+        CognitiveOutcome::NoAction => AdminCognitiveOutcome::NoAction,
+        CognitiveOutcome::Error(_) => AdminCognitiveOutcome::Error,
+    }
+}
+
+fn api_admin_decision_reuse(policy: DecisionReusePolicy) -> AdminDecisionReusePolicy {
+    match policy {
+        DecisionReusePolicy::Resample => AdminDecisionReusePolicy::Resample,
+        DecisionReusePolicy::ReuseDeterministic => AdminDecisionReusePolicy::ReuseDeterministic,
+    }
+}
+
+fn api_admin_cognitive_evidence(evidence: &CognitiveEvidence) -> AdminCognitiveEvidence {
+    AdminCognitiveEvidence {
+        observations: evidence
+            .observations()
+            .iter()
+            .map(|observation| AdminCognitiveObservation {
+                ordinal: observation.ordinal,
+                executor_id: observation.metadata.executor.id.clone(),
+                executor_revision: observation.metadata.executor.revision.clone(),
+                provider_id: observation
+                    .metadata
+                    .provider
+                    .as_ref()
+                    .map(|provider| provider.id.clone()),
+                provider_revision: observation
+                    .metadata
+                    .provider
+                    .as_ref()
+                    .map(|provider| provider.revision.clone()),
+                model_id: observation
+                    .metadata
+                    .model
+                    .as_ref()
+                    .map(|model| model.id.clone()),
+                model_revision: observation
+                    .metadata
+                    .model
+                    .as_ref()
+                    .map(|model| model.revision.clone()),
+                policy_id: observation.policy.policy_id.clone(),
+                policy_revision: observation.policy.revision.clone(),
+                decision_reuse: api_admin_decision_reuse(observation.policy.decision_reuse),
+                agent: observation.agent.entity_id,
+                timeline_id: observation.timeline_id,
+                version: observation.version,
+                world_time: observation.world_time,
+                context_entries: observation.context_usage.entries,
+                context_bytes: observation.context_usage.bytes,
+                context_entities: observation.context_usage.entities,
+                context_relationships: observation.context_usage.relationships,
+                context_events: observation.context_usage.events,
+                context_semantic_results: observation.context_usage.semantic_results,
+                context_depth: observation.context_usage.depth,
+                context_semantic_queries: observation.context_usage.semantic_queries,
+                outcome: api_admin_cognitive_outcome(&observation.outcome),
+                disposition: api_admin_cognitive_disposition(observation.disposition),
+            })
+            .collect(),
+        fresh_count: evidence.fresh_count(),
+        reused_count: evidence.reused_count(),
+        discarded_count: evidence.discarded_count(),
+        context_entries: evidence.context_entries(),
+        context_bytes: evidence.context_bytes(),
+    }
+}
+
 fn api_admin_read_dependency(dependency: &ReadDependency) -> AdminReadDependency {
     match dependency {
         ReadDependency::Entity { entity_id, present } => AdminReadDependency::Entity {
@@ -4954,6 +5607,7 @@ fn api_admin_session(session: &ExecutionSession) -> AdminExecutionSession {
                 })
                 .collect(),
         },
+        cognitive_evidence: api_admin_cognitive_evidence(session.cognitive_evidence()),
         commit_provenance: session
             .commit_provenance()
             .map(|provenance| AdminCommitProvenance {
@@ -5462,6 +6116,13 @@ where
                 terminal_state: request.terminal_state,
             })
         })
+    }
+
+    fn schedule_agency_wake(
+        &self,
+        request: AdminScheduleAgencyWakeRequest,
+    ) -> loom_api::AdminFuture<'_, AdminScheduleAgencyWakeResult> {
+        Box::pin(async move { self.schedule_agency_wake(request).await })
     }
 
     fn advance_world_time(

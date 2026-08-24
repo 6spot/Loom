@@ -154,6 +154,23 @@ pub enum CognitiveOutcome {
     Error(CognitiveError),
 }
 
+/// How Runtime accounted for one cognition observation.
+///
+/// A fresh observation is the result of an executor call. A reused observation
+/// records an explicitly configured deterministic decision that was checked
+/// against a new pinned context. A discarded observation records cognition
+/// that lost the Timeline CAS and therefore did not become logical truth.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CognitiveDisposition {
+    /// The executor was invoked for the pinned context.
+    #[default]
+    Fresh,
+    /// A deterministic decision was reused under a fresh pinned context.
+    Reused,
+    /// The observation lost the logical commit race and was discarded.
+    Discarded,
+}
+
 /// One ordered, audit-safe `CognitiveExecutor` observation.
 ///
 /// This value records the pinned Agency request coordinate, policy, metadata,
@@ -181,6 +198,9 @@ pub struct CognitiveObservation {
     pub context_read_set: ReadSet,
     /// Typed result classification returned by the executor.
     pub outcome: CognitiveOutcome,
+    /// Explicit accounting of whether this cognition became reusable truth.
+    #[serde(default)]
+    pub disposition: CognitiveDisposition,
 }
 
 /// Ordered `CognitiveExecutor` provenance for one pinned Execution Session.
@@ -206,6 +226,62 @@ impl CognitiveEvidence {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.observations.is_empty()
+    }
+
+    /// Returns the number of executor samples recorded for this Session.
+    #[must_use]
+    pub fn fresh_count(&self) -> usize {
+        self.observations
+            .iter()
+            .filter(|observation| observation.disposition == CognitiveDisposition::Fresh)
+            .count()
+    }
+
+    /// Returns the number of explicitly reused decisions recorded for this
+    /// Session.
+    #[must_use]
+    pub fn reused_count(&self) -> usize {
+        self.observations
+            .iter()
+            .filter(|observation| observation.disposition == CognitiveDisposition::Reused)
+            .count()
+    }
+
+    /// Returns the number of cognition observations discarded after a CAS
+    /// conflict.
+    #[must_use]
+    pub fn discarded_count(&self) -> usize {
+        self.observations
+            .iter()
+            .filter(|observation| observation.disposition == CognitiveDisposition::Discarded)
+            .count()
+    }
+
+    /// Returns the measured context bytes charged to all observations.
+    #[must_use]
+    pub fn context_bytes(&self) -> u64 {
+        self.observations
+            .iter()
+            .map(|observation| observation.context_usage.bytes)
+            .sum()
+    }
+
+    /// Returns the measured context entries charged to all observations.
+    #[must_use]
+    pub fn context_entries(&self) -> u64 {
+        self.observations
+            .iter()
+            .map(|observation| u64::from(observation.context_usage.entries))
+            .sum()
+    }
+
+    /// Marks the most recent cognition observation as discarded. Runtime calls
+    /// this only after a Timeline CAS conflict proves the result did not become
+    /// logical truth.
+    pub(crate) fn mark_last_discarded(&mut self) {
+        if let Some(observation) = self.observations.last_mut() {
+            observation.disposition = CognitiveDisposition::Discarded;
+        }
     }
 
     pub(crate) fn record(&mut self, mut observation: CognitiveObservation) {

@@ -22,17 +22,17 @@ use loom_api::{
     AdminAdvanceWorldTimeRequest, AdminAdvanceWorldTimeResult, AdminEventSessionLookup,
     AdminExecutionSession, AdminExecutionSessionRequest, AdminFuture,
     AdminMissingImplementationBlock, AdminMissingImplementationRequest, AdminRuntimeRevision,
-    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminService,
-    AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError,
-    ApiErrorCode, ApiFuture, ApiResult, CatalogService, CatalogSnapshot, CausalQuery,
-    CausalTraversal, ChangeFeedCursor, ChangeFeedPage, CommittedEvent,
-    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage, EventQuery, EventRef,
-    ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest, ForkTimelineResult,
-    HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
-    IngressStatusRecord, QueryService, RelationshipTrajectoryQuery, SubscriptionEnd,
-    SubscriptionReconnect, SubscriptionRequest, SubscriptionResult, SubscriptionResume,
-    SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget, TrajectoryPage,
-    WorldId, WorldService,
+    AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminScheduleAgencyWakeRequest,
+    AdminScheduleAgencyWakeResult, AdminService, AdminTerminalizeWorkRequest,
+    AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError, ApiErrorCode, ApiFuture,
+    ApiResult, CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal, ChangeFeedCursor,
+    ChangeFeedPage, CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult,
+    EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot,
+    ForkTimelineRequest, ForkTimelineResult, HistoryService, IngressAcceptance, IngressEnvelope,
+    IngressId, IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
+    SubscriptionEnd, SubscriptionReconnect, SubscriptionRequest, SubscriptionResult,
+    SubscriptionResume, SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget,
+    TrajectoryPage, WorldId, WorldService,
 };
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::{
@@ -748,6 +748,20 @@ impl AdminService for LoomClient {
             self.send_json_once(
                 Method::POST,
                 format!("{ADMIN_API_PREFIX}/work/terminalize"),
+                &request,
+            )
+            .await
+        })
+    }
+
+    fn schedule_agency_wake(
+        &self,
+        request: AdminScheduleAgencyWakeRequest,
+    ) -> AdminFuture<'_, AdminScheduleAgencyWakeResult> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{ADMIN_API_PREFIX}/work/agency-wake/schedule"),
                 &request,
             )
             .await

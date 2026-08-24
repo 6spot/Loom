@@ -1245,6 +1245,7 @@ name = "loom-storage"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "loom-agency",
  "loom-api",
  "loom-capability",
  "loom-core",

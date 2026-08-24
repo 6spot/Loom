@@ -16,7 +16,7 @@ mod work;
 
 #[cfg(test)]
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use std::{fmt::Display, str::FromStr, time::Instant};
@@ -121,6 +121,8 @@ pub struct PgStorage {
     test_unknown_commit_once: Arc<AtomicBool>,
     #[cfg(test)]
     test_fail_ingress_finalization_once: Arc<AtomicBool>,
+    #[cfg(test)]
+    scheduler_conflict_work_once: Arc<Mutex<Option<WorkId>>>,
 }
 
 impl PgStorage {
@@ -141,6 +143,8 @@ impl PgStorage {
             test_unknown_commit_once: Arc::new(AtomicBool::new(false)),
             #[cfg(test)]
             test_fail_ingress_finalization_once: Arc::new(AtomicBool::new(false)),
+            #[cfg(test)]
+            scheduler_conflict_work_once: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -164,6 +168,23 @@ impl PgStorage {
     pub(crate) fn take_test_ingress_finalization_failure(&self) -> bool {
         self.test_fail_ingress_finalization_once
             .swap(false, Ordering::AcqRel)
+    }
+
+    /// Arms one deterministic Scheduler CAS conflict for a feature test.
+    #[cfg(test)]
+    pub(crate) fn inject_scheduler_conflict_once_for_test(&self, conflict_work_id: WorkId) {
+        *self
+            .scheduler_conflict_work_once
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(conflict_work_id);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_scheduler_conflict_work_once(&self) -> Option<WorkId> {
+        self.scheduler_conflict_work_once
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
     }
 
     /// Applies the embedded, repository-versioned `SQLx` migrations.

@@ -2,9 +2,11 @@ use super::PgStorage;
 
 use std::str::FromStr;
 
+use loom_agency::DecisionReusePolicy;
 use loom_api::{
-    IngressAuthorizationContext, IngressEnvelope, IngressId, IngressProvenance, IngressService,
-    IngressStatus, IngressTimeMetadata,
+    AdminScheduleAgencyWakeRequest, AdminService, IngressAuthorizationContext, IngressEnvelope,
+    IngressId, IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata,
+    TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
@@ -13,18 +15,20 @@ use loom_capability::{
 };
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    TimelineId, WorldEffect, WorldId,
+    TimelineId, WorkId, WorldEffect, WorldId,
 };
-use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
+use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome, WorkSchedule};
 use loom_runtime::{
-    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, IngressStore,
-    LogicalJournalStore, ManualPlatformClock, Runtime, WorldStore,
+    CognitiveDisposition, CognitiveOutcome, DeterministicCognitiveExecutor,
+    DeterministicCognitiveStep, ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore,
+    IngressStore, LogicalJournalStore, ManualPlatformClock, Runtime, WorldStore,
 };
 use serde_json::{Value, json};
 
 const WORLD_ID: &str = "00000000-0000-0000-0000-000000000101";
 const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000102";
 const ENTITY_ID: &str = "00000000-0000-0000-0000-000000000103";
+const AGENCY_COGNITION: &str = "deterministic.fake";
 
 fn postgres_url() -> Option<String> {
     match std::env::var("LOOM_TEST_POSTGRES_URL") {
@@ -494,6 +498,210 @@ where
     format!("00000000-0000-0000-0000-{value:012x}")
         .parse()
         .expect("test identity should parse")
+}
+
+async fn postgres_agency_fixture() -> Option<(PgStorage, WorldId, TimelineId, EntityId)> {
+    let database_url = postgres_url()?;
+    let storage = PgStorage::connect(&database_url)
+        .await
+        .expect("PostgreSQL test database should accept connections");
+    storage
+        .migrate()
+        .await
+        .expect("migrations should be current");
+    let world_id = unique_id::<WorldId>(0x301);
+    let timeline_id = unique_id::<TimelineId>(0x302);
+    let entity_id = unique_id::<EntityId>(0x303);
+    sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+        .bind(world_id.to_string())
+        .execute(&storage.pool)
+        .await
+        .expect("Agency fixture World should insert");
+    sqlx::query("INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)")
+        .bind(timeline_id.to_string())
+        .bind(world_id.to_string())
+        .execute(&storage.pool)
+        .await
+        .expect("Agency fixture Timeline should insert");
+    sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
+        .bind(timeline_id.to_string())
+        .bind(entity_id.to_string())
+        .execute(&storage.pool)
+        .await
+        .expect("Agency fixture Entity should insert");
+    Some((storage, world_id, timeline_id, entity_id))
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the PostgreSQL Agency Wake CAS scenario keeps schedule, recovery and provenance together"
+)]
+async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable() {
+    let Some((storage, world_id, timeline_id, entity_id)) = postgres_agency_fixture().await else {
+        return;
+    };
+    let target = TimelineTarget::new(world_id, timeline_id);
+    let wake_work_id = unique_id::<WorkId>(0x304);
+    let conflict_work_id = unique_id::<WorkId>(0x305);
+    let scripted = DeterministicCognitiveExecutor::new([
+        DeterministicCognitiveStep::no_action(),
+        DeterministicCognitiveStep::no_action(),
+    ]);
+    let runtime = Runtime::new(storage.clone(), CapabilityRegistry::new())
+        .expect("Agency Runtime should assemble")
+        .with_cognitive_executor(scripted);
+    let initial = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("initial Agency Timeline should be readable");
+    let first_schedule = AdminService::schedule_agency_wake(
+        &runtime,
+        AdminScheduleAgencyWakeRequest {
+            target,
+            expected_version: initial.version(),
+            work_id: wake_work_id,
+            agent: entity_id,
+            cognition: AGENCY_COGNITION.to_owned(),
+            payload: json!({"policy": "default"}),
+            schedule: WorkSchedule::Immediate,
+        },
+    )
+    .await
+    .expect("Agency Wake schedule should persist");
+    let second_schedule = AdminService::schedule_agency_wake(
+        &runtime,
+        AdminScheduleAgencyWakeRequest {
+            target,
+            expected_version: first_schedule.version,
+            work_id: conflict_work_id,
+            agent: entity_id,
+            cognition: AGENCY_COGNITION.to_owned(),
+            payload: json!({"policy": "conflict"}),
+            schedule: WorkSchedule::Immediate,
+        },
+    )
+    .await
+    .expect("conflict Work schedule should persist");
+    storage.inject_scheduler_conflict_once_for_test(conflict_work_id);
+
+    let first_result = runtime
+        .execute_work(
+            target,
+            wake_work_id,
+            loom_runtime::PlatformTime::new(0),
+            loom_runtime::PlatformTime::new(10),
+            loom_runtime::PlatformTime::new(2),
+        )
+        .await;
+    assert!(matches!(
+        first_result,
+        Err(loom_api::ApiError {
+            code: loom_api::ApiErrorCode::Conflict,
+            ..
+        })
+    ));
+    let after_conflict = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("conflicted Agency Timeline should be readable");
+    assert_eq!(after_conflict.events.len(), 0);
+    assert_eq!(
+        after_conflict
+            .works
+            .iter()
+            .find(|work| work.id == wake_work_id)
+            .expect("Wake should remain pending after stale CAS")
+            .attempt_count,
+        1
+    );
+    assert_eq!(
+        after_conflict
+            .works
+            .iter()
+            .find(|work| work.id == conflict_work_id)
+            .expect("conflict Work should remain readable")
+            .status,
+        loom_runtime::WorkStatus::Cancelled
+    );
+    assert_ne!(after_conflict.version(), second_schedule.version);
+
+    let result = runtime
+        .execute_work(
+            target,
+            wake_work_id,
+            loom_runtime::PlatformTime::new(2),
+            loom_runtime::PlatformTime::new(12),
+            loom_runtime::PlatformTime::new(4),
+        )
+        .await
+        .expect("resampled Agency Wake should commit");
+    assert!(matches!(
+        result,
+        loom_api::ExecutionResult::Committed { ref event_ids, .. }
+            if event_ids.is_empty()
+    ));
+    let final_snapshot = WorldStore::snapshot(&storage, timeline_id)
+        .await
+        .expect("final Agency Timeline should be readable");
+    assert_eq!(final_snapshot.events.len(), 0);
+    assert_eq!(
+        final_snapshot
+            .works
+            .iter()
+            .find(|work| work.id == wake_work_id)
+            .expect("Wake should be completed once")
+            .status,
+        loom_runtime::WorkStatus::Completed
+    );
+
+    let sessions = ExecutionSessionStore::list_sessions(&storage)
+        .await
+        .expect("Agency Sessions should survive the CAS retry")
+        .into_iter()
+        .filter(|session| session.assembly().timeline_id() == timeline_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sessions.len(),
+        2,
+        "CAS recovery should retain two Agency Sessions"
+    );
+    let failed = sessions
+        .iter()
+        .find(|session| session.status() == ExecutionSessionStatus::Failed)
+        .expect("stale Agency Session should be failed");
+    let committed = sessions
+        .iter()
+        .find(|session| session.status() == ExecutionSessionStatus::Committed)
+        .expect("resampled Agency Session should commit");
+    assert_eq!(failed.cognitive_evidence().discarded_count(), 1);
+    assert_eq!(failed.cognitive_evidence().fresh_count(), 0);
+    assert_eq!(committed.cognitive_evidence().fresh_count(), 1);
+    assert_eq!(committed.cognitive_evidence().reused_count(), 0);
+    assert_eq!(committed.cognitive_evidence().discarded_count(), 0);
+    assert_eq!(
+        committed.cognitive_evidence().observations()[0].outcome,
+        CognitiveOutcome::NoAction
+    );
+    assert_eq!(
+        committed.cognitive_evidence().observations()[0].disposition,
+        CognitiveDisposition::Fresh
+    );
+    assert_eq!(
+        failed.cognitive_evidence().observations()[0]
+            .policy
+            .decision_reuse,
+        DecisionReusePolicy::Resample
+    );
+    assert_eq!(
+        committed.cognitive_evidence().observations()[0]
+            .policy
+            .decision_reuse,
+        DecisionReusePolicy::Resample
+    );
+    assert_ne!(
+        failed.cognitive_evidence().observations()[0].version,
+        committed.cognitive_evidence().observations()[0].version
+    );
+    storage.close().await;
 }
 
 async fn ingress_authority_fixture()

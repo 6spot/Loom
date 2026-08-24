@@ -46,6 +46,7 @@ pub use loom_core::{
 };
 pub use loom_protocol::{
     ActionInvocation, CausalLink, EventParticipant, EventRelationshipRef, Rejection, RejectionCode,
+    WorkSchedule,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

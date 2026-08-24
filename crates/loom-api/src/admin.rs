@@ -7,12 +7,13 @@
 
 use std::{fmt, future::Future, pin::Pin};
 
+use loom_protocol::WorkSchedule;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ActionTypeId, ApiError, ApiResult, EventRef, ExecutionSessionId, FacetOwner, FacetTypeId,
-    RelationshipId, SchemaRevision, StateRevision, TimelineTarget, TimelineVersion, WorkId,
-    WorldId, WorldInstant,
+    ActionTypeId, ApiError, ApiResult, EntityId, EventRef, ExecutionSessionId, FacetOwner,
+    FacetTypeId, RelationshipId, SchemaRevision, StateRevision, TimelineId, TimelineTarget,
+    TimelineVersion, WorkId, WorldId, WorldInstant,
 };
 
 /// Stable namespace used by HTTP clients for Runtime administration.
@@ -41,6 +42,8 @@ pub enum AdminOperation {
     ReadMissingImplementation,
     /// Apply a Runtime-owned Pending -> Dead/Cancelled logical transition.
     TerminalizeWork,
+    /// Schedule one explicit Runtime-owned Agency Wake Work obligation.
+    ScheduleAgencyWake,
     /// Apply an explicit Runtime-owned World-Time logical transition.
     AdvanceWorldTime,
 }
@@ -136,6 +139,91 @@ pub enum AdminExecutionSessionStatus {
     Failed,
     /// Execution remained blocked on an operational prerequisite.
     Blocked,
+}
+
+/// Public accounting disposition for one cognitive observation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum AdminCognitiveDisposition {
+    /// The configured cognitive executor was invoked.
+    Fresh,
+    /// A deterministic decision was revalidated and reused.
+    Reused,
+    /// The observation lost the Timeline commit race.
+    Discarded,
+}
+
+/// Public outcome classification for one cognitive observation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum AdminCognitiveOutcome {
+    /// Cognition proposed an Action for normal Runtime authority.
+    Act,
+    /// Cognition selected no Action.
+    NoAction,
+    /// Cognition failed to produce a decision.
+    Error,
+}
+
+/// Public policy choice for handling a cognition result after CAS loss.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum AdminDecisionReusePolicy {
+    /// Discard the stale result and invoke cognition again.
+    Resample,
+    /// Reuse only after fresh context and normal authority revalidation.
+    ReuseDeterministic,
+}
+
+/// Safe, non-secret projection of one cognitive execution observation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AdminCognitiveObservation {
+    /// Zero-based observation order in the Session.
+    pub ordinal: usize,
+    /// Pinned executor identity and revision.
+    pub executor_id: String,
+    pub executor_revision: String,
+    /// Optional non-secret provider identity and revision.
+    pub provider_id: Option<String>,
+    pub provider_revision: Option<String>,
+    /// Optional non-secret model identity and revision.
+    pub model_id: Option<String>,
+    pub model_revision: Option<String>,
+    /// Pinned policy identity and decision reuse choice.
+    pub policy_id: String,
+    pub policy_revision: String,
+    pub decision_reuse: AdminDecisionReusePolicy,
+    /// Agent and exact Timeline context coordinate.
+    pub agent: EntityId,
+    pub timeline_id: TimelineId,
+    pub version: TimelineVersion,
+    pub world_time: WorldInstant,
+    /// Measured context cost supplied to cognition.
+    pub context_entries: u32,
+    pub context_bytes: u64,
+    pub context_entities: u32,
+    pub context_relationships: u32,
+    pub context_events: u32,
+    pub context_semantic_results: u32,
+    pub context_depth: u32,
+    pub context_semantic_queries: u32,
+    /// Typed cognitive result class without raw model output.
+    pub outcome: AdminCognitiveOutcome,
+    /// Whether the observation was fresh, reused, or discarded.
+    pub disposition: AdminCognitiveDisposition,
+}
+
+/// Durable cognitive cost and reuse/resampling provenance for one Session.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AdminCognitiveEvidence {
+    /// Ordered safe observation projections.
+    pub observations: Vec<AdminCognitiveObservation>,
+    /// Number of executor invocations.
+    pub fresh_count: usize,
+    /// Number of explicitly reused decisions.
+    pub reused_count: usize,
+    /// Number of observations that lost a commit race.
+    pub discarded_count: usize,
+    /// Aggregate context cost across observations.
+    pub context_entries: u64,
+    pub context_bytes: u64,
 }
 
 /// Safe root references attached to one execution Session.
@@ -274,6 +362,9 @@ pub struct AdminExecutionSession {
     pub call_provenance: Vec<AdminResolutionCallEdge>,
     /// Safe entropy provenance summary.
     pub entropy_evidence: AdminEntropyEvidence,
+    /// Safe cognitive policy, reuse/resampling, and context-cost evidence.
+    #[serde(default)]
+    pub cognitive_evidence: AdminCognitiveEvidence,
     /// Safe authority proposal linkage, when present.
     pub commit_provenance: Option<AdminCommitProvenance>,
 }
@@ -407,6 +498,41 @@ pub struct AdminTerminalizeWorkResult {
     pub version: TimelineVersion,
     /// State committed by Runtime Control.
     pub terminal_state: AdminTerminalWorkState,
+}
+
+/// Request for one explicit Agency Wake schedule.
+///
+/// The request is an API-control value only. Runtime validates the Agent
+/// target, resolves the semantic due time/order and commits the logical Work
+/// transition through the existing Timeline authority; it is never a direct
+/// Work-table command.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct AdminScheduleAgencyWakeRequest {
+    /// World and Timeline that will own the Wake.
+    pub target: TimelineTarget,
+    /// Timeline version expected by the scheduling caller.
+    pub expected_version: TimelineVersion,
+    /// Stable Work identity allocated by the scheduling authority.
+    pub work_id: WorkId,
+    /// Agent Entity whose context will be assembled at execution time.
+    pub agent: crate::EntityId,
+    /// Stable cognition implementation requirement.
+    pub cognition: String,
+    /// Opaque Wake context/policy input retained as logical Work payload.
+    pub payload: serde_json::Value,
+    /// World-semantic schedule; technical retry remains on the same Work.
+    pub schedule: WorkSchedule,
+}
+
+/// Result of an explicit Agency Wake schedule commit.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AdminScheduleAgencyWakeResult {
+    /// World and Timeline containing the new Wake.
+    pub target: TimelineTarget,
+    /// Scheduled Work identity.
+    pub work_id: WorkId,
+    /// Timeline version after the logical schedule commit.
+    pub version: TimelineVersion,
 }
 
 /// Request for an explicit semantic World-Time transition.
@@ -544,6 +670,18 @@ pub trait AdminService {
         Box::pin(async {
             Err(ApiError::unavailable(
                 "Admin Work control is not implemented",
+            ))
+        })
+    }
+
+    /// Schedules one Agency Wake through the shared Durable Work authority.
+    fn schedule_agency_wake(
+        &self,
+        _request: AdminScheduleAgencyWakeRequest,
+    ) -> AdminFuture<'_, AdminScheduleAgencyWakeResult> {
+        Box::pin(async {
+            Err(ApiError::unavailable(
+                "Admin Agency Wake scheduling is not implemented",
             ))
         })
     }

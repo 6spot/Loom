@@ -12,6 +12,7 @@ serde_json = "1"
 sqlx = { version = "0.9", default-features = false, features = ["json", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls", "uuid"] }
 
 [dev-dependencies]
+loom-agency = { path = "../loom-agency" }
 loom-api = { path = "../loom-api" }
 loom-capability = { path = "../loom-capability" }
 loom-protocol = { path = "../loom-protocol" }

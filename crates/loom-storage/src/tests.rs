@@ -6,9 +6,14 @@ use std::{
     },
 };
 
+use loom_agency::{
+    CognitiveExecutor, CognitiveFuture, CognitiveMetadata, CognitiveRequest, DecisionReusePolicy,
+    ExecutionPolicy,
+};
 use loom_api::{
-    ActionRequest, ActionService, ApiErrorCode, ChangeFeedCursor, ExecutionResult,
-    ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
+    ActionRequest, ActionService, AdminScheduleAgencyWakeRequest, AdminService,
+    AdminTerminalWorkState, AdminTerminalizeWorkRequest, ApiErrorCode, ChangeFeedCursor,
+    ExecutionResult, ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
     IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata, SubscriptionRequest,
     SubscriptionResult, SubscriptionService, TimelineTarget,
 };
@@ -29,13 +34,14 @@ use loom_protocol::{
 };
 use loom_runtime::{
     AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded,
-    CommitAuthorityContext, CommitError, CommitStore, DeterministicCognitiveExecutor,
-    DeterministicCognitiveStep, EffectEngine, ForkWork, IngressStore, IngressSubmission,
-    LogicalWorkTransition, ManualPlatformClock, PlatformTime, Runtime, RuntimeControlStore,
-    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionStore, SchedulerCommitStore, TimelineDriverResult, TimelineFork,
-    TimelineForkStore, WorkError, WorkRecord, WorkStatus, WorkTarget, WorkTerminalState,
-    WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    CognitiveDisposition, CommitAuthorityContext, CommitError, CommitStore,
+    DeterministicCognitiveExecutor, DeterministicCognitiveStep, EffectEngine, ForkWork,
+    IngressStore, IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PlatformTime,
+    Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
+    TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
+    WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -1392,6 +1398,275 @@ fn agency_executor(
     steps: impl IntoIterator<Item = DeterministicCognitiveStep>,
 ) -> DeterministicCognitiveExecutor {
     DeterministicCognitiveExecutor::new(steps)
+}
+
+struct SharedAgencyExecutor(Arc<DeterministicCognitiveExecutor>);
+
+impl CognitiveExecutor for SharedAgencyExecutor {
+    fn metadata(&self) -> CognitiveMetadata {
+        self.0.metadata()
+    }
+
+    fn execute<'a>(&'a self, request: &'a CognitiveRequest) -> CognitiveFuture<'a> {
+        self.0.execute(request)
+    }
+}
+
+#[tokio::test]
+async fn agency_wake_resample_rejects_stale_decision_and_records_discarded_cost() {
+    let scripted = Arc::new(agency_executor([
+        DeterministicCognitiveStep::act(ActionInvocation::new(
+            ActionTypeId::from(EVENT_ACTION),
+            json!({"event_id": event(4301).to_string()}),
+        )),
+        DeterministicCognitiveStep::act(ActionInvocation::new(
+            ActionTypeId::from(EVENT_ACTION),
+            json!({"event_id": event(4302).to_string()}),
+        )),
+    ]));
+    run_agency_wake_cas_conflict(ExecutionPolicy::default(), scripted, event(4302), 2, false).await;
+}
+
+#[tokio::test]
+async fn agency_wake_reuse_revalidates_fresh_context_and_records_reused_cost() {
+    let scripted = Arc::new(agency_executor([DeterministicCognitiveStep::act(
+        ActionInvocation::new(
+            ActionTypeId::from(EVENT_ACTION),
+            json!({"event_id": event(4303).to_string()}),
+        ),
+    )]));
+    run_agency_wake_cas_conflict(
+        ExecutionPolicy::default().with_decision_reuse(DecisionReusePolicy::ReuseDeterministic),
+        scripted,
+        event(4303),
+        1,
+        true,
+    )
+    .await;
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the in-memory Agency Wake CAS helper keeps both policy branches and provenance assertions together"
+)]
+async fn run_agency_wake_cas_conflict(
+    policy: ExecutionPolicy,
+    scripted: Arc<DeterministicCognitiveExecutor>,
+    expected_event: EventId,
+    expected_executor_calls: usize,
+    reused: bool,
+) {
+    let store = Arc::new(InMemoryStore::new());
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    store
+        .seed_work(pending_agency_work(
+            work(430),
+            entity(10),
+            "deterministic.fake",
+        ))
+        .expect("Agency Wake should be seeded");
+    let mut conflict_work =
+        pending_work_with_handler(work(431), WorkHandlerId::from(EMPTY_WORK_HANDLER));
+    conflict_work.logical_schedule_order = 2;
+    store
+        .seed_work(conflict_work)
+        .expect("conflict Work should be seeded");
+    let runtime = Runtime::new(store.as_ref(), registry())
+        .expect("Runtime should assemble")
+        .with_cognitive_executor(SharedAgencyExecutor(Arc::clone(&scripted)))
+        .with_cognitive_policy(policy);
+
+    store.inject_scheduler_conflict_once_for_test(work(431));
+    let first_result = runtime
+        .execute_work(
+            TimelineTarget::new(world(), timeline()),
+            work(430),
+            PlatformTime::new(0),
+            PlatformTime::new(10),
+            PlatformTime::new(2),
+        )
+        .await;
+    let result = if reused {
+        first_result.expect("Agency Wake should reuse after the injected CAS conflict")
+    } else {
+        assert!(matches!(
+            first_result,
+            Err(loom_api::ApiError {
+                code: loom_api::ApiErrorCode::Conflict,
+                ..
+            })
+        ));
+        let after_conflict = store
+            .snapshot(timeline())
+            .expect("post-conflict snapshot should exist");
+        assert!(after_conflict.events.is_empty());
+        assert_eq!(
+            after_conflict
+                .works
+                .iter()
+                .find(|record| record.id == work(430))
+                .expect("pending Agency Wake should remain readable")
+                .attempt_count,
+            1
+        );
+        runtime
+            .execute_work(
+                TimelineTarget::new(world(), timeline()),
+                work(430),
+                PlatformTime::new(2),
+                PlatformTime::new(12),
+                PlatformTime::new(4),
+            )
+            .await
+            .expect("resampled Agency Wake should commit on the retry")
+    };
+    assert!(matches!(
+        result,
+        ExecutionResult::Committed { ref event_ids, .. } if event_ids == &[expected_event]
+    ));
+    assert_eq!(scripted.calls(), expected_executor_calls);
+
+    let snapshot = store
+        .snapshot(timeline())
+        .expect("post-conflict snapshot should exist");
+    assert_eq!(snapshot.events.len(), 1, "one Action mutation may win");
+    assert_eq!(snapshot.events[0].id, expected_event);
+    assert_eq!(
+        snapshot
+            .works
+            .iter()
+            .find(|record| record.id == work(430))
+            .expect("Agency Wake should remain readable")
+            .status,
+        WorkStatus::Completed
+    );
+    assert_eq!(
+        snapshot
+            .works
+            .iter()
+            .find(|record| record.id == work(431))
+            .expect("conflict Work should remain readable")
+            .status,
+        WorkStatus::Cancelled
+    );
+
+    let sessions = store.list_sessions().expect("Sessions should be readable");
+    assert_eq!(
+        sessions.len(),
+        2,
+        "CAS recovery creates old and fresh Sessions"
+    );
+    let failed = sessions
+        .iter()
+        .find(|session| session.status() == loom_runtime::ExecutionSessionStatus::Failed)
+        .expect("stale cognition Session should be failed");
+    let committed = sessions
+        .iter()
+        .find(|session| session.status() == loom_runtime::ExecutionSessionStatus::Committed)
+        .expect("fresh cognition Session should commit");
+    let discarded = failed.cognitive_evidence();
+    let recovered = committed.cognitive_evidence();
+    assert_eq!(discarded.discarded_count(), 1);
+    assert_eq!(discarded.fresh_count(), 0);
+    assert_eq!(discarded.reused_count(), 0);
+    assert_eq!(discarded.context_bytes(), 0);
+    assert_eq!(recovered.discarded_count(), 0);
+    assert_eq!(recovered.context_entries(), 0);
+    if reused {
+        assert_eq!(recovered.reused_count(), 1);
+        assert_eq!(recovered.fresh_count(), 0);
+        assert_ne!(
+            discarded.observations()[0].version,
+            recovered.observations()[0].version,
+            "reuse must record a fresh pinned Timeline coordinate"
+        );
+    } else {
+        assert_eq!(recovered.reused_count(), 0);
+        assert_eq!(recovered.fresh_count(), 1);
+    }
+    assert_eq!(
+        recovered.observations()[0].outcome,
+        loom_runtime::CognitiveOutcome::Act
+    );
+    assert_eq!(
+        recovered.observations()[0].disposition,
+        if reused {
+            CognitiveDisposition::Reused
+        } else {
+            CognitiveDisposition::Fresh
+        }
+    );
+}
+
+#[tokio::test]
+async fn admin_agency_wake_schedule_and_cancel_use_logical_work_authority() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_entity(
+            timeline(),
+            Entity {
+                id: entity(10),
+                world_id: world(),
+            },
+        )
+        .expect("Agency Agent should exist");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let target = TimelineTarget::new(world(), timeline());
+    let initial = store
+        .snapshot(timeline())
+        .expect("initial snapshot should exist");
+
+    let scheduled = AdminService::schedule_agency_wake(
+        &runtime,
+        AdminScheduleAgencyWakeRequest {
+            target,
+            expected_version: initial.version(),
+            work_id: work(410),
+            agent: entity(10),
+            cognition: "deterministic.fake".to_owned(),
+            payload: json!({"policy": "default"}),
+            schedule: WorkSchedule::Immediate,
+        },
+    )
+    .await
+    .expect("explicit Wake schedule should commit");
+    let scheduled_snapshot = store
+        .snapshot(timeline())
+        .expect("scheduled snapshot should exist");
+    assert_eq!(scheduled.version, scheduled_snapshot.version());
+    assert_eq!(scheduled_snapshot.works[0].id, work(410));
+    assert_eq!(scheduled_snapshot.works[0].status, WorkStatus::Pending);
+
+    let cancelled = AdminService::terminalize_work(
+        &runtime,
+        AdminTerminalizeWorkRequest {
+            target,
+            work_id: work(410),
+            expected_version: scheduled.version,
+            terminal_state: AdminTerminalWorkState::Cancelled,
+        },
+    )
+    .await
+    .expect("explicit Wake cancellation should commit");
+    let cancelled_snapshot = store
+        .snapshot(timeline())
+        .expect("cancelled snapshot should exist");
+    assert_eq!(cancelled.version, cancelled_snapshot.version());
+    assert_eq!(cancelled_snapshot.works[0].status, WorkStatus::Cancelled);
 }
 
 #[tokio::test]
