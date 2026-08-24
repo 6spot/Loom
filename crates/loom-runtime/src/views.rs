@@ -361,6 +361,10 @@ impl BaseWorldView {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .record(dependency);
     }
+
+    pub(crate) fn record_dependency(&self, dependency: ReadDependency) {
+        self.record(dependency);
+    }
 }
 
 impl CapabilityBaseWorldView for BaseWorldView {

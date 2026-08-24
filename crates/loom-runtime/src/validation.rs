@@ -557,65 +557,93 @@ impl<'registry> EffectEngine<'registry> {
         call_provenance: CallProvenance,
         entropy_evidence: EntropyEvidence,
     ) -> Result<ValidatedResolution, RuntimeError> {
+        let mut observed_read_set = crate::ReadSet::default();
+        self.validate_segments_with_entropy_and_reads(
+            base,
+            segments,
+            call_provenance,
+            entropy_evidence,
+            &mut observed_read_set,
+        )
+    }
+
+    /// Validates segments while returning Base/Candidate reads observed even
+    /// when validation fails before it can produce an authority token.
+    pub(crate) fn validate_segments_with_entropy_and_reads(
+        &self,
+        base: &crate::BaseWorldView,
+        segments: &[ResolutionSegment],
+        call_provenance: CallProvenance,
+        entropy_evidence: EntropyEvidence,
+        observed_read_set: &mut crate::ReadSet,
+    ) -> Result<ValidatedResolution, RuntimeError> {
         let aggregate_usage = segments
             .iter()
             .fold(BudgetUsage::default(), |usage, segment| {
                 usage.combine(BudgetUsage::from_resolution(&segment.resolution))
             });
-        self.budget
-            .check(aggregate_usage)
-            .map_err(RuntimeError::Budget)?;
+        if let Err(error) = self.budget.check(aggregate_usage) {
+            observed_read_set.extend(base.read_set());
+            return Err(RuntimeError::Budget(error));
+        }
 
         let mut candidate = CandidateWorldView::from_base(base);
-        let mut flattened = Resolution::default();
-        for segment in segments {
-            for event in &segment.resolution.events {
-                if event.id.is_nil() {
-                    return Err(ValidationError::InvalidIdentity {
-                        kind: "Event",
-                        id: event.id.to_string(),
+        let result = (|| {
+            let mut flattened = Resolution::default();
+            for segment in segments {
+                for event in &segment.resolution.events {
+                    if event.id.is_nil() {
+                        return Err(ValidationError::InvalidIdentity {
+                            kind: "Event",
+                            id: event.id.to_string(),
+                        }
+                        .into());
                     }
-                    .into());
-                }
-                if candidate.event_exists(event.id) {
-                    return Err(ValidationError::DuplicateIdentity {
-                        kind: "Event",
-                        id: event.id.to_string(),
+                    if candidate.event_exists(event.id) {
+                        return Err(ValidationError::DuplicateIdentity {
+                            kind: "Event",
+                            id: event.id.to_string(),
+                        }
+                        .into());
                     }
-                    .into());
+                    let mut event_candidate = candidate.fork();
+                    validate_event(
+                        self.registry,
+                        &mut event_candidate,
+                        segment.owner.as_str(),
+                        event,
+                    )?;
+                    self.validate_invariants(&event_candidate, event)?;
+                    candidate = event_candidate;
+                    candidate.note_event(event.id);
+                    flattened.events.push(event.clone());
                 }
-                let mut event_candidate = candidate.fork();
-                validate_event(
+                let normalized_work = validate_work(
                     self.registry,
-                    &mut event_candidate,
+                    &mut candidate,
                     segment.owner.as_str(),
-                    event,
+                    &segment.resolution,
                 )?;
-                self.validate_invariants(&event_candidate, event)?;
-                candidate = event_candidate;
-                candidate.note_event(event.id);
-                flattened.events.push(event.clone());
+                flattened.work.extend(normalized_work);
             }
-            let normalized_work = validate_work(
-                self.registry,
-                &mut candidate,
-                segment.owner.as_str(),
-                &segment.resolution,
-            )?;
-            flattened.work.extend(normalized_work);
-        }
+
+            let mut read_set = base.read_set();
+            read_set.extend(candidate.read_set());
+            Ok(ValidatedResolution::new(
+                flattened,
+                base.timeline_id(),
+                base.version(),
+                base.world_time(),
+                read_set,
+                call_provenance,
+                entropy_evidence,
+            ))
+        })();
 
         let mut read_set = base.read_set();
         read_set.extend(candidate.read_set());
-        Ok(ValidatedResolution::new(
-            flattened,
-            base.timeline_id(),
-            base.version(),
-            base.world_time(),
-            read_set,
-            call_provenance,
-            entropy_evidence,
-        ))
+        observed_read_set.extend(read_set);
+        result
     }
 
     /// Validates and appends Runtime-generated reaction Work against the

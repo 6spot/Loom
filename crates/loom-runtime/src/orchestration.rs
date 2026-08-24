@@ -402,23 +402,6 @@ where
             .map_err(|error| map_session_error(&error))
     }
 
-    async fn finish_execution_session_with_entropy(
-        &self,
-        session_id: loom_core::ExecutionSessionId,
-        status: ExecutionSessionStatus,
-        entropy_evidence: EntropyEvidence,
-    ) -> ApiResult<ExecutionSession> {
-        self.store
-            .finish_session_with_entropy(
-                session_id,
-                status,
-                self.platform_clock.now(),
-                entropy_evidence,
-            )
-            .await
-            .map_err(|error| map_session_error(&error))
-    }
-
     async fn finish_execution_session_with_evidence(
         &self,
         session_id: loom_core::ExecutionSessionId,
@@ -733,6 +716,7 @@ where
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn validate_world_template(
         &self,
         template: &WorldTemplateDescriptor,
@@ -740,6 +724,7 @@ where
         timeline_id: TimelineId,
         assembly: &ExecutionAssembly,
         entropy_evidence: &mut EntropyEvidence,
+        final_evidence: &mut ExecutionEvidence,
     ) -> ApiResult<ValidatedWorldBirthPlan> {
         let initial_base = BaseWorldView::new(BaseWorldSnapshot::new(
             world_id,
@@ -755,50 +740,89 @@ where
         let mut has_runtime_changes = false;
 
         for invocation in &template.bootstrap_actions {
-            enabled_action(&self.registry, assembly, &invocation.action)
-                .map_err(map_dispatch_error)?;
-            engine
+            if let Err(error) = enabled_action(&self.registry, assembly, &invocation.action)
+                .map_err(map_dispatch_error)
+            {
+                *final_evidence = evidence.clone();
+                return Err(error);
+            }
+            if let Err(error) = engine
                 .validate_action_input(&invocation.action, &invocation.input)
-                .map_err(|error| map_action_input_error(&error))?;
+                .map_err(|error| map_action_input_error(&error))
+            {
+                *final_evidence = evidence.clone();
+                return Err(error);
+            }
             let mut execution_entropy_evidence =
                 EntropyEvidence::new(assembly.entropy_source_id().clone());
+            let mut execution_final_evidence =
+                ExecutionEvidence::new(assembly.entropy_source_id().clone());
             let (outcome, execution) = match dispatch_root_action(
                 &base,
                 &self.registry,
                 assembly,
                 &*self.entropy_source,
                 &mut execution_entropy_evidence,
+                &mut execution_final_evidence,
                 invocation,
             ) {
                 Ok(result) => result,
                 Err(error) => {
                     append_entropy_evidence(entropy_evidence, &execution_entropy_evidence);
+                    evidence.append(&execution_final_evidence);
+                    *final_evidence = evidence.clone();
                     return Err(map_dispatch_error(error));
                 }
             };
             append_entropy_evidence(entropy_evidence, &execution.entropy_evidence);
             let ResolveOutcome::Resolved(_) = outcome else {
+                evidence.append(&execution_final_evidence);
+                *final_evidence = evidence.clone();
                 return Err(ApiError::invalid_request(format!(
                     "Template bootstrap Action {} was semantically rejected",
                     invocation.action
                 )));
             };
-            let mut validated = engine
-                .validate_segments_with_entropy(
+            let mut validation_read_set = ReadSet::default();
+            let mut validated = match engine
+                .validate_segments_with_entropy_and_reads(
                     &base,
                     &execution.segments,
                     execution.call_provenance,
                     execution.entropy_evidence,
+                    &mut validation_read_set,
                 )
-                .map_err(|error| map_runtime_error(&error))?;
-            self.expand_reactions(&base, assembly, &engine, &mut validated, None)?;
+                .map_err(|error| map_runtime_error(&error))
+            {
+                Ok(validated) => validated,
+                Err(error) => {
+                    evidence.append(&evidence_with_read_set(
+                        execution_final_evidence,
+                        validation_read_set,
+                    ));
+                    *final_evidence = evidence.clone();
+                    return Err(error);
+                }
+            };
+            validated.append_validated_work(Vec::new(), execution.read_set.clone());
+            if let Err(error) =
+                self.expand_reactions(&base, assembly, &engine, &mut validated, None)
+            {
+                evidence.append(&validated_evidence(&validated));
+                *final_evidence = evidence.clone();
+                return Err(error);
+            }
             has_runtime_changes |= changes_runtime_state(&validated, None);
             evidence.append(&validated_evidence(&validated));
             total_usage = total_usage.combine(BudgetUsage::from_resolution(validated.resolution()));
-            assembly
+            if let Err(error) = assembly
                 .execution_policy()
                 .check(total_usage)
-                .map_err(|error| ApiError::invalid_request(error.to_string()))?;
+                .map_err(|error| ApiError::invalid_request(error.to_string()))
+            {
+                *final_evidence = evidence.clone();
+                return Err(error);
+            }
 
             let mut candidate = CandidateWorldView::from_base(&base);
             for event in validated.events() {
@@ -811,6 +835,7 @@ where
             bootstrap.push(validated);
         }
 
+        *final_evidence = evidence.clone();
         Ok(ValidatedWorldBirthPlan {
             world_id,
             timeline_id,
@@ -1294,6 +1319,8 @@ where
         let base = snapshot.world_view();
         let mut dispatch_entropy_evidence =
             EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let mut dispatch_final_evidence =
+            ExecutionEvidence::new(assembly.entropy_source_id().clone());
         let (outcome, execution) = match dispatch_root_work_async(
             &base,
             &self.registry,
@@ -1301,6 +1328,7 @@ where
             &*self.entropy_source,
             &self.store,
             &mut dispatch_entropy_evidence,
+            &mut dispatch_final_evidence,
             handler_id,
             &work.payload,
         )
@@ -1317,11 +1345,7 @@ where
                         now,
                         retry_available_at,
                         error,
-                        Some(ExecutionEvidence::from_parts(
-                            ReadSet::default(),
-                            CallProvenance::default(),
-                            dispatch_entropy_evidence,
-                        )),
+                        Some(dispatch_final_evidence),
                     )
                     .await);
             }
@@ -1332,18 +1356,21 @@ where
             ResolveOutcome::Rejected(rejection) => Some(rejection.clone()),
             ResolveOutcome::Resolved(_) => None,
         };
+        let mut validation_read_set = ReadSet::default();
         let validation = match &outcome {
-            ResolveOutcome::Rejected(_) => engine.validate_segments_with_entropy(
+            ResolveOutcome::Rejected(_) => engine.validate_segments_with_entropy_and_reads(
                 &base,
                 &[],
                 execution.call_provenance.clone(),
                 execution.entropy_evidence.clone(),
+                &mut validation_read_set,
             ),
-            ResolveOutcome::Resolved(_) => engine.validate_segments_with_entropy(
+            ResolveOutcome::Resolved(_) => engine.validate_segments_with_entropy_and_reads(
                 &base,
                 &execution.segments,
                 execution.call_provenance.clone(),
                 execution.entropy_evidence.clone(),
+                &mut validation_read_set,
             ),
         };
         let mut validated = match validation {
@@ -1358,7 +1385,10 @@ where
                         now,
                         retry_available_at,
                         error,
-                        Some(execution.evidence()),
+                        Some(evidence_with_read_set(
+                            dispatch_final_evidence.clone(),
+                            validation_read_set,
+                        )),
                     )
                     .await);
             }
@@ -1532,6 +1562,8 @@ where
 
         let mut dispatch_entropy_evidence =
             EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let mut dispatch_final_evidence =
+            ExecutionEvidence::new(assembly.entropy_source_id().clone());
         let (outcome, execution) = dispatch_root_action_async(
             base,
             &self.registry,
@@ -1539,38 +1571,40 @@ where
             &*self.entropy_source,
             &self.store,
             &mut dispatch_entropy_evidence,
+            &mut dispatch_final_evidence,
             invocation,
         )
         .await
         .map_err(|error| AuthorityFailure {
             error: map_dispatch_error(error),
-            evidence: ExecutionEvidence::from_parts(
-                ReadSet::default(),
-                CallProvenance::default(),
-                dispatch_entropy_evidence.clone(),
-            ),
+            evidence: dispatch_final_evidence.clone(),
             commit_error: None,
             validated: None,
             changes_runtime_state: false,
             provenance: None,
         })?;
-        let execution_evidence = execution.evidence();
+        let execution_evidence = dispatch_final_evidence;
         match outcome {
             ResolveOutcome::Rejected(rejection) => Ok(AuthorityExecution::Rejected {
                 rejection,
                 evidence: execution_evidence,
             }),
             ResolveOutcome::Resolved(_) => {
+                let mut validation_read_set = ReadSet::default();
                 let mut validated = engine
-                    .validate_segments_with_entropy(
+                    .validate_segments_with_entropy_and_reads(
                         base,
                         &execution.segments,
                         execution.call_provenance.clone(),
                         execution.entropy_evidence.clone(),
+                        &mut validation_read_set,
                     )
                     .map_err(|error| AuthorityFailure {
                         error: map_runtime_error(&error),
-                        evidence: execution_evidence.clone(),
+                        evidence: evidence_with_read_set(
+                            execution_evidence.clone(),
+                            validation_read_set,
+                        ),
                         commit_error: None,
                         validated: None,
                         changes_runtime_state: false,
@@ -2389,6 +2423,19 @@ fn validated_evidence(resolution: &ValidatedResolution) -> ExecutionEvidence {
     )
 }
 
+fn execution_evidence(base: &BaseWorldView, execution: &ExecutionState) -> ExecutionEvidence {
+    let mut evidence = execution.evidence();
+    let mut read_set = base.read_set();
+    read_set.extend(evidence.read_set.clone());
+    evidence.read_set = read_set;
+    evidence
+}
+
+fn evidence_with_read_set(mut evidence: ExecutionEvidence, read_set: ReadSet) -> ExecutionEvidence {
+    evidence.read_set.extend(read_set);
+    evidence
+}
+
 fn validated_evidence_for_outcome(
     resolution: &ValidatedResolution,
     no_change: bool,
@@ -3046,19 +3093,22 @@ where
                 )
                 .await?;
             let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
+            let mut bootstrap_evidence =
+                ExecutionEvidence::new(assembly.entropy_source_id().clone());
             let plan = match self.validate_world_template(
                 &request.template,
                 world_id,
                 timeline_id,
                 &assembly,
                 &mut entropy_evidence,
+                &mut bootstrap_evidence,
             ) {
                 Ok(plan) => plan,
                 Err(error) => {
-                    self.finish_execution_session_with_entropy(
+                    self.finish_execution_session_with_evidence(
                         session.id(),
                         ExecutionSessionStatus::Failed,
-                        entropy_evidence,
+                        bootstrap_evidence,
                     )
                     .await?;
                     return Err(error);
@@ -3078,10 +3128,10 @@ where
             {
                 Ok(created) => created,
                 Err(error) => {
-                    self.finish_execution_session_with_entropy(
+                    self.finish_execution_session_with_evidence(
                         session.id(),
                         ExecutionSessionStatus::Failed,
-                        entropy_evidence.clone(),
+                        plan.evidence.clone().with_no_change(false),
                     )
                     .await?;
                     return Err(map_lifecycle_error(&error));
@@ -4383,29 +4433,17 @@ impl ExecutionState {
     #[allow(clippy::too_many_arguments)]
     fn record_semantic(
         &mut self,
-        index_id: loom_capability::SemanticIndexId,
-        query_fingerprint: String,
-        query_spec: String,
-        source_schema_revision: loom_core::SchemaRevision,
-        projection_revision: u64,
-        model_revision: String,
-        source_refs: Vec<EventRef>,
+        dependency: ReadDependency,
         result_bytes: usize,
     ) -> Result<(), BudgetError> {
-        let usage = self
-            .usage
-            .with_semantic_result(source_refs.len(), result_bytes);
+        let source_count = match &dependency {
+            ReadDependency::Semantic { source_refs, .. } => source_refs.len(),
+            _ => 0,
+        };
+        let usage = self.usage.with_semantic_result(source_count, result_bytes);
         self.budget.check(usage)?;
         self.usage = usage;
-        self.read_set.record(ReadDependency::Semantic {
-            index_id,
-            query_fingerprint,
-            query_spec,
-            source_schema_revision,
-            projection_revision,
-            model_revision,
-            source_refs,
-        });
+        self.read_set.record(dependency);
         Ok(())
     }
 
@@ -4540,13 +4578,19 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
                     },
                 ));
             };
-            let result =
-                query_semantic_host(self.registry, self.assembly, store, &self.state, request)
-                    .await
-                    .map_err(|error| {
-                        self.state.borrow_mut().record_failure(error.to_string());
-                        ResolutionContextError::semantic(error)
-                    })?;
+            let result = query_semantic_host(
+                self.base,
+                self.registry,
+                self.assembly,
+                store,
+                &self.state,
+                request,
+            )
+            .await
+            .map_err(|error| {
+                self.state.borrow_mut().record_failure(error.to_string());
+                ResolutionContextError::semantic(error)
+            })?;
             Ok(result)
         })
     }
@@ -4554,6 +4598,7 @@ impl ResolutionContext for RuntimeResolutionContext<'_> {
 
 #[allow(clippy::too_many_lines)]
 async fn query_semantic_host(
+    base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
     assembly: &ExecutionAssembly,
     store: &dyn SemanticProjectionStore,
@@ -4658,23 +4703,24 @@ async fn query_semantic_host(
     let source_refs = hits.iter().map(|hit| hit.source_ref).collect::<Vec<_>>();
     let query_spec = normalized_semantic_query_spec(request);
     let query_fingerprint = semantic_query_fingerprint(&query_spec);
+    let dependency = ReadDependency::Semantic {
+        index_id: request.index_id.clone(),
+        query_fingerprint,
+        query_spec,
+        source_schema_revision: request.source_schema_revision,
+        projection_revision: request.projection_revision,
+        model_revision: request.model_revision.clone(),
+        source_refs: source_refs.clone(),
+    };
     state
         .borrow_mut()
-        .record_semantic(
-            request.index_id.clone(),
-            query_fingerprint,
-            query_spec,
-            request.source_schema_revision,
-            request.projection_revision,
-            request.model_revision.clone(),
-            source_refs,
-            result_bytes,
-        )
+        .record_semantic(dependency.clone(), result_bytes)
         .map_err(|error| SemanticQueryError::Bounds {
             dimension: error.dimension.to_string(),
             limit: error.limit,
             actual: error.actual,
         })?;
+    base.record_dependency(dependency);
     Ok(SemanticQueryResult {
         hits: hits
             .into_iter()
@@ -4790,6 +4836,7 @@ fn dispatch_root_action(
     assembly: &ExecutionAssembly,
     entropy_source: &dyn EntropySource,
     entropy_evidence: &mut EntropyEvidence,
+    evidence: &mut ExecutionEvidence,
     invocation: &ActionInvocation,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
     let action = enabled_action(registry, assembly, &invocation.action)?;
@@ -4816,9 +4863,11 @@ fn dispatch_root_action(
     );
     let execution = state.borrow().clone();
     *entropy_evidence = execution.entropy_evidence.clone();
+    *evidence = execution_evidence(base, &execution);
     Ok((outcome?, execution))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_root_action_async(
     base: &crate::BaseWorldView,
     registry: &CapabilityRegistry,
@@ -4826,6 +4875,7 @@ async fn dispatch_root_action_async(
     entropy_source: &dyn EntropySource,
     semantic_store: &dyn SemanticProjectionStore,
     entropy_evidence: &mut EntropyEvidence,
+    evidence: &mut ExecutionEvidence,
     invocation: &ActionInvocation,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
     let action = enabled_action(registry, assembly, &invocation.action)?;
@@ -4858,6 +4908,7 @@ async fn dispatch_root_action_async(
     let outcome = capture_outcome(&state, &frame.owner, result);
     let execution = state.borrow().clone();
     *entropy_evidence = execution.entropy_evidence.clone();
+    *evidence = execution_evidence(base, &execution);
     Ok((outcome?, execution))
 }
 
@@ -4869,6 +4920,7 @@ async fn dispatch_root_work_async(
     entropy_source: &dyn EntropySource,
     semantic_store: &dyn SemanticProjectionStore,
     entropy_evidence: &mut EntropyEvidence,
+    evidence: &mut ExecutionEvidence,
     handler_id: &loom_core::WorkHandlerId,
     payload: &serde_json::Value,
 ) -> Result<(ResolveOutcome, ExecutionState), DispatchError> {
@@ -4904,6 +4956,7 @@ async fn dispatch_root_work_async(
     let outcome = capture_outcome(&state, &frame.owner, result);
     let execution = state.borrow().clone();
     *entropy_evidence = execution.entropy_evidence.clone();
+    *evidence = execution_evidence(base, &execution);
     Ok((outcome?, execution))
 }
 
@@ -5603,10 +5656,11 @@ mod tests {
         SemanticIndexDefinition, SemanticIndexMetric, SemanticIndexSource, SemanticQueryRequest,
     };
     use loom_core::{
-        ActionTypeId, EventSeq, SchemaRevision, StateRevision, TimelineId, TimelineVersion,
-        WorkHandlerId, WorkId, WorldId, WorldInstant,
+        ActionTypeId, EntityId, EventId, EventSeq, EventTypeId, FacetOwner, FacetTypeId,
+        RelationshipId, SchemaRevision, StateRevision, TimelineId, TimelineVersion, WorkHandlerId,
+        WorkId, WorldId, WorldInstant,
     };
-    use loom_protocol::{ActionInvocation, Rejection, ResolveOutcome};
+    use loom_protocol::{ActionInvocation, ProposedEvent, Rejection, Resolution, ResolveOutcome};
     use semver::Version;
     use serde_json::{Value, json};
 
@@ -5696,6 +5750,73 @@ mod tests {
                 "provenance.child_rejected",
                 "test child rejection",
             )))
+        }
+    }
+
+    struct ReadObservationCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for ReadObservationCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+            registrar.register_action(
+                ActionDefinition::new(
+                    ActionTypeId::from("provenance.read.reject"),
+                    SchemaRevision::new(1),
+                ),
+                ReadRejectResolver,
+            )?;
+            registrar.register_action(
+                ActionDefinition::new(
+                    ActionTypeId::from("provenance.read.fail"),
+                    SchemaRevision::new(1),
+                ),
+                ReadFailResolver,
+            )
+        }
+    }
+
+    fn observe_base_reads(context: &dyn ResolutionContext) {
+        let base = context.base_world();
+        let _ = base.get_entity(id::<EntityId>(10));
+        let _ = base.get_facet(
+            FacetOwner::entity(id::<EntityId>(10)),
+            &FacetTypeId::from("provenance.read.facet"),
+        );
+        let _ = base.get_relationship(id::<RelationshipId>(20));
+        let _ = base.get_entity(id::<EntityId>(10));
+    }
+
+    struct ReadRejectResolver;
+
+    impl ActionResolver for ReadRejectResolver {
+        fn resolve(
+            &self,
+            context: &dyn ResolutionContext,
+            _input: &Value,
+        ) -> Result<ResolveOutcome, ResolverError> {
+            observe_base_reads(context);
+            Ok(ResolveOutcome::Rejected(Rejection::new(
+                "provenance.read.rejected",
+                "read provenance rejection",
+            )))
+        }
+    }
+
+    struct ReadFailResolver;
+
+    impl ActionResolver for ReadFailResolver {
+        fn resolve(
+            &self,
+            context: &dyn ResolutionContext,
+            _input: &Value,
+        ) -> Result<ResolveOutcome, ResolverError> {
+            observe_base_reads(context);
+            Err(ResolverError::new("read provenance failure"))
         }
     }
 
@@ -5859,7 +5980,12 @@ mod tests {
             2,
         );
         let result = block_on(query_semantic_host(
-            &registry, &assembly, &store, &state, &request,
+            &base(),
+            &registry,
+            &assembly,
+            &store,
+            &state,
+            &request,
         ))
         .expect("semantic host should return bounded hits");
         assert_eq!(result.hits.len(), 2);
@@ -5877,7 +6003,12 @@ mod tests {
                 && query_spec.contains("index=semantic.test.index")
         ));
         let repeat = block_on(query_semantic_host(
-            &registry, &assembly, &store, &state, &request,
+            &base(),
+            &registry,
+            &assembly,
+            &store,
+            &state,
+            &request,
         ))
         .expect("same semantic snapshot should be repeatable");
         assert_eq!(repeat, result);
@@ -5893,6 +6024,7 @@ mod tests {
             bounded_assembly.entropy_source_id().clone(),
         )));
         let error = block_on(query_semantic_host(
+            &base(),
             &registry,
             &bounded_assembly,
             &store,
@@ -5923,6 +6055,26 @@ mod tests {
             }),
         ])
         .expect("provenance registry should assemble")
+    }
+
+    fn read_registry() -> CapabilityRegistry {
+        CapabilityRegistry::assemble(vec![Box::new(ReadObservationCapability {
+            manifest: CapabilityManifest::parse("provenance.read", "0.1.0")
+                .expect("read provenance manifest should parse"),
+        })])
+        .expect("read provenance registry should assemble")
+    }
+
+    fn read_binding() -> WorldRuntimeBinding {
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from("provenance.read"),
+                VersionReq::parse("^0.1.0").expect("read provenance requirement should parse"),
+            )],
+            json!({"fixture": "read-provenance"}),
+            1,
+            Some("read-provenance-test".to_owned()),
+        )
     }
 
     fn base() -> BaseWorldView {
@@ -6234,12 +6386,14 @@ mod tests {
         let invocation = ActionInvocation::new(ActionTypeId::from("provenance.parent"), json!({}));
         let source = UnavailableEntropySource;
         let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let mut final_evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
         let (outcome, execution) = dispatch_root_action(
             &base(),
             &registry,
             &assembly,
             &source,
             &mut entropy_evidence,
+            &mut final_evidence,
             &invocation,
         )
         .expect("root dispatch should complete with semantic rejection");
@@ -6259,6 +6413,160 @@ mod tests {
     }
 
     #[test]
+    fn rejected_and_failed_dispatch_round_trip_base_reads_in_observation_order() {
+        let registry = read_registry();
+        let assembly = test_assembly(&registry, read_binding());
+        let source = UnavailableEntropySource;
+        for (action, status, should_reject) in [
+            (
+                "provenance.read.reject",
+                ExecutionSessionStatus::Rejected,
+                true,
+            ),
+            (
+                "provenance.read.fail",
+                ExecutionSessionStatus::Failed,
+                false,
+            ),
+        ] {
+            let invocation = ActionInvocation::new(ActionTypeId::from(action), json!({}));
+            let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
+            let mut final_evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
+            let result = dispatch_root_action(
+                &base(),
+                &registry,
+                &assembly,
+                &source,
+                &mut entropy_evidence,
+                &mut final_evidence,
+                &invocation,
+            );
+            if should_reject {
+                assert!(matches!(
+                    result.expect("rejection should return an outcome").0,
+                    ResolveOutcome::Rejected(_)
+                ));
+            } else {
+                assert!(result.is_err(), "resolver failure should be returned");
+            }
+
+            let entries = final_evidence.read_set.entries();
+            assert_eq!(entries.len(), 3, "duplicate observations must be removed");
+            assert!(matches!(
+                &entries[0],
+                ReadDependency::Entity { entity_id, present }
+                    if *entity_id == id::<EntityId>(10) && !present
+            ));
+            assert!(matches!(
+                &entries[1],
+                ReadDependency::Facet {
+                    owner,
+                    facet_type,
+                    schema_revision,
+                } if *owner == FacetOwner::entity(id::<EntityId>(10))
+                    && facet_type == &FacetTypeId::from("provenance.read.facet")
+                    && schema_revision.is_none()
+            ));
+            assert!(matches!(
+                &entries[2],
+                ReadDependency::Relationship {
+                    relationship_id,
+                    present,
+                } if *relationship_id == id::<RelationshipId>(20) && !present
+            ));
+
+            let session = ExecutionSession::new(
+                assembly.session_id(),
+                ExecutionOrigin::Application,
+                assembly.clone(),
+                PlatformTime::default(),
+            )
+            .finish_with_evidence(status, PlatformTime::new(1), final_evidence)
+            .expect("terminal Session should retain dispatch evidence");
+            let encoded = serde_json::to_value(&session).expect("Session should serialize");
+            let restored: ExecutionSession =
+                serde_json::from_value(encoded).expect("Session should deserialize");
+            assert_eq!(restored, session);
+        }
+    }
+
+    #[test]
+    fn bootstrap_validation_failure_round_trips_base_and_candidate_reads() {
+        let registry = registry();
+        let binding = WorldRuntimeBinding::new(
+            ["provenance.parent", "provenance.child"]
+                .into_iter()
+                .map(|id| {
+                    (
+                        CapabilityId::from(id),
+                        VersionReq::parse("^0.1.0").expect("provenance requirement should parse"),
+                    )
+                }),
+            json!({"fixture": "bootstrap-read-provenance"}),
+            1,
+            Some("bootstrap-read-provenance-test".to_owned()),
+        );
+        let assembly = test_assembly(&registry, binding);
+        let base = base();
+        let _ = base.entity(id::<EntityId>(10));
+        let _ = base.facet(
+            FacetOwner::entity(id::<EntityId>(10)),
+            &FacetTypeId::from("bootstrap.read.facet"),
+        );
+        let _ = base.relationship(id::<RelationshipId>(20));
+        let invalid_event = ProposedEvent::new(
+            id::<EventId>(30),
+            EventTypeId::from("bootstrap.invalid"),
+            SchemaRevision::new(1),
+            json!({}),
+        );
+        let mut validation_reads = ReadSet::default();
+        let error = EffectEngine::new(&registry)
+            .validate_segments_with_entropy_and_reads(
+                &base,
+                &[ResolutionSegment::new(
+                    CapabilityId::from("provenance.parent"),
+                    Resolution::new(vec![invalid_event], Vec::new()),
+                )],
+                CallProvenance::default(),
+                EntropyEvidence::new(assembly.entropy_source_id().clone()),
+                &mut validation_reads,
+            )
+            .expect_err("bootstrap validation should retain evidence on error");
+        assert!(matches!(error, RuntimeError::Validation(_)));
+        let evidence = evidence_with_read_set(
+            ExecutionEvidence::from_parts(
+                base.read_set(),
+                CallProvenance::default(),
+                EntropyEvidence::new(assembly.entropy_source_id().clone()),
+            ),
+            validation_reads,
+        );
+        assert_eq!(evidence.read_set.len(), 4);
+        assert!(matches!(
+            &evidence.read_set.entries()[3],
+            ReadDependency::Event { event_id, present }
+                if *event_id == id::<EventId>(30) && !present
+        ));
+        let session = ExecutionSession::new(
+            assembly.session_id(),
+            ExecutionOrigin::Runtime,
+            assembly,
+            PlatformTime::default(),
+        )
+        .finish_with_evidence(
+            ExecutionSessionStatus::Failed,
+            PlatformTime::new(1),
+            evidence,
+        )
+        .expect("bootstrap failure Session should retain evidence");
+        let encoded = serde_json::to_value(&session).expect("Session should serialize");
+        let restored: ExecutionSession =
+            serde_json::from_value(encoded).expect("Session should deserialize");
+        assert_eq!(restored, session);
+    }
+
+    #[test]
     fn entropy_is_ordered_and_retained_in_session_provenance() {
         let registry = entropy_registry();
         let assembly = test_assembly(&registry, entropy_binding());
@@ -6266,12 +6574,14 @@ mod tests {
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
         let invocation = ActionInvocation::new(ActionTypeId::from("entropy.sample"), json!({}));
         let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let mut final_evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
         let (outcome, execution) = dispatch_root_action(
             &base(),
             &registry,
             &assembly,
             &source,
             &mut entropy_evidence,
+            &mut final_evidence,
             &invocation,
         )
         .expect("deterministic entropy dispatch should succeed");
@@ -6330,12 +6640,14 @@ mod tests {
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
         let invocation = ActionInvocation::new(ActionTypeId::from("entropy.sample"), json!({}));
         let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
+        let mut final_evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
         let error = dispatch_root_action(
             &base(),
             &registry,
             &assembly,
             &source,
             &mut entropy_evidence,
+            &mut final_evidence,
             &invocation,
         )
         .expect_err("second entropy request should exceed the pinned policy");
@@ -6373,12 +6685,15 @@ mod tests {
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
         let mut total_bytes_evidence =
             EntropyEvidence::new(total_bytes_assembly.entropy_source_id().clone());
+        let mut total_bytes_final_evidence =
+            ExecutionEvidence::new(total_bytes_assembly.entropy_source_id().clone());
         let total_bytes_error = dispatch_root_action(
             &base(),
             &registry,
             &total_bytes_assembly,
             &total_bytes_source,
             &mut total_bytes_evidence,
+            &mut total_bytes_final_evidence,
             &invocation,
         )
         .expect_err("total entropy bytes should reject the second request");
@@ -6394,12 +6709,15 @@ mod tests {
             DeterministicEntropySource::with_source_id("test-entropy", vec![vec![1, 2], vec![3]]);
         let mut request_bytes_evidence =
             EntropyEvidence::new(request_bytes_assembly.entropy_source_id().clone());
+        let mut request_bytes_final_evidence =
+            ExecutionEvidence::new(request_bytes_assembly.entropy_source_id().clone());
         let request_bytes_error = dispatch_root_action(
             &base(),
             &registry,
             &request_bytes_assembly,
             &request_bytes_source,
             &mut request_bytes_evidence,
+            &mut request_bytes_final_evidence,
             &invocation,
         )
         .expect_err("per-request entropy bytes should reject the first request");
