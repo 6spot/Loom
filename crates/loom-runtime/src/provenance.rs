@@ -88,7 +88,7 @@ impl Default for EntropyEvidence {
 /// `loom_protocol::CausalLink`, Event participant, Work origin or other World
 /// Event association. Runtime creates these edges after Action input and
 /// dependency authorization pass; Capability code cannot forge or edit them.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct ResolutionCallEdge {
     /// Capability that owned the resolver making the subresolution request.
     pub caller_capability: CapabilityId,
@@ -106,7 +106,7 @@ pub struct ResolutionCallEdge {
 /// Event causal graph. It is observable through a Runtime-owned
 /// `ValidatedResolution` for tests and operator diagnostics, while it is not a
 /// public Loom API payload or a Capability-provided authorization record.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CallProvenance {
     edges: Vec<ResolutionCallEdge>,
 }
@@ -141,7 +141,7 @@ impl CallProvenance {
 /// the current validation actually inspected; it is not a Capability-declared
 /// dependency list, a commit authorization, or a fine-grained MVCC predicate.
 /// The v0 commit correctness boundary remains the pinned `TimelineVersion`.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ReadDependency {
     /// A pinned-base Entity existence lookup and whether it was present.
     Entity {
@@ -199,9 +199,94 @@ pub enum ReadDependency {
 /// must not mistake it for a permission grant or a replacement for Timeline
 /// CAS. The entries preserve first-observation order and are deduplicated so
 /// diagnostics can explain how a candidate result was reached.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReadSet {
     entries: Vec<ReadDependency>,
+}
+
+/// Complete Runtime-observed evidence produced by one root execution.
+///
+/// The three ordered collections are Runtime-owned observations. They are
+/// deliberately separate from World Events and from Capability input: a
+/// persistence adapter serializes the supplied values but does not inspect a
+/// Capability implementation to infer provenance. Evidence can be appended
+/// in root/child order while preserving deterministic `ReadSet` de-duplication,
+/// call-edge order and entropy ordinals.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ExecutionEvidence {
+    /// Point, Facet, Relationship, Event and semantic projection reads.
+    pub read_set: ReadSet,
+    /// Runtime-mediated subresolution edges.
+    pub call_provenance: CallProvenance,
+    /// Runtime-mediated entropy requests and returned samples.
+    pub entropy_evidence: EntropyEvidence,
+    /// Explicit Runtime outcome marker for a successful no-change execution.
+    /// Rejections remain semantically distinct and do not set this marker.
+    #[serde(default)]
+    pub no_change: bool,
+}
+
+impl ExecutionEvidence {
+    /// Creates empty evidence for a pinned entropy source.
+    #[must_use]
+    pub fn new(source_id: EntropySourceId) -> Self {
+        Self {
+            read_set: ReadSet::default(),
+            call_provenance: CallProvenance::default(),
+            entropy_evidence: EntropyEvidence::new(source_id),
+            no_change: false,
+        }
+    }
+
+    /// Creates evidence from one Runtime execution state.
+    #[must_use]
+    pub const fn from_parts(
+        read_set: ReadSet,
+        call_provenance: CallProvenance,
+        entropy_evidence: EntropyEvidence,
+    ) -> Self {
+        Self {
+            read_set,
+            call_provenance,
+            entropy_evidence,
+            no_change: false,
+        }
+    }
+
+    /// Marks this evidence as a successful execution with no World/Work
+    /// mutation while retaining its normal Runtime observations.
+    #[must_use]
+    pub const fn with_no_change(mut self, no_change: bool) -> Self {
+        self.no_change = no_change;
+        self
+    }
+
+    /// Reports whether no Runtime observation was retained.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.read_set.is_empty()
+            && self.call_provenance.is_empty()
+            && self.entropy_evidence.is_empty()
+    }
+
+    /// Appends another root/child execution's observations in execution order.
+    pub fn append(&mut self, additional: &Self) {
+        self.no_change |= additional.no_change;
+        self.read_set.extend(additional.read_set.clone());
+        for edge in additional.call_provenance.edges() {
+            self.call_provenance.record(edge.clone());
+        }
+        let mut entropy = EntropyEvidence::new(self.entropy_evidence.source_id().clone());
+        for observation in self
+            .entropy_evidence
+            .observations()
+            .iter()
+            .chain(additional.entropy_evidence.observations())
+        {
+            entropy.record(observation.request.clone(), observation.sample.clone());
+        }
+        self.entropy_evidence = entropy;
+    }
 }
 
 impl ReadSet {

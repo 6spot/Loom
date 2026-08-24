@@ -2,7 +2,7 @@
 
 use loom_core::ExecutionSessionId;
 use loom_runtime::{
-    CommitProvenance, EntropyEvidence, ExecutionSession, ExecutionSessionStatus,
+    CommitProvenance, EntropyEvidence, ExecutionEvidence, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, IngressCompletion, PersistenceFuture, PlatformTime, SessionError,
 };
 use serde_json::Value;
@@ -45,6 +45,18 @@ impl ExecutionSessionStore for PgStorage {
         })
     }
 
+    fn finish_session_with_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            finish_session_with_evidence(self, session_id, status, ended_at, evidence).await
+        })
+    }
+
     fn finish_session_with_ingress_completion(
         &self,
         session_id: ExecutionSessionId,
@@ -63,6 +75,23 @@ impl ExecutionSessionStore for PgStorage {
                 entropy_evidence,
                 completion,
                 provenance,
+            )
+            .await
+        })
+    }
+
+    fn finish_session_with_ingress_completion_and_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            finish_session_with_ingress_completion_and_evidence(
+                self, session_id, status, ended_at, evidence, completion, provenance,
             )
             .await
         })
@@ -142,7 +171,30 @@ async fn finish_session_with_entropy(
         session_id,
         status,
         ended_at,
-        Some(entropy_evidence),
+        Some(ExecutionEvidence::from_parts(
+            loom_runtime::ReadSet::default(),
+            loom_runtime::CallProvenance::default(),
+            entropy_evidence,
+        )),
+        None,
+        None,
+    )
+    .await
+}
+
+async fn finish_session_with_evidence(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    status: ExecutionSessionStatus,
+    ended_at: PlatformTime,
+    evidence: ExecutionEvidence,
+) -> Result<ExecutionSession, SessionError> {
+    finish_session_inner(
+        storage,
+        session_id,
+        status,
+        ended_at,
+        Some(evidence),
         None,
         None,
     )
@@ -169,7 +221,38 @@ async fn finish_session_with_ingress_completion(
         session_id,
         status,
         ended_at,
-        Some(entropy_evidence),
+        Some(ExecutionEvidence::from_parts(
+            loom_runtime::ReadSet::default(),
+            loom_runtime::CallProvenance::default(),
+            entropy_evidence,
+        )),
+        Some(completion),
+        provenance,
+    )
+    .await
+}
+
+async fn finish_session_with_ingress_completion_and_evidence(
+    storage: &PgStorage,
+    session_id: ExecutionSessionId,
+    status: ExecutionSessionStatus,
+    ended_at: PlatformTime,
+    evidence: ExecutionEvidence,
+    completion: IngressCompletion,
+    provenance: Option<CommitProvenance>,
+) -> Result<ExecutionSession, SessionError> {
+    #[cfg(test)]
+    if storage.take_test_ingress_finalization_failure() {
+        return Err(SessionError::StorageUnavailable {
+            message: "test Ingress finalization interruption".to_owned(),
+        });
+    }
+    finish_session_inner(
+        storage,
+        session_id,
+        status,
+        ended_at,
+        Some(evidence),
         Some(completion),
         provenance,
     )
@@ -181,7 +264,7 @@ async fn finish_session_inner(
     session_id: ExecutionSessionId,
     status: ExecutionSessionStatus,
     ended_at: PlatformTime,
-    entropy_evidence: Option<EntropyEvidence>,
+    evidence: Option<ExecutionEvidence>,
     ingress_completion: Option<IngressCompletion>,
     provenance: Option<CommitProvenance>,
 ) -> Result<ExecutionSession, SessionError> {
@@ -196,16 +279,12 @@ async fn finish_session_inner(
             to: status,
         });
     }
-    let finished = match entropy_evidence {
-        Some(entropy_evidence) => match ingress_completion {
-            Some(completion) => current.finish_with_ingress_completion(
-                status,
-                ended_at,
-                entropy_evidence,
-                completion,
-                provenance,
+    let finished = match evidence {
+        Some(evidence) => match ingress_completion {
+            Some(completion) => current.finish_with_ingress_completion_and_evidence(
+                status, ended_at, evidence, completion, provenance,
             )?,
-            None => current.finish_with_entropy(status, ended_at, entropy_evidence)?,
+            None => current.finish_with_evidence(status, ended_at, evidence)?,
         },
         None => match ingress_completion {
             Some(_) => {
@@ -317,7 +396,9 @@ fn session_status(status: ExecutionSessionStatus) -> &'static str {
     match status {
         ExecutionSessionStatus::Started => "Started",
         ExecutionSessionStatus::Committed => "Committed",
+        ExecutionSessionStatus::NoChange => "NoChange",
         ExecutionSessionStatus::Rejected => "Rejected",
         ExecutionSessionStatus::Failed => "Failed",
+        ExecutionSessionStatus::Blocked => "Blocked",
     }
 }

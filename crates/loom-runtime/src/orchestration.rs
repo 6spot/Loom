@@ -44,14 +44,14 @@ use crate::{
     CallProvenance, CandidateWorldView, ChangeFeedStore, ChronologyBudgetExceeded,
     ChronologyBudgetPolicy, CommitAuthorityContext, CommitError, CommitProvenance, CommitStore,
     CommittedEvent, EffectEngine, EntropyEvidence, EntropySource, EntropySourceId,
-    ExecutionAssembly, ExecutionOrigin, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
+    ExecutionAssembly, ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession,
+    ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization,
+    ForkWork, HistoricalTimelineState, IdentityAllocator, IngressClaim, IngressError, IngressStore,
     IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
     LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
-    ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
+    ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
     RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
@@ -72,7 +72,7 @@ type MissingImplementationObservations =
 
 struct AuthorityFailure {
     error: ApiError,
-    entropy_evidence: EntropyEvidence,
+    evidence: ExecutionEvidence,
     commit_error: Option<CommitError>,
     validated: Option<ValidatedResolution>,
     changes_runtime_state: bool,
@@ -82,7 +82,7 @@ struct AuthorityFailure {
 enum AuthorityExecution {
     Rejected {
         rejection: loom_protocol::Rejection,
-        entropy_evidence: EntropyEvidence,
+        evidence: ExecutionEvidence,
     },
     Committed {
         result: Box<crate::CommitResult>,
@@ -139,6 +139,7 @@ struct ValidatedWorldBirthPlan {
     initial_world_time: loom_core::WorldInstant,
     binding: WorldRuntimeBinding,
     bootstrap: Vec<ValidatedResolution>,
+    evidence: ExecutionEvidence,
 }
 
 impl<S> Runtime<S>
@@ -347,15 +348,17 @@ where
         RuntimeRevisionSelection::new(descriptor, 0, PlatformTime::default())
     }
 
-    async fn start_execution_session(
+    async fn start_execution_session_with_root(
         &self,
         assembly: ExecutionAssembly,
         origin: ExecutionOrigin,
+        root: ExecutionRoot,
     ) -> ApiResult<ExecutionSession> {
-        let session = ExecutionSession::new(
+        let session = ExecutionSession::new_with_root(
             assembly.session_id(),
             origin,
             assembly,
+            root,
             self.platform_clock.now(),
         );
         self.store
@@ -369,14 +372,16 @@ where
         &self,
         assembly: ExecutionAssembly,
         ingress_id: IngressId,
+        action: ActionTypeId,
     ) -> ApiResult<ExecutionSession>
     where
         S: ExecutionSessionStore,
     {
-        let session = ExecutionSession::new_ingress(
+        let session = ExecutionSession::new_ingress_with_root(
             assembly.session_id(),
-            ingress_id,
+            ingress_id.clone(),
             assembly,
+            ExecutionRoot::ingress(ingress_id).with_action(action),
             self.platform_clock.now(),
         );
         self.store
@@ -414,11 +419,23 @@ where
             .map_err(|error| map_session_error(&error))
     }
 
-    async fn finish_ingress_execution_session(
+    async fn finish_execution_session_with_evidence(
         &self,
         session_id: loom_core::ExecutionSessionId,
         status: ExecutionSessionStatus,
-        entropy_evidence: EntropyEvidence,
+        evidence: ExecutionEvidence,
+    ) -> ApiResult<ExecutionSession> {
+        self.store
+            .finish_session_with_evidence(session_id, status, self.platform_clock.now(), evidence)
+            .await
+            .map_err(|error| map_session_error(&error))
+    }
+
+    async fn finish_ingress_execution_session_with_evidence(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        evidence: ExecutionEvidence,
         completion: IngressCompletion,
         provenance: Option<CommitProvenance>,
     ) -> ApiResult<ExecutionSession>
@@ -426,11 +443,11 @@ where
         S: ExecutionSessionStore,
     {
         self.store
-            .finish_session_with_ingress_completion(
+            .finish_session_with_ingress_completion_and_evidence(
                 session_id,
                 status,
                 self.platform_clock.now(),
-                entropy_evidence,
+                evidence,
                 completion,
                 provenance,
             )
@@ -734,6 +751,8 @@ where
         let mut base = initial_base;
         let mut bootstrap = Vec::with_capacity(template.bootstrap_actions.len());
         let mut total_usage = BudgetUsage::default();
+        let mut evidence = ExecutionEvidence::new(assembly.entropy_source_id().clone());
+        let mut has_runtime_changes = false;
 
         for invocation in &template.bootstrap_actions {
             enabled_action(&self.registry, assembly, &invocation.action)
@@ -773,6 +792,8 @@ where
                 )
                 .map_err(|error| map_runtime_error(&error))?;
             self.expand_reactions(&base, assembly, &engine, &mut validated, None)?;
+            has_runtime_changes |= changes_runtime_state(&validated, None);
+            evidence.append(&validated_evidence(&validated));
             total_usage = total_usage.combine(BudgetUsage::from_resolution(validated.resolution()));
             assembly
                 .execution_policy()
@@ -796,6 +817,7 @@ where
             initial_world_time: template.initial_world_time,
             binding: assembly.binding().clone(),
             bootstrap,
+            evidence: evidence.with_no_change(!has_runtime_changes),
         })
     }
 
@@ -1248,7 +1270,12 @@ where
             .await
             .map_err(|error| map_work_error(&error))?;
         let session = match self
-            .start_execution_session(assembly.clone(), ExecutionOrigin::Runtime)
+            .start_execution_session_with_root(
+                assembly.clone(),
+                ExecutionOrigin::Runtime,
+                ExecutionRoot::work(work_id)
+                    .with_action(ActionTypeId::from(format!("work:{handler_id}"))),
+            )
             .await
         {
             Ok(session) => session,
@@ -1290,7 +1317,11 @@ where
                         now,
                         retry_available_at,
                         error,
-                        Some(dispatch_entropy_evidence),
+                        Some(ExecutionEvidence::from_parts(
+                            ReadSet::default(),
+                            CallProvenance::default(),
+                            dispatch_entropy_evidence,
+                        )),
                     )
                     .await);
             }
@@ -1327,7 +1358,7 @@ where
                         now,
                         retry_available_at,
                         error,
-                        Some(execution.entropy_evidence.clone()),
+                        Some(execution.evidence()),
                     )
                     .await);
             }
@@ -1349,7 +1380,7 @@ where
                     now,
                     retry_available_at,
                     error,
-                    Some(validated.entropy_evidence().clone()),
+                    Some(validated_evidence(&validated)),
                 )
                 .await);
         }
@@ -1366,10 +1397,13 @@ where
                 } else {
                     ExecutionSessionStatus::Committed
                 };
-                self.finish_execution_session_with_entropy(
+                self.finish_execution_session_with_evidence(
                     session.id(),
                     status,
-                    validated.entropy_evidence().clone(),
+                    validated_evidence_for_outcome(
+                        &validated,
+                        rejection.is_none() && !changes_runtime_state,
+                    ),
                 )
                 .await?;
                 match rejection {
@@ -1378,10 +1412,10 @@ where
                 }
             }
             Err(CommitError::ChronologyBudgetExceeded(exhausted)) => {
-                self.finish_execution_session_with_entropy(
+                self.finish_execution_session_with_evidence(
                     session.id(),
                     ExecutionSessionStatus::Failed,
-                    validated.entropy_evidence().clone(),
+                    validated_evidence(&validated),
                 )
                 .await?;
                 Err(ApiError::unavailable(exhausted.to_string()))
@@ -1394,10 +1428,10 @@ where
                 {
                     Ok(reconciliation) => reconciliation,
                     Err(reconcile_error) => {
-                        self.finish_execution_session_with_entropy(
+                        self.finish_execution_session_with_evidence(
                             session.id(),
                             ExecutionSessionStatus::Failed,
-                            validated.entropy_evidence().clone(),
+                            validated_evidence(&validated),
                         )
                         .await?;
                         return Err(reconcile_error);
@@ -1410,10 +1444,13 @@ where
                         } else {
                             ExecutionSessionStatus::Committed
                         };
-                        self.finish_execution_session_with_entropy(
+                        self.finish_execution_session_with_evidence(
                             session.id(),
                             status,
-                            validated.entropy_evidence().clone(),
+                            validated_evidence_for_outcome(
+                                &validated,
+                                rejection.is_none() && !changes_runtime_state,
+                            ),
                         )
                         .await?;
                         match rejection {
@@ -1429,14 +1466,14 @@ where
                             now,
                             retry_available_at,
                             mapped,
-                            Some(validated.entropy_evidence().clone()),
+                            Some(validated_evidence(&validated)),
                         )
                         .await),
                     SchedulerCommitReconciliation::Ambiguous => {
-                        self.finish_execution_session_with_entropy(
+                        self.finish_execution_session_with_evidence(
                             session.id(),
                             ExecutionSessionStatus::Failed,
-                            validated.entropy_evidence().clone(),
+                            validated_evidence(&validated),
                         )
                         .await?;
                         Err(ApiError::unavailable(
@@ -1455,7 +1492,7 @@ where
                         now,
                         retry_available_at,
                         error,
-                        Some(validated.entropy_evidence().clone()),
+                        Some(validated_evidence(&validated)),
                     )
                     .await)
             }
@@ -1485,7 +1522,7 @@ where
         {
             return Err(AuthorityFailure {
                 error,
-                entropy_evidence: EntropyEvidence::new(assembly.entropy_source_id().clone()),
+                evidence: ExecutionEvidence::new(assembly.entropy_source_id().clone()),
                 commit_error: None,
                 validated: None,
                 changes_runtime_state: false,
@@ -1507,29 +1544,33 @@ where
         .await
         .map_err(|error| AuthorityFailure {
             error: map_dispatch_error(error),
-            entropy_evidence: dispatch_entropy_evidence.clone(),
+            evidence: ExecutionEvidence::from_parts(
+                ReadSet::default(),
+                CallProvenance::default(),
+                dispatch_entropy_evidence.clone(),
+            ),
             commit_error: None,
             validated: None,
             changes_runtime_state: false,
             provenance: None,
         })?;
-        let execution_entropy_evidence = execution.entropy_evidence.clone();
+        let execution_evidence = execution.evidence();
         match outcome {
             ResolveOutcome::Rejected(rejection) => Ok(AuthorityExecution::Rejected {
                 rejection,
-                entropy_evidence: execution_entropy_evidence,
+                evidence: execution_evidence,
             }),
             ResolveOutcome::Resolved(_) => {
                 let mut validated = engine
                     .validate_segments_with_entropy(
                         base,
                         &execution.segments,
-                        execution.call_provenance,
-                        execution.entropy_evidence,
+                        execution.call_provenance.clone(),
+                        execution.entropy_evidence.clone(),
                     )
                     .map_err(|error| AuthorityFailure {
                         error: map_runtime_error(&error),
-                        entropy_evidence: execution_entropy_evidence.clone(),
+                        evidence: execution_evidence.clone(),
                         commit_error: None,
                         validated: None,
                         changes_runtime_state: false,
@@ -1539,7 +1580,7 @@ where
                 self.expand_reactions(base, assembly, &engine, &mut validated, None)
                     .map_err(|error| AuthorityFailure {
                         error,
-                        entropy_evidence: validated.entropy_evidence().clone(),
+                        evidence: validated_evidence(&validated),
                         commit_error: None,
                         validated: None,
                         changes_runtime_state: false,
@@ -1570,7 +1611,7 @@ where
                         .await
                         .map_err(|error| AuthorityFailure {
                             error,
-                            entropy_evidence: validated.entropy_evidence().clone(),
+                            evidence: validated_evidence(&validated),
                             commit_error: None,
                             validated: None,
                             changes_runtime_state: false,
@@ -1587,7 +1628,7 @@ where
                     Err(error) => {
                         return Err(AuthorityFailure {
                             error: map_commit_error(&error),
-                            entropy_evidence: validated.entropy_evidence().clone(),
+                            evidence: validated_evidence(&validated),
                             commit_error: Some(error),
                             validated: Some(validated),
                             changes_runtime_state,
@@ -1651,10 +1692,14 @@ where
                     } else {
                         ExecutionSessionStatus::Committed
                     };
-                    self.finish_ingress_execution_session(
+                    self.finish_ingress_execution_session_with_evidence(
                         session.id(),
                         status,
-                        session.entropy_evidence().clone(),
+                        ExecutionEvidence::from_parts(
+                            session.read_set().clone(),
+                            session.call_provenance().clone(),
+                            session.entropy_evidence().clone(),
+                        ),
                         completion.clone(),
                         session.commit_provenance().cloned(),
                     )
@@ -1742,10 +1787,14 @@ where
                     .collect(),
                 timeline_version: commit.after_version,
             };
-            self.finish_ingress_execution_session(
+            self.finish_ingress_execution_session_with_evidence(
                 session.id(),
                 ExecutionSessionStatus::Committed,
-                session.entropy_evidence().clone(),
+                ExecutionEvidence::from_parts(
+                    session.read_set().clone(),
+                    session.call_provenance().clone(),
+                    session.entropy_evidence().clone(),
+                ),
                 completion.clone(),
                 commit.provenance.clone(),
             )
@@ -1799,7 +1848,11 @@ where
                 .map_err(map_ingress_error)?,
             );
             match self
-                .start_ingress_execution_session(assembly, ingress_id.clone())
+                .start_ingress_execution_session(
+                    assembly,
+                    ingress_id.clone(),
+                    invocation.action.clone(),
+                )
                 .await
             {
                 Ok(session) => (
@@ -1864,13 +1917,13 @@ where
         {
             Ok(AuthorityExecution::Rejected {
                 rejection,
-                entropy_evidence,
+                evidence,
             }) => {
                 let completion = IngressCompletion::Rejected(rejection);
-                self.finish_ingress_execution_session(
+                self.finish_ingress_execution_session_with_evidence(
                     session.id(),
                     ExecutionSessionStatus::Rejected,
-                    entropy_evidence,
+                    evidence,
                     completion.clone(),
                     None,
                 )
@@ -1893,10 +1946,11 @@ where
                 provenance,
             }) => {
                 let completion = ingress_completion(&result, changes_runtime_state);
-                self.finish_ingress_execution_session(
+                let status = ExecutionSessionStatus::Committed;
+                self.finish_ingress_execution_session_with_evidence(
                     session.id(),
-                    ExecutionSessionStatus::Committed,
-                    validated.entropy_evidence().clone(),
+                    status,
+                    validated_evidence_for_outcome(&validated, !changes_runtime_state),
                     completion.clone(),
                     provenance.clone(),
                 )
@@ -1931,10 +1985,14 @@ where
                         .await
                     {
                         Ok(Some((completion, committed_provenance))) => {
-                            self.finish_ingress_execution_session(
+                            let status = ExecutionSessionStatus::Committed;
+                            self.finish_ingress_execution_session_with_evidence(
                                 session.id(),
-                                ExecutionSessionStatus::Committed,
-                                validated.entropy_evidence().clone(),
+                                status,
+                                validated_evidence_for_outcome(
+                                    &validated,
+                                    !failure.changes_runtime_state,
+                                ),
                                 completion.clone(),
                                 committed_provenance.or(provenance),
                             )
@@ -1969,7 +2027,7 @@ where
                             self.platform_clock.now(),
                             retry_available_at,
                             failure.error,
-                            failure.entropy_evidence,
+                            failure.evidence,
                         )
                         .await)
                 }
@@ -2100,16 +2158,16 @@ where
         now: PlatformTime,
         retry_available_at: PlatformTime,
         error: ApiError,
-        entropy_evidence: EntropyEvidence,
+        evidence: ExecutionEvidence,
     ) -> ApiError
     where
         S: IngressStore + SemanticProjectionStore,
     {
         let error = match self
-            .finish_execution_session_with_entropy(
+            .finish_execution_session_with_evidence(
                 session.id(),
                 ExecutionSessionStatus::Failed,
-                entropy_evidence,
+                evidence,
             )
             .await
         {
@@ -2282,17 +2340,17 @@ where
         now: PlatformTime,
         retry_available_at: PlatformTime,
         error: ApiError,
-        entropy_evidence: Option<EntropyEvidence>,
+        evidence: Option<ExecutionEvidence>,
     ) -> ApiError
     where
         S: RuntimeControlStore,
     {
-        let error = match entropy_evidence {
-            Some(entropy_evidence) => match self
-                .finish_execution_session_with_entropy(
+        let error = match evidence {
+            Some(evidence) => match self
+                .finish_execution_session_with_evidence(
                     session.id(),
                     ExecutionSessionStatus::Failed,
-                    entropy_evidence,
+                    evidence,
                 )
                 .await
             {
@@ -2321,6 +2379,21 @@ fn logical_proposal_identity(resolution: &ValidatedResolution) -> String {
         "resolution": resolution.resolution(),
     }))
     .expect("validated logical proposal must be JSON serializable")
+}
+
+fn validated_evidence(resolution: &ValidatedResolution) -> ExecutionEvidence {
+    ExecutionEvidence::from_parts(
+        resolution.read_set().clone(),
+        resolution.call_provenance().clone(),
+        resolution.entropy_evidence().clone(),
+    )
+}
+
+fn validated_evidence_for_outcome(
+    resolution: &ValidatedResolution,
+    no_change: bool,
+) -> ExecutionEvidence {
+    validated_evidence(resolution).with_no_change(no_change)
 }
 
 fn committed_provenance_matches(
@@ -2667,6 +2740,16 @@ where
         (**self).finish_session_with_entropy(session_id, status, ended_at, entropy_evidence)
     }
 
+    fn finish_session_with_evidence(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).finish_session_with_evidence(session_id, status, ended_at, evidence)
+    }
+
     fn finish_session_with_ingress_completion(
         &self,
         session_id: loom_core::ExecutionSessionId,
@@ -2683,6 +2766,20 @@ where
             entropy_evidence,
             completion,
             provenance,
+        )
+    }
+
+    fn finish_session_with_ingress_completion_and_evidence(
+        &self,
+        session_id: loom_core::ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        (**self).finish_session_with_ingress_completion_and_evidence(
+            session_id, status, ended_at, evidence, completion, provenance,
         )
     }
 
@@ -2942,7 +3039,11 @@ where
             );
             let assembly = self.execution_assembly(&initial_snapshot, binding).await?;
             let session = self
-                .start_execution_session(assembly.clone(), ExecutionOrigin::Runtime)
+                .start_execution_session_with_root(
+                    assembly.clone(),
+                    ExecutionOrigin::Runtime,
+                    ExecutionRoot::bootstrap(request.template.provenance()),
+                )
                 .await?;
             let mut entropy_evidence = EntropyEvidence::new(assembly.entropy_source_id().clone());
             let plan = match self.validate_world_template(
@@ -2986,10 +3087,10 @@ where
                     return Err(map_lifecycle_error(&error));
                 }
             };
-            self.finish_execution_session_with_entropy(
+            self.finish_execution_session_with_evidence(
                 session.id(),
                 ExecutionSessionStatus::Committed,
-                entropy_evidence,
+                plan.evidence,
             )
             .await?;
             Ok(ApiTimelineSnapshot::new(
@@ -3047,7 +3148,11 @@ where
             enabled_action(&self.registry, &assembly, &request.invocation.action)
                 .map_err(map_dispatch_error)?;
             let session = self
-                .start_execution_session(assembly.clone(), ExecutionOrigin::Application)
+                .start_execution_session_with_root(
+                    assembly.clone(),
+                    ExecutionOrigin::Application,
+                    ExecutionRoot::action(request.invocation.action.clone()),
+                )
                 .await?;
             match self
                 .execute_root_authority(
@@ -3061,12 +3166,12 @@ where
             {
                 Ok(AuthorityExecution::Rejected {
                     rejection,
-                    entropy_evidence,
+                    evidence,
                 }) => {
-                    self.finish_execution_session_with_entropy(
+                    self.finish_execution_session_with_evidence(
                         session.id(),
                         ExecutionSessionStatus::Rejected,
-                        entropy_evidence,
+                        evidence,
                     )
                     .await?;
                     Ok(ExecutionResult::rejected(rejection))
@@ -3077,19 +3182,20 @@ where
                     changes_runtime_state,
                     ..
                 }) => {
-                    self.finish_execution_session_with_entropy(
+                    let status = ExecutionSessionStatus::Committed;
+                    self.finish_execution_session_with_evidence(
                         session.id(),
-                        ExecutionSessionStatus::Committed,
-                        validated.entropy_evidence().clone(),
+                        status,
+                        validated_evidence_for_outcome(&validated, !changes_runtime_state),
                     )
                     .await?;
                     Ok(execution_result(&result, changes_runtime_state))
                 }
                 Err(failure) => {
-                    self.finish_execution_session_with_entropy(
+                    self.finish_execution_session_with_evidence(
                         session.id(),
                         ExecutionSessionStatus::Failed,
-                        failure.entropy_evidence,
+                        failure.evidence,
                     )
                     .await?;
                     Err(failure.error)
@@ -4302,6 +4408,14 @@ impl ExecutionState {
         });
         Ok(())
     }
+
+    fn evidence(&self) -> ExecutionEvidence {
+        ExecutionEvidence::from_parts(
+            self.read_set.clone(),
+            self.call_provenance.clone(),
+            self.entropy_evidence.clone(),
+        )
+    }
 }
 
 fn append_entropy_evidence(target: &mut EntropyEvidence, additional: &EntropyEvidence) {
@@ -5240,6 +5354,7 @@ fn map_session_error(error: &SessionError) -> ApiError {
         | SessionError::InvalidTransition { .. }
         | SessionError::EntropySourceMismatch { .. }
         | SessionError::EntropyEvidenceUnavailable { .. }
+        | SessionError::ProvenanceUnavailable { .. }
         | SessionError::IngressCompletionUnavailable { .. }
         | SessionError::StorageUnavailable { .. } => {
             ApiError::unavailable("Execution Session provenance is unavailable")

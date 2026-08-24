@@ -26,9 +26,9 @@ use loom_capability::{
     CapabilityId, CapabilityManifest, SemanticIndexId, SemanticIndexMetric, SemanticIndexSource,
 };
 use loom_core::{
-    AssociationRole, EntityId, EventId, EventRef, EventSeq, ExecutionSessionId, RelationshipId,
-    SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion, WorkId,
-    WorldEffect, WorldId, WorldInstant,
+    ActionTypeId, AssociationRole, EntityId, EventId, EventRef, EventSeq, ExecutionSessionId,
+    RelationshipId, SchemaRevision, StateRevision, TimelineAncestry, TimelineId, TimelineVersion,
+    WorkId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{NewWork, ProposedEvent, WorkSchedule, WorkTarget};
 use semver::{Version, VersionReq};
@@ -36,8 +36,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    BaseWorldSnapshot, BaseWorldView, EntropyEvidence, EntropySourceId, ResolutionBudget,
-    ValidatedResolution,
+    BaseWorldSnapshot, BaseWorldView, CallProvenance, EntropyEvidence, EntropySourceId,
+    ExecutionEvidence, ReadSet, ResolutionBudget, ValidatedResolution,
 };
 
 /// Executor-neutral future returned by Runtime persistence I/O ports.
@@ -1039,6 +1039,119 @@ pub enum ExecutionOrigin {
     Runtime,
 }
 
+/// Stable references identifying the root that created one Execution Session.
+///
+/// These are Platform provenance only. They contain identifiers and safe
+/// labels, never Action input, Work payloads, provider configuration or
+/// credentials. Optional fields let the same Session contract cover direct
+/// Actions, Durable Work, Ingress, Template bootstrap and future Agency roots
+/// without introducing separate persistence paths.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ExecutionRoot {
+    /// Root Action selected by an application or Ingress request.
+    pub action: Option<ActionTypeId>,
+    /// Work obligation targeted by a Runtime Scheduler execution.
+    pub target_work: Option<WorkId>,
+    /// Work claim currently being completed, when distinct from the target.
+    pub current_work: Option<WorkId>,
+    /// Durable external input identity.
+    pub ingress: Option<IngressId>,
+    /// Immutable Template/bootstrap provenance key.
+    pub bootstrap: Option<String>,
+    /// Future Agency/cognition provenance key.
+    pub agency: Option<String>,
+}
+
+impl ExecutionRoot {
+    /// Creates an empty root reference set.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            action: None,
+            target_work: None,
+            current_work: None,
+            ingress: None,
+            bootstrap: None,
+            agency: None,
+        }
+    }
+
+    /// Creates the default root metadata for an origin without inventing an
+    /// identifier that the caller did not supply.
+    #[must_use]
+    pub const fn for_origin(_origin: ExecutionOrigin) -> Self {
+        Self::new()
+    }
+
+    /// Creates a direct Action root.
+    #[must_use]
+    pub fn action(action: ActionTypeId) -> Self {
+        Self::new().with_action(action)
+    }
+
+    /// Creates a Durable Work root.
+    #[must_use]
+    pub fn work(work_id: WorkId) -> Self {
+        Self::new()
+            .with_target_work(work_id)
+            .with_current_work(work_id)
+    }
+
+    /// Creates an Ingress root.
+    #[must_use]
+    pub fn ingress(ingress_id: IngressId) -> Self {
+        Self::new().with_ingress(ingress_id)
+    }
+
+    /// Creates a Template bootstrap root.
+    #[must_use]
+    pub fn bootstrap(provenance: impl Into<String>) -> Self {
+        Self::new().with_bootstrap(provenance)
+    }
+
+    /// Attaches the root Action reference.
+    #[must_use]
+    pub fn with_action(mut self, action: ActionTypeId) -> Self {
+        self.action = Some(action);
+        self
+    }
+
+    /// Attaches the target Work reference.
+    #[must_use]
+    pub const fn with_target_work(mut self, work_id: WorkId) -> Self {
+        self.target_work = Some(work_id);
+        self
+    }
+
+    /// Attaches the current Work claim reference.
+    #[must_use]
+    pub const fn with_current_work(mut self, work_id: WorkId) -> Self {
+        self.current_work = Some(work_id);
+        self
+    }
+
+    /// Attaches the durable Ingress reference.
+    #[must_use]
+    pub fn with_ingress(mut self, ingress_id: IngressId) -> Self {
+        self.ingress = Some(ingress_id);
+        self
+    }
+
+    /// Attaches the Template/bootstrap reference.
+    #[must_use]
+    pub fn with_bootstrap(mut self, provenance: impl Into<String>) -> Self {
+        self.bootstrap = Some(provenance.into());
+        self
+    }
+
+    /// Attaches a future Agency/cognition reference.
+    #[must_use]
+    pub fn with_agency(mut self, reference: impl Into<String>) -> Self {
+        self.agency = Some(reference.into());
+        self
+    }
+}
+
 /// Immutable exact software and World contract used by one root Session.
 ///
 /// This value is constructed only by Runtime after one coherent Timeline read,
@@ -1069,6 +1182,7 @@ impl ExecutionAssembly {
         clippy::too_many_arguments,
         reason = "constructor mirrors the frozen Execution Assembly fields"
     )]
+    #[allow(dead_code)]
     pub(crate) fn new(
         session_id: ExecutionSessionId,
         world_id: WorldId,
@@ -1150,6 +1264,20 @@ impl ExecutionAssembly {
         self.execution_policy
     }
 
+    /// Returns the non-secret identifier of the execution policy published
+    /// with the pinned Runtime Revision, when one was supplied.
+    #[must_use]
+    pub fn execution_policy_id(&self) -> Option<&str> {
+        self.runtime_revision.revision().execution_policy_id()
+    }
+
+    /// Returns the non-secret provider policy identifier published with the
+    /// pinned Runtime Revision, when one was supplied.
+    #[must_use]
+    pub fn provider_policy_id(&self) -> Option<&str> {
+        self.runtime_revision.revision().provider_policy_id()
+    }
+
     /// Returns the controlled entropy source identity pinned for this Session.
     #[must_use]
     pub const fn entropy_source_id(&self) -> &EntropySourceId {
@@ -1162,13 +1290,18 @@ impl ExecutionAssembly {
 pub enum ExecutionSessionStatus {
     /// The assembly was persisted and semantic execution is in flight.
     Started,
-    /// The root reached a successful Runtime commit (including no-change
-    /// logical completion where the root had no semantic mutation).
+    /// The root reached a successful Runtime commit, including the existing
+    /// no-change completion form used by the v0 execution path.
     Committed,
+    /// The root completed without changing World or Work state.
+    NoChange,
     /// The Capability returned a normal semantic rejection.
     Rejected,
     /// Runtime or persistence authority rejected the technical execution.
     Failed,
+    /// Runtime could not proceed because an operational or implementation
+    /// prerequisite remained blocked after the Session was started.
+    Blocked,
 }
 
 impl ExecutionSessionStatus {
@@ -1181,19 +1314,30 @@ impl ExecutionSessionStatus {
 
 /// Minimum durable Session lifecycle/provenance record.
 ///
-/// The record stores the complete pinned assembly, lifecycle state and the
-/// ordered entropy evidence observed by the root execution. It remains Platform
-/// History and never a World Event or Timeline logical state transition.
+/// The record stores the complete pinned assembly, lifecycle state, root
+/// references and all ordered Runtime evidence observed by the execution. It
+/// remains Platform History and never a World Event or Timeline logical state
+/// transition.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExecutionSession {
     id: ExecutionSessionId,
     origin: ExecutionOrigin,
     assembly: ExecutionAssembly,
+    #[serde(default)]
+    root: ExecutionRoot,
     started_at: PlatformTime,
     status: ExecutionSessionStatus,
     ended_at: Option<PlatformTime>,
     #[serde(default)]
     entropy_evidence: EntropyEvidence,
+    #[serde(default)]
+    read_set: ReadSet,
+    #[serde(default)]
+    call_provenance: CallProvenance,
+    /// Explicit no-change outcome marker retained separately from the
+    /// historical `Committed` lifecycle status used by the v0 path.
+    #[serde(default)]
+    no_change: bool,
     /// Stable Ingress identity when this root was started by the durable
     /// Ingress worker. This is Platform provenance, not World state.
     #[serde(default)]
@@ -1209,10 +1353,27 @@ pub struct ExecutionSession {
 }
 
 impl ExecutionSession {
+    #[allow(dead_code)]
     pub(crate) fn new(
         id: ExecutionSessionId,
         origin: ExecutionOrigin,
         assembly: ExecutionAssembly,
+        started_at: PlatformTime,
+    ) -> Self {
+        Self::new_with_root(
+            id,
+            origin,
+            assembly,
+            ExecutionRoot::for_origin(origin),
+            started_at,
+        )
+    }
+
+    pub(crate) fn new_with_root(
+        id: ExecutionSessionId,
+        origin: ExecutionOrigin,
+        assembly: ExecutionAssembly,
+        root: ExecutionRoot,
         started_at: PlatformTime,
     ) -> Self {
         let entropy_source_id = assembly.entropy_source_id().clone();
@@ -1220,23 +1381,47 @@ impl ExecutionSession {
             id,
             origin,
             assembly,
+            root,
             started_at,
             status: ExecutionSessionStatus::Started,
             ended_at: None,
             entropy_evidence: EntropyEvidence::new(entropy_source_id),
+            read_set: ReadSet::default(),
+            call_provenance: CallProvenance::default(),
+            no_change: false,
             ingress_id: None,
             ingress_completion: None,
             commit_provenance: None,
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn new_ingress(
         id: ExecutionSessionId,
         ingress_id: IngressId,
         assembly: ExecutionAssembly,
         started_at: PlatformTime,
     ) -> Self {
-        let mut session = Self::new(id, ExecutionOrigin::Ingress, assembly, started_at);
+        let mut session = Self::new_with_root(
+            id,
+            ExecutionOrigin::Ingress,
+            assembly,
+            ExecutionRoot::ingress(ingress_id.clone()),
+            started_at,
+        );
+        session.ingress_id = Some(ingress_id);
+        session
+    }
+
+    pub(crate) fn new_ingress_with_root(
+        id: ExecutionSessionId,
+        ingress_id: IngressId,
+        assembly: ExecutionAssembly,
+        root: ExecutionRoot,
+        started_at: PlatformTime,
+    ) -> Self {
+        let mut session =
+            Self::new_with_root(id, ExecutionOrigin::Ingress, assembly, root, started_at);
         session.ingress_id = Some(ingress_id);
         session
     }
@@ -1257,6 +1442,12 @@ impl ExecutionSession {
     #[must_use]
     pub const fn assembly(&self) -> &ExecutionAssembly {
         &self.assembly
+    }
+
+    /// Returns stable references identifying the root execution.
+    #[must_use]
+    pub const fn root(&self) -> &ExecutionRoot {
+        &self.root
     }
 
     /// Returns the platform metadata captured when the Session was persisted.
@@ -1281,6 +1472,27 @@ impl ExecutionSession {
     #[must_use]
     pub const fn entropy_evidence(&self) -> &EntropyEvidence {
         &self.entropy_evidence
+    }
+
+    /// Returns Runtime-observed point, Facet, Relationship, Event and
+    /// semantic projection dependencies in deterministic observation order.
+    #[must_use]
+    pub const fn read_set(&self) -> &ReadSet {
+        &self.read_set
+    }
+
+    /// Returns Runtime-mediated subresolution edges in dispatch order.
+    #[must_use]
+    pub const fn call_provenance(&self) -> &CallProvenance {
+        &self.call_provenance
+    }
+
+    /// Reports whether this terminal Session completed successfully without
+    /// changing World or Work state. This remains distinct from semantic
+    /// rejection even when both produce no committed mutation.
+    #[must_use]
+    pub const fn is_no_change(&self) -> bool {
+        self.no_change || matches!(self.status, ExecutionSessionStatus::NoChange)
     }
 
     /// Returns the durable Ingress identity associated with this root, when
@@ -1340,7 +1552,15 @@ impl ExecutionSession {
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
     ) -> Result<Self, SessionError> {
-        self.finish_with_entropy(status, ended_at, self.entropy_evidence.clone())
+        self.finish_with_evidence(
+            status,
+            ended_at,
+            ExecutionEvidence::from_parts(
+                self.read_set.clone(),
+                self.call_provenance.clone(),
+                self.entropy_evidence.clone(),
+            ),
+        )
     }
 
     /// Returns a terminal copy while attaching ordered entropy evidence from
@@ -1356,6 +1576,32 @@ impl ExecutionSession {
         ended_at: PlatformTime,
         entropy_evidence: EntropyEvidence,
     ) -> Result<Self, SessionError> {
+        self.finish_with_evidence(
+            status,
+            ended_at,
+            ExecutionEvidence::from_parts(
+                self.read_set.clone(),
+                self.call_provenance.clone(),
+                entropy_evidence,
+            ),
+        )
+    }
+
+    /// Returns a terminal copy carrying all Runtime-observed execution
+    /// evidence. Storage receives this value as-is and must not synthesize
+    /// provenance from Capability implementations.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle error when the Session is already terminal, the
+    /// requested status is not terminal, or the evidence uses another entropy
+    /// source than the pinned Execution Assembly.
+    pub fn finish_with_evidence(
+        &self,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> Result<Self, SessionError> {
         if !status.is_terminal() {
             return Err(SessionError::InvalidTransition {
                 session_id: self.id,
@@ -1370,7 +1616,7 @@ impl ExecutionSession {
                 to: status,
             });
         }
-        if entropy_evidence.source_id() != self.assembly.entropy_source_id() {
+        if evidence.entropy_evidence.source_id() != self.assembly.entropy_source_id() {
             return Err(SessionError::EntropySourceMismatch {
                 session_id: self.id,
             });
@@ -1378,7 +1624,11 @@ impl ExecutionSession {
         let mut finished = self.clone();
         finished.status = status;
         finished.ended_at = Some(ended_at);
-        finished.entropy_evidence = entropy_evidence;
+        finished.read_set = evidence.read_set;
+        finished.call_provenance = evidence.call_provenance;
+        finished.no_change =
+            evidence.no_change || matches!(status, ExecutionSessionStatus::NoChange);
+        finished.entropy_evidence = evidence.entropy_evidence;
         Ok(finished)
     }
 
@@ -1398,12 +1648,40 @@ impl ExecutionSession {
         completion: IngressCompletion,
         provenance: Option<CommitProvenance>,
     ) -> Result<Self, SessionError> {
+        self.finish_with_ingress_completion_and_evidence(
+            status,
+            ended_at,
+            ExecutionEvidence::from_parts(
+                self.read_set.clone(),
+                self.call_provenance.clone(),
+                entropy_evidence,
+            ),
+            completion,
+            provenance,
+        )
+    }
+
+    /// Returns a terminal Ingress Session with complete Runtime evidence and
+    /// the semantic completion needed for operational finalization recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns a lifecycle error when the Session is not an Ingress root, is
+    /// already terminal, or the evidence uses another pinned entropy source.
+    pub fn finish_with_ingress_completion_and_evidence(
+        &self,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
+    ) -> Result<Self, SessionError> {
         if self.origin != ExecutionOrigin::Ingress || self.ingress_id.is_none() {
             return Err(SessionError::IngressCompletionUnavailable {
                 session_id: self.id,
             });
         }
-        let mut finished = self.finish_with_entropy(status, ended_at, entropy_evidence)?;
+        let mut finished = self.finish_with_evidence(status, ended_at, evidence)?;
         finished.ingress_completion = Some(completion);
         if provenance.is_some() {
             finished.commit_provenance = provenance;
@@ -1430,6 +1708,9 @@ pub enum SessionError {
     EntropySourceMismatch { session_id: ExecutionSessionId },
     /// The persistence adapter does not implement the entropy evidence port.
     EntropyEvidenceUnavailable { session_id: ExecutionSessionId },
+    /// The persistence adapter does not implement the complete execution
+    /// provenance evidence port.
+    ProvenanceUnavailable { session_id: ExecutionSessionId },
     /// The persistence authority could not complete the Session operation.
     StorageUnavailable { message: String },
     /// The adapter cannot persist the semantic result needed by Ingress
@@ -1461,6 +1742,10 @@ impl fmt::Display for SessionError {
             Self::EntropyEvidenceUnavailable { session_id } => write!(
                 formatter,
                 "entropy evidence cannot be persisted for Execution Session {session_id}"
+            ),
+            Self::ProvenanceUnavailable { session_id } => write!(
+                formatter,
+                "execution provenance cannot be persisted for Execution Session {session_id}"
             ),
             Self::StorageUnavailable { message } => formatter.write_str(message),
             Self::IngressCompletionUnavailable { session_id } => write!(
@@ -1513,6 +1798,21 @@ pub trait ExecutionSessionStore {
         self.finish_session(session_id, status, ended_at)
     }
 
+    /// Persists a terminal Session transition with the complete Runtime
+    /// evidence observed by the root execution.
+    fn finish_session_with_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        // This additive default keeps older adapters source-compatible. The
+        // concrete InMemory/PostgreSQL Platform History adapters override it
+        // and retain the complete evidence graph.
+        self.finish_session_with_entropy(session_id, status, ended_at, evidence.entropy_evidence)
+    }
+
     /// Persists a terminal Ingress Session together with its semantic result.
     /// Adapters must retain this result in the existing Session provenance
     /// record so an interrupted Ingress finalization can be retried without
@@ -1528,6 +1828,27 @@ pub trait ExecutionSessionStore {
     ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
         let _ = (status, ended_at, entropy_evidence, completion, provenance);
         Box::pin(async move { Err(SessionError::IngressCompletionUnavailable { session_id }) })
+    }
+
+    /// Persists a terminal Ingress Session with complete Runtime evidence and
+    /// its semantic completion record.
+    fn finish_session_with_ingress_completion_and_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<CommitProvenance>,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        self.finish_session_with_ingress_completion(
+            session_id,
+            status,
+            ended_at,
+            evidence.entropy_evidence,
+            completion,
+            provenance,
+        )
     }
 
     /// Persists the proposal identity before authority execution so recovery

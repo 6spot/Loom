@@ -24,7 +24,7 @@ use loom_core::{
 use loom_runtime::{
     AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChangeFeedRead, ChangeFeedStore,
     ChronologyBudgetConsumption, CommitAuthorityContext, CommitError, CommitResult, CommitStore,
-    CommittedEvent, EntropyEvidence, ExecutionSession, ExecutionSessionStatus,
+    CommittedEvent, EntropyEvidence, ExecutionEvidence, ExecutionSession, ExecutionSessionStatus,
     ExecutionSessionStore, ForkError, ForkWork, IdempotencyConflict, IngressAcceptance,
     IngressClaim, IngressCompletion, IngressError, IngressId, IngressLease,
     IngressOperationalRecord, IngressReceipt, IngressStatus, IngressStore, IngressSubmission,
@@ -528,10 +528,31 @@ impl InMemoryStore {
             session_id,
             status,
             ended_at,
-            Some(entropy_evidence),
+            Some(ExecutionEvidence::from_parts(
+                loom_runtime::ReadSet::default(),
+                loom_runtime::CallProvenance::default(),
+                entropy_evidence,
+            )),
             None,
             None,
         )
+    }
+
+    /// Linearizes a terminal Session with complete Runtime execution
+    /// provenance.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Session lifecycle or entropy-source error when the
+    /// transition cannot be applied atomically.
+    pub fn finish_session_with_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> Result<ExecutionSession, SessionError> {
+        self.finish_session_inner(session_id, status, ended_at, Some(evidence), None, None)
     }
 
     /// Linearizes a terminal Ingress Session with its semantic completion
@@ -564,7 +585,46 @@ impl InMemoryStore {
             session_id,
             status,
             ended_at,
-            Some(entropy_evidence),
+            Some(ExecutionEvidence::from_parts(
+                loom_runtime::ReadSet::default(),
+                loom_runtime::CallProvenance::default(),
+                entropy_evidence,
+            )),
+            Some(completion),
+            provenance,
+        )
+    }
+
+    /// Linearizes an Ingress Session with complete Runtime evidence and the
+    /// semantic completion needed by finalization recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Session lifecycle or storage interruption error when the
+    /// transition cannot be applied atomically.
+    pub fn finish_session_with_ingress_completion_and_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<loom_runtime::CommitProvenance>,
+    ) -> Result<ExecutionSession, SessionError> {
+        #[cfg(test)]
+        if self
+            .fail_next_ingress_finalization
+            .swap(false, Ordering::AcqRel)
+        {
+            return Err(SessionError::StorageUnavailable {
+                message: "test finalization interruption".to_owned(),
+            });
+        }
+        self.finish_session_inner(
+            session_id,
+            status,
+            ended_at,
+            Some(evidence),
             Some(completion),
             provenance,
         )
@@ -575,7 +635,7 @@ impl InMemoryStore {
         session_id: ExecutionSessionId,
         status: ExecutionSessionStatus,
         ended_at: PlatformTime,
-        entropy_evidence: Option<EntropyEvidence>,
+        evidence: Option<ExecutionEvidence>,
         ingress_completion: Option<IngressCompletion>,
         provenance: Option<loom_runtime::CommitProvenance>,
     ) -> Result<ExecutionSession, SessionError> {
@@ -596,16 +656,12 @@ impl InMemoryStore {
                 to: status,
             });
         }
-        let finished = match entropy_evidence {
-            Some(entropy_evidence) => match ingress_completion {
-                Some(completion) => current.finish_with_ingress_completion(
-                    status,
-                    ended_at,
-                    entropy_evidence,
-                    completion,
-                    provenance,
+        let finished = match evidence {
+            Some(evidence) => match ingress_completion {
+                Some(completion) => current.finish_with_ingress_completion_and_evidence(
+                    status, ended_at, evidence, completion, provenance,
                 )?,
-                None => current.finish_with_entropy(status, ended_at, entropy_evidence)?,
+                None => current.finish_with_evidence(status, ended_at, evidence)?,
             },
             None => match ingress_completion {
                 Some(_) => {
@@ -2744,6 +2800,20 @@ impl ExecutionSessionStore for InMemoryStore {
         })
     }
 
+    fn finish_session_with_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            InMemoryStore::finish_session_with_evidence(
+                self, session_id, status, ended_at, evidence,
+            )
+        })
+    }
+
     fn finish_session_with_ingress_completion(
         &self,
         session_id: ExecutionSessionId,
@@ -2762,6 +2832,22 @@ impl ExecutionSessionStore for InMemoryStore {
                 entropy_evidence,
                 completion,
                 provenance,
+            )
+        })
+    }
+
+    fn finish_session_with_ingress_completion_and_evidence(
+        &self,
+        session_id: ExecutionSessionId,
+        status: ExecutionSessionStatus,
+        ended_at: PlatformTime,
+        evidence: ExecutionEvidence,
+        completion: IngressCompletion,
+        provenance: Option<loom_runtime::CommitProvenance>,
+    ) -> PersistenceFuture<'_, Result<ExecutionSession, SessionError>> {
+        Box::pin(async move {
+            InMemoryStore::finish_session_with_ingress_completion_and_evidence(
+                self, session_id, status, ended_at, evidence, completion, provenance,
             )
         })
     }
