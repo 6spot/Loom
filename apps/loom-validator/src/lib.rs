@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod backend;
+mod cli;
 mod feedback;
 mod finding;
 mod outcome;
@@ -16,12 +17,13 @@ mod runner;
 mod scenario;
 
 pub use backend::BackendContext;
+pub use cli::{Cli, CliCommand, CliError, CliRunOptions, USAGE};
 pub use feedback::TaskLedgerFeedback;
 pub use finding::{EvidenceReference, Finding};
 pub use outcome::ScenarioOutcome;
 pub use registry::{RegistryError, ScenarioRegistry};
 pub use reports::{ScenarioResult, ValidationReport};
-pub use runner::Runner;
+pub use runner::{ExecutionOptions, Runner, RunnerError, ScenarioSelection};
 pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
 
 #[cfg(test)]
