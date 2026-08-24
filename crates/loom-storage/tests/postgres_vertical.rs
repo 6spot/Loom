@@ -2,11 +2,7 @@ mod support;
 
 use std::str::FromStr;
 
-use loom_api::{
-    ActionRequest, EventQuery, ExecutionResult, FacetQuery, IngressAuthorizationContext,
-    IngressEnvelope, IngressId, IngressProvenance, IngressService, IngressStatus,
-    IngressTimeMetadata, LoomApi, TimelineTarget,
-};
+use loom_api::{ActionRequest, EventQuery, ExecutionResult, FacetQuery, LoomApi, TimelineTarget};
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
     CapabilityRegistry, EventDefinition, FacetDefinition, RegistrationError, ResolutionContext,
@@ -17,10 +13,7 @@ use loom_core::{
     TimelineId, WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Rejection, Resolution, ResolveOutcome};
-use loom_runtime::{
-    ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, IngressStore,
-    LogicalJournalStore, ManualPlatformClock, Runtime, WorldStore,
-};
+use loom_runtime::{Runtime, WorldStore};
 use loom_storage::PgStorage;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -397,118 +390,6 @@ async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
 
     pool.close().await;
     storage.close().await;
-    database.cleanup().await;
-}
-
-#[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "the PostgreSQL Ingress crash-window recovery stays in one scenario"
-)]
-async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
-    let Some((database, storage, pool, world_id, timeline_id, entity_id)) = authority().await
-    else {
-        return;
-    };
-    let target = TimelineTarget::new(world_id, timeline_id);
-    let clock = ManualPlatformClock::new(loom_runtime::PlatformTime::new(10));
-    let runtime = Runtime::new(storage.clone(), registry(entity_id))
-        .expect("Runtime should assemble")
-        .with_platform_clock(clock);
-    let ingress_id = IngressId::from("postgres-runtime-ingress");
-    runtime
-        .submit_ingress(IngressEnvelope::new(
-            ingress_id.clone(),
-            "postgres-runtime-ingress-key",
-            IngressProvenance::new("postgres-vertical-test"),
-            target,
-            IngressAuthorizationContext::new(json!({"role": "test"})),
-            IngressTimeMetadata::none(),
-            ActionInvocation::new(
-                ActionTypeId::from(INCREMENT),
-                json!({
-                    "amount": 2,
-                    "event_id": id::<EventId>(0x3130).to_string()
-                }),
-            ),
-        ))
-        .await
-        .expect("Ingress should be accepted");
-    storage.fail_next_commit_outcome_unknown_for_test();
-    storage.fail_next_ingress_finalization_for_test();
-    runtime
-        .process_ingress(
-            ingress_id.clone(),
-            loom_runtime::PlatformTime::new(10),
-            loom_runtime::PlatformTime::new(20),
-            loom_runtime::PlatformTime::new(10),
-        )
-        .await
-        .expect_err("the test seam should interrupt finalization after an unknown commit");
-    assert!(matches!(
-        IngressStore::ingress(&storage, ingress_id.clone()).await,
-        Ok(record) if matches!(record.status, IngressStatus::Processing)
-    ));
-    drop(runtime);
-    storage.close().await;
-    pool.close().await;
-
-    let restarted_storage = database.storage().await;
-    let restarted_clock = ManualPlatformClock::new(loom_runtime::PlatformTime::new(20));
-    let restarted_runtime = Runtime::new(restarted_storage.clone(), registry(entity_id))
-        .expect("restarted Runtime should assemble")
-        .with_platform_clock(restarted_clock);
-    let completion = restarted_runtime
-        .process_ingress(
-            ingress_id.clone(),
-            loom_runtime::PlatformTime::new(20),
-            loom_runtime::PlatformTime::new(30),
-            loom_runtime::PlatformTime::new(20),
-        )
-        .await
-        .expect("restarted Ingress should reconcile and finalize");
-    assert!(completion.is_committed());
-    assert_eq!(
-        WorldStore::snapshot(&restarted_storage, timeline_id)
-            .await
-            .expect("committed Timeline should be readable")
-            .events
-            .len(),
-        1
-    );
-    let status = restarted_runtime
-        .ingress_status(ingress_id.clone())
-        .await
-        .expect("restarted Runtime should read Ingress completion");
-    assert!(matches!(status.status, IngressStatus::Completed(_)));
-    let sessions = ExecutionSessionStore::list_sessions(&restarted_storage)
-        .await
-        .expect("restarted Runtime should read Session provenance");
-    let session = sessions
-        .iter()
-        .find(|session| session.ingress_id() == Some(&ingress_id))
-        .expect("Ingress Session should survive restart");
-    assert_eq!(session.origin(), ExecutionOrigin::Ingress);
-    assert_eq!(session.status(), ExecutionSessionStatus::Committed);
-    assert_eq!(session.ingress_completion(), Some(&completion));
-    let provenance = session
-        .commit_provenance()
-        .expect("committed Session should retain provenance");
-    assert_eq!(provenance.ingress_id, ingress_id);
-    let journal = LogicalJournalStore::read_logical_journal(&restarted_storage, timeline_id)
-        .await
-        .expect("authority journal should survive restart");
-    assert_eq!(journal.len(), 1);
-    assert_eq!(journal[0].provenance.as_ref(), Some(provenance));
-    assert_eq!(
-        WorldStore::snapshot(&restarted_storage, timeline_id)
-            .await
-            .expect("restarted Timeline should be readable")
-            .events
-            .len(),
-        1
-    );
-    restarted_storage.close().await;
     database.cleanup().await;
 }
 

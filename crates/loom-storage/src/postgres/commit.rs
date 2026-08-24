@@ -420,6 +420,7 @@ async fn commit_resolution(
         .map_err(|error| CommitError::CommitOutcomeUnknown {
             message: format!("PostgreSQL authority commit outcome is unknown: {error}"),
         })?;
+    #[cfg(test)]
     if storage.take_test_unknown_commit_once() {
         return Err(CommitError::CommitOutcomeUnknown {
             message: "test PostgreSQL authority commit outcome is unknown".to_owned(),

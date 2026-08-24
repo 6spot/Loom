@@ -14,15 +14,12 @@ mod ingress;
 mod session;
 mod work;
 
-use std::{
-    fmt::Display,
-    str::FromStr,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Instant,
+#[cfg(test)]
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
+use std::{fmt::Display, str::FromStr, time::Instant};
 
 use loom_core::{
     AssociationRole, Entity, EntityId, EventId, EventRef, EventSeq, EventTypeId, FacetOwner,
@@ -115,7 +112,9 @@ const QUERY_SEMANTIC_PROJECTION_INNER_PRODUCT_SQL: &str =
 #[derive(Clone, Debug)]
 pub struct PgStorage {
     pool: PgPool,
+    #[cfg(test)]
     test_unknown_commit_once: Arc<AtomicBool>,
+    #[cfg(test)]
     test_fail_ingress_finalization_once: Arc<AtomicBool>,
 }
 
@@ -133,29 +132,30 @@ impl PgStorage {
         let pool = PgPoolOptions::new().connect(database_url).await?;
         Ok(Self {
             pool,
+            #[cfg(test)]
             test_unknown_commit_once: Arc::new(AtomicBool::new(false)),
+            #[cfg(test)]
             test_fail_ingress_finalization_once: Arc::new(AtomicBool::new(false)),
         })
     }
 
-    /// Enables one deterministic post-commit `CommitOutcomeUnknown` for an
-    /// integration test. The authority transaction still commits durably; the
-    /// caller must reconcile its provenance rather than dispatch again.
-    #[doc(hidden)]
-    pub fn fail_next_commit_outcome_unknown_for_test(&self) {
+    #[cfg(test)]
+    pub(crate) fn fail_next_commit_outcome_unknown_for_test(&self) {
         self.test_unknown_commit_once.store(true, Ordering::Release);
     }
 
-    #[doc(hidden)]
-    pub fn fail_next_ingress_finalization_for_test(&self) {
+    #[cfg(test)]
+    pub(crate) fn fail_next_ingress_finalization_for_test(&self) {
         self.test_fail_ingress_finalization_once
             .store(true, Ordering::Release);
     }
 
+    #[cfg(test)]
     pub(crate) fn take_test_unknown_commit_once(&self) -> bool {
         self.test_unknown_commit_once.swap(false, Ordering::AcqRel)
     }
 
+    #[cfg(test)]
     pub(crate) fn take_test_ingress_finalization_failure(&self) -> bool {
         self.test_fail_ingress_finalization_once
             .swap(false, Ordering::AcqRel)

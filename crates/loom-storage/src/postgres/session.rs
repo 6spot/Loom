@@ -158,6 +158,7 @@ async fn finish_session_with_ingress_completion(
     completion: IngressCompletion,
     provenance: Option<CommitProvenance>,
 ) -> Result<ExecutionSession, SessionError> {
+    #[cfg(test)]
     if storage.take_test_ingress_finalization_failure() {
         return Err(SessionError::StorageUnavailable {
             message: "test Ingress finalization interruption".to_owned(),
