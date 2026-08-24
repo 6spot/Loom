@@ -22,23 +22,24 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption,
-    CommitAuthorityContext, CommitError, CommitResult, CommitStore, CommittedEvent,
-    EntropyEvidence, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, ForkError,
-    ForkWork, IdempotencyConflict, IngressAcceptance, IngressClaim, IngressCompletion,
-    IngressError, IngressId, IngressLease, IngressOperationalRecord, IngressReceipt, IngressStatus,
-    IngressStore, IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit,
-    LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead,
-    PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent,
-    ReadError, RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError,
-    RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore,
-    SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey,
-    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
-    SemanticProjectionRow, SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore,
-    TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation,
-    WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization, WorldCreation,
-    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError,
-    WorldTimeStore, semantic_projection_hit_bytes,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChangeFeedRead, ChangeFeedStore,
+    ChronologyBudgetConsumption, CommitAuthorityContext, CommitError, CommitResult, CommitStore,
+    CommittedEvent, EntropyEvidence, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, ForkError, ForkWork, IdempotencyConflict, IngressAcceptance,
+    IngressClaim, IngressCompletion, IngressError, IngressId, IngressLease,
+    IngressOperationalRecord, IngressReceipt, IngressStatus, IngressStore, IngressSubmission,
+    IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalJournalStore,
+    LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
+    PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
+    RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticIndexMetric,
+    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
+    SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
+    WorkStore, WorkTarget, WorkTerminalization, WorldCreation, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -877,6 +878,25 @@ impl InMemoryStore {
             return Err(ReadError::TimelineNotFound { timeline_id });
         }
         Ok(snapshot_from_state(&guard, timeline_id))
+    }
+
+    /// Reads one bounded ancestry-aware committed Event page.
+    ///
+    /// The single read lock is the `InMemory` authority boundary. The lock is
+    /// released when this method returns; no subscriber or delivery state is
+    /// retained by the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReadError::TimelineNotFound`] when the Timeline is absent.
+    pub fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: loom_core::EventSeq,
+        limit: usize,
+    ) -> Result<ChangeFeedRead, ReadError> {
+        let guard = self.read_state();
+        visible_event_page(&guard, timeline_id, after, limit)
     }
 
     /// Reads the Timeline Logical Commit journal in its persisted logical
@@ -2045,6 +2065,17 @@ impl WorldStore for InMemoryStore {
     }
 }
 
+impl ChangeFeedStore for InMemoryStore {
+    fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: loom_core::EventSeq,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<ChangeFeedRead, ReadError>> {
+        Box::pin(async move { InMemoryStore::read_change_feed(self, timeline_id, after, limit) })
+    }
+}
+
 impl PinnedWorldReadStore for InMemoryStore {
     fn open_pinned_read<'a>(
         &'a self,
@@ -2880,6 +2911,69 @@ fn visible_events(state: &StoreState, timeline_id: TimelineId) -> Vec<CommittedE
 
     events.sort_by_key(|event| event.event_seq);
     events
+}
+
+/// Projects only the bounded page plus one look-ahead Event from immutable
+/// ancestry segments. Segments are traversed from the root toward the target,
+/// so their non-overlapping `EventSeq` ranges are already in authoritative
+/// order; the final sort also keeps the result deterministic if a fixture was
+/// seeded out of insertion order.
+fn visible_event_page(
+    state: &StoreState,
+    timeline_id: TimelineId,
+    after: loom_core::EventSeq,
+    limit: usize,
+) -> Result<ChangeFeedRead, ReadError> {
+    let target = state
+        .timelines
+        .get(&timeline_id)
+        .ok_or(ReadError::TimelineNotFound { timeline_id })?;
+    let world_id = target.world_id;
+    let mut segments = Vec::new();
+    let mut current_timeline_id = timeline_id;
+    let mut upper_sequence = target.version.head_event_seq.value();
+    let mut visited = HashSet::new();
+
+    while visited.insert(current_timeline_id) {
+        let Some(timeline) = state.timelines.get(&current_timeline_id) else {
+            break;
+        };
+        let lower_sequence = timeline
+            .ancestry
+            .fork_parent_version
+            .map_or(0, |version| version.head_event_seq.value());
+        if upper_sequence < lower_sequence {
+            break;
+        }
+        segments.push((current_timeline_id, lower_sequence, upper_sequence));
+        let Some(parent_timeline_id) = timeline.ancestry.parent_timeline_id else {
+            break;
+        };
+        current_timeline_id = parent_timeline_id;
+        upper_sequence = lower_sequence;
+    }
+    segments.reverse();
+
+    let capacity = limit.saturating_add(1);
+    let mut events = Vec::with_capacity(capacity.min(64));
+    'segments: for (segment_timeline_id, lower_sequence, upper_sequence) in segments {
+        let Some(timeline) = state.timelines.get(&segment_timeline_id) else {
+            continue;
+        };
+        for event in &timeline.events {
+            let sequence = event.event_seq.value();
+            if sequence > lower_sequence && sequence <= upper_sequence && event.event_seq > after {
+                events.push(event.clone());
+                if events.len() >= capacity {
+                    break 'segments;
+                }
+            }
+        }
+    }
+    events.sort_by_key(|event| event.event_seq);
+    let has_more = events.len() > limit;
+    events.truncate(limit);
+    Ok(ChangeFeedRead::new(world_id, events, has_more))
 }
 
 fn visible_event_ids(state: &StoreState, timeline_id: TimelineId) -> HashSet<EventId> {

@@ -7,9 +7,10 @@ use std::{
 };
 
 use loom_api::{
-    ActionRequest, ActionService, ApiErrorCode, ExecutionResult, ForkTimelineRequest,
-    IngressAuthorizationContext, IngressEnvelope, IngressId, IngressProvenance, IngressService,
-    IngressStatus, IngressTimeMetadata, TimelineTarget,
+    ActionRequest, ActionService, ApiErrorCode, ChangeFeedCursor, ExecutionResult,
+    ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
+    IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata, SubscriptionRequest,
+    SubscriptionResult, SubscriptionService, TimelineTarget,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
@@ -27,13 +28,14 @@ use loom_protocol::{
     WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChronologyBudgetExceeded, CommitAuthorityContext, CommitError,
-    CommitStore, EffectEngine, ForkWork, IngressStore, IngressSubmission, LogicalWorkTransition,
-    ManualPlatformClock, PlatformTime, Runtime, RuntimeControlStore, RuntimeRevisionCapability,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore,
-    SchedulerCommitStore, TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError,
-    WorkRecord, WorkStatus, WorkTarget, WorkTerminalState, WorkTerminalization,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
+    AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded,
+    CommitAuthorityContext, CommitError, CommitStore, EffectEngine, ForkWork, IngressStore,
+    IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PlatformTime, Runtime,
+    RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
+    TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
+    WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
+    WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -50,6 +52,168 @@ where
     format!("00000000-0000-0000-0000-{value:012x}")
         .parse()
         .expect("test identity should parse")
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the ancestry feed acceptance scenario is intentionally linear"
+)]
+async fn change_feed_is_bounded_strict_after_and_ancestry_qualified() {
+    let store = InMemoryStore::new();
+    let test_registry = registry();
+    let child_timeline = id::<TimelineId>(3);
+    let grandchild_timeline = id::<TimelineId>(4);
+    store
+        .create_timeline(world(), timeline())
+        .expect("root Timeline should be created");
+
+    let commit_event = |timeline_id, event_id| {
+        let token = validated_at(
+            &store,
+            &test_registry,
+            timeline_id,
+            Resolution::new(
+                vec![ProposedEvent::new(
+                    event_id,
+                    EventTypeId::from("test.changed"),
+                    SchemaRevision::new(1),
+                    json!({"event": event_id.to_string()}),
+                )],
+                Vec::new(),
+            ),
+        )
+        .expect("feed Event should validate");
+        store
+            .commit(&token, None, PlatformTime::new(1))
+            .expect("feed Event should commit");
+    };
+
+    let root_event = event(201);
+    commit_event(timeline(), root_event);
+    let root_fork_version = store
+        .snapshot(timeline())
+        .expect("root fork position should be readable")
+        .version();
+    TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(timeline(), root_fork_version, child_timeline),
+    )
+    .await
+    .expect("child Timeline should fork");
+
+    let root_tail = event(202);
+    commit_event(timeline(), root_tail);
+    let child_event = event(203);
+    commit_event(child_timeline, child_event);
+    let child_fork_version = store
+        .snapshot(child_timeline)
+        .expect("grandchild fork position should be readable")
+        .version();
+    TimelineForkStore::fork_timeline(
+        &store,
+        &TimelineFork::new(child_timeline, child_fork_version, grandchild_timeline),
+    )
+    .await
+    .expect("grandchild Timeline should fork");
+
+    let child_tail = event(204);
+    commit_event(child_timeline, child_tail);
+    let grandchild_event = event(205);
+    commit_event(grandchild_timeline, grandchild_event);
+
+    let first_page =
+        ChangeFeedStore::read_change_feed(&store, grandchild_timeline, EventSeq::new(0), 2)
+            .await
+            .expect("grandchild feed page should be readable");
+    assert_eq!(first_page.world_id, world());
+    assert_eq!(first_page.events.len(), 2);
+    assert!(first_page.has_more);
+    assert_eq!(
+        first_page
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![
+            EventRef::new(timeline(), root_event),
+            EventRef::new(child_timeline, child_event),
+        ]
+    );
+
+    let resumed =
+        ChangeFeedStore::read_change_feed(&store, grandchild_timeline, EventSeq::new(1), 10)
+            .await
+            .expect("older cursor should resume without a gap");
+    assert_eq!(
+        resumed
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![
+            EventRef::new(child_timeline, child_event),
+            EventRef::new(grandchild_timeline, grandchild_event),
+        ]
+    );
+    assert!(!resumed.has_more);
+
+    let child_page =
+        ChangeFeedStore::read_change_feed(&store, child_timeline, EventSeq::new(0), 10)
+            .await
+            .expect("child feed should use its immutable fork boundary");
+    assert_eq!(
+        child_page
+            .events
+            .iter()
+            .map(loom_runtime::CommittedEvent::event_ref)
+            .collect::<Vec<_>>(),
+        vec![
+            EventRef::new(timeline(), root_event),
+            EventRef::new(child_timeline, child_event),
+            EventRef::new(child_timeline, child_tail),
+        ]
+    );
+
+    let runtime = Runtime::new(&store, registry()).expect("feed Runtime should assemble");
+    let backpressure = SubscriptionService::subscribe(
+        &runtime,
+        SubscriptionRequest::new(TimelineTarget::new(world(), grandchild_timeline), 257),
+    )
+    .await
+    .expect("over-demand should return a bounded response");
+    match backpressure {
+        SubscriptionResult::Backpressure(value) => assert_eq!(value.max_events, 256),
+        other => panic!("expected Backpressure, got {other:?}"),
+    }
+
+    let target = TimelineTarget::new(world(), grandchild_timeline);
+    let page = SubscriptionService::subscribe(&runtime, SubscriptionRequest::new(target, 2))
+        .await
+        .expect("bounded subscription page should be readable");
+    let next_cursor = match page {
+        SubscriptionResult::Events(page) => {
+            assert_eq!(page.events.len(), 2);
+            assert!(page.has_more);
+            page.next_cursor
+                .expect("non-empty page should advance cursor")
+        }
+        other => panic!("expected Events, got {other:?}"),
+    };
+    assert_eq!(next_cursor.after, EventSeq::new(2));
+
+    let resumed = SubscriptionService::subscribe(
+        &runtime,
+        SubscriptionRequest::resume(target, ChangeFeedCursor::after(target, EventSeq::new(3)), 2),
+    )
+    .await
+    .expect("empty resumed page should preserve cursor");
+    assert_eq!(
+        resumed,
+        SubscriptionResult::Resumed(loom_api::SubscriptionResume {
+            cursor: ChangeFeedCursor::after(target, EventSeq::new(3)),
+        })
+    );
 }
 
 fn world() -> WorldId {

@@ -28,13 +28,13 @@ use loom_core::{
     WorldEffect, WorldId, WorldInstant,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChronologyBudgetConsumption,
-    ChronologyBudgetState, CommittedEvent, LifecycleError, LogicalCommit, LogicalJournalStore,
-    LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
-    PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SemanticIndexMetric, SemanticIndexSource, SemanticProjectionError,
-    SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    AdvanceWorldTime, BaseWorldSnapshot, BindingError, ChangeFeedRead, ChangeFeedStore,
+    ChronologyBudgetConsumption, ChronologyBudgetState, CommittedEvent, LifecycleError,
+    LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet,
+    PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
+    ProposedEvent, ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SemanticIndexMetric, SemanticIndexSource,
+    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
     SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
     TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord,
     WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
@@ -63,6 +63,7 @@ const READ_ENTITY_FACETS_SQL: &str = include_str!("../sql/world/read_entity_face
 const READ_RELATIONSHIP_FACETS_SQL: &str =
     include_str!("../sql/world/read_relationship_facets.sql");
 const READ_VISIBLE_EVENTS_SQL: &str = include_str!("../sql/ancestry/read_visible_events.sql");
+const READ_CHANGE_FEED_SQL: &str = include_str!("../sql/ancestry/read_change_feed.sql");
 const READ_VISIBLE_EVENT_SQL: &str = include_str!("../sql/ancestry/read_visible_event.sql");
 const READ_EVENT_PARTICIPANTS_SQL: &str = include_str!("../sql/event/read_participants.sql");
 const READ_EVENT_RELATIONSHIP_REFS_SQL: &str =
@@ -197,6 +198,50 @@ impl PgStorage {
 }
 
 impl PgStorage {
+    /// Reads a bounded ancestry-aware committed Event page in one repeatable,
+    /// read-only `PostgreSQL` transaction. The transaction ends before the page
+    /// is returned, so no consumer can hold database authority open.
+    async fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: EventSeq,
+        limit: usize,
+    ) -> Result<ChangeFeedRead, ReadError> {
+        let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
+        sqlx::query(REPEATABLE_READ_READ_ONLY_SQL)
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+
+        let timeline_row = sqlx::query(READ_TIMELINE_SQL)
+            .bind(timeline_id.to_string())
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let Some(timeline_row) = timeline_row else {
+            let _ = transaction.rollback().await;
+            return Err(ReadError::TimelineNotFound { timeline_id });
+        };
+        let world_id =
+            parse_identity::<WorldId>(&row_string(&timeline_row, "world_id")?, "WorldId")?;
+        let row_limit = i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX);
+        let event_rows = sqlx::query(READ_CHANGE_FEED_SQL)
+            .bind(timeline_id.to_string())
+            .bind(after.value().to_string())
+            .bind(row_limit)
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(sql_read_error)?;
+        let mut events = Vec::with_capacity(event_rows.len());
+        for row in &event_rows {
+            events.push(read_event_with_associations(&mut transaction, row).await?);
+        }
+        let has_more = events.len() > limit;
+        events.truncate(limit);
+        transaction.commit().await.map_err(sql_read_error)?;
+        Ok(ChangeFeedRead::new(world_id, events, has_more))
+    }
+
     async fn read_snapshot(&self, timeline_id: TimelineId) -> Result<TimelineSnapshot, ReadError> {
         let mut transaction = self.pool.begin().await.map_err(sql_read_error)?;
         sqlx::query(REPEATABLE_READ_READ_ONLY_SQL)
@@ -1089,6 +1134,17 @@ impl WorldStore for PgStorage {
         fork: &'a TimelineFork,
     ) -> PersistenceFuture<'a, Result<TimelineSnapshot, loom_runtime::ForkError>> {
         TimelineForkStore::fork_timeline(self, fork)
+    }
+}
+
+impl ChangeFeedStore for PgStorage {
+    fn read_change_feed(
+        &self,
+        timeline_id: TimelineId,
+        after: EventSeq,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<ChangeFeedRead, ReadError>> {
+        Box::pin(async move { self.read_change_feed(timeline_id, after, limit).await })
     }
 }
 
@@ -2114,6 +2170,73 @@ fn corrupt(message: impl Into<String>) -> ReadError {
 
 fn sql_read_error(error: sqlx::Error) -> ReadError {
     corrupt(format!("PostgreSQL authority read failed: {error}"))
+}
+
+async fn read_event_with_associations(
+    transaction: &mut Transaction<'_, Postgres>,
+    row: &sqlx::postgres::PgRow,
+) -> Result<CommittedEvent, ReadError> {
+    let event_timeline_id =
+        parse_identity::<TimelineId>(&row_string(row, "timeline_id")?, "TimelineId")?;
+    let event_id = parse_identity::<EventId>(&row_string(row, "event_id")?, "EventId")?;
+    let effects: Vec<WorldEffect> = serde_json::from_value(row_json(row, "effects")?)
+        .map_err(|error| corrupt(format!("invalid persisted Event effects: {error}")))?;
+    let mut proposal = ProposedEvent::new(
+        event_id,
+        EventTypeId::from(row_string(row, "event_type")?),
+        schema_revision(row)?,
+        row_json(row, "payload")?,
+    );
+    proposal.effects = effects;
+    let mut event = CommittedEvent::from_proposed(
+        event_timeline_id,
+        EventSeq::new(parse_u64(&row_string(row, "event_seq")?, "event_seq")?),
+        &proposal,
+        WorldInstant::new(row_i64(row, "occurred_at")?),
+    );
+
+    let participant_rows = sqlx::query(READ_EVENT_PARTICIPANTS_SQL)
+        .bind(event_timeline_id.to_string())
+        .bind(event_id.to_string())
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(sql_read_error)?;
+    for participant in participant_rows {
+        event.push_participant(
+            parse_identity::<EntityId>(&row_string(&participant, "entity_id")?, "EntityId")?,
+            AssociationRole::from(row_string(&participant, "role")?),
+        );
+    }
+
+    let relationship_rows = sqlx::query(READ_EVENT_RELATIONSHIP_REFS_SQL)
+        .bind(event_timeline_id.to_string())
+        .bind(event_id.to_string())
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(sql_read_error)?;
+    for relationship in relationship_rows {
+        event.push_relationship_ref(
+            parse_identity::<RelationshipId>(
+                &row_string(&relationship, "relationship_id")?,
+                "RelationshipId",
+            )?,
+            AssociationRole::from(row_string(&relationship, "role")?),
+        );
+    }
+
+    let causal_rows = sqlx::query(READ_EVENT_CAUSAL_LINKS_SQL)
+        .bind(event_timeline_id.to_string())
+        .bind(event_id.to_string())
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(sql_read_error)?;
+    for causal in causal_rows {
+        event.push_causal_link(parse_identity::<EventId>(
+            &row_string(&causal, "cause_event_id")?,
+            "EventId",
+        )?);
+    }
+    Ok(event)
 }
 
 fn parse_identity<T>(value: &str, label: &str) -> Result<T, ReadError>

@@ -9,8 +9,8 @@ use loom_core::{
     WorldInstant,
 };
 use loom_runtime::{
-    BaseWorldSnapshot, ChronologyBudgetState, CommittedEvent, ForkMaterialization, Runtime,
-    TimelineFork, TimelineForkStore, WorldStore,
+    BaseWorldSnapshot, ChangeFeedStore, ChronologyBudgetState, CommittedEvent, ForkMaterialization,
+    Runtime, TimelineFork, TimelineForkStore, WorldStore,
 };
 use support::TestDatabase;
 
@@ -516,6 +516,20 @@ async fn postgres_18_visible_history_is_bounded_across_grandchild_and_restart() 
         grandchild.ancestry().fork_parent_event,
         Some(EventRef::new(timeline_b, event_b3))
     );
+    let first_feed = ChangeFeedStore::read_change_feed(&storage, timeline_c, EventSeq::new(0), 2)
+        .await
+        .expect("grandchild Change Feed should page visible ancestry");
+    assert_eq!(refs(&first_feed.events), refs(&source.events));
+    assert!(first_feed.has_more);
+    let resumed_feed =
+        ChangeFeedStore::read_change_feed(&storage, timeline_c, EventSeq::new(2), 10)
+            .await
+            .expect("grandchild Change Feed should resume after the ancestor prefix");
+    assert_eq!(
+        refs(&resumed_feed.events),
+        vec![EventRef::new(timeline_b, event_b3)]
+    );
+    assert!(!resumed_feed.has_more);
 
     insert_event(&pool, timeline_a, event_a3, 3).await;
     sqlx::query(
@@ -550,6 +564,18 @@ async fn postgres_18_visible_history_is_bounded_across_grandchild_and_restart() 
         .await
         .expect("visible ancestry should survive restart");
     assert_eq!(refs(&after_restart.events), refs(&grandchild.events));
+    let resumed_after_restart =
+        ChangeFeedStore::read_change_feed(&restarted, timeline_c, EventSeq::new(2), 10)
+            .await
+            .expect("Change Feed resume should survive restart");
+    assert_eq!(
+        refs(&resumed_after_restart.events),
+        resumed_feed
+            .events
+            .iter()
+            .map(CommittedEvent::event_ref,)
+            .collect::<Vec<_>>()
+    );
 
     restarted.close().await;
     pool.close().await;
