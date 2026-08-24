@@ -106,6 +106,65 @@ impl ValidationReport {
     pub fn results(&self) -> &[ScenarioResult] {
         &self.results
     }
+
+    /// Counts results with `pass` outcome.
+    #[must_use]
+    pub fn passed_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| r.outcome().is_pass())
+            .count()
+    }
+
+    /// Counts results with `fail` outcome.
+    #[must_use]
+    pub fn failed_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| r.outcome().is_fail())
+            .count()
+    }
+
+    /// Counts results with `skipped` outcome.
+    #[must_use]
+    pub fn skipped_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| r.outcome().is_skipped())
+            .count()
+    }
+
+    /// Counts results with `unavailable` outcome.
+    #[must_use]
+    pub fn unavailable_count(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|r| r.outcome().is_unavailable())
+            .count()
+    }
+
+    /// Reports whether any scenario failed.
+    #[must_use]
+    pub fn has_failures(&self) -> bool {
+        self.failed_count() > 0
+    }
+
+    /// Returns a concise human-readable summary line for terminal output.
+    ///
+    /// The summary is deterministic and does not duplicate raw logs or
+    /// remediation guidance. It is suitable for the CLI concise summary
+    /// required by the runner task.
+    #[must_use]
+    pub fn summary_line(&self) -> String {
+        format!(
+            "scenarios: {} total, {} pass, {} fail, {} skipped, {} unavailable",
+            self.scenario_count(),
+            self.passed_count(),
+            self.failed_count(),
+            self.skipped_count(),
+            self.unavailable_count()
+        )
+    }
 }
 
 #[cfg(test)]
