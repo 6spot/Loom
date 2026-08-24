@@ -36,6 +36,25 @@ multi-threaded Runtime or shared-process topology requires a new coherent
 audit across API futures, Runtime ports, Capability/Agency SPI, Storage
 adapters and worker ownership.
 
+## Send/Sync audit boundary
+
+The compiler-checked boundary for the current topology is:
+
+| Surface | Boundary | Owner |
+| --- | --- | --- |
+| `loom_api::ApiFuture` / `AdminFuture` | executor-neutral, no `Send` bound | Boundary adapter / current request task |
+| Runtime `PersistenceFuture`, Capability semantic futures and Agency `CognitiveFuture` | executor-neutral, no `Send` bound | the worker's current-thread executor |
+| Capability `Invariant`, `ActionResolver` and `WorkHandler` objects | `Send + Sync` SPI objects; returned futures remain executor-neutral | Capability registry and worker |
+| `loom-storage::PgStorage` and its SQLx pool | shared `Send + Sync` authority handle | independent Linux processes/workers |
+| HTTP/SSE `BoundaryApi` and `ApplicationApi` | `Send + Sync + 'static` | transport composition root |
+| `SchedulerWorker` / `Runtime` | no blanket `Send`/`Sync` requirement | one current-thread executor per process |
+
+`apps/loom-server` contains a compile-time `Send + Sync` assertion for the
+transport-owned state. This keeps the required HTTP boundary visible while
+preserving the executor-neutral Runtime and persistence contracts. The
+boundary's `block_on_api` adapter is the only place that bridges those
+non-`Send` futures into the multithread HTTP composition.
+
 ## Lifecycle rules
 
 - The application checks its shutdown signal before each new Runtime step. An
@@ -70,3 +89,29 @@ the existing executor-neutral Runtime futures. PostgreSQL tests in
 
 The standard PostgreSQL procedure is documented in
 `docs/development/postgres-tests.md`.
+
+## M11-T4 deterministic stress evidence
+
+The topology gate keeps the worker start barrier and all identities fixed; it
+does not use random sleeps or an unseeded scheduler. Four independent
+current-thread worker executors drive four independent Timeline heads against
+one PostgreSQL authority and then verify Work completion, terminal Session
+state, pinned World/Timeline assembly and empty cross-worker provenance. The
+focused test is
+`crates/loom-storage/tests/postgres_work.rs::postgres_18_worker_topology_keeps_sessions_and_provenance_isolated`.
+
+The wider restart/fault matrix remains split at its existing authority
+boundaries so each failure window is deterministic and independently
+replayable:
+
+- claim/reclaim and stale completion: `postgres_work_stale_completion`;
+- commit/CAS and Session finalization: `postgres_work` and
+  `postgres_vertical`;
+- Ingress acceptance, fence recovery and reopen: `postgres_ingress`;
+- cognitive CAS loss, resample/reuse and Agency provenance: the M10 Agency
+  gate plus the PostgreSQL Agency tests;
+- SSE acknowledgement/resume after restart: `postgres_restart_resume`.
+
+This split is intentional: process death is modelled by dropping and
+rebuilding the owning adapter/Runtime while PostgreSQL remains the authority;
+no test adds a second in-process lock, checkpoint or restart marker.
