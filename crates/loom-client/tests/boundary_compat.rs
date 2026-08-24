@@ -3,8 +3,8 @@ use std::{future::IntoFuture, str::FromStr, sync::Arc};
 use axum::serve;
 use loom_api::{
     ActionInvocation, ActionRequest, ActionService, ActionTypeId, ApiError, ApiFuture,
-    CatalogService, CatalogSnapshot, ChangeFeedCursor, EventQuery, EventSeq, ExecutionResult,
-    HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
+    CatalogService, CatalogSnapshot, ChangeFeedCursor, ChangeFeedPage, EventQuery, EventSeq,
+    ExecutionResult, HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
     IngressStatusRecord, QueryService, StateRevision, SubscriptionRequest, SubscriptionResult,
     SubscriptionResume, SubscriptionService, TimelineId, TimelineService, TimelineSnapshot,
     TimelineTarget, TimelineVersion, WorldId, WorldInstant, WorldService,
@@ -79,10 +79,14 @@ impl IngressService for FakeApi {
 impl SubscriptionService for FakeApi {
     fn subscribe(&self, request: SubscriptionRequest) -> ApiFuture<'_, SubscriptionResult> {
         Box::pin(async move {
-            let cursor = request
-                .resume_from
-                .unwrap_or_else(|| ChangeFeedCursor::beginning(request.target));
-            Ok(SubscriptionResult::Resumed(SubscriptionResume { cursor }))
+            match request.resume_from {
+                Some(cursor) => Ok(SubscriptionResult::Resumed(SubscriptionResume { cursor })),
+                None => Ok(SubscriptionResult::Events(ChangeFeedPage {
+                    events: Vec::new(),
+                    next_cursor: None,
+                    has_more: true,
+                })),
+            }
         })
     }
 }
@@ -141,6 +145,14 @@ async fn client_round_trips_boundary_json_and_typed_ingress_conflict() {
     .await
     .expect("typed ingress conflict response");
     assert!(ingress.is_conflict());
+
+    let page = SubscriptionService::subscribe(&client, SubscriptionRequest::new(target(), 1))
+        .await
+        .expect("SSE page response");
+    let SubscriptionResult::Events(page) = page else {
+        panic!("expected SSE page result");
+    };
+    assert!(page.has_more);
 
     let subscription = SubscriptionService::subscribe(
         &client,

@@ -19,14 +19,14 @@ use std::{fmt, str, time::Duration};
 use futures_util::StreamExt;
 use loom_api::{
     ActionRequest, ActionService, ApiError, ApiErrorCode, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CausalQuery, CausalTraversal, ChangeFeedPage, CommittedEvent,
-    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage, EventQuery, EventRef,
-    ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest, ForkTimelineResult,
-    HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
-    IngressStatusRecord, QueryService, RelationshipTrajectoryQuery, SubscriptionEnd,
-    SubscriptionReconnect, SubscriptionRequest, SubscriptionResult, SubscriptionResume,
-    SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget, TrajectoryPage,
-    WorldId, WorldService,
+    CatalogSnapshot, CausalQuery, CausalTraversal, ChangeFeedCursor, ChangeFeedPage,
+    CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage,
+    EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest,
+    ForkTimelineResult, HistoryService, IngressAcceptance, IngressEnvelope, IngressId,
+    IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
+    SubscriptionEnd, SubscriptionReconnect, SubscriptionRequest, SubscriptionResult,
+    SubscriptionResume, SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget,
+    TrajectoryPage, WorldId, WorldService,
 };
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::{
@@ -346,7 +346,7 @@ impl LoomClient {
                 .await
                 .and_then(|(status, bytes)| {
                     if status == StatusCode::CONFLICT {
-                        decode_body(&bytes)
+                        decode_ingress_response(&bytes)
                     } else {
                         decode_http_response(status, &bytes)
                     }
@@ -442,7 +442,7 @@ impl LoomClient {
         if !status.is_success() {
             return Err(decode_http_error(status, &bytes));
         }
-        decode_sse_subscription(&bytes, request.target)
+        decode_sse_subscription(&bytes)
     }
 
     fn endpoint(&self, path: &str) -> ApiResult<Url> {
@@ -680,6 +680,13 @@ where
     decode_body(bytes)
 }
 
+fn decode_ingress_response(bytes: &[u8]) -> ApiResult<IngressAcceptance> {
+    match serde_json::from_slice(bytes) {
+        Ok(acceptance) => Ok(acceptance),
+        Err(_) => Err(decode_http_error(StatusCode::CONFLICT, bytes)),
+    }
+}
+
 fn decode_http_error(status: StatusCode, bytes: &[u8]) -> ApiError {
     if let Ok(error) = serde_json::from_slice::<WireError>(bytes) {
         return ApiError::new(parse_error_code(&error.code), error.message);
@@ -743,12 +750,19 @@ struct SseFrame {
     data: String,
 }
 
-fn decode_sse_subscription(bytes: &[u8], target: TimelineTarget) -> ApiResult<SubscriptionResult> {
+#[derive(Debug, Deserialize)]
+struct SsePageMetadata {
+    next_cursor: Option<ChangeFeedCursor>,
+    has_more: bool,
+}
+
+fn decode_sse_subscription(bytes: &[u8]) -> ApiResult<SubscriptionResult> {
     let text = str::from_utf8(bytes)
         .map_err(|_| ApiError::unavailable("Loom SSE response was not valid UTF-8"))?;
     let frames = parse_sse_frames(text)?;
     let mut events = Vec::new();
     let mut control = None;
+    let mut page_metadata = None;
     for frame in frames {
         match frame.event.as_str() {
             "change" => {
@@ -764,6 +778,9 @@ fn decode_sse_subscription(bytes: &[u8], target: TimelineTarget) -> ApiResult<Su
                     }
                 }
                 events.push(event);
+            }
+            "page" => {
+                page_metadata = Some(decode_body::<SsePageMetadata>(frame.data.as_bytes())?);
             }
             "resume" => {
                 control = Some(SubscriptionResult::Resumed(decode_body::<
@@ -791,14 +808,14 @@ fn decode_sse_subscription(bytes: &[u8], target: TimelineTarget) -> ApiResult<Su
             }
         }
     }
-    if !events.is_empty() {
-        let next_cursor = events
-            .last()
-            .map(|event| loom_api::ChangeFeedCursor::after(target, event.sequence));
+    if !events.is_empty() || page_metadata.is_some() {
+        let metadata = page_metadata.ok_or_else(|| {
+            ApiError::unavailable("Loom SSE response omitted change-feed page metadata")
+        })?;
         return Ok(SubscriptionResult::Events(ChangeFeedPage {
             events,
-            next_cursor,
-            has_more: false,
+            next_cursor: metadata.next_cursor,
+            has_more: metadata.has_more,
         }));
     }
     control
@@ -864,7 +881,9 @@ mod tests {
     };
     use serde_json::json;
 
-    use super::{decode_http_error, decode_sse_subscription, parse_sse_frames};
+    use super::{
+        decode_http_error, decode_ingress_response, decode_sse_subscription, parse_sse_frames,
+    };
 
     fn target() -> TimelineTarget {
         TimelineTarget::new(
@@ -884,6 +903,14 @@ mod tests {
     }
 
     #[test]
+    fn generic_conflict_errors_do_not_decode_as_unavailable_ingress_results() {
+        let error = decode_ingress_response(br#"{"code":"conflict","message":"stale"}"#)
+            .expect_err("generic conflict is not an Ingress acceptance");
+        assert_eq!(error.code, ApiErrorCode::Conflict);
+        assert_eq!(error.message, "stale");
+    }
+
+    #[test]
     fn sse_change_frames_round_trip_as_a_resumable_page() {
         let event = json!({
             "id": EventId::from_str("00000000-0000-0000-0000-000000000003").expect("Event ID"),
@@ -899,8 +926,13 @@ mod tests {
             "effects": []
         });
         let payload = serde_json::to_string(&event).expect("event JSON");
-        let wire = format!("event: change\nid: 7\ndata: {payload}\n\n");
-        let result = decode_sse_subscription(wire.as_bytes(), target()).expect("subscription");
+        let metadata = serde_json::json!({
+            "next_cursor": ChangeFeedCursor::after(target(), EventSeq::new(7)),
+            "has_more": true
+        });
+        let wire = format!("event: change\nid: 7\ndata: {payload}\n\n")
+            + &format!("event: page\ndata: {metadata}\n\n");
+        let result = decode_sse_subscription(wire.as_bytes()).expect("subscription");
         let SubscriptionResult::Events(page) = result else {
             panic!("expected change page");
         };
@@ -909,6 +941,7 @@ mod tests {
             page.next_cursor,
             Some(ChangeFeedCursor::after(target(), EventSeq::new(7)))
         );
+        assert!(page.has_more);
     }
 
     #[test]
