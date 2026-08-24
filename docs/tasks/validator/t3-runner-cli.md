@@ -1,13 +1,13 @@
 ---
 task: VAL-T3
 issue: 255
-status: in_progress
+status: completed
 depends_on: ["VAL-T2"]
 created_at: 2026-08-24
 started_at: 2026-08-25
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-25
+completion_pr: 269
+merge_sha: f84fd1f387ba2da43f28c489071c1013549b8217
 ---
 # VAL-T3 — Implement validator runner CLI and scenario selection
 
@@ -54,5 +54,7 @@ No direct Runtime/Storage authority, shadow API, or broad scenario coverage is p
 - Unknown-ID runner error verified via `runner::tests::unknown_ids_return_runner_error` and `cli::tests::unknown_ids_return_runner_error_exit_2`.
 - Continue-after-failure verified via `runner::tests::failing_scenario_does_not_prevent_later` and `cli::tests::failing_scenario_continues_in_normal_mode`.
 - Exit semantics distinct verified via `cli::tests::exit_semantics_are_distinct` and documented in `cli.rs` and `main.rs`.
+- Reviewer独立验收 `01a034e3-74b4-7984-b93f-5e604cd146dd`（PR #269 `acecd7f`）对 AC-1..AC-8 全量通过，复现 56 passed / fmt/clippy/check 0 / 实测 exit 符合文档。
+- PR #269 已于 2026-08-24T17:53:17Z squash 合并至 `main`，merge SHA `f84fd1f387ba2da43f28c489071c1013549b8217`，CI `Rust checks`/`PostgreSQL 18 persistence contract` 均 pass，GitHub Issue #255 已自动关闭。
 
-Acceptance remains pending reviewer confirmation.
+Acceptance 已由 Reviewer 确认并随合并完成。
