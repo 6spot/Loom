@@ -327,6 +327,7 @@ where
     where
         S: SemanticProjectionStore,
     {
+        validate_assembly_coordinate(session, assembly)?;
         validate_request_coordinate(session, &request)?;
         let mut entries = Vec::new();
         let mut usage = ContextUsage::default();
@@ -717,6 +718,48 @@ fn validate_request_coordinate(
     Ok(())
 }
 
+fn validate_assembly_coordinate(
+    session: &PinnedReadSession,
+    assembly: &ExecutionAssembly,
+) -> Result<(), AgentWorldViewError> {
+    for (field, expected, actual) in [
+        (
+            "session_id",
+            session.session_id().to_string(),
+            assembly.session_id().to_string(),
+        ),
+        (
+            "world_id",
+            session.world_id().to_string(),
+            assembly.world_id().to_string(),
+        ),
+        (
+            "timeline_id",
+            session.timeline_id().to_string(),
+            assembly.timeline_id().to_string(),
+        ),
+        (
+            "version",
+            format!("{:?}", session.version()),
+            format!("{:?}", assembly.expected_version()),
+        ),
+        (
+            "world_time",
+            format!("{:?}", session.world_time()),
+            format!("{:?}", assembly.world_time()),
+        ),
+    ] {
+        if expected != actual {
+            return Err(AgentWorldViewError::PinnedContextMismatch {
+                field: field.to_owned(),
+                expected,
+                actual,
+            });
+        }
+    }
+    Ok(())
+}
+
 fn bounded_increment(
     dimension: &str,
     current: u32,
@@ -891,4 +934,320 @@ fn map_semantic_projection_error(error: SemanticProjectionError) -> AgentWorldVi
         }
     };
     AgentWorldViewError::Semantic(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{future::Future, str::FromStr, task::Waker};
+
+    use loom_agency::{AgentContextRequest, AgentRef};
+    use loom_capability::{
+        Capability, CapabilityId, CapabilityManifest, CapabilityRegistrar, RegistrationError,
+        SemanticIndexDefinition, SemanticIndexMetric, SemanticIndexSource, SemanticQueryRequest,
+    };
+    use loom_core::{
+        Entity, EntityId, EventId, FacetOwner, FacetTypeId, Relationship, RelationshipId,
+        SchemaRevision, TimelineId, TimelineVersion, WorldId, WorldInstant,
+    };
+    use semver::{Version, VersionReq};
+    use serde_json::json;
+
+    use super::*;
+    use crate::{
+        CommittedEvent, EntropySourceId, PersistenceFuture, PinnedFacet, PinnedRead,
+        ReadDependency, ReadError, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+        RuntimeRevisionId, RuntimeRevisionSelection, SemanticProjectionError,
+        SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+        SemanticProjectionRebuild, SemanticProjectionRegistration, WorldRuntimeBinding,
+    };
+
+    struct SemanticTestCapability {
+        manifest: CapabilityManifest,
+    }
+
+    impl Capability for SemanticTestCapability {
+        fn manifest(&self) -> &CapabilityManifest {
+            &self.manifest
+        }
+
+        fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+            registrar.register_semantic_index(SemanticIndexDefinition::new(
+                "semantic.test.index",
+                SemanticIndexSource::new("facet", "semantic.test.facet", SchemaRevision::new(1)),
+                SchemaRevision::new(1),
+                1,
+                "semantic-model-1",
+                2,
+                SemanticIndexMetric::Cosine,
+                json!({}),
+            ))
+        }
+    }
+
+    #[derive(Default)]
+    struct SemanticOnlyStore;
+
+    impl PinnedWorldReadStore for SemanticOnlyStore {
+        fn open_pinned_read<'a>(
+            &'a self,
+            assembly: &'a ExecutionAssembly,
+        ) -> PersistenceFuture<'a, Result<PinnedReadSession, ReadError>> {
+            let session = PinnedReadSession::new(
+                assembly.session_id(),
+                assembly.world_id(),
+                assembly.timeline_id(),
+                assembly.expected_version(),
+                assembly.world_time(),
+            );
+            Box::pin(async move { Ok(session) })
+        }
+
+        fn read_entity<'a>(
+            &'a self,
+            _session: &'a PinnedReadSession,
+            _entity_id: EntityId,
+        ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Entity>>, ReadError>> {
+            Box::pin(async {
+                Err(ReadError::StorageUnavailable {
+                    message: "point read not used by semantic context test".to_owned(),
+                })
+            })
+        }
+
+        fn read_relationship<'a>(
+            &'a self,
+            _session: &'a PinnedReadSession,
+            _relationship_id: RelationshipId,
+        ) -> PersistenceFuture<'a, Result<PinnedRead<Option<Relationship>>, ReadError>> {
+            Box::pin(async {
+                Err(ReadError::StorageUnavailable {
+                    message: "point read not used by semantic context test".to_owned(),
+                })
+            })
+        }
+
+        fn read_facet<'a>(
+            &'a self,
+            _session: &'a PinnedReadSession,
+            _owner: FacetOwner,
+            _facet_type: &'a FacetTypeId,
+        ) -> PersistenceFuture<'a, Result<PinnedRead<Option<PinnedFacet>>, ReadError>> {
+            Box::pin(async {
+                Err(ReadError::StorageUnavailable {
+                    message: "point read not used by semantic context test".to_owned(),
+                })
+            })
+        }
+
+        fn read_event<'a>(
+            &'a self,
+            _session: &'a PinnedReadSession,
+            _event_id: EventId,
+        ) -> PersistenceFuture<'a, Result<PinnedRead<Option<CommittedEvent>>, ReadError>> {
+            Box::pin(async {
+                Err(ReadError::StorageUnavailable {
+                    message: "point read not used by semantic context test".to_owned(),
+                })
+            })
+        }
+    }
+
+    impl SemanticProjectionStore for SemanticOnlyStore {
+        fn register_semantic_projection(
+            &self,
+            _registration: SemanticProjectionRegistration,
+        ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn query_semantic_projection(
+            &self,
+            _query: SemanticProjectionQuery,
+        ) -> PersistenceFuture<'_, Result<Vec<SemanticProjectionHit>, SemanticProjectionError>>
+        {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+
+        fn rebuild_semantic_projection<'a>(
+            &'a self,
+            _rebuild: &'a SemanticProjectionRebuild,
+        ) -> PersistenceFuture<'a, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn delete_semantic_projection(
+            &self,
+            _key: SemanticProjectionKey,
+        ) -> PersistenceFuture<'_, Result<(), SemanticProjectionError>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    fn id<T>(value: u128) -> T
+    where
+        T: FromStr,
+        T::Err: std::fmt::Debug,
+    {
+        format!("00000000-0000-0000-0000-{value:012x}")
+            .parse()
+            .expect("test identity should parse")
+    }
+
+    fn registry() -> CapabilityRegistry {
+        CapabilityRegistry::assemble(vec![Box::new(SemanticTestCapability {
+            manifest: CapabilityManifest::parse("semantic.test", "0.1.0")
+                .expect("semantic test manifest should parse"),
+        })])
+        .expect("semantic registry should assemble")
+    }
+
+    fn binding() -> WorldRuntimeBinding {
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from("semantic.test"),
+                VersionReq::parse("^0.1.0").expect("semantic requirement should parse"),
+            )],
+            json!({"fixture": "semantic-context"}),
+            1,
+            Some("semantic-context-test".to_owned()),
+        )
+    }
+
+    fn assembly(
+        registry: &CapabilityRegistry,
+        session_id: loom_core::ExecutionSessionId,
+    ) -> ExecutionAssembly {
+        let binding = binding();
+        let revision = RuntimeRevisionDescriptor::new(
+            RuntimeRevisionId::from("semantic-context-test-revision"),
+            crate::PlatformTime::default(),
+            "semantic-context-test-build",
+            Version::new(0, 1, 0),
+            registry.capabilities().map(|manifest| {
+                RuntimeRevisionCapability::from_manifest(
+                    manifest,
+                    format!("test:{}@{}", manifest.id, manifest.version),
+                )
+            }),
+        )
+        .expect("test registry should form a Runtime Revision");
+        let selection =
+            RuntimeRevisionSelection::new(revision.clone(), 1, crate::PlatformTime::default());
+        let implementations = revision
+            .compatible_with(&binding)
+            .expect("test binding should be compatible");
+        ExecutionAssembly::new(
+            session_id,
+            id::<WorldId>(10),
+            id::<TimelineId>(11),
+            TimelineVersion::default(),
+            WorldInstant::default(),
+            binding,
+            selection,
+            implementations,
+            crate::ResolutionBudget::unlimited(),
+            EntropySourceId::from("semantic-context-test-entropy"),
+        )
+    }
+
+    fn session_for(assembly: &ExecutionAssembly) -> PinnedReadSession {
+        PinnedReadSession::new(
+            assembly.session_id(),
+            assembly.world_id(),
+            assembly.timeline_id(),
+            assembly.expected_version(),
+            assembly.world_time(),
+        )
+    }
+
+    fn request_for(assembly: &ExecutionAssembly) -> AgentContextRequest {
+        AgentContextRequest::new(
+            AgentRef::new(id::<EntityId>(12)),
+            assembly.timeline_id(),
+            assembly.expected_version(),
+            assembly.world_time(),
+            ContextBudget::default(),
+        )
+    }
+
+    fn semantic_plan() -> AgentContextPlan {
+        AgentContextPlan::new().with_item(AgentContextItem::semantic(
+            "semantic.matches",
+            ContextSource::Knowledge,
+            SemanticQueryRequest::new(
+                "semantic.test.index",
+                SchemaRevision::new(1),
+                1,
+                "semantic-model-1",
+                vec![1.0, 0.0],
+                1,
+            ),
+        ))
+    }
+
+    fn block_on<F: Future>(future: F) -> F::Output {
+        let mut future = Box::pin(future);
+        let waker = Waker::noop();
+        let mut context = std::task::Context::from_waker(waker);
+        loop {
+            match future.as_mut().poll(&mut context) {
+                std::task::Poll::Ready(output) => return output,
+                std::task::Poll::Pending => std::thread::yield_now(),
+            }
+        }
+    }
+
+    #[test]
+    fn semantic_context_rejects_session_a_with_assembly_b() {
+        let registry = registry();
+        let assembly_a = assembly(&registry, id(13));
+        let assembly_b = assembly(&registry, id(14));
+        let session_a = session_for(&assembly_a);
+        let request_a = request_for(&assembly_a);
+        let mut builder =
+            AgentWorldViewBuilder::new(&SemanticOnlyStore, PinnedReadPolicy::default());
+
+        let error = block_on(builder.build(
+            &session_a,
+            request_a,
+            &semantic_plan(),
+            &registry,
+            &assembly_b,
+        ))
+        .expect_err("an assembly from another Session must be rejected");
+
+        assert!(matches!(
+            error,
+            AgentWorldViewError::PinnedContextMismatch { ref field, .. }
+                if field == "session_id"
+        ));
+        assert!(session_a.read_set().is_empty());
+    }
+
+    #[test]
+    fn semantic_context_accepts_matching_assembly_and_records_session_read() {
+        let registry = registry();
+        let assembly = assembly(&registry, id(15));
+        let session = session_for(&assembly);
+        let mut builder =
+            AgentWorldViewBuilder::new(&SemanticOnlyStore, PinnedReadPolicy::default());
+
+        let view = block_on(builder.build(
+            &session,
+            request_for(&assembly),
+            &semantic_plan(),
+            &registry,
+            &assembly,
+        ))
+        .expect("a matching assembly and pinned Session should build");
+
+        assert_eq!(view.context.entries.len(), 1);
+        assert_eq!(view.context.usage.semantic_queries, 1);
+        assert_eq!(session.read_set().len(), 1);
+        assert!(matches!(
+            session.read_set().entries()[0],
+            ReadDependency::Semantic { ref index_id, .. }
+                if index_id == &loom_capability::SemanticIndexId::from("semantic.test.index")
+        ));
+    }
 }
