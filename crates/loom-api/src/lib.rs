@@ -14,7 +14,7 @@
 //! invocation, Timeline inspection, current Facet queries, committed Event
 //! history, external Ingress, committed Change Feed/Subscription reads and
 //! central Capability/Action discovery. Runtime administration is defined in
-//! the separate [`admin`] module and namespace; it is deliberately not mixed
+//! the separate Admin service module and namespace; it is deliberately not mixed
 //! into these ordinary World service traits.
 //!
 //! # Dependency and exposure rules
