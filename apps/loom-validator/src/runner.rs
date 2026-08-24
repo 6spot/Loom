@@ -293,7 +293,6 @@ impl Runner {
         let selection = self.resolve_with_groups(ids, groups, all)?;
         Ok(self.run_selected(&selection, backend, execute, fail_fast))
     }
-}
 
     /// Executes the registry against one lifecycle-managed backend harness.
     ///
@@ -345,6 +344,7 @@ impl Runner {
             .collect();
         ValidationReport::from_results_with_policy(results, harness.policy())
     }
+}
 
 /// Expands a slice of strings that may each contain comma-separated values
 /// into a flat list of trimmed non-empty entries.
@@ -364,7 +364,7 @@ fn expand_csv(input: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{Runner, RunnerError, ScenarioRegistry};
-    use crate::backend::{BackendContext, BackendHarness, BackendStart};
+    use crate::backend::{BackendContext, BackendHarness};
     use crate::finding::{EvidenceReference, Finding};
     use crate::outcome::ScenarioOutcome;
     use crate::reports::ScenarioResult;
@@ -420,7 +420,7 @@ mod tests {
                 desc.name(),
                 "expected",
                 "actual",
-                desc.supported_backends()[0].clone(),
+                desc.supported_backends()[0],
                 "test-context",
                 vec![EvidenceReference::new("evidence:test")],
                 ScenarioOutcome::Pass,
@@ -780,5 +780,4 @@ mod tests {
         assert!(report.gate_passes());
         assert_eq!(*scopes.borrow(), vec!["CV-001", "CV-002"]);
     }
-
 }
