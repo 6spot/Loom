@@ -52,17 +52,17 @@ use crate::{
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadDependency, ReadError, ResolutionBudget, RuntimeControlStore, RuntimeError,
-    RuntimeRevisionAssembly, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
-    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
-    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
-    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
-    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition, semantic_projection_hit_bytes,
+    RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
+    RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
+    SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
+    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
+    SessionError, TimelineBlockedOnMissingImplementation, TimelineDriverBlock,
+    TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
+    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
@@ -505,13 +505,91 @@ where
         self.store.select_active_revision().await
     }
 
+    /// Reads one immutable published Runtime Revision through the
+    /// Runtime-owned admin/read port.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Runtime Revision persistence error when the
+    /// publication is absent or unavailable.
+    pub async fn runtime_revision(
+        &self,
+        revision_id: RuntimeRevisionId,
+    ) -> Result<RuntimeRevisionDescriptor, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.read_revision(revision_id).await
+    }
+
+    /// Lists immutable published Runtime Revisions in adapter-defined stable
+    /// order (the built-in adapters use revision ID order).
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Runtime Revision persistence error when the history
+    /// cannot be read.
+    pub async fn runtime_revisions(
+        &self,
+    ) -> Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.list_revisions().await
+    }
+
+    /// Reads successful Runtime Revision activations in commit order.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed Runtime Revision persistence error when the
+    /// activation history cannot be read.
+    pub async fn runtime_activation_history(
+        &self,
+    ) -> Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        self.store.list_activation_history().await
+    }
+
+    /// Validates the explicitly selected Runtime Revision against the
+    /// registered Capability implementations at a process startup/readiness
+    /// boundary. This is a read-only gate: it never registers or activates a
+    /// revision and never touches World/Binding state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RuntimeRevisionError::NoActiveRevision`] when no explicit
+    /// selection exists, or [`RuntimeRevisionError::IncompatibleActiveRevision`]
+    /// when the selected descriptor does not match the registered software.
+    pub async fn validate_active_runtime_revision(
+        &self,
+    ) -> Result<RuntimeRevisionSelection, RuntimeRevisionError>
+    where
+        S: RuntimeRevisionStore,
+    {
+        let Some(selection) = self.store.select_active_revision().await? else {
+            return Err(RuntimeRevisionError::NoActiveRevision);
+        };
+        if !runtime_revision_descriptor_matches_registry(&self.registry, selection.revision()) {
+            return Err(RuntimeRevisionError::IncompatibleActiveRevision {
+                revision_id: selection.revision().id().clone(),
+            });
+        }
+        Ok(selection)
+    }
+
     /// Explicitly activates a previously registered Runtime Revision through
     /// the generation CAS. This operation is Platform History only and never
     /// mutates World, Timeline, Event, State or World Runtime Binding data.
     ///
     /// # Errors
     ///
-    /// Returns a typed missing-revision, stale-generation or storage error.
+    /// Returns a typed missing-revision, incompatible-revision,
+    /// stale-generation or storage error. Incompatible revisions are rejected
+    /// before the storage CAS and therefore cannot change active selection or
+    /// World/Binding state.
     pub async fn activate_runtime_revision(
         &self,
         revision_id: RuntimeRevisionId,
@@ -521,6 +599,10 @@ where
     where
         S: RuntimeRevisionStore,
     {
+        let revision = self.store.read_revision(revision_id.clone()).await?;
+        if !runtime_revision_descriptor_matches_registry(&self.registry, &revision) {
+            return Err(RuntimeRevisionError::IncompatibleActiveRevision { revision_id });
+        }
         self.store
             .activate_revision(revision_id, expected_generation, activated_at)
             .await
@@ -2531,6 +2613,12 @@ where
         &self,
     ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>> {
         (**self).list_revisions()
+    }
+
+    fn read_activation_history(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>> {
+        (**self).read_activation_history()
     }
 
     fn read_active_revision(
@@ -4877,6 +4965,23 @@ fn runtime_revision_matches_registry(
         })
 }
 
+fn runtime_revision_descriptor_matches_registry(
+    registry: &CapabilityRegistry,
+    revision: &RuntimeRevisionDescriptor,
+) -> bool {
+    revision.loom_version() == registry.loom_version()
+        && revision.capabilities().len() == registry.capabilities().count()
+        && revision
+            .capabilities()
+            .iter()
+            .all(|(capability_id, implementation)| {
+                registry.capability(capability_id).is_some_and(|manifest| {
+                    manifest.version == *implementation.version()
+                        && manifest.loom_compatibility == *implementation.loom_compatibility()
+                })
+            })
+}
+
 fn validate_work_target(
     registry: &CapabilityRegistry,
     assembly: &ExecutionAssembly,
@@ -5108,6 +5213,8 @@ fn map_runtime_revision_error(error: &RuntimeRevisionError) -> ApiError {
         | RuntimeRevisionError::RevisionDescriptorMismatch { .. }
         | RuntimeRevisionError::RevisionAlreadyExists { .. }
         | RuntimeRevisionError::ActiveRevisionConflict { .. }
+        | RuntimeRevisionError::NoActiveRevision
+        | RuntimeRevisionError::IncompatibleActiveRevision { .. }
         | RuntimeRevisionError::ActivationGenerationOverflow
         | RuntimeRevisionError::StorageUnavailable { .. } => {
             ApiError::unavailable("Runtime Revision selection is unavailable")

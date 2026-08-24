@@ -338,14 +338,37 @@ async fn neutral_template_revisions_pin_distinct_bindings_and_bootstrap_evidence
         .expect("R2 active selection should remain readable")
         .expect("R2 should be active before incompatible activation")
         .generation();
-    first_runtime
+    let activation_error = first_runtime
         .activate_runtime_revision(
             RuntimeRevisionId::from("neutral-fixtures-incompatible"),
             Some(r2_generation),
             PlatformTime::new(6),
         )
         .await
-        .expect("incompatible Runtime Revision should activate as platform history");
+        .expect_err("incompatible Runtime Revision should be rejected before activation");
+    assert_eq!(
+        activation_error,
+        loom_runtime::RuntimeRevisionError::IncompatibleActiveRevision {
+            revision_id: RuntimeRevisionId::from("neutral-fixtures-incompatible")
+        }
+    );
+    assert_eq!(
+        first_runtime
+            .active_runtime_revision()
+            .await
+            .expect("active selection should remain readable")
+            .expect("R2 should remain active after the rejected activation")
+            .revision()
+            .id(),
+        &RuntimeRevisionId::from("neutral-fixtures-r2")
+    );
+    store
+        .activate_revision(
+            RuntimeRevisionId::from("neutral-fixtures-incompatible"),
+            Some(r2_generation),
+            PlatformTime::new(6),
+        )
+        .expect("the persisted incompatible revision should be available for the execution-neutrality check");
     let binding_before_incompatible = store
         .read_binding(first_world)
         .expect("first World Binding should remain readable before incompatibility");

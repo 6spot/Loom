@@ -1115,14 +1115,13 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
         .register_runtime_revision(missing_revision)
         .await
         .expect("missing revision should register as immutable history");
-    runtime
-        .activate_runtime_revision(
+    store
+        .activate_revision(
             RuntimeRevisionId::from("missing-counter"),
             None,
             PlatformTime::new(2),
         )
-        .await
-        .expect("missing revision should activate for the negative test");
+        .expect("the persisted incompatible revision should be available for the negative test");
 
     let blocked = runtime
         .missing_implementation_block(counter_target(), work(22))
@@ -1251,14 +1250,13 @@ async fn missing_observer_matches_full_assembly_compatibility_predicate() {
         .register_runtime_revision(incompatible_revision)
         .await
         .expect("the revision should register");
-    runtime
-        .activate_runtime_revision(
+    store
+        .activate_revision(
             RuntimeRevisionId::from("full-compatibility-mismatch"),
             None,
             PlatformTime::new(2),
         )
-        .await
-        .expect("the revision should activate");
+        .expect("the persisted incompatible revision should be available for the negative test");
 
     let blocked = runtime
         .missing_implementation_block(counter_target(), work_id)

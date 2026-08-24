@@ -21,7 +21,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
     .fetch_one(&pool)
     .await
     .expect("migrated Loom tables should be inspectable");
-    assert_eq!(table_count, 20);
+    assert_eq!(table_count, 21);
 
     let reconciliation_tables: Vec<String> = sqlx::query_scalar(
         "SELECT table_name::text FROM information_schema.tables \
@@ -30,6 +30,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
              'loom_world_runtime_binding',\
              'loom_runtime_revision',\
              'loom_runtime_active_revision',\
+             'loom_runtime_revision_activation',\
              'loom_execution_session'\
            ) \
          ORDER BY table_name",
@@ -43,6 +44,7 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
             "loom_execution_session",
             "loom_runtime_active_revision",
             "loom_runtime_revision",
+            "loom_runtime_revision_activation",
             "loom_world_runtime_binding",
         ],
         "fresh migration must include every reconciliation authority table"

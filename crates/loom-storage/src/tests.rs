@@ -261,6 +261,13 @@ fn runtime_revision() -> RuntimeRevisionDescriptor {
             VersionReq::parse("^0.1.0").expect("Loom compatibility should parse"),
         )],
     )
+    .map(|revision| {
+        revision
+            .with_execution_policy_id("execution-v1")
+            .with_provider_policy_id("provider-v1")
+            .with_change_summary("test revision metadata")
+            .with_semantic_behavior_changed(true)
+    })
     .expect("Runtime Revision descriptor should be valid")
 }
 
@@ -306,6 +313,13 @@ async fn runtime_revision_history_is_immutable_and_activation_uses_generation_ca
     assert_eq!(selection.revision(), &revision);
     assert_eq!(selection.generation(), 1);
     assert_eq!(selection.activated_at(), PlatformTime::new(20));
+    let history = RuntimeRevisionStore::read_activation_history(&store)
+        .await
+        .expect("activation history should be readable after activation");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].revision_id(), &RuntimeRevisionId::from("r1"));
+    assert_eq!(history[0].generation(), 1);
+    assert_eq!(history[0].activated_at(), PlatformTime::new(20));
     assert_eq!(
         RuntimeRevisionStore::activate_revision(
             &store,
@@ -322,6 +336,13 @@ async fn runtime_revision_history_is_immutable_and_activation_uses_generation_ca
     let after = store
         .snapshot(timeline())
         .expect("Timeline should be readable after activation");
+    assert_eq!(
+        RuntimeRevisionStore::read_activation_history(&store)
+            .await
+            .expect("activation history should remain readable after the loser")
+            .len(),
+        1
+    );
     assert_eq!(after.version(), before.version());
     assert_eq!(after.world_time(), before.world_time());
     assert!(after.events.is_empty());
