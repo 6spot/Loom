@@ -3,5 +3,18 @@ name = "loom-boundary"
 version.workspace = true
 edition.workspace = true
 
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+futures-util = "0.3"
+futures-executor = "0.3"
+loom-api = { path = "../loom-api" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower = { version = "0.5", features = ["limit"] }
+tokio = { version = "~1.51", features = ["rt", "rt-multi-thread"] }
+
 [lints]
 workspace = true
+
+[dev-dependencies]
+tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
