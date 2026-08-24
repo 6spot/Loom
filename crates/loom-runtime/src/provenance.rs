@@ -1,9 +1,12 @@
 //! Runtime-owned execution provenance for candidate validation.
 
+use loom_agency::{
+    AgentRef, CognitiveError, CognitiveMetadata, ContextBudgetUsage, ExecutionPolicy,
+};
 use loom_capability::{CapabilityId, EntropyRequest, EntropySample, SemanticIndexId};
 use loom_core::{
     ActionTypeId, EntityId, EventId, EventRef, FacetOwner, FacetTypeId, RelationshipId,
-    SchemaRevision,
+    SchemaRevision, TimelineId, TimelineVersion, WorldInstant,
 };
 use serde::{Deserialize, Serialize};
 
@@ -135,6 +138,88 @@ impl CallProvenance {
     }
 }
 
+/// The result classification retained for one `CognitiveExecutor` invocation.
+///
+/// The decision variants are intentionally not copied into World History. An
+/// `Act` is still an untrusted `ActionInvocation` proposal and must pass the
+/// normal Runtime Action authority; a cognitive error is technical execution
+/// failure, not the determined `NoAction` result.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum CognitiveOutcome {
+    /// Cognition produced an Action proposal for normal Runtime validation.
+    Act,
+    /// Cognition determined that this wake should take no Action.
+    NoAction,
+    /// Cognition could not determine a decision.
+    Error(CognitiveError),
+}
+
+/// One ordered, audit-safe `CognitiveExecutor` observation.
+///
+/// This value records the pinned Agency request coordinate, policy, metadata,
+/// context budget usage and the Runtime-mediated context `ReadSet`. It contains
+/// no provider client, credentials, raw network payload or mutation authority.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CognitiveObservation {
+    /// Zero-based invocation order within one root Execution Session.
+    pub ordinal: usize,
+    /// Pinned executor/provider/model identity.
+    pub metadata: CognitiveMetadata,
+    /// Pinned Agency execution policy.
+    pub policy: ExecutionPolicy,
+    /// Agent whose subjective context was supplied.
+    pub agent: AgentRef,
+    /// Timeline represented by the subjective context.
+    pub timeline_id: TimelineId,
+    /// Exact Timeline version represented by the subjective context.
+    pub version: TimelineVersion,
+    /// World semantic time represented by the subjective context.
+    pub world_time: WorldInstant,
+    /// Measured context consumption supplied to cognition.
+    pub context_usage: ContextBudgetUsage,
+    /// Runtime reads used to assemble the subjective context.
+    pub context_read_set: ReadSet,
+    /// Typed result classification returned by the executor.
+    pub outcome: CognitiveOutcome,
+}
+
+/// Ordered `CognitiveExecutor` provenance for one pinned Execution Session.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CognitiveEvidence {
+    observations: Vec<CognitiveObservation>,
+}
+
+impl CognitiveEvidence {
+    /// Returns observations in the order Runtime invoked cognition.
+    #[must_use]
+    pub fn observations(&self) -> &[CognitiveObservation] {
+        &self.observations
+    }
+
+    /// Returns the number of recorded cognitive invocations.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.observations.len()
+    }
+
+    /// Reports whether no cognitive invocation has been recorded.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.observations.is_empty()
+    }
+
+    pub(crate) fn record(&mut self, mut observation: CognitiveObservation) {
+        observation.ordinal = self.observations.len();
+        self.observations.push(observation);
+    }
+
+    fn append(&mut self, additional: &Self) {
+        for observation in &additional.observations {
+            self.record(observation.clone());
+        }
+    }
+}
+
 /// One fact or negative lookup observed while validating a Resolution.
 ///
 /// `ReadDependency` belongs to Runtime execution provenance. It records what
@@ -220,6 +305,9 @@ pub struct ExecutionEvidence {
     pub call_provenance: CallProvenance,
     /// Runtime-mediated entropy requests and returned samples.
     pub entropy_evidence: EntropyEvidence,
+    /// Runtime-mediated cognition/provider/model and context evidence.
+    #[serde(default)]
+    pub cognitive_evidence: CognitiveEvidence,
     /// Explicit Runtime outcome marker for a successful no-change execution.
     /// Rejections remain semantically distinct and do not set this marker.
     #[serde(default)]
@@ -234,13 +322,14 @@ impl ExecutionEvidence {
             read_set: ReadSet::default(),
             call_provenance: CallProvenance::default(),
             entropy_evidence: EntropyEvidence::new(source_id),
+            cognitive_evidence: CognitiveEvidence::default(),
             no_change: false,
         }
     }
 
     /// Creates evidence from one Runtime execution state.
     #[must_use]
-    pub const fn from_parts(
+    pub fn from_parts(
         read_set: ReadSet,
         call_provenance: CallProvenance,
         entropy_evidence: EntropyEvidence,
@@ -249,8 +338,16 @@ impl ExecutionEvidence {
             read_set,
             call_provenance,
             entropy_evidence,
+            cognitive_evidence: CognitiveEvidence::default(),
             no_change: false,
         }
+    }
+
+    /// Attaches ordered cognition evidence to this Runtime execution record.
+    #[must_use]
+    pub fn with_cognitive_evidence(mut self, cognitive_evidence: CognitiveEvidence) -> Self {
+        self.cognitive_evidence = cognitive_evidence;
+        self
     }
 
     /// Marks this evidence as a successful execution with no World/Work
@@ -267,6 +364,7 @@ impl ExecutionEvidence {
         self.read_set.is_empty()
             && self.call_provenance.is_empty()
             && self.entropy_evidence.is_empty()
+            && self.cognitive_evidence.is_empty()
     }
 
     /// Appends another root/child execution's observations in execution order.
@@ -286,6 +384,8 @@ impl ExecutionEvidence {
             entropy.record(observation.request.clone(), observation.sample.clone());
         }
         self.entropy_evidence = entropy;
+        self.cognitive_evidence
+            .append(&additional.cognitive_evidence);
     }
 }
 

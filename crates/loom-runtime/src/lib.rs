@@ -84,6 +84,7 @@
 mod agent_world_view;
 mod blob;
 mod budget;
+mod cognitive;
 mod entropy;
 mod identity;
 mod logical_replay;
@@ -103,6 +104,7 @@ pub use blob::{
     BlobRef, BlobStore,
 };
 pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use cognitive::{CognitiveGatewayError, UnavailableCognitiveExecutor};
 pub use entropy::{
     DeterministicEntropySource, EntropySource, EntropySourceError, EntropySourceId,
     UnavailableEntropySource,
@@ -116,22 +118,23 @@ pub use orchestration::{MAX_CHANGE_FEED_OPERATIONAL_PAGE_SIZE, Runtime};
 pub use persistence::{
     ActiveRuntimeRevision, AdvanceWorldTime, BindingError, ChangeFeedPage, ChangeFeedRead,
     ChangeFeedStore, ChronologyBudgetConsumption, ChronologyBudgetExceeded, ChronologyBudgetPolicy,
-    ChronologyBudgetState, CommitAuthorityContext, CommitError, CommitProvenance, CommitResult,
-    CommitStore, CommittedEvent, ExecutionAssembly, ExecutionOrigin, ExecutionRoot,
-    ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
-    FailurePolicyError, ForkError, ForkMaterialization, ForkWork, IngressClaim, IngressError,
-    IngressLease, IngressOperationalRecord, IngressRecord, IngressStore, IngressSubmission,
-    LifecycleError, LogicalCommit, LogicalJournalRecord, LogicalJournalStore,
-    LogicalWorkTransition, MAX_SEMANTIC_PROJECTION_ROWS, MAX_SEMANTIC_QUERY_DEPTH,
-    MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES, MAX_SEMANTIC_QUERY_RESULTS,
-    MAX_SEMANTIC_VECTOR_DIMENSIONS, ManualPlatformClock, PersistenceFuture, PlatformClock,
-    PlatformTime, ReadError, RuntimeCapabilityImplementation, RuntimeControlStore, RuntimeRevision,
-    RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
-    RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor, RuntimeRevisionDescriptorError,
-    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
-    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
-    SemanticProjectionRegistration, SemanticProjectionRow, SemanticProjectionStore, SessionError,
+    ChronologyBudgetState, CognitiveAssembly, CommitAuthorityContext, CommitError,
+    CommitProvenance, CommitResult, CommitStore, CommittedEvent, ExecutionAssembly,
+    ExecutionOrigin, ExecutionRoot, ExecutionSession, ExecutionSessionStatus,
+    ExecutionSessionStore, FailurePolicy, FailurePolicyError, ForkError, ForkMaterialization,
+    ForkWork, IngressClaim, IngressError, IngressLease, IngressOperationalRecord, IngressRecord,
+    IngressStore, IngressSubmission, LifecycleError, LogicalCommit, LogicalJournalRecord,
+    LogicalJournalStore, LogicalWorkTransition, MAX_SEMANTIC_PROJECTION_ROWS,
+    MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS, MAX_SEMANTIC_QUERY_RESULT_BYTES,
+    MAX_SEMANTIC_QUERY_RESULTS, MAX_SEMANTIC_VECTOR_DIMENSIONS, ManualPlatformClock,
+    PersistenceFuture, PlatformClock, PlatformTime, ReadError, RuntimeCapabilityImplementation,
+    RuntimeControlStore, RuntimeRevision, RuntimeRevisionActivation, RuntimeRevisionAssembly,
+    RuntimeRevisionCapability, RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor,
+    RuntimeRevisionDescriptorError, RuntimeRevisionError, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError,
+    SemanticProjectionFilter, SemanticProjectionHit, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionRow, SemanticProjectionStore, SessionError,
     TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
     TimelineFork, TimelineForkStore, TimelineSnapshot, WorkClaim, WorkError, WorkLease, WorkRecord,
     WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldCreation,
@@ -143,8 +146,8 @@ pub use pinned_reads::{
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore,
 };
 pub use provenance::{
-    CallProvenance, EntropyEvidence, EntropyObservation, ExecutionEvidence, ReadDependency,
-    ReadSet, ResolutionCallEdge,
+    CallProvenance, CognitiveEvidence, CognitiveObservation, CognitiveOutcome, EntropyEvidence,
+    EntropyObservation, ExecutionEvidence, ReadDependency, ReadSet, ResolutionCallEdge,
 };
 pub use replay::{
     ReplayEffectError, ReplayEngine, ReplayError, ReplayEventError, ReplayResult,
@@ -157,6 +160,9 @@ pub use views::{
     BaseWorldSnapshot, BaseWorldView, CandidateWorldView, FacetSnapshot, RelationshipSnapshot,
 };
 
+pub use loom_agency::{
+    DeterministicCognitiveExecutor, DeterministicCognitiveOutcome, DeterministicCognitiveStep,
+};
 /// Transport-neutral Ingress values are re-exported here so concrete storage
 /// adapters can implement the Runtime-owned Ingress port without depending on
 /// the higher-level API crate directly.

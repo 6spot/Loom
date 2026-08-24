@@ -65,6 +65,12 @@
 
 #![forbid(unsafe_code)]
 
+pub mod testing;
+
+pub use testing::{
+    DeterministicCognitiveExecutor, DeterministicCognitiveOutcome, DeterministicCognitiveStep,
+};
+
 use std::{error::Error, fmt, future::Future, pin::Pin};
 
 use loom_core::{EntityId, TimelineId, TimelineVersion, WorldInstant};
