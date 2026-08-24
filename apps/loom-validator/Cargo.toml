@@ -1,0 +1,10 @@
+[package]
+name = "loom-validator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-client = { path = "../../crates/loom-client" }
+
+[lints]
+workspace = true
