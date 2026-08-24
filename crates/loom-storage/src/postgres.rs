@@ -32,14 +32,14 @@ use loom_runtime::{
     ChronologyBudgetConsumption, ChronologyBudgetState, CommittedEvent, LifecycleError,
     LogicalCommit, LogicalJournalStore, LogicalWorkTransition, PersistenceFuture, PinnedFacet,
     PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
-    ProposedEvent, ReadError, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SemanticIndexMetric, SemanticIndexSource,
-    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
-    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
-    TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord,
-    WorkStatus, WorkTarget, WorldCreation, WorldLifecycleStore, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition,
-    semantic_projection_hit_bytes,
+    ProposedEvent, ReadError, RuntimeRevisionActivation, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SemanticIndexMetric, SemanticIndexSource, SemanticProjectionError, SemanticProjectionHit,
+    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
+    SemanticProjectionRegistration, SemanticProjectionStore, TimelineFork, TimelineForkStore,
+    TimelineSnapshot, ValidatedResolution, WorkLease, WorkRecord, WorkStatus, WorkTarget,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgPoolOptions};
@@ -86,6 +86,10 @@ const READ_ACTIVE_RUNTIME_REVISION_SQL: &str =
 const LOCK_ACTIVE_RUNTIME_REVISION_SQL: &str =
     include_str!("../sql/runtime_revision/lock_active.sql");
 const ACTIVATE_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/activate.sql");
+const INSERT_RUNTIME_REVISION_ACTIVATION_SQL: &str =
+    include_str!("../sql/runtime_revision/insert_activation.sql");
+const LIST_RUNTIME_REVISION_ACTIVATIONS_SQL: &str =
+    include_str!("../sql/runtime_revision/list_activations.sql");
 const LOCK_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/lock_world_time.sql");
 const UPDATE_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/update_world_time.sql");
 const SELECT_DUE_PENDING_SQL: &str = include_str!("../sql/work/select_due_pending.sql");
@@ -1586,6 +1590,12 @@ impl RuntimeRevisionStore for PgStorage {
         Box::pin(async move { self.list_revisions().await })
     }
 
+    fn read_activation_history(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>> {
+        Box::pin(async move { self.read_activation_history().await })
+    }
+
     fn read_active_revision(
         &self,
     ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
@@ -1698,6 +1708,31 @@ impl PgStorage {
             .collect()
     }
 
+    async fn read_activation_history(
+        &self,
+    ) -> Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError> {
+        let rows = sqlx::query(LIST_RUNTIME_REVISION_ACTIVATIONS_SQL)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql_revision_error)?;
+        rows.into_iter()
+            .map(|row| {
+                let revision_id: String = row.try_get("revision_id").map_err(sql_revision_error)?;
+                let generation = parse_runtime_u64(
+                    &row.try_get::<String, _>("activation_generation")
+                        .map_err(sql_revision_error)?,
+                    "activation_generation",
+                )?;
+                let activated_at: i64 = row.try_get("activated_at").map_err(sql_revision_error)?;
+                Ok(RuntimeRevisionActivation::new(
+                    RuntimeRevisionId::from(revision_id),
+                    generation,
+                    PlatformTime::new(activated_at),
+                ))
+            })
+            .collect()
+    }
+
     async fn read_active_revision(
         &self,
     ) -> Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError> {
@@ -1788,6 +1823,13 @@ impl PgStorage {
             .checked_add(1)
             .ok_or(RuntimeRevisionError::ActivationGenerationOverflow)?;
         sqlx::query(ACTIVATE_RUNTIME_REVISION_SQL)
+            .bind(revision_id.as_str())
+            .bind(generation.to_string())
+            .bind(activated_at.value())
+            .execute(&mut *transaction)
+            .await
+            .map_err(sql_revision_error)?;
+        sqlx::query(INSERT_RUNTIME_REVISION_ACTIVATION_SQL)
             .bind(revision_id.as_str())
             .bind(generation.to_string())
             .bind(activated_at.value())

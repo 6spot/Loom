@@ -31,15 +31,15 @@ use loom_runtime::{
     IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalJournalStore,
     LogicalWorkTransition, PersistenceFuture, PinnedFacet, PinnedRead, PinnedReadMetrics,
     PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
-    RuntimeControlStore, RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId,
-    RuntimeRevisionSelection, RuntimeRevisionStore, SchedulerCommitStore, SemanticIndexMetric,
-    SemanticProjectionError, SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
-    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionRow,
-    SemanticProjectionStore, SessionError, TimelineFork, TimelineForkStore, TimelineSnapshot,
-    ValidatedResolution, WorkClaim, WorkError, WorkLease, WorkMutation, WorkRecord, WorkStatus,
-    WorkStore, WorkTarget, WorkTerminalization, WorldCreation, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    semantic_projection_hit_bytes,
+    RuntimeControlStore, RuntimeRevisionActivation, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SchedulerCommitStore, SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit,
+    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
+    SemanticProjectionRegistration, SemanticProjectionRow, SemanticProjectionStore, SessionError,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError,
+    WorkLease, WorkMutation, WorkRecord, WorkStatus, WorkStore, WorkTarget, WorkTerminalization,
+    WorldCreation, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeError, WorldTimeStore, semantic_projection_hit_bytes,
 };
 use serde_json::Value;
 
@@ -103,6 +103,7 @@ struct StoreState {
     timelines: HashMap<TimelineId, TimelineState>,
     runtime_revisions: BTreeMap<RuntimeRevisionId, RuntimeRevisionDescriptor>,
     active_runtime_revision: Option<RuntimeRevisionSelection>,
+    runtime_activation_history: Vec<RuntimeRevisionActivation>,
     execution_sessions: BTreeMap<ExecutionSessionId, ExecutionSession>,
     ingresses: HashMap<loom_runtime::IngressId, IngressOperationalRecord>,
     semantic_projections: HashMap<SemanticProjectionKey, SemanticProjectionRegistration>,
@@ -1077,16 +1078,25 @@ impl InMemoryStore {
         Ok(guard.active_runtime_revision.clone())
     }
 
+    /// Reads successful Runtime Revision activations in generation order.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed Runtime Revision persistence error if the in-memory
+    /// authority cannot be read.
+    pub fn read_activation_history(
+        &self,
+    ) -> Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError> {
+        let guard = self.read_state();
+        Ok(guard.runtime_activation_history.clone())
+    }
+
     /// Activates a known revision through an in-memory generation CAS.
     ///
     /// # Errors
     ///
     /// Returns a missing-revision, stale-generation or generation-overflow
     /// error without changing the active pointer.
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "matches the owned RuntimeRevisionStore activation port"
-    )]
     pub fn activate_revision(
         &self,
         revision_id: RuntimeRevisionId,
@@ -1118,6 +1128,13 @@ impl InMemoryStore {
             .ok_or(RuntimeRevisionError::ActivationGenerationOverflow)?;
         let selection = RuntimeRevisionSelection::new(revision, generation, activated_at);
         staged.active_runtime_revision = Some(selection.clone());
+        staged
+            .runtime_activation_history
+            .push(RuntimeRevisionActivation::new(
+                revision_id,
+                generation,
+                activated_at,
+            ));
         *guard = staged;
         Ok(selection)
     }
@@ -2575,6 +2592,12 @@ impl RuntimeRevisionStore for InMemoryStore {
         &self,
     ) -> PersistenceFuture<'_, Result<Option<RuntimeRevisionSelection>, RuntimeRevisionError>> {
         Box::pin(async move { InMemoryStore::read_active_revision(self) })
+    }
+
+    fn read_activation_history(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>> {
+        Box::pin(async move { InMemoryStore::read_activation_history(self) })
     }
 
     fn activate_revision(

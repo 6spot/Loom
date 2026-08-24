@@ -644,6 +644,22 @@ pub struct RuntimeRevisionDescriptor {
     core_build_ref: String,
     loom_version: Version,
     capabilities: BTreeMap<CapabilityId, RuntimeRevisionCapability>,
+    /// Optional non-secret identifier for the execution policy published with
+    /// this revision.
+    #[serde(default)]
+    execution_policy_id: Option<String>,
+    /// Optional non-secret identifier for the provider policy published with
+    /// this revision. Provider credentials never belong here.
+    #[serde(default)]
+    provider_policy_id: Option<String>,
+    /// Human-readable summary of the platform change represented by this
+    /// revision.
+    #[serde(default)]
+    change_summary: Option<String>,
+    /// Whether the published change is known to alter semantic behavior for
+    /// future Sessions.
+    #[serde(default)]
+    semantic_behavior_changed: bool,
 }
 
 impl RuntimeRevisionDescriptor {
@@ -703,7 +719,40 @@ impl RuntimeRevisionDescriptor {
             core_build_ref,
             loom_version,
             capabilities: installed,
+            execution_policy_id: None,
+            provider_policy_id: None,
+            change_summary: None,
+            semantic_behavior_changed: false,
         })
+    }
+
+    /// Sets the non-secret execution-policy identifier for this publication.
+    #[must_use]
+    pub fn with_execution_policy_id(mut self, policy_id: impl Into<String>) -> Self {
+        self.execution_policy_id = Some(policy_id.into());
+        self
+    }
+
+    /// Sets the non-secret provider-policy identifier for this publication.
+    #[must_use]
+    pub fn with_provider_policy_id(mut self, policy_id: impl Into<String>) -> Self {
+        self.provider_policy_id = Some(policy_id.into());
+        self
+    }
+
+    /// Sets the human-readable change summary for this publication.
+    #[must_use]
+    pub fn with_change_summary(mut self, summary: impl Into<String>) -> Self {
+        self.change_summary = Some(summary.into());
+        self
+    }
+
+    /// Marks whether this publication changes semantic behavior for future
+    /// Sessions.
+    #[must_use]
+    pub fn with_semantic_behavior_changed(mut self, changed: bool) -> Self {
+        self.semantic_behavior_changed = changed;
+        self
     }
 
     /// Returns the stable revision identity.
@@ -722,6 +771,31 @@ impl RuntimeRevisionDescriptor {
     #[must_use]
     pub fn core_build_ref(&self) -> &str {
         &self.core_build_ref
+    }
+
+    /// Returns the non-secret execution-policy identifier, when published.
+    #[must_use]
+    pub fn execution_policy_id(&self) -> Option<&str> {
+        self.execution_policy_id.as_deref()
+    }
+
+    /// Returns the non-secret provider-policy identifier, when published.
+    #[must_use]
+    pub fn provider_policy_id(&self) -> Option<&str> {
+        self.provider_policy_id.as_deref()
+    }
+
+    /// Returns the human-readable change summary, when published.
+    #[must_use]
+    pub fn change_summary(&self) -> Option<&str> {
+        self.change_summary.as_deref()
+    }
+
+    /// Reports whether this publication changes semantic behavior for future
+    /// Sessions.
+    #[must_use]
+    pub const fn semantic_behavior_changed(&self) -> bool {
+        self.semantic_behavior_changed
     }
 
     /// Returns the Loom contract version used to validate installed
@@ -862,6 +936,53 @@ pub struct RuntimeRevisionSelection {
     revision: RuntimeRevisionDescriptor,
     generation: u64,
     activated_at: PlatformTime,
+}
+
+/// One successful Runtime Revision activation in append-only Platform
+/// History.
+///
+/// The revision descriptor remains in the immutable publication table; this
+/// record captures the ordered activation fact and its platform metadata.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeRevisionActivation {
+    revision_id: RuntimeRevisionId,
+    generation: u64,
+    activated_at: PlatformTime,
+}
+
+impl RuntimeRevisionActivation {
+    /// Creates one activation-history record after the active-selection CAS
+    /// has linearized successfully.
+    #[must_use]
+    pub const fn new(
+        revision_id: RuntimeRevisionId,
+        generation: u64,
+        activated_at: PlatformTime,
+    ) -> Self {
+        Self {
+            revision_id,
+            generation,
+            activated_at,
+        }
+    }
+
+    /// Returns the activated immutable revision identity.
+    #[must_use]
+    pub const fn revision_id(&self) -> &RuntimeRevisionId {
+        &self.revision_id
+    }
+
+    /// Returns the active-selection generation committed with this record.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Returns the platform-time activation metadata.
+    #[must_use]
+    pub const fn activated_at(&self) -> PlatformTime {
+        self.activated_at
+    }
 }
 
 impl RuntimeRevisionSelection {
@@ -1956,6 +2077,11 @@ pub enum RuntimeRevisionError {
         expected_generation: Option<u64>,
         actual_generation: Option<u64>,
     },
+    /// No explicitly activated revision exists at the startup/readiness gate.
+    NoActiveRevision,
+    /// The active immutable descriptor is not compatible with this Runtime's
+    /// registered implementation set.
+    IncompatibleActiveRevision { revision_id: RuntimeRevisionId },
     /// The active-selection generation cannot advance further.
     ActivationGenerationOverflow,
     /// The Runtime Revision authority could not complete the operation.
@@ -1981,6 +2107,13 @@ impl fmt::Display for RuntimeRevisionError {
             } => write!(
                 formatter,
                 "active Runtime Revision generation conflict: expected {expected_generation:?}, actual {actual_generation:?}"
+            ),
+            Self::NoActiveRevision => {
+                formatter.write_str("no active Runtime Revision has been explicitly selected")
+            }
+            Self::IncompatibleActiveRevision { revision_id } => write!(
+                formatter,
+                "active Runtime Revision {revision_id} does not match the registered Runtime"
             ),
             Self::ActivationGenerationOverflow => {
                 formatter.write_str("active Runtime Revision generation overflowed")
@@ -2022,6 +2155,26 @@ pub trait RuntimeRevisionStore {
     fn list_revisions(
         &self,
     ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionDescriptor>, RuntimeRevisionError>>;
+
+    /// Reads successful activations in commit/generation order. The returned
+    /// records are append-only Platform History and never include failed
+    /// activation attempts.
+    fn read_activation_history(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>> {
+        Box::pin(async {
+            Err(RuntimeRevisionError::StorageUnavailable {
+                message: "Runtime activation history is not exposed by this adapter".to_owned(),
+            })
+        })
+    }
+
+    /// Alias used by Runtime-owned admin/read ports.
+    fn list_activation_history(
+        &self,
+    ) -> PersistenceFuture<'_, Result<Vec<RuntimeRevisionActivation>, RuntimeRevisionError>> {
+        self.read_activation_history()
+    }
 
     /// Reads the current active selection. `None` means no semantic revision
     /// has been explicitly activated yet.

@@ -23,8 +23,12 @@ where
 }
 
 fn revision() -> RuntimeRevisionDescriptor {
+    revision_with_id("postgres-r1")
+}
+
+fn revision_with_id(id: &str) -> RuntimeRevisionDescriptor {
     RuntimeRevisionDescriptor::new(
-        RuntimeRevisionId::from("postgres-r1"),
+        RuntimeRevisionId::from(id),
         PlatformTime::new(100),
         "loom-postgres-build-1",
         Version::new(0, 1, 0),
@@ -35,7 +39,68 @@ fn revision() -> RuntimeRevisionDescriptor {
             VersionReq::parse("^0.1.0").expect("Loom compatibility should parse"),
         )],
     )
+    .map(|revision| {
+        revision
+            .with_execution_policy_id("execution-v1")
+            .with_provider_policy_id("provider-v1")
+            .with_change_summary("postgres revision metadata")
+            .with_semantic_behavior_changed(true)
+    })
     .expect("PostgreSQL revision descriptor should be valid")
+}
+
+#[tokio::test]
+async fn postgres_concurrent_revision_activation_has_one_history_winner() {
+    let Some(database) = TestDatabase::provision("runtime_revision_concurrent").await else {
+        return;
+    };
+    let storage = database.storage().await;
+    let first = revision_with_id("postgres-concurrent-r1");
+    let second = revision_with_id("postgres-concurrent-r2");
+    RuntimeRevisionStore::register_revision(&storage, first)
+        .await
+        .expect("first concurrent revision should publish");
+    RuntimeRevisionStore::register_revision(&storage, second)
+        .await
+        .expect("second concurrent revision should publish");
+
+    let first_activation = RuntimeRevisionStore::activate_revision(
+        &storage,
+        RuntimeRevisionId::from("postgres-concurrent-r1"),
+        None,
+        PlatformTime::new(300),
+    );
+    let second_activation = RuntimeRevisionStore::activate_revision(
+        &storage,
+        RuntimeRevisionId::from("postgres-concurrent-r2"),
+        None,
+        PlatformTime::new(301),
+    );
+    let (first_result, second_result) = tokio::join!(first_activation, second_activation);
+    let winner_id = match (&first_result, &second_result) {
+        (Ok(selection), Err(RuntimeRevisionError::ActiveRevisionConflict { .. }))
+        | (Err(RuntimeRevisionError::ActiveRevisionConflict { .. }), Ok(selection)) => {
+            selection.revision().id().clone()
+        }
+        _ => panic!("concurrent activation must have exactly one CAS winner"),
+    };
+    assert_eq!(
+        RuntimeRevisionStore::read_active_revision(&storage)
+            .await
+            .expect("active revision should be readable after the race")
+            .expect("one concurrent activation should win")
+            .revision()
+            .id(),
+        &winner_id
+    );
+    let history = RuntimeRevisionStore::read_activation_history(&storage)
+        .await
+        .expect("activation history should be readable after the race");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].revision_id(), &winner_id);
+    assert_eq!(history[0].generation(), 1);
+    storage.close().await;
+    database.cleanup().await;
 }
 
 #[tokio::test]
@@ -80,6 +145,16 @@ async fn postgres_runtime_revision_history_survives_restart_and_is_world_neutral
             actual_generation: Some(1),
         })
     );
+    let history = RuntimeRevisionStore::read_activation_history(&storage)
+        .await
+        .expect("activation history should contain the committed winner");
+    assert_eq!(history.len(), 1);
+    assert_eq!(
+        history[0].revision_id(),
+        &RuntimeRevisionId::from("postgres-r1")
+    );
+    assert_eq!(history[0].generation(), 1);
+    assert_eq!(history[0].activated_at(), PlatformTime::new(200));
     let after = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("Timeline should remain readable after activation");
@@ -119,6 +194,13 @@ async fn postgres_runtime_revision_history_survives_restart_and_is_world_neutral
     assert_eq!(active.revision(), &revision);
     assert_eq!(active.generation(), 1);
     assert_eq!(active.activated_at(), PlatformTime::new(200));
+    assert_eq!(
+        RuntimeRevisionStore::read_activation_history(&restarted)
+            .await
+            .expect("activation history should survive restart")
+            .len(),
+        1
+    );
     restarted.close().await;
     database.cleanup().await;
 }

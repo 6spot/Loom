@@ -310,7 +310,7 @@ impl LoomServer {
             .confirm_runtime_revision(revision)
             .await
             .map_err(map_revision_error)?;
-        ensure_active_revision(&runtime, &revision, now).await?;
+        ensure_active_revision(&runtime, &revision).await?;
 
         // Each Runtime instance owns the same concrete PgStorage authority and
         // the same executor/topology contract; PostgreSQL CAS/fences remain the
@@ -493,22 +493,17 @@ where
 async fn ensure_active_revision(
     runtime: &Runtime<PgStorage>,
     revision: &RuntimeRevisionDescriptor,
-    now: PlatformTime,
 ) -> Result<(), ServerError> {
     let active = runtime
-        .active_runtime_revision()
+        .validate_active_runtime_revision()
         .await
         .map_err(map_revision_error)?;
-    match active {
-        Some(active) if active.revision() == revision => Ok(()),
-        Some(_) => Err(ServerError::Startup {
+    if active.revision() == revision {
+        Ok(())
+    } else {
+        Err(ServerError::Startup {
             stage: "active Runtime Revision selection",
-        }),
-        None => runtime
-            .activate_runtime_revision(revision.id().clone(), None, now)
-            .await
-            .map(|_| ())
-            .map_err(map_revision_error),
+        })
     }
 }
 
