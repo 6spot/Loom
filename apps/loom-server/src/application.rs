@@ -26,8 +26,8 @@ use loom_boundary::{RequireAdminAuthorization, router_with_admin as boundary_rou
 use loom_neutral::registry as neutral_registry;
 use loom_runtime::{
     CapabilityRegistry, EntropyRequest, EntropySample, EntropySource, EntropySourceError,
-    EntropySourceId, ExecutionSessionStore, PlatformClock, PlatformTime, Runtime,
-    RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+    EntropySourceId, ExecutionSessionStore, PinnedWorldReadStore, PlatformClock, PlatformTime,
+    Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore,
     WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
 };
@@ -593,7 +593,8 @@ where
         + RuntimeControlStore
         + SchedulerCommitStore
         + WorldTimeStore
-        + SemanticProjectionStore,
+        + SemanticProjectionStore
+        + PinnedWorldReadStore,
 {
     while !shutdown.is_requested() {
         worker.run_bounded(1).await?;
