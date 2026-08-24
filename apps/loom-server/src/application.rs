@@ -606,16 +606,17 @@ async fn ensure_active_revision(
     runtime: &Runtime<PgStorage>,
     revision: &RuntimeRevisionDescriptor,
 ) -> Result<(), ServerError> {
-    let active = runtime
-        .validate_active_runtime_revision()
-        .await
-        .map_err(map_revision_error)?;
-    if active.revision() == revision {
-        Ok(())
-    } else {
-        Err(ServerError::Startup {
+    match runtime.validate_active_runtime_revision().await {
+        Ok(active) if active.revision() == revision => Ok(()),
+        Ok(_) => Err(ServerError::Startup {
             stage: "active Runtime Revision selection",
-        })
+        }),
+        Err(RuntimeRevisionError::NoActiveRevision) => runtime
+            .activate_runtime_revision(revision.id().clone(), None, SystemClock.now())
+            .await
+            .map(|_| ())
+            .map_err(map_revision_error),
+        Err(error) => Err(map_revision_error(error)),
     }
 }
 
