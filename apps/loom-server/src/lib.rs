@@ -16,6 +16,16 @@
 
 #![forbid(unsafe_code)]
 
+mod application;
+mod config;
+mod ingress;
+
+pub use application::{
+    ApplicationApi, LoomServer, ServerError, SystemClock, SystemEntropySource, run_from_env,
+};
+pub use config::{ServerConfig, ServerConfigError};
+pub use ingress::{IngressWorker, IngressWorkerReport, IngressWorkerStopReason};
+
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -27,6 +37,7 @@ use loom_runtime::{
     RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore, TimelineDriverResult,
     WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
 };
+use tokio::sync::Notify;
 
 /// Bounded operational timing supplied by the application composition root.
 ///
@@ -103,27 +114,46 @@ impl std::error::Error for WorkerConfigError {}
 /// current semantic drive/claim/execute/complete operation is allowed to
 /// finish. A supervisor can discard the worker and construct a new one after a
 /// process restart; no restart state is kept in Runtime.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ShutdownSignal {
     requested: Arc<AtomicBool>,
+    notify: Arc<Notify>,
 }
 
 impl ShutdownSignal {
     /// Creates a clear shutdown signal.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            requested: Arc::new(AtomicBool::new(false)),
+            notify: Arc::new(Notify::new()),
+        }
     }
 
     /// Requests graceful shutdown before the next Runtime step.
     pub fn request(&self) {
         self.requested.store(true, Ordering::Release);
+        self.notify.notify_waiters();
     }
 
     /// Returns whether the application has requested graceful shutdown.
     #[must_use]
     pub fn is_requested(&self) -> bool {
         self.requested.load(Ordering::Acquire)
+    }
+
+    /// Waits until the process supervisor requests shutdown.
+    pub async fn wait(&self) {
+        if self.is_requested() {
+            return;
+        }
+        self.notify.notified().await;
+    }
+}
+
+impl Default for ShutdownSignal {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -271,7 +301,7 @@ where
     }
 }
 
-fn add_platform_duration(now: PlatformTime, duration: i64) -> ApiResult<PlatformTime> {
+pub(crate) fn add_platform_duration(now: PlatformTime, duration: i64) -> ApiResult<PlatformTime> {
     now.value()
         .checked_add(duration)
         .map(PlatformTime::new)

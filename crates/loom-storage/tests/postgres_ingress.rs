@@ -110,6 +110,10 @@ async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
             IngressAcceptance::Deduplicated(_) | IngressAcceptance::IdempotencyConflict(_) => None,
         })
         .expect("one concurrent worker should own the accepted identity");
+    let pending = IngressStore::list_recoverable(&first, PlatformTime::new(10), 10)
+        .await
+        .expect("accepted durable records should be enumerable for recovery");
+    assert_eq!(pending, vec![accepted_id.clone()]);
     assert_eq!(
         outcomes
             .iter()
@@ -144,6 +148,12 @@ async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
     .expect("one worker should claim the accepted record");
     assert_eq!(claim.fence(), 1);
     assert_eq!(claim.attempt_count(), 1);
+    assert!(
+        IngressStore::list_recoverable(&first, PlatformTime::new(11), 10)
+            .await
+            .expect("active lease enumeration should succeed")
+            .is_empty()
+    );
     assert!(matches!(
         IngressStore::claim(
             &second,
@@ -195,6 +205,10 @@ async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
     assert!(matches!(persisted.status, IngressStatus::Retryable(_)));
     assert_eq!(persisted.claim_fence, 2);
     assert_eq!(persisted.attempt_count, 2);
+    let retryable = IngressStore::list_recoverable(&reopened, PlatformTime::new(25), 10)
+        .await
+        .expect("retryable durable records should be enumerable after restart");
+    assert_eq!(retryable.len(), 1);
     reopened.close().await;
     pool.close().await;
     database.cleanup().await;

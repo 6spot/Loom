@@ -161,7 +161,7 @@ pub use loom_api::{
     IngressCompletion, IngressEnvelope, IngressId, IngressProvenance, IngressReceipt,
     IngressStatus, IngressStatusRecord, IngressTechnicalFailure, IngressTimeMetadata,
 };
-pub use loom_capability::SemanticKind;
+pub use loom_capability::{CapabilityRegistry, EntropyRequest, EntropySample, SemanticKind};
 /// Generic Capability-owned semantic index metadata used by Runtime ports.
 pub use loom_capability::{SemanticIndexId, SemanticIndexMetric, SemanticIndexSource};
 /// Frozen proposed Event representation consumed by Runtime persistence adapters.

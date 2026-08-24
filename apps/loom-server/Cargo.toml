@@ -4,13 +4,20 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+getrandom = "0.3"
+loom-neutral = { path = "../../capabilities/loom-neutral" }
 loom-api = { path = "../../crates/loom-api" }
+loom-boundary = { path = "../../crates/loom-boundary" }
 loom-runtime = { path = "../../crates/loom-runtime" }
+loom-storage = { path = "../../crates/loom-storage" }
+tokio = { version = "~1.51", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 
 [dev-dependencies]
 loom-capability = { path = "../../crates/loom-capability" }
 loom-core = { path = "../../crates/loom-core" }
-loom-storage = { path = "../../crates/loom-storage" }
 tokio = { version = "~1.51", features = ["macros", "rt"] }
 
 [lints]

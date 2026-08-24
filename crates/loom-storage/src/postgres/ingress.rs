@@ -15,6 +15,7 @@ type PgTransaction<'a> = Transaction<'a, Postgres>;
 
 const ACCEPT_INGRESS_SQL: &str = include_str!("../../sql/ingress/accept.sql");
 const READ_INGRESS_SQL: &str = include_str!("../../sql/ingress/read.sql");
+const LIST_RECOVERABLE_INGRESS_SQL: &str = include_str!("../../sql/ingress/list_recoverable.sql");
 const SELECT_INGRESS_FOR_UPDATE_SQL: &str = include_str!("../../sql/ingress/select_for_update.sql");
 const SELECT_INGRESS_BY_KEY_SQL: &str = include_str!("../../sql/ingress/select_by_key.sql");
 const UPDATE_INGRESS_CLAIM_SQL: &str = include_str!("../../sql/ingress/update_claim.sql");
@@ -35,6 +36,14 @@ impl IngressStore for PgStorage {
         ingress_id: IngressId,
     ) -> PersistenceFuture<'_, Result<IngressOperationalRecord, IngressError>> {
         Box::pin(async move { read_ingress(self, ingress_id).await })
+    }
+
+    fn list_recoverable(
+        &self,
+        now: PlatformTime,
+        limit: usize,
+    ) -> PersistenceFuture<'_, Result<Vec<IngressId>, IngressError>> {
+        Box::pin(async move { list_recoverable_ingress(self, now, limit).await })
     }
 
     fn claim(
@@ -199,6 +208,29 @@ async fn read_ingress(
         .map_err(sql_ingress_error)?
         .ok_or(IngressError::IngressNotFound { ingress_id })?;
     persisted_record(&row)
+}
+
+async fn list_recoverable_ingress(
+    storage: &PgStorage,
+    now: PlatformTime,
+    limit: usize,
+) -> Result<Vec<IngressId>, IngressError> {
+    let limit = i64::try_from(limit.min(1024)).map_err(|_| IngressError::StorageUnavailable {
+        message: "Ingress recovery limit is outside the supported range".to_owned(),
+    })?;
+    let rows = sqlx::query(LIST_RECOVERABLE_INGRESS_SQL)
+        .bind(now.value())
+        .bind(limit)
+        .fetch_all(&storage.pool)
+        .await
+        .map_err(sql_ingress_error)?;
+    rows.into_iter()
+        .map(|row| {
+            row.try_get::<String, _>("ingress_id")
+                .map(IngressId::from)
+                .map_err(sql_ingress_error)
+        })
+        .collect()
 }
 
 async fn claim_ingress(

@@ -1464,7 +1464,7 @@ impl InvariantViolation {
 /// violation, but the interface has no effect builder, storage handle or
 /// repair channel. A rejected candidate must be repaired by a later resolver
 /// proposal, not by an invariant side effect.
-pub trait Invariant {
+pub trait Invariant: Send + Sync {
     /// Validates candidate state without mutating it.
     ///
     /// # Errors
@@ -1481,7 +1481,7 @@ pub trait Invariant {
 /// resolver. It cannot complete, cancel or otherwise change the current Work
 /// lifecycle directly; Runtime owns that state transition and its atomicity
 /// with any resulting commit.
-pub trait WorkHandler {
+pub trait WorkHandler: Send + Sync {
     /// Resolves one Durable Work payload into an untrusted outcome.
     ///
     /// # Errors
@@ -1512,7 +1512,7 @@ pub trait WorkHandler {
 /// subresolution, then returns an untrusted protocol outcome. It does not
 /// receive a storage/commit handle and cannot make any returned Event or Effect
 /// World Truth by itself.
-pub trait ActionResolver {
+pub trait ActionResolver: Send + Sync {
     /// Resolves Action input into an untrusted outcome.
     ///
     /// # Errors

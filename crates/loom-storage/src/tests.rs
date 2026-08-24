@@ -599,6 +599,62 @@ async fn ingress_authority_rejects_stale_fence_before_no_change_commit() {
     );
 }
 
+#[tokio::test]
+async fn ingress_recovery_enumeration_returns_due_pending_and_stale_claims_only() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let first = IngressSubmission::new(
+        "tenant-a",
+        ingress_test_request("recovery-first", "test.action", json!({})),
+        "recovery-first-fingerprint",
+        PlatformTime::new(0),
+    );
+    let second = IngressSubmission::new(
+        "tenant-a",
+        ingress_test_request("recovery-second", "test.action", json!({})),
+        "recovery-second-fingerprint",
+        PlatformTime::new(0),
+    );
+    IngressStore::accept(&store, first)
+        .await
+        .expect("first durable acceptance should succeed");
+    IngressStore::accept(&store, second)
+        .await
+        .expect("second durable acceptance should succeed");
+
+    let bounded = IngressStore::list_recoverable(&store, PlatformTime::new(0), 1)
+        .await
+        .expect("bounded recovery enumeration should succeed");
+    assert_eq!(bounded, vec![IngressId::from("recovery-first")]);
+
+    let claim = IngressStore::claim(
+        &store,
+        IngressId::from("recovery-second"),
+        PlatformTime::new(0),
+        PlatformTime::new(10),
+    )
+    .await
+    .expect("second record should be claimable");
+    let active_only = IngressStore::list_recoverable(&store, PlatformTime::new(5), 10)
+        .await
+        .expect("active leases should be excluded from recovery");
+    assert_eq!(active_only, vec![IngressId::from("recovery-first")]);
+
+    let stale_claim = IngressStore::list_recoverable(&store, PlatformTime::new(10), 10)
+        .await
+        .expect("expired leases should be enumerated for recovery");
+    assert_eq!(
+        stale_claim,
+        vec![
+            IngressId::from("recovery-first"),
+            IngressId::from("recovery-second")
+        ]
+    );
+    assert_eq!(claim.attempt_count(), 1);
+}
+
 fn with_entity_participant(mut event: ProposedEvent, entity_id: EntityId) -> ProposedEvent {
     event.participants = serde_json::from_value(json!([{
         "entity_id": entity_id.to_string(),

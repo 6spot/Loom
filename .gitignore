@@ -25,3 +25,4 @@ Thumbs.db
 # Logs and local data
 *.log
 /data/
+/loom/

@@ -1,0 +1,14 @@
+[package]
+name = "loom-neutral"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-capability = { path = "../../crates/loom-capability" }
+loom-core = { path = "../../crates/loom-core" }
+loom-protocol = { path = "../../crates/loom-protocol" }
+semver = "1"
+serde_json = "1"
+
+[lints]
+workspace = true
