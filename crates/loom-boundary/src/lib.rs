@@ -562,9 +562,19 @@ where
     if let Err(error) = validate_headers(&request, state.config) {
         return error_response(error, state.config);
     }
-    match state.api.catalog() {
-        Ok(catalog) => json_response(StatusCode::OK, &catalog, state.config),
-        Err(error) => error_response(error, state.config),
+    // `CatalogService::catalog` is intentionally synchronous in the public
+    // contract. Run it on Tokio's blocking pool so a network-backed API client
+    // can perform its synchronous compatibility implementation without
+    // entering a blocking HTTP runtime from an async request task.
+    let api = Arc::clone(&state.api);
+    let config = state.config;
+    match tokio::task::spawn_blocking(move || api.catalog()).await {
+        Ok(Ok(catalog)) => json_response(StatusCode::OK, &catalog, config),
+        Ok(Err(error)) => error_response(error, config),
+        Err(_) => error_response(
+            ApiError::unavailable("catalog request worker was unavailable"),
+            config,
+        ),
     }
 }
 
