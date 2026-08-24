@@ -2051,7 +2051,7 @@ pub type ActiveRuntimeRevision = RuntimeRevisionSelection;
 /// application composition root may inject a system-clock adapter; tests can
 /// inject a deterministic implementation without giving a Capability access
 /// to that clock.
-pub trait PlatformClock {
+pub trait PlatformClock: Send + Sync {
     /// Returns the platform time for the current Runtime execution boundary.
     fn now(&self) -> PlatformTime;
 }

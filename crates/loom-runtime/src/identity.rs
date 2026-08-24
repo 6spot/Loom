@@ -13,7 +13,7 @@ use loom_core::{EventId, ExecutionSessionId, TimelineId, WorkId, WorldId};
 /// technical identity only: their ordering is not World history, their clock is
 /// not World Time, and possession of an ID grants no commit authority. Runtime
 /// requires non-nil results before lifecycle persistence is attempted.
-pub trait IdentityAllocator {
+pub trait IdentityAllocator: Send + Sync {
     /// Allocates a fresh World identity.
     fn allocate_world_id(&self) -> WorldId;
 

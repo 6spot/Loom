@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-loom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loom}
+      POSTGRES_DB: ${POSTGRES_DB:-loom_control}
+    volumes:
+      - type: bind
+        source: ${LOOM_DATA_DIR:-./loom}/postgres
+        target: /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  loom-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-loom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loom}
+      POSTGRES_DB: ${POSTGRES_DB:-loom_control}
+      LOOM_DATABASE_URL: postgresql://${POSTGRES_USER:-loom}:${POSTGRES_PASSWORD:-loom}@postgres:5432/${POSTGRES_DB:-loom_control}
+      LOOM_DATA_DIR: /var/lib/loom
+      LOOM_BIND_ADDR: 0.0.0.0:8080
+      LOOM_RUNTIME_REVISION_ID: ${LOOM_RUNTIME_REVISION_ID:-loom-server}
+      LOOM_CORE_BUILD_REF: ${LOOM_CORE_BUILD_REF:-loom-server-0.1.0}
+      LOOM_WORKER_LEASE_MS: ${LOOM_WORKER_LEASE_MS:-30000}
+      LOOM_WORKER_RETRY_BACKOFF_MS: ${LOOM_WORKER_RETRY_BACKOFF_MS:-1000}
+      LOOM_WORKER_POLL_MS: ${LOOM_WORKER_POLL_MS:-100}
+      LOOM_INGRESS_QUEUE_CAPACITY: ${LOOM_INGRESS_QUEUE_CAPACITY:-256}
+    volumes:
+      - type: bind
+        source: ${LOOM_DATA_DIR:-./loom}/blobs
+        target: /var/lib/loom/blobs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${LOOM_PORT:-8080}:8080"
+    restart: unless-stopped

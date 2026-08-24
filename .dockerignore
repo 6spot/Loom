@@ -1,0 +1,6 @@
+.git
+.gitignore
+.env
+loom/
+target/
+**/*.rs.bk
