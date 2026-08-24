@@ -40,6 +40,7 @@ FRAMEWORK_ALLOWLIST: dict[str, set[str]] = {
     },
     "loom-storage": {"loom-core", "loom-runtime"},
     "loom-boundary": {"loom-api"},
+    "loom-client": {"loom-api"},
     "loom-composition-tests": {
         "loom-api",
         "loom-capability",

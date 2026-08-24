@@ -9,6 +9,7 @@ members = [
     "crates/loom-runtime",
     "crates/loom-storage",
     "crates/loom-boundary",
+    "crates/loom-client",
     "apps/loom-server",
     "tests/loom-composition",
 ]

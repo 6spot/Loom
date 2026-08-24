@@ -562,9 +562,19 @@ where
     if let Err(error) = validate_headers(&request, state.config) {
         return error_response(error, state.config);
     }
-    match state.api.catalog() {
-        Ok(catalog) => json_response(StatusCode::OK, &catalog, state.config),
-        Err(error) => error_response(error, state.config),
+    // `CatalogService::catalog` is intentionally synchronous in the public
+    // contract. Run it on Tokio's blocking pool so a network-backed API client
+    // can perform its synchronous compatibility implementation without
+    // entering a blocking HTTP runtime from an async request task.
+    let api = Arc::clone(&state.api);
+    let config = state.config;
+    match tokio::task::spawn_blocking(move || api.catalog()).await {
+        Ok(Ok(catalog)) => json_response(StatusCode::OK, &catalog, config),
+        Ok(Err(error)) => error_response(error, config),
+        Err(_) => error_response(
+            ApiError::unavailable("catalog request worker was unavailable"),
+            config,
+        ),
     }
 }
 
@@ -764,7 +774,7 @@ fn sse_page(page: loom_api::ChangeFeedPage, config: BoundaryConfig) -> Response 
             config,
         );
     }
-    let mut events = Vec::with_capacity(page.events.len());
+    let mut events = Vec::with_capacity(page.events.len() + 1);
     let mut buffered_bytes = 0_usize;
     for event in page.events {
         let Ok(data) = serde_json::to_string(&event) else {
@@ -792,7 +802,39 @@ fn sse_page(page: loom_api::ChangeFeedPage, config: BoundaryConfig) -> Response 
         }
         events.push(Event::default().event("change").id(id).data(data));
     }
+    let metadata = SsePageMetadata {
+        next_cursor: page.next_cursor,
+        has_more: page.has_more,
+    };
+    let Ok(data) = serde_json::to_string(&metadata) else {
+        return error_response(
+            ApiError::internal("Change Feed metadata could not be encoded as SSE"),
+            config,
+        );
+    };
+    buffered_bytes = match buffered_bytes.checked_add(sse_frame_size("page", "", data.len())) {
+        Some(size) => size,
+        None => {
+            return error_response(
+                ApiError::unavailable("SSE response buffer limit was exceeded"),
+                config,
+            );
+        }
+    };
+    if buffered_bytes > config.sse_buffer_bytes {
+        return error_response(
+            ApiError::unavailable("SSE response buffer limit was exceeded"),
+            config,
+        );
+    }
+    events.push(Event::default().event("page").data(data));
     sse_response(events)
+}
+
+#[derive(Serialize)]
+struct SsePageMetadata {
+    next_cursor: Option<loom_api::ChangeFeedCursor>,
+    has_more: bool,
 }
 
 fn sse_event_response<T>(
@@ -1314,7 +1356,7 @@ mod tests {
         let page = ChangeFeedPage {
             events: vec![event],
             next_cursor: Some(ChangeFeedCursor::after(target, EventSeq::new(3))),
-            has_more: false,
+            has_more: true,
         };
         let response = super::subscription_response(
             SubscriptionResult::Events(page),
@@ -1324,6 +1366,8 @@ mod tests {
         let events = body(response).await;
         assert!(events.contains("event: change"));
         assert!(events.contains("id: 3"));
+        assert!(events.contains("event: page"));
+        assert!(events.contains("\"has_more\":true"));
 
         let response = super::subscription_response(
             SubscriptionResult::Reconnect(SubscriptionReconnect {
