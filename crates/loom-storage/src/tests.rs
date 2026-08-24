@@ -7,15 +7,16 @@ use std::{
 };
 
 use loom_agency::{
-    CognitiveExecutor, CognitiveFuture, CognitiveMetadata, CognitiveRequest, DecisionReusePolicy,
-    ExecutionPolicy,
+    AgentContextRequest, CognitiveError, CognitiveExecutor, CognitiveFuture, CognitiveMetadata,
+    CognitiveRequest, ContextSource, DecisionReusePolicy, ExecutionPolicy, ExecutorMetadata,
 };
 use loom_api::{
     ActionRequest, ActionService, AdminScheduleAgencyWakeRequest, AdminService,
     AdminTerminalWorkState, AdminTerminalizeWorkRequest, ApiErrorCode, ChangeFeedCursor,
-    ExecutionResult, ForkTimelineRequest, IngressAuthorizationContext, IngressEnvelope, IngressId,
-    IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata, SubscriptionRequest,
-    SubscriptionResult, SubscriptionService, TimelineTarget,
+    CreateWorldFromTemplateRequest, ExecutionResult, ForkTimelineRequest,
+    IngressAuthorizationContext, IngressEnvelope, IngressId, IngressProvenance, IngressService,
+    IngressStatus, IngressTimeMetadata, SubscriptionRequest, SubscriptionResult,
+    SubscriptionService, TimelineTarget, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     ActionDefinition, ActionResolver, Capability, CapabilityDependency, CapabilityId,
@@ -33,10 +34,11 @@ use loom_protocol::{
     WorkMutation, WorkSchedule,
 };
 use loom_runtime::{
-    AdvanceWorldTime, BindingError, ChangeFeedStore, ChronologyBudgetExceeded,
-    CognitiveDisposition, CommitAuthorityContext, CommitError, CommitStore,
-    DeterministicCognitiveExecutor, DeterministicCognitiveStep, EffectEngine, ForkWork,
-    IngressStore, IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PlatformTime,
+    AdvanceWorldTime, AgentContextItem, AgentContextPlan, AgentWorldViewBuilder, BindingError,
+    ChangeFeedStore, ChronologyBudgetExceeded, CognitiveDisposition, CommitAuthorityContext,
+    CommitError, CommitStore, DeterministicCognitiveExecutor, DeterministicCognitiveStep,
+    EffectEngine, ExecutionEvidence, ExecutionSessionStore, ForkWork, IngressStore,
+    IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PinnedReadPolicy, PlatformTime,
     Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
     TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
@@ -1858,6 +1860,549 @@ async fn agency_technical_failure_retries_pending_wake_without_commit() {
     assert!(snapshot.works[0].lease.is_none());
     assert_eq!(snapshot.works[0].attempt_count, 1);
     assert_eq!(snapshot.chronology_budget().consumed, 0);
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the M10 final gate keeps the complete deterministic Agency lifecycle in one scenario"
+)]
+async fn m10_agency_gate_covers_visibility_order_restart_fork_revision_and_provenance() {
+    let store = InMemoryStore::new();
+    let setup_runtime = Runtime::new(&store, registry()).expect("Agency Runtime should assemble");
+    let revision_one = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("r1"),
+        PlatformTime::new(1),
+        "loom-core-build-1",
+        Version::new(0, 1, 0),
+        [RuntimeRevisionCapability::new(
+            OWNER,
+            "test-build-1",
+            Version::new(0, 1, 0),
+            VersionReq::STAR,
+        )],
+    )
+    .expect("Agency Runtime Revision R1 should be valid")
+    .with_execution_policy_id("execution-v1")
+    .with_provider_policy_id("provider-v1");
+    setup_runtime
+        .register_runtime_revision(revision_one.clone())
+        .await
+        .expect("Agency Runtime Revision R1 should publish");
+    setup_runtime
+        .activate_runtime_revision(RuntimeRevisionId::from("r1"), None, PlatformTime::new(1))
+        .await
+        .expect("Agency Runtime Revision R1 should activate");
+
+    let target = setup_runtime
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new("agency.gate", 1, WorldInstant::new(0))
+                .requires_capability(OWNER, "^0.1.0")
+                .with_bootstrap_action(ActionInvocation::new(
+                    ActionTypeId::from(EVENT_ACTION),
+                    json!({"event_id": event(4400).to_string()}),
+                )),
+        ))
+        .await
+        .expect("Template-backed Agency World should be created")
+        .target;
+    let world_id = target.world_id;
+    let timeline_id = target.timeline_id;
+    let agent_id = entity(4401);
+    let visible_facet = FacetTypeId::from("test.facet");
+    let hidden_facet = FacetTypeId::from("hidden.authoritative");
+    store
+        .seed_entity(
+            timeline_id,
+            Entity {
+                id: agent_id,
+                world_id,
+            },
+        )
+        .expect("Agency Agent should be seeded in the Template World");
+    store
+        .seed_facet(
+            timeline_id,
+            FacetOwner::entity(agent_id),
+            visible_facet.clone(),
+            SchemaRevision::new(1),
+            json!({"value": 7}),
+        )
+        .expect("Agent-visible Facet should be seeded");
+    store
+        .seed_facet(
+            timeline_id,
+            FacetOwner::entity(agent_id),
+            hidden_facet.clone(),
+            SchemaRevision::new(1),
+            json!({"secret": "authoritative-only"}),
+        )
+        .expect("hidden authoritative Facet should be seeded");
+    assert_eq!(
+        store
+            .read_binding(world_id)
+            .expect("Template Binding should be readable")
+            .template_provenance(),
+        Some("agency.gate@1")
+    );
+
+    let wake_ids = [
+        work(4402),
+        work(4403),
+        work(4404),
+        work(4405),
+        work(4406),
+        work(4407),
+    ];
+    let mut expected_version = store
+        .snapshot(timeline_id)
+        .expect("Template Timeline should be readable")
+        .version();
+    for (work_id, cognition) in wake_ids.into_iter().zip([
+        "deterministic.fake",
+        "deterministic.fake",
+        "deterministic.fake",
+        "deterministic.fake",
+        "deterministic.fake",
+        "missing.cognitive",
+    ]) {
+        expected_version = AdminService::schedule_agency_wake(
+            &setup_runtime,
+            AdminScheduleAgencyWakeRequest {
+                target,
+                expected_version,
+                work_id,
+                agent: agent_id,
+                cognition: cognition.to_owned(),
+                payload: json!({"wake": work_id.to_string()}),
+                schedule: WorkSchedule::Immediate,
+            },
+        )
+        .await
+        .expect("same-instant Agency Wake should schedule through Work authority")
+        .version;
+    }
+
+    let parent_before_claims = store
+        .snapshot(timeline_id)
+        .expect("parent Agency Timeline should be readable before claims");
+    assert!(
+        parent_before_claims
+            .works
+            .iter()
+            .all(|work| work.effective_due_world_time == WorldInstant::new(0))
+    );
+    assert_eq!(
+        parent_before_claims
+            .works
+            .iter()
+            .map(|work| work.logical_schedule_order)
+            .collect::<Vec<_>>(),
+        (1..=6).collect::<Vec<_>>()
+    );
+
+    let fork = setup_runtime
+        .fork(ForkTimelineRequest::new(target))
+        .await
+        .expect("fork with Pending Agency Wakes should survive");
+    let fork_snapshot = store
+        .snapshot(fork.target.timeline_id)
+        .expect("forked Agency Timeline should be readable");
+    assert_eq!(fork_snapshot.works.len(), 6);
+    assert!(
+        fork_snapshot
+            .works
+            .iter()
+            .all(|work| work.status == WorkStatus::Pending)
+    );
+    assert!(fork_snapshot.works.iter().all(|forked| {
+        parent_before_claims.works.iter().any(|parent| {
+            forked.id != parent.id
+                && forked.target == parent.target
+                && forked.effective_due_world_time == parent.effective_due_world_time
+                && forked.logical_schedule_order == parent.logical_schedule_order
+        })
+    }));
+
+    let technical_runtime = Runtime::new(&store, registry())
+        .expect("technical-failure Runtime should assemble")
+        .with_cognitive_executor(agency_executor([
+            DeterministicCognitiveStep::technical_failure(CognitiveError::failed(
+                "deterministic provider failure",
+            )),
+        ]));
+    assert!(
+        technical_runtime
+            .execute_work(
+                target,
+                work(4402),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(2),
+            )
+            .await
+            .is_err()
+    );
+    let after_technical_failure = store
+        .snapshot(timeline_id)
+        .expect("technical failure snapshot should be readable");
+    let failed_work = after_technical_failure
+        .works
+        .iter()
+        .find(|record| record.id == work(4402))
+        .expect("technical Agency Wake should remain readable");
+    assert_eq!(failed_work.status, WorkStatus::Pending);
+    assert_eq!(failed_work.attempt_count, 1);
+    assert!(failed_work.lease.is_none());
+    assert_eq!(
+        after_technical_failure.chronology_budget().consumed,
+        parent_before_claims.chronology_budget().consumed
+    );
+
+    let failed_session = store
+        .list_sessions()
+        .expect("technical Agency Session should be readable")
+        .into_iter()
+        .find(|session| {
+            session.root().target_work == Some(work(4402))
+                && session.status() == loom_runtime::ExecutionSessionStatus::Failed
+        })
+        .expect("technical Agency Session should be persisted");
+    assert_eq!(
+        failed_session.assembly().runtime_revision().revision().id(),
+        &RuntimeRevisionId::from("r1")
+    );
+
+    let direct_executor = Arc::new(agency_executor([DeterministicCognitiveStep::no_action()]));
+    let direct_runtime = Runtime::new(&store, registry())
+        .expect("visibility Runtime should assemble")
+        .with_cognitive_executor(SharedAgencyExecutor(Arc::clone(&direct_executor)));
+    let pinned = direct_runtime
+        .open_pinned_read(failed_session.assembly())
+        .await
+        .expect("failed Agency Session coordinate should remain readable");
+    let request = AgentContextRequest::new(
+        loom_agency::AgentRef::new(agent_id),
+        timeline_id,
+        failed_session.assembly().expected_version(),
+        failed_session.assembly().world_time(),
+        failed_session
+            .assembly()
+            .cognitive()
+            .policy()
+            .context_budget,
+    );
+    let visible_plan = AgentContextPlan::new().with_item(AgentContextItem::facet(
+        "agent.visible",
+        ContextSource::Observation,
+        FacetOwner::entity(agent_id),
+        visible_facet,
+    ));
+    let mut builder = AgentWorldViewBuilder::new(&store, PinnedReadPolicy::default());
+    let visible_view = builder
+        .build(
+            &pinned,
+            request,
+            &visible_plan,
+            &registry(),
+            failed_session.assembly(),
+        )
+        .await
+        .expect("Agent-visible data should cross the bounded context builder");
+    assert_eq!(visible_view.context.entries.len(), 1);
+    assert_eq!(visible_view.context.entries[0].value, json!({"value": 7}));
+    let hidden_error = builder
+        .build(
+            &pinned,
+            request,
+            &AgentContextPlan::new().with_item(AgentContextItem::facet(
+                "agent.hidden",
+                ContextSource::Knowledge,
+                FacetOwner::entity(agent_id),
+                hidden_facet,
+            )),
+            &registry(),
+            failed_session.assembly(),
+        )
+        .await
+        .expect_err("hidden authoritative data must be denied before cognition");
+    assert!(matches!(
+        hidden_error,
+        loom_runtime::AgentWorldViewError::VisibilityDenied { .. }
+    ));
+    let mut direct_evidence =
+        ExecutionEvidence::new(failed_session.assembly().entropy_source_id().clone());
+    direct_runtime
+        .execute_cognitive(
+            failed_session.assembly(),
+            &pinned,
+            visible_view,
+            &mut direct_evidence,
+        )
+        .await
+        .expect("cognition should receive only the visible Agent view");
+    let request = &direct_executor.requests()[0];
+    assert_eq!(request.view.context.entries.len(), 1);
+    assert!(
+        request
+            .view
+            .context
+            .entries
+            .iter()
+            .all(|entry| entry.key != "agent.hidden")
+    );
+    assert_eq!(direct_evidence.cognitive_evidence.len(), 1);
+    drop(direct_runtime);
+    drop(technical_runtime);
+
+    let restart_runtime = Runtime::new(&store, registry())
+        .expect("restarted Runtime should assemble")
+        .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::no_action()]));
+    restart_runtime
+        .execute_work(
+            target,
+            work(4402),
+            PlatformTime::new(2),
+            PlatformTime::new(12),
+            PlatformTime::new(4),
+        )
+        .await
+        .expect("restarted Runtime should complete the retained Wake");
+    drop(restart_runtime);
+
+    let revision_two = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("r2"),
+        PlatformTime::new(3),
+        "loom-core-build-2",
+        Version::new(0, 1, 0),
+        [RuntimeRevisionCapability::new(
+            OWNER,
+            "test-build-2",
+            Version::new(0, 1, 0),
+            VersionReq::STAR,
+        )],
+    )
+    .expect("compatible Agency Runtime Revision R2 should be valid")
+    .with_execution_policy_id("execution-v2")
+    .with_provider_policy_id("provider-v2");
+    let revision_runtime = Runtime::new(&store, registry())
+        .expect("R2 Runtime should assemble")
+        .with_cognitive_executor(DeterministicCognitiveExecutor::with_metadata(
+            CognitiveMetadata::new(ExecutorMetadata::new("deterministic.fake", "2")),
+            [
+                DeterministicCognitiveStep::act(ActionInvocation::new(
+                    ActionTypeId::from(EVENT_ACTION),
+                    json!({"event_id": event(4408).to_string()}),
+                )),
+                DeterministicCognitiveStep::act(ActionInvocation::new(
+                    ActionTypeId::from(SEMANTIC_REJECT_ACTION),
+                    json!({}),
+                )),
+                DeterministicCognitiveStep::no_action().with_delay_polls(2),
+                DeterministicCognitiveStep::no_action(),
+            ],
+        ));
+    revision_runtime
+        .register_runtime_revision(revision_two.clone())
+        .await
+        .expect("compatible Agency Runtime Revision R2 should publish");
+    let r1_generation = revision_runtime
+        .active_runtime_revision()
+        .await
+        .expect("active Agency Runtime Revision should be readable")
+        .expect("R1 should remain active before the switch")
+        .generation();
+    revision_runtime
+        .activate_runtime_revision(
+            RuntimeRevisionId::from("r2"),
+            Some(r1_generation),
+            PlatformTime::new(4),
+        )
+        .await
+        .expect("compatible Agency Runtime Revision R2 should activate");
+    revision_runtime
+        .execute_work(
+            target,
+            work(4403),
+            PlatformTime::new(4),
+            PlatformTime::new(14),
+            PlatformTime::new(6),
+        )
+        .await
+        .expect("R2 Agency Act should use normal Action authority");
+    let rejection = revision_runtime
+        .execute_work(
+            target,
+            work(4404),
+            PlatformTime::new(5),
+            PlatformTime::new(15),
+            PlatformTime::new(7),
+        )
+        .await
+        .expect("semantic rejection should complete its Wake");
+    assert!(rejection.is_rejected());
+
+    store.inject_scheduler_conflict_once_for_test(work(4406));
+    assert!(matches!(
+        revision_runtime
+            .execute_work(
+                target,
+                work(4405),
+                PlatformTime::new(6),
+                PlatformTime::new(16),
+                PlatformTime::new(8),
+            )
+            .await,
+        Err(loom_api::ApiError {
+            code: ApiErrorCode::Conflict,
+            ..
+        })
+    ));
+    let after_cas_loss = store
+        .snapshot(timeline_id)
+        .expect("CAS-loss snapshot should be readable");
+    assert_eq!(
+        after_cas_loss
+            .works
+            .iter()
+            .find(|record| record.id == work(4405))
+            .expect("delayed Agency Wake should remain pending")
+            .status,
+        WorkStatus::Pending
+    );
+    assert_eq!(
+        after_cas_loss
+            .works
+            .iter()
+            .find(|record| record.id == work(4405))
+            .expect("delayed Agency Wake should remain readable")
+            .attempt_count,
+        1
+    );
+    assert_eq!(
+        after_cas_loss
+            .works
+            .iter()
+            .find(|record| record.id == work(4406))
+            .expect("CAS conflict Work should remain readable")
+            .status,
+        WorkStatus::Cancelled
+    );
+    revision_runtime
+        .execute_work(
+            target,
+            work(4405),
+            PlatformTime::new(8),
+            PlatformTime::new(18),
+            PlatformTime::new(10),
+        )
+        .await
+        .expect("resampled delayed Agency Wake should complete once");
+
+    assert!(
+        revision_runtime
+            .execute_work(
+                target,
+                work(4407),
+                PlatformTime::new(10),
+                PlatformTime::new(20),
+                PlatformTime::new(12),
+            )
+            .await
+            .is_err()
+    );
+    let final_snapshot = store
+        .snapshot(timeline_id)
+        .expect("final Agency Timeline should be readable");
+    assert_eq!(final_snapshot.events.len(), 2);
+    assert!(
+        final_snapshot
+            .events
+            .iter()
+            .all(|event| event.occurred_at == WorldInstant::new(0))
+    );
+    assert_eq!(
+        final_snapshot
+            .works
+            .iter()
+            .find(|record| record.id == work(4407))
+            .expect("missing cognitive Wake should remain readable")
+            .attempt_count,
+        0,
+        "missing cognitive software must not consume an attempt"
+    );
+    assert!(
+        final_snapshot
+            .works
+            .iter()
+            .filter(|work| work.logical_schedule_order <= 5)
+            .all(|work| !work.is_pending())
+    );
+    assert_eq!(
+        store
+            .snapshot(fork.target.timeline_id)
+            .expect("fork should remain readable after parent execution")
+            .works
+            .iter()
+            .filter(|work| work.is_pending())
+            .count(),
+        6,
+        "parent claims must not mutate forked Pending Wakes"
+    );
+
+    let sessions = store
+        .list_sessions()
+        .expect("Agency Session provenance should survive restart");
+    let w2_session = sessions
+        .iter()
+        .find(|session| {
+            session.root().target_work == Some(work(4403))
+                && session.status() == loom_runtime::ExecutionSessionStatus::Committed
+        })
+        .expect("R2 Act Session should be present");
+    assert_eq!(
+        w2_session.assembly().runtime_revision().revision().id(),
+        &RuntimeRevisionId::from("r2")
+    );
+    let cognitive = &w2_session.cognitive_evidence().observations()[0];
+    assert_eq!(cognitive.metadata.executor.id, "deterministic.fake");
+    assert_eq!(cognitive.metadata.executor.revision, "2");
+    assert_eq!(cognitive.policy.policy_id, "execution-v2");
+    assert_eq!(cognitive.timeline_id, timeline_id);
+    assert_eq!(cognitive.context_usage.entries, 0);
+    assert!(cognitive.context_read_set.is_empty());
+    let event_session =
+        ExecutionSessionStore::session_for_event(&store, EventRef::new(timeline_id, event(4408)))
+            .await
+            .expect("Agency Event should resolve to its Session");
+    assert_eq!(event_session, Some(w2_session.id()));
+    assert_eq!(
+        ExecutionSessionStore::events_for_session(&store, w2_session.id())
+            .await
+            .expect("Session Event refs should survive restart"),
+        vec![EventRef::new(timeline_id, event(4408))]
+    );
+    let w3_session = sessions
+        .iter()
+        .find(|session| {
+            session.root().target_work == Some(work(4404))
+                && session.status() == loom_runtime::ExecutionSessionStatus::Rejected
+        })
+        .expect("semantic rejection Session should be present");
+    assert!(w3_session.event_refs().is_empty());
+    let w4_sessions = sessions
+        .iter()
+        .filter(|session| session.root().target_work == Some(work(4405)))
+        .collect::<Vec<_>>();
+    assert_eq!(w4_sessions.len(), 2);
+    assert!(w4_sessions.iter().any(|session| {
+        session.status() == loom_runtime::ExecutionSessionStatus::Failed
+            && session.cognitive_evidence().discarded_count() == 1
+    }));
+    assert!(w4_sessions.iter().any(|session| {
+        session.status() == loom_runtime::ExecutionSessionStatus::Committed
+            && session.cognitive_evidence().fresh_count() == 1
+    }));
 }
 
 #[tokio::test]
