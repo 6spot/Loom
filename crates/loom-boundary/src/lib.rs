@@ -138,7 +138,7 @@ impl Default for BoundaryConfig {
 }
 
 impl BoundaryConfig {
-    /// Creates transport limits, rejecting zero-valued limits.
+    /// Creates transport limits, rejecting zero-valued or impossible limits.
     ///
     /// # Errors
     ///
@@ -169,6 +169,18 @@ impl BoundaryConfig {
         }
         if max_concurrent_requests == 0 {
             return Err(BoundaryConfigError::ZeroConcurrencyLimit);
+        }
+        if max_header_bytes > max_body_bytes {
+            return Err(BoundaryConfigError::HeaderLimitExceedsBody);
+        }
+        if max_response_bytes < max_body_bytes {
+            return Err(BoundaryConfigError::ResponseLimitBelowBody);
+        }
+        if max_sse_buffer_bytes > max_response_bytes {
+            return Err(BoundaryConfigError::SseBufferLimitExceedsResponse);
+        }
+        if max_sse_events > loom_api::MAX_CHANGE_FEED_PAGE_SIZE {
+            return Err(BoundaryConfigError::SseEventLimitExceedsPublic);
         }
         Ok(Self {
             body_bytes: max_body_bytes,
@@ -232,6 +244,14 @@ pub enum BoundaryConfigError {
     ZeroSseEventLimit,
     /// The request concurrency bound was zero.
     ZeroConcurrencyLimit,
+    /// Header bytes cannot exceed the request body budget.
+    HeaderLimitExceedsBody,
+    /// A response must be able to carry a bounded request response envelope.
+    ResponseLimitBelowBody,
+    /// An SSE buffer cannot exceed the encoded response budget.
+    SseBufferLimitExceedsResponse,
+    /// Public Change Feed pagination is smaller than the configured SSE page.
+    SseEventLimitExceedsPublic,
 }
 
 impl Display for BoundaryConfigError {
@@ -243,6 +263,16 @@ impl Display for BoundaryConfigError {
             Self::ZeroSseBufferLimit => "SSE buffer limit must be positive",
             Self::ZeroSseEventLimit => "SSE event limit must be positive",
             Self::ZeroConcurrencyLimit => "request concurrency limit must be positive",
+            Self::HeaderLimitExceedsBody => {
+                "request header limit must not exceed request body limit"
+            }
+            Self::ResponseLimitBelowBody => "response limit must not be below request body limit",
+            Self::SseBufferLimitExceedsResponse => {
+                "SSE buffer limit must not exceed response limit"
+            }
+            Self::SseEventLimitExceedsPublic => {
+                "SSE event limit must not exceed the public Change Feed bound"
+            }
         };
         formatter.write_str(message)
     }
@@ -1448,7 +1478,7 @@ mod tests {
     use serde_json::json;
     use tower::ServiceExt;
 
-    use super::{BoundaryConfig, router};
+    use super::{BoundaryConfig, BoundaryConfigError, router};
 
     #[derive(Default)]
     struct FakeApi {
@@ -1624,7 +1654,7 @@ mod tests {
 
     #[tokio::test]
     async fn error_response_is_capped_when_config_is_smaller_than_fallback() {
-        let config = BoundaryConfig::new(1024, 1024, 8, 1024, 10, 1).expect("valid limits");
+        let config = BoundaryConfig::new(8, 8, 8, 8, 10, 1).expect("valid limits");
         let response = super::error_response(ApiError::internal("internal details"), config);
         let declared_length = response
             .headers()
@@ -1642,7 +1672,7 @@ mod tests {
 
     #[tokio::test]
     async fn oversized_json_response_is_capped_and_preserves_typed_error() {
-        let config = BoundaryConfig::new(1024, 1024, 256, 1024, 10, 1).expect("valid limits");
+        let config = BoundaryConfig::new(8, 8, 256, 256, 10, 1).expect("valid limits");
         let value = json!({ "payload": "x".repeat(1024) });
         let response = super::json_response(StatusCode::OK, &value, config);
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -1675,7 +1705,7 @@ mod tests {
 
     #[tokio::test]
     async fn serialization_failure_response_is_capped() {
-        let config = BoundaryConfig::new(1024, 1024, 8, 1024, 10, 1).expect("valid limits");
+        let config = BoundaryConfig::new(8, 8, 8, 8, 10, 1).expect("valid limits");
         let response = super::json_response(StatusCode::OK, &FailingSerialize, config);
         let declared_length = response
             .headers()
@@ -1794,14 +1824,56 @@ mod tests {
     #[tokio::test]
     async fn oversized_body_is_rejected_before_api_dispatch() {
         let api = Arc::new(FakeApi::default());
-        let config = BoundaryConfig::new(8, 1024, 1024, 1024, 10, 1).expect("valid limits");
+        let config = BoundaryConfig::new(64, 64, 1024, 1024, 10, 1).expect("valid limits");
         let app = router(api.clone(), config);
         let response = app
-            .oneshot(request("POST", "/v1/actions", Some("123456789".to_owned())))
+            .oneshot(request("POST", "/v1/actions", Some("x".repeat(65))))
             .await
             .expect("router response");
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         assert!(body(response).await.contains("request body exceeds"));
         assert!(api.calls.lock().expect("call log lock").is_empty());
+    }
+
+    #[tokio::test]
+    async fn json_body_accepts_under_and_exact_limits_and_rejects_over() {
+        let config = BoundaryConfig::new(4, 4, 4, 4, 1, 1).expect("valid limits");
+        let under: serde_json::Value =
+            super::json_body(request("POST", "/", Some("0".to_owned())), config)
+                .await
+                .expect("under-limit JSON should pass");
+        assert_eq!(under, json!(0));
+        let exact: serde_json::Value =
+            super::json_body(request("POST", "/", Some("null".to_owned())), config)
+                .await
+                .expect("exact-limit JSON should pass");
+        assert_eq!(exact, serde_json::Value::Null);
+        let over = super::json_body::<serde_json::Value>(
+            request("POST", "/", Some("{}xxx".to_owned())),
+            config,
+        )
+        .await
+        .expect_err("over-limit JSON should fail before parsing");
+        assert_eq!(over.message, "request body exceeds the transport limit");
+    }
+
+    #[test]
+    fn impossible_transport_limit_combinations_fail_at_startup() {
+        assert_eq!(
+            BoundaryConfig::new(8, 9, 9, 9, 1, 1),
+            Err(BoundaryConfigError::HeaderLimitExceedsBody)
+        );
+        assert_eq!(
+            BoundaryConfig::new(8, 8, 7, 7, 1, 1),
+            Err(BoundaryConfigError::ResponseLimitBelowBody)
+        );
+        assert_eq!(
+            BoundaryConfig::new(8, 8, 8, 9, 1, 1),
+            Err(BoundaryConfigError::SseBufferLimitExceedsResponse)
+        );
+        assert_eq!(
+            BoundaryConfig::new(8, 8, 8, 8, loom_api::MAX_CHANGE_FEED_PAGE_SIZE + 1, 1),
+            Err(BoundaryConfigError::SseEventLimitExceedsPublic)
+        );
     }
 }

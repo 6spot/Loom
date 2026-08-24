@@ -579,6 +579,34 @@ where
                 actual: request.limit,
             });
         }
+        let runtime_policy = assembly.execution_policy();
+        if let Some(limit) = runtime_policy.max_semantic_results()
+            && request.limit > u32::try_from(limit).unwrap_or(u32::MAX)
+        {
+            return Err(AgentWorldViewError::BudgetExceeded {
+                dimension: "semantic_results".to_owned(),
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: request.limit,
+            });
+        }
+        if let Some(limit) = runtime_policy.max_semantic_depth()
+            && request.depth > u32::try_from(limit).unwrap_or(u32::MAX)
+        {
+            return Err(AgentWorldViewError::BudgetExceeded {
+                dimension: "depth".to_owned(),
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: request.depth,
+            });
+        }
+        if let Some(limit) = runtime_policy.max_semantic_filters()
+            && request.filters.len() > limit
+        {
+            return Err(AgentWorldViewError::BudgetExceeded {
+                dimension: "semantic_filters".to_owned(),
+                limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                actual: u32::try_from(request.filters.len()).unwrap_or(u32::MAX),
+            });
+        }
         let max_result_bytes = assembly
             .execution_policy()
             .max_semantic_result_bytes()
@@ -1145,7 +1173,7 @@ mod tests {
             binding,
             selection,
             implementations,
-            crate::ResolutionBudget::unlimited(),
+            &crate::ResolutionBudget::unlimited(),
             EntropySourceId::from("semantic-context-test-entropy"),
         )
     }

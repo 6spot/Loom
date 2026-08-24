@@ -27,7 +27,11 @@ tree while preserving the `postgres/` and `blobs/` child names.
 
 Required deployment variables are `POSTGRES_USER`, `POSTGRES_PASSWORD`,
 `POSTGRES_DB`, `LOOM_DATABASE_URL` (native startup), and `LOOM_DATA_DIR`.
-`LOOM_BIND_ADDR`, Runtime publication metadata, bounded worker settings, and
-HTTP limits have non-secret defaults documented in `.env.example`. Provider
-credentials are not part of this composition root and must be supplied only by
-application configuration when a reviewed provider adapter is installed.
+`LOOM_BIND_ADDR`, Runtime publication metadata, bounded worker settings,
+Runtime semantic/resource limits, and HTTP limits have non-secret defaults
+documented in `.env.example`. Runtime limits are enforced for in-process
+callers as well as HTTP requests; transport limits are an independent early
+rejection layer. Chronology and technical retry policies are also configured at
+the composition root. Provider credentials are not part of this composition
+root and must be supplied only by application configuration when a reviewed
+provider adapter is installed.

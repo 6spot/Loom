@@ -413,7 +413,11 @@ impl LoomServer {
                 stage: "Runtime assembly",
             })?
             .with_platform_clock(SystemClock)
-            .with_entropy_source(SystemEntropySource);
+            .with_entropy_source(SystemEntropySource)
+            .with_resolution_budget(config.resolution_budget)
+            .with_history_budget(config.history_budget)
+            .with_failure_policy(config.failure_policy)
+            .with_chronology_budget(config.chronology_budget);
         let revision =
             match RuntimeRevisionStore::read_revision(&storage, config.revision_id.clone().into())
                 .await
@@ -439,13 +443,21 @@ impl LoomServer {
                 stage: "Scheduler Runtime assembly",
             })?
             .with_platform_clock(SystemClock)
-            .with_entropy_source(SystemEntropySource);
+            .with_entropy_source(SystemEntropySource)
+            .with_resolution_budget(config.resolution_budget)
+            .with_history_budget(config.history_budget)
+            .with_failure_policy(config.failure_policy)
+            .with_chronology_budget(config.chronology_budget);
         let ingress_runtime = Runtime::new(storage.clone(), installed_registry()?)
             .map_err(|_| ServerError::Startup {
                 stage: "Ingress Runtime assembly",
             })?
             .with_platform_clock(SystemClock)
-            .with_entropy_source(SystemEntropySource);
+            .with_entropy_source(SystemEntropySource)
+            .with_resolution_budget(config.resolution_budget)
+            .with_history_budget(config.history_budget)
+            .with_failure_policy(config.failure_policy)
+            .with_chronology_budget(config.chronology_budget);
 
         let (ingress_sender, ingress_receiver) = mpsc::channel(config.ingress_queue_capacity);
         let recovery_ids = ingress_runtime
@@ -560,6 +572,7 @@ impl LoomServer {
             let result = run_scheduler_until_shutdown(
                 &mut worker,
                 config.worker_poll_interval,
+                config.worker_config.scheduler_poll_limit(),
                 scheduler_shutdown.clone(),
             )
             .await
@@ -593,6 +606,7 @@ pub async fn run_from_env() -> Result<(), ServerError> {
 async fn run_scheduler_until_shutdown<S>(
     worker: &mut SchedulerWorker<S, SystemClock>,
     poll_interval: std::time::Duration,
+    poll_limit: usize,
     shutdown: ShutdownSignal,
 ) -> ApiResult<()>
 where
@@ -608,7 +622,7 @@ where
         + PinnedWorldReadStore,
 {
     while !shutdown.is_requested() {
-        worker.run_bounded(1).await?;
+        worker.run_bounded(poll_limit).await?;
         sleep(poll_interval).await;
     }
     Ok(())

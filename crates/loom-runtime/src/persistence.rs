@@ -1233,7 +1233,7 @@ impl ExecutionAssembly {
         binding: WorldRuntimeBinding,
         runtime_revision: RuntimeRevisionSelection,
         implementations: RuntimeRevisionAssembly,
-        execution_policy: ResolutionBudget,
+        execution_policy: &ResolutionBudget,
         entropy_source_id: EntropySourceId,
     ) -> Self {
         Self {
@@ -1245,7 +1245,7 @@ impl ExecutionAssembly {
             binding,
             runtime_revision,
             implementations,
-            execution_policy,
+            execution_policy: *execution_policy,
             entropy_source_id,
             cognitive: CognitiveAssembly::default(),
         }

@@ -49,6 +49,8 @@ use tokio::sync::Notify;
 pub struct WorkerConfig {
     lease_duration: i64,
     retry_backoff: i64,
+    scheduler_poll_limit: usize,
+    recovery_batch_size: usize,
 }
 
 impl WorkerConfig {
@@ -69,7 +71,42 @@ impl WorkerConfig {
         Ok(Self {
             lease_duration,
             retry_backoff,
+            scheduler_poll_limit: 1,
+            recovery_batch_size: 256,
         })
+    }
+
+    /// Sets the maximum number of scheduler items processed per poll.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the limit is zero.
+    pub const fn with_scheduler_poll_limit(
+        mut self,
+        limit: usize,
+    ) -> Result<Self, WorkerConfigError> {
+        if limit == 0 {
+            return Err(WorkerConfigError::NonPositiveSchedulerPollLimit);
+        }
+        self.scheduler_poll_limit = limit;
+        Ok(self)
+    }
+
+    /// Sets the maximum number of recoverable Ingress records scanned per
+    /// idle recovery pass.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the limit is zero.
+    pub const fn with_recovery_batch_size(
+        mut self,
+        limit: usize,
+    ) -> Result<Self, WorkerConfigError> {
+        if limit == 0 {
+            return Err(WorkerConfigError::NonPositiveRecoveryBatchSize);
+        }
+        self.recovery_batch_size = limit;
+        Ok(self)
     }
 
     /// Returns the platform duration reserved for one active claim.
@@ -83,6 +120,18 @@ impl WorkerConfig {
     pub const fn retry_backoff(self) -> i64 {
         self.retry_backoff
     }
+
+    /// Returns the scheduler poll item bound.
+    #[must_use]
+    pub const fn scheduler_poll_limit(self) -> usize {
+        self.scheduler_poll_limit
+    }
+
+    /// Returns the idle recovery batch bound.
+    #[must_use]
+    pub const fn recovery_batch_size(self) -> usize {
+        self.recovery_batch_size
+    }
 }
 
 /// Invalid application-owned worker timing.
@@ -92,6 +141,10 @@ pub enum WorkerConfigError {
     NonPositiveLease,
     /// Retry availability cannot move backwards from the sampled platform time.
     NegativeRetryBackoff,
+    /// A scheduler poll must process at least one item when enabled.
+    NonPositiveSchedulerPollLimit,
+    /// An idle recovery pass must scan at least one item when enabled.
+    NonPositiveRecoveryBatchSize,
 }
 
 impl std::fmt::Display for WorkerConfigError {
@@ -100,6 +153,12 @@ impl std::fmt::Display for WorkerConfigError {
             Self::NonPositiveLease => formatter.write_str("worker lease duration must be positive"),
             Self::NegativeRetryBackoff => {
                 formatter.write_str("worker retry backoff must not be negative")
+            }
+            Self::NonPositiveSchedulerPollLimit => {
+                formatter.write_str("worker scheduler poll limit must be positive")
+            }
+            Self::NonPositiveRecoveryBatchSize => {
+                formatter.write_str("worker recovery batch size must be positive")
             }
         }
     }

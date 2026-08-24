@@ -103,7 +103,7 @@ pub use blob::{
     BLOB_HASH_SIZE, BlobError, BlobHash, BlobHashParseError, BlobId, BlobMetadata, BlobObject,
     BlobRef, BlobStore,
 };
-pub use budget::{BudgetDimension, BudgetError, BudgetUsage, ResolutionBudget};
+pub use budget::{BudgetDimension, BudgetError, BudgetUsage, HistoryBudget, ResolutionBudget};
 pub use cognitive::{CognitiveGatewayError, UnavailableCognitiveExecutor};
 pub use entropy::{
     DeterministicEntropySource, EntropySource, EntropySourceError, EntropySourceId,
