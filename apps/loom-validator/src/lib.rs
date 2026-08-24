@@ -8,15 +8,21 @@
 
 mod backend;
 mod feedback;
+mod finding;
+mod outcome;
 mod registry;
 mod reports;
 mod runner;
+mod scenario;
 
 pub use backend::BackendContext;
 pub use feedback::TaskLedgerFeedback;
-pub use registry::{ScenarioDescriptor, ScenarioRegistry};
-pub use reports::ValidationReport;
+pub use finding::{EvidenceReference, Finding};
+pub use outcome::ScenarioOutcome;
+pub use registry::{RegistryError, ScenarioRegistry};
+pub use reports::{ScenarioResult, ValidationReport};
 pub use runner::Runner;
+pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
 
 #[cfg(test)]
 mod tests {

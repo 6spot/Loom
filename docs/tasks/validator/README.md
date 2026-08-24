@@ -10,6 +10,7 @@ authority.
 | Task | Issue | Status | Depends on | Record |
 | --- | ---: | --- | --- | --- |
 | VAL-T1 | #253 | in_progress | — | [t1-validator-skeleton.md](t1-validator-skeleton.md) |
+| VAL-T2 | #254 | in_progress | VAL-T1 | [t2-scenario-contract.md](t2-scenario-contract.md) |
 
 The index is a navigation surface only. Each implementation task retains one
 Markdown task record under this directory, and the repository-level Task Ledger
