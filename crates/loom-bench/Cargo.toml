@@ -1,0 +1,34 @@
+[package]
+name = "loom-bench"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+loom-agency = { path = "../loom-agency" }
+loom-api = { path = "../loom-api" }
+loom-capability = { path = "../loom-capability" }
+loom-core = { path = "../loom-core" }
+loom-protocol = { path = "../loom-protocol" }
+loom-runtime = { path = "../loom-runtime" }
+loom-storage = { path = "../loom-storage" }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "~1.51", features = ["macros", "rt-multi-thread", "time", "sync"] }
+futures = "0.3"
+sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls"] }
+
+[[bin]]
+name = "loom-bench"
+path = "src/main.rs"
+
+[lints.rust]
+unsafe_code = "forbid"
+unused = "allow"
+warnings = "allow"
+
+[lints.clippy]
+all = "allow"
+pedantic = "allow"
+nursery = "allow"
+cargo = "allow"

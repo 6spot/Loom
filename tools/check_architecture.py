@@ -50,6 +50,15 @@ FRAMEWORK_ALLOWLIST: dict[str, set[str]] = {
         "loom-runtime",
         "loom-storage",
     },
+    "loom-bench": {
+        "loom-api",
+        "loom-agency",
+        "loom-capability",
+        "loom-core",
+        "loom-protocol",
+        "loom-runtime",
+        "loom-storage",
+    },
 }
 
 # External crates that would materially violate a layer boundary if they leak
