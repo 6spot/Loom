@@ -10,9 +10,8 @@ use std::{
 };
 
 use loom_agency::{
-    CognitiveExecutor, CognitiveFuture, CognitiveMetadata, CognitiveRequest,
-    DecisionReusePolicy, DeterministicCognitiveExecutor, DeterministicCognitiveStep,
-    ExecutionPolicy,
+    CognitiveExecutor, CognitiveFuture, CognitiveMetadata, CognitiveRequest, DecisionReusePolicy,
+    DeterministicCognitiveExecutor, DeterministicCognitiveStep, ExecutionPolicy,
 };
 use loom_api::{ActionService, ApiErrorCode, TimelineTarget};
 use loom_capability::{
@@ -20,8 +19,8 @@ use loom_capability::{
     CapabilityRegistry, EventDefinition, FacetDefinition, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{
-    ActionTypeId, Entity, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision, TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldId,
-    WorldInstant,
+    ActionTypeId, Entity, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
+    TimelineId, TimelineVersion, WorkHandlerId, WorkId, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
 use loom_runtime::{
@@ -288,16 +287,32 @@ pub struct BenchEnvironment {
 pub fn collect_environment() -> BenchEnvironment {
     let rustc = std::process::Command::new("rustc")
         .arg("--version")
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+        .output()
+        .map_or_else(
+            |_| "unknown".into(),
+            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+        );
     let cargo = std::process::Command::new("cargo")
         .arg("--version")
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+        .output()
+        .map_or_else(
+            |_| "unknown".into(),
+            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+        );
     let git_sha = std::process::Command::new("git")
         .args(["rev-parse", "HEAD"])
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
-    let hostname = std::process::Command::new("hostname")
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
-    let cpu_info = std::fs::read_to_string("/proc/cpuinfo").map_or_else(|_| "unknown".into(), |s| {
+        .output()
+        .map_or_else(
+            |_| "unknown".into(),
+            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+        );
+    let hostname = std::process::Command::new("hostname").output().map_or_else(
+        |_| "unknown".into(),
+        |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+    );
+    let cpu_info = std::fs::read_to_string("/proc/cpuinfo").map_or_else(
+        |_| "unknown".into(),
+        |s| {
             s.lines()
                 .take(4)
                 .collect::<Vec<_>>()
@@ -305,14 +320,26 @@ pub fn collect_environment() -> BenchEnvironment {
                 .chars()
                 .take(300)
                 .collect()
-        });
-    let memory_kb = std::fs::read_to_string("/proc/meminfo").map_or_else(|_| "unknown".into(), |s| s.lines().next().unwrap_or("unknown").to_owned());
+        },
+    );
+    let memory_kb = std::fs::read_to_string("/proc/meminfo").map_or_else(
+        |_| "unknown".into(),
+        |s| s.lines().next().unwrap_or("unknown").to_owned(),
+    );
     let os = std::process::Command::new("uname")
         .args(["-a"])
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+        .output()
+        .map_or_else(
+            |_| "unknown".into(),
+            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+        );
     let timestamp_utc = std::process::Command::new("date")
         .args(["-u", "--iso-8601=seconds"])
-        .output().map_or_else(|_| "unknown".into(), |o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+        .output()
+        .map_or_else(
+            |_| "unknown".into(),
+            |o| String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+        );
     BenchEnvironment {
         rustc_version: rustc,
         cargo_version: cargo,
