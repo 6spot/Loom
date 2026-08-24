@@ -158,11 +158,24 @@ impl AgentContextEntry {
 /// Runtime owns enforcement and provenance of consumption; Agency carries the
 /// contract without choosing an executor, provider or worker topology.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct ContextBudget {
     /// Maximum number of entries that may cross into one context snapshot.
     pub max_entries: u32,
     /// Maximum serialized context bytes permitted by the host policy.
     pub max_bytes: u64,
+    /// Maximum number of Runtime-mediated Entity reads used by one context.
+    pub max_entities: u32,
+    /// Maximum number of Runtime-mediated Relationship reads used by one context.
+    pub max_relationships: u32,
+    /// Maximum number of Runtime-mediated Event reads used by one context.
+    pub max_events: u32,
+    /// Maximum number of semantic retrieval hits used by one context.
+    pub max_semantic_results: u32,
+    /// Maximum semantic traversal depth permitted in one context.
+    pub max_depth: u32,
+    /// Maximum number of semantic retrieval requests used by one context.
+    pub max_semantic_queries: u32,
 }
 
 impl ContextBudget {
@@ -172,7 +185,55 @@ impl ContextBudget {
         Self {
             max_entries,
             max_bytes,
+            max_entities: max_entries,
+            max_relationships: max_entries,
+            max_events: max_entries,
+            max_semantic_results: max_entries,
+            max_depth: 8,
+            max_semantic_queries: max_entries,
         }
+    }
+
+    /// Sets the maximum number of Entity reads for one context.
+    #[must_use]
+    pub const fn with_max_entities(mut self, limit: u32) -> Self {
+        self.max_entities = limit;
+        self
+    }
+
+    /// Sets the maximum number of Relationship reads for one context.
+    #[must_use]
+    pub const fn with_max_relationships(mut self, limit: u32) -> Self {
+        self.max_relationships = limit;
+        self
+    }
+
+    /// Sets the maximum number of Event reads for one context.
+    #[must_use]
+    pub const fn with_max_events(mut self, limit: u32) -> Self {
+        self.max_events = limit;
+        self
+    }
+
+    /// Sets the maximum number of semantic hits for one context.
+    #[must_use]
+    pub const fn with_max_semantic_results(mut self, limit: u32) -> Self {
+        self.max_semantic_results = limit;
+        self
+    }
+
+    /// Sets the maximum semantic traversal depth for one context.
+    #[must_use]
+    pub const fn with_max_depth(mut self, limit: u32) -> Self {
+        self.max_depth = limit;
+        self
+    }
+
+    /// Sets the maximum number of semantic queries for one context.
+    #[must_use]
+    pub const fn with_max_semantic_queries(mut self, limit: u32) -> Self {
+        self.max_semantic_queries = limit;
+        self
     }
 }
 
@@ -188,18 +249,68 @@ impl Default for ContextBudget {
 /// to exceed the corresponding [`ContextBudget`]. Runtime may reject or trim a
 /// snapshot that violates its pinned policy before cognition begins.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct ContextBudgetUsage {
     /// Number of entries selected into the snapshot.
     pub entries: u32,
     /// Serialized bytes charged to the snapshot by the host policy.
     pub bytes: u64,
+    /// Number of Entity reads used by the snapshot.
+    pub entities: u32,
+    /// Number of Relationship reads used by the snapshot.
+    pub relationships: u32,
+    /// Number of Event reads used by the snapshot.
+    pub events: u32,
+    /// Number of semantic hits used by the snapshot.
+    pub semantic_results: u32,
+    /// Maximum semantic traversal depth used by the snapshot.
+    pub depth: u32,
+    /// Number of semantic queries used by the snapshot.
+    pub semantic_queries: u32,
 }
 
 impl ContextBudgetUsage {
     /// Creates a measured context usage value.
     #[must_use]
     pub const fn new(entries: u32, bytes: u64) -> Self {
-        Self { entries, bytes }
+        Self {
+            entries,
+            bytes,
+            entities: 0,
+            relationships: 0,
+            events: 0,
+            semantic_results: 0,
+            depth: 0,
+            semantic_queries: 0,
+        }
+    }
+
+    /// Creates measured usage including Runtime read dimensions.
+    #[must_use]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the usage dimensions mirror the frozen context budget contract"
+    )]
+    pub const fn with_reads(
+        entries: u32,
+        bytes: u64,
+        entities: u32,
+        relationships: u32,
+        events: u32,
+        semantic_results: u32,
+        depth: u32,
+        semantic_queries: u32,
+    ) -> Self {
+        Self {
+            entries,
+            bytes,
+            entities,
+            relationships,
+            events,
+            semantic_results,
+            depth,
+            semantic_queries,
+        }
     }
 }
 
