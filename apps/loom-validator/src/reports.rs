@@ -15,6 +15,39 @@ pub const REPORT_SCHEMA_VERSION: u64 = 1;
 /// Stable report kind used by CI and Task Ledger consumers.
 pub const REPORT_KIND: &str = "loom-validator";
 
+/// An explicit Task Ledger record selected for a scenario.
+///
+/// The validator never derives a task path from a scenario name or from a
+/// directory scan. Callers must provide this reference in run metadata.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskRecordReference {
+    scenario_id: String,
+    path: String,
+}
+
+impl TaskRecordReference {
+    /// Creates an explicit scenario-to-task-record mapping.
+    #[must_use]
+    pub fn new(scenario_id: impl Into<String>, path: impl Into<String>) -> Self {
+        Self {
+            scenario_id: scenario_id.into(),
+            path: path.into(),
+        }
+    }
+
+    /// Returns the scenario covered by this mapping.
+    #[must_use]
+    pub fn scenario_id(&self) -> &str {
+        &self.scenario_id
+    }
+
+    /// Returns the explicitly supplied task-record path.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
+
 /// Metadata identifying the run that produced a report.
 ///
 /// Values are supplied by the caller instead of being generated implicitly so
@@ -25,6 +58,9 @@ pub struct RunMetadata {
     run_id: String,
     command: String,
     evidence: Vec<EvidenceReference>,
+    observation_date: Option<String>,
+    task_record: Option<String>,
+    task_records: Vec<TaskRecordReference>,
 }
 
 impl RunMetadata {
@@ -51,6 +87,49 @@ impl RunMetadata {
         self
     }
 
+    /// Sets the observation date used by Task Ledger feedback.
+    ///
+    /// The date is intentionally caller-supplied so report serialization and
+    /// task-file feedback do not acquire an implicit wall-clock dependency.
+    #[must_use]
+    pub fn with_observation_date(mut self, observation_date: impl Into<String>) -> Self {
+        self.observation_date = Some(observation_date.into());
+        self
+    }
+
+    /// Sets one explicit task record for every scenario in this run.
+    #[must_use]
+    pub fn with_task_record(mut self, path: impl Into<String>) -> Self {
+        self.task_record = Some(path.into());
+        self
+    }
+
+    /// Adds an explicit task-record mapping for one scenario.
+    #[must_use]
+    pub fn with_task_record_for_scenario(
+        mut self,
+        scenario_id: impl Into<String>,
+        path: impl Into<String>,
+    ) -> Self {
+        self.task_records
+            .push(TaskRecordReference::new(scenario_id, path));
+        self
+    }
+
+    /// Adds an explicit task-record mapping for one scenario.
+    #[must_use]
+    pub fn with_task_record_reference(mut self, reference: TaskRecordReference) -> Self {
+        self.task_records.push(reference);
+        self
+    }
+
+    /// Sets the run identifier used as the feedback run reference.
+    #[must_use]
+    pub fn with_run_id(mut self, run_id: impl Into<String>) -> Self {
+        self.run_id = run_id.into();
+        self
+    }
+
     /// Returns the run identifier.
     #[must_use]
     pub fn run_id(&self) -> &str {
@@ -67,6 +146,24 @@ impl RunMetadata {
     #[must_use]
     pub fn evidence(&self) -> &[EvidenceReference] {
         &self.evidence
+    }
+
+    /// Returns the supplied observation date, if any.
+    #[must_use]
+    pub fn observation_date(&self) -> Option<&str> {
+        self.observation_date.as_deref()
+    }
+
+    /// Returns the global task-record path, if any.
+    #[must_use]
+    pub fn task_record(&self) -> Option<&str> {
+        self.task_record.as_deref()
+    }
+
+    /// Returns explicit per-scenario task-record mappings.
+    #[must_use]
+    pub fn task_records(&self) -> &[TaskRecordReference] {
+        &self.task_records
     }
 }
 
@@ -716,6 +813,13 @@ impl ValidationReport {
         );
         run.insert("run_id".to_owned(), json!(self.run_metadata.run_id));
         run.insert(
+            "observation_date".to_owned(),
+            self.run_metadata
+                .observation_date
+                .clone()
+                .map_or(Value::Null, Value::String),
+        );
+        run.insert(
             "policy".to_owned(),
             json!({
                 "required_live": self.policy.requires_live(),
@@ -723,6 +827,28 @@ impl ValidationReport {
             }),
         );
         run.insert("selected_ids".to_owned(), json!(self.selected_scenario_ids));
+        run.insert(
+            "task_record".to_owned(),
+            self.run_metadata
+                .task_record
+                .clone()
+                .map_or(Value::Null, Value::String),
+        );
+        run.insert(
+            "task_records".to_owned(),
+            json!(
+                self.run_metadata
+                    .task_records
+                    .iter()
+                    .map(|reference| {
+                        json!({
+                            "path": reference.path(),
+                            "scenario_id": reference.scenario_id(),
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            ),
+        );
         Value::Object(run)
     }
 

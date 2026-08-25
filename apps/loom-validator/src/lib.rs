@@ -24,13 +24,17 @@ pub use cli::{
     CliAction, CliArgs, EXIT_RUNNER_ERROR, EXIT_SCENARIO_FAILURE, EXIT_SUCCESS, decide_action,
     execute_cli, help_text, parse_args, run_from_args,
 };
-pub use feedback::TaskLedgerFeedback;
+pub use feedback::{
+    FeedbackAppendSummary, TaskLedgerFeedback, TaskLedgerFeedbackError,
+    append_report_to_task_ledger,
+};
 pub use finding::{EvidenceReference, Finding};
 pub use outcome::ScenarioOutcome;
 pub use registry::{RegistryError, ScenarioRegistry};
 pub use reports::{
     MachineReport, PrerequisiteDetail, PrerequisiteState, REPORT_KIND, REPORT_SCHEMA_VERSION,
-    ReportResultState, RunMetadata, ScenarioResult, ValidationPolicy, ValidationReport,
+    ReportResultState, RunMetadata, ScenarioResult, TaskRecordReference, ValidationPolicy,
+    ValidationReport,
 };
 pub use runner::{Runner, RunnerError};
 pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
