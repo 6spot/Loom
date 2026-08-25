@@ -7,7 +7,7 @@ created_at: 2026-08-22
 started_at: 2026-08-25
 completed_at: 2026-08-25
 completion_pr: 283
-merge_sha: 1eaf90e4907761945a1177d0207746eba796a96e
+merge_sha:
 ---
 # M13-T1 — Integrated Loom Engine V0 release gate
 
@@ -104,3 +104,4 @@ All steps exercised **through `loom-api` / `loom-client` / `loom-cli` / `loom-bo
 ## Progress Log
 
 - 2026-08-25 — Executed full V0 integrated gate on candidate `5290586`: architecture, fmt, check, clippy -D warnings, deny, doc, Compose configs, workspace tests (fresh `loom_control` via `down -v`), `loom-storage`/`composition`/`cli`/`boundary`/`client` suites, `postgres_*` contracts (PG18 pgvector 0.8.6), and `loom-bench` capacity artifact; updated task record with AC→evidence mapping and noted `postgres_18_schema_contract` non-idempotent left-row requiring clean DB via `down -v` (CI-ephemeral, not product regression).
+- 2026-08-25 — D-001 fix: cleared incorrect pre-merge `merge_sha: 1eaf90e4907761945a1177d0207746eba796a96e` per Reviewer `01a0378f-6f8e-747f-9861-e839f64d00e5` and `docs/tasks/README.md:91`; PR #283 remains OPEN (`head 5e509ea3a056bfb27594f108fe308893ea383a3c`, `base 52905862f3c26a6fb4d9991da2aa9fe8cfd11bc2`, preview merge `5ad82ec...`, `main` still `52905862...`), true integration-branch SHA will be backfilled by M13-T2 via small audit commit/PR immediately after merge; no pre-merge provenance forged. `status: completed`, `completed_at`, `completion_pr: 283`, gates and AC/R-* evidence unchanged.
