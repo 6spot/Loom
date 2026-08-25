@@ -5,6 +5,24 @@
 //! explicitly supplied task-record path, and writes concise Markdown. It does
 //! not scan for task files, infer a filename from a scenario ID, or copy raw
 //! process output into a task record.
+//!
+//! ## Observer-only / report-only authority boundary
+//!
+//! The validator is an observer. This bridge may append concise factual
+//! findings to an explicitly selected Task Ledger record, but it must never
+//! edit task frontmatter (`status`, `started_at`/`completed_at`,
+//! `completion_pr`/`merge_sha`), acceptance checklist history, architecture
+//! documents, or implementation source as a reaction to a finding. Remediation
+//! requires a separately planned task or accepted Architecture Amendment; the
+//! validator never applies fixes automatically.
+//!
+//! ## Non-blocking dispatcher contract
+//!
+//! Normal feedback mode records the failure and returns `Ok` so the outer
+//! recursive dispatcher can continue with unrelated READY leaves. An explicit
+//! diagnostic/CI strict mode may return a nonzero exit code for visibility,
+//! but it still cannot mutate task state, rewrite history, or apply fixes.
+//! The mode changes exit behavior only, not mutation authority.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -106,6 +124,26 @@ pub fn append_report_to_task_ledger(
     report: &ValidationReport,
 ) -> Result<FeedbackAppendSummary, TaskLedgerFeedbackError> {
     TaskLedgerFeedback::append_report_to_task_ledger(report)
+}
+
+/// Observer-only exit semantics for Task Ledger feedback.
+///
+/// Normal mode (default) always returns [`crate::cli::EXIT_SUCCESS`] so the
+/// outer recursive dispatcher can continue with unrelated READY leaves.
+/// Strict diagnostic/CI mode returns [`crate::cli::EXIT_SCENARIO_FAILURE`]
+/// when the report contains a failure, but it still does not mutate task state
+/// or apply fixes. The mode changes exit behavior only, not mutation authority.
+///
+/// Remediation, when needed, requires a separately planned task or accepted
+/// Architecture Amendment.
+#[must_use]
+#[allow(dead_code)]
+pub fn feedback_exit_code(report: &ValidationReport, strict: bool) -> i32 {
+    if strict && report.has_failures() {
+        crate::cli::EXIT_SCENARIO_FAILURE
+    } else {
+        crate::cli::EXIT_SUCCESS
+    }
 }
 
 /// Counts the durable entries produced by one feedback append.
@@ -690,6 +728,346 @@ mod tests {
         assert_eq!(value.chars().count(), 512);
         assert!(value.ends_with('…'));
         assert!(!contents.contains(&"x".repeat(513)));
+        fs::remove_file(path).unwrap();
+    }
+
+    // --- VAL-T7 observer-only / report-only guardrails ---
+
+    fn representative_task_contents() -> String {
+        [
+            "---",
+            "task: VAL-T7",
+            "issue: 259",
+            "status: in_progress",
+            "depends_on: [258]",
+            "created_at: 2026-08-24",
+            "started_at: 2026-08-25",
+            "completed_at:",
+            "completion_pr:",
+            "merge_sha:",
+            "---",
+            "# VAL-T7 — Enforce report-only feedback",
+            "",
+            "## Acceptance",
+            "",
+            "- [ ] failed validation leaves task metadata byte-for-byte unchanged",
+            "- [x] earlier checklist item completed",
+            "- [ ] failed validation does not modify implementation/architecture files",
+            "",
+            "## Capability Gates",
+            "",
+            "- CV-999",
+            "",
+            "## Progress Log",
+            "",
+            "- 2026-08-25 — initial entry",
+            "",
+            "## Verification Evidence",
+            "",
+            "- existing evidence that must be preserved",
+            "",
+        ]
+        .join("\n")
+    }
+
+    fn frontmatter_of(contents: &str) -> String {
+        let mut parts = contents.splitn(3, "---");
+        let Some(_) = parts.next() else {
+            return String::new();
+        };
+        let Some(front) = parts.next() else {
+            return String::new();
+        };
+        front.to_owned()
+    }
+
+    #[test]
+    fn failed_validation_leaves_task_metadata_byte_for_byte_unchanged() {
+        let path = fixture_path("guardrail-metadata");
+        let original = representative_task_contents();
+        fs::write(&path, &original).unwrap();
+        let original_frontmatter = frontmatter_of(&original);
+        let original_bytes = original.clone();
+
+        let report = report(path.to_str().unwrap(), ScenarioOutcome::Fail, metadata());
+        let summary = TaskLedgerFeedback::append_report_to_task_ledger(&report).unwrap();
+        assert_eq!(summary.findings_appended(), 1);
+
+        let after = fs::read_to_string(&path).unwrap();
+        // Frontmatter section must be byte-for-byte identical.
+        assert_eq!(
+            frontmatter_of(&after),
+            original_frontmatter,
+            "frontmatter was mutated by feedback"
+        );
+        // Protected fields must not have been rewritten.
+        assert!(after.contains("status: in_progress"));
+        assert!(after.contains("started_at: 2026-08-25"));
+        assert!(after.contains("completed_at:"));
+        assert!(after.contains("completion_pr:"));
+        assert!(after.contains("merge_sha:"));
+        // Checklist history preserved.
+        assert!(after.contains("- [x] earlier checklist item completed"));
+        assert!(
+            after.contains("- [ ] failed validation leaves task metadata byte-for-byte unchanged")
+        );
+        // Original prefix preserved verbatim (append-only).
+        assert!(
+            after.starts_with(&original_bytes) || {
+                // Allow single trailing newline normalization before append.
+                let normalized = if original_bytes.ends_with('\n') {
+                    original_bytes.clone()
+                } else {
+                    format!("{original_bytes}\n")
+                };
+                after.starts_with(&normalized)
+            }
+        );
+        // Only the allowed validation section was appended.
+        assert!(after.contains("## Capability Validation"));
+        assert!(after.contains("## Validation Findings"));
+        assert_eq!(after.matches("## Capability Validation").count(), 1);
+        // Must not have altered non-validation headings content beyond append.
+        let before_validation = after.split("## Capability Validation").next().unwrap();
+        assert!(before_validation.contains("## Verification Evidence"));
+        assert!(before_validation.contains("existing evidence that must be preserved"));
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn failed_validation_does_not_modify_implementation_or_architecture_files() {
+        let task_path = fixture_path("guardrail-task-impl");
+        let arch_path = fixture_path("guardrail-architecture");
+        let impl_path = fixture_path("guardrail-implementation");
+
+        let task_original = representative_task_contents();
+        let arch_original = "# Architecture\n\nAuthoritative core runtime contracts.\n";
+        let impl_original = "pub fn important_runtime_logic() {}\n";
+
+        fs::write(&task_path, &task_original).unwrap();
+        fs::write(&arch_path, arch_original).unwrap();
+        fs::write(&impl_path, impl_original).unwrap();
+
+        let report = report(
+            task_path.to_str().unwrap(),
+            ScenarioOutcome::Fail,
+            metadata(),
+        );
+        TaskLedgerFeedback::append_report_to_task_ledger(&report).unwrap();
+
+        // Task file: only append, not rewrite.
+        let task_after = fs::read_to_string(&task_path).unwrap();
+        assert!(
+            task_after.starts_with(&task_original)
+                || task_after.starts_with(&format!("{task_original}\n"))
+        );
+
+        // Architecture and implementation files must be byte-for-byte unchanged.
+        assert_eq!(
+            fs::read_to_string(&arch_path).unwrap(),
+            arch_original,
+            "architecture document was mutated"
+        );
+        assert_eq!(
+            fs::read_to_string(&impl_path).unwrap(),
+            impl_original,
+            "implementation source was mutated"
+        );
+
+        // Also ensure no remediation fields leaked into task file.
+        assert!(!task_after.contains("suggested_fix"));
+        assert!(!task_after.contains("remediation"));
+        assert!(!task_after.contains("suggested_remediation"));
+
+        fs::remove_file(task_path).unwrap();
+        fs::remove_file(arch_path).unwrap();
+        fs::remove_file(impl_path).unwrap();
+    }
+
+    #[test]
+    fn append_only_finding_is_preserved_and_unrelated_work_remains_eligible() {
+        let task_a = fixture_path("guardrail-related-a");
+        let task_b = fixture_path("guardrail-related-b");
+
+        fs::write(&task_a, representative_task_contents()).unwrap();
+        fs::write(&task_b, representative_task_contents()).unwrap();
+
+        // First failure on task A — dispatcher records it and continues.
+        let report_a = report(task_a.to_str().unwrap(), ScenarioOutcome::Fail, metadata());
+        let summary_a = TaskLedgerFeedback::append_report_to_task_ledger(&report_a).unwrap();
+        assert_eq!(summary_a.findings_appended(), 1);
+        let after_a_first = fs::read_to_string(&task_a).unwrap();
+        assert_eq!(after_a_first.matches("## Validation Findings").count(), 1);
+
+        // Unrelated READY leaf B is still eligible — append to B must succeed
+        // and must not affect A's durable finding.
+        let report_b = report(task_b.to_str().unwrap(), ScenarioOutcome::Fail, metadata());
+        let summary_b = TaskLedgerFeedback::append_report_to_task_ledger(&report_b).unwrap();
+        assert_eq!(summary_b.findings_appended(), 1);
+        let after_b = fs::read_to_string(&task_b).unwrap();
+        assert_eq!(after_b.matches("## Validation Findings").count(), 1);
+
+        // A's finding is preserved.
+        let after_a_second = fs::read_to_string(&task_a).unwrap();
+        assert_eq!(after_a_second, after_a_first);
+        assert_eq!(after_a_second.matches("## Validation Findings").count(), 1);
+
+        // A second resolution appended to A does not rewrite the first.
+        TaskLedgerFeedback::append_report_to_task_ledger(&report_a).unwrap();
+        let after_a_third = fs::read_to_string(&task_a).unwrap();
+        assert!(after_a_third.starts_with(&after_a_first));
+        assert_eq!(after_a_third.matches("## Validation Findings").count(), 2);
+        assert!(after_a_third.contains("existing evidence that must be preserved"));
+
+        fs::remove_file(task_a).unwrap();
+        fs::remove_file(task_b).unwrap();
+    }
+
+    #[test]
+    fn normal_feedback_mode_records_failure_and_returns_control_for_dispatcher() {
+        let task_path = fixture_path("guardrail-normal-dispatcher");
+        fs::write(&task_path, representative_task_contents()).unwrap();
+
+        let report_obj = report(
+            task_path.to_str().unwrap(),
+            ScenarioOutcome::Fail,
+            metadata(),
+        );
+        // Normal mode: append returns Ok so dispatcher can continue.
+        let result = TaskLedgerFeedback::append_report_to_task_ledger(&report_obj);
+        assert!(
+            result.is_ok(),
+            "normal mode must not block dispatcher on failure"
+        );
+        let summary = result.unwrap();
+        assert_eq!(summary.findings_appended(), 1);
+
+        // Verify the outer dispatcher would see the finding but still be free
+        // to dispatch unrelated work (simulated by running another append).
+        let unrelated_path = fixture_path("guardrail-normal-unrelated");
+        fs::write(&unrelated_path, representative_task_contents()).unwrap();
+        let unrelated_report = report(
+            unrelated_path.to_str().unwrap(),
+            ScenarioOutcome::Fail,
+            metadata(),
+        );
+        let unrelated_result = TaskLedgerFeedback::append_report_to_task_ledger(&unrelated_report);
+        assert!(
+            unrelated_result.is_ok(),
+            "dispatcher must remain eligible for unrelated READY leaf after a failure"
+        );
+
+        // File still only appended.
+        let contents = fs::read_to_string(&task_path).unwrap();
+        assert!(contents.contains("Outcome: `fail`"));
+        assert!(contents.contains("## Validation Findings"));
+
+        fs::remove_file(task_path).unwrap();
+        fs::remove_file(unrelated_path).unwrap();
+    }
+
+    #[test]
+    fn strict_diagnostic_mode_changes_exit_behavior_only_not_mutation_authority() {
+        // Strict mode must change exit code but not mutation behavior.
+        let normal_path = fixture_path("guardrail-strict-normal");
+        let strict_path = fixture_path("guardrail-strict-strict");
+
+        let base_contents = representative_task_contents();
+        fs::write(&normal_path, &base_contents).unwrap();
+        fs::write(&strict_path, &base_contents).unwrap();
+
+        let report_normal = report(
+            normal_path.to_str().unwrap(),
+            ScenarioOutcome::Fail,
+            metadata(),
+        );
+        let report_strict = report(
+            strict_path.to_str().unwrap(),
+            ScenarioOutcome::Fail,
+            metadata(),
+        );
+
+        // Both modes perform the identical file mutation.
+        TaskLedgerFeedback::append_report_to_task_ledger(&report_normal).unwrap();
+        TaskLedgerFeedback::append_report_to_task_ledger(&report_strict).unwrap();
+
+        let after_normal = fs::read_to_string(&normal_path).unwrap();
+        let after_strict = fs::read_to_string(&strict_path).unwrap();
+
+        // Normalize the path-dependent run reference? Both use explicit task_record
+        // path, but render entry includes scenario/backend/evidence which are same;
+        // the only potential difference is the task path is embedded nowhere in the
+        // rendered entry (only content). So files should be identical except for
+        // maybe the evidence ordering — which is deterministic. Assert they are equal.
+        assert_eq!(
+            after_normal, after_strict,
+            "strict mode must not mutate task state differently from normal mode"
+        );
+
+        // Frontmatter still preserved in strict mode.
+        assert_eq!(
+            frontmatter_of(&after_strict),
+            frontmatter_of(&base_contents)
+        );
+        assert!(after_strict.contains("status: in_progress"));
+        assert!(!after_strict.contains("suggested_fix"));
+
+        // Exit semantics differ: normal returns 0, strict returns 1 on failure.
+        let normal_code = super::feedback_exit_code(&report_normal, false);
+        let strict_code = super::feedback_exit_code(&report_strict, true);
+        assert_eq!(normal_code, crate::cli::EXIT_SUCCESS);
+        assert_eq!(strict_code, crate::cli::EXIT_SCENARIO_FAILURE);
+
+        // Strict still does not apply fixes: no file other than explicit task record was touched.
+        let untouched = fixture_path("guardrail-strict-untouched");
+        fs::write(&untouched, "untouched implementation").unwrap();
+        let untouched_before = fs::read_to_string(&untouched).unwrap();
+        TaskLedgerFeedback::append_report_to_task_ledger(&report_strict).unwrap();
+        assert_eq!(fs::read_to_string(&untouched).unwrap(), untouched_before);
+
+        fs::remove_file(normal_path).unwrap();
+        fs::remove_file(strict_path).unwrap();
+        fs::remove_file(untouched).unwrap();
+    }
+
+    #[test]
+    fn strict_mode_without_failure_does_not_change_success_exit() {
+        let path = fixture_path("guardrail-strict-success");
+        fs::write(&path, "---\ncapability_gates:\n  - CV-001\n---\n").unwrap();
+        let passing = report(path.to_str().unwrap(), ScenarioOutcome::Pass, metadata());
+        // Passing scenario is only recorded when gate declares it.
+        let summary = TaskLedgerFeedback::append_report_to_task_ledger(&passing).unwrap();
+        assert_eq!(summary.findings_appended(), 1);
+        assert_eq!(
+            super::feedback_exit_code(&passing, false),
+            crate::cli::EXIT_SUCCESS
+        );
+        assert_eq!(
+            super::feedback_exit_code(&passing, true),
+            crate::cli::EXIT_SUCCESS
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn remediation_requires_separately_planned_task_documented_in_finding() {
+        let path = fixture_path("guardrail-remediation");
+        fs::write(&path, representative_task_contents()).unwrap();
+        let report = report(path.to_str().unwrap(), ScenarioOutcome::Fail, metadata());
+        TaskLedgerFeedback::append_report_to_task_ledger(&report).unwrap();
+        let contents = fs::read_to_string(&path).unwrap();
+        // Finding records factual observation only, not remediation.
+        assert!(contents.contains("Expected: expected capability"));
+        assert!(contents.contains("Actual:"));
+        assert!(contents.contains("Backend:"));
+        assert!(contents.contains("Evidence:"));
+        assert!(!contents.to_lowercase().contains("remediation"));
+        assert!(!contents.contains("suggested_fix"));
+        // The file still requires an external task/amendment for any fix; the
+        // validator never transitions status.
+        assert!(contents.contains("status: in_progress"));
+        assert!(!contents.contains("status: completed"));
         fs::remove_file(path).unwrap();
     }
 }
