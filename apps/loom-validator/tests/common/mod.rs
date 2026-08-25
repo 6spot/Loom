@@ -12,7 +12,10 @@
 
 use std::{env, path::Path, process::Command, sync::Arc};
 
-use loom_boundary::{BoundaryConfig, router};
+use loom_api::{
+    CreateWorldFromTemplateRequest, TimelineTarget, WorldService, WorldTemplateDescriptor,
+};
+use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
 use loom_capability::CapabilityRegistry;
 use loom_client::LoomClient;
 use loom_neutral::registry as neutral_registry;
@@ -134,6 +137,35 @@ impl InMemoryServer {
         ))
     }
 
+    /// Starts a service with a persisted A+B World and an intentionally
+    /// partial A-only active Runtime Revision. The state is seeded through the
+    /// test composition root; the scenario observes and exercises it through
+    /// the public HTTP client.
+    pub fn start_partial_binding() -> Result<(Self, LoomClient, TimelineTarget), String> {
+        let store: &'static InMemoryStore = Box::leak(Box::new(InMemoryStore::new()));
+        let (client, handle, target) = leaked_runtime().block_on(start_in_memory_partial(store))?;
+        Ok((
+            Self {
+                inner: Arc::new(Mutex::new(handle)),
+            },
+            client,
+            target,
+        ))
+    }
+
+    /// Starts a service with registered software but no active Runtime
+    /// Revision, so the public surface can verify that execution is denied.
+    pub fn start_without_active_revision() -> Result<(Self, LoomClient), String> {
+        let store: &'static InMemoryStore = Box::leak(Box::new(InMemoryStore::new()));
+        let (client, handle) = leaked_runtime().block_on(start_in_memory_without_active(store))?;
+        Ok((
+            Self {
+                inner: Arc::new(Mutex::new(handle)),
+            },
+            client,
+        ))
+    }
+
     /// Terminates the current service boundary and rebuilds it on the preserved
     /// store, returning a new public client to the new boundary.
     pub fn restart(&self) -> Result<LoomClient, String> {
@@ -161,7 +193,11 @@ async fn start_in_memory(
     ensure_validator_revision_in_memory(store, &registry)?;
     let runtime = Runtime::new(store, registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
-    let router = router(api, BoundaryConfig::default());
+    let router = router_with_admin(
+        api,
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| e.to_string())?;
@@ -172,8 +208,96 @@ async fn start_in_memory(
         }
     });
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let client = LoomClient::new(format!("http://{addr}")).map_err(|e| e.to_string())?;
+    let client = admin_client(addr)?;
     Ok((client, InMemoryHandle { store, server }))
+}
+
+async fn start_in_memory_without_active(
+    store: &'static InMemoryStore,
+) -> Result<(LoomClient, InMemoryHandle), String> {
+    let registry = neutral_registry();
+    registry.validate().map_err(|e| format!("{e:?}"))?;
+    let runtime = Runtime::new(store, registry).map_err(|e| format!("{e:?}"))?;
+    let api = Arc::new(runtime);
+    let router = router_with_admin(
+        api,
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|e| e.to_string())?;
+    let addr = listener.local_addr().map_err(|e| e.to_string())?;
+    let server = tokio::spawn(async move {
+        if let Err(e) = axum::serve(listener, router).await {
+            eprintln!("in-memory server failed: {e}");
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let client = admin_client(addr)?;
+    Ok((client, InMemoryHandle { store, server }))
+}
+
+async fn start_in_memory_partial(
+    store: &'static InMemoryStore,
+) -> Result<(LoomClient, InMemoryHandle, TimelineTarget), String> {
+    let (client, handle) = start_in_memory(store).await?;
+    let target = client
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(
+            WorldTemplateDescriptor::new(
+                "validator.runtime-authority",
+                1,
+                loom_api::WorldInstant::new(1),
+            )
+            .requires_capability("neutral.counter", "^0.1.0")
+            .requires_capability("neutral.observer", "^0.1.0"),
+        ))
+        .await
+        .map_err(|e| format!("failed to seed A+B World through public API: {e:?}"))?
+        .target;
+
+    let registry = neutral_registry();
+    let partial = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-neutral-counter-only"),
+        PlatformTime::new(3),
+        "validator-counter-only",
+        registry.loom_version().clone(),
+        registry
+            .capabilities()
+            .filter(|manifest| manifest.id.as_str() == "neutral.counter")
+            .map(|manifest| {
+                RuntimeRevisionCapability::from_manifest(
+                    manifest,
+                    format!("validator-partial:{}@{}", manifest.id, manifest.version),
+                )
+            }),
+    )
+    .map_err(|e| format!("failed to build partial revision fixture: {e:?}"))?;
+    RuntimeRevisionStore::confirm_revision(store, partial)
+        .await
+        .map_err(|e| format!("failed to publish partial revision fixture: {e:?}"))?;
+    let active = RuntimeRevisionStore::read_active_revision(store)
+        .await
+        .map_err(|e| format!("failed to read full active revision fixture: {e:?}"))?
+        .ok_or_else(|| "full revision fixture was not active".to_owned())?;
+    RuntimeRevisionStore::activate_revision(
+        store,
+        RuntimeRevisionId::from("validator-neutral-counter-only"),
+        Some(active.generation()),
+        PlatformTime::new(4),
+    )
+    .await
+    .map_err(|e| format!("failed to activate partial revision fixture: {e:?}"))?;
+
+    Ok((client, handle, target))
+}
+
+fn admin_client(addr: std::net::SocketAddr) -> Result<LoomClient, String> {
+    LoomClient::builder(format!("http://{addr}"))
+        .admin_token("validator-test-admin")
+        .map_err(|e| e.to_string())?
+        .build()
+        .map_err(|e| e.to_string())
 }
 
 struct PgHandle {
@@ -276,7 +400,11 @@ async fn start_pg(store: PgStorage) -> Result<(LoomClient, PgHandle), String> {
     ensure_validator_revision_pg(&store, &registry).await?;
     let runtime = Runtime::new(store.clone(), registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
-    let router = router(api, BoundaryConfig::default());
+    let router = router_with_admin(
+        api,
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| e.to_string())?;
@@ -287,6 +415,6 @@ async fn start_pg(store: PgStorage) -> Result<(LoomClient, PgHandle), String> {
         }
     });
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let client = LoomClient::new(format!("http://{addr}")).map_err(|e| e.to_string())?;
+    let client = admin_client(addr)?;
     Ok((client, PgHandle { store, server }))
 }

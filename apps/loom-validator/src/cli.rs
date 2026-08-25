@@ -672,6 +672,9 @@ fn execute_registered_scenario(
         | crate::scenarios::CV_007
         | crate::scenarios::CV_008
         | crate::scenarios::CV_009 => crate::scenarios::execute_replay_fork(descriptor, context),
+        crate::runtime_authority::CV_010 | crate::runtime_authority::CV_011 => {
+            crate::runtime_authority::execute_runtime_authority(descriptor, context)
+        }
         crate::lifecycle::CV_001
         | crate::lifecycle::CV_002
         | crate::lifecycle::CV_003
