@@ -17,6 +17,13 @@ Architecture documents answer questions such as:
 
 [`vision.md`](vision.md) and [`principles.md`](principles.md) provide project intent and cross-cutting philosophy. They do not override the architecture authority map.
 
+### Public quickstart, operator and developer guides
+
+- Quickstart (start stack, Catalog/Template/World/Action/State/History, Ingress/feed, Scheduler/World Time, replay/fork, provenance, deterministic Agency): [`quickstart.md`](quickstart.md)
+- Operator guide (Installed vs Binding vs Assembly, World Time vs Platform Time, logical Work vs lease, head/quiescence/budget, missing implementation/terminalization, Revision/Session provenance, replay vs rerun, fork ancestry, Agent visibility/CAS resample): [`operator-guide.md`](operator-guide.md)
+- Developer guide (Architecture Index supersession lookup, Amendment gate, task-ledger workflow, Cargo DAG): [`developer-guide.md`](developer-guide.md)
+- Capacity envelope — measured V0 evidence, unproven claims marked deferred: [`capacity-envelope.md`](capacity-envelope.md)
+
 ### Development
 
 Use [`development/README.md`](development/README.md) for current developer-facing procedures such as local services, integration tests and repository workflows.

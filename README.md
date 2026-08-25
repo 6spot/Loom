@@ -163,26 +163,98 @@ Loom
 
 完整 Cargo dependency/public exposure/authority placement 规则只以 `docs/architecture/governance.md` 为准，不在 README 再维护一份 allowlist。
 
-## Current status
+## Current status — Loom Engine V0
 
-**Loom v0 frozen baseline + accepted Amendments 0001, 0002 and 0003 are closed for re-planning.**
+**Architecture:** Frozen baseline + accepted Amendments 0001, 0002, 0003 are the normative V0 contract. See [`docs/architecture/README.md`](docs/architecture/README.md) for document authority and reverse supersession.
 
-当前仍然不应直接继续旧 Roadmap 的代码实现。
+**Implementation:** V0 implementation order is `docs/tasks/v0-roadmap.md` (M4–M13). Historical M1–M3 assets are closed; M4–M11 hardening is done up to the capacity/CI gate. The current track is **M12 — CLI, neutral examples and operator/developer documentation** (`#144`):
 
-下一阶段：
+- `#198` `loom-cli` — completed (post-#276 baseline, `apps/loom-cli` over `loom-client`/`loom-api` only)
+- `#199` V0 operator/developer documentation + quickstart — this issue (`docs/quickstart.md`, `docs/operator-guide.md`, `docs/developer-guide.md`, `docs/capacity-envelope.md`)
+- `#200` neutral V0 examples and public workflow fixtures — in parallel (`capabilities/loom-neutral`, Templates)
+- `#201` public-consumer rehearsal gate — verifies the documented workflow from a clean environment
 
-```text
-Frozen baseline + accepted Amendments
-        ↓
-Resolve supersession index
-        ↓
-Inventory current implementation against architecture
-        ↓
-Rebuild V0 implementation order
-        ↓
-Rebuild Issues / docs/tasks
-        ↓
-Resume implementation
+Detailed task ledger: [`docs/tasks/README.md`](docs/tasks/README.md) and `docs/tasks/m12/`. Each task file is the durable audit record; GitHub issues remain the discussion surface.
+
+**How to start:** Follow [`docs/quickstart.md`](docs/quickstart.md) — start the stack, discover Templates, create a World, invoke Actions, inspect State/History/Catalog, submit Ingress, tail/resume the Change Feed, let the Scheduler progress Work/World Time, replay/fork, inspect Runtime Revision/Session provenance and run a deterministic Agency Wake. No Runtime/Storage imports or direct database access are required; the public surfaces are `loom-server` HTTP/SSE, `loom-client` and `loom-cli`.
+
+## Supported vs deferred — V0 scope matrix
+
+| Domain | V0 supported | V0 deferred / unproven |
+| --- | --- | --- |
+| **World model** | Create/Load World via `WorldTemplateDescriptor` → `ValidatedWorldBirthPlan`; immutable `World Runtime Binding`; per-Timeline `TimelineVersion`, `World Time`, `Timeline Logical State` | Dynamic per-World Capability migration / hot-plug; generic `Event Scope` |
+| **Execution** | `Action` invoke → `Resolution` → `ValidatedResolution` → Timeline CAS Logical Commit; `Reaction` → Immediate `Work`; bounded `FailurePolicy` and `TimelineBlockedOnMissingImplementation` with authorized terminalization | Fine-grained `ReadSet` commit validation beyond Timeline-wide CAS; historical checkpoint acceleration |
+| **Scheduler** | Deterministic `(effective_due_world_time, logical_schedule_order)` ordering; head-of-line barrier; quiescence; `Chronology Budget` as Timeline Logical State; `SKIP LOCKED` only across independent Timeline heads; single-thread executor per worker process, multi-process via shared PostgreSQL | Exact numeric budget/retry defaults as invariants; multi-threaded shared-process Runtime topology |
+| **Time** | `World Time` advances only via quiescent Runtime-owned Logical Commit; `Platform Time` (lease/retry `available_at`) never advances `World Time` | Implicit time mapping from wall clock / event timestamp |
+| **Persistence** | PostgreSQL 18 + pgvector required (`crates/loom-storage` owns all SQL), migrations in `crates/loom-storage/migrations/`, `loom/blobs` object store for immutable blobs; version-fenced pinned reads (`PinnedWorldReadStore`) do not require full-World eager snapshot | Alternative DBs; large-World 10k+ entity production tuning beyond measured envelope |
+| **API / transport** | Unified `loom-api` service traits (`WorldService`, `ActionService`, `QueryService`, `HistoryService`, `IngressService`, `SubscriptionService`, `CatalogService`, `AdminService`); `loom-boundary` HTTP/JSON + SSE; `loom-client` formal HTTP client; `loom-cli` pure consumer | WebSocket transport; second Capability handler hierarchy for Ingress |
+| **Revision / provenance** | Immutable `Runtime Revision` ledger (`LOOM_RUNTIME_REVISION_ID` + `LOOM_CORE_BUILD_REF` publish/activate), `Execution Session`/`Execution Assembly` per root execution, `Event→Session` linkage, `ReadSet`/call/entropy evidence | In-place World software mutation; automatic World rewrite on Revision activation |
+| **Replay / fork** | Deterministic replay of committed Events + Logical Journal `World Time`/`Work`/`budget`; head fork and historical fork with ancestry-preserving branch-local `Pending` clone | Checkpoint-based acceleration; deep cross-branch merge |
+| **Agency** | Scheduler-managed durable `Agency Wake` → `AgentWorldView` (visibility-limited, Binding-checked) → `CognitiveExecutor` → `Decision::Act|NoAction` → normal Capability authority; deterministic fake cognition in `loom-neutral`; explicit `resample` vs `ReuseDeterministic` CAS policy | Real vendor LLM integration as required V0 path; `CognitiveExecutor` inside `WorkHandler` |
+| **Scale / CI** | Measured V0 envelope documented in [`docs/capacity-envelope.md`](docs/capacity-envelope.md) and `docs/tasks/m11/t3-capacity-benchmarks.md` (see below); CI required baseline is `ubuntu-latest` (Linux); PostgreSQL 18 contract jobs use `pgvector/pgvector:0.8.6-pg18` | Larger-scale claims beyond measured envelope are **unproven / deferred**; macOS is not a required CI gate (may be reintroduced when justified) |
+
+Old unmerged M4–M13 planning from issues #60–#134 / draft PR #135 is **superseded** and must not be presented as current.
+
+## Prerequisites at a glance
+
+| Prerequisite | V0 baseline | Details |
+| --- | --- | --- |
+| OS | **Ubuntu/Linux** required; container is the supported deployment | `ubuntu-latest` is the mandatory CI baseline; macOS is not required/supported as a gate |
+| Rust | **1.97.1** (`rust-toolchain.toml`, edition 2024) + bounded Tokio/Axum/SQLx | See `docs/architecture/implementation.md` §2 and `Cargo.toml` |
+| Database | **PostgreSQL 18 + pgvector 0.8.6** (`pgvector/pgvector:0.8.6-pg18`) | Managed via `compose.yaml` / `compose.test-db.yaml`; schema DDL in `crates/loom-storage/migrations/`, runtime SQL in `crates/loom-storage/sql/` — other crates must not own SQL |
+| Object store | **Local filesystem immutable blobs** at `${LOOM_DATA_DIR:-./loom}/blobs` (bind-mount to `/var/lib/loom/blobs` in Compose) | PostgreSQL bind-mount is `${LOOM_DATA_DIR}/postgres` → `/var/lib/postgresql`; no Docker named volume owns Loom data; see `docs/development/loom-server.md` |
+| Migrations | **Repository-owned** `crates/loom-storage/migrations/` applied by `loom-server` at startup (connect → healthcheck → migrate → validate registry → confirm/activate Revision) | Never via manual SQL fixtures for user-facing setup; examples use public Template/API/CLI |
+| Server config | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `LOOM_DATABASE_URL` (native), `LOOM_DATA_DIR`; non-secret `LOOM_BIND_ADDR`, `LOOM_RUNTIME_REVISION_ID` (`loom-server`), `LOOM_CORE_BUILD_REF`, worker lease/retry/poll, Runtime semantic/resource limits, HTTP limits | All have non-secret defaults in `.env.example`; `LOOM_SCHEDULER_WORLD_ID`/`LOOM_SCHEDULER_TIMELINE_ID` optional bounded worker target |
+| Runtime Revision | Publish at startup from `LOOM_RUNTIME_REVISION_ID`+`LOOM_CORE_BUILD_REF`+installed manifests; activation is isolated Admin CAS (`AdminActivateRuntimeRevisionRequest` with `expected_generation`) | Future Worlds use new compatible Revision; history/Binding unaffected — see `docs/operator-guide.md` and `apps/loom-server/src/config.rs` |
+| Templates | `WorldTemplateDescriptor` (TemplateId + `TemplateCapabilityRequirement[]` semver) registered via composition root (`capabilities/loom-neutral` fixtures) and discovered via `CatalogService`; Templates generate `ValidatedWorldBirthPlan` but do not retain World control | Multiple revisions demonstrate future-World-only changes and installed-but-disabled semantics |
+| CLI | **`apps/loom-cli`** — pure consumer of `loom-client` + `loom-api`; `cargo run -p loom-cli -- --help` | No `loom-runtime`/`loom-storage`/concrete Capability imports in production; JSON (`--output json`, compact) and human (`--output human`) modes; `LOOM_SERVER_URL`, `LOOM_BEARER_TOKEN`, `LOOM_ADMIN_TOKEN` via flags/env, no hard-coded secrets |
+
+Local examples use only public surfaces and the deterministic fake cognition; real vendor LLM credentials are never required for V0. Provider credentials belong only to a reviewed provider adapter's application config, not this composition root.
+
+Full prerequisite, server startup and configuration reference: `docs/quickstart.md` §1, `docs/development/loom-server.md`, `docs/development/postgres-tests.md`, and `.env.example`.
+
+## Quickstart
+
+```bash
+cp .env.example .env
+docker compose config
+docker compose up --build
+# In another terminal:
+cargo run -p loom-cli -- catalog --help
+cargo run -p loom-cli -- world create \
+  --template-json '{"id":"neutral.counter.v1","revision":1,"capabilities":[{"id":"neutral.counter","version":"^0.1.0"}],"configuration":{},"initial_world_time":0,"bootstrap_actions":[]}'
 ```
 
-旧 Issues/tasks 只是历史计划输入；如果与当前 architecture authority map / accepted Amendments 冲突，必须重做计划，而不是让架构迁就旧实现。
+Complete public workflow (see [`docs/quickstart.md`](docs/quickstart.md) for every command with expected output):
+
+`start stack` → `discover Template` → `create World` → `invoke Action` → `inspect State/History/Catalog` → `submit Ingress` → `tail/resume feed` → `Scheduler progresses Work/World Time` → `replay/fork` → `inspect Runtime Revision/Session provenance` → `run deterministic Agency Wake` → `restart and resume`.
+
+## CLI and public surfaces
+
+- **CLI:** `apps/loom-cli` (`loom` binary) — `catalog`, `world create/inspect`, `timeline inspect/fork`, `action invoke`, `facet get`, `history events/event/causes/effects/walk`, `trajectory entity/relationship`, `feed subscribe/tail`, `ingress submit/status`, `admin revision/session/timeline/work/agency/world-time`. Machine-readable IDs/cursors are deterministic; `ApiErrorCode` → exit codes 10–16; local UUID/JSON validation is UX-only — the server remains authority. Integration fixture coverage is in `apps/loom-cli/tests/integration.rs`.
+- **HTTP client:** `crates/loom-client` (`loom-client` crate) — formal caller of `loom-boundary` over `loom-api` contracts.
+- **Server:** `apps/loom-server` — production-like composition root (healthcheck → migrate → validate registry → activate Revision → construct Runtime/Boundary/workers → bind `LOOM_BIND_ADDR`).
+- **Neutral examples:** `capabilities/loom-neutral` — `neutral.counter` and `neutral.observer` covering Entity/Relationship/Facet, Action/Event, cross-Capability dependency (`observer` → `counter`), `Reaction`/`Work`, and `DeterministicCognitiveExecutor`. Examples survive restart/replay/fork and need no vendor secrets.
+
+Operator concepts and developer procedures are documented separately:
+
+- Operator guide: [`docs/operator-guide.md`](docs/operator-guide.md)
+- Developer guide: [`docs/developer-guide.md`](docs/developer-guide.md)
+- Capacity envelope (measured, not claimed): [`docs/capacity-envelope.md`](docs/capacity-envelope.md)
+
+## Capacity envelope — measured, not claimed
+
+Observed on the single-host aarch64 benchmark harness (`crates/loom-bench`, `2026-08-24`):
+
+- Single-Timeline same-`WorldInstant` Works serialize head-ordered; ~1.3 ms for 1, ~5.4 s for 128 across `drive_timeline` loop (`serialization_verified=true`, `chronology_consumed==N`).
+- Multi-Timeline independent CAS domains scale with timeline count but share single-thread executor contention (~592 ops/s at 1 → ~38 ops/s at 64).
+- Pinned point reads are `O(1)`: InMemory `rows_read=1, bytes=16, cache_hits=9` for world sizes 1..4096; PostgreSQL point reads `rows_read=1, bytes=36, p50 2–7 ms` for sizes 1..256 via version-fenced one-row queries.
+- Cognition CAS loss waste: default `Resample` pays 2× executor invocations per conflict (`discarded==fresh`), `ReuseDeterministic` pays 1× with explicit `Reused` provenance — both verified via armed `WorkTerminalization` CAS conflict.
+
+All numbers are *observed evidence*, not architecture invariants. Larger-scale production claims remain **unproven / deferred** until measured under load. Full methodology, tables and reproduction commands: `docs/capacity-envelope.md` and `docs/tasks/m11/t3-capacity-benchmarks.md`.
+
+## CI baseline
+
+- **Required:** `ubuntu-latest` authoritative workflow (`.github/workflows/ci.yml`) — checks `cargo deny`, `check_architecture`, `cargo fmt/check/clippy/test/doc` and the `postgres-contract` matrix (PostgreSQL 18 + pgvector service, 8 contract suites). No disposable verifier workflows.
+- **Not required:** macOS is not a mandatory V0 gate (Amendment 0002 §4, `implementation.md` §19 superseded). It may be reintroduced when cross-platform application/UI requirements justify it.
+- **Path-aware:** Rust/config/migration/test/tool, Compose/Docker and workflow paths trigger expensive gates; Markdown/task-only changes correctly skip them.

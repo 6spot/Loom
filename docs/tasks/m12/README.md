@@ -11,9 +11,9 @@ Parent #144; depends on hardening gate #197 and formal client/provenance as list
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M12-T1 | #198 | planned |
-| M12-T2 | #199 | planned |
-| M12-T3 | #200 | planned |
-| M12-T4 | #201 | planned |
+| M12-T1 | #198 | completed — post-#276 baseline `apps/loom-cli` pure consumer |
+| M12-T2 | #199 | in_progress — V0 docs/quickstart/operator/developer/capacity |
+| M12-T3 | #200 | in_progress — neutral examples/templates (parallel track) |
+| M12-T4 | #201 | planned — SERIAL GATE after #198/#199/#200 |
 
 No new Engine authority semantics belong here. Everything must be usable through the formal public server/client/CLI surface.
