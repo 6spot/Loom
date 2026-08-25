@@ -424,7 +424,8 @@ async fn agency_wake_convenience_resolves_version_via_status() {
         .expect("world create for agency convenience");
     let target = created.target;
 
-    // Advance version further via a normal Action and an Ingress-like increment so (0,0) is stale.
+    // Advance version further via the required linear order bootstrap → Action → Ingress → timeline status → Agency Wake.
+    // This reuses the formal Ingress construction from cli_workflows_via_formal_client_against_boundary.
     let inc2 = EventId::from_str("00000000-0000-0000-0000-000000005131").unwrap();
     client
         .invoke(ActionRequest::new(
@@ -437,10 +438,58 @@ async fn agency_wake_convenience_resolves_version_via_status() {
         .await
         .expect("increment should advance version");
 
+    // Submit a real Ingress via formal LoomClient/IngressEnvelope with unique keys in the same linear scenario.
+    let ingress_id = IngressId::from("agency-convenience-ingress-1");
+    let ingress_event = EventId::from_str("00000000-0000-0000-0000-000000005132").unwrap();
+    let envelope = IngressEnvelope::new(
+        ingress_id.clone(),
+        "agency-convenience-key-1",
+        IngressProvenance::new("agency-convenience-test"),
+        target,
+        IngressAuthorizationContext::new(json!({})),
+        IngressTimeMetadata::none(),
+        ActionInvocation::new(
+            loom_core::ActionTypeId::from(COUNTER_INCREMENT_ACTION),
+            json!({"event_id": ingress_event.to_string(), "entity_id": entity_id.to_string(), "amount": 1}),
+        ),
+    );
+    let pre_ingress_status = client
+        .timeline_logical_status(target)
+        .await
+        .expect("pre-ingress status via public AdminService");
+    let acceptance = client
+        .submit_ingress(envelope)
+        .await
+        .expect("ingress should be accepted in same linear scenario");
+    assert!(
+        acceptance.is_accepted() || acceptance.is_deduplicated(),
+        "ingress acceptance"
+    );
+    let ingress_record = client
+        .ingress_status(ingress_id.clone())
+        .await
+        .expect("ingress status readable via public API");
+    assert!(
+        matches!(
+            ingress_record.status,
+            loom_api::IngressStatus::Accepted
+                | loom_api::IngressStatus::Processing
+                | loom_api::IngressStatus::Completed(_)
+        ),
+        "ingress status should be Accepted/Processing/Completed"
+    );
+
     let status = client
         .timeline_logical_status(target)
         .await
         .expect("status should be readable via public AdminService");
+    // Version must not regress after Ingress and must remain beyond (0,0); this is the progression asserted for the linear scenario.
+    assert!(
+        status.version.head_event_seq.value() >= pre_ingress_status.version.head_event_seq.value()
+    );
+    assert!(
+        status.version.state_revision.value() >= pre_ingress_status.version.state_revision.value()
+    );
     let stale = TimelineVersion::new(EventSeq::new(0), StateRevision::new(0));
     assert_ne!(
         status.version, stale,
