@@ -23,8 +23,8 @@ where
         .expect("test identity should parse")
 }
 
-async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, TimelineId, WorkId)> {
-    let database = TestDatabase::provision("work-stale-completion").await?;
+async fn authority() -> (TestDatabase, PgStorage, PgPool, TimelineId, WorkId) {
+    let database = TestDatabase::provision("work-stale-completion").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id: WorldId = id(0x2600);
@@ -57,14 +57,12 @@ async fn authority() -> Option<(TestDatabase, PgStorage, PgPool, TimelineId, Wor
     .execute(&pool)
     .await
     .expect("test Work should insert");
-    Some((database, storage, pool, timeline_id, work_id))
+    (database, storage, pool, timeline_id, work_id)
 }
 
 #[tokio::test]
 async fn postgres_18_work_stale_reclaimed_fence_cannot_complete() {
-    let Some((database, storage, pool, timeline_id, work_id)) = authority().await else {
-        return;
-    };
+    let (database, storage, pool, timeline_id, work_id) = authority().await;
     let first = WorkStore::claim(
         &storage,
         timeline_id,
