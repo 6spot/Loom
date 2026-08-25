@@ -775,10 +775,6 @@ async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId,
 }
 
 #[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "the PostgreSQL Ingress crash-window recovery stays in one unit harness scenario"
-)]
 async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
     let (database_url, storage, world_id, timeline_id, entity_id, event_id) =
         ingress_authority_fixture().await;
