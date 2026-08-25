@@ -577,16 +577,34 @@ fn cv006(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     let inspected_child = block_on(async { api.inspect_timeline(child_target).await });
     let inspect_ok = inspected_parent.is_ok() && inspected_child.is_ok();
 
-    // Verify catalog
-    let catalog_ok = block_on(async { api.catalog() }).is_ok();
+    // Verify the world-scoped catalog through the formal binding-aware surface.
+    // The world view must be readable and every exposed item must belong to the
+    // central catalog; this makes the binding result part of the verdict.
+    let catalog_ok = match (
+        api.catalog(),
+        block_on(async { api.catalog_for_world(parent_target.world_id).await }),
+    ) {
+        (Ok(global), Ok(world)) => {
+            world
+                .capabilities
+                .iter()
+                .all(|capability| global.capability(&capability.id).is_some())
+                && world
+                    .actions
+                    .iter()
+                    .all(|action| global.action(&action.id).is_some())
+        }
+        _ => false,
+    };
 
     let expected = "head fork yields distinct TimelineId and preserves WorldId/binding via ancestry and catalog; child is observable via public TimelineService";
     let actual = format!(
-        "WorldId preserved={world_preserved}, TimelineId distinct={distinct_timeline}, ancestry ok={ancestry_ok}, inspect ok={inspect_ok}, catalog ok={catalog_ok}, parent version {:?} -> child version {:?}",
+        "WorldId preserved={world_preserved}, TimelineId distinct={distinct_timeline}, ancestry ok={ancestry_ok}, inspect ok={inspect_ok}, world-scoped catalog binding ok={catalog_ok}, parent version {:?} -> child version {:?}",
         parent_version, child_snap.version
     );
 
-    let outcome = if world_preserved && distinct_timeline && ancestry_ok && inspect_ok {
+    let outcome = if world_preserved && distinct_timeline && ancestry_ok && inspect_ok && catalog_ok
+    {
         ScenarioOutcome::Pass
     } else {
         ScenarioOutcome::Fail
@@ -696,6 +714,31 @@ fn cv007(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     };
     let child_target = child_snap.target;
 
+    // Create a sibling from the same parent. CV-007 owns this sibling check;
+    // CV-008's historical-fork sibling is a separate scenario.
+    let sibling_snap = match block_on(async {
+        api.fork(ForkTimelineRequest::new(parent_target)).await
+    }) {
+        Ok(s) => s,
+        Err(e) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "sibling fork should succeed",
+                format!("sibling fork failed: {:?} - {}", e.code, e.message),
+                backend,
+                format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::TimelineService::fork",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    };
+    let sibling_target = sibling_snap.target;
+
     // Mutate child: increment by 10
     let inc_event = new_event_id();
     let inc_res = block_on(async {
@@ -752,6 +795,19 @@ fn cv007(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         .and_then(|opt| opt)
         .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
         .unwrap_or(-1);
+    let sibling_facet = block_on(async {
+        api.get_facet(FacetQuery::new(
+            sibling_target,
+            FacetOwner::entity(entity_id),
+            FacetTypeId::from("neutral.counter.value"),
+        ))
+        .await
+    });
+    let sibling_val = sibling_facet
+        .ok()
+        .and_then(|opt| opt)
+        .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+        .unwrap_or(-1);
 
     // Verify history isolation
     let parent_events = block_on(async { api.list_events(EventQuery::all(parent_target)).await })
@@ -760,13 +816,22 @@ fn cv007(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     let child_events = block_on(async { api.list_events(EventQuery::all(child_target)).await })
         .map(|v| v.len())
         .unwrap_or(999);
+    let sibling_events = block_on(async { api.list_events(EventQuery::all(sibling_target)).await })
+        .map(|v| v.len())
+        .unwrap_or(999);
 
     let expected = "child branch mutation does not leak into parent/sibling visible state when observed via QueryService::get_facet and HistoryService::list_events only";
     let actual = format!(
-        "parent facet {parent_val} (expected 5), child facet {child_val} (expected 15), parent events {parent_events} (expected 1), child events {child_events} (expected 2)"
+        "parent facet {parent_val} (expected 5), child facet {child_val} (expected 15), sibling facet {sibling_val} (expected 5), parent events {parent_events} (expected 1), child events {child_events} (expected 2), sibling events {sibling_events} (expected 1)"
     );
 
-    let outcome = if parent_val == 5 && child_val == 15 && parent_events == 1 && child_events == 2 {
+    let outcome = if parent_val == 5
+        && child_val == 15
+        && sibling_val == 5
+        && parent_events == 1
+        && child_events == 2
+        && sibling_events == 1
+    {
         ScenarioOutcome::Pass
     } else {
         ScenarioOutcome::Fail
@@ -783,7 +848,9 @@ fn cv007(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             EvidenceReference::new("public-surface:loom-client::QueryService::get_facet"),
             EvidenceReference::new("public-surface:loom-client::HistoryService::list_events"),
             EvidenceReference::new("public-surface:loom-client::TimelineService::fork"),
-            EvidenceReference::new("validator:branch-isolation:parent-child-via-formal-queries"),
+            EvidenceReference::new(
+                "validator:branch-isolation:parent-child-sibling-via-formal-queries",
+            ),
             EvidenceReference::new("validator:scenario:CV-007"),
         ],
         outcome.clone(),
@@ -892,6 +959,33 @@ fn cv008(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     };
     let child_target = child_snap.target;
 
+    // Re-open the child through the formal TimelineService and validate the
+    // ancestry metadata returned by that read, rather than trusting fork's
+    // original response alone.
+    let inspected_child = match block_on(async { api.inspect_timeline(child_target).await }) {
+        Ok(snapshot) => snapshot,
+        Err(e) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "historical fork child inspection should expose its ancestry",
+                format!("inspect_timeline failed: {:?} - {}", e.code, e.message),
+                backend,
+                format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::TimelineService::inspect_timeline",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    };
+    let ancestry_ok = inspected_child.target == child_target
+        && inspected_child.version == version_a
+        && inspected_child.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
+        && inspected_child.ancestry.fork_parent_version == Some(version_a);
+
     // Verify child's history has 2 events (seed + inc1), not 3
     let child_events = block_on(async { api.list_events(EventQuery::all(child_target)).await })
         .map(|v| v.len())
@@ -994,11 +1088,12 @@ fn cv008(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
 
     let expected = "historical fork at version V preserves ancestry-visible history up to V and excludes ancestor-future and sibling state where formal HistoryService exposes those operations";
     let actual = format!(
-        "child events {child_events} (exp 2) parent events {parent_events} (exp 3) sibling events {sibling_events} (exp 3); child val {child_val} (exp 2) parent val {parent_val} (exp 3) sibling val {sibling_facet} (exp 3); after child inc child val {child_val_after} (exp 7) parent val {parent_val_after} (exp 3); fork_version {:?}",
+        "child events {child_events} (exp 2) parent events {parent_events} (exp 3) sibling events {sibling_events} (exp 3); child val {child_val} (exp 2) parent val {parent_val} (exp 3) sibling val {sibling_facet} (exp 3); after child inc child val {child_val_after} (exp 7) parent val {parent_val_after} (exp 3); inspected ancestry ok={ancestry_ok}, fork_version {:?}",
         version_a
     );
 
-    let outcome = if child_events == 2
+    let outcome = if ancestry_ok
+        && child_events == 2
         && parent_events == 3
         && child_val == 2
         && parent_val == 3
@@ -1189,14 +1284,33 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             .await
     });
 
-    let inspect_ok = fresh_parent_inspect.is_ok() && fresh_child_inspect.is_ok();
-    let history_ok = fresh_parent_events.is_ok() && fresh_child_events.is_ok();
-    let facet_ok = fresh_parent_facet.is_ok();
+    let inspect_ok = match (&fresh_parent_inspect, &fresh_child_inspect) {
+        (Ok(parent), Ok(child)) => {
+            parent.target == parent_target
+                && child.target == child_target
+                && parent.version == child_snap.version
+                && child.version == child_snap.version
+                && child.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
+                && child.ancestry.fork_parent_version == Some(child_snap.version)
+        }
+        _ => false,
+    };
+    let history_ok = match (&fresh_parent_events, &fresh_child_events) {
+        (Ok(parent), Ok(child)) => {
+            parent.len() == 1
+                && child.len() == 1
+                && parent[0].id == seed_event
+                && child[0].id == seed_event
+        }
+        _ => false,
+    };
+    let facet_ok = matches!(&fresh_parent_facet, Ok(Some(facet)) if
+        facet.value.get("value").and_then(|value| value.as_i64()) == Some(1));
 
     let expected = "representative fork/reopen behavior remains correct after PostgreSQL restart when observed via public TimelineService and HistoryService";
     let actual = if inspect_ok && history_ok && facet_ok {
         format!(
-            "reconnect via fresh LoomClient to {base_url} succeeded: parent inspect ok, child inspect ok, history ok, facet ok; durable state survived reconnect"
+            "reconnect via fresh LoomClient to {base_url} succeeded: target/version/ancestry, history content/count, and facet value all matched; durable state survived reconnect"
         )
     } else {
         format!(
