@@ -293,9 +293,7 @@ async fn public_counter(api: &dyn LoomApi, target: loom_api::TimelineTarget) -> 
     reason = "the restart/resume acceptance scenario is intentionally linear"
 )]
 async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
-    let Some(database) = TestDatabase::provision("restart_resume").await else {
-        return;
-    };
+    let database = TestDatabase::provision("restart_resume").await;
 
     let first_storage = database.storage().await;
     let first_runtime =
