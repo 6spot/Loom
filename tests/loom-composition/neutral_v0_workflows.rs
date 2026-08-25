@@ -279,6 +279,117 @@ async fn neutral_v0_public_workflows_via_api() {
         .expect("blob facet exists");
     assert_eq!(blob_facet.value["hash"], json!(blob_hash));
 
+    // Semantic retrieval via generic SemanticProjectionStore public Runtime boundary
+    // (real retrieval, not just catalog discovery): register catalog-consistent
+    // projection, rebuild deterministic rows from fixed committed EventRefs, and
+    // query with bounded limits asserting hit ordering/source.
+    {
+        use loom_core::{EventRef, SchemaRevision};
+        use loom_runtime::{
+            SemanticIndexMetric, SemanticIndexSource, SemanticProjectionKey,
+            SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+            SemanticProjectionRow,
+        };
+        let key = SemanticProjectionKey::new(
+            w1.target.world_id,
+            w1.target.timeline_id,
+            SEMANTIC_INDEX_ID.into(),
+        );
+        let registration = SemanticProjectionRegistration::new(
+            key.clone(),
+            SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+            SchemaRevision::new(1),
+            1,
+            "neutral-model-1",
+            2,
+            SemanticIndexMetric::Cosine,
+        )
+        .expect("neutral projection registration should be valid");
+        runtime_one
+            .register_semantic_projection(registration.clone())
+            .await
+            .expect("projection should register");
+        let snap_before = store
+            .snapshot(w1.target.timeline_id)
+            .expect("snap before projection");
+        // Two deterministic rows from fixed committed EventRefs (seed and increment will be second)
+        // Use already committed seed 0x5130 and the just attached blob event 0x5173 as sources.
+        let rows = vec![
+            SemanticProjectionRow::new(
+                EventRef::new(w1.target.timeline_id, event(0x5130)),
+                "neutral-counter-5101-v1",
+                snap_before.version(),
+                1,
+                "neutral-model-1",
+                vec![1.0, 0.0],
+            )
+            .expect("row 1 should be valid"),
+            SemanticProjectionRow::new(
+                EventRef::new(w1.target.timeline_id, event(0x5173)),
+                "neutral-counter-5101-v2",
+                snap_before.version(),
+                1,
+                "neutral-model-1",
+                vec![0.0, 1.0],
+            )
+            .expect("row 2 should be valid"),
+        ];
+        runtime_one
+            .rebuild_semantic_projection(
+                &SemanticProjectionRebuild::new(registration.clone(), None, rows)
+                    .expect("rebuild should be valid"),
+            )
+            .await
+            .expect("rebuild should succeed");
+        let query = SemanticProjectionQuery::new(
+            key.clone(),
+            SchemaRevision::new(1),
+            1,
+            "neutral-model-1",
+            vec![1.0, 0.0],
+            2,
+        )
+        .expect("bounded query should be valid");
+        let hits = runtime_one
+            .query_semantic_projection(query.clone())
+            .await
+            .expect("query should succeed");
+        assert_eq!(hits.len(), 2);
+        assert_eq!(
+            hits[0].source_ref,
+            EventRef::new(w1.target.timeline_id, event(0x5130))
+        );
+        assert_eq!(
+            hits[1].source_ref,
+            EventRef::new(w1.target.timeline_id, event(0x5173))
+        );
+        // Bounded limit check: limit 1 returns only the nearest hit.
+        let limited = SemanticProjectionQuery::new(
+            key,
+            SchemaRevision::new(1),
+            1,
+            "neutral-model-1",
+            vec![1.0, 0.0],
+            1,
+        )
+        .expect("limited query");
+        let limited_hits = runtime_one
+            .query_semantic_projection(limited)
+            .await
+            .expect("limited query should succeed");
+        assert_eq!(limited_hits.len(), 1);
+        assert_eq!(
+            limited_hits[0].source_ref,
+            EventRef::new(w1.target.timeline_id, event(0x5130))
+        );
+        // Authority version must not change after projection materialization.
+        let snap_after = store
+            .snapshot(w1.target.timeline_id)
+            .expect("snap after projection");
+        assert_eq!(snap_before.version(), snap_after.version());
+        assert_eq!(snap_before.events, snap_after.events);
+    }
+
     let inc_event = event(0x5174);
     let inc = runtime_one
         .invoke(ActionRequest::new(

@@ -264,7 +264,7 @@ impl Capability for CounterCapability {
             SEMANTIC_INDEX_ID,
             SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
             SchemaRevision::new(1),
-            2,
+            1,
             "neutral-model-1",
             2,
             SemanticIndexMetric::Cosine,
