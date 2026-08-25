@@ -9,7 +9,7 @@ These three names are frozen and must never be merged into a single “global re
 | Concept | What it is | Lifecycle | Where it is seen |
 | --- | --- | --- | --- |
 | **Installed Capability** | Platform software availability: which Capability crates the current `Runtime Revision` + composition root (`apps/loom-server` + `capabilities/loom-neutral`) has compiled and registered in `CapabilityRegistry::assemble` | Changes only when the platform publishes/activates a new `Runtime Revision` | `catalog` (global), `capabilities` list of `AdminRuntimeRevision`, `ServerConfig::from_env` startup log |
-| **World Runtime Binding** | Per-World immutable runtime metadata: which semantic Capability domains (and their semver requirements) this World is allowed to use after birth. Stored alongside `WorldId`, shared by all Timelines of that World | Set exactly once at `WorldTemplateDescriptor → ValidatedWorldBirthPlan` birth (`world create`); never mutated by later Template revisions or Revision activation | `catalog --world <world-id>` (Binding-filtered), `TimelineSnapshot.binding`, `World Runtime Binding` row in PostgreSQL (`loom-storage`) |
+| **World Runtime Binding** | Per-World immutable runtime metadata: which semantic Capability domains (and their semver requirements) this World is allowed to use after birth. Stored alongside `WorldId`, shared by all Timelines of that World | Set exactly once at `WorldTemplateDescriptor → ValidatedWorldBirthPlan` birth (`world create`); never mutated by later Template revisions or Revision activation | `catalog --world-id <world-id>` (Binding-filtered, global `--output` before subcommand: `loom --output human catalog --world-id <id>`), `TimelineSnapshot.binding`, `World Runtime Binding` row in PostgreSQL (`loom-storage`) |
 | **Execution Assembly** | Exact software implementations pinned for one root `Execution Session`: `TimelineTarget` + `TimelineVersion` + `World Runtime Binding` + `Runtime Revision` + exact compatible Capability implementations + policy/services (+ Agency context where used) | Created at Session start; recorded immutably in Session provenance | `admin session get --session-id`, `admin session for-event`, `Session.assembly` in provenance |
 
 Consequences:
@@ -50,7 +50,7 @@ Operational Work state  = Platform Operational State: lease_deadline / fence / a
 - `FailurePolicy` is bounded; `Dead`/`Cancelled` are Logical Commits (`AdminTerminalizeWorkRequest`), not retry loops. Automatic technical retry never loops forever — a poison Work exhausts the policy and becomes a visible liveness condition requiring operator terminalization or software correction.
 - A crash after claim leaves the Work `Pending` with a stale fence; after lease expiry a later worker reclaims it with a newer fence. The stale fence cannot retry, complete or terminalize.
 
-Inspect: `admin timeline status --world --timeline` (logical status + budget), `admin work terminalize --world --timeline --work-id --state Dead|Cancelled`.
+Inspect: `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world <world> --timeline <timeline>` (logical status + budget; global `--admin-token` before subcommand), `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin work terminalize --world <world> --timeline <timeline> --work-id <work> --expected-head-seq <seq> --expected-state-rev <rev> --terminal-state dead|dead|Cancelled`.
 
 ## 4. Head-of-line chronology barrier, quiescence and Chronology Budget
 
@@ -66,20 +66,20 @@ Behavior when exhausted: the Scheduler stops further automatic progress at that 
 
 `TimelineBlockedOnMissingImplementation` occurs when the semantically due logical head cannot be assembled because the active `Runtime Revision` lacks a compatible implementation for the required execution target (Capability `WorkHandler` vs Agency Wake's `CognitiveExecutor`/`AgentWorldView` context builder). The Timeline is blocked, not failed; `available_at` is not consumed; the chronology barrier remains.
 
-Observe:
+Observe (global `--admin-token` before subcommand; `missing-implementation` requires `--work-id`):
 
 ```bash
-cargo run -p loom-cli -- admin timeline missing-implementation --world $WORLD --timeline $TIMELINE --output human
-cargo run -p loom-cli -- admin timeline status --world $WORLD --timeline $TIMELINE --output human
+cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline missing-implementation --world $WORLD --timeline $TIMELINE --work-id 00000000-0000-0000-0000-000000000070
+cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world $WORLD --timeline $TIMELINE
 ```
 
 Recovery paths (mutually exclusive, both explicit Logical Commits):
 
-1. **Provide compatible software** — publish and activate a new `Runtime Revision` containing the required capability/provider implementation; the Scheduler will then admit the same head on the next drive.
-2. **Authorized terminalization** — an operator with `AdminOperation::TerminalizeWork` authority explicitly moves `Pending → Dead | Cancelled` via:
+1. **Provide compatible software** — publish and activate a new `Runtime Revision` containing the required capability/provider implementation; the Scheduler will then admit the same head on the next drive (requires `LOOM_SCHEDULER_WORLD_ID`/`TIMELINE_ID` to be set and the server restarted, see quickstart §3.5).
+2. **Authorized terminalization** — an operator with `AdminOperation::TerminalizeWork` authority explicitly moves `Pending → Dead | Cancelled` via (global `--admin-token` before subcommand; `--expected-head-seq`/`--expected-state-rev` are mandatory CAS guards; `--terminal-state` is `dead` or `cancelled`):
 
 ```bash
-cargo run -p loom-cli -- admin work terminalize --world $WORLD --timeline $TIMELINE --work-id <work-id> --state Dead --output human
+cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin work terminalize --world $WORLD --timeline $TIMELINE --work-id 00000000-0000-0000-0000-000000000070 --expected-head-seq 2 --expected-state-rev 2 --terminal-state dead
 ```
 
 A terminalized Work is not resurrected; a new Work must be created with provenance/origin reference to the old one if another attempt is desired (Amendment 0001 §1.5).
@@ -88,9 +88,9 @@ A terminalized Work is not resurrected; a new Work must be created with provenan
 
 | Artifact | Records | Command |
 | --- | --- | --- |
-| **Runtime Revision** | Immutable publication: `revision_id`, `published_at`, `core_build_ref`, `loom_version`, exact `capabilities[]` (capability_id/implementation_id/version/loom_compatibility), policy ids, `change_summary`, `semantic_behavior_changed`, plus per-revision `generation` CAS on the active pointer | `admin revision list/get/activate` |
-| **Execution Session** | Per root execution: `TimelineTarget`, pinned `TimelineVersion`, pinned `World Time`, `Execution Assembly`, `ReadSet`/subresolution call graph, entropy samples, `ExecutionResult`, lifecycle `Started/Committed/NoChange/Rejected/Failed/Blocked` | `admin session get --session-id`, `admin session for-event --event-ref` |
-| **Event ↔ Session link** | Atomic `Event → producing Session` persistence (M9 tasks 183/184) | `history event --event-ref` (producing session id) + session inspect |
+| **Runtime Revision** | Immutable publication: `revision_id`, `published_at`, `core_build_ref`, `loom_version`, exact `capabilities[]` (capability_id/implementation_id/version/loom_compatibility), policy ids, `change_summary`, `semantic_behavior_changed`, plus per-revision `generation` CAS on the active pointer | `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin revision list` / `get --revision-id …` / `activate --revision-id … --expected-generation …` (global `--admin-token` before `admin`) |
+| **Execution Session** | Per root execution: `TimelineTarget`, pinned `TimelineVersion`, pinned `World Time`, `Execution Assembly`, `ReadSet`/subresolution call graph, entropy samples, `ExecutionResult`, lifecycle `Started/Committed/NoChange/Rejected/Failed/Blocked` | `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin session get --session-id <id>`; `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin session for-event --timeline <timeline> --event-id <event>` |
+| **Event ↔ Session link** | Atomic `Event → producing Session` persistence (M9 tasks 183/184) | `loom --output human history event --timeline <timeline> --event-id <event>` (or `--event-ref <ref>`) → producing session id + session inspect |
 | **Cognitive evidence** | Per observation `ordinal`, pinned executor/provider/model revision, `AdminDecisionReusePolicy` (`Resample` vs `ReuseDeterministic`), `AdminCognitiveDisposition` (`Fresh/Reused/Discarded`), context cost, `context_read_set` | Session `cognitive_observations[]` projection |
 
 A new Revision never mutates history, Binding or `World Time`; it only affects *new* compatible Sessions. The active pointer's `generation` prevents lost-update activation races.
@@ -108,7 +108,7 @@ Replay is observable via `history events/event`, `facet get` at historical versi
 
 A Timeline fork is a Logical Commit that clones `Timeline Logical State` history and ancestry:
 
-- `ForkTimelineRequest { source: TimelineTarget, source_version?: TimelineVersion }` (`cargo run -p loom-cli -- timeline fork`).
+- `ForkTimelineRequest { source: TimelineTarget, source_version?: TimelineVersion }` (`cargo run -p loom-cli -- --output human timeline fork --world <world> --timeline <timeline> [--source-version <seq:rev>]`).
 - Parent Binding, `World Time`, `chronology_consumed`, `TimelineVersion` lineage and branch-local `Pending` Works are cloned; `Platform Operational State` (lease/fence/retry) is not forked — child Works start with fresh operational state.
 - `TimelineAncestry`/`TimelineVersion`/`fork_position` are immutable, queryable via `history causes/effects/walk` (`CausalTraversal` with `CausalDirection::Ancestors|Descendants`).
 - Branch-local Events/`Work`/`Session` provenance never leak across branches; the storage tests prove restart/replay/fork isolation (`crates/loom-storage/tests/postgres_work.rs`, `postgres_restart_resume`).
