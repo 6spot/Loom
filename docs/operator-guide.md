@@ -50,7 +50,7 @@ Operational Work state  = Platform Operational State: lease_deadline / fence / a
 - `FailurePolicy` is bounded; `Dead`/`Cancelled` are Logical Commits (`AdminTerminalizeWorkRequest`), not retry loops. Automatic technical retry never loops forever — a poison Work exhausts the policy and becomes a visible liveness condition requiring operator terminalization or software correction.
 - A crash after claim leaves the Work `Pending` with a stale fence; after lease expiry a later worker reclaims it with a newer fence. The stale fence cannot retry, complete or terminalize.
 
-Inspect: `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world <world> --timeline <timeline>` (logical status + budget; global `--admin-token` before subcommand), `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin work terminalize --world <world> --timeline <timeline> --work-id <work> --expected-head-seq <seq> --expected-state-rev <rev> --terminal-state dead|dead|Cancelled`.
+Inspect: `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world <world> --timeline <timeline>` (logical status + budget; global `--admin-token` before subcommand), `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin work terminalize --world <world> --timeline <timeline> --work-id <work> --expected-head-seq <seq> --expected-state-rev <rev> --terminal-state dead` (or `cancelled`).
 
 ## 4. Head-of-line chronology barrier, quiescence and Chronology Budget
 

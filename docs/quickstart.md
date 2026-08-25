@@ -146,7 +146,8 @@ There is no Template catalog at head. A `WorldTemplateDescriptor` is constructed
 
 ```bash
 # Minimal neutral counter Template (world_time 0, one Capability requirement).
-# Either --template-json inline or --template-file / --request-file is accepted (file is UX; server validates).
+# --template-json / --template-file accept a WorldTemplateDescriptor;
+# --request-file must be a CreateWorldFromTemplateRequest with top-level {"template": descriptor} (server validates both forms).
 cargo run -p loom-cli -- --output human world create \
   --template-json '{"id":"neutral.counter.v1","revision":1,"capabilities":[{"id":"neutral.counter","version":"^0.1.0"}],"configuration":{},"initial_world_time":0,"bootstrap_actions":[]}'
 
@@ -158,6 +159,9 @@ TIMELINE=00000000-0000-0000-0000-000000000011
 # The same descriptor can be supplied via a JSON file:
 #   echo '{"id":"neutral.counter.v1","revision":1,"capabilities":[{"id":"neutral.counter","version":"^0.1.0"}],"configuration":{},"initial_world_time":0,"bootstrap_actions":[]}' > /tmp/template.json
 #   cargo run -p loom-cli -- --output human world create --template-file /tmp/template.json
+# Or as a full request with top-level template (for --request-file):
+#   echo '{"template":{"id":"neutral.counter.v1","revision":1,"capabilities":[{"id":"neutral.counter","version":"^0.1.0"}],"configuration":{},"initial_world_time":0,"bootstrap_actions":[]}}' > /tmp/request.json
+#   cargo run -p loom-cli -- --output human world create --request-file /tmp/request.json
 ```
 
 Installed neutral fixtures are in `capabilities/loom-neutral/src/lib.rs` (`registry()`) — `neutral.counter` and `neutral.observer` with dependency `observer ^0.1.0 → counter ^0.1.0`. A variant that adds `neutral.observer` would demonstrate installed-but-disabled semantics, but additional Template revisions and Relationship fixtures are **deferred** to `M12-T3` (see `tests/loom-composition/src/neutral.rs` for test-only builders).
@@ -236,15 +240,15 @@ cargo run -p loom-cli -- --output human ingress submit \
 # Status — query by ingress_id (not idempotency_key):
 cargo run -p loom-cli -- --output human ingress status --ingress-id 00000000-0000-0000-0000-000000000030
 
-# Tail the committed Change Feed (SSE-backed Subscription). Use --after + --limit for pagination/resume; there is no --cursor flag (use --request-file/--request-json for a full SubscriptionRequest):
+# Tail the committed Change Feed (SSE-backed Subscription). Use --after + --limit for pagination; there is no --cursor flag (use --request-file/--request-json for a full SubscriptionRequest with resume_from):
 cargo run -p loom-cli -- --output human feed subscribe --world $WORLD --timeline $TIMELINE --limit 100
 cargo run -p loom-cli -- --output human feed tail --world $WORLD --timeline $TIMELINE --after 1 --limit 100
-# Resume via a full SubscriptionRequest JSON when needed:
-#   echo '{"target":{"world_id":"'"$WORLD"'","timeline_id":"'"$TIMELINE"'"},"after":2,"limit":100}' > /tmp/sub.json
-#   cargo run -p loom-cli -- --output human feed subscribe --request-file /tmp/sub.json
+# Resume from a durable cursor via a full SubscriptionRequest JSON (requires --world/--timeline even with --request-file; cursor inside resume_from holds the same target + after):
+#   echo '{"target":{"world_id":"'"$WORLD"'","timeline_id":"'"$TIMELINE"'"},"resume_from":{"target":{"world_id":"'"$WORLD"'","timeline_id":"'"$TIMELINE"'"},"after":2},"limit":100}' > /tmp/sub.json
+#   cargo run -p loom-cli -- --output human feed subscribe --world $WORLD --timeline $TIMELINE --request-file /tmp/sub.json
 ```
 
-A durable `IdempotencyKey` guarantees at-most-once acceptance; the committed feed only contains Runtime-committed Events, never accepted-but-uncommitted envelopes. Resume uses `SubscriptionRequest` (`after` = `EventSeq`, `limit`) or the committed `ChangeFeedCursor` via the API, not a client-side `--cursor` flag.
+A durable `IdempotencyKey` guarantees at-most-once acceptance; the committed feed only contains Runtime-committed Events, never accepted-but-uncommitted envelopes. Resume uses `SubscriptionRequest` with `resume_from: ChangeFeedCursor{target, after: EventSeq}` (or `--after`/`--limit` for bounded pagination) via the API, not a client-side `--cursor` flag.
 
 ### 3.5 Scheduler progression and World Time
 
@@ -257,8 +261,8 @@ echo "LOOM_SCHEDULER_TIMELINE_ID=$TIMELINE" >> .env
 docker compose up -d --build loom-server
 # Native: export LOOM_SCHEDULER_WORLD_ID=$WORLD LOOM_SCHEDULER_TIMELINE_ID=$TIMELINE; cargo run -p loom-server
 
-# Observe scheduled Reaction Work (counter increment schedules Immediate Work):
-cargo run -p loom-cli -- --output human admin timeline status --world $WORLD --timeline $TIMELINE
+# Observe scheduled Reaction Work (counter increment schedules Immediate Work; Admin token required):
+cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world $WORLD --timeline $TIMELINE
 # This command is read-only; it does not drive the Scheduler. Driving requires the configured worker above.
 # The server's bounded worker calls Runtime::drive_timeline on the configured Timeline when the target is present.
 

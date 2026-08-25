@@ -365,8 +365,14 @@ where
 }
 
 fn scheduler_target_from_env() -> Result<Option<TimelineTarget>, ServerConfigError> {
-    let world = std::env::var("LOOM_SCHEDULER_WORLD_ID").ok();
-    let timeline = std::env::var("LOOM_SCHEDULER_TIMELINE_ID").ok();
+    let world = std::env::var("LOOM_SCHEDULER_WORLD_ID")
+        .ok()
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty());
+    let timeline = std::env::var("LOOM_SCHEDULER_TIMELINE_ID")
+        .ok()
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty());
     match (world, timeline) {
         (None, None) => Ok(None),
         (Some(world), Some(timeline)) => Ok(Some(TimelineTarget::new(

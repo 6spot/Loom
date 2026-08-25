@@ -122,7 +122,7 @@ Iterations=8 per policy, each iteration arms a real `WorkTerminalization` CAS co
 | Multi-threaded shared-process Runtime topology | **Deferred** — current contract is `one Linux worker process → one single-thread executor → one Runtime`; cross-timeline concurrency is via independent processes (see `docs/development/runtime-worker.md`) |
 | Fine-grained `ReadSet` commit validation beyond Timeline-wide CAS | **Deferred** (Amendment 0003 §5) |
 | Historical replay/fork checkpointing / snapshot acceleration | **Deferred** |
-| Real vendor LLM as required V0 path | **Non-blocking / deferred** — deterministic fake is the supported V0 example; real adapters remain application-owned |
+| Real vendor LLM as required V0 path | **Non-blocking / deferred** — deterministic fake is benchmark/test evidence only (`loom-bench`, `loom-agency/src/testing.rs`), not a default public composition example; a supported public deterministic fake fixture/adapter is **deferred** to `M12-T3`/T4; real adapters remain application-owned |
 | macOS / large-scale production SLOs | **Not claimed** — CI required baseline is Ubuntu/Linux; macOS restoration timing is a deferred decision (`architecture/README.md` §4) |
 | Numeric retry/backoff/budget defaults as invariants | **Not invariants** — they are deployment policy (`LOOM_RUNTIME_MAX_*`, `FailurePolicy`, `ChronologyBudgetPolicy`) measured but not architecture-guaranteed |
 
