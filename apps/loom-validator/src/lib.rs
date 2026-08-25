@@ -26,7 +26,7 @@ pub use cli::{
 };
 pub use feedback::{
     FeedbackAppendSummary, TaskLedgerFeedback, TaskLedgerFeedbackError,
-    append_report_to_task_ledger,
+    append_report_to_task_ledger, feedback_exit_code,
 };
 pub use finding::{EvidenceReference, Finding};
 pub use outcome::ScenarioOutcome;
