@@ -7,7 +7,7 @@
 //! - `PostgreSQL`: CV-001..CV-004 pass against a real `PostgreSQL`-backed Loom
 //!   HTTP service (the `loom-server` backend composition). An explicit
 //!   `LOOM_TEST_POSTGRES_URL` may override the repository-local database; when
-//!   unset, the repository-managed PostgreSQL service is started on demand.
+//!   unset, the repository-managed `PostgreSQL` service is started on demand.
 //! - Negative endpoint: `LOOM_VALIDATOR_BASE_URL=http://127.0.0.1:1` never
 //!   yields a pass.
 
