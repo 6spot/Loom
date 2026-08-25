@@ -6,7 +6,7 @@ depends_on: [202]
 created_at: 2026-08-22
 started_at: 2026-08-25
 completed_at: 2026-08-25
-completion_pr: pending follow-up PR number
+completion_pr: 285
 merge_sha: dca5463a341bcb4cde19a999eba8ef37e0ea60dd
 ---
 # M13-T2 — V0 closure audit
