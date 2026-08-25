@@ -5,15 +5,12 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-http-body-util = "0.1"
-hyper = { version = "1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
 loom-api = { path = "../../crates/loom-api", version = "0.1.0" }
 loom-client = { path = "../../crates/loom-client", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "~1.51", features = ["rt", "rt-multi-thread", "net", "io-util", "time", "macros", "sync"] }
+uuid = { version = "1", features = ["v4"] }
 
 [lints]
 workspace = true
