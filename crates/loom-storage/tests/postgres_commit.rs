@@ -92,8 +92,8 @@ fn registry() -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
-async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, WorldId, TimelineId)> {
-    let database = TestDatabase::provision("commit").await?;
+async fn authority(seed: u128) -> (TestDatabase, PgStorage, PgPool, WorldId, TimelineId) {
+    let database = TestDatabase::provision("commit").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id: WorldId = id(seed);
@@ -112,7 +112,7 @@ async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, World
     .execute(&pool)
     .await
     .expect("test Timeline should insert");
-    Some((database, storage, pool, world_id, timeline_id))
+    (database, storage, pool, world_id, timeline_id)
 }
 
 async fn validated(
@@ -141,9 +141,7 @@ async fn try_validated(
 
 #[tokio::test]
 async fn postgres_18_world_time_port_advances_and_rejects_stale_cas() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1050).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1050).await;
     let initial = WorldStore::snapshot(&storage, timeline_id)
         .await
         .expect("initial Timeline should be readable");
@@ -232,9 +230,7 @@ fn event(event_id: EventId, source_time: i64) -> ProposedEvent {
 
 #[tokio::test]
 async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1000).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1000).await;
     let left: EntityId = id(0x1010);
     let right: EntityId = id(0x1011);
     seed_entity(&pool, timeline_id, left).await;
@@ -315,9 +311,7 @@ async fn postgres_18_commit_multi_event_sequences_and_same_event_references() {
     reason = "the PostgreSQL fixture covers valid and bounded cross-Timeline causality"
 )]
 async fn postgres_18_commit_accepts_visible_ancestor_and_rejects_late_branch_reference() {
-    let Some((database, storage, pool, _world_id, timeline_a)) = authority(0x10a0).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_a) = authority(0x10a0).await;
     let timeline_b: TimelineId = id(0x10a2);
     let timeline_sibling: TimelineId = id(0x10a3);
     let root_event: EventId = id(0x10b0);
@@ -427,9 +421,7 @@ async fn postgres_18_commit_accepts_visible_ancestor_and_rejects_late_branch_ref
 
 #[tokio::test]
 async fn postgres_18_commit_relationship_reference_survives_same_event_end() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1100).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1100).await;
     let left: EntityId = id(0x1110);
     let right: EntityId = id(0x1111);
     let relationship: RelationshipId = id(0x1120);
@@ -492,9 +484,7 @@ async fn postgres_18_commit_relationship_reference_survives_same_event_end() {
 
 #[tokio::test]
 async fn postgres_18_commit_concurrent_cas_has_exactly_one_winner() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1200).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1200).await;
     let registry = registry();
     let snapshot = WorldStore::snapshot(&storage, timeline_id)
         .await
@@ -557,9 +547,7 @@ async fn postgres_18_commit_concurrent_cas_has_exactly_one_winner() {
 
 #[tokio::test]
 async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1300).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1300).await;
     let duplicate_work: WorkId = id(0x1310);
     seed_pending_work(&pool, timeline_id, duplicate_work).await;
     let created: EntityId = id(0x1311);
@@ -601,9 +589,7 @@ async fn postgres_18_commit_work_failure_rolls_back_event_and_state() {
 
 #[tokio::test]
 async fn postgres_18_commit_no_change_and_work_only_semantics() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1400).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1400).await;
     let empty_registry = CapabilityRegistry::new();
     let empty = validated(
         &storage,
@@ -661,9 +647,7 @@ async fn postgres_18_commit_no_change_and_work_only_semantics() {
 
 #[tokio::test]
 async fn postgres_18_commit_current_work_completion_is_atomic_runtime_state() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1500).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1500).await;
     let work_id: WorkId = id(0x1510);
     sqlx::query(
         "INSERT INTO loom_work \
@@ -713,9 +697,7 @@ async fn postgres_18_commit_current_work_completion_is_atomic_runtime_state() {
 
 #[tokio::test]
 async fn postgres_18_commit_runtime_and_storage_reject_forward_or_missing_structure() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x1600).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x1600).await;
     let registry = registry();
     let future_entity: EntityId = id(0x1610);
     let mut first = event(id(0x1620), 1);
