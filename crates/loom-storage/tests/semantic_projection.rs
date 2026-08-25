@@ -191,9 +191,7 @@ async fn in_memory_projection_is_bounded_rebuildable_and_authority_neutral() {
 )]
 #[tokio::test]
 async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
-    let Some(database) = TestDatabase::provision("semantic_projection").await else {
-        return;
-    };
+    let database = TestDatabase::provision("semantic_projection").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(101);
@@ -339,9 +337,7 @@ async fn postgres_pgvector_projection_round_trip_and_mismatch_are_typed() {
 
 #[tokio::test]
 async fn postgres_overlapping_register_is_idempotent_on_authoritative_key() {
-    let Some(database) = TestDatabase::provision("semantic_projection_register").await else {
-        return;
-    };
+    let database = TestDatabase::provision("semantic_projection_register").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(201);
