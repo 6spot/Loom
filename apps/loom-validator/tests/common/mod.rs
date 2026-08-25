@@ -118,7 +118,7 @@ pub struct PgServer {
 impl PgServer {
     /// Starts a real PostgreSQL-backed Loom HTTP service and returns its public
     /// client. An explicit `LOOM_TEST_POSTGRES_URL` overrides the repository
-    /// default; otherwise the repository-managed PostgreSQL service is used and
+    /// default; otherwise the repository-managed `PostgreSQL` service is used and
     /// started on demand when unreachable.
     pub fn start() -> Result<(Self, LoomClient), String> {
         let (url, uses_repository_default) = postgres_url();
