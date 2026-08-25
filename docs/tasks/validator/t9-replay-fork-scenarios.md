@@ -74,6 +74,6 @@ Unavailable public operations are factual gaps in `Finding` evidence:
 - `cargo run -q -p loom-validator --` → `CV-005 pass` (`replay via fork at version 1 verified: child facet=1 parent facet=2`), `CV-006 pass` (`WorldId preserved=true distinct=true`), `CV-007 pass` (`parent facet 5 child 15`), `CV-008 pass` (`child events 2 parent 3`), `CV-009 unavailable` (`inmemory-durable-restart`); `4 pass 1 unavailable`.
 - `cargo run -q -p loom-validator -- --json /tmp/report.json` → `report.json` `backend: in-memory` `counts{pass:4 unavailable:1}` and `findings[0].evidence` contains `public-surface:loom-client::TimelineService::fork` and `gap`.
 - `BackendHarness::connect(PostgreSQL, http://127.0.0.1:1)` with `LOOM_TEST_POSTGRES_URL=postgres://localhost:5432/loom_test` → `Unavailable` (live endpoint not reachable, not `pass`); without `LOOM_TEST_POSTGRES_URL` → `Prerequisite` (`missing ...`).
-- `cargo test -p loom-validator --test replay_fork -- --nocapture` → 2 passed; real InMemory CV-005..CV-008 passed, and the PostgreSQL acceptance test explicitly skipped because `LOOM_TEST_POSTGRES_URL` was not configured.
+- `bash tools/test.sh -p loom-validator --test replay_fork -- --nocapture` → 2 passed; the repository script started/reused `compose.test-db.yaml`, supplied the standard PostgreSQL test endpoint, and real InMemory plus PostgreSQL CV-005..CV-008 all passed.
 
 Acceptance remains pending reviewer confirmation.
