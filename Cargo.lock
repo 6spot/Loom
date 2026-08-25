@@ -1466,6 +1466,7 @@ dependencies = [
  "hyper-util",
  "loom-api",
  "loom-boundary",
+ "loom-capability",
  "loom-client",
  "loom-neutral",
  "loom-runtime",

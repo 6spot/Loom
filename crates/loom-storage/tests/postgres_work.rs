@@ -714,6 +714,10 @@ async fn postgres_18_scheduler_budget_is_durable_across_restart() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "concurrent worker topology gate keeps two timelines' evidence together"
+)]
 async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
     let (database, storage, pool, world_a, timeline_a) = authority(0x2a00).await;
     let world_b: WorldId = id(0x2a02);
