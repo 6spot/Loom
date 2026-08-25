@@ -114,7 +114,6 @@ impl WorkHandler for EntropyFinishResolver {
     }
 }
 
-
 fn ensure_entropy_revision(store: &InMemoryStore) {
     let reg = registry();
     let descriptor = RuntimeRevisionDescriptor::new(

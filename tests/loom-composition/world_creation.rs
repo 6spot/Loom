@@ -14,7 +14,10 @@ use loom_core::{
     WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
-use loom_runtime::{ExecutionOrigin, ExecutionSessionStore, IdentityAllocator, PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId};
+use loom_runtime::{
+    ExecutionOrigin, ExecutionSessionStore, IdentityAllocator, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+};
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
 
@@ -105,7 +108,6 @@ where
         .parse()
         .map_err(|_| ResolverError::new(format!("{field} must be a UUID string")))
 }
-
 
 fn ensure_bootstrap_revision(store: &InMemoryStore, reg: &CapabilityRegistry) {
     let descriptor = RuntimeRevisionDescriptor::new(

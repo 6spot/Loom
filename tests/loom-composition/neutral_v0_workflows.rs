@@ -19,10 +19,12 @@ use loom_core::{
     WorldInstant,
 };
 use loom_protocol::ActionInvocation;
-use loom_runtime::{BlobStore, ExecutionSessionStore, PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, WorkStatus};
+use loom_runtime::{
+    BlobStore, ExecutionSessionStore, PlatformTime, Runtime, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, WorkStatus,
+};
 use loom_storage::{InMemoryBlobStore, InMemoryStore};
 use serde_json::json;
-
 
 fn ensure_neutral_revision(store: &InMemoryStore) {
     let reg = neutral::registry();
