@@ -1,11 +1,6 @@
 use super::PgStorage;
 
-use std::{
-    path::Path,
-    process::Command,
-    str::FromStr,
-    sync::OnceLock,
-};
+use std::{path::Path, process::Command, str::FromStr, sync::OnceLock};
 
 use loom_agency::DecisionReusePolicy;
 use loom_api::{
@@ -34,8 +29,7 @@ const WORLD_ID: &str = "00000000-0000-0000-0000-000000000101";
 const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000102";
 const ENTITY_ID: &str = "00000000-0000-0000-0000-000000000103";
 const AGENCY_COGNITION: &str = "deterministic.fake";
-const DEFAULT_POSTGRES_CONTROL_URL: &str =
-    "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 static REPOSITORY_POSTGRES_READY: OnceLock<()> = OnceLock::new();
 
@@ -726,7 +720,8 @@ async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable
     storage.close().await;
 }
 
-async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId, EntityId, EventId) {
+async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId, EntityId, EventId)
+{
     let database_url = postgres_url();
     let storage = PgStorage::connect(&database_url)
         .await
