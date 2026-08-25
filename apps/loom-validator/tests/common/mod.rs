@@ -8,6 +8,8 @@
 //! scenarios are exercised against genuine application boundaries with durable
 //! state that survives a real boundary rebuild.
 
+#![allow(dead_code)]
+
 use std::{env, sync::Arc};
 
 use loom_boundary::{BoundaryConfig, router};
