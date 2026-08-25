@@ -19,9 +19,33 @@ use loom_core::{
     WorldInstant,
 };
 use loom_protocol::ActionInvocation;
-use loom_runtime::{BlobStore, ExecutionSessionStore, PlatformTime, Runtime, WorkStatus};
+use loom_runtime::{BlobStore, ExecutionSessionStore, PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, WorkStatus};
 use loom_storage::{InMemoryBlobStore, InMemoryStore};
 use serde_json::json;
+
+
+fn ensure_neutral_revision(store: &InMemoryStore) {
+    let reg = neutral::registry();
+    let descriptor = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("neutral-explicit-v0"),
+        PlatformTime::default(),
+        "test-build",
+        reg.loom_version().clone(),
+        reg.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("neutral revision should be valid");
+    store
+        .confirm_revision(descriptor.clone())
+        .expect("neutral revision should be confirmed");
+    store
+        .activate_revision(descriptor.id().clone(), None, PlatformTime::default())
+        .expect("neutral revision should be activated");
+}
 
 fn entity(value: u128) -> EntityId {
     neutral::identity(value)
@@ -45,6 +69,7 @@ fn work(value: u128) -> WorkId {
 #[tokio::test]
 async fn neutral_v0_public_workflows_via_api() {
     let store = InMemoryStore::new();
+    ensure_neutral_revision(&store);
     let entity_id = entity(0x5101);
     let other_entity = entity(0x5102);
     let first_world = world(0x5110);
@@ -502,6 +527,7 @@ async fn neutral_v0_public_workflows_via_api() {
 #[tokio::test]
 async fn neutral_v0_restart_keeps_binding_and_history() {
     let store = InMemoryStore::new();
+    ensure_neutral_revision(&store);
     let entity_id = entity(0x5101);
     let world_id = world(0x5200);
     let timeline_id = timeline(0x5201);
@@ -598,6 +624,7 @@ async fn neutral_v0_restart_keeps_binding_and_history() {
 #[tokio::test]
 async fn neutral_v0_replay_and_fork_are_deterministic() {
     let store = InMemoryStore::new();
+    ensure_neutral_revision(&store);
     let entity_id = entity(0x5101);
     let world_id = world(0x5300);
     let timeline_id = timeline(0x5301);
@@ -690,6 +717,7 @@ async fn neutral_v0_replay_and_fork_are_deterministic() {
 #[tokio::test]
 async fn neutral_v0_agency_deterministic_without_vendor_credentials() {
     let store = InMemoryStore::new();
+    ensure_neutral_revision(&store);
     let agent = entity(0x5101);
     let world_id = world(0x5400);
     let timeline_id = timeline(0x5401);
