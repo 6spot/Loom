@@ -123,23 +123,29 @@ async fn postgres_18_schema_contract() {
     .expect("schema tables should be inspectable");
     assert_eq!(loom_table_count, 22);
 
-    sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+    sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")
         .bind(WORLD_ID)
         .execute(&storage.pool)
         .await
         .expect("test World should insert");
-    sqlx::query("INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)")
-        .bind(TIMELINE_ID)
-        .bind(WORLD_ID)
-        .execute(&storage.pool)
-        .await
-        .expect("test Timeline should insert");
-    sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
-        .bind(TIMELINE_ID)
-        .bind(ENTITY_ID)
-        .execute(&storage.pool)
-        .await
-        .expect("test Entity should insert");
+    sqlx::query(
+        "INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(TIMELINE_ID)
+    .bind(WORLD_ID)
+    .execute(&storage.pool)
+    .await
+    .expect("test Timeline should insert");
+    sqlx::query(
+        "INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(TIMELINE_ID)
+    .bind(ENTITY_ID)
+    .execute(&storage.pool)
+    .await
+    .expect("test Entity should insert");
 
     let duplicate_entity =
         sqlx::query("INSERT INTO loom_entity (timeline_id, entity_id) VALUES ($1::uuid, $2::uuid)")
