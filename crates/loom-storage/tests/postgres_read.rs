@@ -9,9 +9,7 @@ const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000302";
 
 #[tokio::test]
 async fn postgres_18_empty_timeline_snapshot_parity() {
-    let Some(database) = TestDatabase::provision("read-empty").await else {
-        return;
-    };
+    let database = TestDatabase::provision("read-empty").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING")

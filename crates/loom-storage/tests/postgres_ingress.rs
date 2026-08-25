@@ -69,9 +69,7 @@ async fn seed_target(pool: &sqlx::PgPool, world_id: WorldId, timeline_id: Timeli
     reason = "the integration test keeps the concurrent acceptance and fence handoff evidence together"
 )]
 async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
-    let Some(database) = TestDatabase::provision("ingress").await else {
-        return;
-    };
+    let database = TestDatabase::provision("ingress").await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0xb101);
     let timeline_id = id::<TimelineId>(0xb102);
@@ -216,9 +214,7 @@ async fn postgres_ingress_is_atomic_across_workers_and_survives_reopen() {
 
 #[tokio::test]
 async fn postgres_started_provenance_update_keeps_ended_at_null() {
-    let Some(database) = TestDatabase::provision("session-provenance").await else {
-        return;
-    };
+    let database = TestDatabase::provision("session-provenance").await;
     let pool = database.pool().await;
     let session_id = id::<loom_core::ExecutionSessionId>(0xb201);
     sqlx::query(

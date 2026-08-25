@@ -51,9 +51,7 @@ fn revision_with_id(id: &str) -> RuntimeRevisionDescriptor {
 
 #[tokio::test]
 async fn postgres_concurrent_revision_activation_has_one_history_winner() {
-    let Some(database) = TestDatabase::provision("runtime_revision_concurrent").await else {
-        return;
-    };
+    let database = TestDatabase::provision("runtime_revision_concurrent").await;
     let storage = database.storage().await;
     let first = revision_with_id("postgres-concurrent-r1");
     let second = revision_with_id("postgres-concurrent-r2");
@@ -105,9 +103,7 @@ async fn postgres_concurrent_revision_activation_has_one_history_winner() {
 
 #[tokio::test]
 async fn postgres_runtime_revision_history_survives_restart_and_is_world_neutral() {
-    let Some(database) = TestDatabase::provision("runtime_revision").await else {
-        return;
-    };
+    let database = TestDatabase::provision("runtime_revision").await;
     let storage = database.storage().await;
     let world_id = id::<WorldId>(0x5101);
     let timeline_id = id::<TimelineId>(0x5102);

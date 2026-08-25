@@ -62,9 +62,7 @@ fn refs(events: &[CommittedEvent]) -> Vec<EventRef> {
     reason = "the PostgreSQL ancestry round-trip fixture is intentionally linear"
 )]
 async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_event_ref() {
-    let Some(database) = TestDatabase::provision("fork_event_ref").await else {
-        return;
-    };
+    let database = TestDatabase::provision("fork_event_ref").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x5101);
@@ -198,9 +196,7 @@ async fn postgres_18_current_head_fork_round_trip_preserves_qualified_ancestor_e
 
 #[tokio::test]
 async fn postgres_18_current_head_fork_without_event_round_trips_none() {
-    let Some(database) = TestDatabase::provision("fork_no_event").await else {
-        return;
-    };
+    let database = TestDatabase::provision("fork_no_event").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x5201);
@@ -245,9 +241,7 @@ async fn postgres_18_current_head_fork_without_event_round_trips_none() {
     reason = "the PostgreSQL restart fixture covers both inherited fork positions"
 )]
 async fn postgres_runtime_fork_replays_child_visible_boundary_after_restart() {
-    let Some(database) = TestDatabase::provision("historical_child_fork").await else {
-        return;
-    };
+    let database = TestDatabase::provision("historical_child_fork").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x5401);
@@ -383,9 +377,7 @@ async fn postgres_runtime_fork_replays_child_visible_boundary_after_restart() {
 
 #[tokio::test]
 async fn postgres_historical_fork_persists_materialization_after_restart() {
-    let Some(database) = TestDatabase::provision("historical_fork_materialization").await else {
-        return;
-    };
+    let database = TestDatabase::provision("historical_fork_materialization").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x5301);
@@ -442,9 +434,7 @@ async fn postgres_historical_fork_persists_materialization_after_restart() {
     reason = "the PostgreSQL visible ancestry fixture covers several immutable branch boundaries"
 )]
 async fn postgres_18_visible_history_is_bounded_across_grandchild_and_restart() {
-    let Some(database) = TestDatabase::provision("visible_history").await else {
-        return;
-    };
+    let database = TestDatabase::provision("visible_history").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x5301);

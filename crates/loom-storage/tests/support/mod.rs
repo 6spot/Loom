@@ -32,7 +32,7 @@ impl TestDatabase {
     /// `PostgreSQL` integration tests never self-skip. The repository-local
     /// service is started on demand when the default control URL is in use. An
     /// explicit unreachable `LOOM_TEST_POSTGRES_URL` fails the test directly.
-    pub async fn provision(label: &str) -> Option<Self> {
+    pub async fn provision(label: &str) -> Self {
         let (control_url, uses_repository_default) = postgres_control_url();
         let control_pool = connect_control_database(&control_url, uses_repository_default).await;
         let database_name = unique_database_name(label);
@@ -53,11 +53,11 @@ impl TestDatabase {
         }
         storage.close().await;
 
-        Some(Self {
+        Self {
             control_pool,
             database_name,
             database_url,
-        })
+        }
     }
 
     /// Opens Loom's concrete storage adapter against this isolated database.

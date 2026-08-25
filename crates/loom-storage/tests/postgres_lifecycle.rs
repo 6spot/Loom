@@ -122,9 +122,7 @@ fn template(event_id: EventId) -> WorldTemplateDescriptor {
 
 #[tokio::test]
 async fn postgres_18_world_lifecycle_is_atomic_and_immediately_readable() {
-    let Some(database) = TestDatabase::provision("lifecycle_success").await else {
-        return;
-    };
+    let database = TestDatabase::provision("lifecycle_success").await;
     let storage = database.storage().await;
     let world_id = id::<WorldId>(0x4101);
     let timeline_id = id::<TimelineId>(0x4102);
@@ -170,9 +168,7 @@ async fn postgres_18_world_lifecycle_is_atomic_and_immediately_readable() {
     reason = "the PostgreSQL Template birth matrix is intentionally linear"
 )]
 async fn postgres_18_template_birth_is_atomic_and_snapshots_binding() {
-    let Some(database) = TestDatabase::provision("template_birth").await else {
-        return;
-    };
+    let database = TestDatabase::provision("template_birth").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id = id::<WorldId>(0x4401);
@@ -286,9 +282,7 @@ async fn postgres_18_template_birth_is_atomic_and_snapshots_binding() {
 
 #[tokio::test]
 async fn postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows() {
-    let Some(database) = TestDatabase::provision("lifecycle_conflict").await else {
-        return;
-    };
+    let database = TestDatabase::provision("lifecycle_conflict").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
 
@@ -367,9 +361,7 @@ async fn postgres_18_world_lifecycle_conflicts_roll_back_without_partial_rows() 
 
 #[tokio::test]
 async fn postgres_18_world_runtime_binding_survives_restart_and_rejects_mutation() {
-    let Some(database) = TestDatabase::provision("binding_lifecycle").await else {
-        return;
-    };
+    let database = TestDatabase::provision("binding_lifecycle").await;
     let storage = database.storage().await;
     let world_id = id::<WorldId>(0x4301);
     let timeline_id = id::<TimelineId>(0x4302);

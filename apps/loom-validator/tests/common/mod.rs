@@ -10,7 +10,7 @@
 
 #![allow(dead_code)]
 
-use std::{env, sync::Arc};
+use std::{env, path::Path, process::Command, sync::Arc};
 
 use loom_boundary::{BoundaryConfig, router};
 use loom_client::LoomClient;
@@ -18,6 +18,8 @@ use loom_neutral::registry as neutral_registry;
 use loom_runtime::Runtime;
 use loom_storage::{InMemoryStore, PgStorage};
 use tokio::sync::Mutex;
+
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 /// A process-lifetime tokio runtime whose spawns (including the axum HTTP
 /// server) survive the calling thread, so a restarted service's server task is
@@ -115,13 +117,32 @@ pub struct PgServer {
 
 impl PgServer {
     /// Starts a real PostgreSQL-backed Loom HTTP service and returns its public
-    /// client. Requires `LOOM_TEST_POSTGRES_URL`.
+    /// client. An explicit `LOOM_TEST_POSTGRES_URL` overrides the repository
+    /// default; otherwise the repository-managed `PostgreSQL` service is used and
+    /// started on demand when unreachable.
     pub fn start() -> Result<(Self, LoomClient), String> {
-        let url = env::var("LOOM_TEST_POSTGRES_URL").map_err(|e| e.to_string())?;
+        let (url, uses_repository_default) = postgres_url();
         let store = leaked_runtime().block_on(async {
-            let store = PgStorage::connect(&url)
-                .await
-                .map_err(|e| format!("{e:?}"))?;
+            let store = match PgStorage::connect(&url).await {
+                Ok(store) => store,
+                Err(initial_error) if uses_repository_default => {
+                    start_repository_postgres().map_err(|start_error| {
+                        format!(
+                            "default PostgreSQL control database was unreachable ({initial_error:?}); {start_error}"
+                        )
+                    })?;
+                    PgStorage::connect(&url).await.map_err(|retry_error| {
+                        format!(
+                            "repository-managed PostgreSQL test service is still unreachable after startup: {retry_error:?}"
+                        )
+                    })?
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "PostgreSQL test database from LOOM_TEST_POSTGRES_URL is unavailable: {error:?}"
+                    ));
+                }
+            };
             store.health().await.map_err(|e| format!("{e:?}"))?;
             store.migrate().await.map_err(|e| format!("{e:?}"))?;
             Ok::<PgStorage, String>(store)
@@ -151,6 +172,27 @@ impl PgServer {
         })
         .join()
         .map_err(|_| "pg restart thread panicked".to_string())?
+    }
+}
+
+fn postgres_url() -> (String, bool) {
+    match env::var("LOOM_TEST_POSTGRES_URL") {
+        Ok(url) if !url.trim().is_empty() => (url, false),
+        _ => (DEFAULT_POSTGRES_CONTROL_URL.to_owned(), true),
+    }
+}
+
+fn start_repository_postgres() -> Result<(), String> {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/postgres-test.sh");
+    let status = Command::new("bash")
+        .arg(&script)
+        .arg("up")
+        .status()
+        .map_err(|error| format!("failed to start `{}`: {error}", script.display()))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("`{}` exited with {status}", script.display()))
     }
 }
 

@@ -8,9 +8,7 @@ const ENTITY_ID: &str = "00000000-0000-0000-0000-00000000a103";
 
 #[tokio::test]
 async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraints() {
-    let Some(database) = TestDatabase::provision("schema").await else {
-        return;
-    };
+    let database = TestDatabase::provision("schema").await;
     let pool = database.pool().await;
     assert_postgres_18(&pool).await;
 

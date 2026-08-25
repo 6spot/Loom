@@ -5,8 +5,9 @@
 //!   service; CV-003 restart terminates and rebuilds the application boundary
 //!   (preserving the store) and reconnects with a new public client.
 //! - `PostgreSQL`: CV-001..CV-004 pass against a real `PostgreSQL`-backed Loom
-//!   HTTP service (the `loom-server` backend composition) when
-//!   `LOOM_TEST_POSTGRES_URL` is configured; otherwise skipped.
+//!   HTTP service (the `loom-server` backend composition). An explicit
+//!   `LOOM_TEST_POSTGRES_URL` may override the repository-local database; when
+//!   unset, the repository-managed `PostgreSQL` service is started on demand.
 //! - Negative endpoint: `LOOM_VALIDATOR_BASE_URL=http://127.0.0.1:1` never
 //!   yields a pass.
 
@@ -43,11 +44,7 @@ fn in_memory_context() -> (BackendContext, InMemoryServer) {
     (ctx, server)
 }
 
-fn pg_context() -> Option<(BackendContext, PgServer)> {
-    let url = std::env::var(loom_validator::LOOM_TEST_POSTGRES_URL).unwrap_or_default();
-    if url.trim().is_empty() {
-        return None;
-    }
+fn pg_context() -> (BackendContext, PgServer) {
     let (server, client) = PgServer::start().expect("pg service should start");
     let server_for_restart = server.clone();
     let strategy: Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync> =
@@ -55,7 +52,7 @@ fn pg_context() -> Option<(BackendContext, PgServer)> {
     let ctx = BackendContext::new(client)
         .with_backend_kind(BackendKind::PostgreSQL)
         .with_restart_strategy(strategy);
-    Some((ctx, server))
+    (ctx, server)
 }
 
 #[test]
@@ -70,14 +67,11 @@ fn cv001_to_cv003_pass_on_real_in_memory() {
 }
 
 #[test]
-fn cv004_passes_on_live_postgres_when_configured() {
+fn cv001_to_cv004_pass_on_live_postgres() {
     let registry = registry();
     for id in ["CV-001", "CV-002", "CV-003", "CV-004"] {
         let descriptor = registry.get(id).expect("descriptor");
-        let Some((ctx, _server)) = pg_context() else {
-            eprintln!("skipping: LOOM_TEST_POSTGRES_URL not set");
-            return;
-        };
+        let (ctx, _server) = pg_context();
         let result = loom_validator::execute_lifecycle(descriptor, &ctx);
         assert_pass(&result, id);
     }
