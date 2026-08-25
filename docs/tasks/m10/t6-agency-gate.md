@@ -1,13 +1,13 @@
 ---
 task: M10-T6
 issue: 192
-status: in_review
+status: completed
 depends_on: [187, 188, 189, 190, 191]
 created_at: 2026-08-22
 started_at: 2026-08-24
 completed_at: 2026-08-24
-completion_pr: none (Executor constraint)
-merge_sha: candidate SHA reported in issue handoff
+completion_pr: 247
+merge_sha: ce6592eb82bb131c12913067c7587774876f8adf
 ---
 # M10-T6 — Agency final gate
 

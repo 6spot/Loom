@@ -16,10 +16,10 @@ Parent #141; depends on service gate #181.
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M9-T1 | #182 | planned |
-| M9-T2 | #183 | planned |
-| M9-T3 | #184 | planned |
-| M9-T4 | #185 | planned |
-| M9-T5 | #186 | planned |
+| M9-T1 | #182 | completed |
+| M9-T2 | #183 | completed |
+| M9-T3 | #184 | completed |
+| M9-T4 | #185 | completed |
+| M9-T5 | #186 | completed |
 
 M4 already introduced the minimum Revision/Session mechanism needed for execution correctness; M9 enriches it into durable Platform History, complete provenance and operator control.

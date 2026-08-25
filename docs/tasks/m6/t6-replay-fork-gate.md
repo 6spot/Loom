@@ -1,13 +1,13 @@
 ---
 task: M6-T6
 issue: 167
-status: in_review
+status: completed
 depends_on: [162, 163, 164, 165, 166]
 created_at: 2026-08-22
 started_at: 2026-08-23
 completed_at: 2026-08-23
-completion_pr: none (Executor constraint)
-merge_sha: candidate SHA reported in issue handoff
+completion_pr: 225
+merge_sha: 07525f68a06cffa418e988a8f324848c8dee301c
 ---
 # M6-T6 — Replay/fork branch-isolation gate
 

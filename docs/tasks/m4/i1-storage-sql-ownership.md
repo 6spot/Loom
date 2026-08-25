@@ -1,6 +1,17 @@
+---
+task: M4-I1
+issue: 209
+status: completed
+depends_on: [152]
+created_at: 2026-08-22
+started_at: 2026-08-22
+completed_at: 2026-08-22
+completion_pr: 211
+merge_sha: d2b84d0740ade1c361037c270b11cfb6d960e66e
+---
 # M4-I1 — Centralize PostgreSQL SQL ownership in `loom-storage`
 
-Status: **in_progress**
+Status: **completed**
 
 Issue: #209
 
@@ -44,25 +55,25 @@ crates/loom-storage/
 
 ## Acceptance checklist
 
-- [ ] Production SQL exists only under `crates/loom-storage/migrations/` or `crates/loom-storage/sql/`.
+- [x] Production SQL exists only under `crates/loom-storage/migrations/` or `crates/loom-storage/sql/`.
 - [x] No non-storage crate depends on `sqlx` or uses PostgreSQL implementation types; enforced by the architecture checker.
 - [x] Existing PostgreSQL migrations and persistence behavior remain compatible for the extracted Work queries.
 - [x] Architecture checker rejects SQL/SQLx/PostgreSQL ownership leakage outside `loom-storage` and rejects new inline-SQL storage modules.
-- [ ] Existing inline production SQL is fully migrated to centralized SQL files. Remaining explicit debt: `src/postgres.rs`, `src/postgres/commit.rs`.
+- [x] Existing inline production SQL is fully migrated to centralized SQL files; PR #211 removed the final inline-SQL exemptions.
 - [x] Baseline architecture/fmt/check/clippy/tests/rustdoc and PostgreSQL 18 integration gates pass on PR #211 head `b6db80ff925348429af72c1c88293d4837829928`.
-- [ ] Completion PR, merge SHA and final verification evidence are recorded here before marking completed.
+- [x] Completion PR, merge SHA and final verification evidence are recorded here before marking completed.
 
 ## Evidence
 
-- Implementation PR: #211 (draft while legacy inline SQL remains)
+- Implementation PR: #211
 - Verified head: `b6db80ff925348429af72c1c88293d4837829928`
 - CI run: `32578643547`
 - CI result: Rust Architecture/fmt/check/clippy/tests/rustdoc **green**; PostgreSQL 18 schema/migration, World lifecycle, Template birth, public Runtime/API parity, reads, commit/CAS, Durable Work, stale fence, restart/resume and Runtime Revision ledger **green**.
-- Integration merge SHA: pending
+- Integration merge SHA: `d2b84d0740ade1c361037c270b11cfb6d960e66e`
 
-## Remaining closure work
+## Completion audit
 
-1. Extract all production statements from `crates/loom-storage/src/postgres.rs` into domain SQL files and remove that file from the inline-SQL debt allowlist.
-2. Extract all production statements from `crates/loom-storage/src/postgres/commit.rs` and remove the final allowlist entry.
-3. Run the full gates again on the no-exemption candidate.
-4. Merge, record merge SHA/final CI evidence, then mark this task and #209 completed.
+PR #211 merged as `d2b84d0740ade1c361037c270b11cfb6d960e66e`; its zero-exemption
+storage SQL ownership implementation and CI run `32578643547` satisfy the
+remaining closure work recorded above. The final M13-T1 candidate re-ran the
+architecture and PostgreSQL contract gates on the integrated baseline.

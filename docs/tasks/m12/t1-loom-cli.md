@@ -6,8 +6,8 @@ depends_on: [179, 197]
 created_at: 2026-08-22
 started_at: 2026-08-25
 completed_at: 2026-08-25
-completion_pr:
-merge_sha:
+completion_pr: 276
+merge_sha: 55c8bf4ffe4ef75e32d194fcd02b4d822f882f17
 ---
 # M12-T1 — Official `loom-cli`
 

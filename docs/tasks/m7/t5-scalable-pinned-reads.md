@@ -1,13 +1,13 @@
 ---
 task: M7-T5
 issue: 172
-status: in_review
+status: completed
 depends_on: [150, 167]
 created_at: 2026-08-22
 started_at: 2026-08-23
-completed_at:
+completed_at: 2026-08-23
 completion_pr: 226
-merge_sha:
+merge_sha: 0bf4845a28e34bd4bbffc730e4793cbfa4775ebd
 ---
 # M7-T5 — Scalable Pinned Read Boundary
 

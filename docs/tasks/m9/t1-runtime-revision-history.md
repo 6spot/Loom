@@ -1,13 +1,13 @@
 ---
 task: M9-T1
 issue: 182
-status: planned
+status: completed
 depends_on: [181]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 237
+merge_sha: 0a76a356612414a02fbd590695680f3aee84bdff
 ---
 # M9-T1 — Complete Runtime Revision history
 
@@ -19,12 +19,12 @@ merge_sha:
 - Running Sessions retain their pinned revision.
 
 ## Acceptance
-- [ ] R1/R2 history survives restart/concurrency.
-- [ ] Invalid activation is World-neutral.
-- [ ] Running R1/new R2 Session behavior is exact.
-- [ ] InMemory/PostgreSQL + standard gates pass.
+- [x] R1/R2 history survives restart/concurrency.
+- [x] Invalid activation is World-neutral.
+- [x] Running R1/new R2 Session behavior is exact.
+- [x] InMemory/PostgreSQL + standard gates pass.
 
 Architecture: `evolution.md`; Platform History separation.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

@@ -17,13 +17,13 @@ all -> #181 black-box gate
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M8-T1 | #174 | planned |
-| M8-T2 | #175 | planned |
-| M8-T3 | #176 | planned |
-| M8-T4 | #177 | planned |
-| M8-T5 | #178 | planned |
-| M8-T6 | #179 | planned |
-| M8-T7 | #180 | planned |
-| M8-T8 | #181 | planned |
+| M8-T1 | #174 | completed |
+| M8-T2 | #175 | completed |
+| M8-T3 | #176 | completed |
+| M8-T4 | #177 | completed |
+| M8-T5 | #178 | completed |
+| M8-T6 | #179 | completed |
+| M8-T7 | #180 | completed |
+| M8-T8 | #181 | completed |
 
 Ingress is reliable platform input only; accepted/deduplicated is not World Truth. Boundary maps only formal Loom API contracts.

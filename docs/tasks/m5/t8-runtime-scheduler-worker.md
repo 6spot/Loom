@@ -1,13 +1,13 @@
 ---
 task: M5-T8
 issue: 160
-status: in_review
+status: completed
 depends_on: [156, 157]
 created_at: 2026-08-22
 started_at: 2026-08-23
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-23
+completion_pr: 221
+merge_sha: 4090c437adea9b444dfa6e344c677e45a5a9b41a
 ---
 # M5-T8 — Resumable Scheduler worker and executor topology
 
@@ -19,11 +19,11 @@ merge_sha:
 - Bound concurrency/polling/leases/shutdown; hold no DB authority transaction during resolver/cognition.
 
 ## Acceptance
-- [ ] Independent Timelines execute concurrently; same Timeline remains head/CAS serialized.
-- [ ] Kill-after-claim recovers after lease expiry.
-- [ ] Graceful shutdown stops new claims safely.
-- [ ] Topology/Send/Sync audit documented.
-- [ ] PostgreSQL stress + standard gates pass.
+- [x] Independent Timelines execute concurrently; same Timeline remains head/CAS serialized.
+- [x] Kill-after-claim recovers after lease expiry.
+- [x] Graceful shutdown stops new claims safely.
+- [x] Topology/Send/Sync audit documented.
+- [x] PostgreSQL stress + standard gates pass.
 
 Architecture: Amendment 0001 §3; Amendment 0003 §§5/7.
 

@@ -1,13 +1,13 @@
 ---
 task: M11-T2
 issue: 194
-status: planned
+status: completed
 depends_on: [193]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 267
+merge_sha: ccce80e0635bf859a8312c0821021153b50c3f2a
 ---
 # M11-T2 — Property/fault/dependency-security gates
 
@@ -18,10 +18,10 @@ merge_sha:
 - Integrate into long-lived CI only.
 
 ## Acceptance
-- [ ] Security/license/dependency gate reproducible.
-- [ ] Listed authority invariants have property/fault coverage.
-- [ ] Failures are locally reproducible; focused scenarios remain.
-- [ ] CI partition/runtime documented and standard gates pass.
+- [x] Security/license/dependency gate reproducible.
+- [x] Listed authority invariants have property/fault coverage.
+- [x] Failures are locally reproducible; focused scenarios remain.
+- [x] CI partition/runtime documented and standard gates pass.
 
 ## Verification evidence
 

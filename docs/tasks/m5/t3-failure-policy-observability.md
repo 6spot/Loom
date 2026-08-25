@@ -1,13 +1,13 @@
 ---
 task: M5-T3
 issue: 155
-status: planned
+status: completed
 depends_on: [153, 154]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-23
+completed_at: 2026-08-23
+completion_pr: 218
+merge_sha: 987b6a9bbc77d73d5dbd5a57eb41dd6f44564393
 ---
 # M5-T3 — Bounded FailurePolicy and blocked observability
 
@@ -22,12 +22,12 @@ merge_sha:
 No infinite retry, row deletion as terminalization, missing-software attempt consumption, or fake failure Events.
 
 ## Acceptance
-- [ ] Retry is World/logical-state neutral.
-- [ ] Bounded exhaustion/authorized terminalization is reconstructable.
-- [ ] Missing implementation blocks and is observable.
-- [ ] Restart + standard gates pass.
+- [x] Retry is World/logical-state neutral.
+- [x] Bounded exhaustion/authorized terminalization is reconstructable.
+- [x] Missing implementation blocks and is observable.
+- [x] Restart + standard gates pass.
 
 Architecture: Amendment 0001 §1; Amendment 0002 §5.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

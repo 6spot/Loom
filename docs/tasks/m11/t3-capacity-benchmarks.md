@@ -6,8 +6,8 @@ depends_on: [172, 192, 193]
 created_at: 2026-08-22
 started_at: 2026-08-24
 completed_at: 2026-08-24
-completion_pr:
-merge_sha:
+completion_pr: 265
+merge_sha: 9bdbfec37126db54570ffa6e34c3d6d422ccad99
 ---
 # M11-T3 — Scheduler/Agency capacity benchmarks
 

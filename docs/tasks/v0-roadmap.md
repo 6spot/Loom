@@ -1,6 +1,6 @@
 # Loom Engine V0 Implementation Roadmap
 
-Status: **planned**  
+Status: **in_progress** — M4–M13 implementation and the final candidate are integrated; closure audit awaits Leader-owned GitHub checklist reconciliation.
 Replanned: 2026-08-22  
 Architecture baseline: accepted Amendments 0001–0003 + `docs/architecture/README.md` reverse supersession table.
 

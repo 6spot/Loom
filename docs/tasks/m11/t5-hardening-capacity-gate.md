@@ -1,13 +1,13 @@
 ---
 task: M11-T5
 issue: 197
-status: in_review
+status: completed
 depends_on: [193, 194, 195, 196]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-25
+completed_at: 2026-08-25
+completion_pr: 274
+merge_sha: d837d6af312bce1cd9e6fe7168495a0ef92442e4
 ---
 # M11-T5 — Hardening/capacity final gate
 

@@ -1,13 +1,13 @@
 ---
 task: M9-T2
 issue: 183
-status: planned
+status: completed
 depends_on: [170, 182]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 238
+merge_sha: 56755e6659be66e219f47219e62cfc035feccea0
 ---
 # M9-T2 — Complete Execution Session provenance
 
@@ -19,10 +19,10 @@ merge_sha:
 - Storage serializes Runtime-owned evidence; it does not invent provenance by inspecting implementations.
 
 ## Acceptance
-- [ ] Action/Work/Ingress/bootstrap evidence round-trips.
-- [ ] Read/call/entropy order deterministic.
-- [ ] Outcome states distinguishable after restart/revision switch.
-- [ ] InMemory/PostgreSQL + standard gates pass.
+- [x] Action/Work/Ingress/bootstrap evidence round-trips.
+- [x] Read/call/entropy order deterministic.
+- [x] Outcome states distinguishable after restart/revision switch.
+- [x] InMemory/PostgreSQL + standard gates pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

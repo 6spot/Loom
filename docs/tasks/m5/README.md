@@ -23,14 +23,14 @@ all ──> #161 final gate
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M5-T1 | #153 | planned |
-| M5-T2 | #154 | planned |
-| M5-T3 | #155 | planned |
-| M5-T4 | #156 | planned |
-| M5-T5 | #157 | planned |
-| M5-T6 | #158 | planned |
-| M5-T7 | #159 | planned |
-| M5-T8 | #160 | in_review |
-| M5-T9 | #161 | planned |
+| M5-T1 | #153 | completed |
+| M5-T2 | #154 | completed |
+| M5-T3 | #155 | completed |
+| M5-T4 | #156 | completed |
+| M5-T5 | #157 | completed |
+| M5-T6 | #158 | completed |
+| M5-T7 | #159 | completed |
+| M5-T8 | #160 | completed |
+| M5-T9 | #161 | completed |
 
 The gate must prove same-Timeline `(effective_due_world_time, logical_schedule_order)` ordering, bounded liveness, head-aware claim, restart/fencing, chronology budget and explicit World-Time advancement.
