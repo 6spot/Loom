@@ -1323,6 +1323,7 @@ dependencies = [
 name = "loom-composition-tests"
 version = "0.1.0"
 dependencies = [
+ "loom-agency",
  "loom-api",
  "loom-capability",
  "loom-core",

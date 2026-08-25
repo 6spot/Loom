@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
+loom-agency = { path = "../../crates/loom-agency", version = "0.1.0" }
 loom-api = { path = "../../crates/loom-api", version = "0.1.0" }
 loom-capability = { path = "../../crates/loom-capability", version = "0.1.0" }
 loom-core = { path = "../../crates/loom-core", version = "0.1.0" }
@@ -35,6 +36,10 @@ path = "entropy_finish.rs"
 [[test]]
 name = "neutral_templates"
 path = "neutral_templates.rs"
+
+[[test]]
+name = "neutral_v0_workflows"
+path = "neutral_v0_workflows.rs"
 
 [lints]
 workspace = true

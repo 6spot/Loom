@@ -43,6 +43,7 @@ FRAMEWORK_ALLOWLIST: dict[str, set[str]] = {
     "loom-client": {"loom-api"},
     "loom-validator": {"loom-api", "loom-client"},
     "loom-composition-tests": {
+        "loom-agency",
         "loom-api",
         "loom-capability",
         "loom-core",

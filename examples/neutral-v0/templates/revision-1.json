@@ -1,0 +1,24 @@
+{
+  "id": "neutral.world",
+  "revision": 1,
+  "capabilities": [
+    {
+      "id": "neutral.counter",
+      "version": "^0.1.0"
+    }
+  ],
+  "configuration": {
+    "profile": "counter"
+  },
+  "initial_world_time": 11,
+  "bootstrap_actions": [
+    {
+      "action": "neutral.counter.seed",
+      "input": {
+        "event_id": "00000000-0000-0000-0000-000000005130",
+        "entity_id": "00000000-0000-0000-0000-000000005101",
+        "value": 1
+      }
+    }
+  ]
+}
