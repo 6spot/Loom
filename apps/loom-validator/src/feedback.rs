@@ -370,21 +370,21 @@ fn render_entry(
 }
 
 fn markdown_field(value: &str) -> String {
-    let mut output = String::new();
-    for character in value.chars() {
-        let character = if character.is_control() || character == '`' {
-            ' '
-        } else {
-            character
-        };
-        output.push(character);
-        if output.chars().count() >= MAX_FIELD_CHARS {
-            break;
-        }
+    let sanitized: String = value
+        .chars()
+        .map(|character| {
+            if character.is_control() || character == '`' {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect();
+    if sanitized.chars().count() <= MAX_FIELD_CHARS {
+        return sanitized;
     }
-    if value.chars().count() > MAX_FIELD_CHARS {
-        output.push('…');
-    }
+    let mut output: String = sanitized.chars().take(MAX_FIELD_CHARS - 1).collect();
+    output.push('…');
     output
 }
 
@@ -629,6 +629,67 @@ mod tests {
             TaskLedgerFeedbackError::MissingRunReference { .. }
         ));
         assert_eq!(fs::read_to_string(&path).unwrap(), "record\n");
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn markdown_field_caps_at_512_including_truncation_marker() {
+        let long = "a".repeat(600);
+        let rendered = super::markdown_field(&long);
+        assert_eq!(rendered.chars().count(), 512);
+        assert!(rendered.ends_with('…'));
+        // Undisrupted limit: exactly 512 chars is not truncated.
+        let exact = "b".repeat(512);
+        let rendered_exact = super::markdown_field(&exact);
+        assert_eq!(rendered_exact.chars().count(), 512);
+        assert!(!rendered_exact.ends_with('…'));
+        assert_eq!(rendered_exact, exact);
+        // One over limit still caps at 512 with marker.
+        let over = "c".repeat(513);
+        let rendered_over = super::markdown_field(&over);
+        assert_eq!(rendered_over.chars().count(), 512);
+        assert!(rendered_over.ends_with('…'));
+        // Control characters and backticks are sanitized before counting.
+        let with_controls = format!("{}{}", "`\n`".repeat(10), "d".repeat(600));
+        let rendered_controls = super::markdown_field(&with_controls);
+        assert_eq!(rendered_controls.chars().count(), 512);
+        assert!(!rendered_controls.contains('`'));
+        assert!(!rendered_controls.contains('\n'));
+        assert!(rendered_controls.ends_with('…'));
+    }
+
+    #[test]
+    fn long_actual_is_bounded_in_task_record_including_ellipsis() {
+        let path = fixture_path("long-actual-600");
+        fs::write(&path, "---\ntask: VAL-T6\n---\n").unwrap();
+        let long_actual = "x".repeat(600);
+        let finding = Finding::new(
+            ScenarioId::new("CV-001"),
+            "synthetic capability",
+            "expected capability",
+            long_actual.clone(),
+            BackendKind::InMemory,
+            "validator test context",
+            vec![EvidenceReference::path("reports/run.json")],
+            ScenarioOutcome::Fail,
+        );
+        let report = ValidationReport::from_results(vec![ScenarioResult::new(
+            ScenarioId::new("CV-001"),
+            ScenarioOutcome::Fail,
+            finding,
+        )])
+        .with_run_metadata(metadata().with_task_record(path.to_str().unwrap()));
+        TaskLedgerFeedback::append_report_to_task_ledger(&report).unwrap();
+        let contents = fs::read_to_string(&path).unwrap();
+        assert!(!contents.contains(&long_actual));
+        let actual_line = contents
+            .lines()
+            .find(|line| line.starts_with("- Actual: "))
+            .expect("actual line");
+        let value = actual_line.trim_start_matches("- Actual: ");
+        assert_eq!(value.chars().count(), 512);
+        assert!(value.ends_with('…'));
+        assert!(!contents.contains(&"x".repeat(513)));
         fs::remove_file(path).unwrap();
     }
 }
