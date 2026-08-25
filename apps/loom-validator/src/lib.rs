@@ -17,6 +17,7 @@ mod outcome;
 mod registry;
 mod reports;
 mod runner;
+mod runtime_authority;
 mod scenario;
 pub mod scenarios;
 
@@ -44,6 +45,10 @@ pub use reports::{
     ValidationReport,
 };
 pub use runner::{Runner, RunnerError};
+pub use runtime_authority::{
+    CV_010, CV_011, descriptors as runtime_authority_descriptors, execute_runtime_authority,
+    register_runtime_authority,
+};
 pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
 pub use scenarios::{
     CV_005, CV_006, CV_007, CV_008, CV_009, execute_replay_fork, register_replay_fork,
@@ -62,6 +67,8 @@ pub fn validator_registry() -> ScenarioRegistry {
     let mut registry = ScenarioRegistry::bootstrap();
     lifecycle::register(&mut registry).expect("lifecycle scenario IDs should be unique");
     register_replay_fork(&mut registry).expect("replay/fork scenario IDs should be unique");
+    register_runtime_authority(&mut registry)
+        .expect("runtime-authority scenario IDs should be unique");
     registry
 }
 
