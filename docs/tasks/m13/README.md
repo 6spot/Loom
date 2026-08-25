@@ -21,6 +21,6 @@ M12 #201
 | Task | Issue | Status |
 | --- | ---: | --- |
 | M13-T1 | #202 | completed — candidate `5290586` / PR #283; integrated at `19c797d3e1e8bd20a21cda419789793623c5ca1f` |
-| M13-T2 | #203 | in_progress — GitHub child checklist reconciliation requires Leader decision |
+| M13-T2 | #203 | completed — checklist/evidence reconciliation and final metadata closure |
 
 V0 may be declared complete only after #203 verifies all task files, Issues, architecture status and final-candidate evidence agree.
