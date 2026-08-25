@@ -1,13 +1,13 @@
 ---
 task: M12-T3
 issue: 200
-status: planned
+status: completed
 depends_on: [151, 192, 198]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-25
+completed_at: 2026-08-25
+completion_pr: 281
+merge_sha: 39fb245323a485f91bd724dbae1a2e3f69c7364e
 ---
 # M12-T3 — Neutral V0 examples
 
@@ -18,11 +18,11 @@ merge_sha:
 - Deterministic fake cognition is the supported V0 example; vendor LLMs remain non-blocking/deferred.
 
 ## Acceptance
-- [ ] Every major V0 public workflow has a neutral example.
-- [ ] Multiple bindings/Templates visibly differ.
-- [ ] Examples survive restart/replay/fork.
-- [ ] Agency example needs no vendor credentials.
-- [ ] Architecture/integration + standard gates pass.
+- [x] Every major V0 public workflow has a neutral example.
+- [x] Multiple bindings/Templates visibly differ.
+- [x] Examples survive restart/replay/fork.
+- [x] Agency example needs no vendor credentials.
+- [x] Architecture/integration + standard gates pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

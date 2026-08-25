@@ -1,13 +1,13 @@
 ---
 task: M6-T3
 issue: 164
-status: planned
+status: completed
 depends_on: [163]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-23
+completed_at: 2026-08-23
+completion_pr: 225
+merge_sha: 07525f68a06cffa418e988a8f324848c8dee301c
 ---
 # M6-T3 — Ancestry, EventRef and atomic head fork
 
@@ -19,10 +19,10 @@ merge_sha:
 - Do not copy ancestor Event rows or Sessions.
 
 ## Acceptance
-- [ ] Child equals source head at fork point.
-- [ ] Binding stays World-scoped/shared.
-- [ ] Work identities reset but semantic future/order preserved.
-- [ ] Atomic rollback + restart parity pass.
+- [x] Child equals source head at fork point.
+- [x] Binding stays World-scoped/shared.
+- [x] Work identities reset but semantic future/order preserved.
+- [x] Atomic rollback + restart parity pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

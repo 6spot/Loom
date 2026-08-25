@@ -1,13 +1,13 @@
 ---
 task: M8-T6
 issue: 179
-status: planned
+status: completed
 depends_on: [178]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 235
+merge_sha: ccaab83fd03d0aed3e8be8697a3cef9bece975ad
 ---
 # M8-T6 — Formal HTTP Loom API client
 
@@ -19,9 +19,9 @@ merge_sha:
 - Client/boundary compatibility tests prevent DTO/route drift.
 
 ## Acceptance
-- [ ] All M8 public domains usable through client.
-- [ ] No Runtime/Storage/Capability dependency.
-- [ ] Typed behavior round-trips and standard gates pass.
+- [x] All M8 public domains usable through client.
+- [x] No Runtime/Storage/Capability dependency.
+- [x] Typed behavior round-trips and standard gates pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

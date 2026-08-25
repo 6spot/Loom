@@ -167,12 +167,14 @@ Loom
 
 **Architecture:** Frozen baseline + accepted Amendments 0001, 0002, 0003 are the normative V0 contract. See [`docs/architecture/README.md`](docs/architecture/README.md) for document authority and reverse supersession.
 
-**Implementation:** V0 implementation order is `docs/tasks/v0-roadmap.md` (M4–M13). Historical M1–M3 assets are closed; M4–M11 hardening is done up to the capacity/CI gate. The current track is **M12 — CLI, neutral examples and operator/developer documentation** (`#144`):
+**Implementation:** V0 implementation order is `docs/tasks/v0-roadmap.md` (M4–M13). Historical M1–M3 assets and the M4–M12 implementation tracks are completed; the integrated M13 release candidate is at merge `19c797d3e1e8bd20a21cda419789793623c5ca1f`, while final closure awaits GitHub child checklist reconciliation.
 
 - `#198` `loom-cli` — completed (post-#276 baseline, `apps/loom-cli` over `loom-client`/`loom-api` only)
 - `#199` V0 operator/developer documentation + quickstart — completed (post-#280 baseline, `docs/quickstart.md`, `docs/operator-guide.md`, `docs/developer-guide.md`, `docs/capacity-envelope.md`)
 - `#200` neutral V0 examples and public workflow fixtures — completed (post-#281 baseline, `capabilities/loom-neutral` with counter/observer/relationship/blob/semantic + `examples/neutral-v0` Templates)
-- `#201` public-consumer rehearsal gate — verifies the documented workflow from a clean environment (this gate)
+- `#201` public-consumer rehearsal gate — completed on the clean documented workflow
+- `#202` integrated V0 release gate — completed on candidate `52905862f3c26a6fb4d9991da2aa9fe8cfd11bc2`, integrated by PR #283
+- `#203` final task/Issue/evidence closure audit — implementation records reconciled; GitHub child checklist synchronization remains pending Leader decision
 
 Detailed task ledger: [`docs/tasks/README.md`](docs/tasks/README.md) and `docs/tasks/m12/`. Each task file is the durable audit record; GitHub issues remain the discussion surface.
 

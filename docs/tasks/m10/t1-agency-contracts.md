@@ -1,13 +1,13 @@
 ---
 task: M10-T1
 issue: 187
-status: planned
+status: completed
 depends_on: [186]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 242
+merge_sha: 0a1536155c426787415c907ca78ecee952b7ba59
 ---
 # M10-T1 — `loom-agency` contracts
 
@@ -18,12 +18,12 @@ merge_sha:
 - SPI must remain compatible with M5 coherent host topology without freezing one vendor runtime.
 
 ## Acceptance
-- [ ] Decision cannot bypass normal Action authority.
-- [ ] AgentWorldView differs from authoritative BaseWorldView.
-- [ ] Metadata is provenance-ready and secret-free.
-- [ ] Cargo DAG + standard gates pass.
+- [x] Decision cannot bypass normal Action authority.
+- [x] AgentWorldView differs from authoritative BaseWorldView.
+- [x] Metadata is provenance-ready and secret-free.
+- [x] Cargo DAG + standard gates pass.
 
 Architecture: Amendment 0003 §§3.3–3.4.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

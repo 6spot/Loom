@@ -1,13 +1,13 @@
 ---
 task: M4-T7
 issue: 152
-status: in_review
+status: completed
 depends_on: [146, 147, 148, 149, 150, 151]
 created_at: 2026-08-22
 started_at: 2026-08-22
-completed_at:
+completed_at: 2026-08-22
 completion_pr: 215
-merge_sha:
+merge_sha: e75bbdd0a81e8e4fcdd77523efc73da51a675f24
 ---
 
 # M4-T7 — Reconciliation final gate

@@ -1,13 +1,13 @@
 ---
 task: M8-T7
 issue: 180
-status: planned
+status: completed
 depends_on: [160, 171, 176, 178]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 236
+merge_sha: db0049822e361afb438c5d4562520cca1cc6a127
 ---
 # M8-T7 — `apps/loom-server` composition root
 
@@ -30,17 +30,17 @@ merge_sha:
 No duplicate HTTP handlers, Runtime→PgStorage dependency, server-side semantic scheduler, hard-coded secrets, unbounded workers, disposable CI workflows, floating database major versions, container-only semantic behavior, Docker named volumes for Loom-owned persistent data, or persistent Compose data outside the configured Loom data root.
 
 ## Acceptance
-- [ ] `cargo run -p loom-server` starts in documented PostgreSQL 18 environment.
-- [ ] `docker compose config` validates the committed deployment configuration.
-- [ ] `docker compose up --build` starts PostgreSQL 18/pgvector and a healthy `loom-server` on Linux from a clean checkout plus documented `.env` configuration.
-- [ ] The default single-host deployment creates one repository-local `./loom/` persistence tree (or the configured `LOOM_DATA_DIR`) with stable `postgres/` and local `blobs/` children; `./loom/` is gitignored.
-- [ ] PostgreSQL and every filesystem-backed persistent Loom component bind-mount only child paths under `LOOM_DATA_DIR`; no Docker named volume holds Loom-owned durable data.
-- [ ] Persistent data survives `docker compose down` / subsequent `up`; deleting containers or Compose metadata does not delete the Loom data tree.
-- [ ] `loom-server` does not start serving before PostgreSQL is healthy and startup validation/migrations succeed.
-- [ ] No secret value is required to be committed to the repository; `.env.example` documents every required deployment variable, including the unified data root.
-- [ ] Restart resumes persisted World/Work/Ingress through the same Runtime/PgStorage authority path.
-- [ ] Topology/shutdown/startup validation pass both natively and through the container entrypoint.
-- [ ] CI hygiene + standard gates pass.
+- [x] `cargo run -p loom-server` starts in documented PostgreSQL 18 environment.
+- [x] `docker compose config` validates the committed deployment configuration.
+- [x] `docker compose up --build` starts PostgreSQL 18/pgvector and a healthy `loom-server` on Linux from a clean checkout plus documented `.env` configuration.
+- [x] The default single-host deployment creates one repository-local `./loom/` persistence tree (or the configured `LOOM_DATA_DIR`) with stable `postgres/` and local `blobs/` children; `./loom/` is gitignored.
+- [x] PostgreSQL and every filesystem-backed persistent Loom component bind-mount only child paths under `LOOM_DATA_DIR`; no Docker named volume holds Loom-owned durable data.
+- [x] Persistent data survives `docker compose down` / subsequent `up`; deleting containers or Compose metadata does not delete the Loom data tree.
+- [x] `loom-server` does not start serving before PostgreSQL is healthy and startup validation/migrations succeed.
+- [x] No secret value is required to be committed to the repository; `.env.example` documents every required deployment variable, including the unified data root.
+- [x] Restart resumes persisted World/Work/Ingress through the same Runtime/PgStorage authority path.
+- [x] Topology/shutdown/startup validation pass both natively and through the container entrypoint.
+- [x] CI hygiene + standard gates pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

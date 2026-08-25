@@ -1,13 +1,13 @@
 ---
 task: M5-T6
 issue: 158
-status: in_review
+status: completed
 depends_on: [153, 154, 157]
 created_at: 2026-08-22
 started_at: 2026-08-23
-completed_at:
+completed_at: 2026-08-23
 completion_pr: 220
-merge_sha:
+merge_sha: f11787b738e0a9ca4ed67d0e763cff0ad2e7a77c
 ---
 # M5-T6 — Atomic Reaction Work scheduling
 
@@ -24,7 +24,7 @@ merge_sha:
 - [x] Same-time fan-out order is deterministic.
 - [x] Failure leaves no partial Event/Work.
 - [x] Reaction chain is bounded and head-ordered.
-- [ ] Restart + standard gates pass.
+- [x] Restart + standard gates pass.
 
 Architecture: Amendment 0001 §8.2 + chronology rules.
 

@@ -1,13 +1,13 @@
 ---
 task: M8-T1
 issue: 174
-status: in_review
+status: completed
 depends_on: [173]
 created_at: 2026-08-22
-started_at: 2026-08-24
-completed_at:
+started_at: 2026-08-23
+completed_at: 2026-08-23
 completion_pr: 230
-merge_sha:
+merge_sha: d36167c3ad20fbf76181c5c51e6d1c7074d336a9
 ---
 # M8-T1 — Ingress and Subscription API contracts
 
@@ -21,10 +21,10 @@ merge_sha:
 No HTTP types in `loom-api`, direct Ingress Event/Effect/commit endpoint, accepted-as-World-truth, or subscriber authority.
 
 ## Acceptance
-- [ ] Contracts serialize/document cleanly.
-- [ ] Result/lifecycle states are unambiguous.
-- [ ] Idempotency conflict + feed cursor/resume are explicit/bounded.
-- [ ] API dependency DAG + standard gates pass.
+- [x] Contracts serialize/document cleanly.
+- [x] Result/lifecycle states are unambiguous.
+- [x] Idempotency conflict + feed cursor/resume are explicit/bounded.
+- [x] API dependency DAG + standard gates pass.
 
 Architecture: Amendment 0001 §6.2.
 

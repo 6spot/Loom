@@ -1,13 +1,13 @@
 ---
 task: M8-T4
 issue: 177
-status: planned
+status: completed
 depends_on: [166, 174]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 233
+merge_sha: 983b668407fb1aaffdfdfb29c5b3dc4a3a95ffc9
 ---
 # M8-T4 — Resumable committed World Change Feed
 
@@ -18,10 +18,10 @@ merge_sha:
 - PostgreSQL notification may wake readers, but history remains correctness source after lost notification/restart.
 
 ## Acceptance
-- [ ] Order/cursor exact across branches.
-- [ ] Restart/resume loses no committed change.
-- [ ] Slow/broken subscriber cannot block commit.
-- [ ] Bounded memory + InMemory/PostgreSQL parity + standard gates pass.
+- [x] Order/cursor exact across branches.
+- [x] Restart/resume loses no committed change.
+- [x] Slow/broken subscriber cannot block commit.
+- [x] Bounded memory + InMemory/PostgreSQL parity + standard gates pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

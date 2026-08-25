@@ -1,13 +1,13 @@
 ---
 task: M6-T2
 issue: 163
-status: in_review
+status: completed
 depends_on: [154, 162]
 created_at: 2026-08-22
 started_at: 2026-08-23
-completed_at:
+completed_at: 2026-08-23
 completion_pr: 223
-merge_sha:
+merge_sha: 5d39017a1e58065f22df66844c48c1473428caaf
 ---
 # M6-T2 — Replay Timeline Logical State
 

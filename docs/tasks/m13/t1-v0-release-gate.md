@@ -7,7 +7,7 @@ created_at: 2026-08-22
 started_at: 2026-08-25
 completed_at: 2026-08-25
 completion_pr: 283
-merge_sha:
+merge_sha: 19c797d3e1e8bd20a21cda419789793623c5ca1f
 ---
 # M13-T1 — Integrated Loom Engine V0 release gate
 

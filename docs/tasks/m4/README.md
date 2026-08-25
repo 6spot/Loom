@@ -32,7 +32,8 @@ M4 migrates the already-completed M1–M3 implementation to the current architec
 | M4-T4 | #149 | completed | Minimum Runtime Revision ledger/active selection |
 | M4-T5 | #150 | completed | Root Execution Session + exact Execution Assembly |
 | M4-T6 | #151 | completed | Neutral Template/Binding fixtures |
-| M4-T7 | #152 | planned | Revalidate M1–M3 under current authority chain |
+| M4-T7 | #152 | completed | Revalidate M1–M3 under current authority chain |
+| M4-I1 | #209 | completed | Centralized PostgreSQL SQL ownership prerequisite |
 
 ## Gate
 

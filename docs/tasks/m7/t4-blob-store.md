@@ -1,13 +1,13 @@
 ---
 task: M7-T4
 issue: 171
-status: in_review
+status: completed
 depends_on: [167]
 created_at: 2026-08-22
 started_at: 2026-08-23
 completed_at: 2026-08-23
-completion_pr: none (Executor constraint)
-merge_sha: candidate SHA reported in issue handoff
+completion_pr: 229
+merge_sha: ebd5f2916b82f145e339f590ece82a9116db453f
 ---
 # M7-T4 — Immutable Blob/Object Store
 

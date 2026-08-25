@@ -1,13 +1,13 @@
 ---
 task: M7-T6
 issue: 173
-status: planned
+status: completed
 depends_on: [168, 169, 170, 171, 172]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-23
+completed_at: 2026-08-23
+completion_pr: 229
+merge_sha: ebd5f2916b82f145e339f590ece82a9116db453f
 ---
 # M7-T6 — Read/projection/blob authority gate
 

@@ -20,7 +20,7 @@ M12 #201
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M13-T1 | #202 | completed — `t1-v0-release-gate.md` candidate `5290586` / PR #283, full V0 public-surface gate green (see Verification evidence); `merge_sha` pending post-merge audit by M13-T2 per `docs/tasks/README.md:91` |
-| M13-T2 | #203 | planned |
+| M13-T1 | #202 | completed — candidate `5290586` / PR #283; integrated at `19c797d3e1e8bd20a21cda419789793623c5ca1f` |
+| M13-T2 | #203 | in_progress — GitHub child checklist reconciliation requires Leader decision |
 
 V0 may be declared complete only after #203 verifies all task files, Issues, architecture status and final-candidate evidence agree.

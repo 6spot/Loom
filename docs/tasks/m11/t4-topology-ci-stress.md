@@ -1,13 +1,13 @@
 ---
 task: M11-T4
 issue: 196
-status: planned
+status: completed
 depends_on: [180, 194, 195]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-25
+completed_at: 2026-08-25
+completion_pr: 272
+merge_sha: 010571b943d9be60b2892eaae15cfd97909dde14
 ---
 # M11-T4 — Worker/executor stress + Linux CI hygiene
 
@@ -19,11 +19,11 @@ merge_sha:
 - No disposable verifier workflows.
 
 ## Acceptance
-- [ ] Multi-worker/process stress preserves authority invariants.
-- [ ] Restart failures recover deterministically.
-- [ ] Coherent topology compiles/runs and is documented.
-- [ ] CI path filtering/macOS removal is correct.
-- [ ] Relevant-code mandatory gates remain enforced.
+- [x] Multi-worker/process stress preserves authority invariants.
+- [x] Restart failures recover deterministically.
+- [x] Coherent topology compiles/runs and is documented.
+- [x] CI path filtering/macOS removal is correct.
+- [x] Relevant-code mandatory gates remain enforced.
 
 Architecture: A0002 §4; A0003 §7.
 

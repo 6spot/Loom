@@ -16,11 +16,11 @@ all ──> #173 authority gate
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M7-T1 | #168 | planned |
-| M7-T2 | #169 | planned |
-| M7-T3 | #170 | planned |
-| M7-T4 | #171 | planned |
-| M7-T5 | #172 | planned |
-| M7-T6 | #173 | planned |
+| M7-T1 | #168 | completed |
+| M7-T2 | #169 | completed |
+| M7-T3 | #170 | completed |
+| M7-T4 | #171 | completed |
+| M7-T5 | #172 | completed |
+| M7-T6 | #173 | completed |
 
 All projections/blobs remain subordinate to World/Timeline authority. The old generic Event-Scope proposal is excluded unless a future Architecture Amendment accepts it.

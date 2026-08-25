@@ -1,13 +1,13 @@
 ---
 task: M12-T2
 issue: 199
-status: in_progress
+status: completed
 depends_on: [185, 198]
 created_at: 2026-08-22
 started_at: 2026-08-25
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-25
+completion_pr: 280
+merge_sha: acf143bdc574572f230446be364d0cc82686b73e
 ---
 # M12-T2 — V0 operator/developer docs + quickstart
 

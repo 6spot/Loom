@@ -1,13 +1,13 @@
 ---
 task: M10-T4
 issue: 190
-status: planned
+status: completed
 depends_on: [156, 189]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 245
+merge_sha: e9e2b6ffe5e926615191f57094fe6e5085390d6b
 ---
 # M10-T4 — Atomic Agency Wake Decision/Action commit
 
@@ -20,14 +20,14 @@ merge_sha:
 - Technical cognition/runtime failure does not complete Wake and uses bounded FailurePolicy.
 
 ## Acceptance
-- [ ] Act uses normal Action authority.
-- [ ] Action+Wake completion+budget are atomic.
-- [ ] NoAction and semantic Rejected complete without fake Events.
-- [ ] Rejected Wake cannot head-block forever.
-- [ ] Technical failure remains Pending/retriable; stale CAS/fence cannot partially commit.
-- [ ] PostgreSQL/InMemory + standard gates pass.
+- [x] Act uses normal Action authority.
+- [x] Action+Wake completion+budget are atomic.
+- [x] NoAction and semantic Rejected complete without fake Events.
+- [x] Rejected Wake cannot head-block forever.
+- [x] Technical failure remains Pending/retriable; stale CAS/fence cannot partially commit.
+- [x] PostgreSQL/InMemory + standard gates pass.
 
 Architecture: A0003 §§3.2/3.5; R-1 V0 policy fixed by this replan.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

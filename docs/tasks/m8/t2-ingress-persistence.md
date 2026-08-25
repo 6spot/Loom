@@ -1,13 +1,13 @@
 ---
 task: M8-T2
 issue: 175
-status: planned
+status: completed
 depends_on: [174]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-23
+completed_at: 2026-08-23
+completion_pr: 231
+merge_sha: 9d51e4ff3be0e626389fe28a901155d1fdfb3ed3
 ---
 # M8-T2 — Durable idempotent Ingress persistence
 
@@ -19,10 +19,10 @@ merge_sha:
 - Preserve origin metadata for `ExecutionOrigin::Ingress`.
 
 ## Acceptance
-- [ ] Idempotency across restart/concurrency.
-- [ ] Mismatch conflicts.
-- [ ] Accepted-only record mutates no World/logical state.
-- [ ] Fence-safe retry + InMemory/PostgreSQL parity pass.
+- [x] Idempotency across restart/concurrency.
+- [x] Mismatch conflicts.
+- [x] Accepted-only record mutates no World/logical state.
+- [x] Fence-safe retry + InMemory/PostgreSQL parity pass.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

@@ -1,13 +1,13 @@
 ---
 task: M10-T2
 issue: 188
-status: planned
+status: completed
 depends_on: [170, 172, 187]
 created_at: 2026-08-22
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-24
+completed_at: 2026-08-24
+completion_pr: 243
+merge_sha: 06ea175a42a2a191e700ea409d0defb29ccb7ca0
 ---
 # M10-T2 — Visibility-limited AgentWorldView
 
@@ -19,13 +19,13 @@ merge_sha:
 - Context must stay at one TimelineVersion and executor receives no BaseWorldView/WorldStore handles.
 
 ## Acceptance
-- [ ] Allowed state visible; hidden authoritative data inaccessible.
-- [ ] Concurrent commit cannot mix context revisions.
-- [ ] Retrieval obeys visibility/Binding/budget.
-- [ ] Context dependencies appear in provenance.
-- [ ] Standard gates pass.
+- [x] Allowed state visible; hidden authoritative data inaccessible.
+- [x] Concurrent commit cannot mix context revisions.
+- [x] Retrieval obeys visibility/Binding/budget.
+- [x] Context dependencies appear in provenance.
+- [x] Standard gates pass.
 
 Architecture: A0003 §3.4/§4.
 
 ## Verification evidence
-Pending.
+Closure audit evidence: the M13-T1 integrated candidate and its required Linux/PostgreSQL18+pgvector, property/fault, replay/fork, scheduler, provenance, Agency, black-box, CLI, docs, architecture, format, check, clippy, test, rustdoc, dependency/security and capacity gates passed; final integration merge 19c797d3e1e8bd20a21cda419789793623c5ca1f contains this evidence.

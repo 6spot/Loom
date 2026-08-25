@@ -1,13 +1,13 @@
 ---
 task: M11-T1
 issue: 193
-status: in_review
+status: completed
 depends_on: [192]
 created_at: 2026-08-22
 started_at: 2026-08-24
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-24
+completion_pr: 263
+merge_sha: 830cf3867e2c95fdb73f4347f964ee919d505fc1
 ---
 # M11-T1 — Bounded resource policies
 
@@ -57,11 +57,11 @@ but redacts the database URL.
 No HTTP-only protection, unbounded production recursive/query defaults, silent truncation without cursor contract, or deployment thresholds in Core.
 
 ## Acceptance
-- [ ] Every amplification path has owner/config/enforcement.
-- [ ] Over-limit semantic execution cannot partially commit.
-- [ ] Runtime/Boundary independent limit tests pass.
-- [ ] Invalid server config fails startup.
-- [ ] Standard/integration gates pass.
+- [x] Every amplification path has owner/config/enforcement.
+- [x] Over-limit semantic execution cannot partially commit.
+- [x] Runtime/Boundary independent limit tests pass.
+- [x] Invalid server config fails startup.
+- [x] Standard/integration gates pass.
 
 ## Verification evidence
 
