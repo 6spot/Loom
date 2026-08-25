@@ -1,6 +1,11 @@
 use super::PgStorage;
 
-use std::str::FromStr;
+use std::{
+    path::Path,
+    process::Command,
+    str::FromStr,
+    sync::OnceLock,
+};
 
 use loom_agency::DecisionReusePolicy;
 use loom_api::{
@@ -29,15 +34,38 @@ const WORLD_ID: &str = "00000000-0000-0000-0000-000000000101";
 const TIMELINE_ID: &str = "00000000-0000-0000-0000-000000000102";
 const ENTITY_ID: &str = "00000000-0000-0000-0000-000000000103";
 const AGENCY_COGNITION: &str = "deterministic.fake";
+const DEFAULT_POSTGRES_CONTROL_URL: &str =
+    "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
-fn postgres_url() -> Option<String> {
+static REPOSITORY_POSTGRES_READY: OnceLock<()> = OnceLock::new();
+
+fn postgres_url() -> String {
     match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) => Some(url),
-        Err(error) if std::env::var_os("LOOM_REQUIRE_POSTGRES_TESTS").is_some() => {
-            panic!("LOOM_TEST_POSTGRES_URL is required for PostgreSQL tests: {error}")
+        Ok(url) if !url.trim().is_empty() => url,
+        _ => {
+            REPOSITORY_POSTGRES_READY.get_or_init(start_repository_postgres);
+            DEFAULT_POSTGRES_CONTROL_URL.to_owned()
         }
-        Err(_) => None,
     }
+}
+
+fn start_repository_postgres() {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/postgres-test.sh");
+    let status = Command::new("bash")
+        .arg(&script)
+        .arg("up")
+        .status()
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to start repository-managed PostgreSQL test service with `{}`: {error}",
+                script.display()
+            )
+        });
+    assert!(
+        status.success(),
+        "repository-managed PostgreSQL test service startup `{}` exited with {status}",
+        script.display()
+    );
 }
 
 fn database_error_code(error: &sqlx::Error) -> Option<String> {
@@ -49,9 +77,7 @@ fn database_error_code(error: &sqlx::Error) -> Option<String> {
 
 #[tokio::test]
 async fn postgres_18_schema_contract() {
-    let Some(database_url) = postgres_url() else {
-        return;
-    };
+    let database_url = postgres_url();
 
     let storage = PgStorage::connect(&database_url)
         .await
@@ -151,9 +177,7 @@ async fn postgres_18_schema_contract() {
 
 #[tokio::test]
 async fn postgres_18_read_snapshot_parity() {
-    let Some(database_url) = postgres_url() else {
-        return;
-    };
+    let database_url = postgres_url();
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
@@ -500,8 +524,8 @@ where
         .expect("test identity should parse")
 }
 
-async fn postgres_agency_fixture() -> Option<(PgStorage, WorldId, TimelineId, EntityId)> {
-    let database_url = postgres_url()?;
+async fn postgres_agency_fixture() -> (PgStorage, WorldId, TimelineId, EntityId) {
+    let database_url = postgres_url();
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
@@ -529,7 +553,7 @@ async fn postgres_agency_fixture() -> Option<(PgStorage, WorldId, TimelineId, En
         .execute(&storage.pool)
         .await
         .expect("Agency fixture Entity should insert");
-    Some((storage, world_id, timeline_id, entity_id))
+    (storage, world_id, timeline_id, entity_id)
 }
 
 #[tokio::test]
@@ -538,9 +562,7 @@ async fn postgres_agency_fixture() -> Option<(PgStorage, WorldId, TimelineId, En
     reason = "the PostgreSQL Agency Wake CAS scenario keeps schedule, recovery and provenance together"
 )]
 async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable() {
-    let Some((storage, world_id, timeline_id, entity_id)) = postgres_agency_fixture().await else {
-        return;
-    };
+    let (storage, world_id, timeline_id, entity_id) = postgres_agency_fixture().await;
     let target = TimelineTarget::new(world_id, timeline_id);
     let wake_work_id = unique_id::<WorkId>(0x304);
     let conflict_work_id = unique_id::<WorkId>(0x305);
@@ -704,9 +726,8 @@ async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable
     storage.close().await;
 }
 
-async fn ingress_authority_fixture()
--> Option<(String, PgStorage, WorldId, TimelineId, EntityId, EventId)> {
-    let database_url = postgres_url()?;
+async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId, EntityId, EventId) {
+    let database_url = postgres_url();
     let storage = PgStorage::connect(&database_url)
         .await
         .expect("PostgreSQL test database should accept connections");
@@ -748,14 +769,14 @@ async fn ingress_authority_fixture()
     .await
     .expect("Ingress fixture Facet should insert");
 
-    Some((
+    (
         database_url,
         storage,
         world_id,
         timeline_id,
         entity_id,
         event_id,
-    ))
+    )
 }
 
 #[tokio::test]
@@ -764,11 +785,8 @@ async fn ingress_authority_fixture()
     reason = "the PostgreSQL Ingress crash-window recovery stays in one unit harness scenario"
 )]
 async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
-    let Some((database_url, storage, world_id, timeline_id, entity_id, event_id)) =
-        ingress_authority_fixture().await
-    else {
-        return;
-    };
+    let (database_url, storage, world_id, timeline_id, entity_id, event_id) =
+        ingress_authority_fixture().await;
     let target = loom_api::TimelineTarget::new(world_id, timeline_id);
     let clock = ManualPlatformClock::new(loom_runtime::PlatformTime::new(10));
     let runtime = Runtime::new(storage.clone(), ingress_registry(entity_id))
