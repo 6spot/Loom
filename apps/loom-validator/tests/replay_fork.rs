@@ -2,9 +2,17 @@
 //!
 //! These tests intentionally remain separate from the unit scenarios in
 //! `src/scenarios.rs`.  The unit layer may use the Validator-owned `MockApi` to
-//! exercise orchestration deterministically; this layer composes Loom itself,
-//! connects through its HTTP boundary, and passes the production
-//! `LoomClient`-backed `BackendContext` to the same scenario implementation.
+//! exercise orchestration deterministically; that layer is Validator unit
+//! evidence only and never counts as Loom acceptance evidence. This layer
+//! composes Loom itself, connects through its HTTP boundary, and passes the
+//! production `LoomClient`-backed `BackendContext` to the same scenario
+//! implementation. `CV-005`..`CV-008` verify replay/fork and isolation on a
+//! real `InMemory` or live `PostgreSQL` service; `CV-009` verifies `PostgreSQL`
+//! restart/reconnect durability by rebuilding the real `PgStorage`-backed
+//! boundary via `PgServer::restart()` and reconnecting through a new public
+//! `LoomClient`, with `InMemory` remaining an explicit
+//! `finding:gap:inmemory-durable-restart-is-not-a-public-capability`
+//! unavailable. VAL-T9 cannot be marked completed from `MockApi` results alone.
 
 mod common;
 
