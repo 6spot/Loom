@@ -41,6 +41,46 @@ use loom_runtime::{
 use loom_storage::{InMemoryBlobStore, InMemoryStore, LocalBlobStore};
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
+fn ensure_vertical_store(store: &InMemoryStore, reg: &loom_capability::CapabilityRegistry) {
+    let descriptor = loom_runtime::RuntimeRevisionDescriptor::new(
+        loom_runtime::RuntimeRevisionId::from("vertical-explicit-v0"),
+        loom_runtime::PlatformTime::default(),
+        "test-build",
+        reg.loom_version().clone(),
+        reg.capabilities().map(|manifest| {
+            loom_runtime::RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("vertical revision should be valid");
+    let binding = loom_runtime::WorldRuntimeBinding::new(
+        reg.capabilities().map(|m| {
+            (
+                m.id.clone(),
+                semver::VersionReq::parse("*").expect("req should parse"),
+            )
+        }),
+        serde_json::json!({"fixture": "vertical-explicit-v0"}),
+        1,
+        Some("vertical-explicit-v0".to_owned()),
+    );
+    let _ = store.persist_binding(world(), binding);
+    let _ = store.confirm_revision(descriptor.clone());
+    let active = store.read_active_revision().unwrap_or(None);
+    let needs_activation = active.as_ref().map_or(true, |s| {
+        s.revision().id().as_str() != "vertical-explicit-v0"
+    });
+    if needs_activation {
+        let expected = active.as_ref().map(|s| s.generation());
+        let _ = store.activate_revision(
+            descriptor.id().clone(),
+            expected,
+            loom_runtime::PlatformTime::default(),
+        );
+    }
+}
 
 const COUNTER_CAPABILITY: &str = "counter.basic";
 const COUNTER_FACET: &str = "counter.value";
@@ -547,6 +587,7 @@ async fn composition_invalid_action_input_is_stopped_before_resolver() {
         calls: Arc::clone(&calls),
     }])
     .expect("counting Capability registry should assemble");
+    ensure_vertical_store(&store, &registry);
     let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
 
@@ -677,6 +718,7 @@ async fn composition_work_schedule_validates_identity_and_payload_before_commit(
 #[tokio::test]
 async fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_history() {
     let store = counter_store();
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
 
@@ -781,6 +823,7 @@ async fn vertical_slice_runs_through_loom_api_and_inspects_committed_state_and_h
 #[tokio::test]
 async fn ingress_runs_through_the_normal_action_authority_and_persists_provenance() {
     let store = counter_store();
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let request = IngressEnvelope::new(
         "ingress-commit-1",
@@ -834,6 +877,7 @@ async fn ingress_runs_through_the_normal_action_authority_and_persists_provenanc
 #[tokio::test]
 async fn ingress_rejection_is_completed_without_world_mutation_or_retry() {
     let store = counter_store();
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let request = IngressEnvelope::new(
         "ingress-rejected-1",
@@ -876,6 +920,22 @@ async fn ingress_rejection_is_completed_without_world_mutation_or_retry() {
 #[tokio::test]
 async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projections() {
     let store = counter_store();
+    WorldRuntimeBindingStore::persist_binding(
+        &store,
+        world(),
+        WorldRuntimeBinding::new(
+            [(
+                CapabilityId::from(COUNTER_CAPABILITY),
+                VersionReq::parse("^0.1.0").expect("counter requirement should parse"),
+            )],
+            json!({"fixture": "binding-catalog"}),
+            1,
+            Some("binding-catalog".to_owned()),
+        ),
+    )
+    .await
+    .expect("catalog fixture binding should persist once");
+    ensure_vertical_store(&store, &counter_registry_with_secondary());
     let runtime =
         Runtime::new(&store, counter_registry_with_secondary()).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
@@ -977,6 +1037,7 @@ async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projecti
 #[tokio::test]
 async fn causal_queries_follow_only_qualified_authoritative_event_links() {
     let store = counter_store();
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
 
@@ -1034,6 +1095,7 @@ async fn vertical_slice_executes_durable_work_and_completes_atomically() {
             lease: None,
         })
         .expect("counter Work should be seeded");
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
 
@@ -1110,6 +1172,7 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
         std::iter::empty(),
     )
     .expect("an empty revision descriptor should be valid publication metadata");
+    ensure_vertical_store(&store, &registry);
     let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     runtime
         .register_runtime_revision(missing_revision)
@@ -1118,7 +1181,7 @@ async fn missing_active_work_implementation_is_unavailable_before_claim() {
     store
         .activate_revision(
             RuntimeRevisionId::from("missing-counter"),
-            None,
+            Some(1),
             PlatformTime::new(2),
         )
         .expect("the persisted incompatible revision should be available for the negative test");
@@ -1245,6 +1308,7 @@ async fn missing_observer_matches_full_assembly_compatibility_predicate() {
         ],
     )
     .expect("the active A+B revision metadata should be structurally valid");
+    ensure_vertical_store(&store, &registry);
     let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     runtime
         .register_runtime_revision(incompatible_revision)
@@ -1253,7 +1317,7 @@ async fn missing_observer_matches_full_assembly_compatibility_predicate() {
     store
         .activate_revision(
             RuntimeRevisionId::from("full-compatibility-mismatch"),
-            None,
+            Some(1),
             PlatformTime::new(2),
         )
         .expect("the persisted incompatible revision should be available for the negative test");
@@ -1334,7 +1398,7 @@ async fn missing_observer_matches_full_assembly_compatibility_predicate() {
     runtime
         .activate_runtime_revision(
             RuntimeRevisionId::from("full-compatibility-match"),
-            Some(1),
+            Some(2),
             PlatformTime::new(4),
         )
         .await
@@ -1387,6 +1451,7 @@ async fn work_schema_revision_mismatch_blocks_before_claim() {
             lease: None,
         })
         .expect("schema-mismatch Work should be seeded");
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry()).expect("Runtime should assemble");
 
     let blocked = runtime
@@ -1452,6 +1517,7 @@ async fn vertical_slice_technical_retry_leaves_world_truth_unchanged() {
             lease: None,
         })
         .expect("retry Work should be seeded");
+    ensure_vertical_store(&retry_store, &counter_registry());
     let retry_runtime =
         Runtime::new(&retry_store, counter_registry()).expect("retry Runtime should assemble");
     let retry_error = retry_runtime
@@ -1523,6 +1589,7 @@ async fn bounded_failure_policy_terminalizes_after_configured_attempts() {
         .work(timeline(), work_id)
         .expect("Work lookup should succeed")
         .expect("Work should exist");
+    ensure_vertical_store(&store, &counter_registry());
     let runtime = Runtime::new(&store, counter_registry())
         .expect("Runtime should assemble")
         .with_failure_policy(FailurePolicy::new(2, 5).expect("test FailurePolicy should be valid"));
@@ -1669,6 +1736,7 @@ async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() 
     .await
     .expect("secondary-only World Binding should persist");
 
+    ensure_vertical_store(&store, &counter_registry_with_secondary());
     let runtime = Runtime::new(&store, counter_registry_with_secondary())
         .expect("ME-212 Runtime should assemble");
     let api: &dyn LoomApi = &runtime;
@@ -1902,6 +1970,7 @@ async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() 
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].source_ref, EventRef::new(timeline(), event(210)));
 
+    ensure_vertical_store(&store, &counter_registry_with_secondary());
     let restarted_runtime = Runtime::new(&store, counter_registry_with_secondary())
         .expect("Runtime should restart over the same authority adapter");
     assert_eq!(
@@ -1933,6 +2002,7 @@ async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() 
         Err(SemanticProjectionError::IndexNotRegistered { .. })
     ));
 
+    ensure_vertical_store(&store, &projection_v2_registry());
     let v2_runtime = Runtime::new(&store, projection_v2_registry())
         .expect("model revision two Runtime should assemble");
     let registration_v2 = SemanticProjectionRegistration::new(
@@ -2104,6 +2174,7 @@ async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() 
         authority_before_projection.version(),
         authority_before_projection.world_time(),
     );
+    ensure_vertical_store(&store, &counter_registry());
     let race_runtime =
         Runtime::new(&store, counter_registry()).expect("race Runtime should assemble");
     let (commit_result, raced_read) = tokio::join!(
