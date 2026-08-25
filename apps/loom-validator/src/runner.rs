@@ -97,9 +97,12 @@ impl Runner {
         let results = self
             .registry
             .iter()
-            .map(|descriptor| execute(descriptor, backend))
+            .map(|descriptor| {
+                execute(descriptor, backend)
+                    .with_capability_area(descriptor.capability_area().as_str())
+            })
             .collect();
-        ValidationReport::from_results(results)
+        ValidationReport::from_results(results).with_backend(*backend.backend_kind())
     }
 
     /// Returns the deterministic list of all registered scenarios.
@@ -153,7 +156,7 @@ impl Runner {
             return Ok(self.registry.iter().collect());
         }
 
-        let expanded_ids = expand_csv(ids);
+        let expanded_ids = expand_csv_checked(ids)?;
         let expanded_groups = expand_csv(groups);
 
         if expanded_ids.is_empty() && expanded_groups.is_empty() {
@@ -258,7 +261,8 @@ impl Runner {
     {
         let mut results = Vec::with_capacity(selection.len());
         for descriptor in selection {
-            let result = execute(descriptor, backend);
+            let result = execute(descriptor, backend)
+                .with_capability_area(descriptor.capability_area().as_str());
             let is_fail = result.outcome().is_fail();
             results.push(result);
             if fail_fast && is_fail {
@@ -266,6 +270,13 @@ impl Runner {
             }
         }
         ValidationReport::from_results(results)
+            .with_selected_scenario_ids(
+                selection
+                    .iter()
+                    .map(|descriptor| descriptor.id_str().to_owned())
+                    .collect(),
+            )
+            .with_backend(*backend.backend_kind())
     }
 
     /// Executes a selection derived from raw ID and group strings.
@@ -318,12 +329,14 @@ impl Runner {
                             "scenario does not declare backend {} as supported",
                             backend.as_str()
                         ),
-                    );
+                    )
+                    .with_capability_area(descriptor.capability_area().as_str());
                 }
 
                 match harness.start(descriptor.id_str()) {
                     BackendStart::Ready(context) => {
-                        let result = execute(descriptor, &context);
+                        let result = execute(descriptor, &context)
+                            .with_capability_area(descriptor.capability_area().as_str());
                         harness.dispose(context);
                         result
                     }
@@ -332,17 +345,20 @@ impl Runner {
                         descriptor.name(),
                         backend,
                         reason,
-                    ),
+                    )
+                    .with_capability_area(descriptor.capability_area().as_str()),
                     BackendStart::Unavailable { backend, reason } => ScenarioResult::unavailable(
                         descriptor.id().clone(),
                         descriptor.name(),
                         backend,
                         reason,
-                    ),
+                    )
+                    .with_capability_area(descriptor.capability_area().as_str()),
                 }
             })
             .collect();
         ValidationReport::from_results_with_policy(results, harness.policy())
+            .with_backend(*harness.backend_kind())
     }
 }
 
@@ -359,6 +375,24 @@ fn expand_csv(input: &[String]) -> Vec<String> {
         }
     }
     out
+}
+
+/// Expands scenario IDs while preserving malformed empty selections as a
+/// runner/configuration error instead of silently treating them as no filter.
+fn expand_csv_checked(input: &[String]) -> Result<Vec<String>, RunnerError> {
+    let mut out = Vec::new();
+    for entry in input {
+        for part in entry.split(',') {
+            let trimmed = part.trim();
+            if trimmed.is_empty() {
+                return Err(RunnerError::InvalidSelection(
+                    "empty scenario id".to_owned(),
+                ));
+            }
+            out.push(trimmed.to_owned());
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -508,6 +542,20 @@ mod tests {
         let msg = format!("{err}");
         assert!(msg.contains("unknown scenario"));
         assert!(!msg.contains("fail"));
+    }
+
+    #[test]
+    fn empty_id_is_a_runner_config_error() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        let runner = Runner::new(registry);
+
+        assert_eq!(
+            runner.resolve_ids(&["CV-001,".to_string()]),
+            Err(RunnerError::InvalidSelection(
+                "empty scenario id".to_owned()
+            ))
+        );
     }
 
     #[test]

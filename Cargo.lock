@@ -1299,6 +1299,7 @@ name = "loom-validator"
 version = "0.1.0"
 dependencies = [
  "loom-client",
+ "serde_json",
 ]
 
 [[package]]
