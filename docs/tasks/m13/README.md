@@ -20,7 +20,7 @@ M12 #201
 
 | Task | Issue | Status |
 | --- | ---: | --- |
-| M13-T1 | #202 | planned |
+| M13-T1 | #202 | completed — `t1-v0-release-gate.md` candidate `5290586`, full V0 public-surface gate green (see Verification evidence) |
 | M13-T2 | #203 | planned |
 
 V0 may be declared complete only after #203 verifies all task files, Issues, architecture status and final-candidate evidence agree.
