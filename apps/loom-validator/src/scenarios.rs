@@ -229,6 +229,7 @@ pub fn execute_replay_fork(
 
 fn new_world_template(scope: &str) -> WorldTemplateDescriptor {
     WorldTemplateDescriptor::new(format!("test-replay-{scope}"), 1, WorldInstant::new(0))
+        .requires_capability("neutral.counter", "^0.1.0")
 }
 
 fn new_entity_id() -> EntityId {
