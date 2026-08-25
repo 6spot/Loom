@@ -107,9 +107,7 @@ async fn in_memory_pinned_boundary_rejects_stale_version_before_returning_data()
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn postgres_point_reads_use_one_row_queries_and_version_fences() {
-    let Some(database) = TestDatabase::provision("pinned-read").await else {
-        return;
-    };
+    let database = TestDatabase::provision("pinned-read").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id: WorldId = WORLD_ID.parse().expect("World ID should parse");
@@ -257,9 +255,7 @@ async fn postgres_point_reads_use_one_row_queries_and_version_fences() {
 
 #[tokio::test]
 async fn postgres_point_read_amplification_stays_bounded_as_world_grows() {
-    let Some(database) = TestDatabase::provision("pinned-read-bench").await else {
-        return;
-    };
+    let database = TestDatabase::provision("pinned-read-bench").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
 
