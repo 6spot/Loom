@@ -231,15 +231,15 @@ fn request(target: TimelineTarget, action: &str, input: Value) -> ActionRequest 
     )
 }
 
-async fn authority() -> Option<(
+async fn authority() -> (
     TestDatabase,
     PgStorage,
     PgPool,
     WorldId,
     TimelineId,
     EntityId,
-)> {
-    let database = TestDatabase::provision("vertical").await?;
+) {
+    let database = TestDatabase::provision("vertical").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id: WorldId = id(0x3100);
@@ -275,7 +275,7 @@ async fn authority() -> Option<(
     .await
     .expect("vertical fixture Facet should insert");
 
-    Some((database, storage, pool, world_id, timeline_id, entity_id))
+    (database, storage, pool, world_id, timeline_id, entity_id)
 }
 
 #[tokio::test]
@@ -284,10 +284,7 @@ async fn authority() -> Option<(
     reason = "the PostgreSQL public vertical slice is intentionally linear"
 )]
 async fn postgres_18_public_vertical_slice_preserves_milestone_1_semantics() {
-    let Some((database, storage, pool, world_id, timeline_id, entity_id)) = authority().await
-    else {
-        return;
-    };
+    let (database, storage, pool, world_id, timeline_id, entity_id) = authority().await;
     let target = TimelineTarget::new(world_id, timeline_id);
     let runtime =
         Runtime::new(storage.clone(), registry(entity_id)).expect("Runtime should assemble");
