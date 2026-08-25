@@ -4,7 +4,7 @@ This guide reproduces the supported V0 workflow from a clean checkout using only
 
 > **Notation:** Global flags `--output/--server/--admin-token` are parsed on `Cli` before the subcommand (see `apps/loom-cli/src/lib.rs:66-68`). Every example puts them **before** the subcommand: `loom --output human catalog ...` → `cargo run -p loom-cli -- --output human catalog ...`. Writing `loom catalog --output human` fails with `unexpected argument '--output'`. All examples below have been swept with `cargo run -p loom-cli -- <subcommand> --help` and with serde deserialization for JSON payloads.
 
-Pre-read: [`docs/architecture/README.md`](architecture/README.md) (authority map), [`docs/architecture/glossary.md`](architecture/glossary.md) (terminology), [`docs/operator-guide.md`](operator-guide.md) (concept deep-dive).
+Pre-read: [`docs/architecture/README.md`](architecture/README.md) (authority map), [`docs/architecture/glossary.md`](architecture/glossary.md) (terminology), [`docs/operator-guide.md`](operator-guide.md) (concept deep-dive). Neutral fixtures and end-to-end example walks: [`examples/neutral-v0/README.md`](../examples/neutral-v0/README.md).
 
 ## 1. Prerequisites
 
@@ -123,7 +123,7 @@ All examples use `loom-cli` JSON output for scripting. Global `--output human` i
 
 ### 3.1 Catalog (global vs per-World)
 
-`CatalogSnapshot` (`crates/loom-api/src/lib.rs:1913-1942`) currently exposes Capability/Action/Facet/Relationship/Event/Work/Reaction/index descriptors only. It has no Template field, and `CatalogService`/`loom-boundary` expose only `catalog` and `catalog-for-world`. Template discovery via catalog is therefore **deferred** pending `M12-T3` public fixtures — use caller-constructed `WorldTemplateDescriptor` (§3.2) instead.
+`CatalogSnapshot` (`crates/loom-api/src/lib.rs:1913-1942`) currently exposes Capability/Action/Facet/Relationship/Event/Work/Reaction/index descriptors only. It has no Template field, and `CatalogService`/`loom-boundary` expose only `catalog` and `catalog-for-world`. Template discovery via catalog is therefore **not available at head** — use caller-constructed `WorldTemplateDescriptor` (§3.2) instead.
 
 ```bash
 # Global installed Capabilities/Actions/Facets and their descriptors
@@ -138,7 +138,7 @@ cargo run -p loom-cli -- --output human catalog --world-id 00000000-0000-0000-00
 
 The global Catalog shows installed software (Installed Capability). The per-World Catalog is already filtered by that World's immutable Runtime Binding — `registry_presence != World enablement` (glossary, world-runtime §3.1). The operator guide explains the three-way distinction `Installed vs Binding vs Assembly`.
 
-User-facing setup uses only this discovery path; no direct SQL fixture mutation is supported. The neutral fixtures `capabilities/loom-neutral` currently expose only `neutral.counter` and `neutral.observer` via `registry()`; Relationship and multiple Template revisions are **deferred** to `M12-T3`.
+User-facing setup uses only this discovery path; no direct SQL fixture mutation is supported. The neutral fixtures `capabilities/loom-neutral` expose `neutral.counter` and `neutral.observer` (with `observer ^0.1.0 → counter ^0.1.0` dependency) plus `neutral.link.membership` (Relationship), `neutral.blob.reference` (Facet) and `neutral.counter.semantic` (semantic index) via `registry()`; supported example Templates are in `examples/neutral-v0/templates/revision-1.json` and `revision-2.json` (see `examples/neutral-v0/README.md` and `tests/loom-composition/neutral_v0_workflows.rs`).
 
 ### 3.2 Create a World from a `WorldTemplateDescriptor`
 
@@ -146,6 +146,9 @@ There is no Template catalog at head. A `WorldTemplateDescriptor` is constructed
 
 ```bash
 # Minimal neutral counter Template (world_time 0, one Capability requirement).
+# Supported example Templates with deterministic IDs/world-time are in examples/neutral-v0/templates/:
+#   cargo run -p loom-cli -- --output human world create --template-file examples/neutral-v0/templates/revision-1.json
+#   cargo run -p loom-cli -- --output human world create --template-file examples/neutral-v0/templates/revision-2.json
 # --template-json / --template-file accept a WorldTemplateDescriptor;
 # --request-file must be a CreateWorldFromTemplateRequest with top-level {"template": descriptor} (server validates both forms).
 cargo run -p loom-cli -- --output human world create \
@@ -164,7 +167,7 @@ TIMELINE=00000000-0000-0000-0000-000000000011
 #   cargo run -p loom-cli -- --output human world create --request-file /tmp/request.json
 ```
 
-Installed neutral fixtures are in `capabilities/loom-neutral/src/lib.rs` (`registry()`) — `neutral.counter` and `neutral.observer` with dependency `observer ^0.1.0 → counter ^0.1.0`. A variant that adds `neutral.observer` would demonstrate installed-but-disabled semantics, but additional Template revisions and Relationship fixtures are **deferred** to `M12-T3` (see `tests/loom-composition/src/neutral.rs` for test-only builders).
+Installed neutral fixtures are in `capabilities/loom-neutral/src/lib.rs` (`registry()`) — `neutral.counter` and `neutral.observer` with dependency `observer ^0.1.0 → counter ^0.1.0`, plus `neutral.link.membership` (Relationship), `neutral.blob.reference` and `neutral.counter.semantic`. Two supported example Templates `examples/neutral-v0/templates/revision-1.json` (counter profile, one bootstrap, `initial_world_time: 11`) and `revision-2.json` (observer profile, two bootstraps, `initial_world_time: 22`) visibly differ: a World created from revision 1 never mutates when revision 2 is later used for a new World (future-World-only change), and an `neutral.observer.observe` Action globally installed is `Unavailable` for a revision-1 World (installed-but-disabled; see `examples/neutral-v0/README.md` and `tests/loom-composition/neutral_v0_workflows.rs`).
 
 A Template's `TemplateCapabilityRequirement[]` (e.g. `neutral.counter ^0.1.0`) becomes the World's immutable Runtime Binding. Future Template revisions only affect future Worlds; existing Worlds are not rewritten. Installed-but-disabled semantics: a Capability may be present in the Registry/Revision yet not enabled for a World whose Binding excludes it.
 
@@ -211,7 +214,14 @@ cargo run -p loom-cli -- --output human catalog --world-id $WORLD
 
 `ApiErrorCode` maps to exit codes 10–16 (`InvalidRequest 10`, `NotFound 11`, `Conflict 12`, `Unavailable 13`, `Unauthorized 14`, `Forbidden 15`, `Internal 16`). CLI local validation is UX-only; the server remains authority — a rejected Action (`ResolveOutcome::Rejected`) is a correct no-world-change completion of the Session, reported in provenance.
 
-> **Relationship note (D-005):** `trajectory relationship` and any Relationship-based catalog entries are **deferred** pending `M12-T3` neutral Relationship fixtures; the current `capabilities/loom-neutral` exposes only Entity/Facet. `trajectory entity` above is the supported V0 example at head.
+> **Relationship and blob/semantic (supported via neutral fixtures):** `capabilities/loom-neutral` exposes `neutral.link.membership` (Relationship), `neutral.blob.reference` and `neutral.counter.semantic`. After seeding a second participant via the public Action, create and inspect a Relationship (no direct storage/SQL):
+> ```bash
+> cargo run -p loom-cli -- --output human action invoke --world $WORLD --timeline $TIMELINE --action neutral.counter.seed --input '{"event_id":"00000000-0000-0000-0000-000000005183","entity_id":"00000000-0000-0000-0000-000000005102","value":7}'
+> cargo run -p loom-cli -- --output human action invoke --world $WORLD --timeline $TIMELINE --action neutral.link.create --input '{"event_id":"00000000-0000-0000-0000-000000005184","relationship_id":"00000000-0000-0000-0000-000000006001","left_entity":"00000000-0000-0000-0000-000000000021","right_entity":"00000000-0000-0000-0000-000000005102"}'
+> cargo run -p loom-cli -- --output human trajectory relationship --world $WORLD --timeline $TIMELINE --relationship-id 00000000-0000-0000-0000-000000006001
+> cargo run -p loom-cli -- --output human action invoke --world $WORLD --timeline $TIMELINE --action neutral.blob.attach --input '{"event_id":"00000000-0000-0000-0000-000000005172","entity_id":"00000000-0000-0000-0000-000000000021","hash":"sha256:example","media_type":"text/plain"}'
+> ```
+> Semantic retrieval is demonstrated via `examples/neutral-v0/README.md` and `tests/loom-composition/neutral_v0_workflows.rs` (real `SemanticProjectionStore` registration/rebuild/query, not just catalog discovery). `trajectory entity` above remains the primary Entity example.
 
 ### 3.4 Submit Ingress and tail/resume the Change Feed
 
@@ -339,29 +349,31 @@ cargo run -p loom-cli -- --output human history event --timeline $TIMELINE --eve
 
 Every successful `ExecutionSession` was pinned to `TimelineTarget` + `TimelineVersion` + `World Runtime Binding` + `Runtime Revision` + exact compatible Capability implementations (the `Execution Assembly`) at session start. Stale cognition / fenced-out resolver results cannot commit; a CAS loser produces a `Discarded` observation retained in provenance.
 
-### 3.9 Deterministic Agency Wake — deferred to future public fixture
+### 3.9 Deterministic Agency Wake — supported via neutral deterministic fixture; default server composition still uses `UnavailableCognitiveExecutor`
 
-The current head's default composition does **not** provide a deterministic `CognitiveExecutor`. `crates/loom-agency/src/testing.rs:DeterministicCognitiveExecutor` is test-only; `capabilities/loom-neutral` does not contain it, and `loom-server` (`application.rs:411-420`) defaults to `UnavailableCognitiveExecutor` unless `with_cognitive_executor` is called by a future adapter. The public `ScheduleWake` CLI also requires an explicit `work_id` and, in the default server, the wake would remain blocked on missing implementation.
+The neutral V0 fixture provides a deterministic `CognitiveExecutor` (`deterministic.fake` via `crates/loom-agency/src/testing.rs:DeterministicCognitiveExecutor`) without vendor credentials. It is exercised through public `AdminService`/`Runtime` APIs in `tests/loom-composition/neutral_v0_workflows.rs::neutral_v0_agency_deterministic_without_vendor_credentials` and the CLI workflows `examples/neutral-v0/workflows/agency.sh`. The default `loom-server` composition still defaults to `UnavailableCognitiveExecutor` (`apps/loom-server/src/application.rs:411-420`) unless `with_cognitive_executor` is called by a future adapter — in the default server a scheduled Wake remains `TimelineBlockedOnMissingImplementation` until such wiring exists (use `admin timeline missing-implementation --work-id` to observe).
 
-The intended V0 shape (when a future public fixture/adapter is available) is:
+Supported deterministic example (via Runtime/composition tests and `loom-cli` against a fixture-wired Runtime):
 
 ```bash
 # Schedule an explicit Agency Wake (Scheduler-managed durable Work with Agency target):
-# Requires --work-id (mandatory for CLI) and a server with a configured deterministic executor.
+# Requires --work-id (mandatory for CLI) and a Runtime wired with the deterministic executor.
 export LOOM_ADMIN_TOKEN=...  # must match server
 cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin agency schedule-wake \
-  --world $WORLD --timeline $TIMELINE --work-id 00000000-0000-0000-0000-000000000060 --agent 00000000-0000-0000-0000-000000000021 --payload '{"trigger":"quickstart"}'
+  --world $WORLD --timeline $TIMELINE --work-id 00000000-0000-0000-0000-000000000060 --agent 00000000-0000-0000-0000-000000000021 --payload '{"trigger":"quickstart"}' --cognition deterministic.fake
 
-# Drive would require a Scheduler worker (§3.5) and a real CognitiveExecutor; at head it blocks:
+# In the default server composition without that wiring, the Wake blocks:
 cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline missing-implementation --world $WORLD --timeline $TIMELINE --work-id 00000000-0000-0000-0000-000000000060
 cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin session get --session-id <wake-session-id>
+# See the deterministic fixture walk:
+#   LOOM_CLI="cargo run -q -p loom-cli --" examples/neutral-v0/workflows/agency.sh $WORLD $TIMELINE
 ```
 
 - `AgentWorldView` is constructed through Runtime mediation, never by direct Storage access; its visibility subset is Binding-checked, and its `ContextBudget` is enforced before cognition.
 - `Decision::Act(ActionInvocation)` re-enters normal `Action → Resolution → ValidatedResolution → Logical Commit` authority; semantic rejection of the Act completes the same Wake as `NoChange` (no second attempt replaces the observed result; reconsideration is a new Wake — Amendment 0003 §3).
 - Default policy after CAS loss is `Resample` (re-invoke cognition with fresh pinned version, 2× cost); `ReuseDeterministic` (1×) is explicit, provenance-visible and revalidated against the fresh coordinate. See `docs/operator-guide.md` §Agent visibility/CAS and `docs/capacity-envelope.md` for measured cost.
 
-The current default public composition therefore marks the deterministic Agency Wake as **deferred** — the architecture and `loom-bench` measurement are ready, but a supported public fixture needs `M12-T3` follow-up (real vendor LLM integration similarly remains non-blocking / deferred and must arrive as a reviewed provider adapter).
+Real vendor LLM integration similarly remains non-blocking / deferred and must arrive as a reviewed provider adapter.
 
 ### 3.10 Restart and resume
 
