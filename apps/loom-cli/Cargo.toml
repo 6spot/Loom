@@ -1,0 +1,28 @@
+[package]
+name = "loom-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Official Loom operator/developer CLI over the formal HTTP client"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+loom-api = { path = "../../crates/loom-api", version = "0.1.0" }
+loom-client = { path = "../../crates/loom-client", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "~1.51", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+loom-boundary = { path = "../../crates/loom-boundary", version = "0.1.0" }
+loom-capability = { path = "../../crates/loom-capability", version = "0.1.0" }
+loom-core = { path = "../../crates/loom-core", version = "0.1.0" }
+loom-neutral = { path = "../../capabilities/loom-neutral", version = "0.1.0" }
+loom-protocol = { path = "../../crates/loom-protocol", version = "0.1.0" }
+loom-runtime = { path = "../../crates/loom-runtime", version = "0.1.0" }
+loom-storage = { path = "../../crates/loom-storage", version = "0.1.0" }
+tokio = { version = "~1.51", features = ["macros", "rt-multi-thread", "time"] }

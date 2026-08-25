@@ -193,7 +193,7 @@ def allowed_workspace_dependencies(package: dict) -> set[str] | None:
                 "loom-boundary",
             }
         if name in {"loom-cli", "loom-studio"}:
-            return {"loom-api"}
+            return {"loom-api", "loom-client"}
 
     return None
 
