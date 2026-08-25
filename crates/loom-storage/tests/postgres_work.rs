@@ -92,8 +92,8 @@ fn registry() -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
-async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, WorldId, TimelineId)> {
-    let database = TestDatabase::provision("work").await?;
+async fn authority(seed: u128) -> (TestDatabase, PgStorage, PgPool, WorldId, TimelineId) {
+    let database = TestDatabase::provision("work").await;
     let storage = database.storage().await;
     let pool = database.pool().await;
     let world_id: WorldId = id(seed);
@@ -112,7 +112,7 @@ async fn authority(seed: u128) -> Option<(TestDatabase, PgStorage, PgPool, World
     .execute(&pool)
     .await
     .expect("test Timeline should insert");
-    Some((database, storage, pool, world_id, timeline_id))
+    (database, storage, pool, world_id, timeline_id)
 }
 
 async fn seed_work(
@@ -144,9 +144,7 @@ async fn seed_work(
 
 #[tokio::test]
 async fn postgres_18_runtime_terminalization_survives_restart() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2600).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2600).await;
     let work_id: WorkId = id(0x2610);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
     let before = WorldStore::snapshot(&storage, timeline_id)
@@ -214,9 +212,7 @@ async fn postgres_18_runtime_terminalization_survives_restart() {
 
 #[tokio::test]
 async fn postgres_18_runtime_terminalization_rejects_cross_work_claim_without_mutation() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2700).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2700).await;
     let claimed_work: WorkId = id(0x2710);
     let target_work: WorkId = id(0x2711);
     seed_work(&pool, timeline_id, claimed_work, 0, None).await;
@@ -268,9 +264,7 @@ async fn postgres_18_runtime_terminalization_rejects_cross_work_claim_without_mu
 
 #[tokio::test]
 async fn postgres_18_runtime_failure_terminalization_recovers_stale_cas_without_reclaim() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2800).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2800).await;
     let work_id: WorkId = id(0x2810);
     let concurrent_work: WorkId = id(0x2811);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
@@ -370,9 +364,7 @@ async fn validated(
 
 #[tokio::test]
 async fn postgres_18_work_concurrent_claims_choose_one_fence_winner() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2100).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2100).await;
     let work_id: WorkId = id(0x2110);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
 
@@ -420,9 +412,7 @@ async fn postgres_18_work_concurrent_claims_choose_one_fence_winner() {
 
 #[tokio::test]
 async fn postgres_18_work_expiry_reclaim_and_retry_fence_preserve_world_truth() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2200).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2200).await;
     let work_id: WorkId = id(0x2210);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
     let first = WorkStore::claim(
@@ -483,9 +473,7 @@ async fn postgres_18_work_expiry_reclaim_and_retry_fence_preserve_world_truth() 
 
 #[tokio::test]
 async fn postgres_18_scheduler_non_head_claim_is_rejected_without_mutation() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2150).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2150).await;
     let head_work: WorkId = id(0x2160);
     let non_head_work: WorkId = id(0x2161);
     seed_work(&pool, timeline_id, head_work, 0, None).await;
@@ -524,9 +512,7 @@ async fn postgres_18_scheduler_non_head_claim_is_rejected_without_mutation() {
 
 #[tokio::test]
 async fn postgres_18_work_future_availability_and_world_due_are_not_claimed_early() {
-    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2300).await else {
-        return;
-    };
+    let (database, storage, pool, world_id, timeline_id) = authority(0x2300).await;
     let unavailable: WorkId = id(0x2310);
     seed_work(&pool, timeline_id, unavailable, 100, None).await;
     let error = WorkStore::claim(
@@ -567,9 +553,7 @@ async fn postgres_18_work_future_availability_and_world_due_are_not_claimed_earl
 
 #[tokio::test]
 async fn postgres_18_work_zero_event_runtime_completion_is_durable() {
-    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2400).await else {
-        return;
-    };
+    let (database, storage, pool, world_id, timeline_id) = authority(0x2400).await;
     let work_id: WorkId = id(0x2410);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
     let runtime = Runtime::new(storage.clone(), registry()).expect("Runtime should assemble");
@@ -604,9 +588,7 @@ async fn postgres_18_work_zero_event_runtime_completion_is_durable() {
 
 #[tokio::test]
 async fn postgres_18_scheduler_budget_is_durable_across_restart() {
-    let Some((database, storage, pool, world_id, timeline_id)) = authority(0x2450).await else {
-        return;
-    };
+    let (database, storage, pool, world_id, timeline_id) = authority(0x2450).await;
     let first_work: WorkId = id(0x2460);
     let second_work: WorkId = id(0x2461);
     seed_work(&pool, timeline_id, first_work, 0, None).await;
@@ -690,9 +672,7 @@ async fn postgres_18_scheduler_budget_is_durable_across_restart() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
-    let Some((database, storage, pool, world_a, timeline_a)) = authority(0x2a00).await else {
-        return;
-    };
+    let (database, storage, pool, world_a, timeline_a) = authority(0x2a00).await;
     let world_b: WorldId = id(0x2a02);
     let timeline_b: TimelineId = id(0x2a03);
     let work_a: WorkId = id(0x2a10);
@@ -804,9 +784,7 @@ async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
 async fn postgres_18_worker_topology_keeps_sessions_and_provenance_isolated() {
     const WORKER_COUNT: usize = 4;
 
-    let Some((database, storage, pool, _, _)) = authority(0x2b00).await else {
-        return;
-    };
+    let (database, storage, pool, _, _) = authority(0x2b00).await;
 
     let mut fixtures = Vec::with_capacity(WORKER_COUNT);
     for worker in 0..WORKER_COUNT {
@@ -914,9 +892,7 @@ async fn postgres_18_worker_topology_keeps_sessions_and_provenance_isolated() {
 
 #[tokio::test]
 async fn postgres_18_work_completion_cancel_race_has_one_typed_winner() {
-    let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2500).await else {
-        return;
-    };
+    let (database, storage, pool, _world_id, timeline_id) = authority(0x2500).await;
     let work_id: WorkId = id(0x2510);
     seed_work(&pool, timeline_id, work_id, 0, None).await;
     let claim = WorkStore::claim(
