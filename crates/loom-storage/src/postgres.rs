@@ -75,7 +75,6 @@ const INSERT_WORLD_SQL: &str = include_str!("../sql/world/insert_world.sql");
 const WORLD_EXISTS_SQL: &str = include_str!("../sql/world/exists.sql");
 const LOCK_WORLD_EXISTS_SQL: &str = include_str!("../sql/world/lock_exists.sql");
 const INSERT_BINDING_SQL: &str = include_str!("../sql/binding/insert.sql");
-const INSERT_BINDING_IF_ABSENT_SQL: &str = include_str!("../sql/binding/insert_if_absent.sql");
 const READ_BINDING_SQL: &str = include_str!("../sql/binding/read.sql");
 const INSERT_TIMELINE_SQL: &str = include_str!("../sql/timeline/insert.sql");
 const REGISTER_RUNTIME_REVISION_SQL: &str = include_str!("../sql/runtime_revision/register.sql");
@@ -1228,14 +1227,6 @@ impl WorldRuntimeBindingStore for PgStorage {
     ) -> PersistenceFuture<'_, Result<(), BindingError>> {
         Box::pin(async move { self.persist_binding(world_id, binding).await })
     }
-
-    fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
-        Box::pin(async move { self.ensure_binding(world_id, legacy_binding).await })
-    }
 }
 
 impl PgStorage {
@@ -1297,46 +1288,6 @@ impl PgStorage {
             return Err(sql_binding_error(error));
         }
         transaction.commit().await.map_err(sql_binding_error)
-    }
-
-    async fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> Result<WorldRuntimeBinding, BindingError> {
-        let value = serde_json::to_value(legacy_binding).map_err(|error| {
-            BindingError::StorageUnavailable {
-                message: format!("World Runtime Binding serialization failed: {error}"),
-            }
-        })?;
-        let mut transaction = self.pool.begin().await.map_err(sql_binding_error)?;
-        let world_exists: Option<i32> = sqlx::query_scalar(LOCK_WORLD_EXISTS_SQL)
-            .bind(world_id.to_string())
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(sql_binding_error)?;
-        if world_exists.is_none() {
-            let _ = transaction.rollback().await;
-            return Err(BindingError::WorldNotFound { world_id });
-        }
-        sqlx::query(INSERT_BINDING_IF_ABSENT_SQL)
-            .bind(world_id.to_string())
-            .bind(value)
-            .execute(&mut *transaction)
-            .await
-            .map_err(sql_binding_error)?;
-        let row = sqlx::query(READ_BINDING_SQL)
-            .bind(world_id.to_string())
-            .fetch_one(&mut *transaction)
-            .await
-            .map_err(sql_binding_error)?;
-        let value: Value = row.try_get("binding").map_err(sql_binding_error)?;
-        let binding =
-            serde_json::from_value(value).map_err(|error| BindingError::StorageUnavailable {
-                message: format!("invalid persisted World Runtime Binding: {error}"),
-            })?;
-        transaction.commit().await.map_err(sql_binding_error)?;
-        Ok(binding)
     }
 }
 

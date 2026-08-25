@@ -134,7 +134,7 @@ impl WorldRuntimeBinding {
 pub enum BindingError {
     /// The requested World identity is not present in persistence.
     WorldNotFound { world_id: WorldId },
-    /// A pre-binding legacy World has not yet gone through explicit migration.
+    /// The World has no persisted Runtime Binding.
     BindingNotFound { world_id: WorldId },
     /// A binding already exists; v0 never overwrites it.
     BindingAlreadyExists { world_id: WorldId },
@@ -4302,11 +4302,11 @@ impl std::error::Error for LifecycleError {}
 ///
 /// Implementations must create the World identity and its initial Timeline in
 /// one atomic operation. This port is intentionally separate from
-/// [`CommitStore`]: the legacy lifecycle entrypoint establishes an empty
-/// authority container, while Template birth accepts only Runtime-validated
-/// resolutions and applies them in the same authority transaction. No entrypoint
-/// fabricates a domain Event or accepts an unvalidated Resolution. Once created,
-/// all later semantic mutation uses the normal Runtime commit authority.
+/// [`CommitStore`]: structural birth establishes the authority container,
+/// while Template birth accepts only Runtime-validated resolutions and applies
+/// them in the same authority transaction. No entrypoint fabricates a domain
+/// Event or accepts an unvalidated Resolution. Once created, all later semantic
+/// mutation uses the normal Runtime commit authority.
 pub trait WorldLifecycleStore {
     /// Atomically creates one World plus its initial empty Timeline.
     ///
@@ -4324,12 +4324,9 @@ pub trait WorldLifecycleStore {
     /// Atomically creates one World, its initial Timeline and its immutable
     /// World Runtime Binding.
     ///
-    /// This additive entrypoint is used by the empty compatibility birth path.
-    /// The legacy [`Self::create_world`] entrypoint remains available so adapters
-    /// can represent M3-era rows that are migrated explicitly through
-    /// [`WorldRuntimeBindingStore::ensure_binding`]. Production adapters must
-    /// associate the supplied binding in the same transaction/state swap as
-    /// the World and initial Timeline.
+    /// This entrypoint is used by explicit binding birth paths.
+    /// Production adapters must associate the supplied binding in the same
+    /// transaction/state swap as the World and initial Timeline.
     fn create_world_with_binding(
         &self,
         world_id: WorldId,
@@ -4493,9 +4490,7 @@ pub trait LogicalJournalStore {
 ///
 /// Binding reads are keyed by `WorldId`, never `TimelineId`, so every Timeline
 /// branch of one World observes the same immutable descriptor independently of
-/// its materialized state snapshot. `ensure_binding` is the explicit one-time
-/// compatibility path for M3 Worlds whose rows predate this metadata; once a
-/// descriptor exists, the supplied legacy candidate is ignored.
+/// its materialized state snapshot.
 pub trait WorldRuntimeBindingStore {
     /// Reads the persisted immutable binding for one World.
     fn read_binding(
@@ -4512,14 +4507,6 @@ pub trait WorldRuntimeBindingStore {
         world_id: WorldId,
         binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<(), BindingError>>;
-
-    /// Reads an existing binding or atomically persists the supplied explicit
-    /// legacy compatibility descriptor when the World predates bindings.
-    fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>>;
 }
 
 /// Maximum number of rows materialized by one semantic projection rebuild.

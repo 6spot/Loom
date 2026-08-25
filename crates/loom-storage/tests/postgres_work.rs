@@ -7,18 +7,20 @@ use std::{
 
 use loom_api::{ApiErrorCode, TimelineTarget};
 use loom_capability::{
-    Capability, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry, RegistrationError,
-    ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
+    Capability, CapabilityId, CapabilityManifest, CapabilityRegistrar, CapabilityRegistry,
+    RegistrationError, ResolutionContext, ResolverError, WorkHandler, WorkHandlerDefinition,
 };
 use loom_core::{ExecutionSessionId, SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId};
 use loom_protocol::{NewWork, Resolution, ResolveOutcome, WorkMutation, WorkSchedule};
 use loom_runtime::{
     ChronologyBudgetExceeded, CommitError, CommitStore, EffectEngine, IdentityAllocator,
     LogicalJournalStore, LogicalWorkTransition, PlatformTime, Runtime, RuntimeControlStore,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore,
     TimelineDriverResult, WorkError, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization,
-    WorldStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use loom_storage::PgStorage;
+use semver::VersionReq;
 use serde_json::Value;
 use sqlx::PgPool;
 use support::TestDatabase;
@@ -92,6 +94,32 @@ fn registry() -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
+fn runtime_binding() -> WorldRuntimeBinding {
+    WorldRuntimeBinding::new(
+        [(CapabilityId::from(OWNER), VersionReq::STAR)],
+        serde_json::json!({"fixture": "postgres-work"}),
+        1,
+        Some("postgres-work".to_owned()),
+    )
+}
+
+fn runtime_revision() -> RuntimeRevisionDescriptor {
+    let registry = registry();
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("postgres-work-runtime-v0"),
+        PlatformTime::default(),
+        "postgres-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("postgres-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("work Runtime Revision should be valid")
+}
+
 async fn authority(seed: u128) -> (TestDatabase, PgStorage, PgPool, WorldId, TimelineId) {
     let database = TestDatabase::provision("work").await;
     let storage = database.storage().await;
@@ -112,6 +140,21 @@ async fn authority(seed: u128) -> (TestDatabase, PgStorage, PgPool, WorldId, Tim
     .execute(&pool)
     .await
     .expect("test Timeline should insert");
+    WorldRuntimeBindingStore::persist_binding(&storage, world_id, runtime_binding())
+        .await
+        .expect("work fixture binding should persist");
+    let revision = runtime_revision();
+    RuntimeRevisionStore::confirm_revision(&storage, revision.clone())
+        .await
+        .expect("work Runtime Revision should be confirmed");
+    RuntimeRevisionStore::activate_revision(
+        &storage,
+        revision.id().clone(),
+        None,
+        PlatformTime::default(),
+    )
+    .await
+    .expect("work Runtime Revision should be active");
     (database, storage, pool, world_id, timeline_id)
 }
 
@@ -688,6 +731,9 @@ async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
         .execute(&pool)
         .await
         .expect("second test Timeline should insert");
+    WorldRuntimeBindingStore::persist_binding(&storage, world_b, runtime_binding())
+        .await
+        .expect("second test World binding should persist");
     seed_work(&pool, timeline_a, work_a, 0, None).await;
     seed_work(&pool, timeline_b, work_b, 0, None).await;
 
@@ -802,6 +848,9 @@ async fn postgres_18_worker_topology_keeps_sessions_and_provenance_isolated() {
         .execute(&pool)
         .await
         .expect("topology Timeline should insert");
+        WorldRuntimeBindingStore::persist_binding(&storage, world_id, runtime_binding())
+            .await
+            .expect("topology World binding should persist");
         seed_work(&pool, timeline_id, work_id, 0, None).await;
         fixtures.push((world_id, timeline_id, work_id, session_id));
     }

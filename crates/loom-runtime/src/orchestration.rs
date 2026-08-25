@@ -69,17 +69,17 @@ use crate::{
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
-    RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionCapability,
-    RuntimeRevisionDescriptor, RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection,
-    RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter,
-    SemanticProjectionHit, SemanticProjectionKey, SemanticProjectionQuery,
-    SemanticProjectionRebuild, SemanticProjectionRegistration, SemanticProjectionStore,
-    SessionError, TimelineBlockedOnMissingImplementation, TimelineDriverBlock,
-    TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
-    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
-    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
-    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
-    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
+    RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionDescriptor,
+    RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
+    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
+    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
+    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
+    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
+    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
+    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
+    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
+    WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
@@ -334,34 +334,11 @@ where
             .select_active_revision()
             .await
             .map_err(|error| map_runtime_revision_error(&error))?;
-        let (selection, legacy_migration) = match active_selection {
-            Some(selection) => (selection, false),
-            None => (self.legacy_runtime_revision(), true),
-        };
-        // M3 Worlds can carry the checked-in compatibility baseline while a
-        // test/application Runtime intentionally installs only a subset of
-        // that historical registry. The synthetic, non-activated migration
-        // selection preserves that pre-M4 behavior; an explicitly activated
-        // revision remains strict against every immutable Binding requirement.
-        let compatibility_binding = if legacy_migration {
-            WorldRuntimeBinding::new(
-                binding
-                    .requirements()
-                    .iter()
-                    .filter(|(capability_id, _)| self.registry.capability(capability_id).is_some())
-                    .map(|(capability_id, requirement)| {
-                        (capability_id.clone(), requirement.clone())
-                    }),
-                binding.configuration().clone(),
-                binding.revision(),
-                binding.template_provenance().map(str::to_owned),
-            )
-        } else {
-            binding.clone()
-        };
+        let selection = active_selection
+            .ok_or_else(|| map_runtime_revision_error(&RuntimeRevisionError::NoActiveRevision))?;
         let implementations = selection
             .revision()
-            .compatible_with(&compatibility_binding)
+            .compatible_with(&binding)
             .map_err(|error| map_revision_compatibility_error(&error))?;
 
         // The persisted revision is a description of the composition root's
@@ -407,25 +384,6 @@ where
             .map_or_else(|| policy.policy_id.clone(), str::to_owned);
         policy.revision = selection.revision().id().to_string();
         policy
-    }
-
-    fn legacy_runtime_revision(&self) -> RuntimeRevisionSelection {
-        let loom_version = self.registry.loom_version().clone();
-        let capabilities = self.registry.capabilities().map(|manifest| {
-            RuntimeRevisionCapability::from_manifest(
-                manifest,
-                format!("legacy-registry:{}@{}", manifest.id, manifest.version),
-            )
-        });
-        let descriptor = RuntimeRevisionDescriptor::new(
-            RuntimeRevisionId::from("legacy-registry"),
-            PlatformTime::default(),
-            "legacy-registry",
-            loom_version,
-            capabilities,
-        )
-        .expect("the immutable assembled Capability registry must form a legacy revision");
-        RuntimeRevisionSelection::new(descriptor, 0, PlatformTime::default())
     }
 
     async fn start_execution_session_with_root(
@@ -716,7 +674,7 @@ where
         world_id: loom_core::WorldId,
     ) -> ApiResult<WorldRuntimeBinding> {
         self.store
-            .ensure_binding(world_id, legacy_binding())
+            .read_binding(world_id)
             .await
             .map_err(|error| map_binding_error(&error))
     }
@@ -1079,31 +1037,16 @@ where
             .select_active_revision()
             .await
             .map_err(|error| map_runtime_revision_error(&error))?;
-        let (selection, compatibility_binding) = if let Some(selection) = active_selection {
-            (selection, binding.clone())
-        } else {
-            let compatibility_binding = WorldRuntimeBinding::new(
-                binding
-                    .requirements()
-                    .iter()
-                    .filter(|(capability_id, _)| self.registry.capability(capability_id).is_some())
-                    .map(|(capability_id, requirement)| {
-                        (capability_id.clone(), requirement.clone())
-                    }),
-                binding.configuration().clone(),
-                binding.revision(),
-                binding.template_provenance().map(str::to_owned),
-            );
-            (self.legacy_runtime_revision(), compatibility_binding)
-        };
+        let selection = active_selection
+            .ok_or_else(|| map_runtime_revision_error(&RuntimeRevisionError::NoActiveRevision))?;
         let active_runtime_revision = selection.revision().id().clone();
-        let implementations = selection.revision().compatible_with(&compatibility_binding);
+        let implementations = selection.revision().compatible_with(&binding);
         let target_has_compatible_implementation = match &work.target {
             WorkTarget::CapabilityWork { .. } => {
                 implementations.as_ref().is_ok_and(|implementations| {
                     work_target_has_compatible_implementation(
                         &self.registry,
-                        &compatibility_binding,
+                        &binding,
                         implementations,
                         work,
                     )
@@ -4028,14 +3971,6 @@ where
         binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<(), BindingError>> {
         (**self).persist_binding(world_id, binding)
-    }
-
-    fn ensure_binding(
-        &self,
-        world_id: loom_core::WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
-        (**self).ensure_binding(world_id, legacy_binding)
     }
 }
 
@@ -7321,47 +7256,6 @@ fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
     }
 }
 
-/// Returns the repository-owned compatibility descriptor used while migrating
-/// M3 Worlds that predate World Runtime Binding.
-///
-/// This is deliberately a checked-in fixture rather than a projection of the
-/// process-local registry. The registry describes installed software; using it
-/// here would make the first Runtime process silently decide a World's
-/// permanent semantic enablement. M4-T3 replaces this interim birth baseline
-/// with the validated Template binding path.
-fn legacy_binding() -> WorldRuntimeBinding {
-    const M3_COMPATIBILITY_CAPABILITIES: &[&str] = &[
-        "bootstrap.basic",
-        "composition.child",
-        "composition.leaf",
-        "composition.root",
-        "counter",
-        "counter.basic",
-        "counting",
-        "postgres.commit.test",
-        "postgres.restart_resume",
-        "postgres.vertical.counter",
-        "postgres.work.test",
-        "provenance.child",
-        "provenance.parent",
-        "test",
-        "test.no_change",
-    ];
-
-    WorldRuntimeBinding::new(
-        M3_COMPATIBILITY_CAPABILITIES.iter().map(|capability_id| {
-            (
-                CapabilityId::from(*capability_id),
-                VersionReq::parse("^0.1.0")
-                    .expect("the checked-in M3 baseline requirement should parse"),
-            )
-        }),
-        json!({"baseline": "m3-compatibility-baseline-v1"}),
-        1,
-        Some("m3-compatibility-baseline-v1".to_owned()),
-    )
-}
-
 fn map_runtime_revision_error(error: &RuntimeRevisionError) -> ApiError {
     match error {
         RuntimeRevisionError::RevisionNotFound { .. }
@@ -7697,7 +7591,9 @@ mod tests {
     use semver::Version;
     use serde_json::{Value, json};
 
-    use crate::{BaseWorldSnapshot, BaseWorldView, DeterministicEntropySource};
+    use crate::{
+        BaseWorldSnapshot, BaseWorldView, DeterministicEntropySource, RuntimeRevisionCapability,
+    };
 
     use super::*;
 
@@ -8810,22 +8706,6 @@ mod tests {
             request_bytes_error
                 .to_string()
                 .contains("entropy_request_bytes")
-        );
-    }
-
-    #[test]
-    fn m3_compatibility_baseline_is_stable_across_runtime_registries() {
-        let first = legacy_binding();
-        let second = legacy_binding();
-
-        assert_eq!(first, second);
-        assert_eq!(
-            first.template_provenance(),
-            Some("m3-compatibility-baseline-v1")
-        );
-        assert_eq!(
-            first.requirement(&CapabilityId::from("not-in-the-baseline")),
-            None
         );
     }
 }

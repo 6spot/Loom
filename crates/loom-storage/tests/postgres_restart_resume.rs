@@ -22,7 +22,9 @@ use loom_protocol::{
 };
 use loom_runtime::{
     ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore, LogicalJournalStore,
-    LogicalWorkTransition, PlatformTime, Runtime, WorkStatus, WorldRuntimeBindingStore, WorldStore,
+    LogicalWorkTransition, PlatformTime, Runtime, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore, WorkStatus,
+    WorldRuntimeBindingStore, WorldStore,
 };
 use serde_json::{Value, json};
 
@@ -261,6 +263,23 @@ fn registry() -> CapabilityRegistry {
     .expect("restart/resume Capability registry should assemble")
 }
 
+fn runtime_revision() -> RuntimeRevisionDescriptor {
+    let registry = registry();
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("postgres-restart-resume-runtime-v0"),
+        PlatformTime::default(),
+        "postgres-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("postgres-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("restart/resume Runtime Revision should be valid")
+}
+
 fn request(target: loom_api::TimelineTarget, action: &str, input: Value) -> ActionRequest {
     ActionRequest::new(
         target,
@@ -296,6 +315,18 @@ async fn postgres_18_runtime_reconstruction_continues_world_and_pending_work() {
     let database = TestDatabase::provision("restart_resume").await;
 
     let first_storage = database.storage().await;
+    let revision = runtime_revision();
+    RuntimeRevisionStore::confirm_revision(&first_storage, revision.clone())
+        .await
+        .expect("restart/resume Runtime Revision should be confirmed");
+    RuntimeRevisionStore::activate_revision(
+        &first_storage,
+        revision.id().clone(),
+        None,
+        PlatformTime::default(),
+    )
+    .await
+    .expect("restart/resume Runtime Revision should be active");
     let first_runtime =
         Runtime::new(first_storage.clone(), registry()).expect("Runtime should assemble");
     let first_api: &dyn LoomApi = &first_runtime;
