@@ -796,6 +796,122 @@ async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
     database.cleanup().await;
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the topology gate keeps worker, Session and provenance isolation evidence together"
+)]
+async fn postgres_18_worker_topology_keeps_sessions_and_provenance_isolated() {
+    const WORKER_COUNT: usize = 4;
+
+    let Some((database, storage, pool, _, _)) = authority(0x2b00).await else {
+        return;
+    };
+
+    let mut fixtures = Vec::with_capacity(WORKER_COUNT);
+    for worker in 0..WORKER_COUNT {
+        let base = 0x2b10 + (worker as u128 * 0x10);
+        let world_id: WorldId = id(base);
+        let timeline_id: TimelineId = id(base + 1);
+        let work_id: WorkId = id(base + 2);
+        let session_id = id::<ExecutionSessionId>(base + 3);
+        sqlx::query("INSERT INTO loom_world (world_id) VALUES ($1::uuid)")
+            .bind(world_id.to_string())
+            .execute(&pool)
+            .await
+            .expect("topology World should insert");
+        sqlx::query(
+            "INSERT INTO loom_timeline (timeline_id, world_id) VALUES ($1::uuid, $2::uuid)",
+        )
+        .bind(timeline_id.to_string())
+        .bind(world_id.to_string())
+        .execute(&pool)
+        .await
+        .expect("topology Timeline should insert");
+        seed_work(&pool, timeline_id, work_id, 0, None).await;
+        fixtures.push((world_id, timeline_id, work_id, session_id));
+    }
+
+    let mut workers = Vec::with_capacity(WORKER_COUNT);
+    for _ in 0..WORKER_COUNT {
+        workers.push(database.storage().await);
+    }
+    let start = Arc::new(Barrier::new(WORKER_COUNT));
+    let results = std::thread::scope(|scope| {
+        let handles = workers
+            .into_iter()
+            .zip(fixtures.iter().copied())
+            .map(
+                |(worker_storage, (world_id, timeline_id, work_id, session_id))| {
+                    let start = Arc::clone(&start);
+                    scope.spawn(move || {
+                        let executor = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .expect("topology worker executor should build");
+                        start.wait();
+                        executor.block_on(async move {
+                            Runtime::new(worker_storage, registry())
+                                .expect("topology worker Runtime should assemble")
+                                .with_identity_allocator(TestIdentityAllocator { session_id })
+                                .drive_timeline(
+                                    TimelineTarget::new(world_id, timeline_id),
+                                    PlatformTime::new(10),
+                                    PlatformTime::new(20),
+                                    PlatformTime::new(30),
+                                )
+                                .await
+                                .map(|result| (timeline_id, work_id, result))
+                        })
+                    })
+                },
+            )
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("topology worker should finish"))
+            .collect::<Vec<_>>()
+    });
+
+    for result in results {
+        let (timeline_id, work_id, result) = result.expect("topology worker should drive");
+        assert!(matches!(
+            result,
+            TimelineDriverResult::Executed { work_id: actual, result }
+                if actual == work_id && result.is_committed()
+        ));
+        let work = WorkStore::work(&storage, timeline_id, work_id)
+            .await
+            .expect("topology Work should remain readable")
+            .expect("topology Work should remain present");
+        assert_eq!(work.status, WorkStatus::Completed);
+    }
+
+    let sessions = loom_runtime::ExecutionSessionStore::list_sessions(&storage)
+        .await
+        .expect("topology Sessions should remain readable");
+    assert_eq!(sessions.len(), WORKER_COUNT);
+    for (world_id, timeline_id, _, session_id) in fixtures {
+        let session = sessions
+            .iter()
+            .find(|session| session.id() == session_id)
+            .expect("each worker should retain its own Session");
+        assert_eq!(session.assembly().world_id(), world_id);
+        assert_eq!(session.assembly().timeline_id(), timeline_id);
+        assert_eq!(
+            session.status(),
+            loom_runtime::ExecutionSessionStatus::Committed
+        );
+        assert!(session.ended_at().is_some());
+        assert_eq!(session.event_refs().len(), 0);
+        assert!(session.call_provenance().is_empty());
+    }
+
+    pool.close().await;
+    storage.close().await;
+    database.cleanup().await;
+}
+
 #[tokio::test]
 async fn postgres_18_work_completion_cancel_race_has_one_typed_winner() {
     let Some((database, storage, pool, _world_id, timeline_id)) = authority(0x2500).await else {

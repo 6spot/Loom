@@ -376,7 +376,23 @@ mod tests {
     use loom_runtime::{ManualPlatformClock, PlatformTime, Runtime};
     use loom_storage::InMemoryStore;
 
-    use super::{SchedulerWorker, ShutdownSignal, WorkerConfig, WorkerStopReason};
+    use super::{
+        ApplicationApi, SchedulerWorker, ShutdownSignal, SystemClock, SystemEntropySource,
+        WorkerConfig, WorkerStopReason,
+    };
+
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn transport_owned_state_has_the_only_cross_thread_send_sync_boundary() {
+        // The HTTP/SSE composition requires Send + Sync for its shared API
+        // object. Runtime worker values intentionally remain on a
+        // current-thread executor and are not asserted here.
+        assert_send_sync::<ApplicationApi>();
+        assert_send_sync::<SystemClock>();
+        assert_send_sync::<SystemEntropySource>();
+        assert_send_sync::<ShutdownSignal>();
+    }
 
     fn id<T>(value: u128) -> T
     where
