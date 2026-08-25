@@ -1166,10 +1166,12 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         .with_capability_area(descriptor.capability_area().as_str());
     }
 
-    // PostgreSQL path: must verify live backend is actually reachable (already checked in execute_replay_fork)
-    // Now create world, fork, then reconnect via a new client and verify.
+    // PostgreSQL path: genuine restart/reconnect durability covering ancestry/history
+    // and parent/child/sibling isolation. The restart is performed via
+    // `BackendContext::restart` so the test harness can inject a real
+    // boundary rebuild (PgServer::restart) while production reconnects.
     let api = context.api();
-    let base_url = context.base_url();
+    let base_url_before = context.base_url();
 
     let template = new_world_template(&format!("{scope}-009"));
     let parent_snap = match block_on(async {
@@ -1185,7 +1187,7 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
                 format!("create_world failed: {:?} - {}", e.code, e.message),
                 backend,
                 format!(
-                    "backend-harness:scope={scope} backend={} base_url={base_url}",
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
                     backend.as_str()
                 ),
                 vec![EvidenceReference::new(
@@ -1200,16 +1202,60 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     let parent_target = parent_snap.target;
     let entity_id = new_entity_id();
     let seed_event = new_event_id();
-    let _ = block_on(async {
+    let seed_res = block_on(async {
         api.invoke(ActionRequest::new(
             parent_target,
             ActionInvocation::new(
                 ActionTypeId::from("neutral.counter.seed"),
-                json!({"event_id": seed_event.to_string(), "entity_id": entity_id.to_string(), "value": 1}),
+                json!({"event_id": seed_event.to_string(), "entity_id": entity_id.to_string(), "value": 5}),
             ),
         ))
         .await
     });
+    let parent_version_after_seed = match seed_res {
+        Ok(loom_api::ExecutionResult::Committed {
+            timeline_version, ..
+        }) => timeline_version,
+        Ok(other) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "seed should commit",
+                format!("seed not committed: {other:?}"),
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
+                    backend.as_str()
+                ),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::ActionService::invoke",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+        Err(e) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "seed should commit",
+                format!("seed failed: {:?} - {}", e.code, e.message),
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
+                    backend.as_str()
+                ),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::ActionService::invoke",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    };
+
     let child_snap = match block_on(async {
         api.fork(ForkTimelineRequest::new(parent_target)).await
     }) {
@@ -1222,7 +1268,7 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
                 format!("fork failed: {:?} - {}", e.code, e.message),
                 backend,
                 format!(
-                    "backend-harness:scope={scope} backend={} base_url={base_url}",
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
                     backend.as_str()
                 ),
                 vec![EvidenceReference::new(
@@ -1235,26 +1281,104 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         }
     };
     let child_target = child_snap.target;
+    let _child_version_at_fork = child_snap.version;
 
-    // Simulate restart/reconnect: create a fresh LoomClient to the same base_url
-    // For the mock InMemory case this would be a new mock, but for PostgreSQL
-    // the state is durable and should be visible via the new client. For the
-    // validator's InMemory mock, the state is per-harness, so a fresh client
-    // to the same mock server would see the same state (since the mock server
-    // is shared via Arc). For a real PostgreSQL server, the new client will
-    // also see the same durable state.
-    let fresh_client = match loom_client::LoomClient::new(base_url.clone()) {
-        Ok(c) => c,
+    let sibling_snap = match block_on(async {
+        api.fork(ForkTimelineRequest::new(parent_target)).await
+    }) {
+        Ok(s) => s,
         Err(e) => {
-            let reason = format!("fresh client creation failed: {e}");
             let finding = Finding::new(
                 descriptor.id().clone(),
                 descriptor.name(),
-                "fresh client should be creatable for reconnect",
+                "sibling fork should succeed",
+                format!("sibling fork failed: {:?} - {}", e.code, e.message),
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
+                    backend.as_str()
+                ),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::TimelineService::fork",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    };
+    let sibling_target = sibling_snap.target;
+
+    // Mutate child: 5 -> 15
+    let inc_event = new_event_id();
+    let inc_res = block_on(async {
+        api.invoke(ActionRequest::new(
+            child_target,
+            ActionInvocation::new(
+                ActionTypeId::from("neutral.counter.increment"),
+                json!({"event_id": inc_event.to_string(), "entity_id": entity_id.to_string(), "amount": 10}),
+            ),
+        ))
+        .await
+    });
+    let _child_version_after_inc = match inc_res {
+        Ok(loom_api::ExecutionResult::Committed {
+            timeline_version, ..
+        }) => timeline_version,
+        Ok(other) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "child increment should commit",
+                format!("child increment not committed: {other:?}"),
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
+                    backend.as_str()
+                ),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::ActionService::invoke",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+        Err(e) => {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "child increment should commit",
+                format!("child increment failed: {:?} - {}", e.code, e.message),
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before}",
+                    backend.as_str()
+                ),
+                vec![EvidenceReference::new(
+                    "public-surface:loom-client::ActionService::invoke",
+                )],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    };
+
+    // Genuine restart/reconnect via the injected strategy. Production reconnects
+    // to the same endpoint; the real test harness rebuilds the Pg boundary.
+    let fresh_client = match context.restart() {
+        Ok(c) => c,
+        Err(e) => {
+            let reason = format!("restart failed: {e}");
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "restart should recreate boundary and return a new public client",
                 reason.clone(),
                 backend,
                 format!(
-                    "backend-harness:scope={scope} backend={} base_url={base_url}",
+                    "backend-harness:scope={scope} backend={} base_url={base_url_before} restart=via-BackendContext::restart",
                     backend.as_str()
                 ),
                 vec![EvidenceReference::new(
@@ -1266,16 +1390,19 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
                 .with_capability_area(descriptor.capability_area().as_str());
         }
     };
+    let fresh_base = fresh_client.base_url().to_string();
     let fresh_api: Arc<dyn loom_api::LoomApi + Send + Sync> = Arc::new(fresh_client);
 
-    // Verify via fresh client: inspect parent and child, list history, get facet
-    let fresh_parent_inspect = block_on(async { fresh_api.inspect_timeline(parent_target).await });
-    let fresh_child_inspect = block_on(async { fresh_api.inspect_timeline(child_target).await });
-    let fresh_parent_events =
-        block_on(async { fresh_api.list_events(EventQuery::all(parent_target)).await });
-    let fresh_child_events =
-        block_on(async { fresh_api.list_events(EventQuery::all(child_target)).await });
-    let fresh_parent_facet = block_on(async {
+    // Verify durability after restart via public surfaces only.
+    let p_inspect = block_on(async { fresh_api.inspect_timeline(parent_target).await });
+    let c_inspect = block_on(async { fresh_api.inspect_timeline(child_target).await });
+    let s_inspect = block_on(async { fresh_api.inspect_timeline(sibling_target).await });
+
+    let p_events = block_on(async { fresh_api.list_events(EventQuery::all(parent_target)).await });
+    let c_events = block_on(async { fresh_api.list_events(EventQuery::all(child_target)).await });
+    let s_events = block_on(async { fresh_api.list_events(EventQuery::all(sibling_target)).await });
+
+    let p_facet = block_on(async {
         fresh_api
             .get_facet(FacetQuery::new(
                 parent_target,
@@ -1284,42 +1411,194 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             ))
             .await
     });
+    let c_facet = block_on(async {
+        fresh_api
+            .get_facet(FacetQuery::new(
+                child_target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+    });
+    let s_facet = block_on(async {
+        fresh_api
+            .get_facet(FacetQuery::new(
+                sibling_target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+    });
 
-    let inspect_ok = match (&fresh_parent_inspect, &fresh_child_inspect) {
-        (Ok(parent), Ok(child)) => {
-            parent.target == parent_target
-                && child.target == child_target
-                && parent.version == child_snap.version
-                && child.version == child_snap.version
-                && child.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
-                && child.ancestry.fork_parent_version == Some(child_snap.version)
+    let p_val = p_facet
+        .as_ref()
+        .ok()
+        .and_then(|opt| opt.as_ref())
+        .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+        .unwrap_or(-999);
+    let c_val = c_facet
+        .as_ref()
+        .ok()
+        .and_then(|opt| opt.as_ref())
+        .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+        .unwrap_or(-999);
+    let s_val = s_facet
+        .as_ref()
+        .ok()
+        .and_then(|opt| opt.as_ref())
+        .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+        .unwrap_or(-999);
+
+    let p_len = p_events.as_ref().map(|v| v.len()).unwrap_or(999);
+    let c_len = c_events.as_ref().map(|v| v.len()).unwrap_or(999);
+    let s_len = s_events.as_ref().map(|v| v.len()).unwrap_or(999);
+
+    // Child was forked at parent_version_after_seed, then mutated; its version
+    // should differ from parent's head version after restart.
+    let ancestry_ok = match (&c_inspect, &s_inspect) {
+        (Ok(c), Ok(s)) => {
+            c.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
+                && s.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
+                && c.ancestry.fork_parent_version == Some(parent_version_after_seed)
+                && s.ancestry.fork_parent_version == Some(parent_version_after_seed)
         }
         _ => false,
     };
-    let history_ok = match (&fresh_parent_events, &fresh_child_events) {
-        (Ok(parent), Ok(child)) => {
-            parent.len() == 1
-                && child.len() == 1
-                && parent[0].id == seed_event
-                && child[0].id == seed_event
+    let version_ok = match (&p_inspect, &s_inspect, &c_inspect) {
+        (Ok(p), Ok(s), Ok(c)) => {
+            p.version == parent_version_after_seed
+                && s.version == parent_version_after_seed
+                && c.version != parent_version_after_seed
         }
         _ => false,
     };
-    let facet_ok = matches!(&fresh_parent_facet, Ok(Some(facet)) if
-        facet.value.get("value").and_then(|value| value.as_i64()) == Some(1));
 
-    let expected = "representative fork/reopen behavior remains correct after PostgreSQL restart when observed via public TimelineService and HistoryService";
-    let actual = if inspect_ok && history_ok && facet_ok {
+    let history_ok = p_len == 1
+        && c_len == 2
+        && s_len == 1
+        && matches!((&p_events, &c_events, &s_events), (Ok(p), Ok(c), Ok(s)) if
+            p[0].id == seed_event && c[0].id == seed_event && c[1].id == inc_event && s[0].id == seed_event
+        );
+
+    let facet_isolation_ok = p_val == 5 && c_val == 15 && s_val == 5;
+
+    // Post-restart mutation isolation: increment child again and verify leakage does not occur.
+    let post_inc_event = new_event_id();
+    let post_inc_res = block_on(async {
+        fresh_api
+            .invoke(ActionRequest::new(
+                child_target,
+                ActionInvocation::new(
+                    ActionTypeId::from("neutral.counter.increment"),
+                    json!({"event_id": post_inc_event.to_string(), "entity_id": entity_id.to_string(), "amount": 1}),
+                ),
+            ))
+            .await
+    });
+    let post_mutation_ok = match post_inc_res {
+        Ok(loom_api::ExecutionResult::Committed { .. }) => {
+            let p2 = block_on(async {
+                fresh_api
+                    .get_facet(FacetQuery::new(
+                        parent_target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.counter.value"),
+                    ))
+                    .await
+            })
+            .ok()
+            .and_then(|opt| opt)
+            .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+            .unwrap_or(-999);
+            let c2 = block_on(async {
+                fresh_api
+                    .get_facet(FacetQuery::new(
+                        child_target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.counter.value"),
+                    ))
+                    .await
+            })
+            .ok()
+            .and_then(|opt| opt)
+            .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+            .unwrap_or(-999);
+            let s2 = block_on(async {
+                fresh_api
+                    .get_facet(FacetQuery::new(
+                        sibling_target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.counter.value"),
+                    ))
+                    .await
+            })
+            .ok()
+            .and_then(|opt| opt)
+            .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+            .unwrap_or(-999);
+            let c2_events =
+                block_on(async { fresh_api.list_events(EventQuery::all(child_target)).await })
+                    .map(|v| v.len())
+                    .unwrap_or(999);
+            p2 == 5 && c2 == 16 && s2 == 5 && c2_events == 3
+        }
+        _ => false,
+    };
+
+    // Historical fork after restart still starts from correct version.
+    let hist_fork_ok = {
+        let hist_req = ForkTimelineRequest::at_version(parent_target, parent_version_after_seed);
+        match block_on(async { fresh_api.fork(hist_req).await }) {
+            Ok(hist_snap) => {
+                let hist_target = hist_snap.target;
+                let hist_facet = block_on(async {
+                    fresh_api
+                        .get_facet(FacetQuery::new(
+                            hist_target,
+                            FacetOwner::entity(entity_id),
+                            FacetTypeId::from("neutral.counter.value"),
+                        ))
+                        .await
+                })
+                .ok()
+                .and_then(|opt| opt)
+                .and_then(|snap| snap.value.get("value").and_then(|v| v.as_i64()))
+                .unwrap_or(-999);
+                let hist_events =
+                    block_on(async { fresh_api.list_events(EventQuery::all(hist_target)).await })
+                        .map(|v| v.len())
+                        .unwrap_or(999);
+                hist_facet == 5
+                    && hist_events == 1
+                    && hist_snap.ancestry.parent_timeline_id == Some(parent_target.timeline_id)
+                    && hist_snap.ancestry.fork_parent_version == Some(parent_version_after_seed)
+            }
+            Err(_) => false,
+        }
+    };
+
+    let expected = "representative replay/fork remains correct after PostgreSQL restart when observed via public TimelineService, HistoryService and QueryService";
+    let all_ok = ancestry_ok
+        && version_ok
+        && history_ok
+        && facet_isolation_ok
+        && post_mutation_ok
+        && hist_fork_ok
+        && p_inspect.is_ok()
+        && c_inspect.is_ok()
+        && s_inspect.is_ok();
+
+    let actual = if all_ok {
         format!(
-            "reconnect via fresh LoomClient to {base_url} succeeded: target/version/ancestry, history content/count, and facet value all matched; durable state survived reconnect"
+            "restart via BackendContext::restart to {fresh_base} succeeded: parent facet {p_val} child {c_val} sibling {s_val}, histories {p_len}/{c_len}/{s_len}, ancestry ok={ancestry_ok}, versions ok={version_ok}, post-mutation ok={post_mutation_ok}, historical-fork ok={hist_fork_ok}; durable state survived restart"
         )
     } else {
         format!(
-            "reconnect failed: parent inspect {fresh_parent_inspect:?}, child inspect {fresh_child_inspect:?}, history {fresh_parent_events:?}/{fresh_child_events:?}, facet {fresh_parent_facet:?}"
+            "restart durability failed: base_before {base_url_before} -> {fresh_base}, parent inspect {p_inspect:?}, child inspect {c_inspect:?}, sibling {s_inspect:?}, histories {p_events:?}/{c_events:?}/{s_events:?}, facets p={p_val} c={c_val} s={s_val}, ancestry {ancestry_ok} version {version_ok} history {history_ok} isolation {facet_isolation_ok} post_mut {post_mutation_ok} hist_fork {hist_fork_ok}"
         )
     };
 
-    let outcome = if inspect_ok && history_ok && facet_ok {
+    let outcome = if all_ok {
         ScenarioOutcome::Pass
     } else {
         ScenarioOutcome::Fail
@@ -1332,13 +1611,19 @@ fn cv009(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         actual,
         backend,
         format!(
-            "backend-harness:scope={scope} backend={} base_url={base_url} restart=via-fresh-LoomClient",
+            "backend-harness:scope={scope} backend={} base_url={base_url_before}-> {fresh_base} restart=via-BackendContext::restart",
             backend.as_str()
         ),
         vec![
+            EvidenceReference::new(
+                "public-surface:loom-client::WorldService::create_world_from_template",
+            ),
+            EvidenceReference::new("public-surface:loom-client::ActionService::invoke"),
             EvidenceReference::new("public-surface:loom-client::TimelineService::fork"),
             EvidenceReference::new("public-surface:loom-client::TimelineService::inspect_timeline"),
             EvidenceReference::new("public-surface:loom-client::HistoryService::list_events"),
+            EvidenceReference::new("public-surface:loom-client::QueryService::get_facet"),
+            EvidenceReference::new("public-surface:loom-api::TimelineSnapshot::ancestry"),
             EvidenceReference::new("validator:restart:reconnect-via-public-client"),
             EvidenceReference::new("validator:scenario:CV-009"),
         ],
