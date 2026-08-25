@@ -11,11 +11,14 @@ mod cli;
 mod feedback;
 mod finding;
 mod lifecycle;
+#[cfg(test)]
+mod mock;
 mod outcome;
 mod registry;
 mod reports;
 mod runner;
 mod scenario;
+pub mod scenarios;
 
 pub use backend::{
     BackendContext, BackendError, BackendHarness, BackendStart, DEFAULT_VALIDATOR_BASE_URL,
@@ -42,6 +45,25 @@ pub use reports::{
 };
 pub use runner::{Runner, RunnerError};
 pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
+pub use scenarios::{
+    CV_005, CV_006, CV_007, CV_008, CV_009, execute_replay_fork, register_replay_fork,
+    replay_fork_descriptors,
+};
+
+/// Builds the complete validator registry for all currently registered
+/// capability scenarios. Registration is deterministic and duplicate IDs are
+/// programming errors.
+///
+/// # Panics
+///
+/// Panics if a registered scenario set contains duplicate stable IDs.
+#[must_use]
+pub fn validator_registry() -> ScenarioRegistry {
+    let mut registry = ScenarioRegistry::bootstrap();
+    lifecycle::register(&mut registry).expect("lifecycle scenario IDs should be unique");
+    register_replay_fork(&mut registry).expect("replay/fork scenario IDs should be unique");
+    registry
+}
 
 #[cfg(test)]
 mod tests {

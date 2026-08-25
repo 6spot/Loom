@@ -459,7 +459,7 @@ where
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn run_from_args(args: Vec<String>) -> i32 {
-    let registry = crate::lifecycle::lifecycle_registry();
+    let registry = crate::validator_registry();
     let runner = Runner::new(registry);
 
     let parsed = match parse_args(args) {
@@ -492,7 +492,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
             &runner,
             &backend,
             &parsed,
-            crate::lifecycle::execute,
+            execute_registered_scenario,
             |line| println!("{line}"),
             |line| eprintln!("{line}"),
         );
@@ -557,7 +557,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
             .iter()
             .map(|desc| match harness.start(desc.id_str()) {
                 crate::backend::BackendStart::Ready(ctx) => {
-                    let result = crate::lifecycle::execute(desc, &ctx);
+                    let result = execute_registered_scenario(desc, &ctx);
                     harness.dispose(ctx);
                     result
                 }
@@ -588,7 +588,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
                 let start = harness.start(desc.id_str());
                 let result = match start {
                     crate::backend::BackendStart::Ready(ctx) => {
-                        let r = crate::lifecycle::execute(desc, &ctx);
+                        let r = execute_registered_scenario(desc, &ctx);
                         harness.dispose(ctx);
                         r
                     }
@@ -659,6 +659,30 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         EXIT_SCENARIO_FAILURE
     } else {
         EXIT_SUCCESS
+    }
+}
+
+fn execute_registered_scenario(
+    descriptor: &crate::scenario::ScenarioDescriptor,
+    context: &BackendContext,
+) -> crate::reports::ScenarioResult {
+    match descriptor.id_str() {
+        crate::scenarios::CV_005
+        | crate::scenarios::CV_006
+        | crate::scenarios::CV_007
+        | crate::scenarios::CV_008
+        | crate::scenarios::CV_009 => crate::scenarios::execute_replay_fork(descriptor, context),
+        crate::lifecycle::CV_001
+        | crate::lifecycle::CV_002
+        | crate::lifecycle::CV_003
+        | crate::lifecycle::CV_004 => crate::lifecycle::execute(descriptor, context),
+        _ => crate::reports::ScenarioResult::unavailable(
+            descriptor.id().clone(),
+            descriptor.name(),
+            *context.backend_kind(),
+            "scenario is registered without an executor",
+        )
+        .with_capability_area(descriptor.capability_area().as_str()),
     }
 }
 

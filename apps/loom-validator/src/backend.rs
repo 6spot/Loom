@@ -2,6 +2,7 @@
 
 use std::{env, fmt, sync::Arc};
 
+use loom_api::LoomApi;
 use loom_client::{ClientConfigError, LoomClient};
 
 use crate::{BackendKind, ValidationPolicy};
@@ -22,6 +23,7 @@ type RestartStrategy = Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync>
 #[derive(Clone)]
 pub struct BackendContext {
     client: LoomClient,
+    api: Arc<dyn LoomApi + Send + Sync>,
     kind: BackendKind,
     scope: String,
     restart: RestartStrategy,
@@ -42,6 +44,7 @@ impl BackendContext {
     pub fn new(client: LoomClient) -> Self {
         let base_url = client.base_url().to_string();
         Self {
+            api: Arc::new(client.clone()),
             client,
             kind: BackendKind::LoomClient,
             scope: String::new(),
@@ -52,6 +55,35 @@ impl BackendContext {
     #[must_use]
     pub const fn client(&self) -> &LoomClient {
         &self.client
+    }
+
+    /// Borrows the formal public API implemented by the HTTP client.
+    #[must_use]
+    pub fn api(&self) -> &(dyn LoomApi + Send + Sync) {
+        self.api.as_ref()
+    }
+
+    /// Returns the configured public endpoint for evidence and diagnostics.
+    #[must_use]
+    pub fn base_url(&self) -> String {
+        self.client.base_url().to_string()
+    }
+
+    #[cfg(test)]
+    fn for_test_api(
+        api: Arc<dyn LoomApi + Send + Sync>,
+        client: LoomClient,
+        kind: BackendKind,
+        scope: String,
+    ) -> Self {
+        let base_url = client.base_url().to_string();
+        Self {
+            api,
+            client,
+            kind,
+            scope,
+            restart: Arc::new(move || LoomClient::new(base_url.clone()).map_err(|e| e.to_string())),
+        }
     }
 
     #[must_use]
@@ -185,6 +217,8 @@ enum BackendStartState {
 pub struct BackendHarness {
     kind: BackendKind,
     client: Option<LoomClient>,
+    #[cfg(test)]
+    mock_api: Option<Arc<dyn LoomApi + Send + Sync>>,
     start: BackendStartState,
     policy: ValidationPolicy,
 }
@@ -194,6 +228,8 @@ impl Clone for BackendHarness {
         Self {
             kind: self.kind,
             client: self.client.clone(),
+            #[cfg(test)]
+            mock_api: self.mock_api.clone(),
             start: self.start.clone(),
             policy: self.policy,
         }
@@ -229,6 +265,8 @@ impl BackendHarness {
             return Ok(Self {
                 kind,
                 client: Some(LoomClient::new(base_url)?),
+                #[cfg(test)]
+                mock_api: None,
                 start: BackendStartState::Unavailable(
                     "validator base URL is unreachable (negative test)".to_owned(),
                 ),
@@ -254,6 +292,12 @@ impl BackendHarness {
         Ok(Self {
             kind,
             client,
+            #[cfg(test)]
+            mock_api: if kind == BackendKind::InMemory {
+                Some(Arc::new(crate::mock::MockApi::new()))
+            } else {
+                None
+            },
             start,
             policy: ValidationPolicy::default(),
         })
@@ -301,6 +345,15 @@ impl BackendHarness {
         match &self.start {
             BackendStartState::Ready => match &self.client {
                 Some(client) => {
+                    #[cfg(test)]
+                    if let Some(api) = &self.mock_api {
+                        return BackendStart::Ready(BackendContext::for_test_api(
+                            api.clone(),
+                            client.clone(),
+                            self.kind,
+                            scope,
+                        ));
+                    }
                     let context = BackendContext::new(client.clone())
                         .with_backend_kind(self.kind)
                         .with_scope(scope);

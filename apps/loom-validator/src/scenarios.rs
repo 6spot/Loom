@@ -1608,6 +1608,7 @@ mod tests {
             assert!(matches!(
                 start,
                 crate::backend::BackendStart::Prerequisite { .. }
+                    | crate::backend::BackendStart::Unavailable { .. }
             ));
         }
     }
