@@ -174,7 +174,7 @@ Loom
 - `#200` neutral V0 examples and public workflow fixtures — completed (post-#281 baseline, `capabilities/loom-neutral` with counter/observer/relationship/blob/semantic + `examples/neutral-v0` Templates)
 - `#201` public-consumer rehearsal gate — completed on the clean documented workflow
 - `#202` integrated V0 release gate — completed on candidate `52905862f3c26a6fb4d9991da2aa9fe8cfd11bc2`, integrated by PR #283
-- `#203` final task/Issue/evidence closure audit — implementation records reconciled; GitHub child checklist synchronization remains pending Leader decision
+- `#203` final task/Issue/evidence closure audit — checklist/status reconciliation and final metadata closure recorded on merged baseline `dca5463a341bcb4cde19a999eba8ef37e0ea60dd`
 
 Detailed task ledger: [`docs/tasks/README.md`](docs/tasks/README.md) and `docs/tasks/m12/`. Each task file is the durable audit record; GitHub issues remain the discussion surface.
 
