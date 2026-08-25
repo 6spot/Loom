@@ -1460,11 +1460,16 @@ dependencies = [
 name = "loom-validator"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "http-body-util",
  "hyper",
  "hyper-util",
  "loom-api",
+ "loom-boundary",
  "loom-client",
+ "loom-neutral",
+ "loom-runtime",
+ "loom-storage",
  "serde",
  "serde_json",
  "tokio",

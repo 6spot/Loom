@@ -175,3 +175,6 @@ jobs:
 
       - name: PostgreSQL Runtime Revision ledger and activation contract
         run: cargo test -p loom-storage --test postgres_revision -- --nocapture
+
+      - name: Validator lifecycle live path on PostgreSQL 18 (VAL-T8)
+        run: cargo test -p loom-validator --test lifecycle -- --nocapture

@@ -165,11 +165,21 @@ def check_storage_inline_sql(errors: list[str]) -> None:
 
 
 def check_validator_boundary(errors: list[str]) -> None:
-    """Keep the validator on supported public consumer surfaces only."""
+    """Keep validator production code on supported public consumer surfaces only.
+
+    Real InMemory/PostgreSQL service composition for scenario evidence is
+    test-only (`apps/loom-validator/tests/`), the same pattern `loom-client` uses
+    to exercise its boundary, so the `tests/` tree is excluded. Production
+    `src/` and the `[dependencies]` section must remain on `loom-api` /
+    `loom-client`; only test-only dev-dependencies compose real services.
+    """
     if not VALIDATOR.exists():
         return
 
+    tests_dir = VALIDATOR / "tests"
     for path in VALIDATOR.rglob("*.rs"):
+        if tests_dir in path.parents:
+            continue
         text = path.read_text(encoding="utf-8")
         for label, pattern in VALIDATOR_FORBIDDEN_RUST_PATTERNS.items():
             if pattern.search(text):
@@ -179,8 +189,11 @@ def check_validator_boundary(errors: list[str]) -> None:
 
     for path in VALIDATOR.rglob("Cargo.toml"):
         text = path.read_text(encoding="utf-8")
+        # Only the production [dependencies] section is constrained; test-only
+        # dev-dependencies compose real services for scenario evidence.
+        production_deps = text.split("[dev-dependencies]", 1)[0]
         for label, pattern in VALIDATOR_FORBIDDEN_CARGO_PATTERNS.items():
-            if pattern.search(text):
+            if pattern.search(production_deps):
                 errors.append(f"{label} in validator: {path.relative_to(ROOT)}")
 
 

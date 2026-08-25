@@ -10,6 +10,8 @@ mod backend;
 mod cli;
 mod feedback;
 mod finding;
+mod lifecycle;
+#[cfg(test)]
 mod mock;
 mod outcome;
 mod registry;
@@ -31,6 +33,9 @@ pub use feedback::{
     append_report_to_task_ledger, feedback_exit_code,
 };
 pub use finding::{EvidenceReference, Finding};
+pub use lifecycle::{
+    execute as execute_lifecycle, lifecycle_registry, register as register_lifecycle,
+};
 pub use outcome::ScenarioOutcome;
 pub use registry::{RegistryError, ScenarioRegistry};
 pub use reports::{
@@ -45,24 +50,18 @@ pub use scenarios::{
     replay_fork_descriptors,
 };
 
-/// Builds the current validator registry containing all stable scenario IDs.
-///
-/// The bootstrap registry remains empty for unit-test determinism. This
-/// function returns the registry that the CLI and harness use in production.
-/// It currently includes the replay/fork branch-isolation scenarios (`CV-005`
-/// through `CV-009`). Future leaves extend this function without changing
-/// `bootstrap` semantics.
+/// Builds the complete validator registry for all currently registered
+/// capability scenarios. Registration is deterministic and duplicate IDs are
+/// programming errors.
 ///
 /// # Panics
 ///
-/// Panics if the replay/fork scenario registration fails due to a duplicate
-/// stable ID. This indicates a programming error in the scenario descriptors.
+/// Panics if a registered scenario set contains duplicate stable IDs.
 #[must_use]
 pub fn validator_registry() -> ScenarioRegistry {
     let mut registry = ScenarioRegistry::bootstrap();
-    // Replay/fork scenarios are stable and deterministic; registration must not
-    // silently ignore duplicates, so we expect success.
-    register_replay_fork(&mut registry).expect("replay/fork scenario registration should succeed");
+    lifecycle::register(&mut registry).expect("lifecycle scenario IDs should be unique");
+    register_replay_fork(&mut registry).expect("replay/fork scenario IDs should be unique");
     registry
 }
 
