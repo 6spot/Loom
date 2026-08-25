@@ -71,6 +71,12 @@ The Runtime Revision is the immutable, auditable publication of the current soft
 - **Activate** via isolated Admin CAS `AdminActivateRuntimeRevisionRequest { revision_id, expected_generation }` (generation prevents lost-update races).
 - A new Revision only affects *future* Sessions whose World Runtime Binding is compatible; it never rewrites history, `World Time` or an existing Binding.
 
+Every execution composition root follows the same V0 gate: read the complete
+persisted World Runtime Binding, require the confirmed active Revision, and run
+the exact compatibility check against the complete Binding before assembling a
+Session. Missing or incompatible software is exposed as typed unavailable/error;
+the Runtime never synthesizes a Revision or weakens the persisted Binding.
+
 Inspect the active Revision after startup (see §3.8, requires `LOOM_ADMIN_TOKEN`).
 
 ## 2. Start the stack
