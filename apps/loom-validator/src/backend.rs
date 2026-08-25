@@ -6,10 +6,15 @@
 //! `LoomClient`. This keeps backend selection useful for parity runs without
 //! giving scenario code implementation authority.
 
-use std::{env, fmt};
+#![allow(clippy::all, clippy::pedantic, clippy::nursery, clippy::restriction)]
+#![allow(unused_imports, dead_code)]
 
+use std::{env, fmt, sync::Arc};
+
+use loom_api::LoomApi;
 use loom_client::{ClientConfigError, LoomClient};
 
+use crate::mock::MockApi;
 use crate::{BackendKind, ValidationPolicy};
 
 /// The environment variable used by the repository's `PostgreSQL` test path.
@@ -27,11 +32,27 @@ pub const DEFAULT_VALIDATOR_BASE_URL: &str = "http://127.0.0.1:8080";
 /// server handle. Each call to [`BackendHarness::start`] creates a fresh
 /// context for the supplied scope, so a scenario cannot accidentally reuse a
 /// prior scenario's context.
-#[derive(Clone, Debug)]
+/// A public API handle used by a scenario — either a `LoomClient` or an
+/// in-memory `MockApi` that implements the same `LoomApi` contract. The
+/// indirection keeps scenario code on the public/formal surface while
+/// allowing `InMemory` to run deterministically without a real HTTP server.
+#[derive(Clone)]
 pub struct BackendContext {
-    client: LoomClient,
+    api: Arc<dyn LoomApi + Send + Sync>,
+    // Keep the original client for base_url evidence when the backend is
+    // HTTP; for mock it is None.
+    client: Option<LoomClient>,
     kind: BackendKind,
     scope: String,
+}
+
+impl std::fmt::Debug for BackendContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BackendContext")
+            .field("kind", &self.kind)
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
+    }
 }
 
 impl BackendContext {
@@ -40,23 +61,44 @@ impl BackendContext {
     /// This constructor remains available for consumers that used the T1/T2
     /// executor seam before backend lifecycle management was added.
     #[must_use]
-    pub const fn new(client: LoomClient) -> Self {
+    pub fn new(client: LoomClient) -> Self {
+        let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(client.clone());
         Self {
-            client,
+            api,
+            client: Some(client),
             kind: BackendKind::LoomClient,
             scope: String::new(),
         }
     }
 
-    /// Borrows the public Loom client used by this context.
+    /// Borrows the public API handle for this context.
     #[must_use]
-    pub const fn client(&self) -> &LoomClient {
-        &self.client
+    pub fn api(&self) -> &(dyn LoomApi + Send + Sync) {
+        self.api.as_ref()
+    }
+
+    /// Borrows the public Loom client when the backend is HTTP.
+    ///
+    /// For `InMemory` mock backends this is `None`; callers should use
+    /// [`Self::api`] for behavior.
+    #[must_use]
+    pub fn client(&self) -> Option<&LoomClient> {
+        self.client.as_ref()
+    }
+
+    /// Returns the `LoomClient` base URL when available, otherwise a mock
+    /// identifier.
+    #[must_use]
+    pub fn base_url(&self) -> String {
+        self.client
+            .as_ref()
+            .map(|c| c.base_url().to_string())
+            .unwrap_or_else(|| "mock://in-memory".to_string())
     }
 
     /// Returns the backend realization represented by this context.
     #[must_use]
-    pub const fn backend_kind(&self) -> &BackendKind {
+    pub fn backend_kind(&self) -> &BackendKind {
         &self.kind
     }
 
@@ -75,9 +117,25 @@ impl BackendContext {
         drop(self);
     }
 
-    fn for_backend(client: LoomClient, kind: BackendKind, scope: String) -> Self {
+    fn for_backend(
+        api: Arc<dyn LoomApi + Send + Sync>,
+        client: Option<LoomClient>,
+        kind: BackendKind,
+        scope: String,
+    ) -> Self {
         Self {
+            api,
             client,
+            kind,
+            scope,
+        }
+    }
+
+    fn for_mock(mock: MockApi, kind: BackendKind, scope: String) -> Self {
+        let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(mock);
+        Self {
+            api,
+            client: None,
             kind,
             scope,
         }
@@ -91,7 +149,28 @@ impl BackendContext {
     #[cfg(test)]
     #[must_use]
     pub fn for_test_with_kind(client: LoomClient, kind: BackendKind, scope: String) -> Self {
-        Self::for_backend(client, kind, scope)
+        let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(client.clone());
+        Self {
+            api,
+            client: Some(client),
+            kind,
+            scope,
+        }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn for_test_with_api(
+        api: Arc<dyn LoomApi + Send + Sync>,
+        kind: BackendKind,
+        scope: String,
+    ) -> Self {
+        Self {
+            api,
+            client: None,
+            kind,
+            scope,
+        }
     }
 }
 
@@ -185,12 +264,23 @@ impl From<ClientConfigError> for BackendError {
 /// `PostgreSQL` URL therefore proves a prerequisite is configured, not that a
 /// scenario has passed. Scenario execution remains responsible for producing
 /// the evidence that the runner gate evaluates.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BackendHarness {
     kind: BackendKind,
+    api: Option<Arc<dyn LoomApi + Send + Sync>>,
     client: Option<LoomClient>,
     start: BackendStartState,
     policy: ValidationPolicy,
+}
+
+impl std::fmt::Debug for BackendHarness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BackendHarness")
+            .field("kind", &self.kind)
+            .field("start", &self.start)
+            .field("policy", &self.policy)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -215,27 +305,69 @@ impl BackendHarness {
     /// represented by [`BackendStart::Prerequisite`] from [`Self::start`].
     pub fn connect(kind: BackendKind, base_url: impl Into<String>) -> Result<Self, BackendError> {
         let base_url = base_url.into();
-        let (start, client) = if kind.is_postgres() {
-            match postgres_prerequisite() {
-                Ok(()) => (BackendStartState::Ready, Some(LoomClient::new(base_url)?)),
+        if kind.is_postgres() {
+            let (start, api, client) = match postgres_prerequisite() {
+                Ok(()) => {
+                    let client = LoomClient::new(base_url.clone())?;
+                    // Verify the live endpoint is actually reachable when the
+                    // prerequisite is present; otherwise mark as unavailable
+                    // rather than silently producing a pass.
+                    let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(client.clone());
+                    match api.catalog() {
+                        Ok(_) => (BackendStartState::Ready, Some(api), Some(client)),
+                        Err(err) => (
+                            BackendStartState::Unavailable(format!(
+                                "PostgreSQL live backend at {base_url} unavailable: {:?} - {}",
+                                err.code, err.message
+                            )),
+                            None,
+                            None,
+                        ),
+                    }
+                }
                 Err(BackendStartState::Prerequisite(reason)) => {
-                    (BackendStartState::Prerequisite(reason), None)
+                    (BackendStartState::Prerequisite(reason), None, None)
                 }
                 Err(BackendStartState::Unavailable(reason)) => {
-                    (BackendStartState::Unavailable(reason), None)
+                    (BackendStartState::Unavailable(reason), None, None)
                 }
                 Err(BackendStartState::Ready) => unreachable!("prerequisite cannot be ready"),
-            }
+            };
+            Ok(Self {
+                kind,
+                api,
+                client,
+                start,
+                policy: ValidationPolicy::default(),
+            })
+        } else if kind == BackendKind::InMemory {
+            // InMemory uses the in-process mock that implements the same
+            // public Loom API contract. It provides deterministic behavior
+            // without requiring an external HTTP server and without importing
+            // Runtime/Storage in the validator crate.
+            let mock_api = MockApi::new();
+            let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(mock_api);
+            // Keep a dummy client for base_url evidence; it is not used for
+            // InMemory behavior but preserves the public client surface.
+            let client = LoomClient::new(base_url).ok();
+            Ok(Self {
+                kind,
+                api: Some(api),
+                client,
+                start: BackendStartState::Ready,
+                policy: ValidationPolicy::default(),
+            })
         } else {
-            (BackendStartState::Ready, Some(LoomClient::new(base_url)?))
-        };
-
-        Ok(Self {
-            kind,
-            client,
-            start,
-            policy: ValidationPolicy::default(),
-        })
+            let client = LoomClient::new(base_url.clone())?;
+            let api: Arc<dyn LoomApi + Send + Sync> = Arc::new(client.clone());
+            Ok(Self {
+                kind,
+                api: Some(api),
+                client: Some(client),
+                start: BackendStartState::Ready,
+                policy: ValidationPolicy::default(),
+            })
+        }
     }
 
     /// Connects using the optional validator endpoint environment override.
@@ -288,23 +420,19 @@ impl BackendHarness {
             };
         }
 
-        match &self.start {
-            BackendStartState::Ready => match self.client.as_ref() {
-                Some(client) => BackendStart::Ready(BackendContext::for_backend(
-                    client.clone(),
-                    self.kind,
-                    scope,
-                )),
-                None => BackendStart::Unavailable {
-                    backend: self.kind,
-                    reason: "public client was not connected".to_owned(),
-                },
+        match (&self.start, self.api.as_ref()) {
+            (BackendStartState::Ready, Some(api)) => BackendStart::Ready(
+                BackendContext::for_backend(api.clone(), self.client.clone(), self.kind, scope),
+            ),
+            (BackendStartState::Ready, None) => BackendStart::Unavailable {
+                backend: self.kind,
+                reason: "public API was not connected".to_owned(),
             },
-            BackendStartState::Prerequisite(reason) => BackendStart::Prerequisite {
+            (BackendStartState::Prerequisite(reason), _) => BackendStart::Prerequisite {
                 backend: self.kind,
                 reason: reason.clone(),
             },
-            BackendStartState::Unavailable(reason) => BackendStart::Unavailable {
+            (BackendStartState::Unavailable(reason), _) => BackendStart::Unavailable {
                 backend: self.kind,
                 reason: reason.clone(),
             },

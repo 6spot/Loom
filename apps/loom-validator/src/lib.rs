@@ -10,6 +10,7 @@ mod backend;
 mod cli;
 mod feedback;
 mod finding;
+mod mock;
 mod outcome;
 mod registry;
 mod reports;

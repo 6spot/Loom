@@ -473,7 +473,163 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         }
     };
 
-    // Minimal client for backend context — not used by bootstrap executor.
+    // Handle list/help before needing a harness
+    if parsed.help {
+        println!("{}", help_text());
+        return EXIT_SUCCESS;
+    }
+    if parsed.list {
+        let list = runner.list();
+        if list.is_empty() {
+            println!("available scenarios (0):");
+            println!("  (no scenarios registered)");
+        } else {
+            println!("available scenarios ({}):", list.len());
+            for desc in list {
+                println!(
+                    "  {} - {} [{}]",
+                    desc.id_str(),
+                    desc.name(),
+                    desc.capability_area().as_str()
+                );
+            }
+        }
+        return EXIT_SUCCESS;
+    }
+
+    // For InMemory, use the in-process mock that implements the public Loom API
+    // via MockApi. This provides deterministic behavior without requiring an
+    // external HTTP server and without importing Runtime/Storage in the validator.
+    let harness = match crate::backend::BackendHarness::connect(
+        BackendKind::InMemory,
+        crate::backend::DEFAULT_VALIDATOR_BASE_URL,
+    ) {
+        Ok(h) => h,
+        Err(err) => {
+            eprintln!("error: failed to connect InMemory harness: {err}");
+            return EXIT_RUNNER_ERROR;
+        }
+    };
+
+    // Resolve selection
+    let selection =
+        match runner.resolve_with_groups(&parsed.scenario_ids, &parsed.groups, parsed.all) {
+            Ok(s) => s,
+            Err(err) => {
+                let message = format!("error: {err}");
+                if let Some(path) = parsed.machine_report_path() {
+                    let report = ValidationReport::runner_config_failure(
+                        parsed.scenario_ids.clone(),
+                        message.clone(),
+                    )
+                    .with_run_metadata(
+                        crate::RunMetadata::default()
+                            .with_command("loom-validator")
+                            .with_evidence(EvidenceReference::path(path)),
+                    );
+                    if let Err(write_error) = report.write_json(path) {
+                        eprintln!("{message}; failed to write report: {write_error}");
+                        return EXIT_RUNNER_ERROR;
+                    }
+                }
+                eprintln!("{message}");
+                return EXIT_RUNNER_ERROR;
+            }
+        };
+
+    if selection.is_empty() {
+        println!("loom-validator: 0 scenario(s) selected");
+        let report = ValidationReport::from_results(Vec::new());
+        if let Some(path) = parsed.machine_report_path() {
+            let report = report.with_run_metadata(
+                crate::RunMetadata::default()
+                    .with_command("loom-validator")
+                    .with_evidence(EvidenceReference::path(path)),
+            );
+            if let Err(write_error) = report.write_json(path) {
+                eprintln!("failed to write report: {write_error}");
+                return EXIT_RUNNER_ERROR;
+            }
+            println!("{}", report.human_summary());
+        } else {
+            println!("{}", report.summary_line());
+        }
+        return EXIT_SUCCESS;
+    }
+
+    // Execute each selected scenario via the harness, creating a fresh
+    // BackendContext per scenario scope. This mirrors Runner::run_with_harness
+    // but respects the CLI's explicit selection.
+    let mut results = Vec::with_capacity(selection.len());
+    for desc in &selection {
+        let start = harness.start(desc.id_str());
+        let result = match start {
+            crate::backend::BackendStart::Ready(ctx) => {
+                crate::scenarios::execute_replay_fork(desc, &ctx)
+            }
+            crate::backend::BackendStart::Prerequisite { backend, reason } => {
+                crate::reports::ScenarioResult::prerequisite(
+                    desc.id().clone(),
+                    desc.name(),
+                    backend,
+                    reason,
+                )
+                .with_capability_area(desc.capability_area().as_str())
+            }
+            crate::backend::BackendStart::Unavailable { backend, reason } => {
+                crate::reports::ScenarioResult::unavailable(
+                    desc.id().clone(),
+                    desc.name(),
+                    backend,
+                    reason,
+                )
+                .with_capability_area(desc.capability_area().as_str())
+            }
+        };
+        let is_fail = result.outcome().is_fail();
+        results.push(result);
+        if parsed.fail_fast && is_fail {
+            break;
+        }
+    }
+    let mut report = ValidationReport::from_results(results)
+        .with_selected_scenario_ids(selection.iter().map(|d| d.id_str().to_owned()).collect())
+        .with_backend(BackendKind::InMemory);
+    let has_machine_evidence = if let Some(path) = parsed.machine_report_path() {
+        report = report.with_run_metadata(
+            crate::RunMetadata::default()
+                .with_command("loom-validator")
+                .with_evidence(EvidenceReference::path(path)),
+        );
+        if let Err(write_error) = report.write_json(path) {
+            eprintln!("failed to write report: {write_error}");
+            return EXIT_RUNNER_ERROR;
+        }
+        true
+    } else {
+        false
+    };
+    for result in report.results() {
+        println!(
+            "  {} {} - {}",
+            result.scenario_id().as_str(),
+            result.outcome().as_str(),
+            result.finding().scenario_name()
+        );
+    }
+    if has_machine_evidence {
+        println!("loom-validator: {}", report.human_summary());
+    } else {
+        println!("loom-validator: {}", report.summary_line());
+    }
+    if parsed.fail_fast && report.has_failures() {
+        return EXIT_SCENARIO_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+#[allow(dead_code)]
+fn _old_execute_cli_path(runner: Runner, parsed: CliArgs) -> i32 {
     let client = match loom_client::LoomClient::builder("http://localhost:8080".to_string()).build()
     {
         Ok(c) => c,

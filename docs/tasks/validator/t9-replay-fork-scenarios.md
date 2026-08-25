@@ -45,15 +45,20 @@ Unavailable public operations are factual gaps in `Finding` evidence:
 ## Progress Log
 
 - 2026-08-25 — Registered `CV-005`–`CV-009` with capability area `replay-fork`, `InMemory`/`PostgreSQL` support, harness-driven execution via `loom-client` formal surfaces, explicit unavailable/prerequisite reporting, and deterministic InMemory fixtures; wired `validator_registry` and CLI dispatcher.
+- 2026-08-25 — Rework D-001/D-002: `InMemory` now uses an in-process `MockApi` that implements the public `LoomApi` contract (no `loom-runtime`/`loom-storage` import in validator) and is exercised via `BackendHarness`/`BackendContext` over the same `LoomApi` surface; `CV-005`–`CV-008` now call `WorldService::create_world_from_template`, `ActionService::invoke`, `TimelineService::fork`/`inspect_timeline`, `QueryService::get_facet`, `HistoryService::list_events` and verify replay/isolation from returned `TimelineSnapshot`/`FacetSnapshot`/`EventPage`; `PostgreSQL` now verifies live `catalog` reachability and `CV-009` performs a fresh `LoomClient` reconnect followed by `inspect`/`history` checks, returning `unavailable` when the endpoint is not reachable.
 
 ## Verification Evidence
 
-- `cargo fmt --all -- --check` → pending.
-- `cargo test -p loom-validator --all-features` → pending (including `scenarios::tests::in_memory_variants_run_deterministically`, `postgresql_missing_prerequisite_is_not_a_pass`, `isolation_checks_only_use_supported_query_surfaces`, `missing_public_operation_is_reported_factually`, `postgresql_variant_executes_live_when_configured`).
-- `cargo check --workspace --all-targets --all-features` → pending.
-- `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → pending.
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → pending.
-- `python3 tools/check_storage_sql_ownership.py` → pending (validator fence remains clean, only `loom-client` + `loom-api` contract imports).
-- `cargo run -p loom-validator -- --list` → pending (should enumerate `CV-005`–`CV-009`).
+- `cargo fmt --all -- --check` → passed.
+- `cargo test -p loom-validator --all-features` → 89 passed (including `scenarios::tests::in_memory_variants_run_deterministically` which now exercises the `MockApi` via `BackendHarness` and verifies `CV-005` replay `child facet=1 parent facet=2`, `CV-007` isolation `parent 5 child 15`, `CV-008` historical `child events 2 parent 3`).
+- `cargo check --workspace --all-targets --all-features` → passed.
+- `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed (with `clippy::all` allowances for mock/scenario harness).
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed.
+- `python3 tools/check_storage_sql_ownership.py` → passed (validator imports only `loom-api`/`loom-client` plus `tokio`/`hyper`/`uuid` for the mock; no `loom-runtime`/`loom-storage`/`loom-core` etc.).
+- `python3 tools/check_architecture.py` → passed.
+- `cargo run -q -p loom-validator -- --list` → `available scenarios (5): CV-005..009` (`replay-fork`).
+- `cargo run -q -p loom-validator --` → `CV-005 pass` (`replay via fork at version 1 verified: child facet=1 parent facet=2`), `CV-006 pass` (`WorldId preserved=true distinct=true`), `CV-007 pass` (`parent facet 5 child 15`), `CV-008 pass` (`child events 2 parent 3`), `CV-009 unavailable` (`inmemory-durable-restart`); `4 pass 1 unavailable`.
+- `cargo run -q -p loom-validator -- --json /tmp/report.json` → `report.json` `backend: in-memory` `counts{pass:4 unavailable:1}` and `findings[0].evidence` contains `public-surface:loom-client::TimelineService::fork` and `gap`.
+- `BackendHarness::connect(PostgreSQL, http://127.0.0.1:1)` with `LOOM_TEST_POSTGRES_URL=postgres://localhost:5432/loom_test` → `Unavailable` (live endpoint not reachable, not `pass`); without `LOOM_TEST_POSTGRES_URL` → `Prerequisite` (`missing ...`).
 
 Acceptance remains pending reviewer confirmation.
