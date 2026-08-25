@@ -1420,6 +1420,7 @@ dependencies = [
 name = "loom-validator"
 version = "0.1.0"
 dependencies = [
+ "loom-api",
  "loom-client",
  "serde_json",
 ]

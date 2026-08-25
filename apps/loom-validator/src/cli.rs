@@ -450,15 +450,18 @@ where
 }
 
 /// Runs the CLI from raw process args, creating a default backend and
-/// trivial executor for the current bootstrap registry.
+/// dispatching to the registered validator scenarios.
 ///
-/// The default executor produces a `pass` finding for each scenario. Real
-/// scenario logic is supplied by later tasks; this default demonstrates the
-/// runner's selection, ordering, fail-fast, and exit semantics.
+/// The registry is the current validator registry (see
+/// [`crate::validator_registry`]). The executor dispatches replay/fork
+/// scenarios (`CV-005`–`CV-009`) through the formal `loom-client` surface and
+/// falls back to a generic pass finding for any future scenario that has not
+/// yet provided dedicated logic. This keeps runner selection, ordering,
+/// fail-fast, and exit semantics demonstrated while exercising real
+/// capability scenarios.
 #[must_use]
 pub fn run_from_args(args: Vec<String>) -> i32 {
-    // Build registry (bootstrap for now; future tasks register CV-001..).
-    let registry = crate::registry::ScenarioRegistry::bootstrap();
+    let registry = crate::validator_registry();
     let runner = Runner::new(registry);
 
     let parsed = match parse_args(args) {
@@ -481,22 +484,31 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
     };
     let backend = BackendContext::new(client);
 
-    let executor = |desc: &crate::scenario::ScenarioDescriptor, _backend: &BackendContext| {
-        let outcome = ScenarioOutcome::Pass;
-        let finding = Finding::new(
-            desc.id().clone(),
-            desc.name(),
-            "expected: scenario passes",
-            "actual: scenario passed",
-            desc.supported_backends()
-                .first()
-                .copied()
-                .unwrap_or(BackendKind::LoomClient),
-            "loom-validator: bootstrap executor",
-            vec![EvidenceReference::new("validator:bootstrap")],
-            outcome.clone(),
-        );
-        ScenarioResult::new(desc.id().clone(), outcome, finding)
+    let executor = |desc: &crate::scenario::ScenarioDescriptor, backend: &BackendContext| match desc
+        .id_str()
+    {
+        crate::scenarios::CV_005
+        | crate::scenarios::CV_006
+        | crate::scenarios::CV_007
+        | crate::scenarios::CV_008
+        | crate::scenarios::CV_009 => crate::scenarios::execute_replay_fork(desc, backend),
+        _ => {
+            let outcome = ScenarioOutcome::Pass;
+            let finding = Finding::new(
+                desc.id().clone(),
+                desc.name(),
+                "expected: scenario passes",
+                "actual: scenario passed",
+                desc.supported_backends()
+                    .first()
+                    .copied()
+                    .unwrap_or(BackendKind::LoomClient),
+                "loom-validator: generic executor",
+                vec![EvidenceReference::new("validator:generic")],
+                outcome.clone(),
+            );
+            ScenarioResult::new(desc.id().clone(), outcome, finding)
+        }
     };
 
     execute_cli(

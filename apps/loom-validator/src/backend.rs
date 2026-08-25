@@ -82,6 +82,17 @@ impl BackendContext {
             scope,
         }
     }
+
+    /// Test-only helper to construct a context with an explicit backend kind.
+    ///
+    /// The harness normally constructs these via [`BackendHarness::start`]. This
+    /// helper is provided for unit tests that need to simulate a `PostgreSQL`
+    /// context without re-entering the harness prerequisite path.
+    #[cfg(test)]
+    #[must_use]
+    pub fn for_test_with_kind(client: LoomClient, kind: BackendKind, scope: String) -> Self {
+        Self::for_backend(client, kind, scope)
+    }
 }
 
 /// Why a backend could not be started for a scenario.
