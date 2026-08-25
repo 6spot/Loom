@@ -62,13 +62,15 @@ Stimulus / Application / Ingress / Durable Work
                     │
        Runtime starts Execution Session
                     │
-          load World Runtime Binding
+          load complete persisted World Runtime Binding
                     │
-         bind active Runtime Revision
+       require confirmed active Runtime Revision
                     │
- resolve exact compatible implementations
+ exact compatibility check against complete Binding
+          ├─ missing/incompatible → typed unavailable/error
+          └─ compatible → resolve exact compatible implementations
                     │
-              Runtime Router
+           Runtime Router
                     │
            Capability Resolver
                     │

@@ -15,7 +15,7 @@ These three names are frozen and must never be merged into a single “global re
 Consequences:
 
 - A Capability may be **installed** yet not **enabled** for a World whose Binding excludes it; a Template revision that adds a new Capability only affects **future Worlds**.
-- Every semantic execution entry (Action dispatch, WorkHandler, Reaction expansion, semantic retrieval, per-World Catalog, subresolution) checks the **Binding** first; the Assembly is then resolved from the active **Revision** using compatibility (`VersionReq`).
+- Every semantic execution entry (Action dispatch, WorkHandler, Reaction expansion, semantic retrieval, per-World Catalog, subresolution) reads the complete persisted **Binding** first, requires the confirmed active **Revision**, and resolves the Assembly only after exact compatibility against the complete Binding (`VersionReq`). Missing or incompatible software is typed unavailable/error; it never synthesizes a Revision or weakens the Binding.
 - `Installed-but-disabled` is an expected V0 semantics — the operator demonstrates it via multiple Template revisions (§2.5 of this guide) rather than by mutating existing Worlds.
 
 ## 2. World Time vs Platform Time

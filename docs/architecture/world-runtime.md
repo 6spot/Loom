@@ -61,6 +61,34 @@ Installed Capability Implementations
 
 Template 负责出生时生成它；Runtime 每次执行时读取并强制执行它；Template 本身不会继续控制 World。
 
+### 1.1 Canonical V0 execution path
+
+V0 只有一条可执行的 Runtime authority path。World 出生时必须完成并持久化
+完整的 `World Runtime Binding`；Runtime composition 必须确认并激活一个
+`Runtime Revision`。每次 root execution 都重新读取这两个权威值，并对完整
+Binding 做 exact compatibility check：
+
+```text
+World creation
+    -> complete persisted World Runtime Binding
+
+Runtime startup / composition
+    -> confirm Runtime Revision
+    -> activate Runtime Revision
+
+Execution assembly
+    -> read complete persisted World Runtime Binding
+    -> read confirmed active Runtime Revision
+    -> exact compatibility check against the complete Binding
+       -> compatible: pin Execution Assembly and execute
+       -> missing/incompatible: `ApiErrorCode::Unavailable` / typed error
+```
+
+缺少 active Revision、Binding 不完整，或 active Revision 不能满足完整 Binding
+时，执行必须停在 typed unavailable/error；Runtime 不得合成 Revision、缩小或
+重写 Binding、按 registry 当前内容推断 enablement，或在正常执行中自动迁移
+开发阶段的 World 状态。
+
 ---
 
 ## 2. Six authority domains
@@ -291,11 +319,15 @@ World birth 时：
 ```text
 Template requirement
         ↓
-active Runtime Revision
+Validated World Birth Plan
         ↓
-resolve exact compatible implementation
+complete World Runtime Binding persisted with World birth
         ↓
-bootstrap Execution Session
+confirmed active Runtime Revision
+        ↓
+exact compatibility check against the complete Binding
+        ↓
+bootstrap Execution Session, or `ApiErrorCode::Unavailable` / typed error
 ```
 
 这一次 bootstrap 实际用了哪个 implementation，记录在 Execution Provenance。
@@ -340,7 +372,8 @@ Agent wake / cognition-driven Action
 operator-authorized world execution where applicable
 ```
 
-Session 开始时 Runtime 一次性确定：
+Session 开始时 Runtime 一次性确定（前提是已有 confirmed active Revision 且
+完整 Binding compatibility check 成功）：
 
 ```text
 World / Timeline target
@@ -365,7 +398,7 @@ controlled Entropy / Cognition services where used
 
 ### 5.3 Missing compatible implementation
 
-如果 World Binding 允许 Capability A，但 active Runtime Revision 没有满足 binding requirement 的 A implementation：
+如果 World Binding 允许 Capability A，但 confirmed active Runtime Revision 没有满足 binding requirement 的 A implementation：
 
 ```text
 execution = unavailable / incompatible
@@ -377,6 +410,8 @@ Runtime 不得：
 
 - 自动启用另一个未绑定 Capability；
 - 忽略 compatibility requirement；
+- 在没有 active Revision 时合成一个 registry-derived Revision；
+- 只用 registry 当前存在的 Capability 子集替代完整 World Binding；
 - 修改 World State 来“修复”软件缺失。
 
 如果缺失的 implementation 对应当前 Timeline 的 head due Work，Scheduler 不得跳过该 Work；该 Timeline 的 scheduler progression 必须保持 blocked，直到实现恢复或该 Work 经显式 Runtime logical transition 离开 `Pending`。

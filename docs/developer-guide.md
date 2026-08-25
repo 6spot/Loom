@@ -59,8 +59,8 @@ The implementation ledger is `docs/tasks/` (see `docs/tasks/README.md` for the f
 
 ### 3.1 Where to look
 
-- Current V0 roadmap: `docs/tasks/v0-roadmap.md` (planned; supersedes unmerged M4–M13 from #60–#134).
-- Milestone index: `docs/tasks/m12/README.md` (M12) etc.
+- Current V0 roadmap: `docs/tasks/v0-roadmap.md` (the task ledger is implementation history, not a runtime compatibility contract).
+- Task-ledger indexes: `docs/tasks/m12/README.md` and the other milestone README files.
 - Cross-cutting validator initiative: `docs/tasks/validator/README.md`.
 - Active task files: each begins with required YAML metadata:
 
