@@ -10,12 +10,7 @@
 
 #![allow(dead_code)]
 
-use std::{
-    env,
-    path::Path,
-    process::Command,
-    sync::Arc,
-};
+use std::{env, path::Path, process::Command, sync::Arc};
 
 use loom_boundary::{BoundaryConfig, router};
 use loom_client::LoomClient;
@@ -24,8 +19,7 @@ use loom_runtime::Runtime;
 use loom_storage::{InMemoryStore, PgStorage};
 use tokio::sync::Mutex;
 
-const DEFAULT_POSTGRES_CONTROL_URL: &str =
-    "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 /// A process-lifetime tokio runtime whose spawns (including the axum HTTP
 /// server) survive the calling thread, so a restarted service's server task is
