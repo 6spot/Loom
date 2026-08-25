@@ -1,0 +1,31 @@
+{
+  "id": "neutral.world",
+  "revision": 2,
+  "capabilities": [
+    {
+      "id": "neutral.observer",
+      "version": "^0.1.0"
+    }
+  ],
+  "configuration": {
+    "profile": "observer"
+  },
+  "initial_world_time": 22,
+  "bootstrap_actions": [
+    {
+      "action": "neutral.counter.seed",
+      "input": {
+        "event_id": "00000000-0000-0000-0000-000000005150",
+        "entity_id": "00000000-0000-0000-0000-000000005101",
+        "value": 2
+      }
+    },
+    {
+      "action": "neutral.observer.observe",
+      "input": {
+        "event_id": "00000000-0000-0000-0000-000000005160",
+        "entity_id": "00000000-0000-0000-0000-000000005101"
+      }
+    }
+  ]
+}
