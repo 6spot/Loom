@@ -4,7 +4,13 @@ This directory contains the current operational procedures for developing and te
 
 ## Current guides
 
+- [`../quickstart.md`](../quickstart.md) — V0 public quickstart from a clean checkout using only `loom-server` / `loom-client` / `loom-cli` (no Runtime/Storage imports, no direct DB).
+- [`../operator-guide.md`](../operator-guide.md) — V0 operator reference: Installed vs Binding vs Assembly, World Time vs Platform Time, logical Work vs lease, head/quiescence/budget, missing implementation/terminalization, Revision/Session provenance, replay vs rerun, fork ancestry, Agent visibility/CAS resample.
+- [`../developer-guide.md`](../developer-guide.md) — V0 developer reference: Architecture Index supersession lookup, Amendment gate, task-ledger workflow, Cargo DAG and verification.
+- [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity envelope from M11 (`loom-bench`); larger-scale claims marked unproven/deferred.
 - [`postgres-tests.md`](postgres-tests.md) — local PostgreSQL 18 + pgvector integration-test service, environment and test commands.
+- [`loom-server.md`](loom-server.md) — supported Linux deployment for `loom-server` (compose bind-mounts, migrations, Runtime Revision, config).
+- [`runtime-worker.md`](runtime-worker.md) — v0 worker/executor topology and deterministic stress/restart evidence.
 
 ## Cargo build artifacts
 
