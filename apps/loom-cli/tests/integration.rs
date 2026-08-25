@@ -401,6 +401,190 @@ async fn cli_error_mapping_via_client() {
     assert_eq!(loom_cli::exit_code_for_api_error(err.code), 10);
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn agency_wake_convenience_resolves_version_via_status() {
+    use loom_api::{AdminScheduleAgencyWakeRequest, TimelineVersion};
+    use loom_core::{EventSeq, StateRevision, WorkId};
+    use loom_protocol::WorkSchedule;
+
+    let (client, url) = spawn_test_server_with_auth("agency-convenience-token").await;
+
+    // Build a Timeline with prior commits (bootstrap + actions), so current version != (0,0).
+    let entity_id = EntityId::from_str("00000000-0000-0000-0000-000000005101").unwrap();
+    let template = WorldTemplateDescriptor::new("convenience-agency", 1, WorldInstant::new(11))
+        .requires_capability("neutral.counter", "^0.1.0")
+        .with_configuration(serde_json::json!({"profile":"counter"}))
+        .with_bootstrap_action(ActionInvocation::new(
+            loom_core::ActionTypeId::from(COUNTER_SEED_ACTION),
+            json!({"event_id": EventId::from_str("00000000-0000-0000-0000-000000005130").unwrap().to_string(), "entity_id": entity_id.to_string(), "value": 1}),
+        ));
+    let created = client
+        .create_world_from_template(CreateWorldFromTemplateRequest::new(template))
+        .await
+        .expect("world create for agency convenience");
+    let target = created.target;
+
+    // Advance version further via a normal Action and an Ingress-like increment so (0,0) is stale.
+    let inc2 = EventId::from_str("00000000-0000-0000-0000-000000005131").unwrap();
+    client
+        .invoke(ActionRequest::new(
+            target,
+            ActionInvocation::new(
+                loom_core::ActionTypeId::from(COUNTER_INCREMENT_ACTION),
+                json!({"event_id": inc2.to_string(), "entity_id": entity_id.to_string(), "amount": 1}),
+            ),
+        ))
+        .await
+        .expect("increment should advance version");
+
+    let status = client
+        .timeline_logical_status(target)
+        .await
+        .expect("status should be readable via public AdminService");
+    let stale = TimelineVersion::new(EventSeq::new(0), StateRevision::new(0));
+    assert_ne!(
+        status.version, stale,
+        "bootstrap/action should advance version beyond (0,0)"
+    );
+
+    // Hardcoded (0,0) must now return Conflict — this is the previous convenience bug.
+    let stale_req = AdminScheduleAgencyWakeRequest {
+        target,
+        expected_version: stale,
+        work_id: WorkId::from_str("00000000-0000-0000-0000-000000007001").unwrap(),
+        agent: entity_id,
+        cognition: "deterministic.fake".to_string(),
+        payload: json!({"goal":"stale"}),
+        schedule: WorkSchedule::Immediate,
+    };
+    let stale_err = client
+        .schedule_agency_wake(stale_req)
+        .await
+        .expect_err("stale version must be Conflict");
+    assert_eq!(stale_err.code, loom_api::ApiErrorCode::Conflict);
+
+    // The version returned by status must succeed — this is what the fixed convenience path uses.
+    let fresh_req = AdminScheduleAgencyWakeRequest {
+        target,
+        expected_version: status.version,
+        work_id: WorkId::from_str("00000000-0000-0000-0000-000000007002").unwrap(),
+        agent: entity_id,
+        cognition: "deterministic.fake".to_string(),
+        payload: json!({"goal":"fresh"}),
+        schedule: WorkSchedule::Immediate,
+    };
+    let fresh_ok = client
+        .schedule_agency_wake(fresh_req)
+        .await
+        .expect("fresh status version should schedule");
+    assert_eq!(fresh_ok.target, target);
+    assert_eq!(
+        fresh_ok.work_id.to_string(),
+        "00000000-0000-0000-0000-000000007002"
+    );
+
+    // CLI convenience path: `loom --admin-token ... admin agency schedule-wake --world --timeline --work-id --agent --cognition --payload`
+    // must internally query the same status and therefore succeed even though the timeline already has commits.
+    // This exercises apps/loom-cli/src/lib.rs:handle_admin_schedule_wake's new status-read path.
+    let cli_work = WorkId::from_str("00000000-0000-0000-0000-000000007003").unwrap();
+    let cli = loom_cli::Cli {
+        server: url.clone(),
+        bearer_token: None,
+        admin_token: Some("agency-convenience-token".to_string()),
+        output: loom_cli::OutputMode::Json,
+        timeout_secs: 30,
+        command: loom_cli::Commands::Admin(loom_cli::AdminArgs {
+            command: loom_cli::AdminCommands::Agency(loom_cli::AdminAgencyArgs {
+                command: loom_cli::AdminAgencySubcommands::ScheduleWake(
+                    loom_cli::AdminScheduleWakeArgs {
+                        file: None,
+                        json: None,
+                        world: Some(target.world_id.to_string()),
+                        timeline: Some(target.timeline_id.to_string()),
+                        work_id: Some(cli_work.to_string()),
+                        agent: Some(entity_id.to_string()),
+                        cognition: Some("deterministic.fake".to_string()),
+                        payload: Some(r#"{"goal":"cli-convenience"}"#.to_string()),
+                        payload_file: None,
+                    },
+                ),
+            }),
+        }),
+    };
+    let code = loom_cli::execute(cli).await;
+    assert_eq!(
+        code, 0,
+        "CLI convenience should succeed by querying status version"
+    );
+
+    // Explicit --file / --json paths keep original semantics: a stale explicit request must still be Conflict.
+    // Build a temporary file containing a stale explicit request and invoke the CLI with --file.
+    let stale_explicit = AdminScheduleAgencyWakeRequest {
+        target,
+        expected_version: stale,
+        work_id: WorkId::from_str("00000000-0000-0000-0000-000000007004").unwrap(),
+        agent: entity_id,
+        cognition: "deterministic.fake".to_string(),
+        payload: json!({"goal":"explicit-stale"}),
+        schedule: WorkSchedule::Immediate,
+    };
+    let tmp = std::env::temp_dir().join(format!(
+        "loom-cli-agency-stale-{}-{}.json",
+        std::process::id(),
+        "00000000-0000-0000-0000-000000007004"
+    ));
+    std::fs::write(&tmp, serde_json::to_string(&stale_explicit).unwrap()).unwrap();
+    let cli_explicit = loom_cli::Cli {
+        server: url,
+        bearer_token: None,
+        admin_token: Some("agency-convenience-token".to_string()),
+        output: loom_cli::OutputMode::Json,
+        timeout_secs: 30,
+        command: loom_cli::Commands::Admin(loom_cli::AdminArgs {
+            command: loom_cli::AdminCommands::Agency(loom_cli::AdminAgencyArgs {
+                command: loom_cli::AdminAgencySubcommands::ScheduleWake(
+                    loom_cli::AdminScheduleWakeArgs {
+                        file: Some(tmp.clone()),
+                        json: None,
+                        world: None,
+                        timeline: None,
+                        work_id: None,
+                        agent: None,
+                        cognition: None,
+                        payload: None,
+                        payload_file: None,
+                    },
+                ),
+            }),
+        }),
+    };
+    let code_explicit = loom_cli::execute(cli_explicit).await;
+    // Explicit stale request should map to Conflict -> exit 12
+    assert_eq!(
+        code_explicit, 12,
+        "explicit --file stale request must preserve Conflict semantics"
+    );
+    let _ = std::fs::remove_file(tmp);
+
+    // Final status: the two successful wakes (fresh + CLI convenience) are now visible in logical status
+    let final_status = client
+        .timeline_logical_status(target)
+        .await
+        .expect("final status");
+    assert!(
+        final_status
+            .works
+            .iter()
+            .any(|w| w.work_id.to_string() == "00000000-0000-0000-0000-000000007002")
+    );
+    assert!(
+        final_status
+            .works
+            .iter()
+            .any(|w| w.work_id.to_string() == "00000000-0000-0000-0000-000000007003")
+    );
+}
+
 #[test]
 fn cli_output_modes_deterministic() {
     let snapshot = loom_api::CatalogSnapshot {

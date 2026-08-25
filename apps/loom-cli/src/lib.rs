@@ -1458,10 +1458,19 @@ async fn handle_admin_schedule_wake(
         } else {
             serde_json::json!({})
         };
-        // Need expected_version and schedule – for minimal, use default version and immediate schedule
-        // If not supplied, we try to get timeline status to infer current version, but for now require explicit file for complex case.
-        // Fallback to using a dummy expected version (0,0) – server will reject with conflict if wrong, which maps correctly.
-        let expected_version = TimelineVersion::new(EventSeq::new(0), StateRevision::new(0));
+        // Convenience path: resolve current TimelineVersion via the public AdminService timeline logical-status,
+        // so a linear quickstart (bootstrap + Actions + Ingress) does not stay pinned to (0,0) and return Conflict.
+        // Explicit --file / --json paths keep their original semantics and are not rewritten here.
+        let status = client.timeline_logical_status(target).await.map_err(|e| {
+            ApiError::new(
+                e.code,
+                format!(
+                    "failed to read timeline status for agency wake: {}",
+                    e.message
+                ),
+            )
+        })?;
+        let expected_version = status.version;
         let schedule = loom_api::WorkSchedule::Immediate;
         AdminScheduleAgencyWakeRequest {
             target,
