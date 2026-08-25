@@ -54,7 +54,10 @@ async fn postgres_18_schema_starts_empty_runs_migrations_and_enforces_constraint
         .fetch_one(&pool)
         .await
         .expect("SQLx migration history should exist in a fresh database");
-    assert!(migration_count >= 1);
+    assert_eq!(
+        migration_count, 1,
+        "a fresh V0 database should apply one consolidated baseline migration"
+    );
 
     verify_identity_and_owner_constraints(&pool).await;
 
