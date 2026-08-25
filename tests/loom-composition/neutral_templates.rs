@@ -14,6 +14,29 @@ use loom_runtime::{
 use loom_storage::InMemoryStore;
 use serde_json::json;
 
+fn ensure_neutral_templates_revision(store: &InMemoryStore) {
+    let reg = neutral::registry();
+    let descriptor = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("neutral-templates-explicit-v0"),
+        PlatformTime::default(),
+        "test-build",
+        reg.loom_version().clone(),
+        reg.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("neutral templates revision should be valid");
+    store
+        .confirm_revision(descriptor.clone())
+        .expect("neutral templates revision should be confirmed");
+    store
+        .activate_revision(descriptor.id().clone(), None, PlatformTime::default())
+        .expect("neutral templates revision should be activated");
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one acceptance scenario covers both Template births and their pinned evidence"
@@ -438,6 +461,7 @@ fn neutral_registry_declares_work_and_reactions_without_running_a_scheduler() {
 #[tokio::test]
 async fn enabled_reaction_expands_to_atomic_immediate_work_and_chains() {
     let store = InMemoryStore::new();
+    ensure_neutral_templates_revision(&store);
     let world_id = neutral::identity::<WorldId>(0x5200);
     let timeline_id = neutral::identity(0x5201);
     let entity_id = neutral::identity::<EntityId>(0x5202);

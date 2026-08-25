@@ -461,49 +461,6 @@ async fn different_worlds_keep_distinct_bindings() {
     );
 }
 
-#[tokio::test]
-async fn legacy_world_binding_is_materialized_once() {
-    let store = InMemoryStore::new();
-    store
-        .create_timeline(world(), timeline())
-        .expect("legacy Timeline fixture should be created");
-    let first = WorldRuntimeBinding::new(
-        [(
-            CapabilityId::from(OWNER),
-            CapabilityDependency::parse(OWNER, "^0.1.0")
-                .expect("first legacy requirement should parse")
-                .version,
-        )],
-        json!({"fixture": "legacy-first"}),
-        1,
-        Some("m3-compatibility-baseline".to_owned()),
-    );
-    let second = WorldRuntimeBinding::new(
-        [(
-            CapabilityId::from("replacement"),
-            CapabilityDependency::parse("replacement", "*")
-                .expect("second legacy requirement should parse")
-                .version,
-        )],
-        json!({"fixture": "legacy-second"}),
-        2,
-        Some("must-not-replace".to_owned()),
-    );
-
-    assert_eq!(
-        WorldRuntimeBindingStore::ensure_binding(&store, world(), first.clone()).await,
-        Ok(first.clone())
-    );
-    assert_eq!(
-        WorldRuntimeBindingStore::ensure_binding(&store, world(), second).await,
-        Ok(first.clone())
-    );
-    assert_eq!(
-        WorldRuntimeBindingStore::read_binding(&store, world()).await,
-        Ok(first)
-    );
-}
-
 fn validated(
     store: &InMemoryStore,
     registry: &CapabilityRegistry,
@@ -793,6 +750,44 @@ fn no_change_registry() -> CapabilityRegistry {
     .expect("no-change Capability registry should assemble")
 }
 
+fn prepare_runtime_lifecycle(store: &InMemoryStore, registry: &CapabilityRegistry) {
+    let binding = WorldRuntimeBinding::new(
+        registry
+            .capabilities()
+            .map(|manifest| (manifest.id.clone(), VersionReq::STAR)),
+        json!({"fixture": "explicit-runtime-v0"}),
+        1,
+        Some("explicit-runtime-v0".to_owned()),
+    );
+    store
+        .persist_binding(world(), binding)
+        .expect("Runtime fixture binding should be persisted explicitly");
+
+    let revision = runtime_revision_for(registry);
+    store
+        .confirm_revision(revision.clone())
+        .expect("Runtime fixture revision should be confirmed");
+    store
+        .activate_revision(revision.id().clone(), None, PlatformTime::default())
+        .expect("Runtime fixture revision should be active");
+}
+
+fn runtime_revision_for(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("explicit-runtime-v0"),
+        PlatformTime::default(),
+        "test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("Runtime fixture revision should be valid")
+}
+
 struct FailOnceResolver {
     failed: Arc<AtomicBool>,
 }
@@ -854,11 +849,127 @@ fn ingress_test_runtime(store: &InMemoryStore) -> (Runtime<&InMemoryStore>, Manu
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = no_change_registry();
+    prepare_runtime_lifecycle(store, &registry);
     let clock = ManualPlatformClock::new(PlatformTime::new(0));
-    let runtime = Runtime::new(store, no_change_registry())
+    let runtime = Runtime::new(store, registry)
         .expect("Runtime should assemble")
         .with_platform_clock(clock.clone());
     (runtime, clock)
+}
+
+#[tokio::test]
+async fn runtime_requires_an_active_revision_without_mutating_binding() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let binding = WorldRuntimeBinding::new(
+        [(CapabilityId::from(OWNER), VersionReq::STAR)],
+        json!({"fixture": "missing-revision"}),
+        1,
+        Some("missing-revision".to_owned()),
+    );
+    store
+        .persist_binding(world(), binding.clone())
+        .expect("binding should be persisted explicitly");
+    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+
+    let error = runtime
+        .invoke(ActionRequest::new(
+            TimelineTarget::new(world(), timeline()),
+            ActionInvocation::new(
+                ActionTypeId::from(EVENT_ACTION),
+                json!({"event_id": event(901).to_string()}),
+            ),
+        ))
+        .await
+        .expect_err("missing active revision should be unavailable");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert_eq!(
+        store.read_binding(world()).expect("binding should remain"),
+        binding
+    );
+}
+
+#[tokio::test]
+async fn runtime_rejects_partial_binding_compatibility_without_mutating_binding() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let binding = WorldRuntimeBinding::new(
+        [
+            (CapabilityId::from(OWNER), VersionReq::STAR),
+            (CapabilityId::from("test.missing"), VersionReq::STAR),
+        ],
+        json!({"fixture": "partial-binding"}),
+        1,
+        Some("partial-binding".to_owned()),
+    );
+    store
+        .persist_binding(world(), binding.clone())
+        .expect("binding should be persisted explicitly");
+    let registry = registry();
+    let revision = runtime_revision_for(&registry);
+    store
+        .confirm_revision(revision.clone())
+        .expect("revision should be confirmed");
+    store
+        .activate_revision(revision.id().clone(), None, PlatformTime::default())
+        .expect("revision should be active");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+
+    let error = runtime
+        .invoke(ActionRequest::new(
+            TimelineTarget::new(world(), timeline()),
+            ActionInvocation::new(
+                ActionTypeId::from(EVENT_ACTION),
+                json!({"event_id": event(902).to_string()}),
+            ),
+        ))
+        .await
+        .expect_err("partial binding compatibility should be unavailable");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert_eq!(
+        store.read_binding(world()).expect("binding should remain"),
+        binding
+    );
+}
+
+#[tokio::test]
+async fn runtime_registry_change_cannot_mutate_the_persisted_binding() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
+    let binding = store
+        .read_binding(world())
+        .expect("binding should be readable");
+    let changed_registry = CapabilityRegistry::assemble([TestCapability {
+        manifest: CapabilityManifest::parse(OWNER, "0.2.0")
+            .expect("changed Capability manifest should parse"),
+    }])
+    .expect("changed Capability registry should assemble");
+    let runtime = Runtime::new(&store, changed_registry).expect("Runtime should assemble");
+
+    let error = runtime
+        .invoke(ActionRequest::new(
+            TimelineTarget::new(world(), timeline()),
+            ActionInvocation::new(
+                ActionTypeId::from(EVENT_ACTION),
+                json!({"event_id": event(903).to_string()}),
+            ),
+        ))
+        .await
+        .expect_err("changed registry should be unavailable");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert_eq!(
+        store.read_binding(world()).expect("binding should remain"),
+        binding
+    );
 }
 
 impl ActionResolver for FailOnceResolver {
@@ -1009,7 +1120,9 @@ async fn empty_public_action_returns_no_change_without_advancing_timeline_versio
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
-    let runtime = Runtime::new(&store, no_change_registry()).expect("Runtime should assemble");
+    let registry = no_change_registry();
+    prepare_runtime_lifecycle(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let before = store
         .snapshot(timeline())
         .expect("test Timeline should be readable")
@@ -1039,7 +1152,9 @@ async fn committed_event_has_atomic_bidirectional_session_provenance() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
-    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let event_id = event(900);
     let result = runtime
         .invoke(ActionRequest::new(
@@ -1263,8 +1378,10 @@ async fn work_only_actions_use_each_injected_platform_time_and_persist_schedule_
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = no_change_registry();
+    prepare_runtime_lifecycle(&store, &registry);
     let clock = loom_runtime::ManualPlatformClock::new(PlatformTime::new(7));
-    let runtime = Runtime::new(&store, no_change_registry())
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_platform_clock(clock.clone());
     let target = TimelineTarget::new(world(), timeline());
@@ -1361,7 +1478,9 @@ async fn zero_event_work_completion_commits_runtime_state_atomically() {
             WorkHandlerId::from(EMPTY_WORK_HANDLER),
         ))
         .expect("empty Work fixture should be seeded");
-    let runtime = Runtime::new(&store, no_change_registry()).expect("Runtime should assemble");
+    let registry = no_change_registry();
+    prepare_runtime_lifecycle(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
 
     let result = runtime
         .execute_work(
@@ -1462,6 +1581,8 @@ async fn run_agency_wake_cas_conflict(
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1484,7 +1605,7 @@ async fn run_agency_wake_cas_conflict(
     store
         .seed_work(conflict_work)
         .expect("conflict Work should be seeded");
-    let runtime = Runtime::new(store.as_ref(), registry())
+    let runtime = Runtime::new(store.as_ref(), registry)
         .expect("Runtime should assemble")
         .with_cognitive_executor(SharedAgencyExecutor(Arc::clone(&scripted)))
         .with_cognitive_policy(policy);
@@ -1617,6 +1738,8 @@ async fn admin_agency_wake_schedule_and_cancel_use_logical_work_authority() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1626,7 +1749,7 @@ async fn admin_agency_wake_schedule_and_cancel_use_logical_work_authority() {
             },
         )
         .expect("Agency Agent should exist");
-    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let target = TimelineTarget::new(world(), timeline());
     let initial = store
         .snapshot(timeline())
@@ -1677,6 +1800,8 @@ async fn agency_no_action_completes_wake_without_world_event() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1693,7 +1818,7 @@ async fn agency_no_action_completes_wake_without_world_event() {
             "deterministic.fake",
         ))
         .expect("Agency Wake should be seeded");
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::no_action()]));
 
@@ -1729,6 +1854,8 @@ async fn agency_act_reuses_action_authority_and_commits_atomically() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1746,7 +1873,7 @@ async fn agency_act_reuses_action_authority_and_commits_atomically() {
             "deterministic.fake",
         ))
         .expect("Agency Wake should be seeded");
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::act(
             ActionInvocation::new(
@@ -1782,6 +1909,8 @@ async fn agency_semantic_rejection_completes_wake_without_fake_event() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1798,7 +1927,7 @@ async fn agency_semantic_rejection_completes_wake_without_fake_event() {
             "deterministic.fake",
         ))
         .expect("Agency Wake should be seeded");
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_cognitive_executor(agency_executor([DeterministicCognitiveStep::act(
             ActionInvocation::new(ActionTypeId::from(SEMANTIC_REJECT_ACTION), json!({})),
@@ -1827,6 +1956,8 @@ async fn agency_technical_failure_retries_pending_wake_without_commit() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_entity(
             timeline(),
@@ -1839,7 +1970,7 @@ async fn agency_technical_failure_retries_pending_wake_without_commit() {
     store
         .seed_work(pending_agency_work(work(403), entity(10), "unconfigured"))
         .expect("Agency Wake should be seeded");
-    let runtime = Runtime::new(&store, registry()).expect("Runtime should assemble");
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
 
     assert!(
         runtime
@@ -2494,6 +2625,8 @@ async fn timeline_driver_executes_head_then_surfaces_exhaustion() {
     store
         .create_timeline(world(), timeline())
         .expect("test Timeline should be created");
+    let registry = registry();
+    prepare_runtime_lifecycle(&store, &registry);
     store
         .seed_work(pending_work(work(210)))
         .expect("first Work fixture should be seeded");
@@ -2502,7 +2635,7 @@ async fn timeline_driver_executes_head_then_surfaces_exhaustion() {
     store
         .seed_work(second_work)
         .expect("second Work fixture should be seeded");
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_chronology_budget_limit(1);
     let target = TimelineTarget::new(world(), timeline());

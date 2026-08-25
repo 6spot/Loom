@@ -1003,7 +1003,7 @@ impl InMemoryStore {
     /// # Errors
     ///
     /// Returns [`BindingError::WorldNotFound`] when the World is absent or
-    /// [`BindingError::BindingNotFound`] for an unmigrated M3 World.
+    /// [`BindingError::BindingNotFound`] when no Binding was persisted.
     pub fn read_binding(&self, world_id: WorldId) -> Result<WorldRuntimeBinding, BindingError> {
         let guard = self.read_state();
         if !guard.worlds.contains(&world_id) {
@@ -1039,32 +1039,6 @@ impl InMemoryStore {
         staged.world_bindings.insert(world_id, binding);
         *guard = staged;
         Ok(())
-    }
-
-    /// Reads a binding or performs the explicit one-time M3 compatibility
-    /// migration for a World whose binding row predates the current schema.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BindingError::WorldNotFound`] when the World is absent.
-    pub fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> Result<WorldRuntimeBinding, BindingError> {
-        let mut guard = self.write_state();
-        let mut staged = guard.clone();
-        if !staged.worlds.contains(&world_id) {
-            return Err(BindingError::WorldNotFound { world_id });
-        }
-        if let Some(binding) = staged.world_bindings.get(&world_id) {
-            return Ok(binding.clone());
-        }
-        staged
-            .world_bindings
-            .insert(world_id, legacy_binding.clone());
-        *guard = staged;
-        Ok(legacy_binding)
     }
 
     /// Publishes one immutable Runtime Revision descriptor.
@@ -2428,14 +2402,6 @@ impl WorldRuntimeBindingStore for InMemoryStore {
         binding: WorldRuntimeBinding,
     ) -> PersistenceFuture<'_, Result<(), BindingError>> {
         Box::pin(async move { InMemoryStore::persist_binding(self, world_id, binding) })
-    }
-
-    fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, BindingError>> {
-        Box::pin(async move { InMemoryStore::ensure_binding(self, world_id, legacy_binding) })
     }
 }
 

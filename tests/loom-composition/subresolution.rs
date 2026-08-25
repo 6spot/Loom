@@ -27,6 +27,7 @@ use loom_runtime::{
     WorkStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use loom_storage::InMemoryStore;
+use semver::VersionReq;
 use serde_json::{Value, json};
 
 const ROOT_CAPABILITY: &str = "composition.root";
@@ -498,14 +499,62 @@ impl WorldRuntimeBindingStore for CountingStore {
     ) -> PersistenceFuture<'_, Result<(), loom_runtime::BindingError>> {
         WorldRuntimeBindingStore::persist_binding(&self.inner, world_id, binding)
     }
+}
 
-    fn ensure_binding(
-        &self,
-        world_id: WorldId,
-        legacy_binding: WorldRuntimeBinding,
-    ) -> PersistenceFuture<'_, Result<WorldRuntimeBinding, loom_runtime::BindingError>> {
-        WorldRuntimeBindingStore::ensure_binding(&self.inner, world_id, legacy_binding)
-    }
+fn composition_explicit_binding(registry: &CapabilityRegistry) -> WorldRuntimeBinding {
+    WorldRuntimeBinding::new(
+        registry
+            .capabilities()
+            .map(|manifest| (manifest.id.clone(), VersionReq::STAR)),
+        json!({"fixture": "explicit-composition-v0"}),
+        1,
+        Some("explicit-composition-v0".to_owned()),
+    )
+}
+
+fn composition_explicit_revision(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("explicit-composition-v0"),
+        PlatformTime::default(),
+        "test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("composition revision should be valid")
+}
+
+fn prepare_composition_runtime(store: &CountingStore, registry: &CapabilityRegistry) {
+    let binding = composition_explicit_binding(registry);
+    store
+        .inner
+        .persist_binding(world(), binding)
+        .expect("composition binding should be persisted");
+    let revision = composition_explicit_revision(registry);
+    store
+        .inner
+        .confirm_revision(revision.clone())
+        .expect("composition revision should be confirmed");
+    store
+        .inner
+        .activate_revision(revision.id().clone(), None, PlatformTime::default())
+        .expect("composition revision should be activated");
+}
+
+fn prepare_composition_revision_only(store: &CountingStore, registry: &CapabilityRegistry) {
+    let revision = composition_explicit_revision(registry);
+    store
+        .inner
+        .confirm_revision(revision.clone())
+        .expect("composition revision should be confirmed");
+    store
+        .inner
+        .activate_revision(revision.id().clone(), None, PlatformTime::default())
+        .expect("composition revision should be activated");
 }
 
 impl RuntimeRevisionStore for CountingStore {
@@ -650,7 +699,9 @@ fn normal_input() -> Value {
 #[tokio::test]
 async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let result = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
         .await
@@ -696,7 +747,7 @@ async fn cross_capability_resolution_flattens_owner_segments_into_one_commit() {
             .revision()
             .id()
             .as_str(),
-        "legacy-registry",
+        "explicit-composition-v0",
     );
     assert!(sessions[0].status().is_terminal());
     assert_eq!(snapshot.events.len(), 2);
@@ -925,8 +976,9 @@ async fn world_binding_rejects_installed_but_disabled_action_before_dispatch() {
     WorldRuntimeBindingStore::persist_binding(&store, world(), binding)
         .await
         .expect("World binding should persist once");
-
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_revision_only(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let error = (&runtime as &dyn LoomApi)
         .invoke(ActionRequest::new(
             target(),
@@ -944,7 +996,9 @@ async fn world_binding_rejects_installed_but_disabled_action_before_dispatch() {
 #[tokio::test]
 async fn child_rejection_remains_a_semantic_outcome_without_commit() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let mut input = normal_input();
     input["reject_child"] = json!(true);
     let result = (&runtime as &dyn LoomApi)
@@ -971,7 +1025,9 @@ async fn child_rejection_remains_a_semantic_outcome_without_commit() {
 #[tokio::test]
 async fn undeclared_child_capability_is_rejected_before_commit() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(false)).expect("Runtime should assemble");
+    let registry = registry(false);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let error = (&runtime as &dyn LoomApi)
         .invoke(request(normal_input()))
         .await
@@ -991,7 +1047,9 @@ async fn undeclared_child_capability_is_rejected_before_commit() {
 #[tokio::test]
 async fn repeated_pair_is_rejected_as_a_path_cycle() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let mut input = normal_input();
     input["cycle"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
@@ -1013,7 +1071,9 @@ async fn repeated_pair_is_rejected_as_a_path_cycle() {
 #[tokio::test]
 async fn depth_budget_stops_nested_dispatch_before_the_leaf_resolver() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true))
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_resolution_budget(ResolutionBudget::unlimited().with_max_subresolution_depth(1));
     let mut input = normal_input();
@@ -1029,7 +1089,9 @@ async fn depth_budget_stops_nested_dispatch_before_the_leaf_resolver() {
 #[tokio::test]
 async fn subresolution_count_budget_stops_the_first_child_dispatch() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true))
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_resolution_budget(ResolutionBudget::unlimited().with_max_subresolution_count(0));
     let error = (&runtime as &dyn LoomApi)
@@ -1043,7 +1105,9 @@ async fn subresolution_count_budget_stops_the_first_child_dispatch() {
 #[tokio::test]
 async fn aggregate_budget_covers_child_and_root_segments() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true))
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry)
         .expect("Runtime should assemble")
         .with_resolution_budget(ResolutionBudget::unlimited().with_max_events(1));
     let error = (&runtime as &dyn LoomApi)
@@ -1065,7 +1129,9 @@ async fn aggregate_budget_covers_child_and_root_segments() {
 #[tokio::test]
 async fn invalid_child_segment_fails_before_commit_eligibility() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let mut input = normal_input();
     input["invalid_child"] = json!(true);
     let error = (&runtime as &dyn LoomApi)
@@ -1087,7 +1153,9 @@ async fn invalid_child_segment_fails_before_commit_eligibility() {
 #[tokio::test]
 async fn invalid_child_input_fails_before_child_dispatch_and_commit() {
     let store = CountingStore::new();
-    let runtime = Runtime::new(&store, registry(true)).expect("Runtime should assemble");
+    let registry = registry(true);
+    prepare_composition_runtime(&store, &registry);
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
     let mut input = normal_input();
     input["invalid_child_input"] = json!(true);
     let error = (&runtime as &dyn LoomApi)

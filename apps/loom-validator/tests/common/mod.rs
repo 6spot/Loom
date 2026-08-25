@@ -13,9 +13,13 @@
 use std::{env, path::Path, process::Command, sync::Arc};
 
 use loom_boundary::{BoundaryConfig, router};
+use loom_capability::CapabilityRegistry;
 use loom_client::LoomClient;
 use loom_neutral::registry as neutral_registry;
-use loom_runtime::Runtime;
+use loom_runtime::{
+    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionStore,
+};
 use loom_storage::{InMemoryStore, PgStorage};
 use tokio::sync::Mutex;
 
@@ -34,6 +38,75 @@ pub fn leaked_runtime() -> &'static tokio::runtime::Runtime {
             .expect("failed to build validator test runtime");
         Box::leak(Box::new(rt))
     })
+}
+
+fn validator_descriptor(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-explicit-v0"),
+        PlatformTime::default(),
+        "validator-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("validator-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("validator runtime revision should be valid")
+}
+
+fn ensure_validator_revision_in_memory(
+    store: &InMemoryStore,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let descriptor = validator_descriptor(registry);
+    store
+        .confirm_revision(descriptor.clone())
+        .map_err(|e| format!("{e:?}"))?;
+    let active = store.read_active_revision().map_err(|e| format!("{e:?}"))?;
+    let needs_activation = active
+        .as_ref()
+        .is_none_or(|selection| selection.revision().id() != descriptor.id());
+    if needs_activation {
+        let expected = active
+            .as_ref()
+            .map(loom_runtime::RuntimeRevisionSelection::generation);
+        store
+            .activate_revision(descriptor.id().clone(), expected, PlatformTime::default())
+            .map_err(|e| format!("{e:?}"))?;
+    }
+    Ok(())
+}
+
+async fn ensure_validator_revision_pg(
+    store: &PgStorage,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let descriptor = validator_descriptor(registry);
+    RuntimeRevisionStore::confirm_revision(store, descriptor.clone())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let active = RuntimeRevisionStore::read_active_revision(store)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let needs_activation = active
+        .as_ref()
+        .is_none_or(|selection| selection.revision().id() != descriptor.id());
+    if needs_activation {
+        let expected = active
+            .as_ref()
+            .map(loom_runtime::RuntimeRevisionSelection::generation);
+        RuntimeRevisionStore::activate_revision(
+            store,
+            descriptor.id().clone(),
+            expected,
+            PlatformTime::default(),
+        )
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    }
+    Ok(())
 }
 
 struct InMemoryHandle {
@@ -85,6 +158,7 @@ async fn start_in_memory(
 ) -> Result<(LoomClient, InMemoryHandle), String> {
     let registry = neutral_registry();
     registry.validate().map_err(|e| format!("{e:?}"))?;
+    ensure_validator_revision_in_memory(store, &registry)?;
     let runtime = Runtime::new(store, registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
     let router = router(api, BoundaryConfig::default());
@@ -199,6 +273,7 @@ fn start_repository_postgres() -> Result<(), String> {
 async fn start_pg(store: PgStorage) -> Result<(LoomClient, PgHandle), String> {
     let registry = neutral_registry();
     registry.validate().map_err(|e| format!("{e:?}"))?;
+    ensure_validator_revision_pg(&store, &registry).await?;
     let runtime = Runtime::new(store.clone(), registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
     let router = router(api, BoundaryConfig::default());

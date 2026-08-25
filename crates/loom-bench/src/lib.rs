@@ -25,9 +25,12 @@ use loom_core::{
 use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
 use loom_runtime::{
     ExecutionSessionStore, PinnedReadBoundary, PinnedReadPolicy, PinnedWorldReadStore,
-    PlatformTime, Runtime, WorkRecord, WorkStatus, WorkStore, WorkTarget,
+    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, WorkRecord, WorkStatus, WorkStore, WorkTarget,
+    WorldRuntimeBinding, WorldRuntimeBindingStore,
 };
 use loom_storage::InMemoryStore;
+use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -172,6 +175,61 @@ fn bench_registry(entity: EntityId) -> CapabilityRegistry {
         entity,
     };
     CapabilityRegistry::assemble(vec![cap]).expect("bench registry")
+}
+
+// ---------------------------------------------------------------------------
+// Explicit V0 lifecycle authority for every in-memory benchmark composition root
+// ---------------------------------------------------------------------------
+
+fn bench_binding(registry: &CapabilityRegistry) -> WorldRuntimeBinding {
+    WorldRuntimeBinding::new(
+        registry.capabilities().map(|manifest| {
+            (
+                manifest.id.clone(),
+                VersionReq::parse("*").expect("bench binding requirement should parse"),
+            )
+        }),
+        json!({"fixture": "loom-bench-v0"}),
+        1,
+        Some("loom-bench-v0".to_owned()),
+    )
+}
+
+fn bench_revision(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("loom-bench-v0"),
+        PlatformTime::default(),
+        "bench-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("bench:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("bench Runtime Revision should be valid")
+}
+
+fn ensure_bench_authority<'a>(
+    store: &InMemoryStore,
+    worlds: impl IntoIterator<Item = WorldId>,
+    registry: &CapabilityRegistry,
+) {
+    let binding = bench_binding(registry);
+    for world in worlds {
+        let _ = store.persist_binding(world, binding.clone());
+    }
+    let revision = bench_revision(registry);
+    let _ = store.confirm_revision(revision.clone());
+    let active = store.read_active_revision().unwrap_or(None);
+    let needs_activation = active
+        .as_ref()
+        .is_none_or(|selection| selection.revision().id() != revision.id());
+    if needs_activation {
+        let expected = active.as_ref().map(RuntimeRevisionSelection::generation);
+        let _ = store.activate_revision(revision.id().clone(), expected, PlatformTime::default());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +467,11 @@ pub async fn scenario_multi_timeline_parallel_in_memory() -> Vec<ScenarioRecord>
             store.seed_work(work).expect("seed work");
             timeline_ids.push((world, tid));
         }
+        ensure_bench_authority(
+            &store,
+            timeline_ids.iter().map(|(world, _)| *world),
+            &registry,
+        );
         let runtime = Runtime::new(&store, registry).expect("runtime");
         let start = Instant::now();
         let mut latencies = Vec::new();
@@ -537,6 +600,7 @@ pub async fn scenario_single_timeline_many_works_in_memory() -> Vec<ScenarioReco
             };
             store.seed_work(work).expect("seed work");
         }
+        ensure_bench_authority(&store, [world], &registry);
         let runtime = Runtime::new(&store, registry).expect("runtime");
         let target = TimelineTarget::new(world, tid);
         let mut latencies = Vec::new();
@@ -670,6 +734,7 @@ pub async fn scenario_agency_wakes_latency_in_memory() -> Vec<ScenarioRecord> {
                 .with_delay_polls(delay_polls);
                 steps.push(step);
             }
+            ensure_bench_authority(&store, [world], &registry);
             let executor = Arc::new(DeterministicCognitiveExecutor::new(steps));
             let runtime = Runtime::new(&store, registry)
                 .expect("runtime")
@@ -838,6 +903,7 @@ pub async fn scenario_external_action_race_in_memory() -> Vec<ScenarioRecord> {
         ))
         .with_delay_polls(5),
     ]));
+    ensure_bench_authority(store.as_ref(), [world], &registry);
     let runtime = Arc::new(
         Runtime::new(store.as_ref(), registry)
             .expect("runtime")
@@ -1296,6 +1362,10 @@ pub async fn scenario_scheduler_polling_in_memory() -> Vec<ScenarioRecord> {
             }).expect("work");
         }
         let registry = bench_registry(entity_id(5000));
+        let worlds: Vec<WorldId> = (0..timeline_count)
+            .map(|idx| world_id(1000 + idx as u128))
+            .collect();
+        ensure_bench_authority(&store2, worlds, &registry);
         let runtime = Runtime::new(&store2, registry).expect("runtime");
         let start2 = Instant::now();
         let mut drive_lat = Vec::new();
@@ -1437,6 +1507,7 @@ pub async fn scenario_cognition_resample_vs_reuse() -> Vec<ScenarioRecord> {
             conflict_work.logical_schedule_order = 2;
             store.seed_work(conflict_work).expect("seed conflict");
             let registry = bench_registry(agent);
+            ensure_bench_authority(store.as_ref(), [world], &registry);
             // Script: one step for first attempt, second for resample if needed
             let scripted = if reuse {
                 Arc::new(DeterministicCognitiveExecutor::new(vec![
@@ -1533,6 +1604,36 @@ pub async fn scenario_cognition_resample_vs_reuse() -> Vec<ScenarioRecord> {
         });
     }
     records
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn in_memory_benchmark_scenarios_execute_under_explicit_runtime_authority() {
+        let records = run_all_in_memory().await;
+        let scenarios: std::collections::BTreeSet<&str> = records
+            .iter()
+            .map(|record| record.scenario.as_str())
+            .collect();
+        for expected in [
+            "multi_timeline_parallel",
+            "single_timeline_many_works",
+            "agency_wakes_same_instant",
+            "external_action_race_long_wake",
+            "pinned_reads_scaling",
+            "pinned_reads_facet_scaling",
+            "scheduler_head_selection",
+            "scheduler_poll_drive",
+            "cognition_resample_vs_reuse",
+        ] {
+            assert!(
+                scenarios.contains(expected),
+                "benchmark scenario {expected} must execute with explicit Runtime authority"
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -14,7 +14,10 @@ use loom_core::{
     WorldEffect, WorldId, WorldInstant,
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
-use loom_runtime::{ExecutionOrigin, ExecutionSessionStore, IdentityAllocator, Runtime};
+use loom_runtime::{
+    ExecutionOrigin, ExecutionSessionStore, IdentityAllocator, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+};
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
 
@@ -106,6 +109,28 @@ where
         .map_err(|_| ResolverError::new(format!("{field} must be a UUID string")))
 }
 
+fn ensure_bootstrap_revision(store: &InMemoryStore, reg: &CapabilityRegistry) {
+    let descriptor = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("bootstrap-explicit-v0"),
+        PlatformTime::default(),
+        "test-build",
+        reg.loom_version().clone(),
+        reg.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("bootstrap revision should be valid");
+    store
+        .confirm_revision(descriptor.clone())
+        .expect("bootstrap revision should be confirmed");
+    store
+        .activate_revision(descriptor.id().clone(), None, PlatformTime::default())
+        .expect("bootstrap revision should be activated");
+}
+
 fn registry() -> CapabilityRegistry {
     CapabilityRegistry::assemble([BootstrapCapability {
         manifest: CapabilityManifest::parse(CAPABILITY, "0.1.0")
@@ -124,9 +149,11 @@ fn template_request(initial_world_time: WorldInstant) -> CreateWorldFromTemplate
 #[tokio::test]
 async fn template_world_creation_is_atomic_and_immediately_usable() {
     let store = InMemoryStore::new();
+    let reg = registry();
+    ensure_bootstrap_revision(&store, &reg);
     let world_id = id::<WorldId>(0x3001);
     let timeline_id = id::<TimelineId>(0x3002);
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, reg)
         .expect("Runtime should assemble")
         .with_identity_allocator(FixedIdentityAllocator {
             world_id,
@@ -232,11 +259,13 @@ async fn template_world_creation_is_atomic_and_immediately_usable() {
 #[tokio::test]
 async fn template_birth_commits_bootstrap_and_snapshots_binding() {
     let store = InMemoryStore::new();
+    let reg = registry();
+    ensure_bootstrap_revision(&store, &reg);
     let world_id = id::<WorldId>(0x3101);
     let timeline_id = id::<TimelineId>(0x3102);
     let event_id = id::<EventId>(0x3110);
     let entity_id = id::<EntityId>(0x3120);
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, reg)
         .expect("Runtime should assemble")
         .with_identity_allocator(FixedIdentityAllocator {
             world_id,
@@ -320,9 +349,11 @@ async fn template_birth_commits_bootstrap_and_snapshots_binding() {
 #[tokio::test]
 async fn invalid_template_birth_leaves_no_world_or_timeline_artifact() {
     let store = InMemoryStore::new();
+    let reg = registry();
+    ensure_bootstrap_revision(&store, &reg);
     let world_id = id::<WorldId>(0x3201);
     let timeline_id = id::<TimelineId>(0x3202);
-    let runtime = Runtime::new(&store, registry())
+    let runtime = Runtime::new(&store, reg)
         .expect("Runtime should assemble")
         .with_identity_allocator(FixedIdentityAllocator {
             world_id,
@@ -357,12 +388,14 @@ async fn invalid_template_birth_leaves_no_world_or_timeline_artifact() {
 #[tokio::test]
 async fn template_revisions_are_snapshotted_per_future_world() {
     let store = InMemoryStore::new();
+    let reg = registry();
+    ensure_bootstrap_revision(&store, &reg);
     let first_world = id::<WorldId>(0x3301);
     let first_timeline = id::<TimelineId>(0x3302);
     let second_world = id::<WorldId>(0x3303);
     let second_timeline = id::<TimelineId>(0x3304);
 
-    let first_runtime = Runtime::new(&store, registry())
+    let first_runtime = Runtime::new(&store, reg)
         .expect("first Runtime should assemble")
         .with_identity_allocator(FixedIdentityAllocator {
             world_id: first_world,

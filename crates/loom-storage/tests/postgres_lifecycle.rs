@@ -17,8 +17,9 @@ use loom_core::{
 };
 use loom_protocol::{ProposedEvent, Resolution, ResolveOutcome};
 use loom_runtime::{
-    BindingError, IdentityAllocator, LifecycleError, Runtime, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
+    BindingError, IdentityAllocator, LifecycleError, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore,
+    WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore,
 };
 use serde_json::json;
 
@@ -110,6 +111,23 @@ fn template_registry() -> CapabilityRegistry {
     .expect("Template registry should assemble")
 }
 
+fn template_runtime_revision() -> RuntimeRevisionDescriptor {
+    let registry = template_registry();
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("postgres-template-runtime-v0"),
+        PlatformTime::default(),
+        "postgres-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("postgres-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("Template Runtime Revision should be valid")
+}
+
 fn template(event_id: EventId) -> WorldTemplateDescriptor {
     WorldTemplateDescriptor::new("postgres-template", 2, WorldInstant::new(321))
         .requires_capability(TEMPLATE_CAPABILITY, "^0.1.0")
@@ -176,6 +194,18 @@ async fn postgres_18_template_birth_is_atomic_and_snapshots_binding() {
     let event_id = id::<EventId>(0x4410);
 
     {
+        let revision = template_runtime_revision();
+        RuntimeRevisionStore::confirm_revision(&storage, revision.clone())
+            .await
+            .expect("Template Runtime Revision should be confirmed");
+        RuntimeRevisionStore::activate_revision(
+            &storage,
+            revision.id().clone(),
+            None,
+            PlatformTime::default(),
+        )
+        .await
+        .expect("Template Runtime Revision should be active");
         let runtime = Runtime::new(&storage, template_registry())
             .expect("Template Runtime should assemble")
             .with_identity_allocator(FixedIdentityAllocator {

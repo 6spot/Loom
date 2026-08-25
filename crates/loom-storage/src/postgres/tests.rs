@@ -21,8 +21,12 @@ use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome,
 use loom_runtime::{
     CognitiveDisposition, CognitiveOutcome, DeterministicCognitiveExecutor,
     DeterministicCognitiveStep, ExecutionOrigin, ExecutionSessionStatus, ExecutionSessionStore,
-    IngressStore, LogicalJournalStore, ManualPlatformClock, Runtime, WorldStore,
+    IngressStore, LogicalJournalStore, ManualPlatformClock, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionSelection, RuntimeRevisionStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore,
 };
+use semver::VersionReq;
 use serde_json::{Value, json};
 
 const WORLD_ID: &str = "00000000-0000-0000-0000-000000000101";
@@ -32,6 +36,18 @@ const AGENCY_COGNITION: &str = "deterministic.fake";
 const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 static REPOSITORY_POSTGRES_READY: OnceLock<()> = OnceLock::new();
+
+/// Serializes module tests that activate a Runtime Revision on the shared
+/// control database. The active-revision pointer is global, so parallel tests
+/// with distinct registries would race the generation CAS on one pointer.
+static POSTGRES_RUNTIME_AUTHORITY_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+async fn lock_postgres_runtime_authority() -> tokio::sync::MutexGuard<'static, ()> {
+    POSTGRES_RUNTIME_AUTHORITY_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await
+}
 
 fn postgres_url() -> String {
     match std::env::var("LOOM_TEST_POSTGRES_URL") {
@@ -550,13 +566,77 @@ async fn postgres_agency_fixture() -> (PgStorage, WorldId, TimelineId, EntityId)
     (storage, world_id, timeline_id, entity_id)
 }
 
+async fn ensure_postgres_runtime_authority(
+    storage: &PgStorage,
+    world_id: WorldId,
+    registry: &CapabilityRegistry,
+) {
+    let binding = WorldRuntimeBinding::new(
+        registry.capabilities().map(|m| {
+            (
+                m.id.clone(),
+                VersionReq::parse("*").expect("authority requirement should parse"),
+            )
+        }),
+        json!({"fixture": "postgres-module-authority"}),
+        1,
+        Some("postgres-module-authority".to_owned()),
+    );
+    let _ = WorldRuntimeBindingStore::persist_binding(storage, world_id, binding).await;
+    let mut id_parts: Vec<String> = registry
+        .capabilities()
+        .map(|manifest| format!("{}@{}", manifest.id, manifest.version))
+        .collect();
+    id_parts.sort();
+    let revision_id = RuntimeRevisionId::from(format!(
+        "postgres-module-{}",
+        if id_parts.is_empty() {
+            "empty".to_owned()
+        } else {
+            id_parts.join(",")
+        }
+    ));
+    let revision = RuntimeRevisionDescriptor::new(
+        revision_id,
+        PlatformTime::default(),
+        "test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("postgres module Runtime Revision should be valid");
+    let _ = RuntimeRevisionStore::confirm_revision(storage, revision.clone()).await;
+    let active = RuntimeRevisionStore::read_active_revision(storage)
+        .await
+        .expect("active revision should remain readable");
+    let needs_activation = active
+        .as_ref()
+        .is_none_or(|selection| selection.revision().id() != revision.id());
+    if needs_activation {
+        let expected = active.as_ref().map(RuntimeRevisionSelection::generation);
+        let _ = RuntimeRevisionStore::activate_revision(
+            storage,
+            revision.id().clone(),
+            expected,
+            PlatformTime::default(),
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 #[expect(
     clippy::too_many_lines,
     reason = "the PostgreSQL Agency Wake CAS scenario keeps schedule, recovery and provenance together"
 )]
 async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable() {
+    let _authority_guard = lock_postgres_runtime_authority().await;
     let (storage, world_id, timeline_id, entity_id) = postgres_agency_fixture().await;
+    ensure_postgres_runtime_authority(&storage, world_id, &CapabilityRegistry::new()).await;
     let target = TimelineTarget::new(world_id, timeline_id);
     let wake_work_id = unique_id::<WorkId>(0x304);
     let conflict_work_id = unique_id::<WorkId>(0x305);
@@ -776,11 +856,14 @@ async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId,
 
 #[tokio::test]
 async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
+    let _authority_guard = lock_postgres_runtime_authority().await;
     let (database_url, storage, world_id, timeline_id, entity_id, event_id) =
         ingress_authority_fixture().await;
     let target = loom_api::TimelineTarget::new(world_id, timeline_id);
+    let registry = ingress_registry(entity_id);
+    ensure_postgres_runtime_authority(&storage, world_id, &registry).await;
     let clock = ManualPlatformClock::new(loom_runtime::PlatformTime::new(10));
-    let runtime = Runtime::new(storage.clone(), ingress_registry(entity_id))
+    let runtime = Runtime::new(storage.clone(), registry)
         .expect("Runtime should assemble")
         .with_platform_clock(clock);
     let ingress_id = IngressId::from(format!("postgres-runtime-ingress-{event_id}"));
@@ -824,7 +907,9 @@ async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
         .await
         .expect("restarted PostgreSQL storage should connect");
     let restarted_clock = ManualPlatformClock::new(loom_runtime::PlatformTime::new(20));
-    let restarted_runtime = Runtime::new(restarted_storage.clone(), ingress_registry(entity_id))
+    let restarted_registry = ingress_registry(entity_id);
+    ensure_postgres_runtime_authority(&restarted_storage, world_id, &restarted_registry).await;
+    let restarted_runtime = Runtime::new(restarted_storage.clone(), restarted_registry)
         .expect("restarted Runtime should assemble")
         .with_platform_clock(restarted_clock);
     let completion = restarted_runtime

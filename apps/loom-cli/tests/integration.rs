@@ -20,10 +20,39 @@ use loom_neutral::{
     COUNTER_FACET, COUNTER_INCREMENT_ACTION, COUNTER_SEED_ACTION, registry as neutral_registry,
 };
 use loom_protocol::ActionInvocation;
-use loom_runtime::Runtime;
+use loom_runtime::{
+    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+};
 use loom_storage::InMemoryStore;
 use serde_json::json;
 use tokio::net::TcpListener;
+
+fn cli_explicit_descriptor() -> RuntimeRevisionDescriptor {
+    let registry = neutral_registry();
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("cli-explicit-v0"),
+        PlatformTime::default(),
+        "cli-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("cli-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("cli runtime revision should be valid")
+}
+
+fn ensure_cli_revision(store: &InMemoryStore) {
+    let descriptor = cli_explicit_descriptor();
+    store
+        .confirm_revision(descriptor.clone())
+        .expect("cli revision should be confirmed");
+    store
+        .activate_revision(descriptor.id().clone(), None, PlatformTime::default())
+        .expect("cli revision should be activated");
+}
 
 /// Permissive admin hook for tests.
 struct AllowAllAdmin;
@@ -40,6 +69,7 @@ impl loom_boundary::AdminAuthorizationHook for AllowAllAdmin {
 
 async fn spawn_test_server() -> (LoomClient, String) {
     let store = InMemoryStore::new();
+    ensure_cli_revision(&store);
     let runtime = Runtime::new(store, neutral_registry()).expect("runtime should assemble");
     let api = Arc::new(runtime);
     let config = BoundaryConfig::default();
@@ -72,6 +102,7 @@ async fn spawn_test_server() -> (LoomClient, String) {
 
 async fn spawn_test_server_with_auth(admin_token: &str) -> (LoomClient, String) {
     let store = InMemoryStore::new();
+    ensure_cli_revision(&store);
     let runtime = Runtime::new(store, neutral_registry()).expect("runtime should assemble");
     let api = Arc::new(runtime);
     let config = BoundaryConfig::default();

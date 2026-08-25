@@ -17,7 +17,8 @@ use loom_protocol::{ActionInvocation, Resolution, ResolveOutcome, WorkTarget};
 use loom_runtime::{
     EntropySource, EntropySourceError, EntropySourceId, ExecutionOrigin, ExecutionSession,
     ExecutionSessionStatus, ExecutionSessionStore, PlatformTime, ResolutionBudget, Runtime,
-    WorkRecord, WorkStatus,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, WorkRecord,
+    WorkStatus,
 };
 use loom_storage::InMemoryStore;
 use serde_json::{Value, json};
@@ -113,6 +114,29 @@ impl WorkHandler for EntropyFinishResolver {
     }
 }
 
+fn ensure_entropy_revision(store: &InMemoryStore) {
+    let reg = registry();
+    let descriptor = RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("entropy-explicit-v0"),
+        PlatformTime::default(),
+        "test-build",
+        reg.loom_version().clone(),
+        reg.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("entropy revision should be valid");
+    store
+        .confirm_revision(descriptor.clone())
+        .expect("entropy revision should be confirmed");
+    store
+        .activate_revision(descriptor.id().clone(), None, PlatformTime::default())
+        .expect("entropy revision should be activated");
+}
+
 fn registry() -> CapabilityRegistry {
     CapabilityRegistry::assemble([EntropyFinishCapability {
         manifest: CapabilityManifest::parse(CAPABILITY, "0.1.0")
@@ -122,6 +146,7 @@ fn registry() -> CapabilityRegistry {
 }
 
 fn runtime(store: &InMemoryStore, calls: Arc<AtomicUsize>) -> Runtime<&InMemoryStore> {
+    ensure_entropy_revision(store);
     Runtime::new(store, registry())
         .expect("entropy test Runtime should assemble")
         .with_entropy_source(CountingEntropySource { calls })

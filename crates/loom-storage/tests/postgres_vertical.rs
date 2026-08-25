@@ -14,7 +14,12 @@ use loom_core::{
 };
 use loom_protocol::{ActionInvocation, ProposedEvent, Rejection, Resolution, ResolveOutcome};
 use loom_runtime::{ExecutionSessionStore, Runtime, WorldStore};
+use loom_runtime::{
+    PlatformTime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+};
 use loom_storage::PgStorage;
+use semver::VersionReq;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use support::TestDatabase;
@@ -224,6 +229,23 @@ fn registry(entity_id: EntityId) -> CapabilityRegistry {
     .expect("test Capability registry should assemble")
 }
 
+fn runtime_revision(entity_id: EntityId) -> RuntimeRevisionDescriptor {
+    let registry = registry(entity_id);
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("postgres-vertical-runtime-v0"),
+        PlatformTime::default(),
+        "postgres-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("postgres-test:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("vertical Runtime Revision should be valid")
+}
+
 fn request(target: TimelineTarget, action: &str, input: Value) -> ActionRequest {
     ActionRequest::new(
         target,
@@ -274,6 +296,34 @@ async fn authority() -> (
     .execute(&pool)
     .await
     .expect("vertical fixture Facet should insert");
+
+    WorldRuntimeBindingStore::persist_binding(
+        &storage,
+        world_id,
+        WorldRuntimeBinding::new(
+            [(
+                loom_capability::CapabilityId::from(OWNER),
+                VersionReq::parse("^0.1.0").expect("binding requirement should parse"),
+            )],
+            json!({"fixture": "postgres-vertical"}),
+            1,
+            Some("postgres-vertical".to_owned()),
+        ),
+    )
+    .await
+    .expect("vertical fixture binding should persist");
+    let revision = runtime_revision(entity_id);
+    RuntimeRevisionStore::confirm_revision(&storage, revision.clone())
+        .await
+        .expect("vertical Runtime Revision should be confirmed");
+    RuntimeRevisionStore::activate_revision(
+        &storage,
+        revision.id().clone(),
+        None,
+        PlatformTime::default(),
+    )
+    .await
+    .expect("vertical Runtime Revision should be active");
 
     (database, storage, pool, world_id, timeline_id, entity_id)
 }
