@@ -37,6 +37,18 @@ const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:154
 
 static REPOSITORY_POSTGRES_READY: OnceLock<()> = OnceLock::new();
 
+/// Serializes module tests that activate a Runtime Revision on the shared
+/// control database. The active-revision pointer is global, so parallel tests
+/// with distinct registries would race the generation CAS on one pointer.
+static POSTGRES_RUNTIME_AUTHORITY_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+async fn lock_postgres_runtime_authority() -> tokio::sync::MutexGuard<'static, ()> {
+    POSTGRES_RUNTIME_AUTHORITY_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await
+}
+
 fn postgres_url() -> String {
     match std::env::var("LOOM_TEST_POSTGRES_URL") {
         Ok(url) if !url.trim().is_empty() => url,
@@ -622,6 +634,7 @@ async fn ensure_postgres_runtime_authority(
     reason = "the PostgreSQL Agency Wake CAS scenario keeps schedule, recovery and provenance together"
 )]
 async fn postgres_agency_wake_resample_cas_conflict_is_single_winner_and_durable() {
+    let _authority_guard = lock_postgres_runtime_authority().await;
     let (storage, world_id, timeline_id, entity_id) = postgres_agency_fixture().await;
     ensure_postgres_runtime_authority(&storage, world_id, &CapabilityRegistry::new()).await;
     let target = TimelineTarget::new(world_id, timeline_id);
@@ -843,6 +856,7 @@ async fn ingress_authority_fixture() -> (String, PgStorage, WorldId, TimelineId,
 
 #[tokio::test]
 async fn postgres_runtime_ingress_completion_and_provenance_survive_restart() {
+    let _authority_guard = lock_postgres_runtime_authority().await;
     let (database_url, storage, world_id, timeline_id, entity_id, event_id) =
         ingress_authority_fixture().await;
     let target = loom_api::TimelineTarget::new(world_id, timeline_id);

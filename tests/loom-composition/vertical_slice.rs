@@ -8,7 +8,7 @@ use std::{
 };
 
 use loom_api::{
-    ActionRequest, ActionService, ApiErrorCode, CausalDirection, CausalQuery,
+    ActionRequest, ActionService, ApiErrorCode, CatalogService, CausalDirection, CausalQuery,
     EntityTrajectoryQuery, EventQuery, ExecutionResult, FacetQuery, IngressAuthorizationContext,
     IngressEnvelope, IngressProvenance, IngressService, IngressStatus, IngressTimeMetadata,
     LoomApi, RelationshipTrajectoryQuery, TimelineTarget,
@@ -2234,4 +2234,93 @@ async fn m7_t6_combination_gate_is_bounded_restart_safe_and_authority_neutral() 
     );
     assert_eq!(benchmark_read.metrics().rows_read(), 1);
     assert!(benchmark_read.value().is_some());
+}
+
+#[tokio::test]
+async fn world_scoped_catalog_without_active_revision_is_unavailable_without_mutation() {
+    let store = counter_store();
+    let binding = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(COUNTER_CAPABILITY),
+            VersionReq::parse("^0.1.0").expect("counter requirement should parse"),
+        )],
+        json!({"fixture": "catalog-missing-revision"}),
+        1,
+        Some("catalog-missing-revision".to_owned()),
+    );
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding.clone())
+        .await
+        .expect("catalog fixture binding should persist");
+    let registry = counter_registry_with_secondary();
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    let error = runtime
+        .catalog_for_world(world())
+        .await
+        .expect_err("missing active revision must not produce a world-scoped catalog");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert_eq!(
+        store
+            .read_binding(world())
+            .expect("binding should remain readable"),
+        binding,
+        "missing active revision must not mutate the persisted Binding"
+    );
+}
+
+#[tokio::test]
+async fn semantic_projection_query_without_active_revision_is_unavailable_without_mutation() {
+    let store = counter_store();
+    let binding = WorldRuntimeBinding::new(
+        [(
+            CapabilityId::from(COUNTER_CAPABILITY),
+            VersionReq::parse("^0.1.0").expect("counter requirement should parse"),
+        )],
+        json!({"fixture": "projection-missing-revision"}),
+        1,
+        Some("projection-missing-revision".to_owned()),
+    );
+    WorldRuntimeBindingStore::persist_binding(&store, world(), binding.clone())
+        .await
+        .expect("projection fixture binding should persist");
+    let registry = counter_registry_with_secondary();
+    let runtime = Runtime::new(&store, registry).expect("Runtime should assemble");
+    let key = SemanticProjectionKey::new(world(), timeline(), COUNTER_INDEX.into());
+    let registration = SemanticProjectionRegistration::new(
+        key.clone(),
+        SemanticIndexSource::new("facet", COUNTER_FACET, SchemaRevision::new(1)),
+        SchemaRevision::new(1),
+        1,
+        "counter-model-1",
+        2,
+        SemanticIndexMetric::Cosine,
+    )
+    .expect("projection registration should be valid");
+    runtime
+        .register_semantic_projection(registration.clone())
+        .await
+        .expect("projection registration should succeed");
+    let query = SemanticProjectionQuery::new(
+        key.clone(),
+        SchemaRevision::new(1),
+        1,
+        "counter-model-1",
+        vec![1.0, 0.0],
+        1,
+    )
+    .expect("bounded projection query should be valid");
+    let error = runtime
+        .query_semantic_projection(query)
+        .await
+        .expect_err("missing active revision must fail the projection availability gate");
+    assert!(matches!(
+        error,
+        SemanticProjectionError::StorageUnavailable { .. }
+    ));
+    assert_eq!(
+        store
+            .read_binding(world())
+            .expect("binding should remain readable"),
+        binding,
+        "missing active revision must not mutate the persisted Binding"
+    );
 }

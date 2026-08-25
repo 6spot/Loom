@@ -5047,19 +5047,23 @@ where
                 actual: "disabled".to_owned(),
             });
         }
-        let active = self.store.select_active_revision().await.map_err(|_| {
-            SemanticProjectionError::StorageUnavailable {
+        let active = self
+            .store
+            .select_active_revision()
+            .await
+            .map_err(|_| SemanticProjectionError::StorageUnavailable {
                 message: "Runtime Revision selection is unavailable".to_owned(),
-            }
-        })?;
-        if let Some(active) = active
-            && !active
-                .revision()
-                .capability(&index.owner)
-                .is_some_and(|implementation| {
-                    implementation.version() == &manifest.version
-                        && implementation.loom_compatibility() == &manifest.loom_compatibility
-                })
+            })?
+            .ok_or_else(|| SemanticProjectionError::StorageUnavailable {
+                message: "Runtime Revision selection is unavailable".to_owned(),
+            })?;
+        if !active
+            .revision()
+            .capability(&index.owner)
+            .is_some_and(|implementation| {
+                implementation.version() == &manifest.version
+                    && implementation.loom_compatibility() == &manifest.loom_compatibility
+            })
         {
             return Err(SemanticProjectionError::MetadataMismatch {
                 field: "runtime_revision".to_owned(),
@@ -5972,15 +5976,18 @@ where
     fn catalog_for_world(&self, world_id: loom_core::WorldId) -> ApiFuture<'_, CatalogSnapshot> {
         Box::pin(async move {
             let binding = self.binding_for_world(world_id).await?;
-            let active = self
+            let selection = self
                 .store
                 .select_active_revision()
                 .await
-                .map_err(|error| map_runtime_revision_error(&error))?;
+                .map_err(|error| map_runtime_revision_error(&error))?
+                .ok_or_else(|| {
+                    map_runtime_revision_error(&RuntimeRevisionError::NoActiveRevision)
+                })?;
             let mut available = HashSet::new();
             for manifest in self.registry.capabilities() {
                 let compatible_binding = binding.allows(&manifest.id, &manifest.version);
-                let current_software = active.as_ref().is_none_or(|selection| {
+                let current_software =
                     selection
                         .revision()
                         .capability(&manifest.id)
@@ -5988,8 +5995,7 @@ where
                             implementation.version() == &manifest.version
                                 && implementation.loom_compatibility()
                                     == &manifest.loom_compatibility
-                        })
-                });
+                        });
                 if compatible_binding && current_software {
                     available.insert(manifest.id.clone());
                 }
