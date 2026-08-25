@@ -69,11 +69,13 @@ fn ensure_vertical_store(store: &InMemoryStore, reg: &loom_capability::Capabilit
     let _ = store.persist_binding(world(), binding);
     let _ = store.confirm_revision(descriptor.clone());
     let active = store.read_active_revision().unwrap_or(None);
-    let needs_activation = active.as_ref().map_or(true, |s| {
-        s.revision().id().as_str() != "vertical-explicit-v0"
-    });
+    let needs_activation = active
+        .as_ref()
+        .is_none_or(|s| s.revision().id().as_str() != "vertical-explicit-v0");
     if needs_activation {
-        let expected = active.as_ref().map(|s| s.generation());
+        let expected = active
+            .as_ref()
+            .map(loom_runtime::RuntimeRevisionSelection::generation);
         let _ = store.activate_revision(
             descriptor.id().clone(),
             expected,
@@ -918,6 +920,10 @@ async fn ingress_rejection_is_completed_without_world_mutation_or_retry() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the binding-aware catalog scenario keeps public projections and index gating together"
+)]
 async fn binding_aware_catalog_and_bounded_entity_trajectory_use_public_projections() {
     let store = counter_store();
     WorldRuntimeBindingStore::persist_binding(

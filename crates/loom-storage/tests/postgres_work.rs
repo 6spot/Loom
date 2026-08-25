@@ -827,6 +827,10 @@ async fn postgres_18_independent_timeline_workers_resolve_concurrently() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the topology gate keeps worker, Session and provenance isolation evidence together"
+)]
 async fn postgres_18_worker_topology_keeps_sessions_and_provenance_isolated() {
     const WORKER_COUNT: usize = 4;
 
