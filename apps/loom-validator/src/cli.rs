@@ -13,13 +13,16 @@
 //!   results (default, Task Ledger-friendly);
 //! - optional `--fail-fast` controls execution stopping after the first hard
 //!   `Fail`; `--strict` selects the strict gate policy independently.
+//! - `--required-live` selects the required-live gate (strict + trusted
+//!   `PostgreSQL` evidence) independently.
 //!
 //! ## Exit semantics
 //!
 //! - `0` — success. Includes the case where scenarios failed but `--strict`
-//!   was not enabled (best-effort). List also exits `0`.
-//! - `1` — strict gate failure when `--strict` is enabled and at least one
-//!   selected scenario is not `Pass` (`Fail`, `Skipped`, or `Unavailable`).
+//!   or `--required-live` was not enabled (best-effort). List also exits `0`.
+//! - `1` — gate failure when `--strict` or `--required-live` is enabled and
+//!   the selected gate is not satisfied (`Fail`, `Skipped`, `Unavailable`, or
+//!   missing trusted `PostgreSQL` evidence for required-live).
 //! - `2` — runner/config error (unknown scenario IDs, invalid CLI usage).
 //!   These are never represented as fake scenario findings.
 //!
@@ -55,6 +58,8 @@ pub struct CliArgs {
     pub fail_fast: bool,
     /// When true, use the strict gate policy (`Fail`, `Skipped`, `Unavailable` all fail).
     pub strict: bool,
+    /// When true, require trusted `PostgreSQL` evidence (strict + at least one trusted `PostgreSQL` `Pass`).
+    pub required_live: bool,
     /// When true, show help and exit.
     pub help: bool,
     /// Optional path for an explicit machine-readable report artifact.
@@ -80,6 +85,12 @@ impl CliArgs {
     #[must_use]
     pub fn is_strict(&self) -> bool {
         self.strict
+    }
+
+    /// Reports whether required-live gate semantics are requested.
+    #[must_use]
+    pub fn is_required_live(&self) -> bool {
+        self.required_live
     }
 
     /// Returns the explicitly requested machine report path, if any.
@@ -139,6 +150,10 @@ where
             }
             "--strict" => {
                 cli.strict = true;
+                i += 1;
+            }
+            "--required-live" => {
+                cli.required_live = true;
                 i += 1;
             }
             "--help" | "-h" => {
@@ -249,20 +264,27 @@ OPTIONS:
         --report <PATH>      Compatibility alias for --json.
         --all               Run all available scenarios (explicit)
         --fail-fast         Stop after first hard Fail (execution control only).
-                            Without this flag the runner continues after
-                            failures (default). Does not affect exit code
-                            unless --strict is also enabled.
-        --strict            Strict gate: exit 1 unless every selected
-                            scenario returns Pass. Rejects Fail, Skipped
-                            and Unavailable. Independent of --fail-fast.
-    -h, --help              Print this help
+                             Without this flag the runner continues after
+                             failures (default). Does not affect exit code
+                             unless --strict is also enabled.
+         --strict            Strict gate: exit 1 unless every selected
+                             scenario returns Pass. Rejects Fail, Skipped
+                             and Unavailable. Independent of --fail-fast.
+         --required-live     Required-live gate: strict plus at least one
+                             passing result with trusted controlled
+                             PostgreSQL evidence. External/InMemory or any
+                             Skipped/Unavailable/Fail makes the gate fail.
+                             Fails closed when no trusted PostgreSQL Pass
+                             exists. Independent of --fail-fast.
+     -h, --help              Print this help
 
 EXIT CODES:
-    0  Success. Includes scenario failures when not in --strict mode
-       (best-effort). List also exits 0.
-    1  Strict gate failure when --strict is enabled and any selected
-       scenario is not Pass (Fail, Skipped, or Unavailable).
-    2  Runner/config error (unknown IDs, invalid usage).
+     0  Success. Includes scenario failures when not in --strict/
+        --required-live mode (best-effort). List also exits 0.
+     1  Gate failure when --strict or --required-live is enabled and
+        gate policy is not satisfied (Fail, Skipped, Unavailable, or
+        missing trusted PostgreSQL evidence for --required-live).
+     2  Runner/config error (unknown IDs, invalid usage).
 
 EXAMPLES:
     loom-validator --list
@@ -307,6 +329,7 @@ pub enum CliAction {
         selection_ids: Vec<String>,
         fail_fast: bool,
         strict: bool,
+        required_live: bool,
     },
 }
 
@@ -331,6 +354,7 @@ pub fn decide_action(runner: &Runner, args: &CliArgs) -> CliAction {
                 selection_ids,
                 fail_fast: args.fail_fast,
                 strict: args.strict,
+                required_live: args.required_live,
             }
         }
         Err(err) => CliAction::RunnerError(err),
@@ -458,7 +482,9 @@ where
         return EXIT_SUCCESS;
     }
 
-    let policy = if args.strict {
+    let policy = if args.required_live {
+        ValidationPolicy::required_live()
+    } else if args.strict {
         ValidationPolicy::strict()
     } else {
         ValidationPolicy::best_effort()
@@ -496,7 +522,7 @@ where
         output(&format!("loom-validator: {}", report.summary_line()));
     }
 
-    if args.strict && !report.gate_passes() {
+    if (args.strict || args.required_live) && !report.gate_passes() {
         EXIT_SCENARIO_FAILURE
     } else {
         EXIT_SUCCESS
@@ -572,7 +598,9 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
             return EXIT_RUNNER_ERROR;
         }
     };
-    let harness = if parsed.strict {
+    let harness = if parsed.required_live {
+        harness.with_policy(crate::reports::ValidationPolicy::required_live())
+    } else if parsed.strict {
         harness.with_policy(crate::reports::ValidationPolicy::strict())
     } else {
         harness.with_policy(crate::reports::ValidationPolicy::best_effort())
@@ -653,7 +681,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         println!("loom-validator: {}", report.summary_line());
     }
 
-    if parsed.strict && !report.gate_passes() {
+    if (parsed.strict || parsed.required_live) && !report.gate_passes() {
         EXIT_SCENARIO_FAILURE
     } else {
         EXIT_SUCCESS
@@ -1863,5 +1891,286 @@ mod tests {
         let p1 = joined.find("CV-001").unwrap();
         let p3 = joined.find("CV-003").unwrap();
         assert!(p1 < p3);
+    }
+
+    // --- VALR-T06 required-live ---
+
+    fn pg_backend() -> BackendContext {
+        let client = LoomClient::builder("http://localhost:8080".to_string())
+            .build()
+            .unwrap();
+        BackendContext::new(client).with_backend_kind(BackendKind::PostgreSQL)
+    }
+
+    fn inmemory_backend() -> BackendContext {
+        let client = LoomClient::builder("http://localhost:8080".to_string())
+            .build()
+            .unwrap();
+        BackendContext::new(client).with_backend_kind(BackendKind::InMemory)
+    }
+
+    #[test]
+    fn parse_required_live_flag() {
+        let args = parse_args(vec![
+            "loom-validator".to_string(),
+            "--required-live".to_string(),
+        ])
+        .unwrap();
+        assert!(args.required_live);
+        assert!(!args.strict);
+        assert!(!args.fail_fast);
+
+        let both = parse_args(vec![
+            "loom-validator".to_string(),
+            "--required-live".to_string(),
+            "--fail-fast".to_string(),
+        ])
+        .unwrap();
+        assert!(both.required_live);
+        assert!(both.fail_fast);
+        assert!(!both.strict);
+    }
+
+    fn passing_aware(desc: &ScenarioDescriptor, backend: &BackendContext) -> ScenarioResult {
+        let finding = Finding::new(
+            desc.id().clone(),
+            desc.name(),
+            "expected",
+            "actual",
+            *backend.backend_kind(),
+            "ctx",
+            vec![],
+            ScenarioOutcome::Pass,
+        );
+        ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+    }
+
+    #[test]
+    fn required_live_all_pass_postgresql_passes() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, passing_aware, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SUCCESS);
+    }
+
+    #[test]
+    fn required_live_all_pass_external_fails() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend(); // LoomClient / External
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, passing_aware, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn required_live_all_pass_inmemory_fails() {
+        let runner = Runner::new(test_registry());
+        let backend = inmemory_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, passing_aware, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn required_live_postgresql_with_skipped_fails() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, ctx| {
+                if desc.id_str() == "CV-001" {
+                    skipped_executor(desc, ctx)
+                } else {
+                    passing_executor(desc, ctx)
+                }
+            },
+            |_| {},
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn required_live_postgresql_with_unavailable_fails() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            unavailable_executor,
+            |_| {},
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn required_live_postgresql_with_fail_fails() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, mixed_executor, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn ambient_postgres_url_cannot_upgrade_external_required_live() {
+        // Controlled evidence comes from explicit harness construction,
+        // not ambient LOOM_TEST_POSTGRES_URL. External backend must still
+        // fail required-live even when an unrelated PG URL is configured
+        // elsewhere (the harness kind is the authority). This unit test
+        // proves the external path fails required-live; the subprocess
+        // regression `backend_evidence` proves ambient PG cannot upgrade
+        // external evidence to PostgreSQL.
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, passing_executor, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+        // Also verify harness-level external evidence remains external
+        let harness = crate::backend::BackendHarness::connect(
+            BackendKind::LoomClient,
+            "http://localhost:8080",
+        )
+        .unwrap();
+        assert_eq!(
+            harness.backend_evidence(),
+            crate::scenario::BackendEvidence::External
+        );
+        assert!(!harness.backend_evidence().is_trusted());
+    }
+
+    #[test]
+    fn required_live_selection_error_remains_exit_2() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-999".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        assert_ne!(code, EXIT_SCENARIO_FAILURE);
+        assert!(err.join("\n").contains("CV-999"));
+    }
+
+    #[test]
+    fn required_live_unknown_group_remains_exit_2() {
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            groups: vec!["unknown-group".to_string()],
+            required_live: true,
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        assert!(err.join("\n").contains("unknown group"));
+    }
+
+    #[test]
+    fn required_live_single_pass_is_preserved() {
+        use std::cell::RefCell;
+        let runner = Runner::new(test_registry());
+        let backend = pg_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            required_live: true,
+            fail_fast: false,
+            ..Default::default()
+        };
+        let counts: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, ctx| {
+                counts.borrow_mut().push(desc.id_str().to_string());
+                passing_aware(desc, ctx)
+            },
+            |_| {},
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SUCCESS);
+        assert_eq!(*counts.borrow(), vec!["CV-001", "CV-002"]);
+    }
+
+    #[test]
+    fn required_live_harness_external_fails_even_with_pg_url() {
+        use crate::backend::BackendHarness;
+        let runner = Runner::new(test_registry());
+        // Generic harness is always external, never upgrades to PostgreSQL
+        // even when LOOM_TEST_POSTGRES_URL is configured elsewhere.
+        // The harness kind is the authority; ambient configuration does not
+        // change evidence class (see `backend_evidence` subprocess test).
+        let harness = BackendHarness::connect(BackendKind::LoomClient, "http://localhost:8080")
+            .unwrap()
+            .with_policy(crate::reports::ValidationPolicy::required_live());
+        let selection = runner.resolve_ids(&["CV-001".to_string()]).unwrap();
+        let report =
+            runner.run_with_harness_selected(&selection, &harness, passing_executor, false);
+        assert!(!report.gate_passes());
+        assert_eq!(
+            report.backend_evidence(),
+            Some(crate::scenario::BackendEvidence::External)
+        );
+    }
+
+    #[test]
+    fn help_text_documents_required_live() {
+        let txt = help_text();
+        assert!(txt.contains("--required-live"));
+        assert!(txt.contains("required-live"));
     }
 }

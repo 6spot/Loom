@@ -1,13 +1,13 @@
 ---
 task: VALR-T03
 issue: 309
-status: in_progress
+status: completed
 depends_on: [308]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 339
+merge_sha: 75ce13dfa19061b1c94aee16106041269ad90c01
 ---
 
 # VALR-T03 — Reject explicit zero-scenario selections
@@ -89,7 +89,7 @@ Added in `apps/loom-validator/src/cli.rs`:
 - [x] No valid existing selector changes meaning; valid group/scenario and no-selector behavior remain deterministic.
 - [x] Tests cover group and scenario typo paths.
 - [x] Relevant fmt/test/clippy checks pass; ledger evidence recorded.
-- [ ] Review and CI are complete before marking the task completed (pending independent T03 integration PR, will be updated after merge).
+- [x] Review and CI are complete before marking the task completed.
 
 ## Verification Evidence
 
@@ -99,8 +99,11 @@ Added in `apps/loom-validator/src/cli.rs`:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed
 - `python3 tools/check_architecture.py` → passed (DAG OK, storage SQL ownership OK)
 - `python3 tools/check_storage_sql_ownership.py` → passed
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `valid=true`, `violations=[]` (post-merge audit)
+- PR #339 Reviewer `01a03e68-d839-7901-b7de-a1279a27609b` 验收通过；required CI 2/2 success；`2026-08-26T14:11:57Z` 合并至 `75ce13dfa19061b1c94aee16106041269ad90c01`
 
 ## Progress Log
 
 - 2026-08-26 — Fixed `Runner::resolve_with_groups` to reject unknown groups and explicit empty selections as configuration errors; hardened `execute_cli`/`run_from_args` empty-selection guard to exit 2 with selector-aware message; added focused runner/CLI tests for T03 required semantics; created this ledger.
-- 2026-08-26 — Rework D-1 (independent T03 integration): 实现已随 `4e4cd9244ee551b0ac25eed49e8b4ad9c52e8506` 交付，本分支仅为依赖集成，按 ledger 合约保持 `status: in_progress` 并清空 `completed_at`/`completion_pr`/`merge_sha`，待独立 PR 合并后以真实 `completion_pr`/`merge_sha` 补齐；未伪造 PR/SHA，未改运行时语义。
+- 2026-08-26 — Rework D-1: `VALR-T03` 实现已随待合并 PR #338 集成（commit `4e4cd92`），当前 PR 尚未合并，按 ledger 合约回退为 `status: in_progress` 并清空 `completed_at`/`completion_pr`/`merge_sha`，待 PR #338 合并后以真实 `completion_pr`/`merge_sha` 记录完成证据；未伪造 PR/SHA，未改运行时语义。
+- 2026-08-26 — Post-merge audit (PR #339): `VALR-T03` 已由独立集成 PR #339 合并至 `75ce13dfa19061b1c94aee16106041269ad90c01`（Reviewer `01a03e68-d839-7901-b7de-a1279a27609b`, 2/2 CI, `2026-08-26T14:11:57Z`），按真实 main 状态补 `status: completed`/`completed_at`/`completion_pr`/`merge_sha`；未改 T06 runtime。

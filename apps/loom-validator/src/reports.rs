@@ -1361,6 +1361,126 @@ mod tests {
     }
 
     #[test]
+    fn inmemory_all_pass_is_not_a_required_live_pass() {
+        let finding = Finding::new(
+            ScenarioId::new("CV-014"),
+            "in-memory",
+            "service responds",
+            "service responded",
+            BackendKind::InMemory,
+            "controlled-harness",
+            vec![],
+            ScenarioOutcome::Pass,
+        );
+        let report = ValidationReport::from_results_with_policy(
+            vec![ScenarioResult::new(
+                ScenarioId::new("CV-014"),
+                ScenarioOutcome::Pass,
+                finding,
+            )],
+            ValidationPolicy::required_live(),
+        );
+        assert_eq!(report.backend_evidence(), Some(BackendEvidence::InMemory));
+        assert!(!report.gate_passes());
+    }
+
+    #[test]
+    fn required_live_rejects_any_non_pass_even_with_postgres_evidence() {
+        let pass_pg = {
+            let finding = Finding::new(
+                ScenarioId::new("CV-015"),
+                "live backend",
+                "service responds",
+                "service responded",
+                BackendKind::PostgreSQL,
+                "controlled-harness",
+                vec![],
+                ScenarioOutcome::Pass,
+            );
+            ScenarioResult::new(ScenarioId::new("CV-015"), ScenarioOutcome::Pass, finding)
+        };
+        let skipped = {
+            let finding = Finding::new(
+                ScenarioId::new("CV-016"),
+                "needs db",
+                "db present",
+                "db missing",
+                BackendKind::PostgreSQL,
+                "controlled-harness",
+                vec![],
+                ScenarioOutcome::Skipped {
+                    reason: "missing prerequisite".to_string(),
+                },
+            );
+            ScenarioResult::new(
+                ScenarioId::new("CV-016"),
+                ScenarioOutcome::Skipped {
+                    reason: "missing prerequisite".to_string(),
+                },
+                finding,
+            )
+        };
+        let unavailable = ScenarioResult::unavailable(
+            ScenarioId::new("CV-017"),
+            "live backend",
+            BackendKind::PostgreSQL,
+            "environment unavailable",
+        );
+        let fail = {
+            let finding = Finding::new(
+                ScenarioId::new("CV-018"),
+                "live backend",
+                "expected",
+                "actual",
+                BackendKind::PostgreSQL,
+                "controlled-harness",
+                vec![],
+                ScenarioOutcome::Fail,
+            );
+            ScenarioResult::new(ScenarioId::new("CV-018"), ScenarioOutcome::Fail, finding)
+        };
+
+        // Pass + Skipped => fail
+        assert!(
+            !ValidationReport::from_results_with_policy(
+                vec![pass_pg.clone(), skipped],
+                ValidationPolicy::required_live()
+            )
+            .gate_passes()
+        );
+
+        // Pass + Unavailable => fail
+        assert!(
+            !ValidationReport::from_results_with_policy(
+                vec![pass_pg.clone(), unavailable],
+                ValidationPolicy::required_live()
+            )
+            .gate_passes()
+        );
+
+        // Pass + Fail => fail
+        assert!(
+            !ValidationReport::from_results_with_policy(
+                vec![pass_pg, fail],
+                ValidationPolicy::required_live()
+            )
+            .gate_passes()
+        );
+
+        // Single Skipped alone also fails (no passing postgres)
+        let only_skipped = ValidationReport::from_results_with_policy(
+            vec![ScenarioResult::unavailable(
+                ScenarioId::new("CV-019"),
+                "live",
+                BackendKind::PostgreSQL,
+                "prereq missing",
+            )],
+            ValidationPolicy::required_live(),
+        );
+        assert!(!only_skipped.gate_passes());
+    }
+
+    #[test]
     fn strict_gate_rejects_fail_skipped_unavailable_and_passes_all_pass() {
         let pass = result("CV-001", ScenarioOutcome::Pass, vec![]);
         let fail = result("CV-002", ScenarioOutcome::Fail, vec![]);
