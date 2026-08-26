@@ -1,13 +1,13 @@
 ---
 task: VALR-T08
 issue: 313
-status: in_progress
+status: completed
 depends_on: [312]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 343
+merge_sha: 276981290b4d4b8b8d0299402944c5f75cbb9a69
 ---
 
 # VALR-T08 — Freeze V0 Validator coverage matrix and CV-ID allocation
@@ -597,9 +597,10 @@ Central registry integration (`T19` #324) alone may edit `apps/loom-validator/sr
 - [x] Every planned scenario has expected/public-surface/evidence/prerequisite fields (per-CV specifications).
 - [x] Existing CV-001..011 remain stable (verification section).
 - [x] Matrix identifies explicit coverage gaps rather than hiding them (Coverage Gaps section, 17 items, 9 blocked CV-017/018/019/028/029/034/035/036/037).
-- [ ] Reviewer confirms the matrix is implementable without semantic guesswork (pending independent Reviewer).
-- [ ] CI/docs checks complete before marking completed (pending CI).
+- [x] Reviewer confirms the matrix is implementable without semantic guesswork (Reviewer `01a03f69-80db-737c-beba-540324a07ecf` on head `64960df` — D-010/D-011/D-012 closed, AC-1~AC-6 passed).
+- [x] CI/docs checks complete before marking completed (canonical `validator_ready` PASS, `check_architecture`/`check_storage`/`fmt`/`diff --check` PASS; PR #343 required checks `Rust checks`/`PostgreSQL 18` SUCCESS on `64960df`).
 
 ## Progress Log
 
 - 2026-08-27 — Created `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md` as contract-only leaf with `status: in_progress`, `depends_on: [312]`, empty `completed_at`/`completion_pr`/`merge_sha`. Froze `CV-012..CV-040` allocation with no conflict (production registry at `d4437fb` contains `CV-001..CV-011`; `CV-012` in `reports.rs` test helpers is not a production registration). Specified per-scenario capability clause, preconditions/fixtures, formal `loom-api` surfaces (`WorldService`/`ActionService`/`IngressService`/`TimelineService`/`QueryService`/`HistoryService`/`CatalogService`/`SubscriptionService`/`AdminService`), expected results, evidence classes, PostgreSQL mandatory flags, owners, complementary core/M13 evidence, and unsuitable reasons. Ensured parallel-safe suite ownership for T09 and escalatable blocked marking. Noted cross-stage `validator_ready` nuance: `--root stage-2` isolated check cannot resolve dependency `312` (lives under `stage-1`); canonical combined `--root docs/tasks/validator-recert` validates correctly. No production code, registry, or T01–T07 files modified.
+- 2026-08-27 — Post-merge ledger audit (merge commit `276981290b4d4b8b8d0299402944c5f75cbb9a69` from PR #343 head `64960df540cfab9159648200f26b73e0a114d46b`): set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 343`, `merge_sha: 276981290b4d4b8b8d0299402944c5f75cbb9a69`, checked Acceptance `Reviewer`/`CI` boxes; Reviewer `01a03f69-80db-737c-beba-540324a07ecf` on `64960df` passed D-010/D-011/D-012 and AC-1~AC-6, `gh pr checks 343` `Rust checks`/`PostgreSQL 18` SUCCESS; canonical `validator_ready` `valid=true`/`violations=[]` (8 records, `VALR-T08` ready) confirmed. No matrix/CV allocation/T09/T01–T07 changes.
