@@ -11,15 +11,15 @@
 //! - deterministic execution ordering (sorted by `CV-` ID);
 //! - normal mode continues after a failed scenario, collecting remaining
 //!   results (default, Task Ledger-friendly);
-//! - optional `--fail-fast` / `--strict` for CI diagnostics (stop early,
-//!   exit nonzero on scenario failure).
+//! - optional `--fail-fast` controls execution stopping after the first hard
+//!   `Fail`; `--strict` selects the strict gate policy independently.
 //!
 //! ## Exit semantics
 //!
-//! - `0` — success. Includes the case where scenarios failed but
-//!   `--fail-fast` was not enabled. List also exits `0`.
-//! - `1` — scenario failure when `--fail-fast`/`--strict` is enabled and
-//!   at least one selected scenario returned `Fail`.
+//! - `0` — success. Includes the case where scenarios failed but `--strict`
+//!   was not enabled (best-effort). List also exits `0`.
+//! - `1` — strict gate failure when `--strict` is enabled and at least one
+//!   selected scenario is not `Pass` (`Fail`, `Skipped`, or `Unavailable`).
 //! - `2` — runner/config error (unknown scenario IDs, invalid CLI usage).
 //!   These are never represented as fake scenario findings.
 //!
@@ -31,7 +31,7 @@
 
 use crate::backend::BackendContext;
 use crate::finding::EvidenceReference;
-use crate::reports::{ScenarioResult, ValidationReport};
+use crate::reports::{ScenarioResult, ValidationPolicy, ValidationReport};
 use crate::runner::{Runner, RunnerError};
 
 /// Exit codes for the CLI process.
@@ -51,9 +51,10 @@ pub struct CliArgs {
     pub groups: Vec<String>,
     /// When true, run all available scenarios regardless of other filters.
     pub all: bool,
-    /// When true, stop after first failure and make scenario failures affect
-    /// the process exit code.
+    /// When true, stop after the first hard `Fail` (execution control only).
     pub fail_fast: bool,
+    /// When true, use the strict gate policy (`Fail`, `Skipped`, `Unavailable` all fail).
+    pub strict: bool,
     /// When true, show help and exit.
     pub help: bool,
     /// Optional path for an explicit machine-readable report artifact.
@@ -75,6 +76,12 @@ impl CliArgs {
         self.fail_fast
     }
 
+    /// Reports whether strict gate semantics are requested.
+    #[must_use]
+    pub fn is_strict(&self) -> bool {
+        self.strict
+    }
+
     /// Returns the explicitly requested machine report path, if any.
     #[must_use]
     pub fn machine_report_path(&self) -> Option<&str> {
@@ -91,7 +98,8 @@ impl CliArgs {
 /// - `-s` / `--scenario <ID>` (repeatable, comma-separated, also `--scenario=ID`)
 /// - `-g` / `--group <GROUP>` (repeatable, comma-separated, also `--group=GROUP`)
 /// - `--all`
-/// - `--fail-fast` / `--strict`
+/// - `--fail-fast` (execution control)
+/// - `--strict` (gate policy)
 /// - `-h` / `--help`
 /// - `--` terminates flag parsing; remaining args are positional scenario IDs
 /// - any other positional arg is treated as a scenario ID (comma-separated)
@@ -125,8 +133,12 @@ where
                 cli.all = true;
                 i += 1;
             }
-            "--fail-fast" | "--strict" => {
+            "--fail-fast" => {
                 cli.fail_fast = true;
+                i += 1;
+            }
+            "--strict" => {
+                cli.strict = true;
                 i += 1;
             }
             "--help" | "-h" => {
@@ -236,15 +248,20 @@ OPTIONS:
         --json <PATH>        Write the machine-readable report to PATH.
         --report <PATH>      Compatibility alias for --json.
         --all               Run all available scenarios (explicit)
-        --fail-fast         Stop after first failure and exit 1 if any
-                            scenario failed. Without this flag the runner
-                            continues after failures (default) and exits 0.
-        --strict            Alias for --fail-fast
+        --fail-fast         Stop after first hard Fail (execution control only).
+                            Without this flag the runner continues after
+                            failures (default). Does not affect exit code
+                            unless --strict is also enabled.
+        --strict            Strict gate: exit 1 unless every selected
+                            scenario returns Pass. Rejects Fail, Skipped
+                            and Unavailable. Independent of --fail-fast.
     -h, --help              Print this help
 
 EXIT CODES:
-    0  Success. Includes scenario failures when not in --fail-fast mode.
-    1  Scenario failure when --fail-fast/--strict is enabled.
+    0  Success. Includes scenario failures when not in --strict mode
+       (best-effort). List also exits 0.
+    1  Strict gate failure when --strict is enabled and any selected
+       scenario is not Pass (Fail, Skipped, or Unavailable).
     2  Runner/config error (unknown IDs, invalid usage).
 
 EXAMPLES:
@@ -289,6 +306,7 @@ pub enum CliAction {
         /// selection here is the normalized list for display/tests.
         selection_ids: Vec<String>,
         fail_fast: bool,
+        strict: bool,
     },
 }
 
@@ -312,6 +330,7 @@ pub fn decide_action(runner: &Runner, args: &CliArgs) -> CliAction {
             CliAction::Run {
                 selection_ids,
                 fail_fast: args.fail_fast,
+                strict: args.strict,
             }
         }
         Err(err) => CliAction::RunnerError(err),
@@ -327,6 +346,7 @@ pub fn decide_action(runner: &Runner, args: &CliArgs) -> CliAction {
 ///
 /// `output` and `error_output` are closures for capturing stdout/stderr in
 /// tests; the binary passes `println!`/`eprintln!` equivalents.
+#[allow(clippy::too_many_lines)]
 pub fn execute_cli<F, W, E>(
     runner: &Runner,
     backend: &BackendContext,
@@ -409,7 +429,14 @@ where
         return EXIT_SUCCESS;
     }
 
-    let mut report = runner.run_selected(&selection, backend, execute, args.fail_fast);
+    let policy = if args.strict {
+        ValidationPolicy::strict()
+    } else {
+        ValidationPolicy::best_effort()
+    };
+    let mut report = runner
+        .run_selected(&selection, backend, execute, args.fail_fast)
+        .with_policy(policy);
     let has_machine_evidence = if let Some(path) = args.machine_report_path() {
         report = report.with_run_metadata(
             crate::RunMetadata::default()
@@ -440,7 +467,7 @@ where
         output(&format!("loom-validator: {}", report.summary_line()));
     }
 
-    if args.fail_fast && report.has_failures() {
+    if args.strict && !report.gate_passes() {
         EXIT_SCENARIO_FAILURE
     } else {
         EXIT_SUCCESS
@@ -516,6 +543,11 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
             return EXIT_RUNNER_ERROR;
         }
     };
+    let harness = if parsed.strict {
+        harness.with_policy(crate::reports::ValidationPolicy::strict())
+    } else {
+        harness.with_policy(crate::reports::ValidationPolicy::best_effort())
+    };
 
     let selection =
         match runner.resolve_with_groups(&parsed.scenario_ids, &parsed.groups, parsed.all) {
@@ -583,7 +615,7 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         println!("loom-validator: {}", report.summary_line());
     }
 
-    if parsed.fail_fast && report.has_failures() {
+    if parsed.strict && !report.gate_passes() {
         EXIT_SCENARIO_FAILURE
     } else {
         EXIT_SUCCESS
@@ -757,6 +789,7 @@ mod tests {
         .unwrap();
         assert!(args.all);
         assert!(args.fail_fast);
+        assert!(!args.strict);
     }
 
     #[test]
@@ -772,7 +805,33 @@ mod tests {
     #[test]
     fn parse_alias_strict() {
         let args = parse_args(vec!["loom-validator".to_string(), "--strict".to_string()]).unwrap();
-        assert!(args.fail_fast);
+        assert!(args.strict);
+        assert!(!args.fail_fast);
+    }
+
+    #[test]
+    fn parse_strict_and_fail_fast_are_independent() {
+        let strict_only =
+            parse_args(vec!["loom-validator".to_string(), "--strict".to_string()]).unwrap();
+        assert!(strict_only.strict);
+        assert!(!strict_only.fail_fast);
+
+        let ff_only = parse_args(vec![
+            "loom-validator".to_string(),
+            "--fail-fast".to_string(),
+        ])
+        .unwrap();
+        assert!(ff_only.fail_fast);
+        assert!(!ff_only.strict);
+
+        let both = parse_args(vec![
+            "loom-validator".to_string(),
+            "--strict".to_string(),
+            "--fail-fast".to_string(),
+        ])
+        .unwrap();
+        assert!(both.strict);
+        assert!(both.fail_fast);
     }
 
     #[test]
@@ -1044,6 +1103,7 @@ mod tests {
         let args = CliArgs {
             scenario_ids: vec!["CV-001,CV-002,CV-003".to_string()],
             fail_fast: true,
+            strict: true,
             ..Default::default()
         };
         let mut out = Vec::new();
@@ -1056,7 +1116,7 @@ mod tests {
             |l| out.push(l.to_string()),
             |l| err.push(l.to_string()),
         );
-        // Fail-fast: stops after CV-002 failure, exit 1.
+        // Fail-fast + strict: stops after CV-002 failure, exit 1 via strict gate.
         assert_eq!(code, EXIT_SCENARIO_FAILURE);
         let joined = out.join("\n");
         assert!(joined.contains("CV-001"));
@@ -1138,13 +1198,14 @@ mod tests {
         let txt = help_text();
         assert!(txt.contains("EXIT CODES"));
         assert!(txt.contains("--fail-fast"));
+        assert!(txt.contains("--strict"));
         assert!(txt.contains("--list"));
         assert!(txt.contains("deterministic"));
     }
 
     #[test]
     fn exit_semantics_are_distinct() {
-        // Runner error is 2, scenario failure with fail-fast is 1, success is 0.
+        // Runner error is 2, strict gate failure is 1, success is 0.
         assert_ne!(EXIT_SUCCESS, EXIT_SCENARIO_FAILURE);
         assert_ne!(EXIT_SUCCESS, EXIT_RUNNER_ERROR);
         assert_ne!(EXIT_SCENARIO_FAILURE, EXIT_RUNNER_ERROR);
@@ -1218,6 +1279,7 @@ mod tests {
         let args = CliArgs {
             scenario_ids: vec!["CV-001,CV-002".to_string()],
             fail_fast: true,
+            strict: true,
             ..Default::default()
         };
         let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
@@ -1329,5 +1391,237 @@ mod tests {
         let pos2 = joined.find("CV-002").unwrap();
         assert!(pos1 < pos2);
         assert!(joined.contains("2 total"));
+    }
+
+    // --- VALR-T02 strict vs fail-fast separation ---
+
+    fn skipped_executor(desc: &ScenarioDescriptor, _backend: &BackendContext) -> ScenarioResult {
+        let outcome = ScenarioOutcome::Skipped {
+            reason: "missing prerequisite: test db".to_string(),
+        };
+        let finding = Finding::new(
+            desc.id().clone(),
+            desc.name(),
+            "expected",
+            "actual",
+            BackendKind::LoomClient,
+            "ctx",
+            vec![],
+            outcome.clone(),
+        );
+        ScenarioResult::new(desc.id().clone(), outcome, finding)
+    }
+
+    fn unavailable_executor(
+        desc: &ScenarioDescriptor,
+        _backend: &BackendContext,
+    ) -> ScenarioResult {
+        let outcome = ScenarioOutcome::Unavailable {
+            reason: "environment unavailable".to_string(),
+        };
+        let finding = Finding::new(
+            desc.id().clone(),
+            desc.name(),
+            "expected",
+            "actual",
+            BackendKind::LoomClient,
+            "ctx",
+            vec![],
+            outcome.clone(),
+        );
+        ScenarioResult::new(desc.id().clone(), outcome, finding)
+    }
+
+    #[test]
+    fn strict_all_pass_exits_zero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            strict: true,
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SUCCESS);
+        assert!(out.join("\n").contains("2 total"));
+    }
+
+    #[test]
+    fn strict_fail_exits_nonzero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            strict: true,
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            mixed_executor,
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn strict_skipped_exits_nonzero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001".to_string()],
+            strict: true,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, skipped_executor, |_| {}, |_| {});
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn strict_unavailable_exits_nonzero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001".to_string()],
+            strict: true,
+            ..Default::default()
+        };
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            unavailable_executor,
+            |_| {},
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn fail_fast_without_strict_stops_but_gate_unchanged() {
+        use std::cell::RefCell;
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002,CV-003".to_string()],
+            fail_fast: true,
+            strict: false,
+            ..Default::default()
+        };
+        let counts: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, ctx| {
+                counts.borrow_mut().push(desc.id_str().to_string());
+                mixed_executor(desc, ctx)
+            },
+            |_| {},
+            |_| {},
+        );
+        // Fail-fast stops after CV-002 (the failing one)
+        assert_eq!(*counts.borrow(), vec!["CV-001", "CV-002"]);
+        // But strict gate not enabled, so best-effort exit remains success
+        assert_eq!(code, EXIT_SUCCESS);
+    }
+
+    #[test]
+    fn strict_without_fail_fast_executes_all_but_still_fails() {
+        use std::cell::RefCell;
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002,CV-003".to_string()],
+            fail_fast: false,
+            strict: true,
+            ..Default::default()
+        };
+        let counts: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, ctx| {
+                counts.borrow_mut().push(desc.id_str().to_string());
+                mixed_executor(desc, ctx)
+            },
+            |_| {},
+            |_| {},
+        );
+        // Strict without fail-fast must run full selection
+        assert_eq!(*counts.borrow(), vec!["CV-001", "CV-002", "CV-003"]);
+        // Yet gate fails because CV-002 is Fail
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn strict_sets_policy_gate_and_does_not_imply_fail_fast() {
+        // Direct parse proof is in parse_strict_and_fail_fast_are_independent,
+        // but also verify execution semantics: strict alone does not stop early.
+        use std::cell::RefCell;
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        // Strict without fail-fast should NOT stop early even when first fails
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            strict: true,
+            fail_fast: false,
+            ..Default::default()
+        };
+        let counts: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, _ctx| {
+                counts.borrow_mut().push(desc.id_str().to_string());
+                let outcome = if desc.id_str() == "CV-001" {
+                    ScenarioOutcome::Fail
+                } else {
+                    ScenarioOutcome::Pass
+                };
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    "actual",
+                    BackendKind::LoomClient,
+                    "ctx",
+                    vec![],
+                    outcome.clone(),
+                );
+                ScenarioResult::new(desc.id().clone(), outcome, finding)
+            },
+            |_| {},
+            |_| {},
+        );
+        assert_eq!(*counts.borrow(), vec!["CV-001", "CV-002"]);
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+    }
+
+    #[test]
+    fn non_strict_best_effort_with_skipped_still_succeeds() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001".to_string()],
+            strict: false,
+            ..Default::default()
+        };
+        let code = execute_cli(&runner, &backend, &args, skipped_executor, |_| {}, |_| {});
+        // Best-effort preserves existing success even with Skipped
+        assert_eq!(code, EXIT_SUCCESS);
     }
 }

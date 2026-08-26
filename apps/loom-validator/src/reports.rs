@@ -549,6 +549,13 @@ impl ValidationReport {
         self
     }
 
+    /// Records the gate policy used to evaluate this report.
+    #[must_use]
+    pub fn with_policy(mut self, policy: ValidationPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
     /// Returns the selected scenario IDs in canonical order.
     #[must_use]
     pub fn selected_scenario_ids(&self) -> &[String] {
@@ -1351,5 +1358,69 @@ mod tests {
 
         assert_eq!(report.backend_evidence(), Some(BackendEvidence::PostgreSQL));
         assert!(report.gate_passes());
+    }
+
+    #[test]
+    fn strict_gate_rejects_fail_skipped_unavailable_and_passes_all_pass() {
+        let pass = result("CV-001", ScenarioOutcome::Pass, vec![]);
+        let fail = result("CV-002", ScenarioOutcome::Fail, vec![]);
+        let skipped = result(
+            "CV-003",
+            ScenarioOutcome::Skipped {
+                reason: "missing prerequisite".to_string(),
+            },
+            vec![],
+        );
+        let unavailable = result(
+            "CV-004",
+            ScenarioOutcome::Unavailable {
+                reason: "unavailable".to_string(),
+            },
+            vec![],
+        );
+
+        let all_pass = ValidationReport::from_results_with_policy(
+            vec![pass.clone()],
+            ValidationPolicy::strict(),
+        );
+        assert!(all_pass.gate_passes());
+        assert!(all_pass.policy().is_strict());
+
+        let with_fail = ValidationReport::from_results_with_policy(
+            vec![pass.clone(), fail],
+            ValidationPolicy::strict(),
+        );
+        assert!(!with_fail.gate_passes());
+
+        let with_skipped = ValidationReport::from_results_with_policy(
+            vec![pass.clone(), skipped],
+            ValidationPolicy::strict(),
+        );
+        assert!(!with_skipped.gate_passes());
+
+        let with_unavailable = ValidationReport::from_results_with_policy(
+            vec![pass, unavailable],
+            ValidationPolicy::strict(),
+        );
+        assert!(!with_unavailable.gate_passes());
+    }
+
+    #[test]
+    fn with_policy_overrides_gate_policy() {
+        let pass = result("CV-001", ScenarioOutcome::Pass, vec![]);
+        let fail = result("CV-002", ScenarioOutcome::Fail, vec![]);
+        let base = ValidationReport::from_results(vec![pass, fail]);
+        // Default is best-effort, but gate still fails due to any non-pass (as documented)
+        assert!(!base.gate_passes());
+        assert!(!base.policy().is_strict());
+
+        let strict_report = base.clone().with_policy(ValidationPolicy::strict());
+        assert!(strict_report.policy().is_strict());
+        assert!(!strict_report.gate_passes());
+
+        let all_pass =
+            ValidationReport::from_results(vec![result("CV-001", ScenarioOutcome::Pass, vec![])])
+                .with_policy(ValidationPolicy::strict());
+        assert!(all_pass.gate_passes());
     }
 }
