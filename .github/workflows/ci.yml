@@ -178,3 +178,6 @@ jobs:
 
       - name: Validator lifecycle live path on PostgreSQL 18 (VAL-T8)
         run: cargo test -p loom-validator --test lifecycle -- --nocapture
+
+      - name: Validator replay/fork live path on PostgreSQL 18 (VAL-T9 CV-005..CV-009)
+        run: cargo test -p loom-validator --test replay_fork -- --nocapture
