@@ -1,13 +1,13 @@
 ---
 task: VALR-T07
 issue: 312
-status: in_progress
+status: completed
 depends_on: [310, 311]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 341
+merge_sha: 5f271fe6493890d31889bf2d5170ec6a57d80446
 ---
 
 # VALR-T07 — Stage-1 Validator authority regression gate
@@ -86,32 +86,37 @@ Ledger/CI wiring:
 
 ## Acceptance
 
-- [ ] All six regression classes are exercised in one integrated gate (`apps/loom-validator/tests/authority_gate.rs` + `bash tools/validator-authority-gate.sh`; CI step `Validator Stage-1 authority regression gate`).
-- [ ] No expected live requirement is satisfied by skipped/unavailable evidence (strict and `required-live` gate checks).
-- [ ] No external endpoint is relabelled `PostgreSQL` by ambient environment state (`backend_evidence=external` with valid/malformed `LOOM_TEST_POSTGRES_URL`).
-- [ ] Gate runs in repository CI (`.github/workflows/ci.yml` `rust` job) or an equivalent required CI path.
-- [ ] Review is complete and all CI checks are finished successfully.
-- [ ] Completion evidence contains PR, merge SHA and exact gate results.
+- [x] All six regression classes are exercised in one integrated gate (`apps/loom-validator/tests/authority_gate.rs` + `bash tools/validator-authority-gate.sh`; CI step `Validator Stage-1 authority regression gate`).
+- [x] No expected live requirement is satisfied by skipped/unavailable evidence (strict and `required-live` gate checks).
+- [x] No external endpoint is relabelled `PostgreSQL` by ambient environment state (`backend_evidence=external` with valid/malformed `LOOM_TEST_POSTGRES_URL`).
+- [x] Gate runs in repository CI (`.github/workflows/ci.yml` `rust` job) or an equivalent required CI path.
+- [x] Review is complete and all CI checks are finished successfully.
+- [x] Completion evidence contains PR, merge SHA and exact gate results.
 
 ## Verification Evidence
 
-- `cargo fmt --all -- --check` → pending (run at head before PR)
-- `cargo check --workspace --all-targets --all-features` → pending
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → pending
-- `cargo test -p loom-validator --lib --all-features` → pending
-- `bash tools/test.sh -p loom-validator --test authority_gate -- --nocapture` → pending (gate binary, 7 tests)
-- `bash tools/test.sh -p loom-validator --test backend_evidence -- --nocapture` → pending
-- `bash tools/test.sh -p loom-validator --test restart_evidence -- --nocapture` → pending
-- `bash tools/test.sh -p loom-validator --test required_live -- --nocapture` → pending
-- `bash tools/test.sh --workspace --all-features` → pending
-- `python3 tools/check_architecture.py` → pending
-- `python3 tools/check_storage_sql_ownership.py` → pending
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → pending
-- `bash tools/validator-authority-gate.sh` → pending (named gate entry)
-- PR: pending
-- merge SHA: pending
-- Review: pending
+- `cargo fmt --all -- --check` → passed
+- `cargo check --workspace --all-targets --all-features` → passed
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed
+- `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed
+- `cargo test -p loom-validator --lib --all-features` → 150 passed, 0 failed
+- `bash tools/test.sh -p loom-validator --test authority_gate -- --nocapture` → passed (7 tests: single_pass/strict/selection/backend/restart/required_live/stage1_gate)
+- `bash tools/test.sh -p loom-validator --test backend_evidence -- --nocapture` → passed (1)
+- `bash tools/test.sh -p loom-validator --test restart_evidence -- --nocapture` → passed (6)
+- `bash tools/test.sh -p loom-validator --test required_live -- --nocapture` → passed (3)
+- `bash tools/test.sh --workspace --all-features` → passed (150 lib + 1+3+6+4+2 + lifecycle/replay_fork/runtime_authority)
+- `python3 tools/check_architecture.py` → passed (Loom architecture dependency policy: OK)
+- `python3 tools/check_storage_sql_ownership.py` → passed (storage SQL ownership check passed)
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `valid=true`, `violations=[]`, `record_count=7`, `ready=[]`, `blocked=[]` (all VALR-T01..T07 `completed`)
+- `bash tools/validator-authority-gate.sh` → passed (canonical gate: authority_gate 7/7, backend_evidence 1/1, restart_evidence 6/6, required_live 3/3; validator_ready recert valid; arch/storage/fmt)
+- PR #341 https://github.com/6spot/Loom/pull/341 — head `42994efa11d717a34303be6e42dcb04f34f70568`, base `6e3ffbe740239a35ba8f5193f51ce1462059ce46`
+- Merge SHA `5f271fe6493890d31889bf2d5170ec6a57d80446` at `2026-08-26T16:12:28Z` (GitHub merge commit)
+- Final Reviewer `01a03ed7-3eee-7538-bf5b-d6a3e28669fe` → approved on `42994efa...` (all AC-1..AC-6 verified, D-002 fixed)
+- Final workflow run `32986487501` bound to `42994efa11d717a34303be6e42dcb04f34f70568` → `Rust checks` terminal success + `PostgreSQL 18 persistence contract` terminal success (jobs 2/2)
+- GitHub issue #312 auto-closed by merge; Leader compensated close, no extra mapping change
 
 ## Progress Log
 
 - 2026-08-26 — Created T07 ledger as `in_progress` with empty `completed_at`/`completion_pr`/`merge_sha` and unchecked acceptance; added integrated gate `apps/loom-validator/tests/authority_gate.rs` proving six classes together with real harness + CLI-subprocess assertions; added named gate wrapper `tools/validator-authority-gate.sh`; wired CI in `.github/workflows/ci.yml` (path triggers + `Validator Stage-1 authority regression gate` step + recert `validator_ready` check). No T01–T06 production code, tests, or ledgers modified.
+- 2026-08-26 — Fix D-002: `selection_truth_unknown_and_empty_are_exit_2` now asserts explicit empty `world,` via `execute_cli` and subprocess (`--group world,`, `--strict --group world,`, `--required-live --group world,`) all return `exit 2`; gate remains single entry.
+- 2026-08-26 — Post-merge ledger completion audit (follow-up PR from `5f271fe6493890d31889bf2d5170ec6a57d80446`): set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 341`, `merge_sha: 5f271fe6493890d31889bf2d5170ec6a57d80446`, checked all six Acceptance, recorded Verification Evidence (Reviewer `01a03ed7-3eee-7538-bf5b-d6a3e28669fe`, workflow `32986487501` 2/2 success, canonical gate 7/7, merge `5f271fe` at `2026-08-26T16:12:28Z`), `validator_ready --root docs/tasks/validator-recert/stage-1 --check` → `valid=true` `violations=[]` 7 records all completed.
