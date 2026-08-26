@@ -21,6 +21,19 @@ mod runtime_authority;
 mod scenario;
 pub mod scenarios;
 
+// Stage-2 parallel-safe suite scaffolds (T10-T18). Each leaf owns exactly one
+// production module + one integration-test module. Central registry
+// integration is reserved for T19; these modules remain unregistered.
+pub mod action_ingress;
+pub mod agency;
+pub mod change_feed;
+pub mod provenance;
+pub mod query_catalog;
+pub mod scheduler;
+pub mod semantic_blob;
+pub mod world_binding;
+pub mod world_time;
+
 pub use backend::{
     BackendContext, BackendError, BackendHarness, BackendStart, DEFAULT_VALIDATOR_BASE_URL,
     LOOM_TEST_POSTGRES_URL, LOOM_VALIDATOR_BASE_URL, RestartCapability,
