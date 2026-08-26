@@ -37,7 +37,7 @@ class ValidatorReadyTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             parsed = READY._split_front_matter(text)
             if parsed is None:
-                continue
+                self.fail(f"missing front matter in {path}")
             front_matter, _ = parsed
             fields = READY._parse_front_matter(front_matter)
             if READY._as_string(fields.get("task")) == task:
