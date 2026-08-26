@@ -85,7 +85,7 @@ Existing `run_with_harness` prerequisite guard retained and re-verified with new
 - `cargo fmt --all -- --check` → passed
 - `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed
-- `cargo test -p loom-validator --lib --all-features` → 101 passed (including 6 new single-pass counter tests)
+- `cargo test -p loom-validator --lib --all-features` → 102 passed (including 7 new single-pass counter tests)
 - `python3 tools/check_architecture.py` → passed
 - `python3 tools/check_storage_sql_ownership.py` → passed
 
