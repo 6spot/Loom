@@ -125,8 +125,8 @@ Columns:
 | CV-032 | New Session after compatible R2 uses R2 without rewriting history (`m9/t1`, `m9/t5`) | After R2 activation, new Action via new Session S2 | `ActionService::invoke`, `TimelineService::inspect_timeline`, `AdminService::session_for_event` + `get_execution_session` | `get_execution_session(S2).runtime_revision_id == R2` and `session_for_event(E2) == S2`; `list_events` history reread of E1 still via `get_event` shows `CommittedEvent` unchanged, provenance via `session_for_event(E1) == S1` | controlled InMemory, controlled PostgreSQL | Yes | T16 | `m9/t5` R1/R2 session switch; `loom-storage` `postgres_revision` activation | — |
 | CV-033 | Implementation/call/entropy provenance tied to committed execution (`m9/t2`) | Session S1 with `read_set`, `call_provenance`, `entropy_evidence` | `AdminService::get_execution_session` fields `read_set: Vec<AdminReadDependency>`, `call_provenance: Vec<AdminResolutionCallEdge>`, `entropy_evidence: AdminEntropyEvidence` | `get_execution_session(S1).read_set`/`call_provenance`/`entropy_evidence` still show `1.7.3` at commit time, not `1.8.0` | controlled PostgreSQL (durable), controlled InMemory (logical) | No | T16 | `m9/t2` provenance evidence round-trip; `m9/t3` linkage survival after restart | — |
 | CV-034 | Agency NoAction completes wake without fabricating Event (`m10/t4`, `amendment 0003 §3.5`) | Scheduled `AgencyWake` with cognition stub returning `Decision::NoAction` | `AdminService::schedule_agency_wake`, Agency wake execution via `TimelineService`/`ActionService` indirect, `HistoryService::list_events` | Wake transitions `Pending→Completed`; `list_events` count unchanged; no new `EventId`; `get_facet` unchanged | controlled InMemory, controlled PostgreSQL | No | T17 (#322) | `m10/t4` NoAction atomic completion; Agency wake commit no-event | — |
-| CV-035 | Agency Act enters normal Action authority path (`m10/t4`) | `AgencyWake` with `Decision::Act(neutral.counter.increment)` | `AdminService::schedule_agency_wake`, `ActionService::invoke` authority (via wake), `HistoryService::list_events` + `QueryService::get_facet` | Act commits Event via same resolver/validation/CAS as direct `ActionService::invoke`; facet reflects increment; history contains Event attributable to wake Session | controlled InMemory, controlled PostgreSQL | No | T17 | `m10/t4` Act via normal path; `m10` Agency gate | — |
-| CV-036 | Agency semantic rejection produces no false Event (`m10/t4` R-1) | `Act` with invalid payload/authority rejected by Capability | `AdminService::schedule_agency_wake`, `HistoryService::list_events` | Wake completes as determined no-world-change; `ExecutionResult::Rejected`; `list_events` unchanged; later new Wake not blocked by rejected head (R-1) | controlled InMemory, controlled PostgreSQL | No | T17 | `m10/t4` R-1 rejected wake completes; `m10/t5` no stale retry | — |
+| CV-035 | Agency Act enters normal Action authority path (`m10/t4`) | No cognitive injection seam — blocked | No public `Decision` injection; `cognition` String is requirement | Blocked: no public/controlled `with_cognitive_executor` + `execute_work` surface; `schedule_agency_wake` only creates `Pending` | blocked (no public/controlled Agency execution surface) | No — blocked | T17 | `m10/t4` Act via normal path; `m10` Agency gate | No public `Decision` injection — explicit gap, requires public Agency execution API |
+| CV-036 | Agency semantic rejection produces no false Event (`m10/t4` R-1) | No cognitive injection seam — blocked | No public `Decision` injection | Blocked: no public/controlled cognitive-injection + `execute_work` surface; `ExecutionResult::Rejected` cannot be observed via `schedule_agency_wake` alone | blocked (no public/controlled Agency execution surface) | No — blocked | T17 | `m10/t4` R-1 rejected wake completes; `m10/t5` no stale retry | No public `Rejected` observation via `schedule_agency_wake` alone — explicit gap, requires public Agency execution API |
 | CV-037 | Concurrent CAS loser cannot overwrite winner, provenance records path (`m10/t5`) | No public claim API — blocked | No public claim/execute surface; only `AdminService::schedule_agency_wake` (scheduling) + `AdminService::timeline_logical_status` read exists | Blocked: no public `claim_work` API; intent is winner CAS succeeds (`Conflict` for loser) and `resample` provenance — gap requires scheduler claim API | blocked (no public/controlled claim surface) | No — blocked | T17 | `m10/t5` CAS resample vs reuse; `loom-storage` `postgres_work_stale_completion` | No public concurrent claim/execute API; `schedule_agency_wake` is scheduling only — explicit gap, requires public scheduler claim API before Validator coverage |
 | CV-038 | Committed Event observable via formal change-feed/SSE client (`m8/t4-t6`) | Timeline with committed Event; formal client `SubscriptionRequest::new` | `SubscriptionService::subscribe` / `poll_change_feed`, `HistoryService::list_events` correlation | `ChangeFeedPage`/`SubscriptionResult::Events` contains committed `EventId` with same `EventSeq`/payload as `list_events`; cursor `next_cursor` monotonic | External (real HTTP/SSE), controlled InMemory, controlled PostgreSQL | No | T18 (#323) | `m8/t4` change feed; `m8/t5` HTTP/SSE boundary | — |
 | CV-039 | Resume from valid cursor continues at documented boundary (`m8/t4`) | Change feed cursor at `EventSeq=5`; new events `6,7` committed after | `SubscriptionService::subscribe(SubscriptionRequest::resume(target, cursor, limit))` with `ChangeFeedCursor::after(target, 5)` and `ChangeFeedPage.next_cursor: Option<ChangeFeedCursor>` | Resume returns `EventSeq 6,7` only, no loss, no duplicate of `5`; `next_cursor` (`Option<ChangeFeedCursor>`) advances correctly | controlled InMemory, controlled PostgreSQL | Yes (cursor durability across restart) | T18 | `m8/t4` resume semantics; `loom-storage` change feed page/cursor | — |
@@ -134,7 +134,7 @@ Columns:
 
 ## Detailed Scenario Specifications
 
-Each scenario below expands the 10 required matrix columns so T10–T18 Executors can implement without semantic choice. Any row requiring a new authority decision is marked `blocked` and escalated — at freeze 6 rows are blocked (`CV-017` no failure injection, `CV-018` scheduler head, `CV-019` stale fence, `CV-028` semantic projection, `CV-029` blob, `CV-037` concurrent claim) for missing public API (see Coverage Gaps 8/9/11/12/13/14); all others implementable via existing `loom-api`/`loom-client`; future discovery of additional missing authority must also mark blocked and stop.
+Each scenario below expands the 10 required matrix columns so T10–T18 Executors can implement without semantic choice. Any row requiring a new authority decision is marked `blocked` and escalated — at freeze 9 rows are blocked (`CV-017`, `CV-018`, `CV-019`, `CV-028`, `CV-029`, `CV-034`, `CV-035`, `CV-036`, `CV-037`) for missing public/controlled Agency/scheduler/fault-injection API (see Coverage Gaps 8/9/11/12/13/14/15/16/17); all others implementable via existing `loom-api`/`loom-client`; future discovery of additional missing authority must also mark blocked and stop.
 
 ### CV-012 — Immutable World Binding visible through formal reads
 
@@ -287,7 +287,7 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Preconditions:** World with Events `E1@T10, E2@T20` + Work order `(T20,0),(T20,1)` + time transitions committed; then simulated restart via `BackendContext::restart` preserving storage.
 - **Formal Surface:** `HistoryService::list_events(EventQuery::all(target)) -> Vec<CommittedEvent>`, `HistoryService::list_events_page(EventQuery::all(target)) -> EventPage { events: Vec<CommittedEvent>, next_after: Option<EventSeq> }` paging, `TimelineService::inspect_timeline(TimelineTarget) -> TimelineSnapshot { version, world_time, ancestry }` (`ancestry`, `world_time`, `version`), `AdminService::timeline_logical_status(TimelineTarget) -> AdminTimelineLogicalStatus { works: Vec<AdminLogicalWorkStatus>, version, world_time }` for work `logical_schedule_order`, `QueryService::get_facet` for materialized state.
 - **Expected Result:** After restart/new `LoomClient`, `list_events` order by `EventSeq` equals pre-restart; `inspect_timeline` `world_time`, `version.state_revision`, and work logical order identical; not derived from `max(event.occurred_at)` or `PostgreSQL natural row order` or `available_at`.
-- **Evidence Classes:** controlled InMemory, controlled PostgreSQL, controlled restart (`BackendContext::ControlledBoundaryRestart`).
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL, controlled restart (`BackendContext::restart()` + `RestartCapability::ControlledBoundaryRestart`).
 - **PostgreSQL Live Mandatory:** Yes.
 - **Owner:** T13
 - **Complementary:** `m6/t1-t5` replay; `loom-storage/tests/postgres_restart_resume.rs`.
@@ -390,7 +390,7 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Clause:** `m9/t2` Session provenance, `m9/t3` Event↔Session linkage, `evolution.md`.
 - **Preconditions:** Session S1 under R1 commits `E1` via `neutral.counter.seed`.
 - **Formal Surface:** `ActionService::invoke` (produces S1) creates `ExecutionResult::Committed { event_ids, timeline_version }`; provenance via `AdminService::get_execution_session(AdminExecutionSessionRequest { session_id }) -> AdminExecutionSession` and `AdminService::session_for_event(EventRef) -> AdminEventSessionLookup`; no alternative via `TimelineSnapshot` provenance — `TimelineSnapshot` contains only `target, version, world_time, ancestry` (no provenance field). Validator uses `loom-client` + `AdminService` via `loom-boundary` admin routes with authorized context.
-- **Expected Result:** `AdminService::session_for_event(EventRef(E1)) -> AdminEventSessionLookup { event_ref: EventRef(E1), session_id: Some(S1: ExecutionSessionId) }` succeeds even after `activate_runtime_revision(R2)`; `AdminService::get_execution_session(AdminExecutionSessionRequest { session_id: S1 }) -> AdminExecutionSession { id: S1, runtime_revision_id: R1, read_set: Vec<AdminReadDependency>, call_provenance: Vec<AdminResolutionCallEdge>, entropy_evidence: AdminEntropyEvidence }` shows `runtime_revision_id == R1`; `HistoryService::get_event(EventRef(E1)) -> CommittedEvent { id, timeline_id, sequence, event_type, schema_revision, occurred_at, payload, effects }` shows `CommittedEvent` history facts only (no `session_id`/`revision_id`/`read_set` — those are via Admin provenance). Reread of `E1` history remains `CommittedEvent` with same `sequence`/`payload`.
+- **Expected Result:** `AdminService::session_for_event(EventRef(E1)) -> AdminEventSessionLookup { event_ref: EventRef(E1), session_id: Some(S1) }` succeeds even after `activate_runtime_revision(R2)`; `AdminService::get_execution_session(AdminExecutionSessionRequest { session_id: S1 }) -> AdminExecutionSession { id: S1, runtime_revision_id: R1, read_set: Vec<AdminReadDependency>, call_provenance: Vec<AdminResolutionCallEdge>, entropy_evidence: AdminEntropyEvidence }` shows `runtime_revision_id == R1`; `HistoryService::get_event(EventRef(E1)) -> CommittedEvent { id, timeline_id, sequence, event_type, schema_revision, occurred_at, payload, effects }` shows `CommittedEvent` history facts only (no `session_id`/`revision_id`/`read_set` — those are via Admin provenance). Reread of `E1` history remains `CommittedEvent` with same `sequence`/`payload`.
 - **Evidence Classes:** controlled InMemory, controlled PostgreSQL, controlled restart.
 - **PostgreSQL Live Mandatory:** Yes — provenance must survive durable restart (`PgStorage`).
 - **Owner:** T16 (#321)
@@ -415,52 +415,52 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Stable CV ID:** `CV-033`
 - **Clause:** `m9/t2` ReadSet/call graph/entropy, `runtime-contracts.md` §7.
 - **Preconditions:** Session S1 with `read_set: Vec<AdminReadDependency>` containing `entity_facet` read and `entropy_evidence: AdminEntropyEvidence` sample and `call_provenance: Vec<AdminResolutionCallEdge>` (counter increment reads dependency). Registry at `counter 1.7.3` during S1; later registry updated to `1.8.0` still compatible.
-- **Formal Surface:** `AdminService::get_execution_session(AdminExecutionSessionRequest { session_id }) -> AdminExecutionSession { read_set: Vec<AdminReadDependency>, call_provenance: Vec<AdminResolutionCallEdge>, entropy_evidence: AdminEntropyEvidence }` (plus `cognitive_evidence: AdminCognitiveEvidence` for agency wakes).
-- **Expected Result:** After new registry, `get_execution_session(S1).read_set`/`call_provenance`/`entropy_evidence` still show `1.7.3` at commit time, not `1.8.0`; `read_set` order deterministic (`AdminReadDependency`); `entropy_evidence` not resampled on replay; `CommittedEvent` history via `list_events` does not contain revision.
+- **Formal Surface:** `AdminService::get_execution_session(AdminExecutionSessionRequest { session_id }) -> AdminExecutionSession { runtime_revision_id: String, read_set: Vec<AdminReadDependency>, call_provenance: Vec<AdminResolutionCallEdge>, entropy_evidence: AdminEntropyEvidence }` (plus `cognitive_evidence: AdminCognitiveEvidence` for agency wakes) + `AdminService::get_runtime_revision(AdminRuntimeRevisionRequest { revision_id: String }) -> AdminRuntimeRevision { revision_id, capabilities: Vec<AdminRuntimeRevisionCapability { implementation_id: String, version: String }> }` for version check; `AdminReadDependency::Facet { owner: FacetOwner, facet_type: FacetTypeId, schema_revision: SchemaRevision }` shape.
+- **Expected Result:** After new registry, `get_execution_session(S1).runtime_revision_id == "R1"` and `get_runtime_revision(AdminRuntimeRevisionRequest { revision_id: R1 }).capabilities[0].version == "1.7.3"` remain at commit time, not `1.8.0`; `get_execution_session(S1).read_set` (`Vec<AdminReadDependency::Facet { owner, facet_type, schema_revision }>`), `call_provenance` and `entropy_evidence` remain stable and not resampled on replay; `CommittedEvent` history via `HistoryService::list_events` does not contain revision (revision only via Admin provenance).
 - **Evidence Classes:** controlled PostgreSQL (durable), controlled InMemory (logical).
 - **PostgreSQL Live Mandatory:** No, but PostgreSQL required to prove durable provenance storage.
 - **Owner:** T16
 - **Complementary:** `m9/t2` provenance evidence; `loom-runtime` entropy.
 - **Unsuitable Reason:** —
 
-### CV-034 — Agency NoAction completes wake without fabricating Event
+### CV-034 — Agency NoAction completes wake without fabricating Event (blocked — no cognitive injection seam)
 
 - **Stable CV ID:** `CV-034`
 - **Clause:** `m10/t4` Atomic Agency Wake Decision/Action commit, NoAction path; `amendment 0003 §3`.
-- **Preconditions:** `AgencyWake` scheduled via `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target: TimelineTarget, expected_version: TimelineVersion, work_id: WorkId, agent: EntityId, cognition: String, payload: Value, schedule: WorkSchedule })` (e.g., `schedule: WorkSchedule::At(WorldInstant)`); `loom-agency::CognitiveExecutor` via `cognition: String` field determines `Decision::NoAction`.
-- **Formal Surface:** `AdminService::schedule_agency_wake`, `HistoryService::list_events` (`list_events.len` before/after), `QueryService::get_facet`, `TimelineService::inspect_timeline` for wake logical completion.
-- **Expected Result:** Wake transitions `Pending→Completed` (chronology consumed) with no new `CommittedEvent`; `list_events` count identical before and after; `get_facet` unchanged; second wake can be scheduled at later time.
-- **Evidence Classes:** controlled InMemory, controlled PostgreSQL.
-- **PostgreSQL Live Mandatory:** No.
+- **Preconditions:** N/A — blocked. Planned: `AgencyWake` `work_id` with `cognition: String` would determine `Decision::NoAction`. Current `AdminScheduleAgencyWakeRequest.cognition: String` is stable requirement, not `Decision` injection; `Runtime::with_cognitive_executor(DeterministicCognitiveExecutor)` is application composition, not Validator `BackendHarness` seam; `AdminService::schedule_agency_wake` only creates `Pending` Work, does not execute Wake — no public/controlled cognitive-injection + Work-execution surface in `loom-api`/`loom-client`/`BackendHarness`.
+- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target, expected_version, work_id, agent, cognition, payload, schedule })` only creates `Pending` Work; no `Runtime::execute_work(target, work_id, now, claimed_until, retry_available_at)` or deterministic `CognitiveExecutor` injection via `BackendHarness`. Observation via `AdminService::timeline_logical_status` + `HistoryService::list_events` exists but driving `NoAction` to `Completed` has no public seam.
+- **Expected Result:** Blocked: Intent is `Pending→Completed` with no `CommittedEvent`. Current Validator has no `with_cognitive_executor` + `execute_work` seam to drive `NoAction` to `Completed` via public surface — explicit gap, requires public cognitive-injection + Work-execution API. Marked `BLOCKED` per Stop Conditions.
+- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
+- **PostgreSQL Live Mandatory:** No — blocked
 - **Owner:** T17 (#322)
-- **Complementary:** `m10/t4` NoAction atomic; `loom-agency` contracts.
-- **Unsuitable Reason:** —
+- **Complementary:** `m10/t4` NoAction atomic; `loom-agency` contracts — internal, not public Validator evidence.
+- **Unsuitable Reason:** `AdminScheduleAgencyWakeRequest.cognition: String` is not `Decision` provider; `Runtime::with_cognitive_executor` is app composition, `schedule_agency_wake` only creates `Pending` — no public/controlled seam to inject deterministic `CognitiveExecutor` and drive Wake to `Completed` via `execute_work` — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
 
-### CV-035 — Agency Act enters normal Action authority path
+### CV-035 — Agency Act enters normal Action authority path (blocked — no cognitive injection seam)
 
 - **Stable CV ID:** `CV-035`
 - **Clause:** `m10/t4` Act via normal path; `runtime-contracts.md` §8 Agency Decision.
-- **Preconditions:** Same wake scheduling but `Decision::Act(ActionInvocation::new("neutral.counter.increment", json!({amount:1})))` with compatible `counter` enabled.
-- **Formal Surface:** `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target, expected_version, work_id, agent, cognition, payload, schedule })` → `AdminScheduleAgencyWakeResult { target, work_id, version }`; wake execution observed via `AdminService::timeline_logical_status(target) -> AdminTimelineLogicalStatus { works: Vec<AdminLogicalWorkStatus> }` for `work_id` status `Completed`, plus `HistoryService::list_events`/`get_event` and `QueryService::get_facet` for committed history.
-- **Expected Result:** Wake completion and `Action` commit share atomic `Logical Commit` (single `state_revision` bump per wake). `list_events` gains one `EventId` attributable to wake Session; `get_facet` reflects increment; `catalog_for_world` unchanged.
-- **Evidence Classes:** controlled InMemory, controlled PostgreSQL.
-- **PostgreSQL Live Mandatory:** No.
+- **Preconditions:** N/A — blocked. Planned: same `work_id` with `Decision::Act(ActionInvocation::new("neutral.counter.increment", json!({amount:1})))` via deterministic `CognitiveExecutor`. Current `cognition: String` is not `Decision` injection; `with_cognitive_executor` is app composition, `schedule_agency_wake` only creates `Pending`.
+- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake` only creates `Pending`; no `Runtime::execute_work` + `DeterministicCognitiveExecutor` seam. Observation via `AdminService::timeline_logical_status` + `HistoryService::list_events` exists but driving `Act` to `Committed` has no public seam.
+- **Expected Result:** Blocked: Intent is `Act` shares atomic `Logical Commit` (`TimelineVersion` increments once) and `list_events` gains one `EventId`. No public seam to drive `Act` via `execute_work` — explicit gap, requires public Agency execution API. Marked `BLOCKED` per Stop Conditions.
+- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
+- **PostgreSQL Live Mandatory:** No — blocked
 - **Owner:** T17
-- **Complementary:** `m10/t4` Act via normal path.
-- **Unsuitable Reason:** —
+- **Complementary:** `m10/t4` Act via normal path — internal, not public Validator evidence.
+- **Unsuitable Reason:** No public cognitive-injection + Work-execution surface; `cognition` String is not `Decision` — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
 
-### CV-036 — Agency semantic rejection produces no false Event
+### CV-036 — Agency semantic rejection produces no false Event (blocked — no cognitive injection seam)
 
 - **Stable CV ID:** `CV-036`
 - **Clause:** `m10/t4` R-1 semantic Rejected MUST complete Wake as determined no-world-change; `runtime-contracts.md` §5.4 Rejected.
-- **Preconditions:** Wake `Act` with invalid payload (e.g., `amount: "bad-type"` or missing `entity_id`) that Capability `neutral.counter` rejects.
-- **Formal Surface:** `AdminService::schedule_agency_wake`, `HistoryService::list_events`.
-- **Expected Result:** Wake completes with `Completed` (not retried forever head-block) and status `Rejected` (distinct from `Retryable` platform failure); `list_events` unchanged; next wake at later time can succeed.
-- **Evidence Classes:** controlled InMemory, controlled PostgreSQL.
-- **PostgreSQL Live Mandatory:** No.
+- **Preconditions:** N/A — blocked. Planned: `Act` with invalid payload (e.g., `amount: "bad-type"`) would be `Rejected` via `CognitiveExecutor` `Decision::Act` -> `ExecutionResult::Rejected`. Current `schedule_agency_wake` only creates `Pending`, no `execute_work` seam.
+- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake` only creates `Pending`; no `execute_work` seam. Observation via `HistoryService::list_events` exists but driving `Rejected` has no public seam.
+- **Expected Result:** Blocked: Intent is `Rejected` completes `Pending→Completed` with no `Event`, distinct from `Retryable`. No public seam to drive `Rejected` via `execute_work` — explicit gap, requires public Agency execution API. Marked `BLOCKED` per Stop Conditions.
+- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
+- **PostgreSQL Live Mandatory:** No — blocked
 - **Owner:** T17
-- **Complementary:** `m10/t4` R-1; `loom-runtime` rejected path.
-- **Unsuitable Reason:** —
+- **Complementary:** `m10/t4` R-1; `loom-runtime` rejected path — internal, not public Validator evidence.
+- **Unsuitable Reason:** No public cognitive-injection + Work-execution surface; `ExecutionResult::Rejected` cannot be observed via `schedule_agency_wake` alone — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
 
 ### CV-037 — Concurrent/stale CAS loser cannot overwrite winner; provenance records path (blocked — no public claim API)
 
@@ -506,7 +506,7 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Stable CV ID:** `CV-040`
 - **Clause:** `m8/t5` HTTP/SSE boundary, `m8/t6` client reconnect; `loom-api::SubscriptionReconnect`/`Backpressure`.
 - **Preconditions:** Formal SSE/client subscription mid-page; harness forces disconnect (drop `PgServer` boundary task, rebuild on preserved store) or transport-level `Backpressure`.
-- **Formal Surface:** `SubscriptionService::subscribe(SubscriptionRequest::new(target, limit))` → disconnect (client sees `SubscriptionResult::Backpressure` or `ApiError`) → `SubscriptionService::subscribe(SubscriptionRequest::resume(target, cursor, limit))` where `cursor` is prior `ChangeFeedPage.next_cursor: Option<ChangeFeedCursor>` `Some(cursor)`, `HistoryService::list_events` for authority; `SubscriptionResult` is `Page(ChangeFeedPage)` or `Backpressure` variant.
+- **Formal Surface:** `SubscriptionService::subscribe(SubscriptionRequest::new(target, limit))` → disconnect (client sees `SubscriptionResult::Backpressure` or `ApiError`) → `SubscriptionService::subscribe(SubscriptionRequest::resume(target, cursor, limit))` where `cursor` is prior `ChangeFeedPage.next_cursor: Option<ChangeFeedCursor>` `Some(cursor)`, `HistoryService::list_events` for authority; `SubscriptionResult` is `Events(ChangeFeedPage)` or `Backpressure` variant.
 - **Expected Result:** After reconnect, `list_events` still exactly N authoritative commits (no second commit even if transport replays page); change-feed resume from last `next_cursor` returns expected next Events without duplication of already-committed `EventId`s; transport retry distinguishable via `EventId` dedup.
 - **Evidence Classes:** controlled InMemory, controlled PostgreSQL, controlled restart.
 - **PostgreSQL Live Mandatory:** Yes.
@@ -525,8 +525,8 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 
 Mandatory `Yes` where durability, persistence, or concurrency correctness cannot be observed via `External`/`InMemory` alone:
 
-- `Yes`: CV-014, CV-016, CV-022, CV-023, CV-030, CV-031, CV-032, CV-039, CV-040 (9 rows). Rationale in per-row table. `No — blocked`: CV-017, CV-018, CV-019, CV-028, CV-029, CV-037 (6 rows) — no public/controlled surface to drive PostgreSQL proof.
-- `No`: remaining 14 rows validate logical semantics even without live PG; they still exercise PG path when available but remain pass via controlled InMemory.
+- `Yes`: CV-014, CV-016, CV-022, CV-023, CV-030, CV-031, CV-032, CV-039, CV-040 (9 rows). Rationale in per-row table. `No — blocked`: CV-017, CV-018, CV-019, CV-028, CV-029, CV-034, CV-035, CV-036, CV-037 (9 rows) — no public/controlled Agency/scheduler/fault-injection surface to drive PostgreSQL proof.
+- `No`: remaining 11 rows validate logical semantics even without live PG; they still exercise PG path when available but remain pass via controlled InMemory.
 
 Certification gate T20 (#325) proves real controlled PostgreSQL live evidence and rejects `skipped`/`unavailable`/fake-PG results (`VALR-T06`).
 
@@ -554,13 +554,16 @@ Validator is public-consumer evidence (`loom-client` / `loom-api` formal surface
 12. **Concurrent scheduler claim (CV-037 blocked)** — no public `claim_work`/`execute_work` API; `AdminService::schedule_agency_wake` is scheduling only, and `timeline_logical_status` is read-only. Concurrent `CAS`/fence claim cannot be invoked via `loom-api` — explicit gap, requires public scheduler claim API.
 13. **Stale fence injection (CV-019 blocked)** — no public `claim`/`fence` token injection API; `AdminService::terminalize_work` is termination only. `CV-019` stale `complete` cannot be driven via public surface — explicit gap, requires public fence injection API.
 14. **Scheduler head ordering (CV-018 blocked)** — no public `schedule_work`/`claim_work` API; `AdminService::schedule_agency_wake` is agency scheduling only, `timeline_logical_status` is read-only. `CV-018` head `(T20,0)` claimability cannot be driven via public surface — explicit gap, requires public scheduler Work API.
+15. **Agency NoAction/Act/Rejected execution (CV-034/035/036 blocked)** — `AdminScheduleAgencyWakeRequest.cognition: String` is not `Decision` injection; `Runtime::with_cognitive_executor(DeterministicCognitiveExecutor)` is app composition, not Validator `BackendHarness` seam; `AdminService::schedule_agency_wake` only creates `Pending` Work, not execute. `CV-034` `NoAction`, `CV-035` `Act`, `CV-036` `Rejected` have no public/controlled cognitive-injection + `Runtime::execute_work(target, work_id, now, claimed_until, retry_available_at)` seam — explicit gap, requires public Agency execution API.
+16. **Concurrent Agency claim (CV-037 blocked)** — already listed as 12, but keep for Agency grouping; see 12.
+17. **Agency provenance via Agency execution (CV-034-037)** — `ExecutionResult::Rejected` and `NoAction` completion cannot be observed via `schedule_agency_wake` alone; requires `execute_work` + `timeline_logical_status` + `get_execution_session`/`session_for_event`.
 
 No new capability scenario invented beyond T10–T18 intents above; any additional need requires Architecture Amendment before coverage claim.
 
 ## Stop Conditions / Blocked Rows
 
 - If a required scenario cannot be specified without a new authority/semantic decision, mark that matrix row `blocked` and escalate. Do not invent the missing architecture in T08.
-- At freeze, 6 rows are blocked under current `docs/architecture/` + accepted Amendments `0001-0003` authority: `CV-017` (Ingress failure injection), `CV-018` (scheduler head), `CV-019` (stale fence), `CV-028` (semantic projection), `CV-029` (blob) and `CV-037` (concurrent claim) — no public API exists (see detailed sections and Coverage Gaps 8/9/11/12/13/14). `CV-030` is corrected to use existing `ForkTimelineRequest::at_version` + `get_facet` and remains implementable. All other rows are implementable via existing `loom-api` surfaces: `WorldService`, `ActionService`, `IngressService`, `TimelineService`, `QueryService`, `HistoryService`, `CatalogService`, `SubscriptionService`, `AdminService` (`get_execution_session`, `session_for_event`, `timeline_logical_status`, `terminalize_work`, `advance_world_time` with `from`/`to`/`version`).
+- At freeze, 9 rows are blocked under current `docs/architecture/` + accepted Amendments `0001-0003` authority: `CV-017` (Ingress), `CV-018` (scheduler), `CV-019` (fence), `CV-028` (semantic), `CV-029` (blob), `CV-034` (Agency NoAction), `CV-035` (Agency Act), `CV-036` (Agency Rejected) and `CV-037` (concurrent claim) — no public/controlled Agency execution or scheduler injection API exists (see detailed sections and Coverage Gaps 8/9/11/12/13/14/15/16/17). `CV-030` remains implementable via `ForkTimelineRequest::at_version` + `get_facet`. All other rows are implementable via existing `loom-api` surfaces: `WorldService`, `ActionService`, `IngressService`, `TimelineService`, `QueryService`, `HistoryService`, `CatalogService`, `SubscriptionService`, `AdminService` (`get_execution_session`, `session_for_event`, `get_runtime_revision`, `timeline_logical_status`, `terminalize_work`, `advance_world_time` with `from`/`to`/`version`).
 - If during T10–T18 implementation a public API cannot observe a required fact without inventing a new authority surface, stop and report coverage gap for architecture review (per each leaf's Stop Conditions).
 
 ## Parallel-Safe Implementation Boundary (for T09)
@@ -593,7 +596,7 @@ Central registry integration (`T19` #324) alone may edit `apps/loom-validator/sr
 - [x] Every new CV ID has exactly one owner leaf (table above; 29 IDs, disjoint).
 - [x] Every planned scenario has expected/public-surface/evidence/prerequisite fields (per-CV specifications).
 - [x] Existing CV-001..011 remain stable (verification section).
-- [x] Matrix identifies explicit coverage gaps rather than hiding them (Coverage Gaps section, 14 items, 6 blocked CV-017/018/019/028/029/037).
+- [x] Matrix identifies explicit coverage gaps rather than hiding them (Coverage Gaps section, 17 items, 9 blocked CV-017/018/019/028/029/034/035/036/037).
 - [ ] Reviewer confirms the matrix is implementable without semantic guesswork (pending independent Reviewer).
 - [ ] CI/docs checks complete before marking completed (pending CI).
 
