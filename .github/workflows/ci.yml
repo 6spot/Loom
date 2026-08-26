@@ -29,6 +29,7 @@ on:
       - "rust-toolchain.toml"
       - "rustfmt.toml"
       - "tools/**"
+      - "docs/tasks/validator/**"
   pull_request:
     paths:
       - ".github/workflows/**"
@@ -54,6 +55,7 @@ on:
       - "rust-toolchain.toml"
       - "rustfmt.toml"
       - "tools/**"
+      - "docs/tasks/validator/**"
 
 permissions:
   contents: read
