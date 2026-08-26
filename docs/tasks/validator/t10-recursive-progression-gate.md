@@ -1,10 +1,10 @@
 ---
 task: VAL-T10
 issue: 262
-status: in_progress
+status: planned
 depends_on: [260, 261]
 created_at: 2026-08-25
-started_at: 2026-08-25
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -95,3 +95,4 @@ by `backend::tests::missing_postgres_url_is_a_prerequisite_not_a_ready_context`.
 - 2026-08-25 — Added the read-only `tools/validator_ready.py` metadata
   enumerator, deterministic serial/parallel fixture tests, tracker/root
   reconciliation reporting, and integrated validator/prerequisite commands.
+- 2026-08-26 — Governance reconciliation (ME-263): `in_progress` while `VAL-T9` (`261`) was `in_progress` violates dependency eligibility (`VAL-T10` depends on `VAL-T9`). Status reverted to `planned` so downstream remains blocked until `VAL-T8` and `VAL-T9` are `completed` under the canonical task graph. Real-ledger validation now runs in CI via `tools/validator_ready.py --check`.

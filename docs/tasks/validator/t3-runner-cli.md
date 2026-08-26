@@ -1,13 +1,13 @@
 ---
 task: VAL-T3
 issue: 255
-status: completed
+status: planned
 depends_on: ["VAL-T2"]
 created_at: 2026-08-24
-started_at: 2026-08-25
-completed_at: 2026-08-25
-completion_pr: 269
-merge_sha: f84fd1f387ba2da43f28c489071c1013549b8217
+started_at:
+completed_at:
+completion_pr:
+merge_sha:
 ---
 # VAL-T3 — Implement validator runner CLI and scenario selection
 
@@ -15,11 +15,11 @@ Implement the runner that deterministically selects and executes registered vali
 
 ## Acceptance
 
-- [x] list/single/multi/all selection works;
-- [x] unknown IDs return a runner/config error rather than a fake scenario failure;
-- [x] a failing scenario does not prevent later selected scenarios from running in normal mode;
-- [x] exit semantics are documented and tested;
-- [x] standard Rust gates pass.
+- [ ] list/single/multi/all selection works;
+- [ ] unknown IDs return a runner/config error rather than a fake scenario failure;
+- [ ] a failing scenario does not prevent later selected scenarios from running in normal mode;
+- [ ] exit semantics are documented and tested;
+- [ ] standard Rust gates pass.
 
 ## Scope
 
@@ -57,4 +57,8 @@ No direct Runtime/Storage authority, shadow API, or broad scenario coverage is p
 - Reviewer独立验收 `01a034e3-74b4-7984-b93f-5e604cd146dd`（PR #269 `acecd7f`）对 AC-1..AC-8 全量通过，复现 56 passed / fmt/clippy/check 0 / 实测 exit 符合文档。
 - PR #269 已于 2026-08-24T17:53:17Z squash 合并至 `main`，merge SHA `f84fd1f387ba2da43f28c489071c1013549b8217`，CI `Rust checks`/`PostgreSQL 18 persistence contract` 均 pass，GitHub Issue #255 已自动关闭。
 
-Acceptance 已由 Reviewer 确认并随合并完成。
+## Governance Reconciliation (ME-263)
+
+- 2026-08-26 — Governance fix (ME-263): ledger violates dependency eligibility (`VAL-T3` completed while `VAL-T2` is not completed). To make the task graph authoritative, status reverted to `planned` and acceptance reset to pending. Implementation remains in history (`f84fd1f` / PR #269) but completion is blocked until `VAL-T2` is `completed` under the canonical task graph. See `tools/validator_ready.py --check`.
+
+Acceptance remains pending reviewer confirmation.

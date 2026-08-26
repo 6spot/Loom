@@ -1,11 +1,11 @@
 ---
 task: VAL-T8
 issue: 260
-status: completed
+status: planned
 depends_on: [255, 256, 257, 259]
 created_at: 2026-08-24
-started_at: 2026-08-25
-completed_at: 2026-08-25
+started_at:
+completed_at:
 completion_pr:
 merge_sha:
 ---
@@ -36,12 +36,12 @@ deterministic (sorted by `CV-` ID).
 
 ## Acceptance
 
-- [x] stable scenario IDs are registered and documented;
-- [x] InMemory-supported lifecycle scenarios pass deterministically;
-- [x] live PostgreSQL variants run when configured and missing live evidence is not reported as pass;
-- [x] scenarios use public/formal surfaces only;
-- [x] representative restart genuinely recreates/reconnects the application boundary rather than reusing hidden in-process state;
-- [x] findings can be written through the VAL feedback path without task-state mutation.
+- [ ] stable scenario IDs are registered and documented;
+- [ ] InMemory-supported lifecycle scenarios pass deterministically;
+- [ ] live PostgreSQL variants run when configured and missing live evidence is not reported as pass;
+- [ ] scenarios use public/formal surfaces only;
+- [ ] representative restart genuinely recreates/reconnects the application boundary rather than reusing hidden in-process state;
+- [ ] findings can be written through the VAL feedback path without task-state mutation.
 
 ## Scope
 
@@ -100,6 +100,7 @@ No autoscaling, archiving, or broad scenario coverage is part of this leaf.
   InMemory and PostgreSQL Loom service boundaries via the public `LoomClient`,
   restart terminates and rebuilds the real application boundary, and CI runs the
   validator lifecycle live path on PostgreSQL 18.
+- 2026-08-26 — Governance reconciliation (ME-263): `completed` while dependencies `256,257,259` were `in_progress` violates dependency eligibility and missing `completion_pr`/`merge_sha` with `pending reviewer confirmation` violates completion evidence. Status reverted to `planned`, acceptance reset to pending, and ledger now validated by `tools/validator_ready.py --check` (real ledger, canonical task graph only).
 
 ## Verification Evidence
 

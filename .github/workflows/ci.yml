@@ -90,6 +90,12 @@ jobs:
       - name: Architecture policy
         run: python3 tools/check_architecture.py
 
+      - name: Validator READY fixtures (unit)
+        run: python3 tools/test_validator_ready.py
+
+      - name: Validator real ledger governance (real task records)
+        run: python3 tools/validator_ready.py --check
+
       - name: Local PostgreSQL Compose config
         run: docker compose -f compose.test-db.yaml config --quiet
 
