@@ -58,13 +58,6 @@ fn cv005_to_cv008_pass_on_real_in_memory_service() {
 
 #[test]
 fn cv005_to_cv008_pass_on_live_postgres_service_when_configured() {
-    if std::env::var(loom_validator::LOOM_TEST_POSTGRES_URL)
-        .map_or(true, |value| value.trim().is_empty())
-    {
-        eprintln!("skipping: LOOM_TEST_POSTGRES_URL is not configured");
-        return;
-    }
-
     let (_server, client) = PgServer::start().expect("real PostgreSQL Loom service should start");
     for id in ["CV-005", "CV-006", "CV-007", "CV-008"] {
         let context = context(
@@ -111,13 +104,6 @@ fn cv009_is_unavailable_on_real_in_memory_service() {
 
 #[test]
 fn cv009_postgres_restart_survives_real_boundary_rebuild_when_configured() {
-    if std::env::var(loom_validator::LOOM_TEST_POSTGRES_URL)
-        .map_or(true, |value| value.trim().is_empty())
-    {
-        eprintln!("skipping: LOOM_TEST_POSTGRES_URL is not configured");
-        return;
-    }
-
     let (server, client) = PgServer::start().expect("real PostgreSQL Loom service should start");
     let server_for_restart = server.clone();
     let strategy: Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync> =
