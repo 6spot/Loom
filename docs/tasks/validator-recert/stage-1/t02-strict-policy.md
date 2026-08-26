@@ -92,7 +92,7 @@ Retained:
 ## Verification Evidence
 
 - `cargo fmt --all -- --check` → passed (clean)
-- `cargo test -p loom-validator --lib --all-features` → 119 passed, 0 failed (includes 10 new strict/policy tests + 7 T01 single-pass tests)
+- `cargo test -p loom-validator --lib --all-features` → 119 passed, 0 failed (includes 11 new strict/policy tests + 7 T01 single-pass tests)
 - `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed
 - `python3 tools/check_architecture.py` → passed (Loom architecture dependency policy: OK, storage SQL ownership check passed)
