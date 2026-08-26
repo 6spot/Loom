@@ -89,12 +89,12 @@ Existing `run_with_harness` prerequisite guard retained and re-verified with new
 - `python3 tools/check_architecture.py` → passed
 - `python3 tools/check_storage_sql_ownership.py` → passed
 - `python3 tools/validator_ready.py --check` → passed
-- Reviewer independent verification `01a03cdf-49ac-7505-bb40-c02568ec8b3b` re-check after D-001 → AC-1..AC-7 passed; D-001 ledger count corrected to 102/7
-- PR #332 required checks terminal pass (merge SHA `0719d50ea99ff7be799c4e1a8a82624af577662f`): `Rust checks` → pass, `PostgreSQL 18 persistence contract` → pass
+- Reviewer independent verification `01a03cec-e834-79fc-b515-8c69c95707f5` (head `7150d24ba0a966559b880e50d89ac84989769ce3`) → AC-1..AC-7 passed; D-001 closed, ledger 102/7 verified
+- PR #332 required checks terminal pass (merge SHA `0719d50ea99ff7be799c4e1a8a82624af577662f`, head `7150d24ba0a966559b880e50d89ac84989769ce3`): `Rust checks` → pass, `PostgreSQL 18 persistence contract` → pass
 
 ## Progress Log
 
 - 2026-08-26 — Identified `run_from_args` double execution (`apps/loom-validator/src/cli.rs:556-626`) vs `Runner::run_selected` single-pass authority; replaced CLI harness double loop with `Runner::run_with_harness_selected` single pass and added counter-based regression tests.
 - 2026-08-26 — Rework per LEADER-PRECHECK: added `docs/tasks/validator-recert/stage-1/t01-single-pass-cli.md` ledger and retained `supported_backends` prerequisite guard in `run_with_harness_selected`.
-- 2026-08-26 — Post-merge audit: set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 332`, `merge_sha: 0719d50ea99ff7be799c4e1a8a82624af577662f`; marked Acceptance Review/CI `[x]`; recorded Reviewer `01a03cdf-49ac-7505-bb40-c02568ec8b3b` pass and PR #332 `Rust checks`/`PostgreSQL 18 persistence contract` terminal pass.
+- 2026-08-26 — Post-merge audit: set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 332`, `merge_sha: 0719d50ea99ff7be799c4e1a8a82624af577662f`; marked Acceptance Review/CI `[x]`; recorded Reviewer `01a03cec-e834-79fc-b515-8c69c95707f5` (head `7150d24ba0a966559b880e50d89ac84989769ce3`) pass and PR #332 `Rust checks`/`PostgreSQL 18 persistence contract` terminal pass; updated ledger Reviewer evidence to precise through comment, removed reference to old head `3273829aad78de917d9feed0710bc8a8d533383e`.
 
