@@ -107,12 +107,13 @@ Added in `apps/loom-validator/tests/required_live.rs`:
 - `bash tools/test.sh -p loom-validator --all-features` → passed (150 lib + 1 backend_evidence + 3 required_live + 6 restart_evidence + 3 lifecycle + 4 replay_fork + 2 runtime_authority)
 - `cargo test -p loom-validator --test required_live --all-features` → 3 passed (external + PG URL, selection error, unknown group)
 - `cargo test -p loom-validator --test backend_evidence --all-features` → 1 passed (generic endpoint never infers postgres)
-- `python3 tools/check_architecture.py` → passed
+- `python3 tools/check_architecture.py` → passed (Loom architecture dependency policy: OK, storage SQL ownership check passed)
 - `python3 tools/check_storage_sql_ownership.py` → passed
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → valid for `VALR-T06` ready set (blocked only by unrelated `VALR-T02` in_progress)
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `exit 1`, `valid=false`, `violations=[VALR-T06 dependency 309 is in_progress]` (expected: `VALR-T06` 仍 `in_progress` 且被 `VALR-T03` 阻塞于同一 PR #338，`ready=[VALR-T03]`，`blocked=[VALR-T06]`，无 completion evidence 缺失；`VALR-T02` 已为 `completed`（PR #336, `13f6adfe860dcbbb3e414208d7e49361a4b52220`），`VALR-T03` `in_progress` 待合并，`307` 已完成)
 
 ## Progress Log
 
 - 2026-08-26 — Added `--required-live` flag, `ValidationPolicy::required_live` wiring through `execute_cli` and `run_from_args` single-pass paths, and strict-plus-PostgreSQL gate verification; preserved `VALR-T04` external evidence authority and `VALR-T03` selection-error exit 2 semantics.
 - 2026-08-26 — Added focused unit/report tests for external/InMemory vs PostgreSQL, Skipped/Unavailable/Fail rejection, ambient PG non-upgrade, single-pass preservation, and subprocess `required_live` gate (external + PG URL, malformed PG, selection errors); updated help text and docs.
 - 2026-08-26 — Ran `cargo fmt`, `cargo clippy`, `bash tools/test.sh -p loom-validator --all-features`, and `validator_ready` checks; recorded ledger.
+- 2026-08-26 — Rework D-1: `t02-strict-policy` 按 PR #336 补 `completed` 证据（`13f6adfe860dcbbb3e414208d7e49361a4b52220`），`t03-selection-integrity` 回退为 `in_progress` 待 PR #338 合并（已集成 `4e4cd92`），`t06-required-live` 仅修正 `validator_ready` 验证记录；`apps/loom-validator` 运行时语义未动。复核 `validator_ready --check`：`ready=[VALR-T03]`，`blocked=[VALR-T06]`，`valid=false` 因 `VALR-T06` 被同 PR 内 `VALR-T03` 阻塞（`dependency 309`），但无 `completion_pr`/`merge_sha` 缺失等 completion evidence 违规，`VALR-T02` 已 `completed`。
