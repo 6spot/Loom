@@ -309,21 +309,190 @@ def _render_text(snapshot: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _validate_completion_evidence(
+    path: Path, fields: dict[str, Any], body: str
+) -> list[str]:
+    status = _as_string(fields.get("status")).lower()
+    if status != "completed":
+        return []
+    violations: list[str] = []
+    for key in ("completed_at", "completion_pr", "merge_sha"):
+        val = _as_string(fields.get(key))
+        if not val or val.lower() in {"null", "~", "none", ""}:
+            violations.append(f"completed task missing {key}")
+    if "- [ ]" in body:
+        violations.append("completed task has unchecked acceptance boxes (- [ ])")
+    lower = body.lower()
+    if "pending reviewer confirmation" in lower or "acceptance remains pending" in lower:
+        violations.append(
+            "completed task still says acceptance pending reviewer confirmation"
+        )
+    # Contradictory status: frontmatter says completed but body says pending
+    # Already covered by pending check.
+    return violations
+
+
+def validate_invariants(
+    records: list[TaskRecord], root: Path
+) -> list[dict[str, Any]]:
+    """Validate dependency eligibility and completion evidence.
+
+    Returns a list of violations with task, path, invariant and details.
+    Uses the canonical task graph/status model only; GitHub Issue state is
+    never consulted.
+    """
+
+    index = _build_index(records)
+    violations: list[dict[str, Any]] = []
+
+    # Map path to raw fields/body for evidence checks
+    for record in records:
+        # Skip tracker records for dependency/evidence checks
+        if record.is_tracker:
+            continue
+
+        status_lower = record.status.lower()
+
+        # Dependency eligibility: in_progress and completed must have all deps completed
+        if status_lower in {"in_progress", "completed"}:
+            for dep in record.dependencies:
+                resolved = _resolve(dep, index)
+                if resolved is None:
+                    violations.append(
+                        {
+                            "task": record.task,
+                            "path": record.path,
+                            "invariant": "dependency eligibility",
+                            "details": f"dependency {dep} has no task metadata",
+                        }
+                    )
+                elif resolved.status.lower() != "completed":
+                    violations.append(
+                        {
+                            "task": record.task,
+                            "path": record.path,
+                            "invariant": "dependency eligibility",
+                            "details": f"dependency {dep} is {resolved.status}, not completed",
+                        }
+                    )
+            if record.architecture_decision_blocker:
+                violations.append(
+                    {
+                        "task": record.task,
+                        "path": record.path,
+                        "invariant": "dependency eligibility",
+                        "details": "explicit architecture-decision blocker is recorded but status is "
+                        + record.status,
+                    }
+                )
+
+        # Completion evidence: only for completed
+        if status_lower == "completed":
+            full_path = root / record.path
+            try:
+                text = full_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                violations.append(
+                    {
+                        "task": record.task,
+                        "path": record.path,
+                        "invariant": "completion evidence",
+                        "details": f"cannot read task file: {exc}",
+                    }
+                )
+                continue
+            parsed = _split_front_matter(text)
+            if parsed is None:
+                violations.append(
+                    {
+                        "task": record.task,
+                        "path": record.path,
+                        "invariant": "completion evidence",
+                        "details": "missing front matter",
+                    }
+                )
+                continue
+            front_matter, body = parsed
+            try:
+                fields = _parse_front_matter(front_matter)
+            except MetadataError as exc:
+                violations.append(
+                    {
+                        "task": record.task,
+                        "path": record.path,
+                        "invariant": "completion evidence",
+                        "details": f"front matter error: {exc}",
+                    }
+                )
+                continue
+            for detail in _validate_completion_evidence(full_path, fields, body):
+                violations.append(
+                    {
+                        "task": record.task,
+                        "path": record.path,
+                        "invariant": "completion evidence",
+                        "details": detail,
+                    }
+                )
+
+    return sorted(violations, key=lambda v: (v["task"], v["invariant"], v["details"]))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     default_root = Path(__file__).resolve().parents[1] / "docs" / "tasks" / "validator"
     parser.add_argument("--root", type=Path, default=default_root, help="task-record directory")
     parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate real ledger invariants and exit non-zero on violation (CI)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="alias for --check",
+    )
     args = parser.parse_args(argv)
+    # Default for the canonical validator root is to validate invariants.
+    # Fixture/test roots that use temporary directories can still be validated
+    # via --check, but we also default to validation when the root is the
+    # repository's real validator ledger (to satisfy governance).
+    root = args.root.resolve()
     try:
-        snapshot = evaluate(discover_records(args.root.resolve()))
+        records = discover_records(root)
+        snapshot = evaluate(records)
     except (OSError, MetadataError) as error:
         print(f"validator-ready: error: {error}", file=sys.stderr)
         return 2
+
+    # Determine whether to enforce invariants: explicit --check/--strict, or
+    # implicit when running against the canonical repository ledger.
+    canonical_root = (Path(__file__).resolve().parents[1] / "docs" / "tasks" / "validator").resolve()
+    should_validate = args.check or args.strict or root == canonical_root
+
+    violations: list[dict[str, Any]] = []
+    if should_validate:
+        violations = validate_invariants(records, root)
+
     if args.format == "json":
-        print(json.dumps(snapshot, indent=2, sort_keys=True))
+        output: dict[str, Any] = dict(snapshot)
+        if should_validate:
+            output["violations"] = violations
+            output["valid"] = len(violations) == 0
+        print(json.dumps(output, indent=2, sort_keys=True))
     else:
         print(_render_text(snapshot))
+        if should_validate and violations:
+            print("\nVIOLATIONS (real ledger invariants):", file=sys.stderr)
+            for v in violations:
+                print(
+                    f"  {v['task']} ({v['path']}): [{v['invariant']}] {v['details']}",
+                    file=sys.stderr,
+                )
+
+    if should_validate and violations:
+        return 1
     return 0
 
 

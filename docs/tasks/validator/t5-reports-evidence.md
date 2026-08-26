@@ -1,10 +1,10 @@
 ---
 task: VAL-T5
 issue: 257
-status: in_progress
+status: planned
 depends_on: [255, 256]
 created_at: 2026-08-24
-started_at: 2026-08-25
+started_at:
 completed_at:
 completion_pr:
 merge_sha:

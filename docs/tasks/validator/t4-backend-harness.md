@@ -1,10 +1,10 @@
 ---
 task: VAL-T4
 issue: 256
-status: in_progress
+status: planned
 depends_on: [254]
 created_at: 2026-08-24
-started_at: 2026-08-25
+started_at:
 completed_at:
 completion_pr:
 merge_sha:

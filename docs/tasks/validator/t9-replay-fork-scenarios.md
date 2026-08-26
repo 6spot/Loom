@@ -1,10 +1,10 @@
 ---
 task: VAL-T9
 issue: 261
-status: in_progress
+status: planned
 depends_on: [255, 256, 257, 259]
 created_at: 2026-08-24
-started_at: 2026-08-25
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -86,6 +86,7 @@ contract` CI job.
 - 2026-08-25 — Rework D-001/D-002: `InMemory` now uses an in-process `MockApi` that implements the public `LoomApi` contract (no `loom-runtime`/`loom-storage` import in validator) and is exercised via `BackendHarness`/`BackendContext` over the same `LoomApi` surface; `CV-005`–`CV-008` now call `WorldService::create_world_from_template`, `ActionService::invoke`, `TimelineService::fork`/`inspect_timeline`, `QueryService::get_facet`, `HistoryService::list_events` and verify replay/isolation from returned `TimelineSnapshot`/`FacetSnapshot`/`EventPage`; `PostgreSQL` now verifies live `catalog` reachability and `CV-009` performs a fresh `LoomClient` reconnect followed by `inspect`/`history` checks, returning `unavailable` when the endpoint is not reachable.
 - 2026-08-25 — Added the separate real-service acceptance layer at `apps/loom-validator/tests/replay_fork.rs`. It runs `CV-005`..`CV-008` through the VAL-T8 HTTP composition and production `LoomClient`-backed `BackendContext`; the `MockApi` tests remain unit coverage only.
 - 2026-08-25 — ME-272: PostgreSQL `CV-009` restart/reconnect durability via genuine boundary rebuild. `cv009` now uses `BackendContext::restart()` (harness `PgServer::restart()` preserves `PgStorage` and rebuilds `Runtime`/`Boundary`) and, through a new public client, verifies replay/fork `ancestry`/`history`, `parent 5`/`child 15`/`sibling 5` isolation, post-restart child `15→16` non-leak with `child events 3`, and historical `fork at version` (`facet 5`, `events 1`); `InMemory` remains an explicit `unavailable` gap (`finding:gap:inmemory-durable-restart-is-not-a-public-capability`) validated even against a real `InMemoryServer`.
+- 2026-08-26 — Governance reconciliation (ME-263): `in_progress` while dependencies `256,257,259` were `in_progress` violates dependency eligibility. Status reverted to `planned` so `VAL-T10` is correctly blocked until `VAL-T9` is `completed` under the canonical task graph. See `tools/validator_ready.py --check`.
 
 ## Verification Evidence
 
