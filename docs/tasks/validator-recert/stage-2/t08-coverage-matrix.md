@@ -134,7 +134,7 @@ Columns:
 
 ## Detailed Scenario Specifications
 
-Each scenario below expands the 10 required matrix columns so T10–T18 Executors can implement without semantic choice. Any row requiring a new authority decision is marked `blocked` and escalated — at freeze 5 rows are blocked (`CV-017` no failure injection, `CV-019` stale fence, `CV-028` semantic projection, `CV-029` blob, `CV-037` concurrent claim) for missing public API (see Coverage Gaps 8/9/11/12/13); all others implementable via existing `loom-api`/`loom-client`; future discovery of additional missing authority must also mark blocked and stop.
+Each scenario below expands the 10 required matrix columns so T10–T18 Executors can implement without semantic choice. Any row requiring a new authority decision is marked `blocked` and escalated — at freeze 6 rows are blocked (`CV-017` no failure injection, `CV-018` scheduler head, `CV-019` stale fence, `CV-028` semantic projection, `CV-029` blob, `CV-037` concurrent claim) for missing public API (see Coverage Gaps 8/9/11/12/13/14); all others implementable via existing `loom-api`/`loom-client`; future discovery of additional missing authority must also mark blocked and stop.
 
 ### CV-012 — Immutable World Binding visible through formal reads
 
@@ -553,13 +553,14 @@ Validator is public-consumer evidence (`loom-client` / `loom-api` formal surface
 11. **Ingress failure injection (CV-017 blocked)** — no public fault-injection or `Retryable` injection API exists; `IngressService` only exposes `submit_ingress`/`ingress_status`. `CV-017` `Retryable(IngressTechnicalFailure)` observation cannot be driven via public surface — explicit gap, requires Ingress failure injection API.
 12. **Concurrent scheduler claim (CV-037 blocked)** — no public `claim_work`/`execute_work` API; `AdminService::schedule_agency_wake` is scheduling only, and `timeline_logical_status` is read-only. Concurrent `CAS`/fence claim cannot be invoked via `loom-api` — explicit gap, requires public scheduler claim API.
 13. **Stale fence injection (CV-019 blocked)** — no public `claim`/`fence` token injection API; `AdminService::terminalize_work` is termination only. `CV-019` stale `complete` cannot be driven via public surface — explicit gap, requires public fence injection API.
+14. **Scheduler head ordering (CV-018 blocked)** — no public `schedule_work`/`claim_work` API; `AdminService::schedule_agency_wake` is agency scheduling only, `timeline_logical_status` is read-only. `CV-018` head `(T20,0)` claimability cannot be driven via public surface — explicit gap, requires public scheduler Work API.
 
 No new capability scenario invented beyond T10–T18 intents above; any additional need requires Architecture Amendment before coverage claim.
 
 ## Stop Conditions / Blocked Rows
 
 - If a required scenario cannot be specified without a new authority/semantic decision, mark that matrix row `blocked` and escalate. Do not invent the missing architecture in T08.
-- At freeze, 5 rows are blocked under current `docs/architecture/` + accepted Amendments `0001-0003` authority: `CV-017` (Ingress failure injection), `CV-019` (stale fence), `CV-028` (semantic projection), `CV-029` (blob) and `CV-037` (concurrent claim) — no public API exists (see detailed sections and Coverage Gaps 8/9/11/12/13). `CV-030` is corrected to use existing `ForkTimelineRequest::at_version` + `get_facet` and remains implementable. All other rows are implementable via existing `loom-api` surfaces: `WorldService`, `ActionService`, `IngressService`, `TimelineService`, `QueryService`, `HistoryService`, `CatalogService`, `SubscriptionService`, `AdminService` (`get_execution_session`, `session_for_event`, `timeline_logical_status`, `terminalize_work`, `advance_world_time` with `from`/`to`/`version`).
+- At freeze, 6 rows are blocked under current `docs/architecture/` + accepted Amendments `0001-0003` authority: `CV-017` (Ingress failure injection), `CV-018` (scheduler head), `CV-019` (stale fence), `CV-028` (semantic projection), `CV-029` (blob) and `CV-037` (concurrent claim) — no public API exists (see detailed sections and Coverage Gaps 8/9/11/12/13/14). `CV-030` is corrected to use existing `ForkTimelineRequest::at_version` + `get_facet` and remains implementable. All other rows are implementable via existing `loom-api` surfaces: `WorldService`, `ActionService`, `IngressService`, `TimelineService`, `QueryService`, `HistoryService`, `CatalogService`, `SubscriptionService`, `AdminService` (`get_execution_session`, `session_for_event`, `timeline_logical_status`, `terminalize_work`, `advance_world_time` with `from`/`to`/`version`).
 - If during T10–T18 implementation a public API cannot observe a required fact without inventing a new authority surface, stop and report coverage gap for architecture review (per each leaf's Stop Conditions).
 
 ## Parallel-Safe Implementation Boundary (for T09)
@@ -592,7 +593,7 @@ Central registry integration (`T19` #324) alone may edit `apps/loom-validator/sr
 - [x] Every new CV ID has exactly one owner leaf (table above; 29 IDs, disjoint).
 - [x] Every planned scenario has expected/public-surface/evidence/prerequisite fields (per-CV specifications).
 - [x] Existing CV-001..011 remain stable (verification section).
-- [x] Matrix identifies explicit coverage gaps rather than hiding them (Coverage Gaps section, 7 items).
+- [x] Matrix identifies explicit coverage gaps rather than hiding them (Coverage Gaps section, 14 items, 6 blocked CV-017/018/019/028/029/037).
 - [ ] Reviewer confirms the matrix is implementable without semantic guesswork (pending independent Reviewer).
 - [ ] CI/docs checks complete before marking completed (pending CI).
 
