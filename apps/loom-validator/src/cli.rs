@@ -410,6 +410,35 @@ where
     };
 
     if selection.is_empty() {
+        // Explicit selectors that resolve to zero are configuration errors
+        // (VALR-T03). Runner already returns UnknownGroups/EmptySelection for
+        // explicit empty, but keep a defensive CLI guard for any residual
+        // empty path so a typo never becomes a green empty run.
+        let explicit = !args.scenario_ids.is_empty() || !args.groups.is_empty();
+        if explicit {
+            let message = format!(
+                "error: no scenarios matched selection: groups=[{}] ids=[{}]",
+                args.groups.join(", "),
+                args.scenario_ids.join(", ")
+            );
+            if let Some(path) = args.machine_report_path() {
+                let report = ValidationReport::runner_config_failure(
+                    args.scenario_ids.clone(),
+                    message.clone(),
+                )
+                .with_run_metadata(
+                    crate::RunMetadata::default()
+                        .with_command("loom-validator")
+                        .with_evidence(EvidenceReference::path(path)),
+                );
+                if let Err(write_error) = report.write_json(path) {
+                    error_output(&format!("{message}; failed to write report: {write_error}"));
+                    return EXIT_RUNNER_ERROR;
+                }
+            }
+            error_output(&message);
+            return EXIT_RUNNER_ERROR;
+        }
         output("loom-validator: 0 scenario(s) selected");
         let report = ValidationReport::from_results(Vec::new());
         if let Some(path) = args.machine_report_path() {
@@ -559,6 +588,15 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         };
 
     if selection.is_empty() {
+        let explicit = !parsed.scenario_ids.is_empty() || !parsed.groups.is_empty();
+        if explicit {
+            eprintln!(
+                "error: no scenarios matched selection: groups=[{}] ids=[{}]",
+                parsed.groups.join(", "),
+                parsed.scenario_ids.join(", ")
+            );
+            return EXIT_RUNNER_ERROR;
+        }
         println!("loom-validator: 0 scenario(s) selected");
         let report = crate::reports::ValidationReport::from_results(Vec::new());
         if let Some(path) = parsed.machine_report_path() {
@@ -1623,5 +1661,207 @@ mod tests {
         let code = execute_cli(&runner, &backend, &args, skipped_executor, |_| {}, |_| {});
         // Best-effort preserves existing success even with Skipped
         assert_eq!(code, EXIT_SUCCESS);
+    }
+
+    // --- VALR-T03 selection integrity ---
+
+    #[test]
+    fn unknown_group_returns_exit_2() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            groups: vec!["typo-group".to_string()],
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        let msg = err.join("\n");
+        assert!(msg.contains("unknown group"), "msg: {msg}");
+        assert!(msg.contains("typo-group"), "msg: {msg}");
+    }
+
+    #[test]
+    fn explicit_empty_selection_returns_exit_2() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        // Unknown group is the explicit empty case
+        let args = CliArgs {
+            groups: vec!["nonexistent".to_string()],
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        assert!(
+            err.join("\n").contains("unknown group")
+                || err.join("\n").contains("no scenarios matched")
+        );
+    }
+
+    #[test]
+    fn unknown_scenario_id_returns_exit_2_with_clear_text() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-999".to_string()],
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        let msg = err.join("\n");
+        assert!(msg.contains("unknown scenario"), "msg: {msg}");
+        assert!(msg.contains("CV-999"), "msg: {msg}");
+    }
+
+    #[test]
+    fn valid_group_runs_deterministic_selection() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            groups: vec!["world".to_string()],
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SUCCESS);
+        let joined = out.join("\n");
+        assert!(joined.contains("CV-001"));
+        assert!(joined.contains("CV-002"));
+        // Deterministic order: CV-001 before CV-002
+        assert!(joined.find("CV-001").unwrap() < joined.find("CV-002").unwrap());
+        assert!(joined.contains("2 total"));
+    }
+
+    #[test]
+    fn no_selector_retains_default_all_behavior() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs::default();
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SUCCESS);
+        assert!(out.join("\n").contains("3 total"));
+    }
+
+    #[test]
+    fn strict_with_typo_cannot_return_zero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-999".to_string()],
+            strict: true,
+            fail_fast: false,
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        assert_ne!(code, EXIT_SUCCESS);
+        assert_ne!(code, EXIT_SCENARIO_FAILURE);
+        assert!(err.join("\n").contains("CV-999"));
+    }
+
+    #[test]
+    fn strict_with_unknown_group_cannot_return_zero() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            groups: vec!["typo-group".to_string()],
+            strict: true,
+            ..Default::default()
+        };
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err.push(l.to_string()),
+        );
+        assert_eq!(code, EXIT_RUNNER_ERROR);
+        assert_ne!(code, 0);
+    }
+
+    #[test]
+    fn decide_action_unknown_group_is_runner_error() {
+        let runner = Runner::new(test_registry());
+        let args = CliArgs {
+            groups: vec!["unknown".to_string()],
+            ..Default::default()
+        };
+        assert!(matches!(
+            decide_action(&runner, &args),
+            CliAction::RunnerError(_)
+        ));
+    }
+
+    #[test]
+    fn valid_selection_still_deterministic_after_t03() {
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        // Request in reverse order, should still be sorted
+        let args = CliArgs {
+            scenario_ids: vec!["CV-003,CV-001".to_string()],
+            ..Default::default()
+        };
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+        assert_eq!(code, EXIT_SUCCESS);
+        let joined = out.join("\n");
+        let p1 = joined.find("CV-001").unwrap();
+        let p3 = joined.find("CV-003").unwrap();
+        assert!(p1 < p3);
     }
 }

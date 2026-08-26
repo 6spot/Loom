@@ -42,8 +42,14 @@ pub enum RunnerError {
     ///
     /// The payload is the sorted, deduplicated list of unknown IDs.
     UnknownScenarioIds(Vec<String>),
+    /// One or more requested group selectors are unknown to the registry.
+    ///
+    /// The payload is the sorted, deduplicated list of unknown groups.
+    UnknownGroups(Vec<String>),
     /// The selection string could not be parsed (e.g. empty ID after split).
     InvalidSelection(String),
+    /// Explicit selector(s) resolved to no scenarios.
+    EmptySelection(String),
 }
 
 impl fmt::Display for RunnerError {
@@ -52,7 +58,12 @@ impl fmt::Display for RunnerError {
             Self::UnknownScenarioIds(ids) => {
                 write!(f, "unknown scenario id(s): {}", ids.join(", "))
             }
-            Self::InvalidSelection(msg) => write!(f, "invalid selection: {msg}"),
+            Self::UnknownGroups(groups) => {
+                write!(f, "unknown group(s): {}", groups.join(", "))
+            }
+            Self::InvalidSelection(msg) | Self::EmptySelection(msg) => {
+                write!(f, "invalid selection: {msg}")
+            }
         }
     }
 }
@@ -142,10 +153,12 @@ impl Runner {
     ///
     /// # Errors
     ///
-    /// Unknown explicit IDs return `RunnerError`. Unknown groups do not error;
-    /// they simply match no scenarios (result may be empty if no other IDs
-    /// were requested, but empty selection is not itself an error except
-    /// when the caller treats it as such).
+    /// Unknown explicit IDs return `RunnerError::UnknownScenarioIds`.
+    /// Unknown explicit groups return `RunnerError::UnknownGroups`.
+    /// An explicit selector that resolves to zero scenarios returns
+    /// `RunnerError::EmptySelection` (configuration error, not a synthetic
+    /// scenario failure). Empty registry with no explicit selector remains
+    /// an empty but successful selection for the caller to decide.
     pub fn resolve_with_groups(
         &self,
         ids: &[String],
@@ -157,7 +170,7 @@ impl Runner {
         }
 
         let expanded_ids = expand_csv_checked(ids)?;
-        let expanded_groups = expand_csv(groups);
+        let expanded_groups = expand_groups_checked(groups)?;
 
         if expanded_ids.is_empty() && expanded_groups.is_empty() {
             return Ok(self.registry.iter().collect());
@@ -186,24 +199,47 @@ impl Runner {
             return Err(RunnerError::UnknownScenarioIds(unknown));
         }
 
+        // Validate explicit groups: any group not present in the registry's
+        // capability areas is unknown and must be a configuration error
+        // (VALR-T03: typos must not silently become a green empty run).
+        let known_areas: BTreeSet<String> = self
+            .registry
+            .iter()
+            .map(|d| d.capability_area().as_str().to_string())
+            .collect();
+        let mut unknown_groups = Vec::new();
+        let mut deduped_groups = BTreeSet::new();
+        for g in &expanded_groups {
+            if g.is_empty() {
+                return Err(RunnerError::InvalidSelection("empty group".to_string()));
+            }
+            deduped_groups.insert(g.clone());
+            if !known_areas.contains(g) {
+                unknown_groups.push(g.clone());
+            }
+        }
+        if !unknown_groups.is_empty() {
+            unknown_groups.sort();
+            unknown_groups.dedup();
+            return Err(RunnerError::UnknownGroups(unknown_groups));
+        }
+
         // Group matching: exact capability area equality.
-        if !expanded_groups.is_empty() {
-            // Build a set of group strings for fast lookup.
-            let group_set: BTreeSet<String> = expanded_groups.into_iter().collect();
+        if !deduped_groups.is_empty() {
             for descriptor in self.registry.iter() {
-                if group_set.contains(descriptor.capability_area().as_str()) {
+                if deduped_groups.contains(descriptor.capability_area().as_str()) {
                     selected_ids.insert(descriptor.id_str().to_string());
                 }
             }
         }
 
-        // If after processing we have an empty set but groups were requested,
-        // it means no scenario matched the groups. Return empty selection
-        // (caller may decide to treat empty as success with 0 scenarios).
+        // Explicit selector that resolves to zero is a configuration error.
         if selected_ids.is_empty() {
-            // If groups were requested but matched nothing, return empty vec.
-            // If only unknown handling prevented this, we already errored.
-            return Ok(Vec::new());
+            let groups_str = deduped_groups.into_iter().collect::<Vec<_>>().join(", ");
+            let ids_str = expanded_ids.join(", ");
+            return Err(RunnerError::EmptySelection(format!(
+                "no scenarios matched selection: groups=[{groups_str}] ids=[{ids_str}]"
+            )));
         }
 
         // Preserve deterministic order: sort IDs and then emit in sorted order.
@@ -435,21 +471,6 @@ impl Runner {
     }
 }
 
-/// Expands a slice of strings that may each contain comma-separated values
-/// into a flat list of trimmed non-empty entries.
-fn expand_csv(input: &[String]) -> Vec<String> {
-    let mut out = Vec::new();
-    for entry in input {
-        for part in entry.split(',') {
-            let trimmed = part.trim();
-            if !trimmed.is_empty() {
-                out.push(trimmed.to_string());
-            }
-        }
-    }
-    out
-}
-
 /// Expands scenario IDs while preserving malformed empty selections as a
 /// runner/configuration error instead of silently treating them as no filter.
 fn expand_csv_checked(input: &[String]) -> Result<Vec<String>, RunnerError> {
@@ -461,6 +482,22 @@ fn expand_csv_checked(input: &[String]) -> Result<Vec<String>, RunnerError> {
                 return Err(RunnerError::InvalidSelection(
                     "empty scenario id".to_owned(),
                 ));
+            }
+            out.push(trimmed.to_owned());
+        }
+    }
+    Ok(out)
+}
+
+/// Expands group selectors while preserving malformed empty selections as a
+/// runner/configuration error.
+fn expand_groups_checked(input: &[String]) -> Result<Vec<String>, RunnerError> {
+    let mut out = Vec::new();
+    for entry in input {
+        for part in entry.split(',') {
+            let trimmed = part.trim();
+            if trimmed.is_empty() {
+                return Err(RunnerError::InvalidSelection("empty group".to_owned()));
             }
             out.push(trimmed.to_owned());
         }
@@ -840,6 +877,131 @@ mod tests {
             .unwrap();
         let ids2: Vec<_> = sel2.iter().map(|d| d.id_str().to_string()).collect();
         assert_eq!(ids2, vec!["CV-001", "CV-002", "CV-003"]);
+    }
+
+    #[test]
+    fn unknown_group_is_config_error() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry
+            .register(descriptor_with_area("CV-001", "world"))
+            .unwrap();
+        registry
+            .register(descriptor_with_area("CV-002", "world"))
+            .unwrap();
+        let runner = Runner::new(registry);
+        let err = runner
+            .resolve_with_groups(&[], &["typo-group".to_string()], false)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            RunnerError::UnknownGroups(vec!["typo-group".to_string()])
+        );
+        assert!(format!("{err}").contains("unknown group"));
+        assert!(format!("{err}").contains("typo-group"));
+    }
+
+    #[test]
+    fn unknown_group_mixed_with_valid_is_still_error() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry
+            .register(descriptor_with_area("CV-001", "world"))
+            .unwrap();
+        registry
+            .register(descriptor_with_area("CV-002", "agency"))
+            .unwrap();
+        let runner = Runner::new(registry);
+        let err = runner
+            .resolve_with_groups(&[], &["world,typo".to_string()], false)
+            .unwrap_err();
+        assert!(matches!(err, RunnerError::UnknownGroups(_)));
+        assert!(format!("{err}").contains("typo"));
+    }
+
+    #[test]
+    fn unknown_group_with_comma_separated_multiple_unknowns() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry
+            .register(descriptor_with_area("CV-001", "world"))
+            .unwrap();
+        let runner = Runner::new(registry);
+        let err = runner
+            .resolve_with_groups(&[], &["bad1,bad2".to_string()], false)
+            .unwrap_err();
+        assert!(matches!(err, RunnerError::UnknownGroups(_)));
+        let msg = format!("{err}");
+        assert!(msg.contains("bad1"));
+        assert!(msg.contains("bad2"));
+    }
+
+    #[test]
+    fn explicit_empty_selection_is_config_error() {
+        // Explicit unknown group triggers UnknownGroups, which is already the
+        // empty-selection guard. Also test a direct empty after valid IDs check:
+        // use a registry where explicit selector is syntactically valid but
+        // would otherwise yield zero without the unknown-group guard.
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry
+            .register(descriptor_with_area("CV-001", "world"))
+            .unwrap();
+        let runner = Runner::new(registry);
+        // Single unknown group => UnknownGroups (explicit empty)
+        let err = runner
+            .resolve_with_groups(&[], &["nonexistent".to_string()], false)
+            .unwrap_err();
+        assert!(format!("{err}").contains("unknown group"));
+        // Valid scenario ID still succeeds; typo fails
+        assert!(runner.resolve_ids(&["CV-999".to_string()]).is_err());
+    }
+
+    #[test]
+    fn empty_group_string_is_invalid_selection() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        let runner = Runner::new(registry);
+        let err = runner
+            .resolve_with_groups(&[], &["world,".to_string()], false)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            RunnerError::InvalidSelection("empty group".to_string())
+        );
+    }
+
+    #[test]
+    fn valid_group_still_resolves_deterministically() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry
+            .register(descriptor_with_area("CV-003", "world"))
+            .unwrap();
+        registry
+            .register(descriptor_with_area("CV-001", "world"))
+            .unwrap();
+        registry
+            .register(descriptor_with_area("CV-002", "agency"))
+            .unwrap();
+        let runner = Runner::new(registry);
+        let sel = runner
+            .resolve_with_groups(&[], &["world".to_string()], false)
+            .unwrap();
+        let ids: Vec<_> = sel.iter().map(|d| d.id_str().to_string()).collect();
+        assert_eq!(ids, vec!["CV-001", "CV-003"]);
+        // Repeat with different input order still sorted
+        let sel2 = runner
+            .resolve_with_groups(&[], &["world".to_string()], false)
+            .unwrap();
+        let ids2: Vec<_> = sel2.iter().map(|d| d.id_str().to_string()).collect();
+        assert_eq!(ids, ids2);
+    }
+
+    #[test]
+    fn no_selector_returns_all_deterministically() {
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-002")).unwrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        let runner = Runner::new(registry);
+        let sel = runner.resolve_with_groups(&[], &[], false).unwrap();
+        let ids: Vec<_> = sel.iter().map(|d| d.id_str().to_string()).collect();
+        assert_eq!(ids, vec!["CV-001", "CV-002"]);
     }
 
     #[test]
