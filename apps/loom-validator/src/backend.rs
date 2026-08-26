@@ -11,6 +11,54 @@ pub const LOOM_TEST_POSTGRES_URL: &str = "LOOM_TEST_POSTGRES_URL";
 pub const LOOM_VALIDATOR_BASE_URL: &str = "LOOM_VALIDATOR_BASE_URL";
 pub const DEFAULT_VALIDATOR_BASE_URL: &str = "http://127.0.0.1:8080";
 
+/// Capability that distinguishes a cheap reconnect from a controlled
+/// application-boundary restart.
+///
+/// This model is intentionally independent from [`BackendEvidence`]. The
+/// storage identity (`External`/`InMemory`/`PostgreSQL`) is orthogonal to
+/// whether the harness actually rebuilds the HTTP + Runtime boundary while
+/// preserving durable state. `ReconnectOnly` is the generic production
+/// default; `ControlledBoundaryRestart` is only available when a test harness
+/// explicitly composes and rebuilds the service.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum RestartCapability {
+    /// Only a new `LoomClient` against the same endpoint is available.
+    ReconnectOnly,
+    /// The harness can terminate and rebuild the real application boundary
+    /// while preserving the underlying store.
+    ControlledBoundaryRestart,
+}
+
+impl RestartCapability {
+    /// Returns the stable string label for this capability.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReconnectOnly => "reconnect-only",
+            Self::ControlledBoundaryRestart => "controlled-boundary-restart",
+        }
+    }
+
+    /// Reports whether this capability represents a trusted real boundary
+    /// restart.
+    #[must_use]
+    pub const fn is_controlled(self) -> bool {
+        matches!(self, Self::ControlledBoundaryRestart)
+    }
+
+    /// Reports whether this capability is only a reconnect.
+    #[must_use]
+    pub const fn is_reconnect_only(self) -> bool {
+        matches!(self, Self::ReconnectOnly)
+    }
+}
+
+impl std::fmt::Display for RestartCapability {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Recreates the Loom application/service boundary and returns a new public
 /// client.
 ///
@@ -27,6 +75,7 @@ pub struct BackendContext {
     kind: BackendKind,
     scope: String,
     restart: RestartStrategy,
+    restart_capability: RestartCapability,
 }
 
 impl std::fmt::Debug for BackendContext {
@@ -36,6 +85,7 @@ impl std::fmt::Debug for BackendContext {
             .field("kind", &self.kind)
             .field("evidence", &self.backend_evidence())
             .field("scope", &self.scope)
+            .field("restart_capability", &self.restart_capability)
             .finish_non_exhaustive()
     }
 }
@@ -50,6 +100,7 @@ impl BackendContext {
             kind: BackendKind::LoomClient,
             scope: String::new(),
             restart: Arc::new(move || LoomClient::new(base_url.clone()).map_err(|e| e.to_string())),
+            restart_capability: RestartCapability::ReconnectOnly,
         }
     }
 
@@ -84,6 +135,7 @@ impl BackendContext {
             kind,
             scope,
             restart: Arc::new(move || LoomClient::new(base_url.clone()).map_err(|e| e.to_string())),
+            restart_capability: RestartCapability::ReconnectOnly,
         }
     }
 
@@ -131,6 +183,12 @@ impl BackendContext {
     }
 
     /// Sets the restart strategy used by [`Self::restart`].
+    ///
+    /// The capability remains `ReconnectOnly` unless the caller also
+    /// explicitly opts into [`Self::with_restart_capability`] or
+    /// [`Self::with_controlled_boundary_restart`]. A new `LoomClient`
+    /// against the same endpoint is always `reconnect-only` and never
+    /// upgrades to real restart evidence on its own.
     #[must_use]
     pub fn with_restart_strategy(
         mut self,
@@ -138,6 +196,34 @@ impl BackendContext {
     ) -> Self {
         self.restart = strategy;
         self
+    }
+
+    /// Sets the restart capability explicitly.
+    #[must_use]
+    pub const fn with_restart_capability(mut self, capability: RestartCapability) -> Self {
+        self.restart_capability = capability;
+        self
+    }
+
+    /// Convenience: mark this context as possessing a controlled
+    /// application-boundary restart implementation.
+    #[must_use]
+    pub const fn with_controlled_boundary_restart(mut self) -> Self {
+        self.restart_capability = RestartCapability::ControlledBoundaryRestart;
+        self
+    }
+
+    /// Returns the restart capability represented by this context.
+    #[must_use]
+    pub const fn restart_capability(&self) -> RestartCapability {
+        self.restart_capability
+    }
+
+    /// Reports whether this context can provide trusted real-boundary
+    /// restart evidence.
+    #[must_use]
+    pub const fn can_perform_boundary_restart(&self) -> bool {
+        self.restart_capability.is_controlled()
     }
 
     /// Recreates the real Loom application/service boundary and returns a new
