@@ -5,7 +5,7 @@ use std::{env, fmt, sync::Arc};
 use loom_api::LoomApi;
 use loom_client::{ClientConfigError, LoomClient};
 
-use crate::{BackendKind, ValidationPolicy};
+use crate::{BackendEvidence, BackendKind, ValidationPolicy};
 
 pub const LOOM_TEST_POSTGRES_URL: &str = "LOOM_TEST_POSTGRES_URL";
 pub const LOOM_VALIDATOR_BASE_URL: &str = "LOOM_VALIDATOR_BASE_URL";
@@ -34,6 +34,7 @@ impl std::fmt::Debug for BackendContext {
         f.debug_struct("BackendContext")
             .field("client", &self.client)
             .field("kind", &self.kind)
+            .field("evidence", &self.backend_evidence())
             .field("scope", &self.scope)
             .finish_non_exhaustive()
     }
@@ -91,6 +92,12 @@ impl BackendContext {
         &self.kind
     }
 
+    /// Returns the storage evidence explicitly represented by this context.
+    #[must_use]
+    pub const fn backend_evidence(&self) -> BackendEvidence {
+        self.kind.evidence()
+    }
+
     #[must_use]
     pub fn scope(&self) -> &str {
         &self.scope
@@ -105,6 +112,15 @@ impl BackendContext {
     pub fn with_backend_kind(mut self, kind: BackendKind) -> Self {
         self.kind = kind;
         self
+    }
+
+    /// Sets the controlled evidence identity represented by this context.
+    ///
+    /// This is an explicit construction seam for integration harnesses. It
+    /// never consults ambient environment variables.
+    #[must_use]
+    pub fn with_backend_evidence(self, evidence: BackendEvidence) -> Self {
+        self.with_backend_kind(evidence.backend_kind())
     }
 
     /// Sets the scenario scope reported by this context.
@@ -159,6 +175,17 @@ impl BackendStart {
         match self {
             Self::Ready(context) => context.backend_kind(),
             Self::Prerequisite { backend, .. } | Self::Unavailable { backend, .. } => backend,
+        }
+    }
+
+    /// Returns the storage evidence represented by this backend start.
+    #[must_use]
+    pub const fn backend_evidence(&self) -> BackendEvidence {
+        match self {
+            Self::Ready(context) => context.backend_evidence(),
+            Self::Prerequisite { backend, .. } | Self::Unavailable { backend, .. } => {
+                backend.evidence()
+            }
         }
     }
 
@@ -303,6 +330,24 @@ impl BackendHarness {
         })
     }
 
+    /// Connects a harness using an explicit storage evidence identity.
+    ///
+    /// The evidence is supplied by the controlled harness caller. In
+    /// particular, a generic external endpoint must use
+    /// [`BackendEvidence::External`], even when `LOOM_TEST_POSTGRES_URL` is
+    /// configured for unrelated tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError::InvalidBaseUrl`] when `base_url` cannot be used
+    /// to construct a public `LoomClient`.
+    pub fn connect_with_evidence(
+        evidence: BackendEvidence,
+        base_url: impl Into<String>,
+    ) -> Result<Self, BackendError> {
+        Self::connect(evidence.backend_kind(), base_url)
+    }
+
     /// Builds a harness from the `LOOM_VALIDATOR_BASE_URL` environment variable.
     ///
     /// # Errors
@@ -319,6 +364,12 @@ impl BackendHarness {
     #[must_use]
     pub const fn backend_kind(&self) -> &BackendKind {
         &self.kind
+    }
+
+    /// Returns the storage evidence explicitly selected for this harness.
+    #[must_use]
+    pub const fn backend_evidence(&self) -> BackendEvidence {
+        self.kind.evidence()
     }
 
     #[must_use]
@@ -434,7 +485,7 @@ fn postgres_prerequisite() -> Result<(), BackendStartState> {
 #[cfg(test)]
 mod tests {
     use super::{BackendHarness, BackendStart, DEFAULT_VALIDATOR_BASE_URL, LOOM_TEST_POSTGRES_URL};
-    use crate::BackendKind;
+    use crate::{BackendEvidence, BackendKind};
 
     #[test]
     fn loom_client_start_is_fresh_and_deterministically_scoped() {
@@ -450,6 +501,7 @@ mod tests {
             panic!("loom-client backend should start");
         };
         assert_eq!(first.backend_kind(), &BackendKind::LoomClient);
+        assert_eq!(first.backend_evidence(), BackendEvidence::External);
         assert_eq!(first.scope(), "CV-001");
         assert_eq!(second.scope(), "CV-002");
         assert_ne!(first.scope(), second.scope());
@@ -486,5 +538,40 @@ mod tests {
             .expect("negative test url should build harness");
         let start = harness.start("CV-001");
         assert!(matches!(start, BackendStart::Unavailable { .. }));
+    }
+
+    #[test]
+    fn generic_endpoint_is_external_even_when_pg_configuration_exists() {
+        // The harness kind is the authority for evidence. This deliberately
+        // does not inspect or validate LOOM_TEST_POSTGRES_URL for a generic
+        // public endpoint, so an unrelated configured URL cannot upgrade it.
+        let harness = BackendHarness::connect(BackendKind::LoomClient, DEFAULT_VALIDATOR_BASE_URL)
+            .expect("generic endpoint should build");
+        assert_eq!(harness.backend_evidence(), BackendEvidence::External);
+        assert!(!harness.backend_evidence().is_trusted());
+        assert_eq!(
+            harness.start("CV-001").backend_evidence(),
+            BackendEvidence::External
+        );
+    }
+
+    #[test]
+    fn controlled_harnesses_keep_distinct_evidence_classes() {
+        let in_memory = BackendHarness::connect(BackendKind::InMemory, DEFAULT_VALIDATOR_BASE_URL)
+            .expect("in-memory endpoint should build");
+        assert_eq!(in_memory.backend_evidence(), BackendEvidence::InMemory);
+        assert!(!in_memory.backend_evidence().is_postgres());
+
+        // Do not require a live database here: the explicit PostgreSQL
+        // harness may report a prerequisite/unavailable start state while its
+        // selected evidence class remains trusted and PostgreSQL-specific.
+        let postgres = BackendHarness::connect_with_evidence(
+            BackendEvidence::PostgreSQL,
+            DEFAULT_VALIDATOR_BASE_URL,
+        )
+        .expect("postgres evidence selection should build");
+        assert_eq!(postgres.backend_evidence(), BackendEvidence::PostgreSQL);
+        assert!(postgres.backend_evidence().is_trusted());
+        assert!(postgres.backend_evidence().is_postgres());
     }
 }

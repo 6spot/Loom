@@ -116,9 +116,78 @@ impl BackendKind {
     pub const fn is_postgres(self) -> bool {
         matches!(self, Self::PostgreSQL)
     }
+
+    /// Returns the storage evidence represented by this explicitly selected
+    /// backend.
+    #[must_use]
+    pub const fn evidence(self) -> BackendEvidence {
+        match self {
+            Self::LoomClient => BackendEvidence::External,
+            Self::InMemory => BackendEvidence::InMemory,
+            Self::PostgreSQL => BackendEvidence::PostgreSQL,
+        }
+    }
 }
 
 impl fmt::Display for BackendKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// The storage identity that Validator is allowed to claim in evidence.
+///
+/// `External` is the default for a generic HTTP endpoint. The endpoint may be
+/// backed by any implementation, but Validator has no trusted way to infer
+/// which one it is. `InMemory` and `PostgreSQL` are trusted only when a
+/// controlled harness explicitly constructs the corresponding backend kind;
+/// ambient environment variables never create either identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub enum BackendEvidence {
+    /// A generic/external Loom endpoint with no trusted storage identity.
+    External,
+    /// A controlled `InMemory` harness.
+    InMemory,
+    /// A controlled `PostgreSQL` harness.
+    PostgreSQL,
+}
+
+impl BackendEvidence {
+    /// Returns the stable report label for this evidence class.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::External => "external",
+            Self::InMemory => "in-memory",
+            Self::PostgreSQL => "postgresql",
+        }
+    }
+
+    /// Returns whether this evidence class was produced by a controlled
+    /// harness and may be used for storage-specific policy checks.
+    #[must_use]
+    pub const fn is_trusted(self) -> bool {
+        !matches!(self, Self::External)
+    }
+
+    /// Returns whether this is trusted `PostgreSQL` evidence.
+    #[must_use]
+    pub const fn is_postgres(self) -> bool {
+        matches!(self, Self::PostgreSQL)
+    }
+
+    /// Returns the compatibility backend kind corresponding to this evidence.
+    #[must_use]
+    pub const fn backend_kind(self) -> BackendKind {
+        match self {
+            Self::External => BackendKind::LoomClient,
+            Self::InMemory => BackendKind::InMemory,
+            Self::PostgreSQL => BackendKind::PostgreSQL,
+        }
+    }
+}
+
+impl fmt::Display for BackendEvidence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -280,7 +349,7 @@ impl ScenarioDescriptor {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackendKind, CapabilityArea, ScenarioId};
+    use super::{BackendEvidence, BackendKind, CapabilityArea, ScenarioId};
 
     #[test]
     fn scenario_id_validates_cv_prefix() {
@@ -301,6 +370,28 @@ mod tests {
         assert_eq!(BackendKind::LoomClient.as_str(), "loom-client");
         assert_eq!(BackendKind::InMemory.as_str(), "in-memory");
         assert_eq!(BackendKind::PostgreSQL.as_str(), "postgresql");
+    }
+
+    #[test]
+    fn backend_kind_maps_to_explicit_evidence() {
+        assert_eq!(
+            BackendKind::LoomClient.evidence(),
+            BackendEvidence::External
+        );
+        assert_eq!(BackendKind::InMemory.evidence(), BackendEvidence::InMemory);
+        assert_eq!(
+            BackendKind::PostgreSQL.evidence(),
+            BackendEvidence::PostgreSQL
+        );
+    }
+
+    #[test]
+    fn only_controlled_evidence_is_trusted() {
+        assert!(!BackendEvidence::External.is_trusted());
+        assert!(BackendEvidence::InMemory.is_trusted());
+        assert!(BackendEvidence::PostgreSQL.is_trusted());
+        assert!(BackendEvidence::PostgreSQL.is_postgres());
+        assert!(!BackendEvidence::InMemory.is_postgres());
     }
 
     #[test]
