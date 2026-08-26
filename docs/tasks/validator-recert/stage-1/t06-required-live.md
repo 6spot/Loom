@@ -1,13 +1,13 @@
 ---
 task: VALR-T06
 issue: 311
-status: in_progress
+status: completed
 depends_on: [309, 307]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 338
+merge_sha: d43ec717efaa9a4106ce1e5c49167bbbacd6ff26
 ---
 
 # VALR-T06 — Wire required-live policy to trusted PostgreSQL evidence
@@ -95,7 +95,7 @@ Added in `apps/loom-validator/tests/required_live.rs`:
 - [x] Only trusted controlled `PostgreSQL` evidence satisfies the live requirement (`BackendEvidence::PostgreSQL` via explicit `BackendContext`/`BackendHarness` kind; `External`/`InMemory` and ambient `LOOM_TEST_POSTGRES_URL` never satisfy).
 - [x] Strict non-pass outcomes cannot false-green required-live (`Fail`/`Skipped`/`Unavailable` all make `gate_passes` false).
 - [x] Regression tests cover fake-PG and no-PG cases (subprocess external + PG URL, report `backend_evidence_trusted` and policy fields).
-- [ ] Review and CI are complete before marking the task completed.
+- [x] Review and CI are complete before marking the task completed.
 
 ## Verification Evidence
 
@@ -109,7 +109,8 @@ Added in `apps/loom-validator/tests/required_live.rs`:
 - `cargo test -p loom-validator --test backend_evidence --all-features` → 1 passed (generic endpoint never infers postgres)
 - `python3 tools/check_architecture.py` → passed (Loom architecture dependency policy: OK, storage SQL ownership check passed)
 - `python3 tools/check_storage_sql_ownership.py` → passed
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `valid=true`, `violations=[]`, `exit 0`, `record_count=6`, `ready=[VALR-T06]`，`blocked=[]`（`VALR-T02`/`VALR-T03`/`VALR-T04`/`VALR-T05` 均 `completed`，`VALR-T06` `in_progress/ready`；T03 真实 merge `75ce13dfa19061b1c94aee16106041269ad90c01` 已在 main）
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `valid=true`, `violations=[]`, `exit 0`, `record_count=6`, `ready=[]`，`blocked=[]`（`VALR-T02`/`VALR-T03`/`VALR-T04`/`VALR-T05`/`VALR-T06` 均 `completed`；T03 merge `75ce13dfa19061b1c94aee16106041269ad90c01`，T06 merge `d43ec717efaa9a4106ce1e5c49167bbbacd6ff26`）
+- PR #338 Reviewer `01a03e91-77a5-715a-a9b6-aee2344732c7` 验收通过；required CI 2/2 success；`2026-08-26T14:55:55Z` 合并至 `d43ec717efaa9a4106ce1e5c49167bbbacd6ff26`
 
 ## Progress Log
 
@@ -118,3 +119,4 @@ Added in `apps/loom-validator/tests/required_live.rs`:
 - 2026-08-26 — Ran `cargo fmt`, `cargo clippy`, `bash tools/test.sh -p loom-validator --all-features`, and `validator_ready` checks; recorded ledger.
 - 2026-08-26 — Rework D-1: `t02-strict-policy` 按 PR #336 补 `completed` 证据，`t03-selection-integrity` 回退为 `in_progress` 待 PR #338 合并；`apps/loom-validator` 运行时语义未动。复核 `validator_ready --check`：`ready=[VALR-T03]`，`blocked=[VALR-T06]`，`valid=false` 因同 PR 内阻塞（无 completion 证据缺失）。
 - 2026-08-26 — Post-merge audit (PR #339 `75ce13dfa19061b1c94aee16106041269ad90c01` 已合并, Reviewer `01a03e68-d839-7901-b7de-a1279a27609b` 2/2 CI)：`t03-selection-integrity` 按真实 merge 补 `completed`，`t06-required-live` 复核 `valid=true` `violations=[]`（`T02/T03/T04/T05` completed，`T06` in_progress/ready），未改 T06 `completion_pr`/`merge_sha`，未改 runtime。
+- 2026-08-26 — Post-merge audit (PR #338 `d43ec717efaa9a4106ce1e5c49167bbbacd6ff26` 已合并, Reviewer `01a03e91-77a5-715a-a9b6-aee2344732c7` 2/2 CI, `2026-08-26T14:55:55Z`)：`t06-required-live` 按真实 merge 补 `status: completed`/`completed_at`/`completion_pr`/`merge_sha`，Acceptance 全勾选，`validator_ready --check` 仍 `valid=true` `violations=[]`，stage-1 6 条记录均 `completed`。
