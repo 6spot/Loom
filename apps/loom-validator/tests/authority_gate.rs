@@ -607,6 +607,34 @@ fn selection_truth_unknown_and_empty_are_exit_2() {
 
     // CLI library layer: unknown group → exit 2 with clear text
     let backend = test_backend();
+
+    // Canonical gate: explicit empty selection "world," must be exit 2 via execute_cli (D-002)
+    {
+        let args = CliArgs {
+            groups: vec!["world,".to_string()],
+            ..Default::default()
+        };
+        let mut err_out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            passing_executor,
+            |_| {},
+            |l| err_out.push(l.to_string()),
+        );
+        assert_eq!(
+            code, EXIT_RUNNER_ERROR,
+            "explicit empty group 'world,' must be exit 2 via execute_cli"
+        );
+        let msg = err_out.join("\n");
+        assert!(
+            msg.contains("empty group")
+                || msg.contains("invalid selection")
+                || msg.contains("world"),
+            "msg: {msg}"
+        );
+    }
     let args = CliArgs {
         groups: vec!["typo-group".to_string()],
         ..Default::default()
@@ -671,6 +699,31 @@ fn selection_truth_unknown_and_empty_are_exit_2() {
             Some(2),
             "CLI {case:?} must be exit 2, stderr={}",
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Canonical gate: explicit empty selection "world," must be exit 2 via subprocess (D-002)
+    for case in [
+        vec!["--group", "world,"],
+        vec!["--strict", "--group", "world,"],
+        vec!["--required-live", "--group", "world,"],
+    ] {
+        let output = Command::new(bin)
+            .args(&case)
+            .output()
+            .expect("validator binary should execute");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "CLI {case:?} 'world,' must be exit 2, stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("empty group")
+                || stderr.contains("invalid selection")
+                || stderr.contains("world"),
+            "stderr for 'world,' must mention empty group/invalid selection: {stderr}"
         );
     }
 
