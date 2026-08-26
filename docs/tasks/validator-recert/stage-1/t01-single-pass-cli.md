@@ -1,13 +1,13 @@
 ---
 task: VALR-T01
 issue: 306
-status: in_progress
+status: completed
 depends_on: []
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 332
+merge_sha: 0719d50ea99ff7be799c4e1a8a82624af577662f
 ---
 
 # VALR-T01 — Make Validator CLI execution single-pass
@@ -78,7 +78,7 @@ Existing `run_with_harness` prerequisite guard retained and re-verified with new
 - [x] Fail-fast stops after the first failure without replaying prior scenarios.
 - [x] Focused regression tests pass.
 - [x] `cargo fmt --check`, relevant `cargo test`, `cargo clippy` pass.
-- [ ] Review and CI are complete before marking the task completed.
+- [x] Review and CI are complete before marking the task completed.
 
 ## Verification Evidence
 
@@ -88,9 +88,13 @@ Existing `run_with_harness` prerequisite guard retained and re-verified with new
 - `cargo test -p loom-validator --lib --all-features` → 102 passed (including 7 new single-pass counter tests)
 - `python3 tools/check_architecture.py` → passed
 - `python3 tools/check_storage_sql_ownership.py` → passed
+- `python3 tools/validator_ready.py --check` → passed
+- Reviewer independent verification `01a03cdf-49ac-7505-bb40-c02568ec8b3b` re-check after D-001 → AC-1..AC-7 passed; D-001 ledger count corrected to 102/7
+- PR #332 required checks terminal pass (merge SHA `0719d50ea99ff7be799c4e1a8a82624af577662f`): `Rust checks` → pass, `PostgreSQL 18 persistence contract` → pass
 
 ## Progress Log
 
 - 2026-08-26 — Identified `run_from_args` double execution (`apps/loom-validator/src/cli.rs:556-626`) vs `Runner::run_selected` single-pass authority; replaced CLI harness double loop with `Runner::run_with_harness_selected` single pass and added counter-based regression tests.
 - 2026-08-26 — Rework per LEADER-PRECHECK: added `docs/tasks/validator-recert/stage-1/t01-single-pass-cli.md` ledger and retained `supported_backends` prerequisite guard in `run_with_harness_selected`.
+- 2026-08-26 — Post-merge audit: set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 332`, `merge_sha: 0719d50ea99ff7be799c4e1a8a82624af577662f`; marked Acceptance Review/CI `[x]`; recorded Reviewer `01a03cdf-49ac-7505-bb40-c02568ec8b3b` pass and PR #332 `Rust checks`/`PostgreSQL 18 persistence contract` terminal pass.
 
