@@ -39,10 +39,7 @@ class ValidatorReadyTests(unittest.TestCase):
             if parsed is None:
                 continue
             front_matter, _ = parsed
-            try:
-                fields = READY._parse_front_matter(front_matter)
-            except Exception:
-                continue
+            fields = READY._parse_front_matter(front_matter)
             if READY._as_string(fields.get("task")) == task:
                 path.write_text(
                     text.replace("status: planned", f"status: {status}", 1),
