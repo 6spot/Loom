@@ -1,11 +1,11 @@
 ---
 task: VALR-T03
 issue: 309
-status: completed
+status: in_progress
 depends_on: [308]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at: 2026-08-26
+completed_at:
 completion_pr:
 merge_sha:
 ---
@@ -89,6 +89,7 @@ Added in `apps/loom-validator/src/cli.rs`:
 - [x] No valid existing selector changes meaning; valid group/scenario and no-selector behavior remain deterministic.
 - [x] Tests cover group and scenario typo paths.
 - [x] Relevant fmt/test/clippy checks pass; ledger evidence recorded.
+- [ ] Review and CI are complete before marking the task completed (pending independent T03 integration PR, will be updated after merge).
 
 ## Verification Evidence
 
@@ -102,3 +103,4 @@ Added in `apps/loom-validator/src/cli.rs`:
 ## Progress Log
 
 - 2026-08-26 — Fixed `Runner::resolve_with_groups` to reject unknown groups and explicit empty selections as configuration errors; hardened `execute_cli`/`run_from_args` empty-selection guard to exit 2 with selector-aware message; added focused runner/CLI tests for T03 required semantics; created this ledger.
+- 2026-08-26 — Rework D-1 (independent T03 integration): 实现已随 `4e4cd9244ee551b0ac25eed49e8b4ad9c52e8506` 交付，本分支仅为依赖集成，按 ledger 合约保持 `status: in_progress` 并清空 `completed_at`/`completion_pr`/`merge_sha`，待独立 PR 合并后以真实 `completion_pr`/`merge_sha` 补齐；未伪造 PR/SHA，未改运行时语义。

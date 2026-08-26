@@ -1,13 +1,13 @@
 ---
 task: VALR-T02
 issue: 308
-status: in_progress
+status: completed
 depends_on: [306]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 336
+merge_sha: 13f6adfe860dcbbb3e414208d7e49361a4b52220
 ---
 
 # VALR-T02 — Separate strict gate policy from fail-fast execution
@@ -87,7 +87,7 @@ Retained:
 - [x] `fail-fast` only influences execution stopping; non-strict gate remains best-effort.
 - [x] Execution remains single-pass (T01 path reused, no replay).
 - [x] Focused tests and repository checks pass (`cargo fmt --check`/`cargo test -p loom-validator`/`cargo clippy`/architecture checks).
-- [ ] Review and CI are complete before marking the task completed.
+- [x] Review and CI are complete before marking the task completed.
 
 ## Verification Evidence
 
@@ -101,3 +101,4 @@ Retained:
 ## Progress Log
 
 - 2026-08-26 — Split `CliArgs` strict/fail_fast, updated `help_text`/`decide_action`, added `ValidationReport::with_policy`, routed `execute_cli`/`run_from_args` exit through `strict && !gate_passes()` while keeping T01 single-pass (`run_selected`/`run_with_harness_selected` with `fail_fast` only). Added focused CLI/report/policy tests for strict vs fail-fast independence.
+- 2026-08-26 — Ledger audit (rework D-1): `VALR-T02` 已由 PR #336 独立验收并合并至 `13f6adfe860dcbbb3e414208d7e49361a4b52220`，本次仅补齐 `status: completed`/`completed_at`/`completion_pr`/`merge_sha` 完成证据，未改动 `apps/loom-validator` 运行时语义；`cargo fmt --check`、`cargo clippy`、`validator_ready --check` 已在新 head 复核通过。
