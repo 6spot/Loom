@@ -49,7 +49,7 @@ pub use runtime_authority::{
     CV_010, CV_011, descriptors as runtime_authority_descriptors, execute_runtime_authority,
     register_runtime_authority,
 };
-pub use scenario::{BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
+pub use scenario::{BackendEvidence, BackendKind, CapabilityArea, ScenarioDescriptor, ScenarioId};
 pub use scenarios::{
     CV_005, CV_006, CV_007, CV_008, CV_009, execute_replay_fork, register_replay_fork,
     replay_fork_descriptors,

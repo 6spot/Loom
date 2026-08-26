@@ -504,16 +504,10 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
     let base_url = base_url_env
         .clone()
         .unwrap_or_else(|| crate::backend::DEFAULT_VALIDATOR_BASE_URL.to_owned());
-    let is_negative = base_url.trim().trim_end_matches('/') == "http://127.0.0.1:1";
-    let kind = if is_negative {
-        crate::scenario::BackendKind::LoomClient
-    } else if std::env::var(crate::backend::LOOM_TEST_POSTGRES_URL)
-        .is_ok_and(|v| !v.trim().is_empty())
-    {
-        crate::scenario::BackendKind::PostgreSQL
-    } else {
-        crate::scenario::BackendKind::InMemory
-    };
+    // A configured HTTP endpoint is generic consumer evidence. The CLI does
+    // not control or inspect its storage, so an ambient
+    // `LOOM_TEST_POSTGRES_URL` can never upgrade this identity to PostgreSQL.
+    let kind = crate::scenario::BackendEvidence::External.backend_kind();
 
     let harness = match crate::backend::BackendHarness::connect(kind, base_url) {
         Ok(h) => h,

@@ -7,7 +7,7 @@ use serde_json::{Map, Value, json};
 
 use crate::finding::{EvidenceReference, Finding};
 use crate::outcome::ScenarioOutcome;
-use crate::scenario::{BackendKind, ScenarioId};
+use crate::scenario::{BackendEvidence, BackendKind, ScenarioId};
 
 /// Version of the machine-readable validator report schema.
 pub const REPORT_SCHEMA_VERSION: u64 = 1;
@@ -233,8 +233,8 @@ impl std::fmt::Display for PrerequisiteState {
 /// Best-effort mode keeps optional live backends observable without turning an
 /// unavailable prerequisite into a synthetic scenario failure. Strict mode
 /// requires every selected scenario to pass. Required-live mode additionally
-/// requires at least one passing `PostgreSQL` result, so a missing or
-/// unavailable `PostgreSQL` prerequisite cannot satisfy the gate.
+/// requires passing trusted `PostgreSQL` evidence, so a generic endpoint or an
+/// ambient `LOOM_TEST_POSTGRES_URL` cannot satisfy the gate.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ValidationPolicy {
     strict: bool,
@@ -437,6 +437,7 @@ pub struct ValidationReport {
     policy: ValidationPolicy,
     selected_scenario_ids: Vec<String>,
     backend: Option<BackendKind>,
+    backend_evidence: Option<BackendEvidence>,
     run_metadata: RunMetadata,
     runner_error: Option<String>,
 }
@@ -452,6 +453,7 @@ impl ValidationReport {
             policy: ValidationPolicy::default(),
             selected_scenario_ids: Vec::new(),
             backend: None,
+            backend_evidence: None,
             run_metadata: RunMetadata::default(),
             runner_error: None,
         }
@@ -483,12 +485,14 @@ impl ValidationReport {
             .map(|result| result.scenario_id().as_str().to_owned())
             .collect();
         let backend = results.first().map(|result| *result.finding().backend());
+        let backend_evidence = backend.map(BackendKind::evidence);
         Self {
             scenario_count: count,
             results,
             policy,
             selected_scenario_ids,
             backend,
+            backend_evidence,
             run_metadata: RunMetadata::default(),
             runner_error: None,
         }
@@ -509,6 +513,7 @@ impl ValidationReport {
             policy: ValidationPolicy::default(),
             selected_scenario_ids: canonical_ids(selected_scenario_ids),
             backend: None,
+            backend_evidence: None,
             run_metadata: RunMetadata::default(),
             runner_error: Some(error.into()),
         }
@@ -525,6 +530,15 @@ impl ValidationReport {
     #[must_use]
     pub const fn with_backend(mut self, backend: BackendKind) -> Self {
         self.backend = Some(backend);
+        self.backend_evidence = Some(backend.evidence());
+        self
+    }
+
+    /// Records the explicit storage evidence selected for this report.
+    #[must_use]
+    pub const fn with_backend_evidence(mut self, evidence: BackendEvidence) -> Self {
+        self.backend_evidence = Some(evidence);
+        self.backend = Some(evidence.backend_kind());
         self
     }
 
@@ -546,6 +560,12 @@ impl ValidationReport {
     #[must_use]
     pub const fn backend(&self) -> Option<BackendKind> {
         self.backend
+    }
+
+    /// Returns the storage evidence selected for this report, if known.
+    #[must_use]
+    pub const fn backend_evidence(&self) -> Option<BackendEvidence> {
+        self.backend_evidence
     }
 
     /// Returns the run metadata attached to this report.
@@ -579,9 +599,11 @@ impl ValidationReport {
         }
 
         if self.policy.required_live {
-            return self.results.iter().any(|result| {
-                result.finding().backend() == &BackendKind::PostgreSQL && result.outcome().is_pass()
-            });
+            return self.backend_evidence == Some(BackendEvidence::PostgreSQL)
+                && self.results.iter().any(|result| {
+                    result.finding().backend().evidence() == BackendEvidence::PostgreSQL
+                        && result.outcome().is_pass()
+                });
         }
 
         !self.results.iter().any(|result| result.outcome().is_fail())
@@ -732,6 +754,18 @@ impl ValidationReport {
             self.backend
                 .map_or(Value::Null, |backend| json!(backend.as_str())),
         );
+        report.insert(
+            "backend_evidence".to_owned(),
+            self.backend_evidence
+                .map_or(Value::Null, |evidence| json!(evidence.as_str())),
+        );
+        report.insert(
+            "backend_evidence_trusted".to_owned(),
+            json!(
+                self.backend_evidence
+                    .is_some_and(BackendEvidence::is_trusted)
+            ),
+        );
         report.insert("counts".to_owned(), self.json_counts());
         report.insert("findings".to_owned(), Value::Array(self.json_findings()));
         report.insert(
@@ -800,6 +834,18 @@ impl ValidationReport {
             "backend".to_owned(),
             self.backend
                 .map_or(Value::Null, |backend| json!(backend.as_str())),
+        );
+        run.insert(
+            "backend_evidence".to_owned(),
+            self.backend_evidence
+                .map_or(Value::Null, |evidence| json!(evidence.as_str())),
+        );
+        run.insert(
+            "backend_evidence_trusted".to_owned(),
+            json!(
+                self.backend_evidence
+                    .is_some_and(BackendEvidence::is_trusted)
+            ),
         );
         run.insert("command".to_owned(), json!(self.run_metadata.command));
         run.insert(
@@ -871,6 +917,14 @@ impl ValidationReport {
                 value.insert("actual".to_owned(), json!(finding.actual()));
                 value.insert("backend".to_owned(), json!(finding.backend().as_str()));
                 value.insert(
+                    "backend_evidence".to_owned(),
+                    json!(finding.backend().evidence().as_str()),
+                );
+                value.insert(
+                    "backend_evidence_trusted".to_owned(),
+                    json!(finding.backend().evidence().is_trusted()),
+                );
+                value.insert(
                     "capability_area".to_owned(),
                     json!(result.capability_area().unwrap_or_default()),
                 );
@@ -911,6 +965,14 @@ impl ValidationReport {
                 let mut value = Map::new();
                 value.insert("actual".to_owned(), json!(finding.actual()));
                 value.insert("backend".to_owned(), json!(finding.backend().as_str()));
+                value.insert(
+                    "backend_evidence".to_owned(),
+                    json!(finding.backend().evidence().as_str()),
+                );
+                value.insert(
+                    "backend_evidence_trusted".to_owned(),
+                    json!(finding.backend().evidence().is_trusted()),
+                );
                 value.insert("context".to_owned(), json!(finding.context()));
                 value.insert(
                     "evidence".to_owned(),
@@ -1011,6 +1073,14 @@ impl PrerequisiteDetail {
     fn json_value(&self) -> Value {
         let mut detail = Map::new();
         detail.insert("backend".to_owned(), json!(self.backend.as_str()));
+        detail.insert(
+            "backend_evidence".to_owned(),
+            json!(self.backend.evidence().as_str()),
+        );
+        detail.insert(
+            "backend_evidence_trusted".to_owned(),
+            json!(self.backend.evidence().is_trusted()),
+        );
         detail.insert("reason".to_owned(), json!(self.reason));
         detail.insert("scenario_id".to_owned(), json!(self.scenario_id.as_str()));
         detail.insert("state".to_owned(), json!(self.state.as_str()));
@@ -1043,7 +1113,7 @@ mod tests {
     };
     use crate::finding::{EvidenceReference, Finding};
     use crate::outcome::ScenarioOutcome;
-    use crate::scenario::{BackendKind, ScenarioId};
+    use crate::scenario::{BackendEvidence, BackendKind, ScenarioId};
 
     #[test]
     fn report_from_count() {
@@ -1161,6 +1231,8 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&left.serialize_json()).unwrap();
         assert_eq!(value["schema_version"], 1);
         assert_eq!(value["backend"], "in-memory");
+        assert_eq!(value["backend_evidence"], "in-memory");
+        assert_eq!(value["backend_evidence_trusted"], true);
         assert_eq!(value["result_state"], "scenario_failure");
         assert_eq!(value["counts"]["total"], 2);
         assert_eq!(value["counts"]["fail"], 1);
@@ -1170,10 +1242,14 @@ mod tests {
             serde_json::json!(["CV-001", "CV-002"])
         );
         assert_eq!(value["run"]["backend"], "in-memory");
+        assert_eq!(value["run"]["backend_evidence"], "in-memory");
+        assert_eq!(value["run"]["backend_evidence_trusted"], true);
         assert_eq!(value["run"]["policy"]["strict"], false);
         assert_eq!(value["results"][0]["scenario_id"], "CV-001");
         assert_eq!(value["results"][0]["name"], "scenario CV-001");
         assert_eq!(value["results"][0]["capability_area"], "test");
+        assert_eq!(value["results"][0]["backend_evidence"], "in-memory");
+        assert_eq!(value["results"][0]["backend_evidence_trusted"], true);
         assert_eq!(value["results"][0]["outcome"], "pass");
         assert!(value["summary"].is_string());
         assert_eq!(
@@ -1207,6 +1283,8 @@ mod tests {
         assert_eq!(report.prerequisite_details().len(), 1);
         let value: serde_json::Value = serde_json::from_str(&report.serialize_json()).unwrap();
         assert_eq!(value["prerequisites"][0]["state"], "missing");
+        assert_eq!(value["prerequisites"][0]["backend_evidence"], "postgresql");
+        assert_eq!(value["prerequisites"][0]["backend_evidence_trusted"], true);
         assert_eq!(value["result_state"], "prerequisite_unavailable");
         assert!(!report.human_summary().contains("raw"));
     }
@@ -1230,5 +1308,48 @@ mod tests {
             value["selected_scenario_ids"],
             serde_json::json!(["CV-999", "not-an-id"])
         );
+    }
+
+    #[test]
+    fn external_evidence_is_not_a_required_live_pass() {
+        let result = result("CV-012", ScenarioOutcome::Pass, vec![]);
+        let report = ValidationReport::from_results_with_policy(
+            vec![result],
+            ValidationPolicy::required_live(),
+        )
+        .with_backend(BackendKind::LoomClient);
+
+        assert_eq!(report.backend_evidence(), Some(BackendEvidence::External));
+        assert!(!report.gate_passes());
+
+        let value: serde_json::Value = serde_json::from_str(&report.serialize_json()).unwrap();
+        assert_eq!(value["backend_evidence"], "external");
+        assert_eq!(value["backend_evidence_trusted"], false);
+        assert_eq!(value["run"]["backend_evidence"], "external");
+    }
+
+    #[test]
+    fn controlled_postgres_evidence_satisfies_required_live() {
+        let finding = Finding::new(
+            ScenarioId::new("CV-013"),
+            "live backend",
+            "service responds",
+            "service responded",
+            BackendKind::PostgreSQL,
+            "controlled-harness",
+            vec![],
+            ScenarioOutcome::Pass,
+        );
+        let report = ValidationReport::from_results_with_policy(
+            vec![ScenarioResult::new(
+                ScenarioId::new("CV-013"),
+                ScenarioOutcome::Pass,
+                finding,
+            )],
+            ValidationPolicy::required_live(),
+        );
+
+        assert_eq!(report.backend_evidence(), Some(BackendEvidence::PostgreSQL));
+        assert!(report.gate_passes());
     }
 }
