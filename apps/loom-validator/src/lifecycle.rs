@@ -195,9 +195,59 @@ fn finding_for(
         vec![
             EvidenceReference::new("validator:lifecycle"),
             EvidenceReference::new(format!("backend:{}", ctx.backend_kind().as_str())),
+            EvidenceReference::new(format!(
+                "restart_capability:{}",
+                ctx.restart_capability().as_str()
+            )),
         ],
         outcome.clone(),
     )
+}
+
+fn reconnect_only_result(
+    descriptor: &ScenarioDescriptor,
+    ctx: &BackendContext,
+    expected: &str,
+) -> ScenarioResult {
+    let reason = format!(
+        "reconnect-only: endpoint {} does not provide controlled application-boundary restart; restart capability is {}, backend_evidence is {}",
+        ctx.base_url(),
+        ctx.restart_capability().as_str(),
+        ctx.backend_evidence().as_str()
+    );
+    let finding = Finding::new(
+        descriptor.id().clone(),
+        descriptor.name(),
+        expected,
+        reason.clone(),
+        *ctx.backend_kind(),
+        format!(
+            "validator:{}:{}:reconnect-only",
+            descriptor.id_str(),
+            ctx.backend_kind().as_str()
+        ),
+        vec![
+            EvidenceReference::new("validator:restart:reconnect-only"),
+            EvidenceReference::new(format!("backend:{}", ctx.backend_kind().as_str())),
+            EvidenceReference::new(format!(
+                "backend_evidence:{}",
+                ctx.backend_evidence().as_str()
+            )),
+            EvidenceReference::new(format!(
+                "restart_capability:{}",
+                ctx.restart_capability().as_str()
+            )),
+        ],
+        ScenarioOutcome::Unavailable {
+            reason: reason.clone(),
+        },
+    );
+    ScenarioResult::new(
+        descriptor.id().clone(),
+        ScenarioOutcome::Unavailable { reason },
+        finding,
+    )
+    .with_capability_area(descriptor.capability_area().as_str())
 }
 
 fn result_pass(
@@ -423,6 +473,13 @@ fn execute_cv002(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
 }
 
 fn execute_cv003(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResult {
+    if !ctx.can_perform_boundary_restart() {
+        return reconnect_only_result(
+            descriptor,
+            ctx,
+            "controlled application-boundary restart preserves durable state via public API",
+        );
+    }
     let client1 = ctx.client().clone();
     let entity = entity_for(CV_003);
     let result = block_on(async {
@@ -560,12 +617,43 @@ fn execute_cv003(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
     });
 
     match result2 {
-        Ok(()) => result_pass(
-            descriptor,
-            ctx,
-            "dispose/restart/reconnect reopens same durable state via public API",
-            "restart via new LoomClient after real application boundary recreation preserved state",
-        ),
+        Ok(()) => {
+            // Controlled restart evidence: the harness rebuilt the real boundary.
+            let actual = format!(
+                "controlled application-boundary restart via BackendContext::restart preserved state (capability: {}, backend_evidence: {})",
+                ctx.restart_capability().as_str(),
+                ctx.backend_evidence().as_str()
+            );
+            let expected = "dispose/restart/reconnect reopens same durable state via public API";
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                expected,
+                actual.clone(),
+                *ctx.backend_kind(),
+                format!(
+                    "validator:{}:{}:controlled-boundary-restart",
+                    descriptor.id_str(),
+                    ctx.backend_kind().as_str()
+                ),
+                vec![
+                    EvidenceReference::new("validator:lifecycle"),
+                    EvidenceReference::new(format!("backend:{}", ctx.backend_kind().as_str())),
+                    EvidenceReference::new("validator:restart:controlled-boundary-restart"),
+                    EvidenceReference::new(format!(
+                        "restart_capability:{}",
+                        ctx.restart_capability().as_str()
+                    )),
+                    EvidenceReference::new(format!(
+                        "backend_evidence:{}",
+                        ctx.backend_evidence().as_str()
+                    )),
+                ],
+                ScenarioOutcome::Pass,
+            );
+            ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Pass, finding)
+                .with_capability_area(descriptor.capability_area().as_str())
+        }
         Err(actual) => {
             if is_infra_unavailable(&actual) {
                 let outcome = ScenarioOutcome::Unavailable {
@@ -592,6 +680,13 @@ fn execute_cv003(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
 }
 
 fn execute_cv004(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResult {
+    if !ctx.can_perform_boundary_restart() {
+        return reconnect_only_result(
+            descriptor,
+            ctx,
+            "controlled PostgreSQL application-boundary restart preserves durable state via public API",
+        );
+    }
     let pg_url = std::env::var(crate::backend::LOOM_TEST_POSTGRES_URL).unwrap_or_default();
     if pg_url.trim().is_empty() {
         let reason = format!(
@@ -774,12 +869,42 @@ fn execute_cv004(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
     });
 
     match result2 {
-        Ok(()) => result_pass(
-            descriptor,
-            ctx,
-            "PostgreSQL public observable state/provenance survives restart",
-            "live PostgreSQL restart preserved world_time, facet, and history",
-        ),
+        Ok(()) => {
+            let actual = format!(
+                "controlled PostgreSQL application-boundary restart preserved world_time, facet, and history (capability: {}, backend_evidence: {})",
+                ctx.restart_capability().as_str(),
+                ctx.backend_evidence().as_str()
+            );
+            let expected = "PostgreSQL public observable state/provenance survives restart";
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                expected,
+                actual.clone(),
+                *ctx.backend_kind(),
+                format!(
+                    "validator:{}:{}:controlled-boundary-restart",
+                    descriptor.id_str(),
+                    ctx.backend_kind().as_str()
+                ),
+                vec![
+                    EvidenceReference::new("validator:lifecycle"),
+                    EvidenceReference::new(format!("backend:{}", ctx.backend_kind().as_str())),
+                    EvidenceReference::new("validator:restart:controlled-boundary-restart"),
+                    EvidenceReference::new(format!(
+                        "restart_capability:{}",
+                        ctx.restart_capability().as_str()
+                    )),
+                    EvidenceReference::new(format!(
+                        "backend_evidence:{}",
+                        ctx.backend_evidence().as_str()
+                    )),
+                ],
+                ScenarioOutcome::Pass,
+            );
+            ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Pass, finding)
+                .with_capability_area(descriptor.capability_area().as_str())
+        }
         Err(actual) => {
             if is_infra_unavailable(&actual) {
                 let outcome = ScenarioOutcome::Unavailable {

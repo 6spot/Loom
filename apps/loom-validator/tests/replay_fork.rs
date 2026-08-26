@@ -112,6 +112,7 @@ fn cv009_postgres_restart_survives_real_boundary_rebuild_when_configured() {
     let context = BackendContext::new(client)
         .with_backend_kind(BackendKind::PostgreSQL)
         .with_restart_strategy(strategy)
+        .with_controlled_boundary_restart()
         .with_scope("real-CV-009-restart");
     let result = loom_validator::execute_replay_fork(&descriptor, &context);
     assert_pass(&result, "CV-009");

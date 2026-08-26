@@ -23,7 +23,7 @@ pub mod scenarios;
 
 pub use backend::{
     BackendContext, BackendError, BackendHarness, BackendStart, DEFAULT_VALIDATOR_BASE_URL,
-    LOOM_TEST_POSTGRES_URL, LOOM_VALIDATOR_BASE_URL,
+    LOOM_TEST_POSTGRES_URL, LOOM_VALIDATOR_BASE_URL, RestartCapability,
 };
 pub use cli::{
     CliAction, CliArgs, EXIT_RUNNER_ERROR, EXIT_SCENARIO_FAILURE, EXIT_SUCCESS, decide_action,

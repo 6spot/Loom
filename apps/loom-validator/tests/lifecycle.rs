@@ -40,7 +40,8 @@ fn in_memory_context() -> (BackendContext, InMemoryServer) {
         Arc::new(move || server_for_restart.restart());
     let ctx = BackendContext::new(client)
         .with_backend_kind(BackendKind::InMemory)
-        .with_restart_strategy(strategy);
+        .with_restart_strategy(strategy)
+        .with_controlled_boundary_restart();
     (ctx, server)
 }
 
@@ -51,7 +52,8 @@ fn pg_context() -> (BackendContext, PgServer) {
         Arc::new(move || server_for_restart.restart());
     let ctx = BackendContext::new(client)
         .with_backend_kind(BackendKind::PostgreSQL)
-        .with_restart_strategy(strategy);
+        .with_restart_strategy(strategy)
+        .with_controlled_boundary_restart();
     (ctx, server)
 }
 
