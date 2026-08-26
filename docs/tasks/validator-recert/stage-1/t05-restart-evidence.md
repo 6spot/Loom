@@ -38,22 +38,15 @@ merge_sha: bcde587c53c04629f805ef5bdf79c9595604dd20
 - 2026-08-26 — Introduced independent `RestartCapability` model, made generic `BackendContext` reconnect-only by default, gated `CV-003/CV-004` on real restart capability with explicit `reconnect-only` finding/evidence, and preserved genuine `InMemory`/`PostgreSQL` boundary-rebuild harnesses.
 - 2026-08-26 — Added `with_controlled_boundary_restart` to `InMemoryServer`/`PgServer` consumers in `lifecycle` and `replay_fork` integration tests; kept existing replay/fork real restart seam unchanged.
 - 2026-08-26 — Added focused regression `tests/restart_evidence.rs` (6 cases) plus CLI subprocess check for `CV-003` on generic `http://127.0.0.1:8080` with `LOOM_TEST_POSTGRES_URL` present, asserting no `pass` and `reconnect-only` in JSON report.
-- 2026-08-26 — PR #334 reviewed (Reviewer comment 01a03cf3-95ff-7adc-8006-3075c073e4d5), head 620d8eddb3ea9bccd39e5fd1bc96ff839a6e8cea / base 0719d50ea99ff7be799c4e1a8a82624af577662f merged at bcde587c53c04629f805ef5bdf79c9595604dd20; required CI `Rust checks` + `PostgreSQL 18 persistence contract` SUCCESS; post-merge rebase verification on 0719d50: 108 unit tests + all validator harnesses; ledger completion audit.
+- 2026-08-26 07:22 — Pre-merge candidate verification (rebase to 0719d50, head 620d8eddb3ea9bccd39e5fd1bc96ff839a6e8cea): `cargo fmt --check`, `cargo check --workspace`, `cargo clippy -D warnings`, `bash tools/test.sh -p loom-validator --all-features` (108 unit + restart evidence + all harnesses), `check_storage_sql_ownership`, `check_architecture`, `validator_ready` valid; Leader handoff 01a03cf3-95ff-7adc-8006-3075c073e4d5 at 07:23:11Z recorded as handoff (not approval).
+- 2026-08-26 07:34 — Reviewer approval 01a03cfd-cf73-7484-81f3-386b9eeedb5d at 07:34:21Z for PR #334 (head 620d8ed / base 0719d50).
+- 2026-08-26 07:35 — PR #334 merged at 07:35:13Z (merge commit bcde587c53c04629f805ef5bdf79c9595604dd20); required CI `Rust checks` + `PostgreSQL 18 persistence contract` SUCCESS.
+- 2026-08-26 — Post-merge ledger audit (PR #337 docs-only, base bcde587): `git diff --check` PASS, `validator_ready` valid, ledger status completed; no full Rust re-run post-merge.
 
 ## Verification Evidence
 
-- `cargo fmt --all` → passed.
-- `cargo fmt --all -- --check` → passed.
-- `cargo check -p loom-validator --all-targets --all-features` → passed.
-- `cargo check --workspace --all-targets --all-features` → passed.
-- `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed.
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed.
-- `cargo test -p loom-validator --test backend_evidence --all-features` → passed (1 test; valid and malformed ambient PG cases).
-- `cargo test -p loom-validator --test restart_evidence --all-features` → passed (6 tests: generic cannot pass, reconnect stays reconnect-only, controlled InMemory evidence, controlled PG evidence, no overclaim, generic CLI JSON report).
-- `bash tools/test.sh -p loom-validator --all-features` → passed (101 unit tests, backend-evidence regression, 3 lifecycle tests, 4 replay/fork tests, 2 runtime-authority tests, 6 restart-evidence tests with the managed PostgreSQL 18 service).
-- `python3 tools/check_storage_sql_ownership.py` → passed.
-- `python3 tools/check_architecture.py` → passed.
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → valid.
-- Post-merge: Reviewer 01a03cf3-95ff-7adc-8006-3075c073e4d5 approved PR #334 (head 620d8ed / base 0719d50); merge commit bcde587; required CI 2/2 SUCCESS; local rebase verification on 0719d50: `cargo fmt/check/clippy`, `bash tools/test.sh -p loom-validator --all-features` (108 unit tests + all harnesses), `check_storage_sql_ownership`, `check_architecture`, `validator_ready` valid.
+- Pre-merge candidate verification (head 620d8ed / base 0719d50, 07:22): `cargo fmt --all` → passed; `cargo fmt --all -- --check` → passed; `cargo check -p loom-validator --all-targets --all-features` → passed; `cargo check --workspace --all-targets --all-features` → passed; `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings` → passed; `cargo clippy --workspace --all-targets --all-features -- -D warnings` → passed; `cargo test -p loom-validator --test backend_evidence --all-features` → passed (1 test); `cargo test -p loom-validator --test restart_evidence --all-features` → passed (6 tests); `bash tools/test.sh -p loom-validator --all-features` → passed (108 unit + all harnesses); `python3 tools/check_storage_sql_ownership.py` → passed; `python3 tools/check_architecture.py` → passed; `python3 tools/validator_ready.py --check --format json` → valid (pre-merge, 07:22).
+- Post-merge ledger audit (PR #337 docs-only, base bcde587): `git diff --check` → passed; `python3 tools/validator_ready.py --check --format json` → valid (ready only VALR-T01, T05 completed); GitHub PR #337 diff single file, 11 insertions; no full Rust re-run post-merge (docs-only).
+- Reviewer 01a03cfd-cf73-7484-81f3-386b9eeedb5d at 07:34:21Z approved PR #334 (head 620d8ed / base 0719d50); Leader handoff 01a03cf3-95ff at 07:23:11Z was handoff, not approval; merge commit bcde587 at 07:35:13Z; required CI 2/2 SUCCESS.
 
 Acceptance complete: Reviewer approved PR #334, both required CI checks passed, and the merged delivery is recorded above.
