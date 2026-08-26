@@ -360,6 +360,79 @@ impl Runner {
         ValidationReport::from_results_with_policy(results, harness.policy())
             .with_backend(*harness.backend_kind())
     }
+
+    /// Executes a resolved selection against a lifecycle-managed backend harness in a single pass.
+    ///
+    /// This is the canonical single-pass harness path for CLI execution. It
+    /// starts a fresh public context per scenario, disposes it after execution,
+    /// and respects `fail_fast` without replaying prior scenarios. Prerequisites
+    /// and unavailable states are materialized as explicit results and never
+    /// invoke scenario code.
+    #[must_use]
+    pub fn run_with_harness_selected<F>(
+        &self,
+        selection: &[&ScenarioDescriptor],
+        harness: &BackendHarness,
+        execute: F,
+        fail_fast: bool,
+    ) -> ValidationReport
+    where
+        F: Fn(&ScenarioDescriptor, &BackendContext) -> ScenarioResult,
+    {
+        let mut results = Vec::with_capacity(selection.len());
+        for descriptor in selection {
+            let backend = harness.backend_kind();
+            if !descriptor.supported_backends().contains(backend) {
+                let result = ScenarioResult::prerequisite(
+                    descriptor.id().clone(),
+                    descriptor.name(),
+                    *backend,
+                    format!(
+                        "scenario does not declare backend {} as supported",
+                        backend.as_str()
+                    ),
+                )
+                .with_capability_area(descriptor.capability_area().as_str());
+                results.push(result);
+                continue;
+            }
+            let result = match harness.start(descriptor.id_str()) {
+                BackendStart::Ready(context) => {
+                    let res = execute(descriptor, &context)
+                        .with_capability_area(descriptor.capability_area().as_str());
+                    harness.dispose(context);
+                    res
+                }
+                BackendStart::Prerequisite { backend, reason } => ScenarioResult::prerequisite(
+                    descriptor.id().clone(),
+                    descriptor.name(),
+                    backend,
+                    reason,
+                )
+                .with_capability_area(descriptor.capability_area().as_str()),
+                BackendStart::Unavailable { backend, reason } => ScenarioResult::unavailable(
+                    descriptor.id().clone(),
+                    descriptor.name(),
+                    backend,
+                    reason,
+                )
+                .with_capability_area(descriptor.capability_area().as_str()),
+            };
+            let is_fail = result.outcome().is_fail();
+            results.push(result);
+            if fail_fast && is_fail {
+                break;
+            }
+        }
+        ValidationReport::from_results_with_policy(results, harness.policy())
+            .with_backend(*harness.backend_kind())
+            .with_selected_scenario_ids(
+                selection
+                    .iter()
+                    .map(|descriptor| descriptor.id_str().to_owned())
+                    .collect(),
+            )
+    }
 }
 
 /// Expands a slice of strings that may each contain comma-separated values
@@ -827,5 +900,290 @@ mod tests {
 
         assert!(report.gate_passes());
         assert_eq!(*scopes.borrow(), vec!["CV-001", "CV-002"]);
+    }
+
+    #[test]
+    fn single_pass_two_scenarios_invokes_each_exactly_once_in_normal_mode() {
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        registry.register(descriptor("CV-002")).unwrap();
+        let runner = Runner::new(registry);
+        let client = LoomClient::builder("http://localhost:8080".to_string())
+            .build()
+            .unwrap();
+        let backend = BackendContext::new(client);
+        let selection = runner.resolve_ids(&["CV-001,CV-002".to_string()]).unwrap();
+
+        let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+        let order: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let report = runner.run_selected(
+            &selection,
+            &backend,
+            |desc, _ctx| {
+                *counts
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                order.borrow_mut().push(desc.id_str().to_string());
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("actual:{}", desc.id_str()),
+                    BackendKind::LoomClient,
+                    "test",
+                    vec![EvidenceReference::new(format!(
+                        "evidence:{}:{}",
+                        desc.id_str(),
+                        counts.borrow()[desc.id_str()]
+                    ))],
+                    ScenarioOutcome::Pass,
+                );
+                ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+            },
+            false,
+        );
+
+        assert_eq!(counts.borrow().get("CV-001"), Some(&1));
+        assert_eq!(counts.borrow().get("CV-002"), Some(&1));
+        assert_eq!(*order.borrow(), vec!["CV-001", "CV-002"]);
+        assert_eq!(report.scenario_count(), 2);
+        // Report must be produced from the same single execution pass.
+        assert_eq!(report.results()[0].finding().actual(), "actual:CV-001");
+        assert_eq!(report.results()[1].finding().actual(), "actual:CV-002");
+        assert!(
+            report.results()[0]
+                .finding()
+                .evidence()
+                .iter()
+                .any(|e| e.as_str() == "evidence:CV-001:1")
+        );
+        assert!(
+            report.results()[1]
+                .finding()
+                .evidence()
+                .iter()
+                .any(|e| e.as_str() == "evidence:CV-002:1")
+        );
+    }
+
+    #[test]
+    fn fail_fast_first_failure_second_never_invoked_and_first_exactly_once() {
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        registry.register(descriptor("CV-002")).unwrap();
+        registry.register(descriptor("CV-003")).unwrap();
+        let runner = Runner::new(registry);
+        let client = LoomClient::builder("http://localhost:8080".to_string())
+            .build()
+            .unwrap();
+        let backend = BackendContext::new(client);
+        let selection = runner
+            .resolve_ids(&[
+                "CV-001".to_string(),
+                "CV-002".to_string(),
+                "CV-003".to_string(),
+            ])
+            .unwrap();
+
+        let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+        let report = runner.run_selected(
+            &selection,
+            &backend,
+            |desc, _| {
+                *counts
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                let outcome = if desc.id_str() == "CV-001" {
+                    ScenarioOutcome::Fail
+                } else {
+                    ScenarioOutcome::Pass
+                };
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("actual:{}", desc.id_str()),
+                    BackendKind::LoomClient,
+                    "test",
+                    vec![],
+                    outcome.clone(),
+                );
+                ScenarioResult::new(desc.id().clone(), outcome, finding)
+            },
+            true,
+        );
+
+        assert_eq!(counts.borrow().get("CV-001"), Some(&1));
+        assert_eq!(counts.borrow().get("CV-002"), None);
+        assert_eq!(counts.borrow().get("CV-003"), None);
+        assert_eq!(report.scenario_count(), 1);
+        assert_eq!(report.failed_count(), 1);
+        assert_eq!(report.results()[0].scenario_id().as_str(), "CV-001");
+        // Ensure the failing scenario itself was invoked exactly once, not replayed.
+        assert_eq!(counts.borrow()["CV-001"], 1);
+    }
+
+    #[test]
+    fn harness_selected_single_pass_counts_and_report_from_same_pass() {
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        let mut registry = ScenarioRegistry::bootstrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        registry.register(descriptor("CV-002")).unwrap();
+        let runner = Runner::new(registry);
+        let harness =
+            BackendHarness::connect(BackendKind::LoomClient, "http://localhost:8080").unwrap();
+        let selection = runner.resolve_ids(&["CV-001,CV-002".to_string()]).unwrap();
+
+        // Normal mode: each scenario exactly once, report from same pass.
+        let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+        let report = runner.run_with_harness_selected(
+            &selection,
+            &harness,
+            |desc, ctx| {
+                *counts
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("scope:{}", ctx.scope()),
+                    BackendKind::LoomClient,
+                    ctx.scope(),
+                    vec![EvidenceReference::new(format!(
+                        "invocation:{}:{}",
+                        desc.id_str(),
+                        counts.borrow()[desc.id_str()]
+                    ))],
+                    ScenarioOutcome::Pass,
+                );
+                ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+            },
+            false,
+        );
+
+        assert_eq!(counts.borrow().get("CV-001"), Some(&1));
+        assert_eq!(counts.borrow().get("CV-002"), Some(&1));
+        assert_eq!(report.scenario_count(), 2);
+        assert_eq!(report.results()[0].finding().actual(), "scope:CV-001");
+        assert_eq!(report.results()[1].finding().actual(), "scope:CV-002");
+
+        // Fail-fast: first fails, second never invoked, first exactly once.
+        let counts2: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+        let report2 = runner.run_with_harness_selected(
+            &selection,
+            &harness,
+            |desc, ctx| {
+                *counts2
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                let outcome = if desc.id_str() == "CV-001" {
+                    ScenarioOutcome::Fail
+                } else {
+                    ScenarioOutcome::Pass
+                };
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("scope:{}", ctx.scope()),
+                    BackendKind::LoomClient,
+                    ctx.scope(),
+                    vec![],
+                    outcome.clone(),
+                );
+                ScenarioResult::new(desc.id().clone(), outcome, finding)
+            },
+            true,
+        );
+
+        assert_eq!(counts2.borrow().get("CV-001"), Some(&1));
+        assert_eq!(counts2.borrow().get("CV-002"), None);
+        assert_eq!(report2.scenario_count(), 1);
+        assert_eq!(report2.results()[0].scenario_id().as_str(), "CV-001");
+        assert_eq!(counts2.borrow()["CV-001"], 1);
+    }
+
+    #[test]
+    fn harness_selected_unsupported_backend_is_prerequisite_without_executor_call() {
+        use std::cell::RefCell;
+
+        let mut registry = ScenarioRegistry::bootstrap();
+        // CV-010 supports only InMemory; we will run with PostgreSQL harness to force prerequisite.
+        registry
+            .register(ScenarioDescriptor::new(
+                "CV-010",
+                "unsupported backend scenario",
+                "test",
+                vec![BackendKind::PostgreSQL],
+                "none",
+                vec![],
+                vec![],
+            ))
+            .unwrap();
+        registry.register(descriptor("CV-001")).unwrap();
+        let runner = Runner::new(registry);
+        // Use LoomClient harness so CV-010 (PostgreSQL-only) is unsupported.
+        let harness =
+            BackendHarness::connect(BackendKind::LoomClient, "http://localhost:8080").unwrap();
+        let selection = runner.resolve_ids(&["CV-001,CV-010".to_string()]).unwrap();
+        // Selection is sorted: CV-001, CV-010
+        assert_eq!(
+            selection.iter().map(|d| d.id_str()).collect::<Vec<_>>(),
+            vec!["CV-001", "CV-010"]
+        );
+
+        let called: RefCell<Vec<String>> = RefCell::new(Vec::new());
+        let report = runner.run_with_harness_selected(
+            &selection,
+            &harness,
+            |desc, ctx| {
+                called.borrow_mut().push(desc.id_str().to_string());
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("scope:{}", ctx.scope()),
+                    *ctx.backend_kind(),
+                    ctx.scope(),
+                    vec![],
+                    ScenarioOutcome::Pass,
+                );
+                ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+            },
+            false,
+        );
+
+        // CV-010 must not have invoked executor.
+        assert_eq!(*called.borrow(), vec!["CV-001"]);
+        assert_eq!(report.scenario_count(), 2);
+        // CV-010 result must be prerequisite/skipped, not pass/fail.
+        let cv010 = report
+            .results()
+            .iter()
+            .find(|r| r.scenario_id().as_str() == "CV-010")
+            .unwrap();
+        assert!(cv010.outcome().is_skipped());
+        assert!(
+            cv010
+                .finding()
+                .actual()
+                .contains("does not declare backend")
+        );
+        // Normal continuation: CV-001 executed, CV-010 prerequisite, no second pass.
+        assert_eq!(report.results()[0].scenario_id().as_str(), "CV-001");
+        assert_eq!(report.results()[1].scenario_id().as_str(), "CV-010");
     }
 }
