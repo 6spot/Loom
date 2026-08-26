@@ -1,13 +1,13 @@
 ---
 task: VALR-T09
 issue: 314
-status: in_progress
+status: completed
 depends_on: [313]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-27
+completion_pr: 345
+merge_sha: da18e40d30697f57f38a3f21a14de666ebfefc54
 ---
 
 # VALR-T09 — Create parallel-safe Validator suite scaffold
@@ -129,11 +129,12 @@ Pending Reviewer and CI post-merge verification.
 
 ## Acceptance
 
-- [ ] All nine production modules and nine integration-test modules exist, compile, and have disjoint primary ownership matching the T08 matrix (AC-01).
-- [ ] Global production registry and `--all` output remain at `CV-001..CV-011`; no unfinished `CV-012..CV-040` or placeholder `Pass` is registered (AC-02).
-- [ ] Scaffold is usable as independent suite entry points without later T10–T18 editing central registry/dispatch; ownership/write-scope ledger is precise enough to prevent cross-suite races (AC-03).
-- [ ] `cargo fmt` / `cargo check` / `cargo clippy -D warnings` / `cargo test --all-targets` / `validator_ready --check` / `check_architecture` / `check_storage_sql_ownership` / `git diff --check` are clean with no skipped result standing in for a required check (AC-04).
+- [x] All nine production modules and nine integration-test modules exist, compile, and have disjoint primary ownership matching the T08 matrix (AC-01).
+- [x] Global production registry and `--all` output remain at `CV-001..CV-011`; no unfinished `CV-012..CV-040` or placeholder `Pass` is registered (AC-02).
+- [x] Scaffold is usable as independent suite entry points without later T10–T18 editing central registry/dispatch; ownership/write-scope ledger is precise enough to prevent cross-suite races (AC-03).
+- [x] `cargo fmt` / `cargo check` / `cargo clippy -D warnings` / `cargo test --all-targets` / `validator_ready --check` / `check_architecture` / `check_storage_sql_ownership` / `git diff --check` are clean with no skipped result standing in for a required check (AC-04).
 
 ## Progress Log
 
 - 2026-08-27 — Created nine production suite scaffolds (`world_binding`, `action_ingress`, `scheduler`, `world_time`, `query_catalog`, `semantic_blob`, `provenance`, `agency`, `change_feed`) plus nine matching `tests/<suite>.rs` integration scaffolds and exposed `pub mod` boundaries in `src/lib.rs` without touching `validator_registry`/`registry.rs`/`scenarios.rs`. No `CV-012..CV-040` behavior or `Pass` placeholder was added. Documented disjoint ownership/write scopes for T10–T18, T19 central-registry boundary, non-registration rule, and no-shared-helper decision.
+- 2026-08-27 — Post-merge ledger completion audit (PR #345 `da18e40d30697f57f38a3f21a14de666ebfefc54` merged; Reviewer `01a03fa2-9a87-768c-a606-2f718f48df6a` approved): updated front matter to `status: completed`, `completed_at: 2026-08-27`, `completion_pr: 345`, `merge_sha: da18e40d30697f57f38a3f21a14de666ebfefc54`, checked all four Acceptance (`AC-01`..`AC-04`); verified `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` → `valid=true` `violations=[]`, `git diff --check` clean, and required CI `Rust checks` + `PostgreSQL 18 persistence contract` succeeded. No Rust/source/test changes.
