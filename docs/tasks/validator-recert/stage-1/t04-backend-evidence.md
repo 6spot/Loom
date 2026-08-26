@@ -1,27 +1,27 @@
 ---
 task: VALR-T04
 issue: 307
-status: in_progress
+status: completed
 depends_on: []
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 331
+merge_sha: 9617979e02bb095484182c0c57e3c3b8e8d6b7a2
 ---
 # VALR-T04 — Trusted backend evidence identities
 
 ## Acceptance
 
-- [ ] backend identity is derived from explicit controlled construction, not
+- [x] backend identity is derived from explicit controlled construction, not
       ambient `LOOM_TEST_POSTGRES_URL` presence;
-- [ ] generic/external, controlled InMemory, and controlled PostgreSQL
+- [x] generic/external, controlled InMemory, and controlled PostgreSQL
       evidence classes are visible in reports;
-- [ ] required-live policy accepts only trusted PostgreSQL evidence;
-- [ ] production Validator code remains on `loom-api`/`loom-client` public
+- [x] required-live policy accepts only trusted PostgreSQL evidence;
+- [x] production Validator code remains on `loom-api`/`loom-client` public
       surfaces;
-- [ ] focused regression tests cover valid and malformed ambient PG data;
-- [ ] review and required CI gates complete.
+- [x] focused regression tests cover valid and malformed ambient PG data;
+- [x] review and required CI gates complete.
 
 ## Progress Log
 
@@ -31,6 +31,8 @@ merge_sha:
 - 2026-08-26 — Added subprocess regression coverage for generic HTTP endpoints
   with valid and malformed PG configuration, plus controlled InMemory and
   PostgreSQL evidence tests.
+- 2026-08-26 — PR #331 was independently reviewed, all required CI checks
+  passed, and the change merged at `9617979e02bb095484182c0c57e3c3b8e8d6b7a2`.
 
 ## Verification Evidence
 
@@ -52,4 +54,5 @@ merge_sha:
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1
   --check --format json` → valid; VALR-T04 is the sole open leaf.
 
-Acceptance remains pending reviewer confirmation and required CI.
+Acceptance complete: Reviewer approved PR #331, both required CI checks passed,
+and the merged delivery is recorded above.
