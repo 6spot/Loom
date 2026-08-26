@@ -1,22 +1,22 @@
 ---
 task: VALR-T05
 issue: 310
-status: in_progress
+status: completed
 depends_on: [307]
 created_at: 2026-08-26
 started_at: 2026-08-26
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-26
+completion_pr: 334
+merge_sha: bcde587c53c04629f805ef5bdf79c9595604dd20
 ---
 # VALR-T05 — Distinguish reconnect from real boundary restart
 
 ## Acceptance
 
-- [ ] reconnect and restart are separate capability/evidence classes;
-- [ ] CV-003/CV-004 cannot fake-pass real restart on generic CLI context;
-- [ ] existing genuine restart integration harness remains live;
-- [ ] focused tests and repository checks pass.
+- [x] reconnect and restart are separate capability/evidence classes;
+- [x] CV-003/CV-004 cannot fake-pass real restart on generic CLI context;
+- [x] existing genuine restart integration harness remains live;
+- [x] focused tests and repository checks pass.
 
 ## Scope
 
@@ -38,6 +38,7 @@ merge_sha:
 - 2026-08-26 — Introduced independent `RestartCapability` model, made generic `BackendContext` reconnect-only by default, gated `CV-003/CV-004` on real restart capability with explicit `reconnect-only` finding/evidence, and preserved genuine `InMemory`/`PostgreSQL` boundary-rebuild harnesses.
 - 2026-08-26 — Added `with_controlled_boundary_restart` to `InMemoryServer`/`PgServer` consumers in `lifecycle` and `replay_fork` integration tests; kept existing replay/fork real restart seam unchanged.
 - 2026-08-26 — Added focused regression `tests/restart_evidence.rs` (6 cases) plus CLI subprocess check for `CV-003` on generic `http://127.0.0.1:8080` with `LOOM_TEST_POSTGRES_URL` present, asserting no `pass` and `reconnect-only` in JSON report.
+- 2026-08-26 — PR #334 reviewed (Reviewer comment 01a03cf3-95ff-7adc-8006-3075c073e4d5), head 620d8eddb3ea9bccd39e5fd1bc96ff839a6e8cea / base 0719d50ea99ff7be799c4e1a8a82624af577662f merged at bcde587c53c04629f805ef5bdf79c9595604dd20; required CI `Rust checks` + `PostgreSQL 18 persistence contract` SUCCESS; post-merge rebase verification on 0719d50: 108 unit tests + all validator harnesses; ledger completion audit.
 
 ## Verification Evidence
 
@@ -53,5 +54,6 @@ merge_sha:
 - `python3 tools/check_storage_sql_ownership.py` → passed.
 - `python3 tools/check_architecture.py` → passed.
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → valid.
+- Post-merge: Reviewer 01a03cf3-95ff-7adc-8006-3075c073e4d5 approved PR #334 (head 620d8ed / base 0719d50); merge commit bcde587; required CI 2/2 SUCCESS; local rebase verification on 0719d50: `cargo fmt/check/clippy`, `bash tools/test.sh -p loom-validator --all-features` (108 unit tests + all harnesses), `check_storage_sql_ownership`, `check_architecture`, `validator_ready` valid.
 
-Acceptance remains pending reviewer confirmation and required CI.
+Acceptance complete: Reviewer approved PR #334, both required CI checks passed, and the merged delivery is recorded above.
