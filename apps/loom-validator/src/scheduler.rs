@@ -210,6 +210,25 @@ fn world_template_for(scope: &str) -> WorldTemplateDescriptor {
     .requires_capability("neutral.counter", "^0.1.0")
 }
 
+fn world_template_for_with_bootstrap(
+    scope: &str,
+    agent: EntityId,
+    bootstrap_event: EventId,
+    at: WorldInstant,
+) -> WorldTemplateDescriptor {
+    let _ = scope;
+    WorldTemplateDescriptor::new("validator.t12.scheduler.fencing.v1", 1, at)
+        .requires_capability("neutral.counter", "^0.1.0")
+        .with_bootstrap_action(ActionInvocation::new(
+            ActionTypeId::from("neutral.counter.seed"),
+            json!({
+                "event_id": bootstrap_event.to_string(),
+                "entity_id": agent.to_string(),
+                "value": 1,
+            }),
+        ))
+}
+
 fn new_entity_id() -> EntityId {
     EntityId::new(Uuid::new_v4())
 }
@@ -339,8 +358,23 @@ fn cv020(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
     let expected = "independent Timelines not globally serialized: B commits Action/Event/version while A's due Pending Work remains Pending; per-Timeline CAS, fixed WorldInstant, formal reads";
     let fixed_instant = WorldInstant::new(100);
 
-    // 1. Create two independent Worlds at fixed WorldInstant 100.
-    let template_a = world_template_for(&format!("{scope}-A"));
+    // 1. Create two independent Worlds at fixed WorldInstant 100 via public WorldService bootstrap path.
+    //    Bootstrap creates the Agency Wake agent entities via WorldTemplate bootstrap actions, so
+    //    schedule_agency_wake's entity-existence check passes without using ActionService on A.
+    //    This keeps the proving post-schedule ActionService::invoke only on Timeline B.
+    let work_id_a = new_work_id();
+    let work_id_b = new_work_id();
+    let agent_a = new_entity_id();
+    let agent_b = new_entity_id();
+    let bootstrap_event_a = new_event_id();
+    let bootstrap_event_b = new_event_id();
+
+    let template_a = world_template_for_with_bootstrap(
+        &format!("{scope}-A"),
+        agent_a,
+        bootstrap_event_a,
+        fixed_instant,
+    );
     let created_a = match block_on(async {
         api.create_world_from_template(CreateWorldFromTemplateRequest::new(template_a.clone()))
             .await
@@ -375,13 +409,9 @@ fn cv020(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
         );
     }
     let target_a = created_a.target;
-    // Use the logical status version for CAS — the snapshot version from creation may be stale if
-    // the runtime's logical journal is observed via AdminService. Fetching the fresh status mirrors
-    // the public-consumer convenience path exercised in loom-cli::agency_wake_convenience_resolves_version_via_status.
-    let mut version_a0 = match block_on(async { client.timeline_logical_status(target_a).await }) {
+    let version_a0 = match block_on(async { client.timeline_logical_status(target_a).await }) {
         Ok(status) => status.version,
         Err(e) => {
-            // Fallback to creation version if status read fails — but report as unavailable if infra.
             if is_infra_unavailable(&format!("{:?}", e.code)) {
                 let actual = format!(
                     "timeline_logical_status A pre-schedule failed: {:?} - {}",
@@ -397,12 +427,13 @@ fn cv020(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
             created_a.version
         }
     };
-    if version_a0 != created_a.version {
-        // Creation and status should align on a fresh world; if not, we use the fresh status version
-        // for the CAS to avoid the stale-version Conflict observed in earlier runs.
-    }
 
-    let template_b = world_template_for(&format!("{scope}-B"));
+    let template_b = world_template_for_with_bootstrap(
+        &format!("{scope}-B"),
+        agent_b,
+        bootstrap_event_b,
+        fixed_instant,
+    );
     let created_b = match block_on(async {
         api.create_world_from_template(CreateWorldFromTemplateRequest::new(template_b.clone()))
             .await
@@ -433,11 +464,10 @@ fn cv020(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
         );
     }
     let target_b = created_b.target;
-    let _version_b0_initial =
-        match block_on(async { client.timeline_logical_status(target_b).await }) {
-            Ok(status) => status.version,
-            Err(_) => created_b.version,
-        };
+    let version_b0 = match block_on(async { client.timeline_logical_status(target_b).await }) {
+        Ok(status) => status.version,
+        Err(_) => created_b.version,
+    };
 
     if target_a.world_id == target_b.world_id && target_a.timeline_id == target_b.timeline_id {
         return result_fail(
@@ -458,115 +488,6 @@ fn cv020(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
             ),
         );
     }
-
-    // 2. Ensure Agency Wake agent entities exist — schedule_agency_wake validates that the agent
-    //    Entity is already present in the Timeline's entity set (InMemoryStore commit check).
-    //    The frozen T08 world template is otherwise empty, so we seed one counter Facet per Timeline
-    //    using the agent's own EntityId before scheduling. This keeps the fixed WorldInstant and
-    //    per-Timeline CAS guarantees intact and uses only public surfaces.
-    let work_id_a = new_work_id();
-    let work_id_b = new_work_id();
-    let agent_a = new_entity_id();
-    let agent_b = new_entity_id();
-
-    // Seed agent entity for A
-    let bootstrap_event_a = new_event_id();
-    let seed_a = ActionRequest::new(
-        target_a,
-        ActionInvocation::new(
-            ActionTypeId::from("neutral.counter.seed"),
-            json!({
-                "event_id": bootstrap_event_a.to_string(),
-                "entity_id": agent_a.to_string(),
-                "value": 1,
-            }),
-        ),
-    );
-    let seed_res_a = match block_on(async { api.invoke(seed_a).await }) {
-        Ok(r) => r,
-        Err(e) => {
-            return result_fail(
-                descriptor,
-                ctx,
-                expected,
-                format!(
-                    "bootstrap seed A for agent failed: {:?} - {}",
-                    e.code, e.message
-                ),
-            );
-        }
-    };
-    let version_a0_after_seed = match seed_res_a {
-        ExecutionResult::Committed {
-            timeline_version, ..
-        } => timeline_version,
-        other => {
-            return result_fail(
-                descriptor,
-                ctx,
-                expected,
-                format!("bootstrap seed A not committed: {:?}", other),
-            );
-        }
-    };
-    // Seed agent entity for B
-    let bootstrap_event_b = new_event_id();
-    let seed_b = ActionRequest::new(
-        target_b,
-        ActionInvocation::new(
-            ActionTypeId::from("neutral.counter.seed"),
-            json!({
-                "event_id": bootstrap_event_b.to_string(),
-                "entity_id": agent_b.to_string(),
-                "value": 1,
-            }),
-        ),
-    );
-    let seed_res_b = match block_on(async { api.invoke(seed_b).await }) {
-        Ok(r) => r,
-        Err(e) => {
-            return result_fail(
-                descriptor,
-                ctx,
-                expected,
-                format!(
-                    "bootstrap seed B for agent failed: {:?} - {}",
-                    e.code, e.message
-                ),
-            );
-        }
-    };
-    let version_b0_after_seed = match seed_res_b {
-        ExecutionResult::Committed {
-            timeline_version, ..
-        } => timeline_version,
-        other => {
-            return result_fail(
-                descriptor,
-                ctx,
-                expected,
-                format!("bootstrap seed B not committed: {:?}", other),
-            );
-        }
-    };
-
-    // Update expected versions to the post-seed committed versions for the CAS.
-    version_a0 = version_a0_after_seed;
-    let mut version_b0_inner = version_b0_after_seed;
-    // Use the fresh status version as the CAS expected_version for schedule — this matches the
-    // convenience path and ensures we test the exact public CAS the CLI uses.
-    // Fetch fresh status for both to be safe.
-    if let Ok(status) = block_on(async { client.timeline_logical_status(target_a).await }) {
-        if status.version != version_a0 {
-            version_a0 = status.version;
-        }
-    }
-    if let Ok(status) = block_on(async { client.timeline_logical_status(target_b).await }) {
-        if status.version != version_b0_inner {
-            version_b0_inner = status.version;
-        }
-    }
-    let version_b0 = version_b0_inner;
 
     let schedule_a = AdminScheduleAgencyWakeRequest {
         target: target_a,

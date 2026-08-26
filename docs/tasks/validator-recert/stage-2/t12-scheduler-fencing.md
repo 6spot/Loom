@@ -59,15 +59,15 @@ Forbidden (enforced):
 ## CV-020 — Independent Timelines not globally serialized (IMPLEMENTED)
 
 - **Architecture clause:** `world-runtime.md` §8.9 Scope, §8.4 head-of-line per Timeline; `m5/t4` timeline isolation.
-- **Preconditions (deterministic):** Two independent Worlds at fixed `WorldInstant(100)` via `WorldService::create_world_from_template` with `WorldTemplateDescriptor::new("validator.t12.scheduler.fencing.v1", 1, WorldInstant(100)).requires_capability("neutral.counter","^0.1.0")`. Each Timeline receives one due `Pending` Agency Wake via `AdminService::schedule_agency_wake` with `WorkSchedule::At(WorldInstant(100))` using per-Timeline CAS `expected_version` from creation. No wall-clock or platform time is used.
+- **Preconditions (deterministic):** Two independent Worlds at fixed `WorldInstant(100)` via `WorldService::create_world_from_template` with `WorldTemplateDescriptor::new("validator.t12.scheduler.fencing.v1", 1, WorldInstant(100)).requires_capability("neutral.counter","^0.1.0")` plus a public bootstrap `ActionInvocation("neutral.counter.seed")` that creates the Agency Wake agent Entity via the template's `bootstrap_actions` (public `WorldService` setup, no `ActionService` on A). Each Timeline receives one due `Pending` Agency Wake via `AdminService::schedule_agency_wake` with `WorkSchedule::At(WorldInstant(100))` using per-Timeline CAS `expected_version` from creation/status. No wall-clock or platform time is used.
 - **Formal surface:**
-  - `WorldService::create_world_from_template`
+  - `WorldService::create_world_from_template` (with `bootstrap_actions` for agent setup)
   - `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target, expected_version, work_id, agent, cognition, payload, schedule: WorkSchedule::At(100) })`
-  - `ActionService::invoke(ActionRequest::new(target_b, ActionInvocation::new("neutral.counter.seed", {"event_id","entity_id","value":1})))`
+  - `ActionService::invoke(ActionRequest::new(target_b, ActionInvocation::new("neutral.counter.seed", {"event_id","entity_id","value":1})))` — only on Timeline B post-schedule
   - `AdminService::timeline_logical_status(TimelineTarget)`
   - `TimelineService::inspect_timeline(TimelineTarget)` (`TimelineVersion`, `WorldInstant`)
   - `HistoryService::list_events(EventQuery::all(target))` + `list_events_page`
-- **Expected observable result:** `invoke` on Timeline B commits (`ExecutionResult::Committed` with `timeline_version` advancing) while Timeline A's head remains `Pending` at `effective_due=100`. No cross-Timeline head barrier: each Timeline's `inspect_timeline.version` increments independently (`A: version_a0 -> version_a1` via schedule, stable after B commit; `B: version_b0 -> version_b1 -> version_b2` via schedule + commit). A's `timeline_logical_status.version` stays `version_a1` after B commit; `logical_commit_count` for A stable, for B incremented. A's history remains empty; B's history contains exactly one committed `Event` and `list_events_page` agrees. Ordering by `EventSeq` is preserved. Payload and timeline isolation is strictly per-Timeline.
+- **Expected observable result:** `invoke` on Timeline B commits (`ExecutionResult::Committed` with `timeline_version` advancing) while Timeline A's head remains `Pending` at `effective_due=100`. No cross-Timeline head barrier: each Timeline's `inspect_timeline.version` increments independently (`A: version_a0 -> version_a1` via schedule, stable after B commit; `B: version_b0 -> version_b1 -> version_b2` via schedule + commit). A's `timeline_logical_status.version` stays `version_a1` after B commit; `logical_commit_count` for A stable, for B incremented. A's history contains its single bootstrap `Event` (1), B's history contains bootstrap + committed `Event` (2) and `list_events_page` agrees. Ordering by `EventSeq` is preserved. Payload and timeline isolation is strictly per-Timeline.
 - **Supported evidence classes:** `controlled InMemory` (trusted), `controlled PostgreSQL` (trusted), `External` (`LoomClient`). InMemory uses `InMemoryServer` (real `Runtime` + `InMemoryStore` over HTTP with preserved store and controlled restart capability); PostgreSQL uses `PgServer` (real `Runtime` + `PgStorage` over HTTP). Both are built via `tests/common/mod.rs` harness; no direct DB/table inspection, no `loom-storage`/`loom-runtime` imports in production code.
 - **PostgreSQL live mandatory:** No per T08, but controlled PostgreSQL is implemented and exercised in `tests/scheduler.rs::cv020_independent_timelines_pass_on_live_postgres_service_when_configured` using `PgServer::start()` + `BackendContext` with `BackendKind::PostgreSQL`.
 - **Owning leaf:** T12 (#317) — this ledger.
@@ -78,13 +78,13 @@ Forbidden (enforced):
 
 `scheduler::execute_scheduler` dispatches `CV-020` via `cv020()`:
 
-1. Create `A` and `B` Worlds at `WorldInstant 100` (fixed). Assert distinct `WorldId`/`TimelineId`, `world_time==100`.
+1. Create `A` and `B` Worlds at `WorldInstant 100` (fixed) via `create_world_from_template` with bootstrap seed that creates each Timeline's Agency Wake agent Entity (`neutral.counter.seed` with `bootstrap_event_a/b`). Assert distinct `WorldId`/`TimelineId`, `world_time==100`, and initial history contains the single bootstrap `Event` per Timeline.
 2. Schedule one Agency Wake per Timeline at `At(100)` with deterministic `WorkId`/`EntityId`/`cognition` via per-Timeline `expected_version` CAS. Assert `schedule_agency_wake` returns new `version_a1`/`version_b1`.
-3. Read `timeline_logical_status` + `inspect_timeline` for both Timelines after schedules: assert `works.len()==1`, `status==Pending`, `effective_due_world_time==100`, `version` matches schedule result, `world_time==100`, histories empty.
-4. Invoke `neutral.counter.seed` only on `B` (`entity_b`, `event_id_b`, `value=1`). Assert `ExecutionResult::Committed` with `event_ids.len()==1` and `timeline_version==version_b2>version_b1`.
+3. Read `timeline_logical_status` + `inspect_timeline` for both Timelines after schedules: assert `works.len()==1`, `status==Pending`, `effective_due_world_time==100`, `version` matches schedule result, `world_time==100`, histories still `len==1` (bootstrap Event) per Timeline.
+4. Invoke `neutral.counter.seed` only on `B` post-schedule (`entity_b`, `event_id_b`, `value=1`) — the sole proving `ActionService::invoke`; `A` receives no `ActionService` invoke. Assert `ExecutionResult::Committed` with `event_ids.len()==1` and `timeline_version==version_b2>version_b1`.
 5. Re-read `timeline_logical_status` + `inspect_timeline` + `list_events` + `list_events_page` for both Timelines:
-   - `A`: work still `Pending` at `100`, `version==version_a1` unchanged (no global serialization), `logical_commit_count` stable, history empty, `inspect.version==version_a1`.
-   - `B`: work still `Pending` at `100`, `version==version_b2`, `logical_commit_count` incremented, `inspect.version==version_b2`, history `len==1` containing `event_ids_b[0]`, `list_events_page` consistent, `A` history does not contain `B`'s event.
+   - `A`: work still `Pending` at `100`, `version==version_a1` unchanged (no global serialization), `logical_commit_count` stable, history `len==1` (bootstrap), `inspect.version==version_a1`.
+   - `B`: work still `Pending` at `100`, `version==version_b2`, `logical_commit_count` incremented, `inspect.version==version_b2`, history `len==2` (bootstrap + committed `Event`), `list_events_page` consistent, `A` history does not contain `B`'s committed Event.
 
 All assertions are via formal `loom-api`/`loom-client` surfaces; no `loom-storage` SQL, `available_at`, lease, or `SKIP LOCKED` internals are observed.
 
@@ -147,4 +147,3 @@ Controlled `PgServer::start()` is used as the live path where T08 marks supporte
 ## Stop conditions
 
 If deterministic public validation would require introducing a new Scheduler authority or changing fencing semantics, stop and report the architecture gap instead of patching the core from this leaf — satisfied: blocked rows remain blocked, no core patch invented.
-
