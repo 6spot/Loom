@@ -546,78 +546,12 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
         return EXIT_SUCCESS;
     }
 
-    let mut report = {
-        let results: Vec<_> = selection
-            .iter()
-            .map(|desc| match harness.start(desc.id_str()) {
-                crate::backend::BackendStart::Ready(ctx) => {
-                    let result = execute_registered_scenario(desc, &ctx);
-                    harness.dispose(ctx);
-                    result
-                }
-                crate::backend::BackendStart::Prerequisite { backend, reason } => {
-                    crate::reports::ScenarioResult::prerequisite(
-                        desc.id().clone(),
-                        desc.name(),
-                        backend,
-                        reason,
-                    )
-                    .with_capability_area(desc.capability_area().as_str())
-                }
-                crate::backend::BackendStart::Unavailable { backend, reason } => {
-                    crate::reports::ScenarioResult::unavailable(
-                        desc.id().clone(),
-                        desc.name(),
-                        backend,
-                        reason,
-                    )
-                    .with_capability_area(desc.capability_area().as_str())
-                }
-            })
-            .collect();
-        let mut report = crate::reports::ValidationReport::from_results(results);
-        if parsed.fail_fast && report.has_failures() {
-            let mut results_ff = Vec::new();
-            for desc in &selection {
-                let start = harness.start(desc.id_str());
-                let result = match start {
-                    crate::backend::BackendStart::Ready(ctx) => {
-                        let r = execute_registered_scenario(desc, &ctx);
-                        harness.dispose(ctx);
-                        r
-                    }
-                    crate::backend::BackendStart::Prerequisite { backend, reason } => {
-                        crate::reports::ScenarioResult::prerequisite(
-                            desc.id().clone(),
-                            desc.name(),
-                            backend,
-                            reason,
-                        )
-                        .with_capability_area(desc.capability_area().as_str())
-                    }
-                    crate::backend::BackendStart::Unavailable { backend, reason } => {
-                        crate::reports::ScenarioResult::unavailable(
-                            desc.id().clone(),
-                            desc.name(),
-                            backend,
-                            reason,
-                        )
-                        .with_capability_area(desc.capability_area().as_str())
-                    }
-                };
-                let is_fail = result.outcome().is_fail();
-                results_ff.push(result);
-                if is_fail {
-                    break;
-                }
-            }
-            report = crate::reports::ValidationReport::from_results(results_ff);
-        }
-        report = report.with_backend(kind);
-        report = report
-            .with_selected_scenario_ids(selection.iter().map(|d| d.id_str().to_owned()).collect());
-        report
-    };
+    let mut report = runner.run_with_harness_selected(
+        &selection,
+        &harness,
+        execute_registered_scenario,
+        parsed.fail_fast,
+    );
 
     let has_machine_evidence = if let Some(path) = parsed.machine_report_path() {
         let report_with_evidence = report.clone().with_run_metadata(
@@ -1214,5 +1148,186 @@ mod tests {
         assert_ne!(EXIT_SUCCESS, EXIT_SCENARIO_FAILURE);
         assert_ne!(EXIT_SUCCESS, EXIT_RUNNER_ERROR);
         assert_ne!(EXIT_SCENARIO_FAILURE, EXIT_RUNNER_ERROR);
+    }
+
+    #[test]
+    fn cli_single_pass_two_scenarios_each_exactly_once_in_normal_mode() {
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            ..Default::default()
+        };
+        let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+        let order: RefCell<Vec<String>> = RefCell::new(Vec::new());
+
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, _ctx| {
+                *counts
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                order.borrow_mut().push(desc.id_str().to_string());
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("actual:{}", desc.id_str()),
+                    BackendKind::LoomClient,
+                    "test",
+                    vec![EvidenceReference::new(format!(
+                        "evidence:{}:{}",
+                        desc.id_str(),
+                        counts.borrow()[desc.id_str()]
+                    ))],
+                    ScenarioOutcome::Pass,
+                );
+                ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+            },
+            |l| out.push(l.to_string()),
+            |l| err.push(l.to_string()),
+        );
+
+        assert_eq!(code, EXIT_SUCCESS);
+        assert_eq!(counts.borrow().get("CV-001"), Some(&1));
+        assert_eq!(counts.borrow().get("CV-002"), Some(&1));
+        assert_eq!(*order.borrow(), vec!["CV-001", "CV-002"]);
+        // Report contents are from the same single execution pass.
+        let joined = out.join("\n");
+        assert!(joined.contains("CV-001"));
+        assert!(joined.contains("CV-002"));
+        assert!(joined.contains("2 total"));
+        assert!(err.is_empty());
+    }
+
+    #[test]
+    fn cli_fail_fast_first_failure_second_never_invoked_and_first_exactly_once() {
+        use std::cell::RefCell;
+        use std::collections::BTreeMap;
+
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            fail_fast: true,
+            ..Default::default()
+        };
+        let counts: RefCell<BTreeMap<String, usize>> = RefCell::new(BTreeMap::new());
+
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, _ctx| {
+                *counts
+                    .borrow_mut()
+                    .entry(desc.id_str().to_string())
+                    .or_insert(0) += 1;
+                let outcome = if desc.id_str() == "CV-001" {
+                    ScenarioOutcome::Fail
+                } else {
+                    ScenarioOutcome::Pass
+                };
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("actual:{}", desc.id_str()),
+                    BackendKind::LoomClient,
+                    "test",
+                    vec![EvidenceReference::new(format!(
+                        "invocation:{}:{}",
+                        desc.id_str(),
+                        counts.borrow()[desc.id_str()]
+                    ))],
+                    outcome.clone(),
+                );
+                ScenarioResult::new(desc.id().clone(), outcome, finding)
+            },
+            |l| out.push(l.to_string()),
+            |l| err.push(l.to_string()),
+        );
+
+        assert_eq!(code, EXIT_SCENARIO_FAILURE);
+        assert_eq!(
+            counts.borrow().get("CV-001"),
+            Some(&1),
+            "failing first scenario must be invoked exactly once"
+        );
+        assert_eq!(
+            counts.borrow().get("CV-002"),
+            None,
+            "second scenario must never be invoked under fail-fast"
+        );
+        assert_eq!(counts.borrow().get("CV-001"), Some(&1));
+        let joined = out.join("\n");
+        assert!(joined.contains("CV-001"));
+        assert!(
+            !joined.contains("CV-002"),
+            "report must not contain non-executed scenario"
+        );
+        // Ensure report reflects single-pass execution count.
+        assert!(
+            joined.contains("1 total") || joined.contains("1 fail") || !joined.contains("2 total")
+        );
+        assert!(err.is_empty());
+    }
+
+    #[test]
+    fn cli_report_contents_are_from_same_execution_pass() {
+        use std::cell::RefCell;
+
+        let runner = Runner::new(test_registry());
+        let backend = test_backend();
+        let args = CliArgs {
+            scenario_ids: vec!["CV-001,CV-002".to_string()],
+            ..Default::default()
+        };
+        let execution_ids: RefCell<Vec<String>> = RefCell::new(Vec::new());
+
+        let mut out = Vec::new();
+        let code = execute_cli(
+            &runner,
+            &backend,
+            &args,
+            |desc, _ctx| {
+                execution_ids.borrow_mut().push(desc.id_str().to_string());
+                let finding = Finding::new(
+                    desc.id().clone(),
+                    desc.name(),
+                    "expected",
+                    format!("actual:{}", desc.id_str()),
+                    BackendKind::LoomClient,
+                    "test",
+                    vec![EvidenceReference::new(format!(
+                        "evidence-for-{}",
+                        desc.id_str()
+                    ))],
+                    ScenarioOutcome::Pass,
+                );
+                ScenarioResult::new(desc.id().clone(), ScenarioOutcome::Pass, finding)
+            },
+            |l| out.push(l.to_string()),
+            |_| {},
+        );
+
+        assert_eq!(code, EXIT_SUCCESS);
+        assert_eq!(*execution_ids.borrow(), vec!["CV-001", "CV-002"]);
+        let joined = out.join("\n");
+        // Each line's actual must correspond to execution order, not a second pass.
+        let pos1 = joined.find("CV-001").unwrap();
+        let pos2 = joined.find("CV-002").unwrap();
+        assert!(pos1 < pos2);
+        assert!(joined.contains("2 total"));
     }
 }
