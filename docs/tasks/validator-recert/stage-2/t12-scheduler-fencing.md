@@ -1,11 +1,13 @@
 ---
 task: VALR-T12
 issue: 317
-status: done
+status: in_progress
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at: 2026-08-27
+completed_at:
+completion_pr:
+merge_sha:
 ---
 
 # VALR-T12 — Validate scheduler logical-head admission + stale-work fencing
@@ -147,3 +149,8 @@ Controlled `PgServer::start()` is used as the live path where T08 marks supporte
 ## Stop conditions
 
 If deterministic public validation would require introducing a new Scheduler authority or changing fencing semantics, stop and report the architecture gap instead of patching the core from this leaf — satisfied: blocked rows remain blocked, no core patch invented.
+
+## Progress Log
+
+- D-T12-004: completion metadata was recorded before PR acceptance and merge.
+- Corrected the lifecycle metadata to remain `in_progress`; `completed_at`, `completion_pr`, and `merge_sha` remain empty until the work is actually accepted and merged.
