@@ -3,7 +3,7 @@
 ## Basis and audit rules
 
 This is the V0 capability manifest for the exact current-main base
-`8761991c36c07b7ee32d2643228bfb458fdeb2d0` (T20 merge PR #359). It is a
+`a4846837979b5da93bd5e193606f4d04a6a32fd5` (T21 merge PR #360). It is a
 review artifact, not a certification decision. T25 owns the final V0 decision;
 T21 owns Stage-3 README, roadmap, and index/status reconciliation.
 
@@ -120,7 +120,7 @@ closure recorded by `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md#
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Cargo dependency DAG and authority placement | `docs/architecture/governance.md` §1–§15; `docs/architecture/README.md` §1–§3 | No public Validator CV; static check `python3 tools/check_architecture.py` | `tools/check_architecture.py` reports `Loom architecture dependency policy: OK` on current main | No PG requirement; CI `Rust checks / Architecture policy` | No restart/persistence requirement; this is a static repository contract | `python3 tools/check_architecture.py`; CI `Rust checks / Architecture policy` | `intentionally non-Validator-covered` — static architecture governance is not a consumer scenario, and the current check passed | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
 | Storage SQL ownership and persistence boundary | `docs/architecture/governance.md`; `docs/architecture/implementation.md`; `crates/loom-storage/sql/README.domains.md` | No public Validator CV; static check `python3 tools/check_storage_sql_ownership.py` | `tools/check_storage_sql_ownership.py` reports `storage SQL ownership check passed` on current main | PG contract is CI `PostgreSQL 18 persistence contract` with `pgvector/pgvector:0.8.6-pg18`; this static row is not a substitute for live capability rows | Persistence ownership is checked statically; runtime restart evidence remains in rows 3/6/7 | `python3 tools/check_storage_sql_ownership.py`; CI PG contract job | `intentionally non-Validator-covered` — storage ownership is an internal boundary contract with direct static evidence, not a public scenario | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
-| Dependency, security, formatting, compilation and unit/build health | `AGENTS.md`; `docs/development/README.md`; `.github/workflows/ci.yml` `rust` job | No public Validator CV; Validator unit evidence `apps/loom-validator/src/*/tests`, exact aggregate command `bash tools/test.sh -p loom-validator --all-targets -- --test-threads=1` | Core property/unit evidence includes `crates/loom-runtime/src/property_fault_security.rs::property_event_sequence_and_timeline_versions_are_contiguous_and_replayable` and `::property_frozen_effect_replay_has_deterministic_success_and_failure` | PG contract is the dedicated CI job; no row-level PG requirement | Build/test health is not restart evidence; restart requirements remain explicit above | CI commands/jobs: `cargo deny check advisories bans licenses sources` (`Rust checks / Dependency and security policy`), `cargo fmt --all -- --check` (`Format`), `cargo check --workspace --all-targets --all-features` (`Check`), `cargo clippy --workspace --all-targets --all-features -- -D warnings` (`Clippy`), `bash tools/test.sh --workspace --all-features` (`Test`), `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` (`Rustdoc`) | `gap` — this aggregate row remains an explicit readiness observation: current `validator_ready` is `valid=false` because T17 is blocked and T19/T20 ledger metadata still awaits T21 reconciliation. It does not downgrade the ten T20 capability rows backed by the merged clean gate; no final certification is declared | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
+| Dependency, security, formatting, compilation and unit/build health | `AGENTS.md`; `docs/development/README.md`; `.github/workflows/ci.yml` `rust` job | No public Validator CV; Validator unit evidence `apps/loom-validator/src/*/tests`, exact aggregate command `bash tools/test.sh -p loom-validator --all-targets -- --test-threads=1` | Core property/unit evidence includes `crates/loom-runtime/src/property_fault_security.rs::property_event_sequence_and_timeline_versions_are_contiguous_and_replayable` and `::property_frozen_effect_replay_has_deterministic_success_and_failure` | PG contract is the dedicated CI job; no row-level PG requirement | Build/test health is not restart evidence; restart requirements remain explicit above | CI commands/jobs: `cargo deny check advisories bans licenses sources` (`Rust checks / Dependency and security policy`), `cargo fmt --all -- --check` (`Format`), `cargo check --workspace --all-targets --all-features` (`Check`), `cargo clippy --workspace --all-targets --all-features -- -D warnings` (`Clippy`), `bash tools/test.sh --workspace --all-features` (`Test`), `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` (`Rustdoc`) | `gap` — current-main `validator_ready` is `valid:false`: T17 has an explicit architecture blocker, T19/T20 retain in-progress dependency metadata, and T21 is still `in_progress` with dependency `325` not completed. This aggregate readiness result is independent of the ten T20 capability rows backed by the merged clean gate; no final certification is declared | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
 
 ## Current status summary
 
@@ -145,13 +145,15 @@ closure recorded by `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md#
   not override the clean merged CI evidence and is not used to downgrade any
   T20 row or to claim a current certification failure.
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json`
-  currently returns `valid: false`: T17 is explicitly blocked, and T19/T20
-  still have in-progress dependency metadata. T21 owns reconciliation; this
-  manifest does not rewrite those ledgers.
+  returns `valid: false` on this current-main checkout: T17 is explicitly
+  blocked; T19 depends on in-progress T10/T11/T13/T14/T15/T16/T17/T18 records;
+  T20 depends on in-progress T19; and T21 is `in_progress` with dependency
+  `325` not completed. The aggregate health row remains `gap`; these readiness
+  violations and the nine capability gaps block final V0 certification.
 
 This manifest therefore does not declare final V0 certification. The explicit
-capability gaps and aggregate readiness observation must be resolved or decided
-by the owners before T25 can make that decision.
+capability gaps and aggregate readiness gap must be resolved or decided by the
+owners before T25 can make that decision.
 
 ## Scope and ownership boundary
 
