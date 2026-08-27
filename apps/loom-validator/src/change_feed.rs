@@ -12,7 +12,7 @@
 use std::str::FromStr;
 
 use loom_api::{
-    ActionInvocation, ActionRequest, ActionService, ActionTypeId, ChangeFeedCursor,
+    ActionInvocation, ActionRequest, ActionService, ActionTypeId, ChangeFeedCursor, CommittedEvent,
     CreateWorldFromTemplateRequest, EntityId, EventId, EventQuery, HistoryService,
     SubscriptionRequest, SubscriptionResult, SubscriptionService, WorldInstant, WorldService,
     WorldTemplateDescriptor,
@@ -187,6 +187,42 @@ where
         .expect("deterministic test ID should parse")
 }
 
+fn correlate_history_and_feed(
+    label: &str,
+    history: &[CommittedEvent],
+    feed: &[CommittedEvent],
+) -> Result<(), String> {
+    if history.len() != feed.len() {
+        return Err(format!(
+            "{label} length mismatch: authoritative history has {} events, feed has {}",
+            history.len(),
+            feed.len()
+        ));
+    }
+    for (index, (history_event, feed_event)) in history.iter().zip(feed).enumerate() {
+        if history_event.id != feed_event.id {
+            return Err(format!(
+                "{label} EventId mismatch at index {index}: history {} vs feed {}",
+                history_event.id, feed_event.id
+            ));
+        }
+        if history_event.sequence != feed_event.sequence {
+            return Err(format!(
+                "{label} EventSeq mismatch at index {index}: history {} vs feed {}",
+                history_event.sequence.value(),
+                feed_event.sequence.value()
+            ));
+        }
+        if history_event != feed_event {
+            return Err(format!(
+                "{label} formal event content mismatch at index {index} for EventId {}",
+                history_event.id
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn finding_for(
     descriptor: &ScenarioDescriptor,
     ctx: &BackendContext,
@@ -310,7 +346,6 @@ fn execute_cv038(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             return Err("list_events empty after commit".to_string());
         }
         let committed = events.last().expect("at least one event").clone();
-        // also verify via HistoryService list_events_page cursor?
         let sub_req = SubscriptionRequest::new(target, 50);
         let sub_res = client.subscribe(sub_req).await.map_err(|e| {
             format!(
@@ -327,37 +362,7 @@ fn execute_cv038(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                         committed.sequence.value()
                     ));
                 }
-                // Find committed event in page
-                let found = page.events.iter().find(|ev| ev.id == committed.id);
-                if found.is_none() {
-                    return Err(format!(
-                        "committed event {} not found in change-feed page events {:?}",
-                        committed.id,
-                        page.events
-                            .iter()
-                            .map(|e| e.id.to_string())
-                            .collect::<Vec<_>>()
-                    ));
-                }
-                let found = found.unwrap();
-                if found.sequence != committed.sequence {
-                    return Err(format!(
-                        "sequence mismatch for {}: history {} vs feed {}",
-                        committed.id,
-                        committed.sequence.value(),
-                        found.sequence.value()
-                    ));
-                }
-                // Verify ordering by EventSeq (should be sorted)
-                for window in page.events.windows(2) {
-                    if window[0].sequence.value() >= window[1].sequence.value() {
-                        return Err(format!(
-                            "feed not ordered by EventSeq: {} >= {}",
-                            window[0].sequence.value(),
-                            window[1].sequence.value()
-                        ));
-                    }
-                }
+                correlate_history_and_feed("CV-038 history/feed page", &events, &page.events)?;
                 // Verify next_cursor monotonic
                 let expected_cursor = ChangeFeedCursor::after(target, committed.sequence);
                 match page.next_cursor {
@@ -391,14 +396,9 @@ fn execute_cv038(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                         );
                     }
                 }
-                // Additional correlation: feed page events should equal authoritative history via formal API
-                // For this single-event timeline, page should contain exactly the committed history
-                if page.events.len() != events.len() {
-                    // Not strictly required to be exact if more events, but for this fresh timeline they should match 1:1
-                    // Allow page to contain committed event; check contains logic above is sufficient
-                }
                 Ok(format!(
-                    "observed committed event {} seq {} via formal SubscriptionService::subscribe and HistoryService::list_events correlation; cursor {:?} monotonic",
+                    "observed complete feed page via formal SubscriptionService::subscribe; all {} events correlated with HistoryService::list_events by EventId, EventSeq, order, and content; committed event {} seq {}; cursor {:?} monotonic",
+                    page.events.len(),
                     committed.id,
                     committed.sequence.value(),
                     page.next_cursor
@@ -440,7 +440,6 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
         let target = created.target;
 
         // Create 5 initial events
-        let mut committed_ids = Vec::new();
         for idx in 1..=5 {
             let entity = entity_for(CV_039, idx as u128);
             let event_id = event_id_for(CV_039, idx as u128);
@@ -462,7 +461,6 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             if !res.is_committed() {
                 return Err(format!("seed {idx} not committed: {res:?}"));
             }
-            committed_ids.push(event_id);
         }
         let events_after_5 = client
             .list_events(EventQuery::all(target))
@@ -509,7 +507,6 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             if !res.is_committed() {
                 return Err(format!("seed {idx} not committed: {res:?}"));
             }
-            committed_ids.push(event_id);
         }
         let events_after_7 = client
             .list_events(EventQuery::all(target))
@@ -573,15 +570,11 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                         return Err("resume page next_cursor None but expected after 7".to_string());
                     }
                 }
-                // Also verify that page payload ids match committed ids for 6,7
-                let ids_in_page = page.events.iter().map(|ev| ev.id).collect::<Vec<_>>();
-                if ids_in_page[0] != committed_ids[5] || ids_in_page[1] != committed_ids[6] {
-                    return Err(format!(
-                        "resume page ids mismatch: expected {:?} got {:?}",
-                        &committed_ids[5..7],
-                        ids_in_page
-                    ));
-                }
+                correlate_history_and_feed(
+                    "CV-039 authoritative history after 7/resume after 5",
+                    &events_after_7[5..7],
+                    &page.events,
+                )?;
                 (page.events, page.next_cursor)
             }
             other => {
@@ -626,7 +619,7 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             let new_client = ctx
                 .restart()
                 .map_err(|e| format!("controlled restart failed: {e}"))?;
-            // Verify history still 7 via new client
+            // Verify the complete authoritative history and its order/contents via new client.
             let events_via_new = new_client
                 .list_events(EventQuery::all(target))
                 .await
@@ -637,6 +630,11 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                     events_via_new.len()
                 ));
             }
+            correlate_history_and_feed(
+                "CV-039 authoritative history before/after PostgreSQL restart",
+                &events_after_7,
+                &events_via_new,
+            )?;
             // Resume again after 7 should still be Resumed
             let resumed_after_restart = new_client
                 .subscribe(SubscriptionRequest::resume(target, cursor_after_7, 50))
@@ -658,16 +656,11 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                 .map_err(|e| format!("resume after 5 via restarted client failed: {e:?}"))?;
             match resume_after_restart_5 {
                 SubscriptionResult::Events(page) if page.events.len() == 2 => {
-                    if page.events[0].sequence.value() != 6 || page.events[1].sequence.value() != 7
-                    {
-                        return Err(format!(
-                            "after restart resume after 5 expected 6,7 got {:?}",
-                            page.events
-                                .iter()
-                                .map(|e| e.sequence.value())
-                                .collect::<Vec<_>>()
-                        ));
-                    }
+                    correlate_history_and_feed(
+                        "CV-039 authoritative history after restart/resume after 5",
+                        &events_via_new[5..7],
+                        &page.events,
+                    )?;
                 }
                 other => {
                     return Err(format!(
@@ -677,13 +670,13 @@ fn execute_cv039(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                 }
             }
             Ok(
-                "resume semantics verified: after 5 -> 2 events (6,7) next_cursor after 7; after 7 -> Resumed; durable restart via controlled boundary preserved cursor and history 7; evidence via formal SubscriptionService::subscribe with ChangeFeedCursor::after and SubscriptionRequest::resume; correlation via HistoryService::list_events 7"
+                "resume semantics verified: authoritative HistoryService::list_events after 5/7 correlated page EventId, EventSeq, order, and content; after 5 -> 2 events (6,7) next_cursor after 7; after 7 -> Resumed; durable controlled restart re-correlated complete history and resume page"
                     .to_string(),
             )
         } else {
             // For InMemory or reconnect-only, basic resume already proves boundary; note durability caveat
             Ok(format!(
-                "resume semantics verified: after {} -> 2 events (6,7) next_cursor after {}; after {} -> Resumed; restart_capability={} backend_evidence={} (durable PG proof requires controlled PostgreSQL restart, but logical resume passed); via formal SubscriptionService::subscribe resume",
+                "resume semantics verified: authoritative history/feed correlation after 5 and 7 by EventId, EventSeq, order, and content; after {} -> 2 events (6,7) next_cursor after {}; after {} -> Resumed; restart_capability={} backend_evidence={} (durable PG proof requires controlled PostgreSQL restart, but logical resume passed); via formal SubscriptionService::subscribe resume",
                 cursor_after_5.after.value(),
                 cursor_after_7.after.value(),
                 cursor_after_7.after.value(),
@@ -728,8 +721,7 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             .map_err(|e| format!("create_world failed: {e:?}"))?;
         let target = created.target;
 
-        // Commit 3 distinct events
-        let mut committed_ids = Vec::new();
+        // Commit 3 distinct events.
         for idx in 1..=3 {
             let entity = entity_for(CV_040, idx as u128);
             let event_id = event_id_for(CV_040, idx as u128);
@@ -751,7 +743,6 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             if !res.is_committed() {
                 return Err(format!("seed {idx} not committed: {res:?}"));
             }
-            committed_ids.push(event_id);
         }
         let events_before = client
             .list_events(EventQuery::all(target))
@@ -763,22 +754,28 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                 events_before.len()
             ));
         }
-        let seq_last = events_before.last().expect("3 events").sequence;
-        if seq_last.value() != 3 {
-            return Err(format!("expected last seq 3, got {}", seq_last.value()));
+        for (index, event) in events_before.iter().enumerate() {
+            let expected_sequence = (index + 1) as u64;
+            if event.sequence.value() != expected_sequence {
+                return Err(format!(
+                    "expected bounded disconnect history sequence {}, got {}",
+                    expected_sequence,
+                    event.sequence.value()
+                ));
+            }
         }
-
-        // Initial subscription to get page and next_cursor
-        let initial_req = SubscriptionRequest::new(target, 50);
+        // Read only a bounded first page. The complete first Event is the last
+        // observation before the simulated disconnect.
+        let initial_req = SubscriptionRequest::new(target, 1);
         let initial_res = client
             .subscribe(initial_req)
             .await
             .map_err(|e| format!("initial subscribe failed: {e:?}"))?;
-        let (initial_page_events, next_cursor) = match initial_res {
+        let initial_page = match initial_res {
             SubscriptionResult::Events(page) => {
-                if page.events.len() != 3 {
+                if page.events.len() != 1 {
                     return Err(format!(
-                        "initial page expected 3 events got {} {:?}",
+                        "bounded initial page expected 1 event got {} {:?}",
                         page.events.len(),
                         page.events
                             .iter()
@@ -786,14 +783,17 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                             .collect::<Vec<_>>()
                     ));
                 }
-                let page_ids = page.events.iter().map(|ev| ev.id).collect::<Vec<_>>();
-                if page_ids != committed_ids {
+                if !page.has_more {
                     return Err(format!(
-                        "initial page ids mismatch: expected {:?} got {:?}",
-                        committed_ids, page_ids
+                        "bounded initial page must report remaining events via has_more: {page:?}"
                     ));
                 }
-                let expected_cursor = ChangeFeedCursor::after(target, seq_last);
+                correlate_history_and_feed(
+                    "CV-040 bounded initial page/history",
+                    &events_before[..1],
+                    &page.events,
+                )?;
+                let expected_cursor = ChangeFeedCursor::after(target, events_before[0].sequence);
                 if page.next_cursor != Some(expected_cursor) {
                     return Err(format!(
                         "initial page next_cursor expected {:?} got {:?}",
@@ -801,7 +801,7 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                         page.next_cursor
                     ));
                 }
-                (page.events, page.next_cursor.expect("cursor after 3"))
+                page
             }
             other => {
                 return Err(format!(
@@ -810,169 +810,139 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
                 ));
             }
         };
+        let observed_cursor = initial_page
+            .next_cursor
+            .expect("bounded initial page cursor after first event");
 
-        // Simulate disconnect/reconnect: if restart capability, rebuild boundary on preserved store
+        // Disconnect after one complete bounded-page Event. A controlled
+        // harness rebuilds the HTTP boundary on the preserved store; a generic
+        // client continues with the next formal HTTP request as reconnect.
         let active_client = if restart_capable {
-            let new_client = ctx
-                .restart()
-                .map_err(|e| format!("controlled restart failed: {e}"))?;
-            // Confirm history still exactly 3 via new client (no duplicate world commits)
-            let events_after_restart = new_client
-                .list_events(EventQuery::all(target))
-                .await
-                .map_err(|e| format!("list_events after restart failed: {e:?}"))?;
-            if events_after_restart.len() != 3 {
-                return Err(format!(
-                    "after restart history should remain 3, got {}",
-                    events_after_restart.len()
-                ));
-            }
-            // Ensure EventIds identical (authoritative history not rewritten)
-            let ids_after = events_after_restart
-                .iter()
-                .map(|ev| ev.id)
-                .collect::<Vec<_>>();
-            if ids_after != committed_ids {
-                return Err(format!(
-                    "after restart EventIds rewritten: before {:?} after {:?}",
-                    committed_ids, ids_after
-                ));
-            }
-            new_client
+            ctx.restart()
+                .map_err(|e| format!("controlled restart failed: {e}"))?
         } else {
-            // Without controlled restart, still verify that a new reconnect client sees same history
-            // Reuse same client as disconnect simulation (transport reconnect without storage rebuild)
-            // Verify history again via same client
-            let events_after = client
-                .list_events(EventQuery::all(target))
-                .await
-                .map_err(|e| format!("list_events after simulated disconnect failed: {e:?}"))?;
-            if events_after.len() != 3 {
-                return Err(format!(
-                    "after simulated disconnect history should remain 3, got {}",
-                    events_after.len()
-                ));
-            }
             client.clone()
         };
 
-        // After reconnect, resume from next_cursor (after 3) should yield Resumed (no new events)
-        let resumed = active_client
-            .subscribe(SubscriptionRequest::resume(target, next_cursor, 50))
+        let history_after_disconnect = active_client
+            .list_events(EventQuery::all(target))
             .await
-            .map_err(|e| format!("resume after reconnect after 3 failed: {e:?}"))?;
-        match resumed {
-            SubscriptionResult::Resumed(r) => {
-                if r.cursor != next_cursor {
-                    return Err(format!(
-                        "resumed cursor mismatch after reconnect: expected {:?} got {:?}",
-                        next_cursor, r.cursor
-                    ));
-                }
-            }
+            .map_err(|e| format!("list_events after disconnect failed: {e:?}"))?;
+        correlate_history_and_feed(
+            "CV-040 authoritative history across disconnect",
+            &events_before,
+            &history_after_disconnect,
+        )?;
+
+        // Reconnect with the last fully observed cursor. The remaining
+        // history is deliberately read in bounded pages so each page can be
+        // correlated to the authoritative history independently.
+        let resumed_page_2 = match active_client
+            .subscribe(SubscriptionRequest::resume(target, observed_cursor, 1))
+            .await
+            .map_err(|e| format!("resume after bounded disconnect failed: {e:?}"))?
+        {
+            SubscriptionResult::Events(page) => page,
             other => {
                 return Err(format!(
-                    "expected Resumed after last cursor after reconnect, got {:?}",
+                    "expected remaining Events after reconnect cursor {:?}, got {:?}",
+                    observed_cursor, other
+                ));
+            }
+        };
+        if resumed_page_2.events.len() != 1 || !resumed_page_2.has_more {
+            return Err(format!(
+                "resume after bounded disconnect expected one remaining Event with has_more, got {resumed_page_2:?}"
+            ));
+        }
+        correlate_history_and_feed(
+            "CV-040 reconnect page 2/history",
+            &history_after_disconnect[1..2],
+            &resumed_page_2.events,
+        )?;
+        let cursor_after_2 = resumed_page_2
+            .next_cursor
+            .ok_or_else(|| "reconnect page 2 omitted next_cursor".to_string())?;
+
+        // Retry the same reconnect request. It may deliver the same transport
+        // page again, but it must remain equivalent to history and add no
+        // authoritative commit.
+        let retry_page_2 = match active_client
+            .subscribe(SubscriptionRequest::resume(target, observed_cursor, 1))
+            .await
+            .map_err(|e| format!("duplicate resume after reconnect failed: {e:?}"))?
+        {
+            SubscriptionResult::Events(page) => page,
+            other => {
+                return Err(format!(
+                    "expected duplicate remaining Events after reconnect, got {:?}",
                     other
+                ));
+            }
+        };
+        if retry_page_2 != resumed_page_2 {
+            return Err(format!(
+                "transport retry page differed: first {:?} retry {:?}",
+                resumed_page_2, retry_page_2
+            ));
+        }
+        correlate_history_and_feed(
+            "CV-040 transport retry/history",
+            &history_after_disconnect[1..2],
+            &retry_page_2.events,
+        )?;
+
+        let resumed_page_3 = match active_client
+            .subscribe(SubscriptionRequest::resume(target, cursor_after_2, 1))
+            .await
+            .map_err(|e| format!("resume final bounded page failed: {e:?}"))?
+        {
+            SubscriptionResult::Events(page) => page,
+            other => {
+                return Err(format!(
+                    "expected final remaining Event after cursor {:?}, got {:?}",
+                    cursor_after_2, other
+                ));
+            }
+        };
+        if resumed_page_3.events.len() != 1 || resumed_page_3.has_more {
+            return Err(format!(
+                "final bounded page expected one Event and no has_more, got {resumed_page_3:?}"
+            ));
+        }
+        correlate_history_and_feed(
+            "CV-040 reconnect page 3/history",
+            &history_after_disconnect[2..3],
+            &resumed_page_3.events,
+        )?;
+        let final_cursor = resumed_page_3
+            .next_cursor
+            .ok_or_else(|| "final reconnect page omitted next_cursor".to_string())?;
+        let resumed = active_client
+            .subscribe(SubscriptionRequest::resume(target, final_cursor, 1))
+            .await
+            .map_err(|e| format!("resume after final reconnect page failed: {e:?}"))?;
+        match resumed {
+            SubscriptionResult::Resumed(r) if r.cursor == final_cursor => {}
+            other => {
+                return Err(format!(
+                    "expected Resumed after final cursor {:?}, got {:?}",
+                    final_cursor, other
                 ));
             }
         }
 
-        // Transport duplicate test: subscribing twice with same cursor after 1 should give same page, not duplicate commits
-        let cursor_after_1 = ChangeFeedCursor::after(target, loom_api::EventSeq::new(1));
-        let dup_req_1 = SubscriptionRequest::resume(target, cursor_after_1, 50);
-        let dup_res_1 = active_client
-            .subscribe(dup_req_1)
-            .await
-            .map_err(|e| format!("duplicate resume 1 failed: {e:?}"))?;
-        let dup_page_1 = match dup_res_1 {
-            SubscriptionResult::Events(page) => page,
-            other => {
-                return Err(format!(
-                    "expected Events for duplicate resume after 1, got {:?}",
-                    other
-                ));
-            }
-        };
-        if dup_page_1.events.len() != 2 {
-            return Err(format!(
-                "duplicate resume after 1 expected 2 events (2,3) got {} {:?}",
-                dup_page_1.events.len(),
-                dup_page_1
-                    .events
-                    .iter()
-                    .map(|ev| ev.sequence.value())
-                    .collect::<Vec<_>>()
-            ));
-        }
-        if dup_page_1.events[0].sequence.value() != 2 || dup_page_1.events[1].sequence.value() != 3
-        {
-            return Err(format!(
-                "duplicate resume after 1 unexpected sequences {:?}",
-                dup_page_1
-                    .events
-                    .iter()
-                    .map(|ev| ev.sequence.value())
-                    .collect::<Vec<_>>()
-            ));
-        }
-        // Second duplicate fetch with same cursor should return identical page (transport retry)
-        let dup_req_2 = SubscriptionRequest::resume(target, cursor_after_1, 50);
-        let dup_res_2 = active_client
-            .subscribe(dup_req_2)
-            .await
-            .map_err(|e| format!("duplicate resume 2 failed: {e:?}"))?;
-        let dup_page_2 = match dup_res_2 {
-            SubscriptionResult::Events(page) => page,
-            other => {
-                return Err(format!(
-                    "expected Events for duplicate resume 2, got {:?}",
-                    other
-                ));
-            }
-        };
-        if dup_page_2.events != dup_page_1.events {
-            return Err(format!(
-                "transport duplicate pages differ: first {:?} second {:?}",
-                dup_page_1
-                    .events
-                    .iter()
-                    .map(|ev| ev.id.to_string())
-                    .collect::<Vec<_>>(),
-                dup_page_2
-                    .events
-                    .iter()
-                    .map(|ev| ev.id.to_string())
-                    .collect::<Vec<_>>()
-            ));
-        }
-        // Even after duplicate transport delivery, authoritative history must remain exactly 3
+        // Duplicate transport delivery must not create or rewrite World
+        // history; compare the complete post-retry history, not just count/IDs.
         let final_history = active_client
             .list_events(EventQuery::all(target))
             .await
             .map_err(|e| format!("final list_events failed: {e:?}"))?;
-        if final_history.len() != 3 {
-            return Err(format!(
-                "final history should remain 3 even after transport duplicate, got {}",
-                final_history.len()
-            ));
-        }
-        let final_ids = final_history.iter().map(|ev| ev.id).collect::<Vec<_>>();
-        if final_ids != committed_ids {
-            return Err(format!(
-                "final history EventIds diverged from authoritative: expected {:?} got {:?}",
-                committed_ids, final_ids
-            ));
-        }
-        // Also ensure initial page's events still equal final history page correlation
-        if initial_page_events
-            .iter()
-            .map(|ev| ev.id)
-            .collect::<Vec<_>>()
-            != committed_ids
-        {
-            return Err("initial page correlation mismatch with authoritative commits".to_string());
-        }
+        correlate_history_and_feed(
+            "CV-040 complete post-retry history",
+            &events_before,
+            &final_history,
+        )?;
 
         let restart_note = if restart_capable {
             "with controlled boundary restart (store preserved, boundary rebuilt) and duplicate page dedup via EventId"
@@ -980,10 +950,12 @@ fn execute_cv040(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scena
             "via formal client reconnect (reconnect-only transport) and duplicate page dedup via EventId; durable PG restart requires controlled PostgreSQL"
         };
         Ok(format!(
-            "disconnect/reconnect preserved history 3 commits {:?} across {}; initial page 3 events next_cursor after {}; resume after last -> Resumed; duplicate resume after 1 returned same 2 events (2,3) without new world commit; transport duplicate distinct from world duplicate via EventId; correlation via HistoryService::list_events",
-            committed_ids,
+            "bounded-page disconnect after EventSeq 1; reconnect cursor after 1 returned remaining EventSeq 2 then 3 with complete history/feed EventId, EventSeq, order, and content correlation; retry of cursor after 1 returned identical page without new world commit; final cursor after 3 -> Resumed; history remained exactly 3 authoritative commits {:?} across {}; transport duplicate distinct from world duplicate via EventId",
+            events_before
+                .iter()
+                .map(|event| event.id)
+                .collect::<Vec<_>>(),
             restart_note,
-            next_cursor.after.value()
         ))
     });
     match result {

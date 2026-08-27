@@ -94,6 +94,18 @@ fn assert_pass(result: &loom_validator::ScenarioResult, id: &str) {
     );
 }
 
+fn assert_actual_contains(result: &loom_validator::ScenarioResult, id: &str, expected: &str) {
+    assert!(
+        result
+            .finding()
+            .actual()
+            .to_ascii_lowercase()
+            .contains(&expected.to_ascii_lowercase()),
+        "{id} actual should contain {expected:?}: {}",
+        result.finding().actual()
+    );
+}
+
 #[test]
 fn cv038_passes_on_real_in_memory_via_formal_subscription() {
     let (ctx, _server) = in_memory_context("CV-038-inmemory");
@@ -103,6 +115,8 @@ fn cv038_passes_on_real_in_memory_via_formal_subscription() {
         .expect("CV-038 descriptor");
     let result = change_feed::execute(&descriptor, &ctx);
     assert_pass(&result, "CV-038");
+    assert_actual_contains(&result, "CV-038", "EventId");
+    assert_actual_contains(&result, "CV-038", "content");
 }
 
 #[test]
@@ -114,6 +128,8 @@ fn cv039_resume_passes_on_real_in_memory() {
         .expect("CV-039 descriptor");
     let result = change_feed::execute(&descriptor, &ctx);
     assert_pass(&result, "CV-039");
+    assert_actual_contains(&result, "CV-039", "authoritative");
+    assert_actual_contains(&result, "CV-039", "content");
 }
 
 #[test]
@@ -125,6 +141,9 @@ fn cv040_disconnect_reconnect_preserves_history_on_real_in_memory() {
         .expect("CV-040 descriptor");
     let result = change_feed::execute(&descriptor, &ctx);
     assert_pass(&result, "CV-040");
+    assert_actual_contains(&result, "CV-040", "bounded-page disconnect");
+    assert_actual_contains(&result, "CV-040", "remaining EventSeq");
+    assert_actual_contains(&result, "CV-040", "retry");
 }
 
 #[test]
