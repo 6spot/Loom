@@ -69,9 +69,9 @@ fn query_catalog_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!query_catalog::owns_cv("CV-028"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 11);
-    assert!(registry.get("CV-025").is_none());
-    assert!(registry.get("CV-040").is_none());
+    assert_eq!(registry.len(), 31);
+    assert!(registry.get("CV-025").is_some());
+    assert!(registry.get("CV-040").is_some());
 
     // Local descriptors must be exactly 3 and disjoint
     let local = query_catalog::descriptors();

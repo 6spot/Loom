@@ -41,9 +41,9 @@ fn change_feed_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!change_feed::owns_cv("CV-012"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 11);
-    assert!(registry.get("CV-038").is_none());
-    assert!(registry.get("CV-040").is_none());
+    assert_eq!(registry.len(), 31);
+    assert!(registry.get("CV-038").is_some());
+    assert!(registry.get("CV-040").is_some());
 
     // Local suite registry should contain CV-038..040 without polluting central registry
     let suite_registry = change_feed::change_feed_registry();

@@ -1465,24 +1465,18 @@ mod tests {
 
     #[test]
     fn register_adds_only_cv030_and_preserves_t09_fence() {
+        // Local registration is deliberately independent of the central registry.
         let mut registry = ScenarioRegistry::bootstrap();
-        // Seed with stable 11 to simulate validator_registry baseline
-        let stable = crate::validator_registry();
-        assert_eq!(stable.len(), 11);
-        for desc in stable.iter().cloned().collect::<Vec<_>>() {
-            registry.register(desc).expect("stable should register");
-        }
-        assert_eq!(registry.len(), 11);
         let count = register(&mut registry).expect("register should succeed");
         assert_eq!(count, 1);
-        assert_eq!(registry.len(), 12);
+        assert_eq!(registry.len(), 1);
         assert!(registry.get(CV_030).is_some());
         assert!(registry.get("CV-028").is_none());
         assert!(registry.get("CV-029").is_none());
         // Ensure deterministic ordering
         let mut ids: Vec<_> = registry.iter().map(|d| d.id_str().to_string()).collect();
         ids.sort();
-        assert_eq!(ids[0], "CV-001");
+        assert_eq!(ids[0], "CV-030");
         assert_eq!(ids.last().unwrap(), "CV-030");
     }
 

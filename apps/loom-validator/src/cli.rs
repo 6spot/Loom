@@ -688,11 +688,36 @@ pub fn run_from_args(args: Vec<String>) -> i32 {
     }
 }
 
-fn execute_registered_scenario(
+pub(crate) fn execute_registered_scenario(
     descriptor: &crate::scenario::ScenarioDescriptor,
     context: &BackendContext,
 ) -> crate::reports::ScenarioResult {
     match descriptor.id_str() {
+        crate::action_ingress::CV_015 | crate::action_ingress::CV_016 => {
+            crate::action_ingress::execute(descriptor, context)
+        }
+        crate::world_binding::CV_012
+        | crate::world_binding::CV_013
+        | crate::world_binding::CV_014 => {
+            crate::world_binding::execute_world_binding(descriptor, context)
+        }
+        crate::scheduler::CV_020 => crate::scheduler::execute_scheduler(descriptor, context),
+        crate::world_time::CV_021
+        | crate::world_time::CV_022
+        | crate::world_time::CV_023
+        | crate::world_time::CV_024 => crate::world_time::execute(descriptor, context),
+        crate::query_catalog::CV_025
+        | crate::query_catalog::CV_026
+        | crate::query_catalog::CV_027 => {
+            crate::query_catalog::execute_query_catalog(descriptor, context)
+        }
+        crate::semantic_blob::CV_030 => crate::semantic_blob::execute(descriptor, context),
+        crate::provenance::CV_031 | crate::provenance::CV_032 | crate::provenance::CV_033 => {
+            crate::provenance::execute(descriptor, context)
+        }
+        crate::change_feed::CV_038 | crate::change_feed::CV_039 | crate::change_feed::CV_040 => {
+            crate::change_feed::execute(descriptor, context)
+        }
         crate::scenarios::CV_005
         | crate::scenarios::CV_006
         | crate::scenarios::CV_007
