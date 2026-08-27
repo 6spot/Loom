@@ -197,3 +197,14 @@ jobs:
 
       - name: Validator replay/fork live path on PostgreSQL 18 (VAL-T9 CV-005..CV-009)
         run: cargo test -p loom-validator --test replay_fork -- --nocapture
+
+      - name: Validator PostgreSQL 18 live capability matrix gate (VALR-T20)
+        run: bash tools/validator-pg18-gate.sh
+
+      - name: Upload Validator PostgreSQL 18 live matrix
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-t20-pg18-live-matrix
+          path: target/validator/t20-pg18-live-gate.json
+          if-no-files-found: error
