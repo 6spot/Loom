@@ -148,31 +148,11 @@ pub fn register(
 #[must_use]
 pub fn execute(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioResult {
     let backend = *context.backend_kind();
-    // PostgreSQL prerequisite for CV-030 (live mandatory for certification)
-    if backend.is_postgres()
-        && matches!(descriptor.id_str(), CV_030 | CV_028 | CV_029)
-        && let Err(reason) = check_postgres_prerequisite()
-    {
-        if reason.contains("missing") || reason.contains("empty") {
-            return ScenarioResult::prerequisite(
-                descriptor.id().clone(),
-                descriptor.name(),
-                backend,
-                reason,
-            )
-            .with_capability_area(descriptor.capability_area().as_str());
-        }
-        return ScenarioResult::unavailable(
-            descriptor.id().clone(),
-            descriptor.name(),
-            backend,
-            reason,
-        )
-        .with_capability_area(descriptor.capability_area().as_str());
-    }
-
-    // For PostgreSQL, verify live endpoint is actually reachable when prerequisite present.
-    if backend.is_postgres() {
+    // For the implementable PostgreSQL candidate, verify the live endpoint is
+    // reachable. The test harness supplies the repository default when the
+    // optional connection override is absent; blocked gaps must not enter this
+    // gate at all.
+    if backend.is_postgres() && descriptor.id_str() == CV_030 {
         let api = context.api();
         let catalog_res = block_on(async { api.catalog() });
         if let Err(err) = catalog_res {
@@ -222,28 +202,6 @@ fn block_on<F: Future>(future: F) -> F::Output {
             .build()
             .expect("validator tokio runtime should build")
             .block_on(future)
-    }
-}
-
-fn check_postgres_prerequisite() -> Result<(), String> {
-    let key = crate::backend::LOOM_TEST_POSTGRES_URL;
-    match std::env::var(key) {
-        Ok(value) => postgres_prerequisite_with_value(Some(value.as_str()), key),
-        Err(std::env::VarError::NotPresent) => postgres_prerequisite_with_value(None, key),
-        Err(std::env::VarError::NotUnicode(_)) => Err(format!("{key} is not valid Unicode")),
-    }
-}
-
-fn postgres_prerequisite_with_value(value: Option<&str>, key: &str) -> Result<(), String> {
-    match value {
-        None => Err(format!("missing {key}; PostgreSQL evidence is unavailable")),
-        Some(v) if v.trim().is_empty() => {
-            Err(format!("empty {key}; PostgreSQL evidence is unavailable"))
-        }
-        Some(v) if !(v.starts_with("postgres://") || v.starts_with("postgresql://")) => Err(
-            format!("{key} must use the postgres:// or postgresql:// scheme"),
-        ),
-        Some(_) => Ok(()),
     }
 }
 
@@ -690,6 +648,42 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             .with_capability_area(descriptor.capability_area().as_str());
     }
 
+    // Bind both returned TimelineVersion fields to the public history boundary.
+    // A version is only useful evidence here when its EventSeq identifies the
+    // corresponding committed head and its StateRevision advances with the
+    // second commit.
+    let versions_match_history = version_a.head_event_seq == history_a[0].sequence
+        && history_b[0].sequence == version_a.head_event_seq
+        && history_b[1].sequence == version_b.head_event_seq
+        && history_b[0].sequence < history_b[1].sequence
+        && version_b.head_event_seq > version_a.head_event_seq
+        && version_b.state_revision > version_a.state_revision;
+    if !versions_match_history {
+        let finding = Finding::new(
+            descriptor.id().clone(),
+            descriptor.name(),
+            "returned TimelineVersion fields must match the corresponding history EventSeq and advance state revision",
+            format!(
+                "version_a {version_a:?}, version_b {version_b:?}, history_a seq {:?}, history_b seqs [{:?}, {:?}]",
+                history_a[0].sequence, history_b[0].sequence, history_b[1].sequence,
+            ),
+            backend,
+            format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+            vec![
+                EvidenceReference::new(
+                    "public-surface:loom-client::ActionService::invoke#seed+increment",
+                ),
+                EvidenceReference::new("public-surface:loom-client::HistoryService::list_events"),
+                EvidenceReference::new("validator:timeline-version-eventseq-state-revision"),
+            ],
+            ScenarioOutcome::Fail,
+        );
+        return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+            .with_capability_area(descriptor.capability_area().as_str());
+    }
+
+    let pinned_event_ref = history_a[0].event_ref();
+
     // 7. Fork at pinned version_a via public ForkTimelineRequest::at_version.
     let fork_req = ForkTimelineRequest::at_version(target, version_a);
     let child_snapshot = match block_on(async { api.fork(fork_req).await }) {
@@ -790,7 +784,7 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
     // Verify fork_parent_event id matches pinned event when resolved via visible history.
     // The event ref's timeline_id is source; id should correspond to pinned event.
     if let Some(fork_event) = ancestry.fork_parent_event {
-        if fork_event.event_id != pinned_event_id {
+        if fork_event != pinned_event_ref {
             // Not strictly required to be identical if runtime chooses boundary differently,
             // but for this pinned seed it should be the seed event. Report details but allow
             // alternative if history still consistent. We'll enforce equality for determinism.
@@ -799,8 +793,8 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
                 descriptor.name(),
                 "fork_parent_event id should equal pinned seed EventId via public ancestry",
                 format!(
-                    "fork_parent_event id {} != pinned seed {} at {version_a:?}",
-                    fork_event.event_id, pinned_event_id
+                    "fork_parent_event {:?} != pinned source event {:?} at {version_a:?}",
+                    fork_event, pinned_event_ref
                 ),
                 backend,
                 format!("backend-harness:scope={scope} backend={}", backend.as_str()),
@@ -857,16 +851,39 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
             .with_capability_area(descriptor.capability_area().as_str());
     }
+    if child_inspect.ancestry.parent_timeline_id != Some(timeline_id)
+        || child_inspect.ancestry.fork_parent_event != Some(pinned_event_ref)
+    {
+        let finding = Finding::new(
+            descriptor.id().clone(),
+            descriptor.name(),
+            "fork inspect ancestry must preserve the source TimelineId and pinned boundary EventRef",
+            format!(
+                "child inspect ancestry {:?} expected parent {} and event {:?}",
+                child_inspect.ancestry, timeline_id, pinned_event_ref
+            ),
+            backend,
+            format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+            vec![
+                EvidenceReference::new(
+                    "public-surface:loom-client::TimelineService::inspect_timeline#ancestry",
+                ),
+                EvidenceReference::new("public-surface:loom-client::HistoryService::list_events"),
+                EvidenceReference::new("validator:fork-parent-event-ref"),
+            ],
+            ScenarioOutcome::Fail,
+        );
+        return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+            .with_capability_area(descriptor.capability_area().as_str());
+    }
     // Child version should equal pinned version (materialized at fork boundary).
-    if child_inspect.version != version_a && child_snapshot.version != version_a {
-        // Allow either snapshot to match; but enforce pinned consistency via at least one.
-        // For strictness, require child_inspect.version == version_a.
+    if child_inspect.version != version_a {
         let finding = Finding::new(
             descriptor.id().clone(),
             descriptor.name(),
             "fork target version should equal pinned TimelineVersion after fork",
             format!(
-                "child version {:?} (snapshot {:?}) != pinned {version_a:?}",
+                "child inspect version {:?} (fork snapshot {:?}) != pinned {version_a:?}",
                 child_inspect.version, child_snapshot.version
             ),
             backend,
@@ -1006,6 +1023,29 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
         return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
             .with_capability_area(descriptor.capability_area().as_str());
     }
+    if child_history[0].event_ref() != pinned_event_ref {
+        let finding = Finding::new(
+            descriptor.id().clone(),
+            descriptor.name(),
+            "fork history must retain the pinned source EventRef including its source TimelineId",
+            format!(
+                "child event ref {:?} != pinned source event ref {:?}",
+                child_history[0].event_ref(),
+                pinned_event_ref
+            ),
+            backend,
+            format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+            vec![
+                EvidenceReference::new(
+                    "public-surface:loom-client::HistoryService::list_events#fork",
+                ),
+                EvidenceReference::new("validator:fork-history-event-ref"),
+            ],
+            ScenarioOutcome::Fail,
+        );
+        return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+            .with_capability_area(descriptor.capability_area().as_str());
+    }
     // Order by EventSeq
     if child_history[0].sequence != history_a[0].sequence {
         let finding = Finding::new(
@@ -1124,15 +1164,248 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             .with_capability_area(descriptor.capability_area().as_str());
     }
 
+    // T08 requires the PostgreSQL pinned read to survive a genuine boundary
+    // restart. Production contexts are reconnect-only; only an explicitly
+    // controlled harness may claim this durable evidence.
+    if backend.is_postgres() {
+        if !context.can_perform_boundary_restart() {
+            let reason = "CV-030 PostgreSQL durable pinned-read evidence requires a controlled application-boundary restart; this context only provides reconnect-only capability";
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "PostgreSQL pinned reads must be re-observed after a controlled boundary restart",
+                reason,
+                backend,
+                format!(
+                    "backend-harness:scope={scope} backend={} restart_capability={}",
+                    backend.as_str(),
+                    context.restart_capability().as_str()
+                ),
+                vec![
+                    EvidenceReference::new("finding:gap:controlled-postgres-restart-required"),
+                    EvidenceReference::new("validator:restart:controlled-boundary-required"),
+                    EvidenceReference::new(
+                        "public-surface:loom-client::TimelineService::inspect_timeline",
+                    ),
+                ],
+                ScenarioOutcome::Unavailable {
+                    reason: reason.to_string(),
+                },
+            );
+            return ScenarioResult::new(
+                descriptor.id().clone(),
+                ScenarioOutcome::Unavailable {
+                    reason: reason.to_string(),
+                },
+                finding,
+            )
+            .with_capability_area(descriptor.capability_area().as_str());
+        }
+
+        let fresh_client = match context.restart() {
+            Ok(client) => client,
+            Err(error) => {
+                let reason = format!("controlled PostgreSQL boundary restart failed: {error}");
+                let finding = Finding::new(
+                    descriptor.id().clone(),
+                    descriptor.name(),
+                    "PostgreSQL pinned reads must be re-observed after a controlled boundary restart",
+                    reason.clone(),
+                    backend,
+                    format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+                    vec![
+                        EvidenceReference::new("validator:restart:controlled-boundary-restart"),
+                        EvidenceReference::new(
+                            "public-surface:loom-client::TimelineService::inspect_timeline",
+                        ),
+                    ],
+                    ScenarioOutcome::Fail,
+                );
+                return ScenarioResult::new(
+                    descriptor.id().clone(),
+                    ScenarioOutcome::Fail,
+                    finding,
+                )
+                .with_capability_area(descriptor.capability_area().as_str());
+            }
+        };
+        let fresh_api: Arc<dyn loom_api::LoomApi + Send + Sync> = Arc::new(fresh_client);
+        let restart_observation = block_on(async {
+            let source = fresh_api
+                .inspect_timeline(target)
+                .await
+                .map_err(|error| format!("source inspect after restart failed: {error:?}"))?;
+            let source_facet = fresh_api
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .map_err(|error| format!("source facet after restart failed: {error:?}"))?;
+            let source_history = fresh_api
+                .list_events(EventQuery::all(target))
+                .await
+                .map_err(|error| format!("source history after restart failed: {error:?}"))?;
+            let child = fresh_api
+                .inspect_timeline(child_target)
+                .await
+                .map_err(|error| format!("fork inspect after restart failed: {error:?}"))?;
+            let child_facet = fresh_api
+                .get_facet(FacetQuery::new(
+                    child_target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .map_err(|error| format!("fork facet after restart failed: {error:?}"))?;
+            let child_history = fresh_api
+                .list_events(EventQuery::all(child_target))
+                .await
+                .map_err(|error| format!("fork history after restart failed: {error:?}"))?;
+            Ok::<_, String>((
+                source,
+                source_facet,
+                source_history,
+                child,
+                child_facet,
+                child_history,
+            ))
+        });
+        let (
+            source_after_restart,
+            source_facet_after_restart,
+            source_history_after_restart,
+            child_after_restart,
+            child_facet_after_restart,
+            child_history_after_restart,
+        ) = match restart_observation {
+            Ok(observation) => observation,
+            Err(reason) => {
+                let finding = Finding::new(
+                    descriptor.id().clone(),
+                    descriptor.name(),
+                    "PostgreSQL public facet/history/inspect reads must survive a controlled restart",
+                    reason,
+                    backend,
+                    format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+                    vec![
+                        EvidenceReference::new("validator:restart:controlled-boundary-restart"),
+                        EvidenceReference::new(
+                            "public-surface:loom-client::QueryService::get_facet",
+                        ),
+                        EvidenceReference::new(
+                            "public-surface:loom-client::HistoryService::list_events",
+                        ),
+                        EvidenceReference::new(
+                            "public-surface:loom-client::TimelineService::inspect_timeline",
+                        ),
+                    ],
+                    ScenarioOutcome::Fail,
+                );
+                return ScenarioResult::new(
+                    descriptor.id().clone(),
+                    ScenarioOutcome::Fail,
+                    finding,
+                )
+                .with_capability_area(descriptor.capability_area().as_str());
+            }
+        };
+        let source_value_after_restart = source_facet_after_restart
+            .as_ref()
+            .and_then(|snapshot| snapshot.value.get("value").and_then(|value| value.as_i64()))
+            .unwrap_or(-1);
+        let child_value_after_restart = child_facet_after_restart
+            .as_ref()
+            .and_then(|snapshot| snapshot.value.get("value").and_then(|value| value.as_i64()))
+            .unwrap_or(-1);
+        let restart_history_ok = source_history_after_restart.len() == 2
+            && child_history_after_restart.len() == 1
+            && source_history_after_restart == history_b
+            && child_history_after_restart == child_history
+            && source_history_after_restart[0].sequence == version_a.head_event_seq
+            && source_history_after_restart[1].sequence == version_b.head_event_seq
+            && child_history_after_restart[0].event_ref() == pinned_event_ref;
+        let restart_ancestry_ok = child_after_restart.version == version_a
+            && child_after_restart.ancestry.parent_timeline_id == Some(timeline_id)
+            && child_after_restart.ancestry.fork_parent_version == Some(version_a)
+            && child_after_restart.ancestry.fork_parent_event == Some(pinned_event_ref);
+        let restart_versions_ok = source_after_restart.version == version_b
+            && source_after_restart.version.head_event_seq > version_a.head_event_seq
+            && source_after_restart.version.state_revision > version_a.state_revision;
+        if source_value_after_restart != 11
+            || child_value_after_restart != 10
+            || !restart_history_ok
+            || !restart_ancestry_ok
+            || !restart_versions_ok
+        {
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                "PostgreSQL restart must preserve source head 11, fork pinned value 10, history EventSeq, TimelineVersion, and complete ancestry EventRef",
+                format!(
+                    "after restart source={source_after_restart:?} source_value={source_value_after_restart} source_history={source_history_after_restart:?}; child={child_after_restart:?} child_value={child_value_after_restart} child_history={child_history_after_restart:?}; history_ok={restart_history_ok} ancestry_ok={restart_ancestry_ok} versions_ok={restart_versions_ok}"
+                ),
+                backend,
+                format!("backend-harness:scope={scope} backend={}", backend.as_str()),
+                vec![
+                    EvidenceReference::new("validator:restart:controlled-boundary-restart"),
+                    EvidenceReference::new("public-surface:loom-client::QueryService::get_facet"),
+                    EvidenceReference::new(
+                        "public-surface:loom-client::HistoryService::list_events",
+                    ),
+                    EvidenceReference::new(
+                        "public-surface:loom-client::TimelineService::inspect_timeline",
+                    ),
+                    EvidenceReference::new("validator:timeline-version-eventseq-state-revision"),
+                    EvidenceReference::new("validator:fork-parent-event-ref"),
+                ],
+                ScenarioOutcome::Fail,
+            );
+            return ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str());
+        }
+    }
+
     // All checks passed. Produce PASS. Do not assert projection/blob is authority.
     let expected = "pinned/versioned read via fork at explicit TimelineVersion returns data consistent with the pinned revision/version contract rather than silently following newer active projection";
+    let restart_note = if backend.is_postgres() {
+        "; controlled PostgreSQL boundary restart/reconnect re-read source and fork public state"
+    } else {
+        ""
+    };
     let actual = format!(
-        "pinned stability verified: scope={scope} pinned_version={version_a:?} (value 10, history 1, event {pinned_event_id}, fork_parent_event {fork_parent_event:?}) head_version={version_b:?} (value 11, history 2) fork_target={fork_target} fork_version={fork_version:?} fork_value=10 fork_history=1 ancestry_fork_parent_version={ancestry_version:?} source_head_stable=11; inspected via public loom-api/loom-client only: WorldService::create_world_from_template, ActionService::invoke, QueryService::get_facet, HistoryService::list_events, TimelineService::fork at_version + inspect_timeline; no projection/blob authority asserted; T09 fence preserved",
+        "pinned stability verified: scope={scope} pinned_version={version_a:?} (value 10, history 1, event {pinned_event_id}, fork_parent_event {fork_parent_event:?}) head_version={version_b:?} (value 11, history 2) fork_target={fork_target} fork_version={fork_version:?} fork_value=10 fork_history=1 ancestry_fork_parent_version={ancestry_version:?} source_head_stable=11{restart_note}; inspected via public loom-api/loom-client only: WorldService::create_world_from_template, ActionService::invoke, QueryService::get_facet, HistoryService::list_events, TimelineService::fork at_version + inspect_timeline; no projection/blob authority asserted; T09 fence preserved",
         fork_parent_event = ancestry.fork_parent_event,
         fork_target = child_target.timeline_id,
         fork_version = child_snapshot.version,
         ancestry_version = ancestry.fork_parent_version,
     );
+
+    let mut evidence = vec![
+        EvidenceReference::new(
+            "public-surface:loom-client::WorldService::create_world_from_template",
+        ),
+        EvidenceReference::new("public-surface:loom-client::ActionService::invoke#seed+increment"),
+        EvidenceReference::new(
+            "public-surface:loom-client::QueryService::get_facet#pinned+head+fork",
+        ),
+        EvidenceReference::new(
+            "public-surface:loom-client::HistoryService::list_events#pinned+head+fork",
+        ),
+        EvidenceReference::new("public-surface:loom-client::TimelineService::fork#at_version"),
+        EvidenceReference::new(
+            "public-surface:loom-client::TimelineService::inspect_timeline#fork+source",
+        ),
+        EvidenceReference::new("validator:scenario:CV-030#pinned-stability"),
+        EvidenceReference::new("doc:t08-coverage-matrix.md#CV-030"),
+        EvidenceReference::new("t09-fence:preserved-no-lib-registry-edit"),
+    ];
+    if backend.is_postgres() {
+        evidence.push(EvidenceReference::new(
+            "validator:restart:controlled-boundary-restart",
+        ));
+    }
 
     let finding = Finding::new(
         descriptor.id().clone(),
@@ -1144,27 +1417,7 @@ fn cv030(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
             "backend-harness:scope={scope} backend={} pinned={version_a:?} head={version_b:?}",
             backend.as_str()
         ),
-        vec![
-            EvidenceReference::new(
-                "public-surface:loom-client::WorldService::create_world_from_template",
-            ),
-            EvidenceReference::new(
-                "public-surface:loom-client::ActionService::invoke#seed+increment",
-            ),
-            EvidenceReference::new(
-                "public-surface:loom-client::QueryService::get_facet#pinned+head+fork",
-            ),
-            EvidenceReference::new(
-                "public-surface:loom-client::HistoryService::list_events#pinned+head+fork",
-            ),
-            EvidenceReference::new("public-surface:loom-client::TimelineService::fork#at_version"),
-            EvidenceReference::new(
-                "public-surface:loom-client::TimelineService::inspect_timeline#fork+source",
-            ),
-            EvidenceReference::new("validator:scenario:CV-030#pinned-stability"),
-            EvidenceReference::new("doc:t08-coverage-matrix.md#CV-030"),
-            EvidenceReference::new("t09-fence:preserved-no-lib-registry-edit"),
-        ],
+        evidence,
         ScenarioOutcome::Pass,
     );
     ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Pass, finding)

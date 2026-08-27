@@ -10,6 +10,9 @@
 
 mod common;
 
+use std::sync::Arc;
+
+use loom_client::LoomClient;
 use loom_validator::{
     BackendContext, BackendKind, ScenarioDescriptor, ScenarioResult, semantic_blob,
     validator_registry,
@@ -220,10 +223,15 @@ fn cv030_pinned_read_pass_on_real_in_memory() {
 #[test]
 fn cv030_pinned_read_pass_on_live_postgres() {
     let (server, client) = PgServer::start().expect("real PostgreSQL Loom service should start");
+    let server_for_restart = server.clone();
+    let strategy: Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync> =
+        Arc::new(move || server_for_restart.restart());
     let _keep = server;
     let scope = unique_scope("cv030-pg");
     let ctx = BackendContext::new(client)
         .with_backend_kind(BackendKind::PostgreSQL)
+        .with_restart_strategy(strategy)
+        .with_controlled_boundary_restart()
         .with_scope(scope.clone());
     let descriptor = descriptor_for("CV-030");
     let result = semantic_blob::execute(&descriptor, &ctx);
@@ -246,6 +254,10 @@ fn cv030_pinned_read_pass_on_live_postgres() {
     assert!(
         evidence.contains("public-surface:loom-client::QueryService::get_facet"),
         "CV-030 PG evidence should contain get_facet: {evidence}"
+    );
+    assert!(
+        evidence.contains("validator:restart:controlled-boundary-restart"),
+        "CV-030 PG evidence should contain controlled restart: {evidence}"
     );
     assert!(
         !evidence.to_lowercase().contains("loom_storage")
