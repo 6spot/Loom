@@ -335,10 +335,17 @@ pub fn verify() {
         .expect("child causal walk should be readable");
     assert_eq!(walk.events, vec![ancestor]);
     assert!(!walk.truncated);
+    let sibling_seed_ref = EventRef::new(sibling.timeline_id, seed_id);
     let parent_effects = fixture_runtime()
         .block_on(api.direct_effects(ancestor))
         .expect("parent direct effects should be readable");
     assert!(!parent_effects.contains(&child_ref));
+    assert!(!parent_effects.contains(&sibling_seed_ref));
+    assert!(
+        parent_effects
+            .iter()
+            .all(|event_ref| event_ref.timeline_id != sibling.timeline_id)
+    );
     let child_events = fixture_runtime()
         .block_on(api.list_events(EventQuery::all(child)))
         .expect("child history should be readable");

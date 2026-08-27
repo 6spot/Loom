@@ -893,6 +893,7 @@ fn cv026(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
 
     let pass = ordering_child
         && ordering_parent
+        && seed_effects_excludes_sibling
         && child_get_ok
         && sibling_get_ok
         && trajectory_ok
