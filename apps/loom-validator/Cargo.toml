@@ -20,6 +20,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 loom-boundary = { path = "../../crates/loom-boundary", version = "0.1.0" }
 loom-capability = { path = "../../crates/loom-capability", version = "0.1.0" }
 loom-neutral = { path = "../../capabilities/loom-neutral", version = "0.1.0" }
+loom-protocol = { path = "../../crates/loom-protocol", version = "0.1.0" }
 loom-runtime = { path = "../../crates/loom-runtime", version = "0.1.0" }
 loom-storage = { path = "../../crates/loom-storage", version = "0.1.0" }
 

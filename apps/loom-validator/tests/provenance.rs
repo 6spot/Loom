@@ -2,22 +2,41 @@
 
 mod common;
 
-use std::{env, path::Path, process::Command, sync::Arc};
+use std::{env, path::Path, process::Command, str::FromStr, sync::Arc};
 
+use loom_api::{
+    ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
+    WorldEffect,
+};
 use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
-use loom_capability::CapabilityRegistry;
+use loom_capability::{
+    ActionDefinition, ActionResolver, Capability, CapabilityManifest, CapabilityRegistrar,
+    CapabilityRegistry, EntropyRequest, EntropySample, EventDefinition, FacetDefinition,
+    RegistrationError, ResolutionContext, ResolverError,
+};
 use loom_client::LoomClient;
 use loom_neutral::registry as neutral_registry;
+use loom_protocol::{ActionInvocation, ProposedEvent, Resolution, ResolveOutcome};
 use loom_runtime::{
-    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    RuntimeRevisionStore,
+    EntropySource, EntropySourceError, EntropySourceId, PlatformTime, Runtime,
+    RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore,
 };
 use loom_storage::{InMemoryStore, PgStorage};
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
 use loom_validator::{BackendContext, BackendKind, ScenarioResult, provenance, validator_registry};
 
 const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const PROVENANCE_CAPABILITY: &str = "validator.t16.provenance";
+const PROVENANCE_FACET: &str = "validator.t16.provenance.value";
+const PROVENANCE_SEED: &str = "validator.t16.provenance.seed";
+const PROVENANCE_ROOT: &str = "validator.t16.provenance.root";
+const PROVENANCE_CHILD: &str = "validator.t16.provenance.child";
+const PROVENANCE_SEED_EVENT: &str = "validator.t16.provenance.seeded";
+const PROVENANCE_ROOT_EVENT: &str = "validator.t16.provenance.committed";
+const PROVENANCE_R1_ID: &str = "validator-t16-cv033-r1";
+const PROVENANCE_R2_ID: &str = "validator-t16-cv033-r2";
 
 #[test]
 fn provenance_suite_scaffold_is_non_registering_and_disjoint() {
@@ -107,27 +126,37 @@ fn revision(id: &str, build: &str, registry: &CapabilityRegistry) -> RuntimeRevi
     .expect("T16 test Runtime Revision should be valid")
 }
 
-fn confirm_in_memory_revisions(
+fn confirm_in_memory_revisions_with(
     store: &InMemoryStore,
     registry: &CapabilityRegistry,
+    provenance: bool,
 ) -> Result<(), String> {
-    let r1 = revision("validator-t16-r1", "validator-t16-r1-build", registry);
-    let r2 = revision("validator-t16-r2", "validator-t16-r2-build", registry);
+    let (r1_id, r2_id) = if provenance {
+        (PROVENANCE_R1_ID, PROVENANCE_R2_ID)
+    } else {
+        ("validator-t16-r1", "validator-t16-r2")
+    };
+    let r1 = revision(r1_id, &format!("{r1_id}-build"), registry);
+    let r2 = revision(r2_id, &format!("{r2_id}-build"), registry);
     store
         .confirm_revision(r1)
         .map_err(|error| format!("confirm R1 failed: {error:?}"))?;
     store
         .confirm_revision(r2)
         .map_err(|error| format!("confirm R2 failed: {error:?}"))?;
-    if store
+    let active = store
         .read_active_revision()
-        .map_err(|error| format!("read active revision failed: {error:?}"))?
-        .is_none()
+        .map_err(|error| format!("read active revision failed: {error:?}"))?;
+    if active
+        .as_ref()
+        .is_none_or(|value| value.revision().id() != &RuntimeRevisionId::from(r1_id))
     {
         store
             .activate_revision(
-                RuntimeRevisionId::from("validator-t16-r1"),
-                None,
+                RuntimeRevisionId::from(r1_id),
+                active
+                    .as_ref()
+                    .map(loom_runtime::RuntimeRevisionSelection::generation),
                 PlatformTime::default(),
             )
             .map_err(|error| format!("activate R1 failed: {error:?}"))?;
@@ -135,9 +164,194 @@ fn confirm_in_memory_revisions(
     Ok(())
 }
 
+struct ProvenanceCapability {
+    manifest: CapabilityManifest,
+}
+
+impl Capability for ProvenanceCapability {
+    fn manifest(&self) -> &CapabilityManifest {
+        &self.manifest
+    }
+
+    fn register(&self, registrar: &mut CapabilityRegistrar) -> Result<(), RegistrationError> {
+        registrar.register_facet(FacetDefinition::new(
+            FacetTypeId::from(PROVENANCE_FACET),
+            SchemaRevision::new(1),
+            json!({
+                "type": "object",
+                "required": ["value"],
+                "properties": {"value": {"type": "integer"}}
+            }),
+        ))?;
+        registrar.register_event(
+            EventDefinition::new(
+                EventTypeId::from(PROVENANCE_SEED_EVENT),
+                SchemaRevision::new(1),
+            )
+            .with_payload_schema(json!({"type": "object"})),
+        )?;
+        registrar.register_event(
+            EventDefinition::new(
+                EventTypeId::from(PROVENANCE_ROOT_EVENT),
+                SchemaRevision::new(1),
+            )
+            .with_payload_schema(json!({"type": "object"})),
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(PROVENANCE_SEED), SchemaRevision::new(1))
+                .with_input_schema(json!({
+                    "type": "object",
+                    "required": ["event_id", "entity_id"],
+                    "properties": {
+                        "event_id": {"type": "string"},
+                        "entity_id": {"type": "string"}
+                    }
+                })),
+            ProvenanceSeedResolver,
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(PROVENANCE_ROOT), SchemaRevision::new(1))
+                .with_input_schema(json!({
+                    "type": "object",
+                    "required": ["event_id", "entity_id"],
+                    "properties": {
+                        "event_id": {"type": "string"},
+                        "entity_id": {"type": "string"}
+                    }
+                })),
+            ProvenanceRootResolver,
+        )?;
+        registrar.register_action(
+            ActionDefinition::new(ActionTypeId::from(PROVENANCE_CHILD), SchemaRevision::new(1)),
+            ProvenanceChildResolver,
+        )
+    }
+}
+
+fn parse_id<T>(input: &Value, key: &str) -> Result<T, ResolverError>
+where
+    T: FromStr,
+    T::Err: std::fmt::Display,
+{
+    input
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| ResolverError::new(format!("{key} must be a string")))?
+        .parse()
+        .map_err(|error| ResolverError::new(format!("invalid {key}: {error}")))
+}
+
+struct ProvenanceSeedResolver;
+
+impl ActionResolver for ProvenanceSeedResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let event_id = parse_id::<EventId>(input, "event_id")?;
+        let entity_id = parse_id::<EntityId>(input, "entity_id")?;
+        let event = ProposedEvent::new(
+            event_id,
+            EventTypeId::from(PROVENANCE_SEED_EVENT),
+            SchemaRevision::new(1),
+            json!({"entity_id": entity_id.to_string()}),
+        )
+        .with_effect(WorldEffect::CreateEntity { entity_id })
+        .with_effect(WorldEffect::PutFacet {
+            owner: FacetOwner::entity(entity_id),
+            facet_type: FacetTypeId::from(PROVENANCE_FACET),
+            schema_revision: SchemaRevision::new(1),
+            value: json!({"value": 11}),
+        });
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            vec![event],
+            Vec::new(),
+        )))
+    }
+}
+
+struct ProvenanceRootResolver;
+
+impl ActionResolver for ProvenanceRootResolver {
+    fn resolve(
+        &self,
+        context: &dyn ResolutionContext,
+        input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        let event_id = parse_id::<EventId>(input, "event_id")?;
+        let entity_id = parse_id::<EntityId>(input, "entity_id")?;
+        let facet = context
+            .base_world()
+            .get_facet(
+                FacetOwner::entity(entity_id),
+                &FacetTypeId::from(PROVENANCE_FACET),
+            )?
+            .ok_or_else(|| ResolverError::new("provenance Facet was not seeded"))?;
+        if facet.value.get("value").and_then(Value::as_i64) != Some(11) {
+            return Err(ResolverError::new("provenance Facet has unexpected value"));
+        }
+        let child = context.subresolve(&ActionInvocation::new(
+            ActionTypeId::from(PROVENANCE_CHILD),
+            json!({}),
+        ))?;
+        if !matches!(child, ResolveOutcome::Resolved(ref resolution) if resolution.is_empty()) {
+            return Err(ResolverError::new("provenance child did not resolve empty"));
+        }
+        let entropy = context.request_entropy(&EntropyRequest::new(4))?;
+        if entropy.as_bytes() != [0xA5; 4] {
+            return Err(ResolverError::new("unexpected controlled entropy sample"));
+        }
+        let event = ProposedEvent::new(
+            event_id,
+            EventTypeId::from(PROVENANCE_ROOT_EVENT),
+            SchemaRevision::new(1),
+            json!({"entity_id": entity_id.to_string(), "facet_value": 11}),
+        );
+        Ok(ResolveOutcome::Resolved(Resolution::new(
+            vec![event],
+            Vec::new(),
+        )))
+    }
+}
+
+struct ProvenanceChildResolver;
+
+impl ActionResolver for ProvenanceChildResolver {
+    fn resolve(
+        &self,
+        _context: &dyn ResolutionContext,
+        _input: &Value,
+    ) -> Result<ResolveOutcome, ResolverError> {
+        Ok(ResolveOutcome::Resolved(Resolution::default()))
+    }
+}
+
+fn provenance_registry() -> CapabilityRegistry {
+    CapabilityRegistry::assemble([Box::new(ProvenanceCapability {
+        manifest: CapabilityManifest::parse(PROVENANCE_CAPABILITY, "0.1.0")
+            .expect("provenance manifest should parse"),
+    }) as Box<dyn Capability>])
+    .expect("provenance Capability registry should assemble")
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct T16EntropySource;
+
+impl EntropySource for T16EntropySource {
+    fn source_id(&self) -> EntropySourceId {
+        EntropySourceId::from("validator-t16-entropy")
+    }
+
+    fn sample(&self, request: &EntropyRequest) -> Result<EntropySample, EntropySourceError> {
+        Ok(EntropySample::new(vec![0xA5; request.byte_count()]))
+    }
+}
+
 struct InMemoryHandle {
     store: &'static InMemoryStore,
     server: tokio::task::JoinHandle<()>,
+    provenance: bool,
 }
 
 #[derive(Clone)]
@@ -147,8 +361,13 @@ struct InMemoryRevisionServer {
 
 impl InMemoryRevisionServer {
     fn start() -> Result<(Self, LoomClient), String> {
+        Self::start_with(false)
+    }
+
+    fn start_with(provenance: bool) -> Result<(Self, LoomClient), String> {
         let store = Box::leak(Box::new(InMemoryStore::new()));
-        let (client, handle) = common::leaked_runtime().block_on(start_in_memory(store))?;
+        let (client, handle) =
+            common::leaked_runtime().block_on(start_in_memory(store, provenance))?;
         Ok((
             Self {
                 inner: Arc::new(Mutex::new(handle)),
@@ -163,7 +382,7 @@ impl InMemoryRevisionServer {
             common::leaked_runtime().block_on(async move {
                 let mut guard = inner.lock().await;
                 guard.server.abort();
-                let (client, handle) = start_in_memory(guard.store).await?;
+                let (client, handle) = start_in_memory(guard.store, guard.provenance).await?;
                 *guard = handle;
                 Ok::<LoomClient, String>(client)
             })
@@ -175,14 +394,24 @@ impl InMemoryRevisionServer {
 
 async fn start_in_memory(
     store: &'static InMemoryStore,
+    provenance: bool,
 ) -> Result<(LoomClient, InMemoryHandle), String> {
-    let registry = neutral_registry();
+    let registry = if provenance {
+        provenance_registry()
+    } else {
+        neutral_registry()
+    };
     registry
         .validate()
         .map_err(|error| format!("registry invalid: {error:?}"))?;
-    confirm_in_memory_revisions(store, &registry)?;
+    confirm_in_memory_revisions_with(store, &registry, provenance)?;
     let runtime =
         Runtime::new(store, registry).map_err(|error| format!("Runtime failed: {error:?}"))?;
+    let runtime = if provenance {
+        runtime.with_entropy_source(T16EntropySource)
+    } else {
+        runtime
+    };
     let router = router_with_admin(
         Arc::new(runtime),
         Arc::new(RequireAdminAuthorization),
@@ -203,7 +432,14 @@ async fn start_in_memory(
         .map_err(|error| error.to_string())?
         .build()
         .map_err(|error| error.to_string())?;
-    Ok((client, InMemoryHandle { store, server }))
+    Ok((
+        client,
+        InMemoryHandle {
+            store,
+            server,
+            provenance,
+        },
+    ))
 }
 
 fn postgres_url() -> (String, bool) {
@@ -229,20 +465,30 @@ fn start_repository_postgres() -> Result<(), String> {
 async fn confirm_postgres_revisions(
     store: &PgStorage,
     registry: &CapabilityRegistry,
+    provenance: bool,
 ) -> Result<(), String> {
-    let r1 = revision("validator-t16-r1", "validator-t16-r1-build", registry);
-    let r2 = revision("validator-t16-r2", "validator-t16-r2-build", registry);
+    let (r1_id, r2_id) = if provenance {
+        (PROVENANCE_R1_ID, PROVENANCE_R2_ID)
+    } else {
+        ("validator-t16-r1", "validator-t16-r2")
+    };
+    let r1 = revision(r1_id, &format!("{r1_id}-build"), registry);
+    let r2 = revision(r2_id, &format!("{r2_id}-build"), registry);
     confirm_pg(store, r1).await?;
     confirm_pg(store, r2).await?;
-    if RuntimeRevisionStore::read_active_revision(store)
+    let active = RuntimeRevisionStore::read_active_revision(store)
         .await
-        .map_err(|error| format!("read active revision failed: {error:?}"))?
-        .is_none()
+        .map_err(|error| format!("read active revision failed: {error:?}"))?;
+    if active
+        .as_ref()
+        .is_none_or(|value| value.revision().id() != &RuntimeRevisionId::from(r1_id))
     {
         RuntimeRevisionStore::activate_revision(
             store,
-            RuntimeRevisionId::from("validator-t16-r1"),
-            None,
+            RuntimeRevisionId::from(r1_id),
+            active
+                .as_ref()
+                .map(loom_runtime::RuntimeRevisionSelection::generation),
             PlatformTime::default(),
         )
         .await
@@ -265,6 +511,7 @@ async fn confirm_pg(
 struct PgHandle {
     store: PgStorage,
     server: tokio::task::JoinHandle<()>,
+    provenance: bool,
 }
 
 #[derive(Clone)]
@@ -274,6 +521,10 @@ struct PgRevisionServer {
 
 impl PgRevisionServer {
     fn start() -> Result<(Self, LoomClient), String> {
+        Self::start_with(false)
+    }
+
+    fn start_with(provenance: bool) -> Result<(Self, LoomClient), String> {
         let (url, repository_default) = postgres_url();
         let store = common::leaked_runtime().block_on(async {
             match PgStorage::connect(&url).await {
@@ -293,7 +544,8 @@ impl PgRevisionServer {
         common::leaked_runtime()
             .block_on(async { store.migrate().await })
             .map_err(|error| format!("PostgreSQL migration failed: {error:?}"))?;
-        let (client, handle) = common::leaked_runtime().block_on(start_postgres(store.clone()))?;
+        let (client, handle) =
+            common::leaked_runtime().block_on(start_postgres(store.clone(), provenance))?;
         Ok((
             Self {
                 inner: Arc::new(Mutex::new(handle)),
@@ -308,7 +560,8 @@ impl PgRevisionServer {
             common::leaked_runtime().block_on(async move {
                 let mut guard = inner.lock().await;
                 guard.server.abort();
-                let (client, handle) = start_postgres(guard.store.clone()).await?;
+                let (client, handle) =
+                    start_postgres(guard.store.clone(), guard.provenance).await?;
                 *guard = handle;
                 Ok::<LoomClient, String>(client)
             })
@@ -318,14 +571,26 @@ impl PgRevisionServer {
     }
 }
 
-async fn start_postgres(store: PgStorage) -> Result<(LoomClient, PgHandle), String> {
-    let registry = neutral_registry();
+async fn start_postgres(
+    store: PgStorage,
+    provenance: bool,
+) -> Result<(LoomClient, PgHandle), String> {
+    let registry = if provenance {
+        provenance_registry()
+    } else {
+        neutral_registry()
+    };
     registry
         .validate()
         .map_err(|error| format!("registry invalid: {error:?}"))?;
-    confirm_postgres_revisions(&store, &registry).await?;
+    confirm_postgres_revisions(&store, &registry, provenance).await?;
     let runtime = Runtime::new(store.clone(), registry)
         .map_err(|error| format!("Runtime failed: {error:?}"))?;
+    let runtime = if provenance {
+        runtime.with_entropy_source(T16EntropySource)
+    } else {
+        runtime
+    };
     let router = router_with_admin(
         Arc::new(runtime),
         Arc::new(RequireAdminAuthorization),
@@ -346,7 +611,14 @@ async fn start_postgres(store: PgStorage) -> Result<(LoomClient, PgHandle), Stri
         .map_err(|error| error.to_string())?
         .build()
         .map_err(|error| error.to_string())?;
-    Ok((client, PgHandle { store, server }))
+    Ok((
+        client,
+        PgHandle {
+            store,
+            server,
+            provenance,
+        },
+    ))
 }
 
 fn run_in_memory(id: &str) -> ScenarioResult {
@@ -364,6 +636,24 @@ fn run_postgres(id: &str) -> ScenarioResult {
     let restart = Arc::new(move || restart_server.restart());
     let ctx = context(client, BackendKind::PostgreSQL, id, restart);
     provenance::execute(&descriptor(id), &ctx)
+}
+
+fn run_provenance_in_memory() -> ScenarioResult {
+    let (server, client) = InMemoryRevisionServer::start_with(true)
+        .expect("T16 provenance InMemory server should start");
+    let restart_server = server.clone();
+    let restart = Arc::new(move || restart_server.restart());
+    let ctx = context(client, BackendKind::InMemory, "CV-033", restart);
+    provenance::execute(&descriptor("CV-033"), &ctx)
+}
+
+fn run_provenance_postgres() -> ScenarioResult {
+    let (server, client) =
+        PgRevisionServer::start_with(true).expect("T16 provenance PostgreSQL server should start");
+    let restart_server = server.clone();
+    let restart = Arc::new(move || restart_server.restart());
+    let ctx = context(client, BackendKind::PostgreSQL, "CV-033", restart);
+    provenance::execute(&descriptor("CV-033"), &ctx)
 }
 
 #[test]
@@ -387,19 +677,13 @@ fn cv032_new_session_uses_r2_and_live_postgres_history_does_not_drift() {
 }
 
 #[test]
-fn cv033_reports_the_missing_test_local_provenance_composition_without_fake_pass() {
-    let (server, client) = common::InMemoryServer::start().expect("in-memory service should start");
-    let restart_server = server.clone();
-    let ctx = BackendContext::new(client)
-        .with_backend_kind(BackendKind::InMemory)
-        .with_scope("CV-033")
-        .with_restart_strategy(Arc::new(move || restart_server.restart()))
-        .with_controlled_boundary_restart();
-    let result = provenance::execute(&descriptor("CV-033"), &ctx);
-    assert!(result.outcome().is_unavailable());
-    assert!(result.finding().actual().contains("需要决策"));
-    assert!(result.finding().actual().contains("call_provenance"));
-    assert!(!result.outcome().is_pass());
+fn cv033_proves_public_provenance_through_inmemory_restart() {
+    assert_pass(&run_provenance_in_memory(), "CV-033");
+}
+
+#[test]
+fn cv033_proves_public_provenance_through_live_postgres_restart() {
+    assert_pass(&run_provenance_postgres(), "CV-033");
 }
 
 #[test]

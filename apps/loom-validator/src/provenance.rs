@@ -11,9 +11,9 @@ use std::future::Future;
 
 use loom_api::{
     ActionInvocation, ActionTypeId, AdminActivateRuntimeRevisionRequest,
-    AdminExecutionSessionRequest, AdminService, CreateWorldFromTemplateRequest, EntityId, EventId,
-    EventQuery, EventRef, ExecutionResult, HistoryService, TimelineTarget, WorldInstant,
-    WorldTemplateDescriptor,
+    AdminExecutionSessionRequest, AdminReadDependency, AdminRuntimeRevisionRequest, AdminService,
+    CreateWorldFromTemplateRequest, EntityId, EventId, EventQuery, EventRef, ExecutionResult,
+    FacetOwner, HistoryService, TimelineTarget, WorldInstant, WorldTemplateDescriptor,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -34,7 +34,12 @@ pub const CV_033: &str = "CV-033";
 const COUNTER_SEED: &str = "neutral.counter.seed";
 const COUNTER_INCREMENT: &str = "neutral.counter.increment";
 const COUNTER_CAPABILITY: &str = "neutral.counter";
+const PROVENANCE_CAPABILITY: &str = "validator.t16.provenance";
+const PROVENANCE_FACET: &str = "validator.t16.provenance.value";
+const PROVENANCE_SEED: &str = "validator.t16.provenance.seed";
+const PROVENANCE_ROOT: &str = "validator.t16.provenance.root";
 const R2_ID: &str = "validator-t16-r2";
+const PROVENANCE_R2_ID: &str = "validator-t16-cv033-r2";
 
 #[must_use]
 pub const fn suite_name() -> &'static str {
@@ -117,11 +122,7 @@ pub fn execute(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> Scenari
     match descriptor.id_str() {
         CV_031 => cv031(descriptor, ctx),
         CV_032 => cv032(descriptor, ctx),
-        CV_033 => unavailable(
-            descriptor,
-            ctx,
-            "需要决策：the current validator test dependency boundary cannot compose a test-local Capability that emits non-empty call_provenance and entropy_evidence; loom-api exposes the required Admin fields, but no truthful CV-033 observation can be produced from the installed T16-only dependency set",
-        ),
+        CV_033 => cv033(descriptor, ctx),
         _ => result_fail(
             descriptor,
             ctx,
@@ -153,6 +154,11 @@ where
 fn template() -> WorldTemplateDescriptor {
     WorldTemplateDescriptor::new("validator.t16.provenance.v1", 1, WorldInstant::new(42))
         .requires_capability(COUNTER_CAPABILITY, "^0.1.0")
+}
+
+fn provenance_template() -> WorldTemplateDescriptor {
+    WorldTemplateDescriptor::new("validator.t16.provenance.v1", 1, WorldInstant::new(42))
+        .requires_capability(PROVENANCE_CAPABILITY, "^0.1.0")
 }
 
 fn invoke(
@@ -209,6 +215,48 @@ fn create_seed(ctx: &BackendContext) -> Result<(TimelineTarget, EntityId, EventR
     ))
 }
 
+fn create_provenance_seed(
+    ctx: &BackendContext,
+) -> Result<(TimelineTarget, EntityId, EventRef), String> {
+    let entity_id = new_id::<EntityId>();
+    let seed_id = new_id::<EventId>();
+    let root_id = new_id::<EventId>();
+    let target = block_on(async {
+        ctx.api()
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(provenance_template()))
+            .await
+    })
+    .map_err(|error| format!("World creation failed: {} ({})", error.code, error.message))?
+    .target;
+    let seed_ids = invoke(
+        ctx,
+        target,
+        PROVENANCE_SEED,
+        json!({"event_id": seed_id.to_string(), "entity_id": entity_id.to_string()}),
+    )?;
+    if seed_ids != vec![seed_id] {
+        return Err(format!(
+            "unexpected provenance seed identities: {seed_ids:?}"
+        ));
+    }
+    let root_ids = invoke(
+        ctx,
+        target,
+        PROVENANCE_ROOT,
+        json!({"event_id": root_id.to_string(), "entity_id": entity_id.to_string()}),
+    )?;
+    if root_ids != vec![root_id] {
+        return Err(format!(
+            "unexpected provenance root identities: {root_ids:?}"
+        ));
+    }
+    Ok((
+        target,
+        entity_id,
+        EventRef::new(target.timeline_id, root_id),
+    ))
+}
+
 fn active_revision(ctx: &BackendContext) -> Result<(String, u64), String> {
     let selection = block_on(async { ctx.client().active_runtime_revision().await })
         .map_err(|error| format!("active Runtime Revision read failed: {}", error.message))?
@@ -216,11 +264,15 @@ fn active_revision(ctx: &BackendContext) -> Result<(String, u64), String> {
     Ok((selection.revision.revision_id, selection.generation))
 }
 
-fn activate_r2(ctx: &BackendContext, generation: u64) -> Result<(), String> {
+fn activate_revision(
+    ctx: &BackendContext,
+    generation: u64,
+    revision_id: &str,
+) -> Result<(), String> {
     block_on(async {
         ctx.client()
             .activate_runtime_revision(AdminActivateRuntimeRevisionRequest {
-                revision_id: R2_ID.to_owned(),
+                revision_id: revision_id.to_owned(),
                 expected_generation: Some(generation),
             })
             .await
@@ -294,7 +346,7 @@ fn cv031(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
                 "initial S1 provenance mismatch: {before:?}; active={r1}"
             ));
         }
-        activate_r2(ctx, generation)?;
+        activate_revision(ctx, generation, R2_ID)?;
         let reread = history_event(ctx, event_ref)?;
         let history_after_activation = history(ctx, target)?;
         let after = read_session(ctx, s1)?;
@@ -349,7 +401,7 @@ fn cv032(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
         let s1 = lookup_session(ctx, e1_ref)?;
         let s1_before = read_session(ctx, s1)?;
         let (r1, generation) = active_revision(ctx)?;
-        activate_r2(ctx, generation)?;
+        activate_revision(ctx, generation, R2_ID)?;
         let e2 = new_id::<EventId>();
         let e2_ids = invoke(
             ctx,
@@ -415,6 +467,116 @@ fn cv032(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
         }
         Ok(format!(
             "E1 -> S1 -> R1 and E2 -> S2 -> R2 retained for target={target:?}; history unchanged across restart"
+        ))
+    })();
+    match result {
+        Ok(actual) => result_pass(descriptor, ctx, expected, actual),
+        Err(actual) => result_fail(descriptor, ctx, expected, actual),
+    }
+}
+
+fn cv033(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResult {
+    let expected = "Session exposes non-secret implementation/version, Facet read, Runtime call and controlled entropy provenance unchanged after activation and restart";
+    let result = (|| {
+        let (target, entity_id, event_ref) = create_provenance_seed(ctx)?;
+        let session_id = lookup_session(ctx, event_ref)?;
+        let before = read_session(ctx, session_id)?;
+        let (r1, generation) = active_revision(ctx)?;
+        let revision_before = block_on(async {
+            ctx.client()
+                .get_runtime_revision(AdminRuntimeRevisionRequest {
+                    revision_id: r1.clone(),
+                })
+                .await
+        })
+        .map_err(|error| {
+            format!(
+                "R1 revision read failed: {} ({})",
+                error.code, error.message
+            )
+        })?;
+        let implementation_before = revision_before
+            .capabilities
+            .iter()
+            .find(|capability| capability.capability_id == PROVENANCE_CAPABILITY)
+            .ok_or_else(|| "R1 lacks the test-local provenance Capability".to_owned())?;
+        if before.runtime_revision_id != r1
+            || before.event_refs != vec![event_ref]
+            || before.read_set.iter().all(|dependency| {
+                !matches!(
+                    dependency,
+                    AdminReadDependency::Facet {
+                        owner: FacetOwner::Entity(owner),
+                        facet_type,
+                        ..
+                    } if *owner == entity_id && *facet_type == PROVENANCE_FACET.into()
+                )
+            })
+            || before.call_provenance.len() != 1
+            || before.entropy_evidence.source_id != "validator-t16-entropy"
+            || before.entropy_evidence.observations.len() != 1
+            || before.entropy_evidence.observations[0].requested_bytes != 4
+            || implementation_before.implementation_id.is_empty()
+            || implementation_before.version != "0.1.0"
+        {
+            return Err(format!("CV-033 initial provenance mismatch: {before:?}"));
+        }
+        let edge = &before.call_provenance[0];
+        if edge.caller_capability != PROVENANCE_CAPABILITY
+            || edge.caller_action != PROVENANCE_ROOT.into()
+            || edge.target_capability != PROVENANCE_CAPABILITY
+            || edge.target_action != "validator.t16.provenance.child".into()
+        {
+            return Err(format!("unexpected Runtime call provenance: {edge:?}"));
+        }
+        if implementation_before.implementation_id.contains("A5")
+            || before.entropy_evidence.source_id.contains("secret")
+        {
+            return Err("provenance exposed a secret-looking value".to_owned());
+        }
+        activate_revision(ctx, generation, PROVENANCE_R2_ID)?;
+        let restarted = ctx
+            .restart()
+            .map_err(|error| format!("controlled restart failed: {error}"))?;
+        let post_event = block_on(async { restarted.get_event(event_ref).await })
+            .map_err(|error| format!("post-restart Event read failed: {}", error.message))?
+            .ok_or_else(|| "CV-033 Event disappeared after controlled restart".to_owned())?;
+        let post_session = block_on(async {
+            restarted
+                .get_execution_session(AdminExecutionSessionRequest { session_id })
+                .await
+        })
+        .map_err(|error| format!("post-restart Session read failed: {}", error.message))?;
+        let revision_after = block_on(async {
+            restarted
+                .get_runtime_revision(AdminRuntimeRevisionRequest {
+                    revision_id: r1.clone(),
+                })
+                .await
+        })
+        .map_err(|error| format!("post-restart R1 revision read failed: {}", error.message))?;
+        let implementation_after = revision_after
+            .capabilities
+            .iter()
+            .find(|capability| capability.capability_id == PROVENANCE_CAPABILITY)
+            .ok_or_else(|| {
+                "post-restart R1 lacks the test-local provenance Capability".to_owned()
+            })?;
+        if post_event.event_ref() != event_ref
+            || post_session.runtime_revision_id != before.runtime_revision_id
+            || post_session.read_set != before.read_set
+            || post_session.call_provenance != before.call_provenance
+            || post_session.entropy_evidence != before.entropy_evidence
+            || implementation_after.implementation_id != implementation_before.implementation_id
+            || implementation_after.version != implementation_before.version
+        {
+            return Err(format!(
+                "CV-033 provenance drifted after restart: {post_session:?}"
+            ));
+        }
+        Ok(format!(
+            "E1 {event_ref:?} -> S1 {session_id:?} -> R1 {r1}; implementation={} version={}; public read/call/entropy evidence retained for target={target:?}",
+            implementation_before.implementation_id, implementation_before.version
         ))
     })();
     match result {

@@ -1469,6 +1469,7 @@ dependencies = [
  "loom-capability",
  "loom-client",
  "loom-neutral",
+ "loom-protocol",
  "loom-runtime",
  "loom-storage",
  "serde",
