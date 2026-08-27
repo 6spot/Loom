@@ -4,18 +4,22 @@ This directory is the repository-level audit trail for Loom implementation work.
 
 GitHub issues remain the collaboration surface for discussion, assignment and checklists. Task files preserve durable implementation status and completion evidence next to the code and architecture they describe.
 
-## Current V0 roadmap
+## V0 implementation history and current certification
 
-The current post-Amendment V0 plan is [`v0-roadmap.md`](v0-roadmap.md), covering M4–M13 and GitHub issues #136–#203.
+The post-Amendment V0 roadmap is [`v0-roadmap.md`](v0-roadmap.md), covering the M4–M13 implementation history and GitHub issues #136–#203. It is an audit record of that delivery history, not a current certification claim.
 
 Milestones 1–3 remain historical completed implementation baselines. The old unmerged M4–M13 planning in issues #60–#134 / draft PR #135 is superseded and must not be used as the current execution plan.
+
+Current-main V0 re-certification is tracked separately in the [`validator-recert/README.md`](validator-recert/README.md) initiative. It includes the post-M13 authority-fix history and current Stage-3 gates; re-certification remains in progress and pending until T25. The repository must not be described as V0 re-certified or as having a complete recertification root before T25.
 
 ## Cross-cutting validator initiative
 
 The first-party public-consumer validator is tracked in the
 [`validator/README.md`](validator/README.md) initiative index. Its individual
 implementation tasks continue to follow the same one-task/one-file audit rule;
-the initiative index does not replace a task record.
+the initiative index does not replace a task record. That historical Validator
+ledger remains separate from the current-main `validator-recert` initiative and
+is not marked complete by the existence of the latter.
 
 Before implementing any planned task:
 

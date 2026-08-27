@@ -167,7 +167,11 @@ Loom
 
 **Architecture:** Frozen baseline + accepted Amendments 0001, 0002, 0003 are the normative V0 contract. See [`docs/architecture/README.md`](docs/architecture/README.md) for document authority and reverse supersession.
 
-**Implementation:** The V0 implementation ledger is `docs/tasks/v0-roadmap.md`. Its milestone labels record delivery history only; they are not runtime versions or compatibility contracts. The current runtime has one canonical V0 state model, and intermediate development states are not supported execution states.
+**Implementation history:** The V0 implementation ledger is `docs/tasks/v0-roadmap.md`. Its milestone labels record delivery history only; they are not runtime versions or compatibility contracts. The current runtime has one canonical V0 state model, and intermediate development states are not supported execution states. The post-M13 Validator authority-fix and public-surface evidence history is recorded separately under [`docs/tasks/validator-recert/`](docs/tasks/validator-recert/README.md).
+
+**Current-main certification:** The historical M13 candidate and closure records below remain preserved audit evidence. Current-main V0 re-certification is in progress and remains **pending until T25**; the repository must not be described as V0 re-certified or as having a complete recertification root before that final gate.
+
+**Historical M12/M13 delivery evidence (preserved):**
 
 - `#198` `loom-cli` — completed (post-#276 baseline, `apps/loom-cli` over `loom-client`/`loom-api` only)
 - `#199` V0 operator/developer documentation + quickstart — completed (post-#280 baseline, `docs/quickstart.md`, `docs/operator-guide.md`, `docs/developer-guide.md`, `docs/capacity-envelope.md`)

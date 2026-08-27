@@ -1,6 +1,6 @@
 # Loom Engine V0 Implementation Roadmap
 
-Status: **in_progress** — M4–M13 implementation and the final candidate are integrated; closure audit awaits Leader-owned GitHub checklist reconciliation.
+Status: **historical implementation baseline** — M4–M13 implementation and the historical final candidate are integrated. Current-main V0 re-certification is tracked separately and remains in progress, pending until T25.
 Replanned: 2026-08-22  
 Architecture baseline: accepted Amendments 0001–0003 + `docs/architecture/README.md` reverse supersession table.
 
@@ -186,12 +186,18 @@ The previous standalone generic `Event Scope` proposal is intentionally excluded
 
 **Exit:** a new user can reproduce the supported system through public server/client/CLI surfaces only.
 
-### M13 — V0 release + closure audit (#145)
+### Historical M13 — V0 release + closure audit (#145)
+
+The following entries preserve the historical M13 release candidate and
+closure-audit evidence. They do not certify the current `main` checkout; the
+separate current-main recertification remains pending until T25.
 
 - #202 M13-T1 — integrated V0 release gate
 - #203 M13-T2 — final task/Issue/evidence closure audit
 
-**Exit:** Loom Engine V0 is declared complete only after #203.
+**Historical exit:** The M13 record declared its historical release sequence
+complete after #203. Current-main V0 re-certification is a separate process and
+must not be declared complete before T25.
 
 ## Capacity assumptions carried into implementation
 
