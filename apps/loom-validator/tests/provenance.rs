@@ -143,14 +143,80 @@ fn public_sessions(client: &LoomClient) -> Result<Vec<loom_api::AdminExecutionSe
         .map_err(|error| format!("post-restart Session list failed: {error:?}"))
 }
 
-fn assert_restarted_event_session_links(
+fn public_session(
     client: &LoomClient,
-    baseline: &HashSet<loom_api::ExecutionSessionId>,
+    session_id: loom_api::ExecutionSessionId,
+) -> Result<loom_api::AdminExecutionSession, String> {
+    common::leaked_runtime()
+        .block_on(async {
+            client
+                .get_execution_session(loom_api::AdminExecutionSessionRequest { session_id })
+                .await
+        })
+        .map_err(|error| format!("post-restart Session read failed: {error:?}"))
+}
+
+fn assert_restarted_event_session_links(
+    scenario_id: &str,
+    client: &LoomClient,
+    expected: &[loom_api::AdminExecutionSession],
 ) -> Result<(), String> {
-    for session in public_sessions(client)?
-        .into_iter()
-        .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
-    {
+    if scenario_id == "CV-031" {
+        let session = expected.first().ok_or_else(|| {
+            "CV-031 did not expose an Event-linked Session before restart".to_owned()
+        })?;
+        if session.event_refs.len() != 1 {
+            return Err(format!(
+                "CV-031 expected one E1 ref, got {:?}",
+                session.event_refs
+            ));
+        }
+        let event_ref = session.event_refs[0];
+        let post_session = public_session(client, session.id)?;
+        if session.runtime_revision_id != "validator-t16-r1"
+            || public_session_for_event(client, event_ref)? != session.id
+            || post_session.event_refs != vec![event_ref]
+            || post_session.runtime_revision_id != "validator-t16-r1"
+        {
+            return Err(format!(
+                "CV-031 post-restart E1/S1 projection mismatch: {post_session:?}"
+            ));
+        }
+        return Ok(());
+    }
+    if scenario_id == "CV-032" {
+        let s1 = expected
+            .iter()
+            .find(|session| session.runtime_revision_id == "validator-t16-r1")
+            .ok_or_else(|| "CV-032 did not expose R1 Session before restart".to_owned())?;
+        let s2 = expected
+            .iter()
+            .find(|session| session.runtime_revision_id == "validator-t16-r2")
+            .ok_or_else(|| "CV-032 did not expose R2 Session before restart".to_owned())?;
+        if s1.event_refs.len() != 1 || s2.event_refs.len() != 1 {
+            return Err(format!(
+                "CV-032 expected one E1 and one E2 ref, got S1={:?} S2={:?}",
+                s1.event_refs, s2.event_refs
+            ));
+        }
+        let e1_ref = s1.event_refs[0];
+        let e2_ref = s2.event_refs[0];
+        let s1_post = public_session(client, s1.id)?;
+        let s2_post = public_session(client, s2.id)?;
+        if public_session_for_event(client, e1_ref)? != s1.id
+            || public_session_for_event(client, e2_ref)? != s2.id
+            || s1_post.event_refs != vec![e1_ref]
+            || s2_post.event_refs != vec![e2_ref]
+            || s1_post.runtime_revision_id != "validator-t16-r1"
+            || s2_post.runtime_revision_id != "validator-t16-r2"
+        {
+            return Err(format!(
+                "CV-032 post-restart E1/E2 Session projection mismatch: S1={s1_post:?} S2={s2_post:?}"
+            ));
+        }
+        return Ok(());
+    }
+    for session in expected {
         for event_ref in session.event_refs.iter().copied() {
             if public_session_for_event(client, event_ref)? != session.id {
                 return Err(format!(
@@ -682,10 +748,16 @@ fn run_in_memory(id: &str) -> ScenarioResult {
         .into_iter()
         .map(|session| session.id)
         .collect::<HashSet<_>>();
+    let before_client = client.clone();
+    let scenario_id = id.to_owned();
     let restart_server = server.clone();
     let restart = Arc::new(move || {
+        let expected = public_sessions(&before_client)?
+            .into_iter()
+            .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
+            .collect::<Vec<_>>();
         let restarted = restart_server.restart()?;
-        assert_restarted_event_session_links(&restarted, &baseline)?;
+        assert_restarted_event_session_links(&scenario_id, &restarted, &expected)?;
         Ok(restarted)
     });
     let ctx = context(client, BackendKind::InMemory, id, restart);
@@ -700,10 +772,16 @@ fn run_postgres(id: &str) -> ScenarioResult {
         .into_iter()
         .map(|session| session.id)
         .collect::<HashSet<_>>();
+    let before_client = client.clone();
+    let scenario_id = id.to_owned();
     let restart_server = server.clone();
     let restart = Arc::new(move || {
+        let expected = public_sessions(&before_client)?
+            .into_iter()
+            .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
+            .collect::<Vec<_>>();
         let restarted = restart_server.restart()?;
-        assert_restarted_event_session_links(&restarted, &baseline)?;
+        assert_restarted_event_session_links(&scenario_id, &restarted, &expected)?;
         Ok(restarted)
     });
     let ctx = context(client, BackendKind::PostgreSQL, id, restart);
@@ -718,10 +796,15 @@ fn run_provenance_in_memory() -> ScenarioResult {
         .into_iter()
         .map(|session| session.id)
         .collect::<HashSet<_>>();
+    let before_client = client.clone();
     let restart_server = server.clone();
     let restart = Arc::new(move || {
+        let expected = public_sessions(&before_client)?
+            .into_iter()
+            .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
+            .collect::<Vec<_>>();
         let restarted = restart_server.restart()?;
-        assert_restarted_event_session_links(&restarted, &baseline)?;
+        assert_restarted_event_session_links("CV-033", &restarted, &expected)?;
         Ok(restarted)
     });
     let ctx = context(client, BackendKind::InMemory, "CV-033", restart);
@@ -737,10 +820,15 @@ fn run_provenance_postgres() -> ScenarioResult {
         .into_iter()
         .map(|session| session.id)
         .collect::<HashSet<_>>();
+    let before_client = client.clone();
     let restart_server = server.clone();
     let restart = Arc::new(move || {
+        let expected = public_sessions(&before_client)?
+            .into_iter()
+            .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
+            .collect::<Vec<_>>();
         let restarted = restart_server.restart()?;
-        assert_restarted_event_session_links(&restarted, &baseline)?;
+        assert_restarted_event_session_links("CV-033", &restarted, &expected)?;
         Ok(restarted)
     });
     let ctx = context(client, BackendKind::PostgreSQL, "CV-033", restart);
