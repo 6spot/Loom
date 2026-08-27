@@ -41,6 +41,10 @@ pub const CV_012: &str = "CV-012";
 pub const CV_013: &str = "CV-013";
 pub const CV_014: &str = "CV-014";
 
+const T10_R2_REVISION_ID: &str = "validator-t10-r2";
+const T10_COUNTER_CAPABILITY_ID: &str = "neutral.counter";
+const T10_COUNTER_BINDING_REQUIREMENT: &str = "^0.1.0";
+
 /// Returns the suite identifier.
 #[must_use]
 pub fn suite_name() -> &'static str {
@@ -248,6 +252,27 @@ fn world_template_for(scope: &str) -> WorldTemplateDescriptor {
     let _ = scope;
     WorldTemplateDescriptor::new("validator.t10.world.binding.v1", 1, WorldInstant::new(42))
         .requires_capability("neutral.counter", "^0.1.0")
+}
+
+/// Checks the only capability requirement owned by the T10 World Binding
+/// fixture. The public admin projection exposes the installed semantic
+/// version as text; `^0.1.0` accepts the `0.1.x` release line and excludes
+/// prereleases and other minor/major versions.
+fn counter_version_satisfies_binding(version: &str) -> bool {
+    if version.contains('-') {
+        return false;
+    }
+    let core = version.split('+').next().unwrap_or(version);
+    let mut components = core.split('.');
+    matches!(
+        (
+            components.next(),
+            components.next(),
+            components.next(),
+            components.next()
+        ),
+        (Some("0"), Some("1"), Some(patch), None) if patch.parse::<u64>().is_ok()
+    )
 }
 
 fn new_entity_id() -> EntityId {
@@ -990,6 +1015,22 @@ fn cv014(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
     let scope = ctx.scope().to_string();
     let expected = "later compatible revision activation does not rewrite World Binding or historical identity";
 
+    // CV-014 includes a restart-sensitive lifecycle assertion. A reconnect to
+    // the same boundary cannot provide the controlled restart evidence required
+    // by T08, so stop before creating or mutating any World state.
+    if !ctx.can_perform_boundary_restart() {
+        let reason = format!(
+            "CV-014 requires ControlledBoundaryRestart evidence; {} cannot certify restart-sensitive lifecycle",
+            ctx.restart_capability().as_str()
+        );
+        let outcome = ScenarioOutcome::Unavailable {
+            reason: reason.clone(),
+        };
+        let finding = finding_for(descriptor, ctx, expected, &reason, outcome.clone());
+        return ScenarioResult::new(descriptor.id().clone(), outcome, finding)
+            .with_capability_area(descriptor.capability_area().as_str());
+    }
+
     // 1. Create world under R1 (current active)
     let template = world_template_for(&scope);
     let created = match block_on(async {
@@ -1165,22 +1206,43 @@ fn cv014(descriptor: &ScenarioDescriptor, ctx: &BackendContext) -> ScenarioResul
         }
     };
     let revisions_len = revisions.len();
-    // Find a compatible R2 different from R1 that contains neutral.counter
-    let r2 = revisions.into_iter().find(|rev| {
+    // Only the T10 fixture-owned publication is a valid R2 candidate. The
+    // database is shared by suites, so another historical publication may have
+    // the same capability without being this scenario's controlled R2.
+    let r2 = revisions.iter().find(|rev| {
         rev.revision_id != r1_id
-            && rev
-                .capabilities
-                .iter()
-                .any(|c| c.capability_id == "neutral.counter")
+            && rev.revision_id == T10_R2_REVISION_ID
+            && rev.capabilities.iter().any(|capability| {
+                capability.capability_id == T10_COUNTER_CAPABILITY_ID
+                    && counter_version_satisfies_binding(&capability.version)
+            })
     });
     let r2 = match r2 {
-        Some(r) => r,
+        Some(r) => r.clone(),
         None => {
-            // No compatible R2 published. For controlled evidence this is a prerequisite gap;
-            // for generic we report unavailable to avoid synthetic pass/fail.
+            let metadata = revisions
+                .iter()
+                .map(|revision| {
+                    let capabilities = revision
+                        .capabilities
+                        .iter()
+                        .map(|capability| {
+                            format!("{}@{}", capability.capability_id, capability.version)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    format!("{} [{}]", revision.revision_id, capabilities)
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
             let reason = format!(
-                "fixture requires compatible R2; active is {} but list_runtime_revisions did not contain second compatible revision (found {} revisions)",
-                r1_id, revisions_len
+                "fixture requires suite-owned R2 {} with {} satisfying {}; active is {} but public list_runtime_revisions metadata did not provide it (found {} revisions: {})",
+                T10_R2_REVISION_ID,
+                T10_COUNTER_CAPABILITY_ID,
+                T10_COUNTER_BINDING_REQUIREMENT,
+                r1_id,
+                revisions_len,
+                metadata
             );
             let outcome = ScenarioOutcome::Unavailable {
                 reason: reason.clone(),

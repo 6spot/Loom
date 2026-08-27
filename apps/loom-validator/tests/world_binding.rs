@@ -144,6 +144,22 @@ fn validator_descriptor_r2(registry: &CapabilityRegistry) -> RuntimeRevisionDesc
     .expect("validator t10 r2 revision should be valid")
 }
 
+fn historical_counter_revision(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-history-r2"),
+        PlatformTime::new(998),
+        "historical-counter-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("historical-counter:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("historical counter revision should be valid")
+}
+
 fn ensure_r1_in_memory(store: &InMemoryStore, registry: &CapabilityRegistry) -> Result<(), String> {
     let descriptor = validator_descriptor(registry);
     store
@@ -171,6 +187,24 @@ fn ensure_r2_in_memory(store: &InMemoryStore, registry: &CapabilityRegistry) -> 
         Ok(_) => Ok(()),
         Err(e) => {
             // If already exists, ignore
+            let msg = format!("{e:?}");
+            if msg.contains("already exists") || msg.contains("RevisionAlreadyExists") {
+                Ok(())
+            } else {
+                Err(msg)
+            }
+        }
+    }
+}
+
+fn ensure_historical_counter_in_memory(
+    store: &InMemoryStore,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let descriptor = historical_counter_revision(registry);
+    match store.confirm_revision(descriptor) {
+        Ok(_) => Ok(()),
+        Err(e) => {
             let msg = format!("{e:?}");
             if msg.contains("already exists") || msg.contains("RevisionAlreadyExists") {
                 Ok(())
@@ -226,6 +260,7 @@ async fn start_in_memory_with_r2(
     let registry = neutral_registry();
     registry.validate().map_err(|e| format!("{e:?}"))?;
     ensure_r1_in_memory(store, &registry)?;
+    ensure_historical_counter_in_memory(store, &registry)?;
     ensure_r2_in_memory(store, &registry)?;
     let runtime = Runtime::new(store, registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
@@ -321,6 +356,24 @@ async fn ensure_r2_pg(store: &PgStorage, registry: &CapabilityRegistry) -> Resul
     }
 }
 
+async fn ensure_historical_counter_pg(
+    store: &PgStorage,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let descriptor = historical_counter_revision(registry);
+    match RuntimeRevisionStore::confirm_revision(store, descriptor).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let msg = format!("{e:?}");
+            if msg.contains("already exists") || msg.contains("RevisionAlreadyExists") {
+                Ok(())
+            } else {
+                Err(msg)
+            }
+        }
+    }
+}
+
 struct PgR2Handle {
     store: PgStorage,
     server: tokio::task::JoinHandle<()>,
@@ -390,6 +443,7 @@ async fn start_pg_with_r2(store: PgStorage) -> Result<(LoomClient, PgR2Handle), 
     let registry = neutral_registry();
     registry.validate().map_err(|e| format!("{e:?}"))?;
     ensure_r1_pg(&store, &registry).await?;
+    ensure_historical_counter_pg(&store, &registry).await?;
     ensure_r2_pg(&store, &registry).await?;
     let runtime = Runtime::new(store.clone(), registry).map_err(|e| format!("{e:?}"))?;
     let api = Arc::new(runtime);
@@ -521,6 +575,8 @@ fn cv014_revision_activation_preserves_binding_on_real_in_memory_with_r2() {
         .with_controlled_boundary_restart();
     let result = world_binding::execute_world_binding(&descriptor("CV-014"), &ctx);
     assert_pass(&result, "CV-014");
+    assert!(result.finding().actual().contains("R2 validator-t10-r2"));
+    assert!(!result.finding().actual().contains("validator-history-r2"));
     let evidence = result
         .finding()
         .evidence()
@@ -585,6 +641,8 @@ fn cv014_revision_activation_preserves_binding_on_live_postgres_with_r2_when_con
         .with_controlled_boundary_restart();
     let result = world_binding::execute_world_binding(&descriptor("CV-014"), &ctx);
     if result.outcome().is_pass() {
+        assert!(result.finding().actual().contains("R2 validator-t10-r2"));
+        assert!(!result.finding().actual().contains("validator-history-r2"));
         let evidence = result
             .finding()
             .evidence()
@@ -609,6 +667,26 @@ fn cv014_revision_activation_preserves_binding_on_live_postgres_with_r2_when_con
             result.finding().actual()
         );
     }
+}
+
+#[test]
+fn cv014_reconnect_only_is_unavailable_before_restart_sensitive_lifecycle() {
+    let (_server, client) =
+        common::InMemoryServer::start().expect("in-memory service should start");
+    let ctx = context_for(client, BackendKind::InMemory, "cv014-reconnect-only");
+    let result = world_binding::execute_world_binding(&descriptor("CV-014"), &ctx);
+
+    assert!(
+        result.outcome().is_unavailable(),
+        "CV-014 reconnect-only must be unavailable: {result:?}"
+    );
+    assert_eq!(ctx.restart_capability().as_str(), "reconnect-only");
+    assert!(
+        result
+            .finding()
+            .actual()
+            .contains("requires ControlledBoundaryRestart")
+    );
 }
 
 // ── negative: external backend must not be trusted for CV-014 ────────────────
