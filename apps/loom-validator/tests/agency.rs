@@ -14,7 +14,7 @@ fn agency_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!agency::owns_cv("CV-038"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 11);
+    assert_eq!(registry.len(), 31);
     assert!(registry.get("CV-034").is_none());
-    assert!(registry.get("CV-040").is_none());
+    assert!(registry.get("CV-040").is_some());
 }

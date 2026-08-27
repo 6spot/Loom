@@ -41,12 +41,12 @@ fn world_binding_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!world_binding::owns_cv("CV-011"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 11);
+    assert_eq!(registry.len(), 31);
     assert!(registry.get("CV-001").is_some());
     assert!(registry.get("CV-011").is_some());
-    assert!(registry.get("CV-012").is_none());
-    assert!(registry.get("CV-014").is_none());
-    assert!(registry.get("CV-040").is_none());
+    assert!(registry.get("CV-012").is_some());
+    assert!(registry.get("CV-014").is_some());
+    assert!(registry.get("CV-040").is_some());
 }
 
 #[test]

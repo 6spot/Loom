@@ -99,9 +99,11 @@ fn action_ingress_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!action_ingress::owns_cv("CV-018"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 11);
-    assert!(registry.get("CV-015").is_none());
-    assert!(registry.get("CV-040").is_none());
+    assert_eq!(registry.len(), 31);
+    assert!(registry.get("CV-015").is_some());
+    assert!(registry.get("CV-016").is_some());
+    assert!(registry.get("CV-017").is_none());
+    assert!(registry.get("CV-040").is_some());
 
     // Local descriptors are present but not registered centrally.
     let descs = action_ingress::descriptors();
