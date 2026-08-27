@@ -82,14 +82,16 @@ No central registry edits, no internal event-table polling as substitute, no cur
 
 ## Verification Evidence
 
-- `cargo fmt --all -- --check` → pending (must pass)
-- `cargo check -p loom-validator --all-targets` → pending
-- `cargo clippy -p loom-validator --all-targets -- -D warnings` → pending
-- `cargo test -p loom-validator --test change_feed` → pending (CV-038..040 InMemory + PostgreSQL)
-- `cargo test -p loom-validator --all-targets` → pending
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` → pending
-- `python3 tools/check_architecture.py` → pending
-- `python3 tools/check_storage_sql_ownership.py` → pending
+- Replayed the T18 commit onto `origin/main` `b7696aae3bb978a48eb75650026fdc7bd16c2e98`; candidate HEAD: `4f8f86b6db8b589e192ab6ac153c0ef681d815a2` before this ledger-only evidence update.
+- `cargo fmt --all -- --check` → PASS
+- `cargo check -p loom-validator --all-targets` → PASS
+- `cargo clippy -p loom-validator --all-targets -- -D warnings` → PASS
+- `cargo test -p loom-validator --test change_feed -- --nocapture` → PASS (6 passed; 0 failed; 0 ignored; InMemory CV-038/039/040 plus live PostgreSQL CV-038..040 with controlled restart)
+- `bash tools/test.sh -p loom-validator --all-targets` → PASS (153 unit tests and all loom-validator integration suites; PostgreSQL service prepared by the repository wrapper)
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` → PASS (`valid: true`; T18 enumerated ready/in_progress)
+- `python3 tools/check_architecture.py` → PASS
+- `python3 tools/check_storage_sql_ownership.py` → PASS
+- `git diff --check origin/main...HEAD` and three-file name/status boundary → PASS
 
 ## Acceptance
 
