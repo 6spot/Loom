@@ -61,6 +61,7 @@ No central registry edits, no internal event-table polling as substitute, no cur
 - `execute_cv038`: creates World, commits one `neutral.counter.seed` Event, and requires the complete `SubscriptionService::subscribe(SubscriptionRequest::new(target, 50))` page to be equal to the same-target authoritative `HistoryService::list_events` sequence by EventId, EventSeq, order, and formal event content; verifies `next_cursor == ChangeFeedCursor::after(target, committed_seq)`.
 - `execute_cv039`: creates 5 events (seq 1..5), obtains the after-5 cursor from authoritative history, then commits 6,7. The resume page is compared to `events_after_7[5..7]` by EventId/EventSeq/order/content; after-7 returns `Resumed`. PostgreSQL `ControlledBoundaryRestart` re-reads and fully correlates all 7 authoritative events, then repeats the resume correlation from restarted history.
 - `execute_cv040`: creates 3 events, reads a bounded first page with `limit=1`, and saves its `next_cursor` after the one fully observed Event. It disconnects/rebuilds the controlled boundary at that point, resumes with that cursor through bounded pages for Events 2 and 3, and compares every page to authoritative history. Repeating the same cursor request must return an identical transport page; final authoritative history remains exactly the original 3 commits, then resume after 3 returns `Resumed`.
+- Dedicated `tests/change_feed.rs` controlled HTTP fixture supplements the real-boundary CV-040 path: after the formal client obtains the authoritative after-1 cursor, the fixture emits EventSeq 2 but terminates the SSE response before page metadata. `LoomClient::subscribe(SubscriptionRequest::resume(...))` explicitly returns `ApiErrorCode::Unavailable`; the same unchanged after-1 cursor then resumes Events 2,3 with complete metadata and the real service's HistoryService remains exactly unchanged.
 - Evidence references include `validator:change-feed`, `backend:*`, `backend_evidence:*`, `restart_capability:*`, and `public-surface:loom-client::*` for subscription/history/action/world reads. Infra `unavailable` mapped to `ScenarioOutcome::Unavailable`, not `Pass`.
 - No imports of `loom-storage`, `loom-runtime`, `loom-boundary`; no central registry mutation.
 
@@ -69,6 +70,7 @@ No central registry edits, no internal event-table polling as substitute, no cur
 - Retains original scaffold disjoint test plus local registry check.
 - Helpers `in_memory_context`, `pg_context` build real `InMemoryServer`/`PgServer` with `BackendContext::with_controlled_boundary_restart()` and deterministic scope.
 - `cv038_passes_on_real_in_memory_via_formal_subscription`, `cv039_resume_passes_on_real_in_memory`, `cv040_disconnect_reconnect_preserves_history_on_real_in_memory` each exercise one CV against real InMemory HTTP boundary.
+- `cv040_formal_client_observes_mid_page_disconnect_and_resumes` first obtains a real-boundary bounded page/cursor, then uses the dedicated controlled HTTP fixture to produce a partial SSE page and client-observed `ApiErrorCode::Unavailable`; it resumes with the pre-disconnect cursor and compares the remaining page and final authoritative history by full Event value.
 - `cv038_to_cv040_pass_on_live_postgres_with_controlled_restart` loops CV-038..040 against live PostgreSQL with controlled restart, asserting durable cursor/history for 039/040.
 - `change_feed_scenarios_use_formal_client_not_event_table_polling` asserts source contains `SubscriptionService::subscribe`, `ChangeFeedCursor::after` and contains no `loom_storage`/`PgStorage`/`InMemoryStore`.
 
@@ -76,7 +78,7 @@ No central registry edits, no internal event-table polling as substitute, no cur
 
 - committed event observed via formal stream/client: CV-038 passes `SubscriptionResult::Events` correlation.
 - resume from known cursor: CV-039 passes resume after 5 → 6,7 and after 7 → Resumed.
-- controlled disconnect + reconnect: CV-040 passes restart-preserved history 3 and duplicate page dedup.
+- controlled disconnect + reconnect: CV-040 observes a partial SSE response ending before page metadata as formal-client `ApiErrorCode::Unavailable`, then resumes from the pre-disconnect `next_cursor`; the real-boundary path also verifies restart-preserved history 3 and duplicate page dedup.
 - assertion World history contains exactly authoritative commits even if transport retried: CV-040 verifies `list_events` 3 before/after duplicate fetches, `EventId` dedup.
 - PostgreSQL live path where T08 requires durable resume: CV-039 and CV-040 include controlled PostgreSQL restart branch (`BackendContext::restart()` on `PgServer` preserving `PgStorage`) with re-subscribe verification.
 
@@ -86,7 +88,7 @@ No central registry edits, no internal event-table polling as substitute, no cur
 - `cargo fmt --all -- --check` → PASS
 - `cargo check -p loom-validator --all-targets` → PASS
 - `cargo clippy -p loom-validator --all-targets -- -D warnings` → PASS
-- `cargo test -p loom-validator --test change_feed -- --nocapture` → PASS (6 passed; 0 failed; 0 ignored; InMemory CV-038/039/040 plus live PostgreSQL CV-038..040 with controlled restart)
+- `cargo test -p loom-validator --test change_feed -- --nocapture` → PASS (7 passed; 0 failed; 0 ignored; includes controlled HTTP mid-page client-error fixture, InMemory CV-038/039/040, and live PostgreSQL CV-038..040 with controlled restart)
 - `bash tools/test.sh -p loom-validator --all-targets` → PASS (153 unit tests and all loom-validator integration suites; PostgreSQL service prepared by the repository wrapper)
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` → PASS (`valid: true`; T18 enumerated ready/in_progress)
 - `python3 tools/check_architecture.py` → PASS
@@ -94,6 +96,7 @@ No central registry edits, no internal event-table polling as substitute, no cur
 - `git diff --check origin/main...HEAD` and three-file name/status boundary → PASS
 - Reviewer remediation validation (code candidate `a0518cb`): `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, and `cargo test -p loom-validator --test change_feed -- --nocapture` → PASS; 6 passed, including InMemory and live PostgreSQL controlled restart.
 - Remediation-specific runtime evidence: CV-038 complete page/history EventId/EventSeq/order/content equivalence; CV-039 authoritative history-derived resume pages and complete PG restart re-correlation; CV-040 bounded `limit=1` disconnect after EventSeq 1, cursor resume through EventSeq 2/3, identical retry page, unchanged three-event history.
+- D-T18-004 closure evidence: `cv040_formal_client_observes_mid_page_disconnect_and_resumes` receives an actual `ApiErrorCode::Unavailable` from `LoomClient::subscribe` after the fixture sends a complete EventSeq 2 change frame but omits page metadata; the test retains the valid pre-disconnect after-1 cursor, resumes EventSeq 2,3 through formal `SubscriptionRequest::resume`, and proves the authoritative history/EventId sequence remains the original three events.
 
 ## Acceptance
 

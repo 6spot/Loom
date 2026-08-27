@@ -7,10 +7,24 @@
 
 mod common;
 
-use std::sync::Arc;
+use std::{
+    fmt::Write as _,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
+use loom_api::{
+    ActionInvocation, ActionRequest, ActionService, ApiErrorCode, ChangeFeedCursor, EventId,
+    EventQuery, HistoryService, SubscriptionRequest, SubscriptionResult, SubscriptionService,
+    TimelineTarget, WorldInstant, WorldService, WorldTemplateDescriptor,
+};
 use loom_client::LoomClient;
 use loom_validator::{BackendContext, BackendKind, change_feed, validator_registry};
+use serde_json::json;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use uuid::Uuid;
 
 use common::{InMemoryServer, PgServer};
 
@@ -104,6 +118,260 @@ fn assert_actual_contains(result: &loom_validator::ScenarioResult, id: &str, exp
         "{id} actual should contain {expected:?}: {}",
         result.finding().actual()
     );
+}
+
+#[derive(Clone)]
+struct MidPageDisconnectState {
+    target: TimelineTarget,
+    cursor: ChangeFeedCursor,
+    remaining: Arc<Vec<loom_api::CommittedEvent>>,
+    fail_once: Arc<AtomicBool>,
+}
+
+struct MidPageDisconnectFixture {
+    base_url: String,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl MidPageDisconnectFixture {
+    fn start(
+        target: TimelineTarget,
+        cursor: ChangeFeedCursor,
+        remaining: Vec<loom_api::CommittedEvent>,
+    ) -> Self {
+        let state = MidPageDisconnectState {
+            target,
+            cursor,
+            remaining: Arc::new(remaining),
+            fail_once: Arc::new(AtomicBool::new(true)),
+        };
+        let (addr, task) = common::leaked_runtime().block_on(async move {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("mid-page fixture listener should bind");
+            let addr = listener
+                .local_addr()
+                .expect("mid-page fixture listener should have an address");
+            let task = tokio::spawn(async move {
+                loop {
+                    let Ok((stream, _)) = listener.accept().await else {
+                        break;
+                    };
+                    let state = state.clone();
+                    tokio::spawn(async move {
+                        mid_page_disconnect_connection(stream, state).await;
+                    });
+                }
+            });
+            (addr, task)
+        });
+        Self {
+            base_url: format!("http://{addr}"),
+            task,
+        }
+    }
+
+    fn client(&self) -> LoomClient {
+        LoomClient::new(&self.base_url).expect("mid-page fixture client should build")
+    }
+
+    fn stop(self) {
+        self.task.abort();
+    }
+}
+
+async fn mid_page_disconnect_connection(
+    mut stream: tokio::net::TcpStream,
+    state: MidPageDisconnectState,
+) {
+    let mut request = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        let Ok(read) = stream.read(&mut chunk).await else {
+            return;
+        };
+        if read == 0 {
+            return;
+        }
+        request.extend_from_slice(&chunk[..read]);
+        if request.len() > 16 * 1024 {
+            return;
+        }
+    }
+    let requested_cursor = String::from_utf8_lossy(&request)
+        .lines()
+        .find_map(|line| line.strip_prefix("last-event-id:"))
+        .and_then(|value| value.trim().parse::<u64>().ok());
+    if requested_cursor != Some(state.cursor.after.value()) {
+        let body = b"fixture requires the pre-disconnect cursor";
+        let response = format!(
+            "HTTP/1.1 400 Bad Request\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+        let _ = stream.write_all(body).await;
+        let _ = stream.shutdown().await;
+        return;
+    }
+
+    let mut body = String::new();
+    let first_attempt = state.fail_once.swap(false, Ordering::SeqCst);
+    let events = if first_attempt {
+        // The response terminates after a complete change frame but before
+        // page metadata. This is the in-flight SSE disconnect observed by
+        // LoomClient as ApiError::Unavailable.
+        &state.remaining[..1]
+    } else {
+        &state.remaining[..]
+    };
+    for event in events {
+        let _ = write!(
+            body,
+            "event: change\nid: {}\ndata: {}\n\n",
+            event.sequence.value(),
+            serde_json::to_string(event).expect("event should serialize")
+        );
+    }
+    if !first_attempt {
+        let next_cursor = state
+            .remaining
+            .last()
+            .map(|event| ChangeFeedCursor::after(state.target, event.sequence));
+        let metadata = serde_json::json!({
+            "next_cursor": next_cursor,
+            "has_more": false,
+        });
+        let _ = write!(
+            body,
+            "event: page\ndata: {}\n\n",
+            serde_json::to_string(&metadata).expect("page metadata should serialize")
+        );
+    }
+    let advertised_length = if first_attempt {
+        // Advertise one byte more than was sent, then close the socket. This
+        // terminates the HTTP body in-flight after a complete change frame but
+        // before page metadata; the formal client must surface ApiError.
+        body.len() + 1
+    } else {
+        body.len()
+    };
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {advertised_length}\r\nConnection: close\r\n\r\n"
+    );
+    let _ = stream.write_all(response.as_bytes()).await;
+    let _ = stream.write_all(body.as_bytes()).await;
+    let _ = stream.shutdown().await;
+}
+
+fn seed_cv040_history(client: &LoomClient) -> (TimelineTarget, Vec<loom_api::CommittedEvent>) {
+    common::leaked_runtime().block_on(async {
+        let template = WorldTemplateDescriptor::new(
+            "validator.change-feed.t18.fixture",
+            1,
+            WorldInstant::new(42),
+        )
+        .requires_capability("neutral.counter", "^0.1.0")
+        .with_configuration(json!({"profile": "counter"}));
+        let target = client
+            .create_world_from_template(loom_api::CreateWorldFromTemplateRequest::new(template))
+            .await
+            .expect("fixture world should be created")
+            .target;
+        for index in 1..=3_u128 {
+            let event_id = EventId::from_uuid(Uuid::from_u128(0x4010 + index));
+            let entity_id = loom_api::EntityId::from_uuid(Uuid::from_u128(0x4001 + index));
+            let result = client
+                .invoke(ActionRequest::new(
+                    target,
+                    ActionInvocation::new(
+                        "neutral.counter.seed".into(),
+                        json!({
+                            "event_id": event_id.to_string(),
+                            "entity_id": entity_id.to_string(),
+                            "value": 10 + i64::try_from(index).expect("small fixture index"),
+                        }),
+                    ),
+                ))
+                .await
+                .expect("fixture event should be committed");
+            assert!(
+                result.is_committed(),
+                "fixture event should commit: {result:?}"
+            );
+        }
+        let history = client
+            .list_events(EventQuery::all(target))
+            .await
+            .expect("fixture history should be readable");
+        assert_eq!(history.len(), 3);
+        (target, history)
+    })
+}
+
+#[test]
+fn cv040_formal_client_observes_mid_page_disconnect_and_resumes() {
+    let (_server, client) = InMemoryServer::start().expect("in-memory service should start");
+    let (target, history_before) = seed_cv040_history(&client);
+    let initial_page = common::leaked_runtime().block_on(async {
+        match client
+            .subscribe(SubscriptionRequest::new(target, 1))
+            .await
+            .expect("initial bounded page should succeed")
+        {
+            SubscriptionResult::Events(page) => page,
+            other => panic!("expected initial bounded Events page, got {other:?}"),
+        }
+    });
+    assert_eq!(initial_page.events, history_before[..1]);
+    assert!(initial_page.has_more);
+    let observed_cursor = initial_page
+        .next_cursor
+        .expect("initial page should expose next_cursor");
+    assert_eq!(
+        observed_cursor,
+        ChangeFeedCursor::after(target, history_before[0].sequence)
+    );
+
+    let fixture =
+        MidPageDisconnectFixture::start(target, observed_cursor, history_before[1..].to_vec());
+    let fixture_client = fixture.client();
+    let interrupted = common::leaked_runtime().block_on(async {
+        fixture_client
+            .subscribe(SubscriptionRequest::resume(target, observed_cursor, 2))
+            .await
+    });
+    let error = interrupted.expect_err("partial SSE exchange must return ApiError");
+    assert_eq!(error.code, ApiErrorCode::Unavailable);
+    assert!(
+        error.message.contains("response could not be read")
+            || error.message.contains("omitted change-feed page metadata"),
+        "client should report the incomplete SSE exchange: {error}"
+    );
+
+    let resumed_page = common::leaked_runtime().block_on(async {
+        fixture_client
+            .subscribe(SubscriptionRequest::resume(target, observed_cursor, 2))
+            .await
+            .expect("resume from pre-disconnect cursor should succeed")
+    });
+    let SubscriptionResult::Events(resumed_page) = resumed_page else {
+        panic!("expected resumed Events page after client-observed disconnect");
+    };
+    assert_eq!(resumed_page.events, history_before[1..]);
+    assert!(!resumed_page.has_more);
+    assert_eq!(
+        resumed_page.next_cursor,
+        Some(ChangeFeedCursor::after(target, history_before[2].sequence))
+    );
+
+    let history_after = common::leaked_runtime().block_on(async {
+        client
+            .list_events(EventQuery::all(target))
+            .await
+            .expect("authoritative history should remain readable")
+    });
+    assert_eq!(history_after, history_before);
+    fixture.stop();
 }
 
 #[test]
