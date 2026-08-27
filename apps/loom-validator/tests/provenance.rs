@@ -1,6 +1,23 @@
-//! Provenance suite scaffold integration test (T16).
+//! T16 public-consumer provenance integration tests.
 
-use loom_validator::{provenance, validator_registry};
+mod common;
+
+use std::{env, path::Path, process::Command, sync::Arc};
+
+use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
+use loom_capability::CapabilityRegistry;
+use loom_client::LoomClient;
+use loom_neutral::registry as neutral_registry;
+use loom_runtime::{
+    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
+    RuntimeRevisionStore,
+};
+use loom_storage::{InMemoryStore, PgStorage};
+use tokio::sync::Mutex;
+
+use loom_validator::{BackendContext, BackendKind, ScenarioResult, provenance, validator_registry};
+
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 
 #[test]
 fn provenance_suite_scaffold_is_non_registering_and_disjoint() {
@@ -17,4 +34,390 @@ fn provenance_suite_scaffold_is_non_registering_and_disjoint() {
     assert_eq!(registry.len(), 11);
     assert!(registry.get("CV-031").is_none());
     assert!(registry.get("CV-040").is_none());
+}
+
+#[test]
+fn provenance_descriptors_are_three_and_deterministic() {
+    let first = provenance::descriptors();
+    assert_eq!(first, provenance::descriptors());
+    assert_eq!(first.len(), 3);
+    assert_eq!(
+        first
+            .iter()
+            .map(loom_validator::ScenarioDescriptor::id_str)
+            .collect::<Vec<_>>(),
+        vec!["CV-031", "CV-032", "CV-033"]
+    );
+    for descriptor in &first {
+        assert_eq!(
+            descriptor.supported_backends(),
+            &[BackendKind::InMemory, BackendKind::PostgreSQL]
+        );
+    }
+}
+
+fn descriptor(id: &str) -> loom_validator::ScenarioDescriptor {
+    provenance::descriptors()
+        .into_iter()
+        .find(|candidate| candidate.id_str() == id)
+        .unwrap_or_else(|| panic!("missing descriptor {id}"))
+}
+
+fn context(
+    client: LoomClient,
+    backend: BackendKind,
+    scope: &str,
+    restart: Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync>,
+) -> BackendContext {
+    BackendContext::new(client)
+        .with_backend_kind(backend)
+        .with_scope(scope)
+        .with_restart_strategy(restart)
+        .with_controlled_boundary_restart()
+}
+
+fn assert_pass(result: &ScenarioResult, id: &str) {
+    assert!(
+        result.outcome().is_pass(),
+        "{id} should pass through public surface: {result:?}"
+    );
+    assert!(
+        result
+            .finding()
+            .evidence()
+            .iter()
+            .any(|evidence| evidence.as_str()
+                == "public-surface:loom-client::AdminService::session_for_event")
+    );
+}
+
+fn revision(id: &str, build: &str, registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from(id),
+        PlatformTime::default(),
+        build,
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("{build}:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("T16 test Runtime Revision should be valid")
+}
+
+fn confirm_in_memory_revisions(
+    store: &InMemoryStore,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let r1 = revision("validator-t16-r1", "validator-t16-r1-build", registry);
+    let r2 = revision("validator-t16-r2", "validator-t16-r2-build", registry);
+    store
+        .confirm_revision(r1)
+        .map_err(|error| format!("confirm R1 failed: {error:?}"))?;
+    store
+        .confirm_revision(r2)
+        .map_err(|error| format!("confirm R2 failed: {error:?}"))?;
+    if store
+        .read_active_revision()
+        .map_err(|error| format!("read active revision failed: {error:?}"))?
+        .is_none()
+    {
+        store
+            .activate_revision(
+                RuntimeRevisionId::from("validator-t16-r1"),
+                None,
+                PlatformTime::default(),
+            )
+            .map_err(|error| format!("activate R1 failed: {error:?}"))?;
+    }
+    Ok(())
+}
+
+struct InMemoryHandle {
+    store: &'static InMemoryStore,
+    server: tokio::task::JoinHandle<()>,
+}
+
+#[derive(Clone)]
+struct InMemoryRevisionServer {
+    inner: Arc<Mutex<InMemoryHandle>>,
+}
+
+impl InMemoryRevisionServer {
+    fn start() -> Result<(Self, LoomClient), String> {
+        let store = Box::leak(Box::new(InMemoryStore::new()));
+        let (client, handle) = common::leaked_runtime().block_on(start_in_memory(store))?;
+        Ok((
+            Self {
+                inner: Arc::new(Mutex::new(handle)),
+            },
+            client,
+        ))
+    }
+
+    fn restart(&self) -> Result<LoomClient, String> {
+        let inner = Arc::clone(&self.inner);
+        std::thread::spawn(move || {
+            common::leaked_runtime().block_on(async move {
+                let mut guard = inner.lock().await;
+                guard.server.abort();
+                let (client, handle) = start_in_memory(guard.store).await?;
+                *guard = handle;
+                Ok::<LoomClient, String>(client)
+            })
+        })
+        .join()
+        .map_err(|_| "in-memory restart thread panicked".to_owned())?
+    }
+}
+
+async fn start_in_memory(
+    store: &'static InMemoryStore,
+) -> Result<(LoomClient, InMemoryHandle), String> {
+    let registry = neutral_registry();
+    registry
+        .validate()
+        .map_err(|error| format!("registry invalid: {error:?}"))?;
+    confirm_in_memory_revisions(store, &registry)?;
+    let runtime =
+        Runtime::new(store, registry).map_err(|error| format!("Runtime failed: {error:?}"))?;
+    let router = router_with_admin(
+        Arc::new(runtime),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| error.to_string())?;
+    let address = listener.local_addr().map_err(|error| error.to_string())?;
+    let server = tokio::spawn(async move {
+        if let Err(error) = axum::serve(listener, router).await {
+            eprintln!("T16 InMemory server failed: {error}");
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let client = LoomClient::builder(format!("http://{address}"))
+        .admin_token("validator-test-admin")
+        .map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?;
+    Ok((client, InMemoryHandle { store, server }))
+}
+
+fn postgres_url() -> (String, bool) {
+    match env::var("LOOM_TEST_POSTGRES_URL") {
+        Ok(url) if !url.trim().is_empty() => (url, false),
+        _ => (DEFAULT_POSTGRES_CONTROL_URL.to_owned(), true),
+    }
+}
+
+fn start_repository_postgres() -> Result<(), String> {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/postgres-test.sh");
+    let status = Command::new("bash")
+        .arg(&script)
+        .arg("up")
+        .status()
+        .map_err(|error| format!("failed to start {}: {error}", script.display()))?;
+    status
+        .success()
+        .then_some(())
+        .ok_or_else(|| format!("{} exited with {status}", script.display()))
+}
+
+async fn confirm_postgres_revisions(
+    store: &PgStorage,
+    registry: &CapabilityRegistry,
+) -> Result<(), String> {
+    let r1 = revision("validator-t16-r1", "validator-t16-r1-build", registry);
+    let r2 = revision("validator-t16-r2", "validator-t16-r2-build", registry);
+    confirm_pg(store, r1).await?;
+    confirm_pg(store, r2).await?;
+    if RuntimeRevisionStore::read_active_revision(store)
+        .await
+        .map_err(|error| format!("read active revision failed: {error:?}"))?
+        .is_none()
+    {
+        RuntimeRevisionStore::activate_revision(
+            store,
+            RuntimeRevisionId::from("validator-t16-r1"),
+            None,
+            PlatformTime::default(),
+        )
+        .await
+        .map_err(|error| format!("activate R1 failed: {error:?}"))?;
+    }
+    Ok(())
+}
+
+async fn confirm_pg(
+    store: &PgStorage,
+    descriptor: RuntimeRevisionDescriptor,
+) -> Result<(), String> {
+    match RuntimeRevisionStore::confirm_revision(store, descriptor).await {
+        Ok(_) => Ok(()),
+        Err(error) if format!("{error:?}").contains("already exists") => Ok(()),
+        Err(error) => Err(format!("confirm revision failed: {error:?}")),
+    }
+}
+
+struct PgHandle {
+    store: PgStorage,
+    server: tokio::task::JoinHandle<()>,
+}
+
+#[derive(Clone)]
+struct PgRevisionServer {
+    inner: Arc<Mutex<PgHandle>>,
+}
+
+impl PgRevisionServer {
+    fn start() -> Result<(Self, LoomClient), String> {
+        let (url, repository_default) = postgres_url();
+        let store = common::leaked_runtime().block_on(async {
+            match PgStorage::connect(&url).await {
+                Ok(store) => Ok(store),
+                Err(error) if repository_default => {
+                    start_repository_postgres()?;
+                    PgStorage::connect(&url).await.map_err(|retry| {
+                        format!("PostgreSQL remained unavailable: {error:?}; {retry:?}")
+                    })
+                }
+                Err(error) => Err(format!("PostgreSQL unavailable: {error:?}")),
+            }
+        })?;
+        common::leaked_runtime()
+            .block_on(async { store.health().await })
+            .map_err(|error| format!("PostgreSQL health failed: {error:?}"))?;
+        common::leaked_runtime()
+            .block_on(async { store.migrate().await })
+            .map_err(|error| format!("PostgreSQL migration failed: {error:?}"))?;
+        let (client, handle) = common::leaked_runtime().block_on(start_postgres(store.clone()))?;
+        Ok((
+            Self {
+                inner: Arc::new(Mutex::new(handle)),
+            },
+            client,
+        ))
+    }
+
+    fn restart(&self) -> Result<LoomClient, String> {
+        let inner = Arc::clone(&self.inner);
+        std::thread::spawn(move || {
+            common::leaked_runtime().block_on(async move {
+                let mut guard = inner.lock().await;
+                guard.server.abort();
+                let (client, handle) = start_postgres(guard.store.clone()).await?;
+                *guard = handle;
+                Ok::<LoomClient, String>(client)
+            })
+        })
+        .join()
+        .map_err(|_| "PostgreSQL restart thread panicked".to_owned())?
+    }
+}
+
+async fn start_postgres(store: PgStorage) -> Result<(LoomClient, PgHandle), String> {
+    let registry = neutral_registry();
+    registry
+        .validate()
+        .map_err(|error| format!("registry invalid: {error:?}"))?;
+    confirm_postgres_revisions(&store, &registry).await?;
+    let runtime = Runtime::new(store.clone(), registry)
+        .map_err(|error| format!("Runtime failed: {error:?}"))?;
+    let router = router_with_admin(
+        Arc::new(runtime),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| error.to_string())?;
+    let address = listener.local_addr().map_err(|error| error.to_string())?;
+    let server = tokio::spawn(async move {
+        if let Err(error) = axum::serve(listener, router).await {
+            eprintln!("T16 PostgreSQL server failed: {error}");
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let client = LoomClient::builder(format!("http://{address}"))
+        .admin_token("validator-test-admin")
+        .map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?;
+    Ok((client, PgHandle { store, server }))
+}
+
+fn run_in_memory(id: &str) -> ScenarioResult {
+    let (server, client) =
+        InMemoryRevisionServer::start().expect("T16 InMemory server should start");
+    let restart_server = server.clone();
+    let restart = Arc::new(move || restart_server.restart());
+    let ctx = context(client, BackendKind::InMemory, id, restart);
+    provenance::execute(&descriptor(id), &ctx)
+}
+
+fn run_postgres(id: &str) -> ScenarioResult {
+    let (server, client) = PgRevisionServer::start().expect("T16 PostgreSQL server should start");
+    let restart_server = server.clone();
+    let restart = Arc::new(move || restart_server.restart());
+    let ctx = context(client, BackendKind::PostgreSQL, id, restart);
+    provenance::execute(&descriptor(id), &ctx)
+}
+
+#[test]
+fn cv031_event_session_revision_survives_activation_and_inmemory_restart() {
+    assert_pass(&run_in_memory("CV-031"), "CV-031");
+}
+
+#[test]
+fn cv032_new_session_uses_r2_and_inmemory_history_does_not_drift() {
+    assert_pass(&run_in_memory("CV-032"), "CV-032");
+}
+
+#[test]
+fn cv031_event_session_revision_survives_live_postgres_restart() {
+    assert_pass(&run_postgres("CV-031"), "CV-031");
+}
+
+#[test]
+fn cv032_new_session_uses_r2_and_live_postgres_history_does_not_drift() {
+    assert_pass(&run_postgres("CV-032"), "CV-032");
+}
+
+#[test]
+fn cv033_reports_the_missing_test_local_provenance_composition_without_fake_pass() {
+    let (server, client) = common::InMemoryServer::start().expect("in-memory service should start");
+    let restart_server = server.clone();
+    let ctx = BackendContext::new(client)
+        .with_backend_kind(BackendKind::InMemory)
+        .with_scope("CV-033")
+        .with_restart_strategy(Arc::new(move || restart_server.restart()))
+        .with_controlled_boundary_restart();
+    let result = provenance::execute(&descriptor("CV-033"), &ctx);
+    assert!(result.outcome().is_unavailable());
+    assert!(result.finding().actual().contains("需要决策"));
+    assert!(result.finding().actual().contains("call_provenance"));
+    assert!(!result.outcome().is_pass());
+}
+
+#[test]
+fn provenance_requires_controlled_boundary_restart() {
+    let client = LoomClient::builder("http://127.0.0.1:1".to_owned())
+        .build()
+        .expect("client should build");
+    let ctx = BackendContext::new(client)
+        .with_backend_kind(BackendKind::InMemory)
+        .with_scope("reconnect-only");
+    for id in ["CV-031", "CV-032", "CV-033"] {
+        let result = provenance::execute(&descriptor(id), &ctx);
+        assert!(result.outcome().is_unavailable(), "{id}: {result:?}");
+        assert!(
+            result
+                .finding()
+                .actual()
+                .contains("ControlledBoundaryRestart")
+        );
+    }
 }
