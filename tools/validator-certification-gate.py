@@ -117,6 +117,10 @@ def cv_ids(cell: str) -> list[str]:
 
 
 def suite_for(row: dict[str, object]) -> str:
+    required_command = str(row.get("required_command", ""))
+    command_match = re.search(r"(?:^|\s)--test(?:=|\s+)([A-Za-z0-9_-]+)", required_command)
+    if command_match:
+        return command_match.group(1)
     validator = str(row["validator"])
     match = re.search(r"apps/loom-validator/tests/([^:]+)\.rs", validator)
     if match:
