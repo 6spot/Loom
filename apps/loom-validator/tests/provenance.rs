@@ -3,6 +3,7 @@
 mod common;
 
 use std::{
+    collections::HashSet,
     env,
     path::Path,
     process::Command,
@@ -11,8 +12,8 @@ use std::{
 };
 
 use loom_api::{
-    ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
-    WorldEffect,
+    ActionTypeId, AdminService, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId,
+    SchemaRevision, WorldEffect,
 };
 use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
 use loom_capability::{
@@ -123,6 +124,43 @@ fn assert_pass(result: &ScenarioResult, id: &str) {
             .any(|evidence| evidence.as_str()
                 == "public-surface:loom-client::AdminService::session_for_event")
     );
+}
+
+fn public_session_for_event(
+    client: &LoomClient,
+    event_ref: loom_api::EventRef,
+) -> Result<loom_api::ExecutionSessionId, String> {
+    common::leaked_runtime()
+        .block_on(async { client.session_for_event(event_ref).await })
+        .map_err(|error| format!("post-restart Event-to-Session lookup failed: {error:?}"))?
+        .session_id
+        .ok_or_else(|| format!("post-restart Event {event_ref:?} has no producing Session"))
+}
+
+fn public_sessions(client: &LoomClient) -> Result<Vec<loom_api::AdminExecutionSession>, String> {
+    common::leaked_runtime()
+        .block_on(async { client.list_execution_sessions().await })
+        .map_err(|error| format!("post-restart Session list failed: {error:?}"))
+}
+
+fn assert_restarted_event_session_links(
+    client: &LoomClient,
+    baseline: &HashSet<loom_api::ExecutionSessionId>,
+) -> Result<(), String> {
+    for session in public_sessions(client)?
+        .into_iter()
+        .filter(|session| !baseline.contains(&session.id) && !session.event_refs.is_empty())
+    {
+        for event_ref in session.event_refs.iter().copied() {
+            if public_session_for_event(client, event_ref)? != session.id {
+                return Err(format!(
+                    "post-restart Event {event_ref:?} no longer resolves to Session {:?}",
+                    session.id
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn revision(id: &str, build: &str, registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
@@ -639,8 +677,17 @@ async fn start_postgres(
 fn run_in_memory(id: &str) -> ScenarioResult {
     let (server, client) =
         InMemoryRevisionServer::start().expect("T16 InMemory server should start");
+    let baseline = public_sessions(&client)
+        .expect("T16 InMemory baseline Session list should be readable")
+        .into_iter()
+        .map(|session| session.id)
+        .collect::<HashSet<_>>();
     let restart_server = server.clone();
-    let restart = Arc::new(move || restart_server.restart());
+    let restart = Arc::new(move || {
+        let restarted = restart_server.restart()?;
+        assert_restarted_event_session_links(&restarted, &baseline)?;
+        Ok(restarted)
+    });
     let ctx = context(client, BackendKind::InMemory, id, restart);
     provenance::execute(&descriptor(id), &ctx)
 }
@@ -648,8 +695,17 @@ fn run_in_memory(id: &str) -> ScenarioResult {
 fn run_postgres(id: &str) -> ScenarioResult {
     let _revision_state_guard = postgres_revision_state_guard();
     let (server, client) = PgRevisionServer::start().expect("T16 PostgreSQL server should start");
+    let baseline = public_sessions(&client)
+        .expect("T16 PostgreSQL baseline Session list should be readable")
+        .into_iter()
+        .map(|session| session.id)
+        .collect::<HashSet<_>>();
     let restart_server = server.clone();
-    let restart = Arc::new(move || restart_server.restart());
+    let restart = Arc::new(move || {
+        let restarted = restart_server.restart()?;
+        assert_restarted_event_session_links(&restarted, &baseline)?;
+        Ok(restarted)
+    });
     let ctx = context(client, BackendKind::PostgreSQL, id, restart);
     provenance::execute(&descriptor(id), &ctx)
 }
@@ -657,8 +713,17 @@ fn run_postgres(id: &str) -> ScenarioResult {
 fn run_provenance_in_memory() -> ScenarioResult {
     let (server, client) = InMemoryRevisionServer::start_with(true)
         .expect("T16 provenance InMemory server should start");
+    let baseline = public_sessions(&client)
+        .expect("T16 provenance InMemory baseline Session list should be readable")
+        .into_iter()
+        .map(|session| session.id)
+        .collect::<HashSet<_>>();
     let restart_server = server.clone();
-    let restart = Arc::new(move || restart_server.restart());
+    let restart = Arc::new(move || {
+        let restarted = restart_server.restart()?;
+        assert_restarted_event_session_links(&restarted, &baseline)?;
+        Ok(restarted)
+    });
     let ctx = context(client, BackendKind::InMemory, "CV-033", restart);
     provenance::execute(&descriptor("CV-033"), &ctx)
 }
@@ -667,8 +732,17 @@ fn run_provenance_postgres() -> ScenarioResult {
     let _revision_state_guard = postgres_revision_state_guard();
     let (server, client) =
         PgRevisionServer::start_with(true).expect("T16 provenance PostgreSQL server should start");
+    let baseline = public_sessions(&client)
+        .expect("T16 provenance PostgreSQL baseline Session list should be readable")
+        .into_iter()
+        .map(|session| session.id)
+        .collect::<HashSet<_>>();
     let restart_server = server.clone();
-    let restart = Arc::new(move || restart_server.restart());
+    let restart = Arc::new(move || {
+        let restarted = restart_server.restart()?;
+        assert_restarted_event_session_links(&restarted, &baseline)?;
+        Ok(restarted)
+    });
     let ctx = context(client, BackendKind::PostgreSQL, "CV-033", restart);
     provenance::execute(&descriptor("CV-033"), &ctx)
 }
