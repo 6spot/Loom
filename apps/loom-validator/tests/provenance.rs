@@ -2,7 +2,13 @@
 
 mod common;
 
-use std::{env, path::Path, process::Command, str::FromStr, sync::Arc};
+use std::{
+    env,
+    path::Path,
+    process::Command,
+    str::FromStr,
+    sync::{Arc, Mutex as StdMutex, OnceLock},
+};
 
 use loom_api::{
     ActionTypeId, EntityId, EventId, EventTypeId, FacetOwner, FacetTypeId, SchemaRevision,
@@ -37,6 +43,15 @@ const PROVENANCE_SEED_EVENT: &str = "validator.t16.provenance.seeded";
 const PROVENANCE_ROOT_EVENT: &str = "validator.t16.provenance.committed";
 const PROVENANCE_R1_ID: &str = "validator-t16-cv033-r1";
 const PROVENANCE_R2_ID: &str = "validator-t16-cv033-r2";
+
+static POSTGRES_REVISION_STATE_GUARD: OnceLock<StdMutex<()>> = OnceLock::new();
+
+fn postgres_revision_state_guard() -> std::sync::MutexGuard<'static, ()> {
+    POSTGRES_REVISION_STATE_GUARD
+        .get_or_init(|| StdMutex::new(()))
+        .lock()
+        .expect("T16 PostgreSQL revision-state guard should not be poisoned")
+}
 
 #[test]
 fn provenance_suite_scaffold_is_non_registering_and_disjoint() {
@@ -631,6 +646,7 @@ fn run_in_memory(id: &str) -> ScenarioResult {
 }
 
 fn run_postgres(id: &str) -> ScenarioResult {
+    let _revision_state_guard = postgres_revision_state_guard();
     let (server, client) = PgRevisionServer::start().expect("T16 PostgreSQL server should start");
     let restart_server = server.clone();
     let restart = Arc::new(move || restart_server.restart());
@@ -648,6 +664,7 @@ fn run_provenance_in_memory() -> ScenarioResult {
 }
 
 fn run_provenance_postgres() -> ScenarioResult {
+    let _revision_state_guard = postgres_revision_state_guard();
     let (server, client) =
         PgRevisionServer::start_with(true).expect("T16 provenance PostgreSQL server should start");
     let restart_server = server.clone();
