@@ -130,6 +130,14 @@ def suite_for(row: dict[str, object]) -> str:
     return "validator_lib"
 
 
+def restart_is_required(requirement: str) -> bool:
+    normalized = requirement.lower()
+    return "**required:**" in normalized and (
+        "restart" in normalized
+        or ("boundary" in normalized and ("termination" in normalized or "rebuild" in normalized))
+    )
+
+
 def parse_manifest() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for line in MANIFEST.read_text(encoding="utf-8").splitlines():
@@ -147,7 +155,7 @@ def parse_manifest() -> list[dict[str, object]]:
             continue
         status = status_match.group(1)
         required_pg = "**Required:**" in cells[4]
-        restart_required = "**Required:**" in cells[5] and "restart" in cells[5].lower()
+        restart_required = restart_is_required(cells[5])
         rows.append(
             {
                 "capability": cells[0],
@@ -170,6 +178,8 @@ def run_command(name: str, command: list[str]) -> dict[str, object]:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     command_env = os.environ.copy()
     preparation = ""
+    preparation_failure: str | None = None
+    preparation_exit_code = 1
     if name == "validator_pg18":
         service = subprocess.run(
             ["bash", "tools/postgres-test.sh", "up"],
@@ -181,7 +191,10 @@ def run_command(name: str, command: list[str]) -> dict[str, object]:
             check=False,
         )
         preparation += service.stdout
-        if service.returncode == 0:
+        if service.returncode != 0:
+            preparation_failure = f"PostgreSQL service preparation failed with exit {service.returncode}"
+            preparation_exit_code = service.returncode or 1
+        else:
             reset = subprocess.run(
                 [
                     "docker",
@@ -214,9 +227,24 @@ def run_command(name: str, command: list[str]) -> dict[str, object]:
             )
             preparation += reset.stdout
             if reset.returncode != 0:
-                command_env["LOOM_T24_PG_PREPARATION_FAILED"] = "true"
-        else:
-            command_env["LOOM_T24_PG_PREPARATION_FAILED"] = "true"
+                preparation_failure = f"PostgreSQL database reset failed with exit {reset.returncode}"
+                preparation_exit_code = reset.returncode or 1
+        if preparation_failure is not None:
+            output = preparation + f"T24 PG18 preparation failure: {preparation_failure}\n"
+            log_path = LOG_DIR / f"{name}.log"
+            log_path.write_text(output, encoding="utf-8")
+            return {
+                "command_id": name,
+                "command": command_text(command),
+                "exit_code": preparation_exit_code,
+                "test_summaries": 0,
+                "passed_summaries": 0,
+                "failed_summaries": 0,
+                "tests_executed": False,
+                "preparation_failed": True,
+                "preparation_failure": preparation_failure,
+                "log": str(log_path.relative_to(ROOT)),
+            }
         command_env["LOOM_TEST_POSTGRES_URL"] = (
             f"postgresql://loom:loom@127.0.0.1:15432/{T24_PG_DATABASE}"
         )
@@ -310,6 +338,43 @@ def candidate_contract(evidence_head: str) -> tuple[bool, dict[str, object]]:
     return True, contract
 
 
+def regression_check() -> int:
+    """Run deterministic T24-only checks for known evidence-integrity regressions."""
+    from types import SimpleNamespace
+
+    rows = parse_manifest()
+    restart_rows = [row for row in rows if row["cv_ids"] == ["CV-003", "CV-004"]]
+    assert len(restart_rows) == 1
+    assert restart_rows[0]["restart_required"] is True
+
+    def assert_preparation_failure(service_exit: int, reset_exit: int | None) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(args: list[str], **_: object) -> SimpleNamespace:
+            calls.append(args)
+            if len(calls) == 1:
+                return SimpleNamespace(returncode=service_exit, stdout="service\n")
+            assert reset_exit is not None
+            return SimpleNamespace(returncode=reset_exit, stdout="reset\n")
+
+        original_run = subprocess.run
+        subprocess.run = fake_run  # type: ignore[assignment]
+        try:
+            result = run_command("validator_pg18", ["fake", "pg18-gate"])
+        finally:
+            subprocess.run = original_run
+        assert result["preparation_failed"] is True
+        assert result["tests_executed"] is False
+        assert result["test_summaries"] == 0
+        assert result["exit_code"] != 0
+        assert len(calls) == (1 if reset_exit is None else 2)
+
+    assert_preparation_failure(9, None)
+    assert_preparation_failure(0, 7)
+    print("T24 regression checks PASS: boundary termination/rebuild and PG18 preparation fail closed")
+    return 0
+
+
 def main() -> int:
     evidence_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     candidate_ok, contract = candidate_contract(evidence_head)
@@ -345,7 +410,11 @@ def main() -> int:
         if status == "ready":
             outcome = "Pass" if command_result["tests_executed"] and command_result["exit_code"] == 0 else "Fail"
             needs_postgres_evidence = row["pg18_required"] or "live pg" in str(row["pg_requirement"]).lower()
-            evidence_class = "postgresql" if needs_postgres_evidence else "in-memory"
+            evidence_class = (
+                "postgresql" if needs_postgres_evidence and outcome == "Pass" else
+                "in-memory" if outcome == "Pass" else
+                "none"
+            )
             prerequisite = "satisfied" if outcome == "Pass" else "command did not produce an all-passing executed test summary"
         elif status == "gap":
             outcome = "Unavailable"
@@ -410,6 +479,8 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
+        if sys.argv[1:] == ["--regression-check"]:
+            raise SystemExit(regression_check())
         raise SystemExit(main())
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
         print(f"T24 certification gate error: {error}", file=sys.stderr)
