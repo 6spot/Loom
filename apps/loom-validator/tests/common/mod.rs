@@ -10,6 +10,8 @@
 
 #![allow(dead_code)]
 
+pub mod t20;
+
 use std::{env, path::Path, process::Command, sync::Arc};
 
 use loom_api::{
@@ -110,6 +112,134 @@ async fn ensure_validator_revision_pg(
         .map_err(|e| format!("{e:?}"))?;
     }
     Ok(())
+}
+
+fn validator_revision_r2(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-t10-r2"),
+        PlatformTime::new(999),
+        "validator-t10-r2-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("validator-t10-r2:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("validator T10 R2 revision should be valid")
+}
+
+fn historical_counter_revision(registry: &CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-history-r2"),
+        PlatformTime::new(998),
+        "historical-counter-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("historical-counter:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("historical counter revision should be valid")
+}
+
+async fn ensure_r2_revision_pg(
+    store: &PgStorage,
+    descriptor: RuntimeRevisionDescriptor,
+) -> Result<(), String> {
+    match RuntimeRevisionStore::confirm_revision(store, descriptor).await {
+        Ok(_) => Ok(()),
+        Err(error) if format!("{error:?}").contains("already exists") => Ok(()),
+        Err(error) => Err(format!("{error:?}")),
+    }
+}
+
+struct PgR2Handle {
+    store: PgStorage,
+    server: tokio::task::JoinHandle<()>,
+}
+
+/// `PostgreSQL` service composition for CV-014's real T10 R2 fixture.
+#[derive(Clone)]
+pub struct PgR2Server {
+    inner: Arc<Mutex<PgR2Handle>>,
+}
+
+impl PgR2Server {
+    pub fn start() -> Result<(Self, LoomClient), String> {
+        let (url, uses_repository_default) = postgres_url();
+        let store = leaked_runtime().block_on(async {
+            let store = match PgStorage::connect(&url).await {
+                Ok(store) => store,
+                Err(initial_error) if uses_repository_default => {
+                    start_repository_postgres()?;
+                    PgStorage::connect(&url).await.map_err(|retry_error| {
+                        format!(
+                            "PostgreSQL remained unavailable: {initial_error:?}; {retry_error:?}"
+                        )
+                    })?
+                }
+                Err(error) => return Err(format!("PostgreSQL unavailable: {error:?}")),
+            };
+            store.health().await.map_err(|error| format!("{error:?}"))?;
+            store
+                .migrate()
+                .await
+                .map_err(|error| format!("{error:?}"))?;
+            Ok::<PgStorage, String>(store)
+        })?;
+        let (client, handle) = leaked_runtime().block_on(start_pg_r2(store.clone()))?;
+        Ok((
+            Self {
+                inner: Arc::new(Mutex::new(handle)),
+            },
+            client,
+        ))
+    }
+
+    pub fn restart(&self) -> Result<LoomClient, String> {
+        let inner = Arc::clone(&self.inner);
+        std::thread::spawn(move || {
+            leaked_runtime().block_on(async {
+                let mut guard = inner.lock().await;
+                guard.server.abort();
+                let (client, handle) = start_pg_r2(guard.store.clone()).await?;
+                *guard = handle;
+                Ok::<LoomClient, String>(client)
+            })
+        })
+        .join()
+        .map_err(|_| "pg-r2 restart thread panicked".to_owned())?
+    }
+}
+
+async fn start_pg_r2(store: PgStorage) -> Result<(LoomClient, PgR2Handle), String> {
+    let registry = neutral_registry();
+    registry.validate().map_err(|error| format!("{error:?}"))?;
+    ensure_validator_revision_pg(&store, &registry).await?;
+    ensure_r2_revision_pg(&store, validator_revision_r2(&registry)).await?;
+    ensure_r2_revision_pg(&store, historical_counter_revision(&registry)).await?;
+    let runtime = Runtime::new(store.clone(), registry).map_err(|error| format!("{error:?}"))?;
+    let router = router_with_admin(
+        Arc::new(runtime),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| error.to_string())?;
+    let address = listener.local_addr().map_err(|error| error.to_string())?;
+    let server = tokio::spawn(async move {
+        if let Err(error) = axum::serve(listener, router).await {
+            eprintln!("pg-r2 server failed: {error}");
+        }
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let client = admin_client(address)?;
+    Ok((client, PgR2Handle { store, server }))
 }
 
 struct InMemoryHandle {

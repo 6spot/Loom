@@ -34,7 +34,11 @@ failure and cannot satisfy this record.
 The gate writes `target/validator/t20-pg18-live-gate.json` (or the path in
 `LOOM_T20_REPORT_PATH`). Each row records its outcome, trusted backend evidence
 class, restart capability/evidence, prerequisite status, live-PG requirement,
-evidence references, and the exact gate command.
+evidence references, and the exact gate command. The rows and report are
+serialized from the production executors' structured `ScenarioResult` and
+`Finding` values under `ValidationPolicy::required_live()`; the shell wrapper
+does not manufacture outcomes from Cargo exit codes. CV-039 and CV-040 run in
+separate contexts and retain separate Finding locators.
 
 ## Verification
 
@@ -48,25 +52,26 @@ With no override, the script starts/reuses the repository-managed local
 `pgvector/pgvector:0.8.6-pg18` service. CI supplies its explicit ephemeral
 `LOOM_TEST_POSTGRES_URL` and therefore owns that service lifecycle.
 
-Completion evidence is added here after the candidate PR and merge SHA are
-known. The CI job uses the repository's pinned `pgvector/pgvector:0.8.6-pg18`
-service and archives the deterministic matrix artifact.
+The CI job uses the repository's pinned `pgvector/pgvector:0.8.6-pg18` service
+and archives the deterministic matrix artifact at the same root-relative path.
 
 ## Candidate verification evidence
 
 - `bash tools/validator-pg18-gate.sh` — PASS on the repository-managed
   `pgvector/pgvector:0.8.6-pg18` service; all 10 PG-required rows executed in
-  deterministic order and returned `pass`.
+  deterministic order and returned `pass` through the required-live Validator
+  path.
 - `target/validator/t20-pg18-live-gate.json` — generated with
-  `gate_passes: true`, trusted `postgresql` evidence for every row, and
-  controlled-boundary-restart evidence for every restart-sensitive row.
-- `cargo check -p loom-validator --all-targets --all-features` — PASS.
-- `cargo clippy -p loom-validator --all-targets --all-features -- -D warnings`
-  — PASS.
-- `cargo fmt --all -- --check`, `python3 tools/check_architecture.py`,
-  `python3 tools/check_storage_sql_ownership.py`, `cargo deny check
-  advisories bans licenses sources`, Compose config checks, and shell syntax
-  validation — PASS.
+  `gate_passes: true`, 10 unique per-row evidence references, trusted
+  `postgresql` evidence, and controlled-boundary-restart evidence for every
+  row.
+- `cargo test -p loom-validator --test postgres_live_gate
+  t20_required_live_policy_is_fail_closed_for_zero_nonpass_and_ambient_evidence
+  -- --nocapture` — PASS for zero-row, `Skipped`, `Unavailable`, `Fail`, and
+  external/ambient-only pass paths.
+- `cargo fmt --all -- --check`, targeted `cargo test --no-run`, targeted
+  `cargo clippy -- -D warnings`, `bash -n tools/validator-pg18-gate.sh`, and
+  JSON/schema assertions — PASS.
 
 ## Acceptance
 
