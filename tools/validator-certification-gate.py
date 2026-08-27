@@ -28,6 +28,13 @@ REPORT = Path(
 LOG_DIR = REPORT.parent / "t24-logs"
 EXPECTED_CANDIDATE = "34fc8efa77cf61d8a9261eaec575bbe111615618"
 T24_PG_DATABASE = "loom_t24_certification"
+AUTHORIZED_T24_PATHS = frozenset(
+    {
+        "docs/tasks/validator-recert/stage-3/t24-validator-certification-gate.md",
+        "tools/validator-certification-gate.py",
+        "tools/validator-certification-gate.sh",
+    }
+)
 
 COMPLETED_CV_IDS = [
     "CV-001",
@@ -247,25 +254,77 @@ def write_report(report: dict[str, object]) -> None:
     REPORT.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def candidate_contract(evidence_head: str) -> tuple[bool, dict[str, object]]:
+    """Validate the production baseline and evidence-only descendant contract."""
+    ancestor_check = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", EXPECTED_CANDIDATE, evidence_head],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    is_ancestor = ancestor_check.returncode == 0
+    diff_output = subprocess.run(
+        ["git", "diff", "--name-only", EXPECTED_CANDIDATE, evidence_head],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    diff_paths = sorted(
+        {line.strip() for line in diff_output.stdout.splitlines() if line.strip()}
+    )
+    forbidden_paths = sorted(set(diff_paths) - AUTHORIZED_T24_PATHS)
+    contract = {
+        "candidate_sha": EXPECTED_CANDIDATE,
+        "base_sha": EXPECTED_CANDIDATE,
+        "evidence_head": evidence_head,
+        "evidence_head_is_ancestor_descendant": is_ancestor,
+        "candidate_diff_paths": diff_paths,
+        "authorized_candidate_diff_paths": sorted(AUTHORIZED_T24_PATHS),
+        "forbidden_candidate_diff_paths": forbidden_paths,
+    }
+    if ancestor_check.returncode not in {0, 1}:
+        contract["failure"] = "unable to establish fixed candidate ancestry"
+        return False, contract
+    if diff_output.returncode != 0:
+        contract["failure"] = "unable to inspect complete candidate diff"
+        return False, contract
+    if not is_ancestor:
+        contract["failure"] = "fixed production candidate is not an ancestor of evidence head"
+        return False, contract
+    if forbidden_paths:
+        contract["failure"] = "candidate diff contains files outside authorized T24 evidence-only paths"
+        return False, contract
+    contract["candidate_kind"] = (
+        "fixed-production-baseline"
+        if evidence_head == EXPECTED_CANDIDATE
+        else "evidence-only-descendant"
+    )
+    return True, contract
+
+
 def main() -> int:
-    candidate = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    evidence_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    candidate_ok, contract = candidate_contract(evidence_head)
     rows = parse_manifest()
     manifest_ids = sorted({item for row in rows for item in row["cv_ids"]}, key=lambda value: int(value[3:]))
     expected_ids = sorted(COMPLETED_CV_IDS + [f"CV-{number:03d}" for number in [17, 18, 19, 28, 29, 34, 35, 36, 37]], key=lambda value: int(value[3:]))
     if manifest_ids != expected_ids:
         raise RuntimeError(f"T22 CV set mismatch: expected {expected_ids}, found {manifest_ids}")
-    if candidate != EXPECTED_CANDIDATE:
+    if not candidate_ok:
         report = {
             "schema_version": 1,
             "type": "loom-validator.certification-gate",
             "gate": "VALR-T24",
-            "candidate_sha": candidate,
-            "expected_candidate_sha": EXPECTED_CANDIDATE,
+            **contract,
+            "candidate_discipline": "fixed production baseline or evidence-only descendant with authorized T24-only diff",
             "gate_passes": False,
-            "failure": "candidate SHA is not the fixed T22/T23 production baseline",
         }
         write_report(report)
-        print(f"T24 candidate mismatch: {candidate} != {EXPECTED_CANDIDATE}", file=sys.stderr)
+        print(f"T24 candidate contract mismatch: {contract['failure']}", file=sys.stderr)
         return 2
 
     command_results: dict[str, dict[str, object]] = {}
@@ -296,6 +355,8 @@ def main() -> int:
             evidence_rows.append(
                 {
                     "cv_id": cv_id,
+                    "candidate_sha": EXPECTED_CANDIDATE,
+                    "evidence_head": evidence_head,
                     "outcome": outcome,
                     "manifest_status": status,
                     "trusted_evidence_class": evidence_class,
@@ -315,9 +376,11 @@ def main() -> int:
         "schema_version": 1,
         "type": "loom-validator.certification-gate",
         "gate": "VALR-T24",
-        "candidate_sha": candidate,
+        "candidate_sha": EXPECTED_CANDIDATE,
         "base_sha": EXPECTED_CANDIDATE,
-        "candidate_discipline": "fixed T22/T23 production baseline; evidence-only working-tree changes",
+        "evidence_head": evidence_head,
+        "candidate_discipline": "fixed production baseline or evidence-only descendant with authorized T24-only diff",
+        "candidate_contract": contract,
         "race_protocol": "closed",
         "commands": [command_results[name] for name in sorted(command_results)],
         "registry": {

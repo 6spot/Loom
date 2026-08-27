@@ -20,8 +20,13 @@ T25 owns the final current-main certification decision.
 ## Candidate and evidence contract
 
 - Fixed production candidate: `34fc8efa77cf61d8a9261eaec575bbe111615618`.
-- The gate refuses a different `HEAD`; working-tree changes are evidence-only
-  tooling/ledger changes and never a new production candidate.
+- The gate accepts this exact production candidate or an evidence-only
+  descendant only when the fixed candidate is an ancestor and the complete
+  diff contains only these three authorized T24 files: this ledger and the two
+  `tools/validator-certification-gate.*` files. Any unrelated base, non-ancestor
+  head, or forbidden production diff fails closed before test execution.
+- Reports keep `candidate_sha` and `base_sha` fixed at the production SHA and
+  record the actual executed commit separately as `evidence_head`.
 - Race protocol: closed. No persistence, claim, retry, checkpoint, marker, or
   concurrency authority is introduced.
 - Machine-readable artifact: `target/validator/t24-validator-certification-gate.json`.
@@ -56,9 +61,10 @@ coverage of all 40 CV IDs represented by T22.
   and rejects zero-test/self-skip evidence.
 - AC-5: the JSON report validates the completed CV registry, ordering, and
   duplicate-free row coverage.
-- AC-6: each T22 CV row carries the fixed candidate, current command evidence,
-  and truthful manifest status; gaps are not hidden.
-- AC-7: results below are recorded only from this candidate's real commands;
+- AC-6: each T22 CV row carries the fixed candidate, evidence head, current
+  command evidence, and truthful manifest status; gaps are not hidden.
+- AC-7: results below are recorded only from the fixed candidate or its
+  authorized evidence-only descendant's real commands;
   no Reviewer/CI/Task completion is asserted here.
 
 ## Verification record
@@ -69,7 +75,8 @@ in the generated report and are summarized in the handoff comment for this
 issue. A nonzero gate result caused by the manifest gaps is expected fail-closed
 behavior, not a green certification.
 
-Latest candidate evidence (2026-08-27, fixed candidate above):
+Latest candidate evidence (2026-08-27, fixed candidate above and its
+evidence-only descendant):
 
 - `bash tools/validator-certification-gate.sh` — command exit `1` because the
   T22 manifest contains 9 capability gaps; report generation completed with
