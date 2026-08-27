@@ -1,13 +1,13 @@
 ---
 task: VALR-T12
 issue: 317
-status: in_progress
+status: completed
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-27
+completion_pr: 353
+merge_sha: 33efd0c865515d6a9437bbc08d0e22648de43373
 ---
 
 # VALR-T12 — Validate scheduler logical-head admission + stale-work fencing
@@ -131,11 +131,11 @@ Controlled `PgServer::start()` is used as the live path where T08 marks supporte
 
 ## Acceptance mapping
 
-- **[ ] CV-018..CV-020 match T08 exactly:** `CV-020` executable per T08 10-field contract; `CV-018`/`CV-019` strictly blocked per T08 unsuitability reasons, without descriptors or Pass.
-- **[ ] Stale actor cannot produce an accepted authoritative completion:** `CV-019` blocked gap has no public fence injection surface; `CV-020` does not invent stale claim/complete authority; `terminalize_work` is not used as stale claim/complete.
-- **[ ] Independent Timelines remain independently progressable:** Proven by `CV-020` — `A` Pending at fixed due does not prevent `B` Committed; per-Timeline CAS, `logical_commit_count`, version, and history isolation observed via public reads.
-- **[ ] Assertions via formal/public observable state:** All asserts via `WorldService`, `AdminService::schedule_agency_wake`, `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`, `HistoryService::list_events`/`list_events_page`; no `loom-storage`/`sqlx`/table inspection.
-- **[ ] Dedicated suite tests, fmt/check/clippy and CI pass; review complete:** See verification evidence above; ledger records true verification commands.
+- **[x] CV-018..CV-020 match T08 exactly:** `CV-020` executable per T08 10-field contract; `CV-018`/`CV-019` strictly blocked per T08 unsuitability reasons, without descriptors or Pass.
+- **[x] Stale actor cannot produce an accepted authoritative completion:** `CV-019` blocked gap has no public fence injection surface; `CV-020` does not invent stale claim/complete authority; `terminalize_work` is not used as stale claim/complete.
+- **[x] Independent Timelines remain independently progressable:** Proven by `CV-020` — `A` Pending at fixed due does not prevent `B` Committed; per-Timeline CAS, `logical_commit_count`, version, and history isolation observed via public reads.
+- **[x] Assertions via formal/public observable state:** All asserts via `WorldService`, `AdminService::schedule_agency_wake`, `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`, `HistoryService::list_events`/`list_events_page`; no `loom-storage`/`sqlx`/table inspection.
+- **[x] Dedicated suite tests, fmt/check/clippy and CI pass; review complete:** See verification evidence above; ledger records true verification commands.
 
 ## Blocked-row handling
 
@@ -154,3 +154,4 @@ If deterministic public validation would require introducing a new Scheduler aut
 
 - D-T12-004: completion metadata was recorded before PR acceptance and merge.
 - Corrected the lifecycle metadata to remain `in_progress`; `completed_at`, `completion_pr`, and `merge_sha` remain empty until the work is actually accepted and merged.
+- Post-merge completion audit: PR #353 was merged as `33efd0c865515d6a9437bbc08d0e22648de43373`; acceptance checklist and completion metadata were finalized on this follow-up audit branch.
