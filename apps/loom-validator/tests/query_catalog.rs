@@ -1,11 +1,12 @@
 //! Query/History/Catalog suite integration (T14).
 //!
 //! Validates CV-025..CV-027 via formal public surfaces only.
-//! Uses controlled InMemory and PostgreSQL harnesses where available.
+//! Uses controlled `InMemory` and `PostgreSQL` harnesses where available.
 
 mod common;
+mod query_catalog_causal_fixture;
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use loom_api::{CatalogService, WorldService};
 use loom_client::LoomClient;
@@ -93,6 +94,7 @@ fn cv025_history_trajectory_isolation_on_in_memory() {
 
 #[test]
 fn cv026_causal_query_isolation_on_in_memory() {
+    query_catalog_causal_fixture::verify();
     let descriptors = query_catalog::descriptors();
     let d = descriptors
         .iter()
@@ -117,6 +119,7 @@ fn cv027_world_scoped_catalog_positive_on_in_memory() {
 
 #[test]
 fn cv027_no_active_revision_is_not_permissive() {
+    query_catalog_causal_fixture::verify_bound_world_without_active_revision();
     // Negative case: harness with registered software but no active revision
     let (server, client) =
         InMemoryServer::start_without_active_revision().expect("no-active service should start");
@@ -131,58 +134,9 @@ fn cv027_no_active_revision_is_not_permissive() {
             .any(|c| c.id.to_string() == "neutral.counter"),
         "global catalog should contain neutral.counter"
     );
-    // World creation without active revision must be unavailable (CV-011 pattern)
-    let world_attempt = {
-        let rt = common::leaked_runtime();
-        rt.block_on(async {
-            client
-                .create_world_from_template(loom_api::CreateWorldFromTemplateRequest::new(
-                    loom_api::WorldTemplateDescriptor::new(
-                        "validator.t14.cv027.negative",
-                        1,
-                        loom_api::WorldInstant::new(10),
-                    )
-                    .requires_capability("neutral.counter", "^0.1.0"),
-                ))
-                .await
-        })
-    };
-    assert!(
-        matches!(&world_attempt, Err(e) if e.code == loom_api::ApiErrorCode::Unavailable),
-        "world creation without active revision should be Unavailable, got {world_attempt:?}"
-    );
-
-    // World-scoped catalog for a random WorldId must be Unavailable/NotFound, not a permissive fallback to global
-    let dummy_world = loom_api::WorldId::new(uuid::Uuid::new_v4());
-    let rt = common::leaked_runtime();
-    let scoped = rt.block_on(async { client.catalog_for_world(dummy_world).await });
-    match scoped {
-        Ok(catalog) => {
-            // If it succeeded (should not for no-active), ensure it is not permissive global fallback
-            assert_ne!(
-                catalog.capabilities.len(),
-                global.capabilities.len(),
-                "world-scoped catalog without active revision must not silently equal global catalog"
-            );
-            panic!(
-                "world-scoped catalog without active revision should be Unavailable/NotFound, but succeeded with {} caps",
-                catalog.capabilities.len()
-            );
-        }
-        Err(e) => {
-            assert!(
-                matches!(
-                    e.code,
-                    loom_api::ApiErrorCode::Unavailable | loom_api::ApiErrorCode::NotFound
-                ),
-                "world-scoped catalog without active revision should be Unavailable or NotFound, got {:?} - {}",
-                e.code,
-                e.message
-            );
-        }
-    };
-
-    // Also verify the descriptor execution correctly observes the negative case as Pass
+    // The T14-local fixture above creates the bound World while active, then
+    // observes that same World with no active revision through public Catalog.
+    // Also verify the descriptor records the no-active observation as Pass.
     let descriptors = query_catalog::descriptors();
     let d = descriptors
         .iter()
@@ -285,33 +239,33 @@ fn catalog_authority_does_not_use_global_fallback_on_controlled_in_memory() {
             client.catalog_for_world(w_b).await.expect("catalog B"),
         )
     });
-    assert!(
-        catalog_a
+    let capability_ids = |catalog: &loom_api::CatalogSnapshot| {
+        catalog
             .capabilities
             .iter()
-            .any(|c| c.id.to_string() == "neutral.counter")
+            .map(|capability| capability.id.to_string())
+            .collect::<HashSet<_>>()
+    };
+    let capabilities_a = capability_ids(&catalog_a);
+    let capabilities_b = capability_ids(&catalog_b);
+    assert_eq!(
+        capabilities_a,
+        HashSet::from(["neutral.counter".to_owned()]),
+        "W_a capability identity set must be exactly counter"
     );
-    assert!(
-        !catalog_a
-            .capabilities
-            .iter()
-            .any(|c| c.id.to_string() == "neutral.observer"),
-        "W_a with counter-only binding must not expose observer"
-    );
-    assert!(
-        catalog_b
-            .capabilities
-            .iter()
-            .any(|c| c.id.to_string() == "neutral.observer"),
-        "W_b with counter+observer must expose observer"
-    );
-    assert_ne!(
-        catalog_a.capabilities.len(),
-        catalog_b.capabilities.len(),
-        "different bindings must yield different world-scoped catalogs"
+    assert_eq!(
+        capabilities_b,
+        HashSet::from(["neutral.counter".to_owned(), "neutral.observer".to_owned(),]),
+        "W_b capability identity set must be exactly counter plus observer"
     );
     // Ensure world-scoped is subset of global
     for cap in &catalog_a.capabilities {
+        assert!(
+            global.capability(&cap.id).is_some(),
+            "world-scoped cap should be subset of global"
+        );
+    }
+    for cap in &catalog_b.capabilities {
         assert!(
             global.capability(&cap.id).is_some(),
             "world-scoped cap should be subset of global"
