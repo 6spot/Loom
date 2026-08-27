@@ -22,7 +22,7 @@ registration remains reserved for T19.
 | CV | Public observation | Evidence |
 | --- | --- | --- |
 | CV-021 | `AdminService::advance_world_time` advances fixed `WorldInstant(T10)` to `T20` through Timeline CAS; `inspect_timeline` confirms the new version/time and `HistoryService::list_events` confirms no fake Event. | InMemory, live PostgreSQL |
-| CV-022 | A real `AdminService::schedule_agency_wake` creates semantically due Pending Work at `T20`; the advance attempt is rejected by the quiescence barrier and logical status/time/version remain unchanged. | InMemory, live PostgreSQL |
+| CV-022 | `neutral.counter.seed` followed by `neutral.counter.increment` uses the public semantic reaction path to produce semantically due Pending Work at `T20`; `AdminService::advance_world_time` is rejected by the quiescence barrier, and `AdminService::timeline_logical_status`/`TimelineService::inspect_timeline` confirm logical status/time/version remain unchanged. | InMemory, live PostgreSQL |
 | CV-023 | `HistoryService::list_events` and paging, `TimelineService::inspect_timeline`, `AdminService::timeline_logical_status`, and `QueryService::get_facet` are compared before/after controlled boundary restart using the new client returned by the restart. | InMemory, live PostgreSQL, controlled restart |
 | CV-024 | `ActionService::invoke` for `neutral.counter.increment` exposes the triggering committed Event and reaction Pending Work at the same TimelineVersion; both are compared after controlled restart. | InMemory, live PostgreSQL, controlled restart |
 
@@ -56,3 +56,4 @@ explicit request `WorldInstant`; rejection preserves authoritative state.
 ### Progress Log
 
 - 2026-08-27 — Recreated T13 from `origin/main` `6e4a991a0cf0ffe560dd58d0984a3529ba33fb8a` after the previous candidate became unavailable. Implemented four local descriptors/executors and public-surface observations in the allowed production module; added dedicated InMemory and PostgreSQL/restart tests in the allowed test module. The aggregate test creates a fresh server/client for each CV so CV-023's controlled restart cannot leave CV-024 with a stale client. Removed the PostgreSQL environment-variable enablement gate; the canonical harness default is now used when no override is present.
+- 2026-08-27 — D-LEADER-01 correction: aligned the CV-022 ledger observation with the implementation and frozen evidence. Due Pending Work is produced by the public `neutral.counter.seed` + `neutral.counter.increment` semantic reaction path; `AdminService::advance_world_time` is then rejected, with `AdminService::timeline_logical_status` and `TimelineService::inspect_timeline` observing unchanged logical state. No scenario semantics or scope changed.
