@@ -127,3 +127,95 @@ If existing public `loom-api` cannot express required pinned/semantic read witho
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → 7 passed; CV-030 controlled PostgreSQL restart/reconnect evidence passed.
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --all-targets` → all targets passed, including 154 unit tests and all live integration suites.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check` → passed.
+
+## Remediation Audit — CV-028/CV-029 (2026-08-28)
+
+This append-only record applies the T08 correction audit from the current
+baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874`: a test-only
+Runtime/Storage driver is permitted, while acceptance authority remains the
+formal `LoomClient` History/Facet/Timeline read surface. The previous
+pre-policy blocked wording above is retained as historical evidence.
+
+- `CV-028` → `apps/loom-validator/tests/semantic_blob.rs` now composes a real
+  Runtime over `InMemoryStore` and `PgStorage`. It drives the existing
+  Runtime-owned `SemanticProjectionStore` through `register`, `query`,
+  `rebuild`, `delete`, re-register and rebuild. Public `HistoryService`,
+  `QueryService` Facet, and `TimelineService` reads before/after deletion and
+  rebuild remain byte-for-byte/equivalent in their authoritative Event/Facet
+  values and Timeline version/time; projection hits are auxiliary evidence.
+- `CV-029` → the same controlled public HTTP composition uses the concrete
+  `InMemoryBlobStore` to produce a `BlobRef`, verifies a successful read, then
+  simulates missing (`BlobError::NotFound`) and corrupt (`BlobError::HashMismatch`)
+  bodies. Public `QueryService` Blob Facet and `HistoryService` reads remain
+  unchanged after both typed adapter errors. No BlobService, semantic
+  authority, SQL/table read, or production contract was added.
+- Controlled evidence is present for both InMemory and real PostgreSQL 18
+  Runtime/Storage backends. PostgreSQL is not a mandatory durability class for
+  CV-028/CV-029 under the corrected T08 policy, but the PG18 path is executed
+  and recorded here for backend parity. CV-030's existing pinned-read path is
+  unchanged.
+
+### Remediation verification
+
+- `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including InMemory and repository-default PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including explicit PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --all-targets` → FAIL in unrelated `authority_gate` report-writing cases because the shared filesystem reached `No space left on device`; the T15 semantic/blob tests had not failed. The executor-local `target/` was then cleaned and the targeted evidence above was rerun on the candidate.
+
+## D-004 Rebase Verification — 2026-08-28
+
+The candidate was rebuilt from the fetched `origin/main` at
+`78781ba55f6fa5c21c377ff1d356be03a1742e72`; the prior exact-head evidence was
+not reused. The rebased candidate before this append was
+`5f5cf1ec61ee1a33792d228d6bc45bf2f7f55af8`; the final documentation-only
+follow-up commit contains the same test implementation and records the final
+HEAD in the delivery comment.
+
+- Default repository PG18: `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- Explicit PG18: `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` → passed on the rebased candidate.
+
+## D-004 Final Candidate Verification — 2026-08-28
+
+The PG fixture setup now holds a test-only revision-state guard across each
+fixture's lifetime, including the existing CV-030 PostgreSQL case. This keeps
+parallel test setup from racing on the shared controlled database revision
+generation; it does not add a production race protocol or alter business
+semantics. Final candidate is based on
+`78781ba55f6fa5c21c377ff1d356be03a1742e72`; final HEAD is recorded in the
+Executor handoff comment.
+
+- Default repository PG18 and explicit PG18 T15 suites each ran 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out on the final implementation.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the final implementation.
+
+## D-004 Latest-main Rebase — 2026-08-28
+
+After the prior verification, `origin/main` advanced again. The candidate was
+rebased from the freshly fetched base
+`2c4bc4be8c2401c6b22598760aa99ff8a970300c`; the previous exact-head evidence
+was invalidated and the T15 suite was rerun on the rebased candidate. The
+final HEAD is recorded in the Executor handoff comment.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- fmt, check, clippy, architecture, storage ownership, and diff check all passed on this latest-main candidate.
+
+## D-005 Latest-main Rebase — 2026-08-28
+
+The T08 correction merge advanced `origin/main` after the prior D-004
+verification. The candidate was rebuilt from freshly fetched
+`c4e0ca14cf8746a6e43b5e87639a93cf321e3e1c` (which includes the T08 correction
+merge); all prior exact-head evidence was treated as stale. The final HEAD is
+recorded in the Executor handoff comment.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the rebased candidate.
+
+## D-005 Final Latest-main Rebase — 2026-08-28
+
+The candidate was rebased once more after the latest-main ledger merge. The
+freshly fetched base is
+`8031d1df0a6512a651979c60e2e8e7ef31f08139`; the final candidate HEAD is
+recorded in the Executor handoff comment. The prior exact-head evidence was
+not reused.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on this candidate.
