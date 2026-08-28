@@ -263,3 +263,30 @@ AC-05 remains mapped to the single-file ledger-only boundary. R-01 remains
 limited to dependency/base reconciliation; the race protocol is closed and no
 persistence, claim, retry, terminal, receipt, fence or checkpoint authority
 was introduced.
+
+## Final candidate traceability repair (2026-08-28)
+
+This append-only entry closes D-001 for the previously rejected final
+candidate. The values below were read directly before this repair append and
+are the complete `base..HEAD` boundary for that candidate:
+
+| Field | Exact fact for previously rejected final candidate |
+| --- | --- |
+| candidate HEAD | `3e49a102373c624bab5eb5897d065c9aeea43fd4` |
+| common base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 142 insertions(+), 0 deletions` |
+| `git diff --numstat base..HEAD` | `142  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5 [ahead 2]` |
+| `git diff --check` | PASS |
+
+The complete diff for `3e49a102...` relative to the common base was therefore
+one modified T19 ledger file containing 142 append-only insertions and no
+deletions. It contained no production code, suite, central registry/dispatch,
+core/runtime/storage/API, T08/T09 or other task file change.
+
+Final AC-05 binding: the candidate boundary is ledger-only and the central
+composition remains unchanged; no hidden suite fix or production behavior was
+introduced. Final R-01 binding: dependency/base reconciliation only; the race
+protocol remains closed, with no persistence, claim, retry, terminal, receipt,
+fence or checkpoint authority.
