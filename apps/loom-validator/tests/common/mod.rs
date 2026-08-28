@@ -15,20 +15,89 @@ pub mod t20;
 use std::{env, path::Path, process::Command, sync::Arc};
 
 use loom_api::{
-    CreateWorldFromTemplateRequest, TimelineTarget, WorldService, WorldTemplateDescriptor,
+    CreateWorldFromTemplateRequest, ExecutionResult, TimelineTarget, TimelineVersion,
+    WorkHandlerId, WorkId, WorkSchedule, WorldService, WorldTemplateDescriptor,
 };
 use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
 use loom_capability::CapabilityRegistry;
 use loom_client::LoomClient;
 use loom_neutral::registry as neutral_registry;
+use loom_protocol::{NewWork, Resolution, WorkMutation};
 use loom_runtime::{
-    PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor, RuntimeRevisionId,
-    RuntimeRevisionStore,
+    CommitStore, EffectEngine, PlatformTime, Runtime, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
+    ValidatedResolution, WorkClaim, WorkStore, WorldStore,
 };
 use loom_storage::{InMemoryStore, PgStorage};
+use serde_json::Value;
 use tokio::sync::Mutex;
 
 const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const SCHEDULER_TEST_MAX_COMPLETIONS: u64 = 128;
+
+async fn schedule_capability_work<S>(
+    store: &S,
+    target: TimelineTarget,
+    work_id: WorkId,
+    payload: Value,
+    schedule: WorkSchedule,
+) -> Result<TimelineVersion, String>
+where
+    S: WorldStore + CommitStore,
+{
+    let registry = neutral_registry();
+    let snapshot = WorldStore::snapshot(store, target.timeline_id)
+        .await
+        .map_err(|error| format!("snapshot before scheduling test Work failed: {error:?}"))?;
+    let work = NewWork::capability_work(
+        work_id,
+        target.timeline_id,
+        "neutral.counter",
+        WorkHandlerId::from(loom_neutral::COUNTER_INCREMENT_WORK),
+        loom_api::SchemaRevision::new(1),
+        payload,
+        schedule,
+    );
+    let resolution = Resolution::new(Vec::new(), vec![WorkMutation::Schedule(work)]);
+    let validated = EffectEngine::new(&registry)
+        .validate(&snapshot.world_view(), "neutral.counter", resolution)
+        .map_err(|error| format!("test Work scheduling validation failed: {error:?}"))?;
+    let result = CommitStore::commit(store, &validated, None, PlatformTime::new(0))
+        .await
+        .map_err(|error| format!("test Work scheduling commit failed: {error:?}"))?;
+    Ok(result.version)
+}
+
+async fn complete_claim<S>(
+    store: &S,
+    target: TimelineTarget,
+    claim: WorkClaim,
+    now: PlatformTime,
+) -> Result<loom_runtime::CommitResult, String>
+where
+    S: WorldStore + SchedulerCommitStore,
+{
+    let registry = neutral_registry();
+    let snapshot = WorldStore::snapshot(store, target.timeline_id)
+        .await
+        .map_err(|error| format!("snapshot before test Work completion failed: {error:?}"))?;
+    let validated: ValidatedResolution = EffectEngine::new(&registry)
+        .validate(
+            &snapshot.world_view(),
+            "validator.t12.scheduler.fencing.stale-completion",
+            Resolution::default(),
+        )
+        .map_err(|error| format!("stale-completion validation failed: {error:?}"))?;
+    SchedulerCommitStore::commit_scheduler_work(
+        store,
+        &validated,
+        &claim,
+        now,
+        SCHEDULER_TEST_MAX_COMPLETIONS,
+    )
+    .await
+    .map_err(|error| format!("scheduler completion commit failed: {error:?}"))
+}
 
 /// A process-lifetime tokio runtime whose spawns (including the axum HTTP
 /// server) survive the calling thread, so a restarted service's server task is
@@ -313,6 +382,83 @@ impl InMemoryServer {
         .join()
         .map_err(|_| "in-memory restart thread panicked".to_string())?
     }
+
+    /// Test-only control seam: schedule generic Capability Work through the
+    /// existing Runtime validation and `CommitStore` authority. Validator
+    /// findings must use the `LoomClient` reads, never this return value.
+    pub fn schedule_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        payload: Value,
+        schedule: WorkSchedule,
+    ) -> Result<TimelineVersion, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store
+        });
+        leaked_runtime().block_on(schedule_capability_work(
+            store, target, work_id, payload, schedule,
+        ))
+    }
+
+    /// Test-only control seam for driving one Work through the existing
+    /// Runtime/WorkStore/Scheduler commit authority.
+    pub fn execute_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+        retry_available_at: PlatformTime,
+    ) -> Result<ExecutionResult, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store
+        });
+        leaked_runtime().block_on(async {
+            let runtime = Runtime::new(store, neutral_registry())
+                .map_err(|error| format!("test Runtime construction failed: {error:?}"))?;
+            runtime
+                .execute_work(target, work_id, now, claimed_until, retry_available_at)
+                .await
+                .map_err(|error| format!("test Runtime Work execution failed: {error:?}"))
+        })
+    }
+
+    /// Test-only control seam for obtaining an authoritative claim/fence.
+    pub fn claim_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> Result<WorkClaim, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store
+        });
+        leaked_runtime().block_on(async {
+            WorkStore::claim(store, target.timeline_id, work_id, now, claimed_until)
+                .await
+                .map_err(|error| format!("test Work claim failed: {error:?}"))
+        })
+    }
+
+    /// Test-only control seam for submitting a claim to the existing atomic
+    /// `SchedulerCommitStore` authority.
+    pub fn complete_claim_for_test(
+        &self,
+        target: TimelineTarget,
+        claim: WorkClaim,
+        now: PlatformTime,
+    ) -> Result<loom_runtime::CommitResult, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store
+        });
+        leaked_runtime().block_on(complete_claim(store, target, claim, now))
+    }
 }
 
 async fn start_in_memory(
@@ -500,6 +646,83 @@ impl PgServer {
         })
         .join()
         .map_err(|_| "pg restart thread panicked".to_string())?
+    }
+
+    /// Test-only control seam: schedule generic Capability Work through the
+    /// existing Runtime validation and `CommitStore` authority. Validator
+    /// findings must use the `LoomClient` reads, never this return value.
+    pub fn schedule_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        payload: Value,
+        schedule: WorkSchedule,
+    ) -> Result<TimelineVersion, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store.clone()
+        });
+        leaked_runtime().block_on(schedule_capability_work(
+            &store, target, work_id, payload, schedule,
+        ))
+    }
+
+    /// Test-only control seam for driving one Work through the existing
+    /// Runtime/WorkStore/Scheduler commit authority.
+    pub fn execute_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+        retry_available_at: PlatformTime,
+    ) -> Result<ExecutionResult, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store.clone()
+        });
+        leaked_runtime().block_on(async {
+            let runtime = Runtime::new(store, neutral_registry())
+                .map_err(|error| format!("test Runtime construction failed: {error:?}"))?;
+            runtime
+                .execute_work(target, work_id, now, claimed_until, retry_available_at)
+                .await
+                .map_err(|error| format!("test Runtime Work execution failed: {error:?}"))
+        })
+    }
+
+    /// Test-only control seam for obtaining an authoritative claim/fence.
+    pub fn claim_work_for_test(
+        &self,
+        target: TimelineTarget,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> Result<WorkClaim, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store.clone()
+        });
+        leaked_runtime().block_on(async {
+            WorkStore::claim(&store, target.timeline_id, work_id, now, claimed_until)
+                .await
+                .map_err(|error| format!("test Work claim failed: {error:?}"))
+        })
+    }
+
+    /// Test-only control seam for submitting a claim to the existing atomic
+    /// `SchedulerCommitStore` authority.
+    pub fn complete_claim_for_test(
+        &self,
+        target: TimelineTarget,
+        claim: WorkClaim,
+        now: PlatformTime,
+    ) -> Result<loom_runtime::CommitResult, String> {
+        let store = leaked_runtime().block_on(async {
+            let guard = self.inner.lock().await;
+            guard.store.clone()
+        });
+        leaked_runtime().block_on(complete_claim(&store, target, claim, now))
     }
 }
 
