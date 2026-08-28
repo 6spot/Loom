@@ -69,7 +69,7 @@ the T20 ledger.
 | Task | Issue | Dependency | Current state | Record |
 | --- | ---: | --- | --- | --- |
 | VALR-T21 | [#326](https://github.com/6spot/Loom/issues/326) | #325 / T20 | `in_progress` | this file |
-| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `in_progress` | `t22-certification-manifest.md` (T22-owned) |
+| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `done` | `t22-certification-manifest.md` (T22-owned; PR #366 merged and consumed) |
 | VALR-T23 | [#328](https://github.com/6spot/Loom/issues/328) | #327 / T22 | `in_progress` | `t23-core-integrated-gate.md` (T23-owned; current-main rerun pending) |
 | VALR-T24 | [#329](https://github.com/6spot/Loom/issues/329) | #327 / T22 | `in_progress` | `t24-validator-certification-gate.md` (T24-owned; current-main rerun pending) |
 | VALR-T25 | [#330](https://github.com/6spot/Loom/issues/330) | #326, #328, #329 | `blocked` | `t25-final-certificate.md` (T25-owned; blocked until prerequisite evidence converges) |
