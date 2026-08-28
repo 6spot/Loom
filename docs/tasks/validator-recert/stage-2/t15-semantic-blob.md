@@ -173,3 +173,16 @@ HEAD in the delivery comment.
 - Default repository PG18: `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
 - Explicit PG18: `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` → passed on the rebased candidate.
+
+## D-004 Final Candidate Verification — 2026-08-28
+
+The PG fixture setup now holds a test-only revision-state guard across each
+fixture's lifetime, including the existing CV-030 PostgreSQL case. This keeps
+parallel test setup from racing on the shared controlled database revision
+generation; it does not add a production race protocol or alter business
+semantics. Final candidate is based on
+`78781ba55f6fa5c21c377ff1d356be03a1742e72`; final HEAD is recorded in the
+Executor handoff comment.
+
+- Default repository PG18 and explicit PG18 T15 suites each ran 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out on the final implementation.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the final implementation.
