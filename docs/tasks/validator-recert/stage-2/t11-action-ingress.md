@@ -1,13 +1,13 @@
 ---
 task: VALR-T11
 issue: 316
-status: in_progress
+status: completed
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-28
+completion_pr: 365
+merge_sha: 95f7e7a0233cfa917d0c9656b990fd2af4996874
 ---
 
 # VALR-T11 — Validate Action/Event/Facet + durable idempotent Ingress
