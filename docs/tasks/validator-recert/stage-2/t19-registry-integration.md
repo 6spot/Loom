@@ -317,3 +317,69 @@ gaps, eleven groups and stable ordering, and no production behavior change.
 Its final R-01 binding remains dependency/base reconciliation only; the race
 protocol is closed and no persistence, claim, retry, terminal, receipt, fence
 or checkpoint authority was introduced.
+
+## Latest-main controlled-evidence reconciliation (2026-08-29)
+
+This append-only reconciliation follows the Leader direction to consume the
+merged T12/T15/T17 controlled evidence as audit evidence without promoting
+test-only drivers into the production Validator registry. The production
+candidate input remains `4efb1d346c926f2ee10654c3bc24cd92af351881` (PR #375
+merge); the T22 manifest input is `856814dfef5ca800e7c94cdabffd926846663110`
+(PR #377 merge). The latest fetched `origin/main` is
+`7716c1c33cd08cde57e8226ca063c6c83c650e8e`, whose parents are the T22 merge
+`856814dfef5ca800e7c94cdabffd926846663110` and the docs-only T24 merge
+`5d77ddda808f5594c2efe3b8c169f82814d6898b`.
+
+The production registry, dispatch, listing and group-selection surface is
+unchanged and remains exactly 32 IDs:
+`CV-001..CV-017`, `CV-020..CV-027`, `CV-030..CV-033`, and
+`CV-038..CV-040`. The 11 stable groups, deterministic order, duplicate-free
+selection and `--all` behavior remain unchanged. The eight unregistered rows
+remain `CV-018`, `CV-019`, `CV-028`, `CV-029`, and `CV-034..CV-037`.
+
+Controlled evidence consumed without registry promotion:
+
+- T12 `CV-018`/`CV-019`: the merged scheduler target records controlled
+  InMemory and PostgreSQL evidence, but the production suite still exposes
+  only `CV-020` through `scheduler::descriptors()` and
+  `execute_scheduler`; the two controlled rows therefore remain non-production
+  registry evidence.
+- T15 `CV-028`/`CV-029`: the merged semantic/blob target records controlled
+  fixture evidence, while the formal-surface gap remains in force; production
+  `semantic_blob::descriptors()` exposes only `CV-030`, and the two rows remain
+  unregistered gap evidence rather than Validator Pass entries.
+- T17 `CV-034..CV-037`: the merged Agency target records controlled InMemory
+  evidence, but the production `agency` module has no descriptors or executor;
+  these rows remain non-production controlled evidence and are not placed in
+  `--all`.
+
+The existing T12/T15/T17 ledgers, T08 allocation, prior 32-ID registry record,
+all eight gap explanations, prior candidate traces, aggregate failure and
+readiness non-pass results are retained unchanged. No placeholder, fabricated
+descriptor, unavailable dispatch or new production capability is introduced.
+
+### Reconciliation verification
+
+Against latest main before this append:
+
+- `cargo test -p loom-validator --lib stage2_ -- --test-threads=1` — PASS;
+  2 passed, 0 failed, 0 ignored.
+- `cargo test -p loom-validator --lib all_selection_is_complete_and_uses_registered_executor_paths -- --test-threads=1` — PASS;
+  1 passed, 0 failed, 0 ignored; `--all` resolved the 32 registered paths.
+- `cargo run -q -p loom-validator -- --list` — PASS; actual CLI output
+  enumerated the exact 32-ID set above.
+- `bash tools/test.sh -p loom-validator --test scheduler -- --test-threads=1` — PASS;
+  8 passed, 0 failed, 0 ignored; T12 controlled CV-018/CV-019 evidence
+  entered both InMemory and PostgreSQL paths.
+- `bash tools/test.sh -p loom-validator --test semantic_blob -- --test-threads=1` — PASS;
+  11 passed, 0 failed, 0 ignored; T15 controlled CV-028/CV-029 evidence and
+  formal-gap/non-registering assertions executed.
+- `bash tools/test.sh -p loom-validator --test agency -- --test-threads=1` — PASS;
+  5 passed, 0 failed, 0 ignored; T17 controlled CV-034..CV-037 evidence and
+  the non-registering boundary assertion executed.
+
+This reconciliation changes only this ledger. It does not claim that the
+controlled rows are production registry scenarios, does not declare a new
+certification, and leaves T20 to continue from the same production candidate
+input. The race protocol remains closed; no persistence, claim, retry,
+terminal, receipt, fence or checkpoint authority was added.
