@@ -121,3 +121,199 @@ Base: `origin/main` = `95f7e7a0233cfa917d0c9656b990fd2af4996874`.
   central registry and dispatch, updated exact/group/`--all`/count assertions,
   and preserved blocked CV-018/019/028/029/034..037 exclusions. No suite
   execution, core/runtime/storage/API, or T08 allocation changes were made.
+
+## Current-main reconciliation (2026-08-28)
+
+This append-only reconciliation was rerun from the requested current-main
+baseline `bed2dac9947d5c5f92e0d530378f5be712e041a6`. Before this append,
+`HEAD` and `origin/main` were both that SHA and `git diff` was empty. No
+central registry or dispatch change was required: the existing composition
+already matches the resolved T12/T17 decision and remains the only supported
+32-ID set. The implementation candidate therefore has no code delta from
+current main; this ledger append is the sole PR delta.
+
+Registered, ordered, duplicate-free IDs observed from the real
+`loom-validator --list` path:
+
+`CV-001..CV-017`, `CV-020..CV-027`, `CV-030..CV-033`, `CV-038..CV-040`.
+
+The corresponding stable groups are:
+
+| Group | IDs |
+| --- | --- |
+| lifecycle | CV-001..CV-004 |
+| replay-fork | CV-005..CV-009 |
+| runtime-authority | CV-010..CV-011 |
+| world-binding | CV-012..CV-014 |
+| action-ingress | CV-015..CV-017 |
+| scheduler | CV-020 |
+| world-time | CV-021..CV-024 |
+| query-catalog | CV-025..CV-027 |
+| semantic-blob | CV-030 |
+| provenance | CV-031..CV-033 |
+| change-feed | CV-038..CV-040 |
+
+Unregistered rows remain intentionally absent and are not represented by a
+placeholder, `Unavailable` dispatch, or fabricated ready result:
+
+| IDs | Reconciliation reason |
+| --- | --- |
+| CV-018, CV-019 | T12 has no formal public schedule/claim/fence descriptor/execute contract; controlled tests do not authorize central production registration. |
+| CV-028, CV-029 | T15/T08 formal public projection/blob surface remains blocked. |
+| CV-034..CV-037 | T17 has no public/formal Agency execution/claim seam; controlled harness results are not production descriptors. |
+
+The current source facts remain unchanged: `register_stage2` composes only
+the owning suite registration/descriptor functions in `apps/loom-validator/src/lib.rs`,
+and `execute_registered_scenario` routes every registered Stage-2 ID to its
+existing executor in `apps/loom-validator/src/cli.rs`. No T12/T17 suite,
+ledger, core, Runtime, Storage, API, T08/T09, or shared harness file was
+modified.
+
+### Reconciliation verification
+
+All commands below ran against this checkout and their stated assertions were
+observed:
+
+- `cargo test -p loom-validator --lib stage2_ -- --test-threads=1` — PASS;
+  2 passed, 0 failed, 0 ignored. This exercised exact 32-ID membership,
+  deterministic repeated enumeration, duplicate-free count, exact groups and
+  unknown-group error behavior.
+- `cargo test -p loom-validator --lib all_selection_is_complete_and_uses_registered_executor_paths -- --test-threads=1` — PASS; 1 passed, 0 failed, 0 ignored; `--all` resolved 32 selections and produced 32 executor-path results.
+- `cargo run -q -p loom-validator -- --list` — PASS; real CLI output listed
+  exactly 32 IDs in the ordered set above, including CV-017 and excluding
+  CV-018/019/028/029/034..037.
+- `cargo fmt --all -- --check` — PASS.
+- `cargo check -p loom-validator --all-targets` — PASS.
+- `cargo clippy -p loom-validator --all-targets -- -D warnings` — PASS.
+- `python3 tools/check_architecture.py` — PASS.
+- `python3 tools/check_storage_sql_ownership.py` — PASS.
+- Fresh isolated PostgreSQL 18 run:
+  `LOOM_TEST_POSTGRES_URL=<fresh temporary database> bash tools/validator-pg18-gate.sh` — PASS; 2 tests passed, the required live matrix reported 10/10 rows passed and 0 failed, skipped, or unavailable. The temporary database was removed after the run.
+
+Non-pass signals are retained factually and are not used to manufacture
+registry readiness:
+
+- `bash tools/test.sh -p loom-validator --all-targets -- --test-threads=1` —
+  FAIL only in the T20 live-gate row `CV-016`, where the repository-managed
+  shared control database already contained fixed key `t11.cv016.key1` and
+  the first submit returned `IdempotencyConflict`; the other T20 policy test
+  and the Validator library/integration targets completed as reported by the
+  runner. The fresh isolated PG18 gate above re-executed the required live
+  matrix successfully.
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` — FAIL, `valid=false`; T19 still reports
+  dependencies 315, 318, 319, 320, 321, 322 and 323 as `in_progress`, with
+  the dependent T20/T21/T24 readiness cascade. This is cross-task state and
+  was not changed here.
+
+The race protocol remains closed. R-01 is limited to dependency/base
+reconciliation; no persistence, claim, retry, terminal, receipt, fence or
+checkpoint authority was introduced.
+
+## D-001 candidate traceability repair (2026-08-28)
+
+This append-only repair preserves the previously reported validation and
+reconciliation semantics. It binds the previously reviewed candidate to the
+exact Git object and records the complete Git boundary facts that were missing
+from the earlier handoff:
+
+| Field | Exact fact for old candidate |
+| --- | --- |
+| candidate HEAD | `76cafdf9484b2074a7f88fa1d1c31cfa24b9c864` |
+| base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 87 insertions(+);` the path above |
+| `git diff --numstat base..HEAD` | `87  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5` |
+| `git diff --check` | PASS |
+
+The old candidate's complete `base..HEAD` diff therefore consisted solely of
+the 87-line append-only T19 ledger increment already present in this file; no
+production, suite, registry/dispatch, core/runtime/storage/API, T08/T09 or
+other task file was part of that boundary.
+
+AC-05 and R-* repair mapping: AC-05 remains satisfied by the ledger-only
+boundary and unchanged central composition; R-01 remains dependency/base
+reconciliation only, with the race protocol closed and no persistence, claim,
+retry, terminal, receipt, fence or checkpoint authority.
+
+## New candidate trace after repair commit (2026-08-28)
+
+After committing the D-001 trace above, the new candidate was read from Git
+before this final append; no SHA or statistic below is inferred:
+
+| Field | Exact fact for new candidate |
+| --- | --- |
+| candidate HEAD after repair commit | `720cac65133bfa9ac7eed8bb6b94e149dc4e3404` |
+| base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 114 insertions(+);` the path above |
+| `git diff --numstat base..HEAD` | `114  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5 [ahead 1]` |
+| `git diff --check` | PASS |
+
+The actual increment from old candidate `76cafdf...` to this repair commit
+was 27 additional lines in the same ledger path. The complete `base..HEAD`
+boundary remained one modified ledger file and no production behavior,
+registry/dispatch, suite, core/runtime/storage/API, T08/T09 or other task
+change. This final append is another ledger-only descendant of the recorded
+candidate; it does not constitute a new production-test PASS. The previously
+recorded PASS/FAIL/non-pass evidence remains unchanged.
+
+AC-05 remains mapped to the single-file ledger-only boundary. R-01 remains
+limited to dependency/base reconciliation; the race protocol is closed and no
+persistence, claim, retry, terminal, receipt, fence or checkpoint authority
+was introduced.
+
+## Final candidate traceability repair (2026-08-28)
+
+This append-only entry closes D-001 for the previously rejected final
+candidate. The values below were read directly before this repair append and
+are the complete `base..HEAD` boundary for that candidate:
+
+| Field | Exact fact for previously rejected final candidate |
+| --- | --- |
+| candidate HEAD | `3e49a102373c624bab5eb5897d065c9aeea43fd4` |
+| common base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 142 insertions(+), 0 deletions` |
+| `git diff --numstat base..HEAD` | `142  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5 [ahead 2]` |
+| `git diff --check` | PASS |
+
+The complete diff for `3e49a102...` relative to the common base was therefore
+one modified T19 ledger file containing 142 append-only insertions and no
+deletions. It contained no production code, suite, central registry/dispatch,
+core/runtime/storage/API, T08/T09 or other task file change.
+
+Final AC-05 binding: the candidate boundary is ledger-only and the central
+composition remains unchanged; no hidden suite fix or production behavior was
+introduced. Final R-01 binding: dependency/base reconciliation only; the race
+protocol remains closed, with no persistence, claim, retry, terminal, receipt,
+fence or checkpoint authority.
+
+## Final candidate binding after review (2026-08-28)
+
+This append-only entry closes the remaining D-001 traceability gap for the
+candidate reviewed at `fc6b051245fb694808ee7663251255535710b8d0`. The facts
+below were read from that exact candidate before this append:
+
+| Field | Exact fact for reviewed candidate |
+| --- | --- |
+| candidate HEAD | `fc6b051245fb694808ee7663251255535710b8d0` |
+| common base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 169 insertions(+), 0 deletions` |
+| `git diff --numstat base..HEAD` | `169  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `fc6b051...` parent | `3e49a102373c624bab5eb5897d065c9aeea43fd4` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5` |
+| `git diff --check` | PASS |
+
+The final reviewed candidate's complete `base..HEAD` boundary is one modified
+T19 ledger file, 169 insertions and 0 deletions (`numstat 169 0`). The direct
+`3e49a102.....fc6b051...` boundary is the same ledger file with 27 insertions
+and 0 deletions. This binds the reviewed candidate's final AC-05 scope: ledger
+reconciliation only, with unchanged 32-ID composition, eight unregistered
+gaps, eleven groups and stable ordering, and no production behavior change.
+Its final R-01 binding remains dependency/base reconciliation only; the race
+protocol is closed and no persistence, claim, retry, terminal, receipt, fence
+or checkpoint authority was introduced.
