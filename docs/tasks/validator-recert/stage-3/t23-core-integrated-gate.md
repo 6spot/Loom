@@ -177,3 +177,196 @@ With `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_cer
 - **AC-4 no hidden failure/skip: PASS.** The original reused-`loom_control` CV-016 failure, later same-database contamination observation, linker environment failure, filtered/non-required zero-test observation, CLI external failure, and ledger-check failure remain recorded as historical/non-certifying evidence. No required fresh failure or skip was hidden.
 - **AC-5 reviewable ledger: PASS.** This file preserves the complete candidate discipline, row-level gaps, historical observations, fresh commands/results, boundary/client/SSE/CLI evidence, and current disposition.
 - T23 completion still requires independent Reviewer approval, finished required CI, final merge gate, PR merge, and Done confirmation. Final V0 certification remains unclaimed until the manifest gaps are resolved or accepted by the final decision owner.
+
+## Current-main rerun on `4efb1d346c926f2ee10654c3bc24cd92af351881`
+
+This section is an append-only evidence record for the current T23 invocation.
+The earlier `34fc8efa77cf61d8a9261eaec575bbe111615618` record above remains
+historical evidence and is not rewritten. T22's retained `95f7e7a...`
+production baseline is also historical input only. Before collecting this
+section's evidence, `git fetch origin main` confirmed both `HEAD` and
+`origin/main` were exactly `4efb1d346c926f2ee10654c3bc24cd92af351881`.
+
+### Run identity and scope
+
+- Candidate/base: `4efb1d346c926f2ee10654c3bc24cd92af351881`.
+- Isolated checkout: `/home/opc/multica_workspaces/me-ee43a71168f9/me-299-159641c76625/workdir/Loom`.
+- Branch: `agent/executor/159641c76625`.
+- Initial status: `## agent/executor/159641c76625` (clean).
+- Final source scope: this file only. No production, Runtime/Storage,
+  Validator scenario/test source, schema/migration, CI/workflow, acceptance,
+  or other ledger file was changed.
+- Evidence-only descendants and generated files do not change the production
+  candidate. No PR was created by Executor.
+- Race protocol: closed; this record adds no persistence, claim/release,
+  retry, checkpoint, marker, or concurrency state.
+- Disposition: **current T23 executable/core evidence is passing; final V0
+  certification is not claimed.** T22's capability gaps and the CLI external
+  endpoint failure remain explicit non-certifying evidence.
+
+### PostgreSQL 18 service and database isolation
+
+The repository procedure `bash tools/postgres-test.sh up` reported healthy
+container `loom-postgres-test-1`, image `pgvector/pgvector:0.8.6-pg18`, bound to
+`127.0.0.1:15432`. `select version()` reported PostgreSQL `18.6` on
+`aarch64-unknown-linux-gnu`.
+
+The T23 databases created for this run were independent databases owned by
+`loom` on that service:
+
+- `postgresql://loom:loom@127.0.0.1:15432/loom_t23_certification_4efb1d` —
+  fresh database used for the Validator all-target and PG contract runs.
+- `postgresql://loom:loom@127.0.0.1:15432/loom_t23_certification_4efb1d_gate2` —
+  separate empty database used for the certifying T20 gate report.
+- `postgresql://loom:loom@127.0.0.1:15432/loom_t23_certification_4efb1d_gate3` —
+  separate empty database used for the workspace aggregate and its T20 run.
+
+The pre-existing `loom_control`, historical `loom_t23_certification`, and
+`loom_t24_certification` databases were not used for certifying T23 evidence,
+reset, or deleted. The first all-target run necessarily populated fixed test
+keys in the first fresh database; a subsequent T20-only attempt there returned
+the real `IdempotencyConflict` for `t11.cv016.key1` and did not overwrite that
+record. That failed attempt is retained in
+`target/validator/t23-4efb1d-logs/t20-gate.log` and is not used as a pass.
+
+### Current required-live T20 evidence
+
+Exact command, against `loom_t23_certification_4efb1d_gate2`:
+
+```text
+LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_certification_4efb1d_gate2 LOOM_T20_REPORT_PATH=$PWD/target/validator/t23-4efb1d-pg18-live-gate.json CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/validator-pg18-gate.sh
+```
+
+Named CI job: `PostgreSQL 18 persistence contract / Validator PostgreSQL 18
+live capability matrix gate (VALR-T20)`. Local artifact/report:
+`target/validator/t23-4efb1d-pg18-live-gate.json`; execution log:
+`target/validator/t23-4efb1d-logs/t20-gate-gate2.log`.
+
+Result: **PASS**, exit 0. The report says
+`type=loom-validator.pg18-live-gate`, `backend_evidence=postgresql`,
+`backend_evidence_trusted=true`, `gate_passes=true`, and exactly `10 total,
+10 pass, 0 fail, 0 skipped, 0 unavailable`. The rows actually executed and
+passed were CV-014, CV-016, CV-022, CV-023, CV-030, CV-031, CV-032, CV-033,
+CV-039, and CV-040. The report includes controlled-boundary-restart evidence
+for every restart-sensitive row; CV-016 observed Accepted then Deduplicated,
+one committed EventRef/history row, and durable state after restart.
+
+The workspace aggregate repeated the same exact live matrix once against the
+separate empty `loom_t23_certification_4efb1d_gate3` database. Its report is
+`target/validator/t23-4efb1d-workspace-pg18-live-gate.json` and independently
+records `gate_passes=true`, trusted PostgreSQL evidence, and `10 total, 10
+pass, 0 fail, 0 skipped, 0 unavailable`.
+
+### AC mapping and Validator/core evidence
+
+- **AC-1 candidate integrity — PASS.** The exact candidate, isolated branch,
+  clean pre-evidence checkout, and old-baseline/current-candidate relationship
+  are recorded above. All certifying evidence targets `4efb1d…`; any HEAD
+  descendant is evidence-only.
+- **AC-2 current T22 checklist — PASS for executable/core evidence.** The
+  exact focused command was
+  `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_certification_4efb1d CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/test.sh -p loom-validator --all-targets -- --test-threads=1`.
+  It executed and passed 165 Validator unit tests; action/ingress 11;
+  agency 5; authority-gate 7; backend-evidence 1; change-feed 7; lifecycle
+  3; T20 live 2; provenance 9; query/catalog 7; replay/fork 4; required-live
+  3; restart-evidence 6; runtime-authority 2; scheduler 8; semantic/blob 11;
+  world-binding 10; and world-time 10. The direct tests for CV-018/CV-019 and
+  CV-034..CV-037 executed, but T22's missing public/controlled capability
+  contract status remains a gap and is not relabeled `ready` here. The
+  auxiliary `query_catalog_causal_fixture` target ran 0 tests and is not
+  evidence.
+- **AC-3 PG18 schema/migration and persistence — PASS.** Against the fresh
+  T23 endpoint, these exact CI commands all passed with zero failures/skips:
+
+  ```text
+  cargo test -p loom-storage --test postgres_schema -- --nocapture (1)
+  cargo test -p loom-storage --test postgres_lifecycle -- --nocapture (4)
+  cargo test -p loom-storage --test postgres_lifecycle postgres_18_template_birth_is_atomic_and_snapshots_binding -- --nocapture (1; 3 filtered)
+  cargo test -p loom-storage --test postgres_vertical -- --nocapture (1)
+  cargo test -p loom-storage --test postgres_read -- --nocapture (1)
+  cargo test -p loom-storage --test postgres_commit -- --nocapture (9)
+  cargo test -p loom-storage --test postgres_work -- --nocapture (12)
+  cargo test -p loom-storage --test postgres_work_stale_completion -- --nocapture (1)
+  cargo test -p loom-storage --test postgres_restart_resume -- --nocapture (1)
+  cargo test -p loom-storage --test postgres_revision -- --nocapture (2)
+  cargo test -p loom-validator --test lifecycle -- --nocapture (3)
+  cargo test -p loom-validator --test replay_fork -- --nocapture (4)
+  ```
+
+  These named CI jobs covered schema/migration, World lifecycle and Template
+  birth/binding, public Runtime/API vertical/read parity, commit/CAS, durable
+  Work and stale fencing, restart/resume, Runtime Revision, and replay/fork.
+- **AC-4 no hidden failures/skips — PASS for the certifying core matrix.**
+  `target/validator/t23-4efb1d-pg18-live-gate.json` preserves all ten row
+  results and zero non-pass outcomes. The separate initial-database
+  `IdempotencyConflict` failure, CLI external-boundary failure, ledger graph
+  failure, and T22 capability gaps are retained below as non-certifying facts.
+- **AC-5 reviewable ledger — PASS.** This append-only section records exact
+  candidate, branch, database endpoint/name, commands, named CI jobs,
+  artifacts/reports, row-level outcomes, failure details, and source scope.
+
+Focused Validator commands were also run separately against the first fresh
+T23 URL, each with `--test-threads=1`, and each passed with zero failures/skips:
+
+```text
+bash tools/test.sh -p loom-validator --test world_binding -- --test-threads=1
+bash tools/test.sh -p loom-validator --test runtime_authority -- --test-threads=1
+bash tools/test.sh -p loom-validator --test action_ingress -- --test-threads=1
+bash tools/test.sh -p loom-validator --test lifecycle -- --test-threads=1
+bash tools/test.sh -p loom-validator --test scheduler -- --test-threads=1
+bash tools/test.sh -p loom-validator --test world_time -- --test-threads=1
+bash tools/test.sh -p loom-validator --test query_catalog -- --test-threads=1
+bash tools/test.sh -p loom-validator --test semantic_blob -- --test-threads=1
+bash tools/test.sh -p loom-validator --test replay_fork -- --test-threads=1
+bash tools/test.sh -p loom-validator --test agency -- --test-threads=1
+bash tools/test.sh -p loom-validator --test change_feed -- --test-threads=1
+bash tools/test.sh -p loom-validator --test provenance -- --test-threads=1
+```
+
+### Static, security, build, client, SSE, CLI and governance evidence
+
+The following exact checks were run on this candidate, with the named CI jobs
+where the repository defines them:
+
+| Check / named job | Exact command | Result |
+| --- | --- | --- |
+| Architecture policy | `python3 tools/check_architecture.py` / `Rust checks / Architecture policy` | PASS: `Loom architecture dependency policy: OK` |
+| Storage SQL ownership | `python3 tools/check_storage_sql_ownership.py` | PASS: `storage SQL ownership check passed` |
+| Compose contracts | `docker compose -f compose.test-db.yaml config --quiet`; `docker compose -f compose.yaml config --quiet` | PASS |
+| Dependency/security policy | `cargo deny check advisories bans licenses sources` / `Rust checks / Dependency and security policy` | PASS: advisories, bans, licenses, sources all ok |
+| Format | `cargo fmt --all -- --check` / `Format` | PASS |
+| Check | `cargo check --workspace --all-targets --all-features` / `Check` | PASS |
+| Strict clippy | `cargo clippy --workspace --all-targets --all-features -- -D warnings` / `Clippy` | PASS |
+| Rustdoc | `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` / `Rustdoc` | PASS |
+| Workspace tests | `LOOM_TEST_POSTGRES_URL=...loom_t23_certification_4efb1d_gate3 LOOM_T20_REPORT_PATH=.../t23-4efb1d-workspace-pg18-live-gate.json CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/test.sh --workspace --all-features` / `Rust checks / Test` | PASS; all executed tests had zero failures/skips; T20 report is trusted 10/10 |
+| Authority regression | `LOOM_TEST_POSTGRES_URL=...loom_t23_certification_4efb1d_gate2 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/validator-authority-gate.sh` / Stage-1 authority regression | PASS; six classes, focused suites, stage-1 ledger, architecture and format checks |
+| READY unit fixtures | `python3 tools/test_validator_ready.py` / `Validator READY fixtures (unit)` | PASS: 3 tests |
+| Stage-1 ledger | `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` | PASS: `valid=true`, 7 records, no violations |
+| Recert ledger governance | `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` / `Validator real ledger governance (real task records)` | FAIL, exit 1: `valid=false`; T19/T20/T21 and T24 dependency eligibility remains blocked in the current graph, details in `target/validator/t23-4efb1d-logs/validator_ready_recert.json` |
+| CLI required-live boundary | `LOOM_TEST_POSTGRES_URL=...loom_t23_certification_4efb1d_gate2 cargo run -q -p loom-validator -- --all --strict --required-live --json target/validator/t23-4efb1d-validator-all-required-live.json` | FAIL, exit 1: external default endpoint `http://127.0.0.1:8080/`; 32 total, 0 pass, 2 fail (CV-023/CV-024 reconnect-only), 17 skipped, 13 unavailable; report preserves all details |
+
+The CLI/client/SSE unit and integration evidence was included in the passing
+workspace and Validator runs: `loom-client` 4 unit tests plus boundary
+compatibility, `loom-api` 7 unit tests, `loom-boundary` 10 unit tests, CLI 4
+unit tests plus 5 integration tests, and composition public workflows. The
+CLI required-live result above is deliberately not upgraded by the ambient PG
+URL: the endpoint remained external and did not provide a controlled server
+restart.
+
+### Final handoff facts
+
+- Final source diff after evidence collection: only
+  `docs/tasks/validator-recert/stage-3/t23-core-integrated-gate.md`.
+- Generated reports/logs under `target/validator/` are ignored and are not
+  source diff. The current candidate remained unchanged while evidence was
+  collected; final `git fetch origin main` and SHA checks reconfirmed
+  `HEAD == origin/main == 4efb1d346c926f2ee10654c3bc24cd92af351881` before
+  ledger editing.
+- The current T22 capability gaps remain explicit: CV-017..CV-019,
+  CV-028..CV-029, and CV-034..CV-037 are not converted from unavailable,
+  placeholder, or historical evidence into certification Pass. The current
+  executable tests for some of these IDs are recorded only as the actual
+  focused-test result; they do not provide the missing public/controlled
+  Validator contract described by T22.
+- Final V0 certification remains unclaimed. Independent Reviewer, CI/merge
+  and FINAL_MERGE_GATE actions are outside Executor scope.
