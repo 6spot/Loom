@@ -35,7 +35,7 @@ does not rewrite unrelated task evidence or architecture history.
 
 The current production candidate under recertification is exactly
 `95f7e7a0233cfa917d0c9656b990fd2af4996874` (the PR #365 merge). The integration
-`main` currently advances at `8031d1df0a6512a651979c60e2e8e7ef31f08139`, which
+`main` currently advances at `bed2dac9947d5c5f92e0d530378f5be712e041a6`, which
 is the rebased PR #368 base; this does not change the production-candidate
 identity for the snapshot. PR #365's required CI run `33150850081` completed
 successfully for both `Rust checks` and `PostgreSQL 18 persistence contract`.

@@ -39,7 +39,7 @@ ledger record is not rewritten by T21.
 
 The current production candidate under recertification is
 `95f7e7a0233cfa917d0c9656b990fd2af4996874`, the PR #365 merge. The integration
-`main` currently advances at `8031d1df0a6512a651979c60e2e8e7ef31f08139`, which
+`main` currently advances at `bed2dac9947d5c5f92e0d530378f5be712e041a6`, which
 is the rebased PR #368 base and does not change the production-candidate
 identity for this recertification snapshot. CV-017's public ingress-recovery
 evidence is present on the candidate, but the Stage-3 certification inputs have
