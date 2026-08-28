@@ -3,7 +3,7 @@
 ## Basis and audit rules
 
 This is the V0 capability manifest for the exact current-main base
-`a4846837979b5da93bd5e193606f4d04a6a32fd5` (T21 merge PR #360). It is a
+`95f7e7a0233cfa917d0c9656b990fd2af4996874` (T11 merge PR #365). It is a
 review artifact, not a certification decision. T25 owns the final V0 decision;
 T21 owns Stage-3 README, roadmap, and index/status reconciliation.
 
@@ -47,7 +47,7 @@ closure recorded by `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md#
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Action mutation produces committed Event, Facet, and History | `runtime-contracts.md` §5, §9; T08 `CV-002`, `CV-015`; T11 | `CV-002`; `apps/loom-validator/tests/lifecycle.rs::cv001_to_cv003_pass_on_real_in_memory`; `CV-015`; `apps/loom-validator/tests/action_ingress.rs::cv015_accepted_action_commits_via_in_memory_server`, `::cv015_accepted_action_commits_via_pg_with_restart_if_available` | `crates/loom-runtime/src/tests.rs::ordered_effects_allow_facet_state_after_same_event_entity_creation`; `::validated_resolution_can_only_result_from_engine_validation` | Contract job `PostgreSQL public Runtime/API vertical parity`; T08 does not mark CV-002/CV-015 T20-required live | CV-002/015 use public history/facet reads; CV-015's PG test includes controlled restart | `bash tools/test.sh -p loom-validator --test action_ingress -- --test-threads=1`; CI `Rust checks / Test` | `ready` — current all-target Validator run passed lifecycle and action/ingress targets | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
 | Durable Ingress idempotency and duplicate suppression | `runtime-contracts.md` §17; Amendment 0001 §6.2; T08 `CV-016`; T11 | `CV-016`; `apps/loom-validator/tests/action_ingress.rs::cv016_via_pg_with_restart_if_available`, `::cv016_durable_idempotency_via_loom_client_with_controlled_pump` | `crates/loom-runtime/src/property_fault_security.rs::property_ingress_idempotency_is_exactly_once_for_same_key_and_fingerprint`; `crates/loom-runtime/src/orchestration.rs::ingress_exact_recovery_rejects_after_event_and_work_mismatch` | **Required:** T20 clean merged gate: PR #359, merge `8761991c36c07b7ee32d2643228bfb458fdeb2d0`, CI run `33065369687`, job `PostgreSQL 18 persistence contract / Validator PostgreSQL 18 live capability matrix gate (VALR-T20)`, command `bash tools/validator-pg18-gate.sh`, artifact `validator-t20-pg18-live-matrix` (ID `9643571750`), report `target/validator/t20-pg18-live-gate.json`; ledger `docs/tasks/validator-recert/stage-2/t20-pg18-live-gate.md` | Clean T20 row proves durable completion and controlled boundary restart | Same exact T20 gate, job, and artifact upload | `ready` — merged clean T20 trusted matrix reports this row `Pass`; a stale-volume local rerun is retained only as a non-certifying environment observation below | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
-| Ingress operational failure is distinct from authoritative history | `runtime-contracts.md` §17; T08 `CV-017`; T11 | `CV-017`; `apps/loom-validator/tests/action_ingress.rs::cv017_blocked_is_unavailable_everywhere`, `::cv017_execute_never_adds_fault_injection_seam` | `crates/loom-runtime/src/orchestration.rs::failed_ingress_session_is_classified_non_resumable` | No — blocked because the public contract has no controlled fault-injection surface | No restart claim can be made for an unavailable failure-injection scenario | `bash tools/test.sh -p loom-validator --test action_ingress -- --test-threads=1`; CI `Rust checks / Test` | `gap` — no public/controlled API can inject or observe `Retryable(IngressTechnicalFailure)`; Validator intentionally returns `Unavailable`, and an Architecture Amendment/public seam is required | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
+| Ingress retryable failure recovers without false authoritative mutation | `runtime-contracts.md` §17; T08 `CV-017`; T11; PR #365 (merge `95f7e7a0233cfa917d0c9656b990fd2af4996874`) | `CV-017`; `apps/loom-validator/tests/action_ingress.rs::cv017_retryable_ingress_recovery_keeps_world_truth_public_in_memory`; `::cv017_public_bookkeeping_and_authority_survive_pg_restart_if_available`. The no-worker descriptor guards `cv017_blocked_is_unavailable_everywhere` and `cv017_execute_never_adds_fault_injection_seam` remain negative boundary checks, not recovery evidence. | `crates/loom-runtime/src/orchestration.rs::failed_ingress_session_is_classified_non_resumable` | No — T08 does not require PG18 live evidence for CV-017; T11's controlled PG18 path is supplementary current public evidence when the explicit test database is available | Public observations cover `Accepted → Retryable(runtime_failure) → Completed(Committed)`; History/Facet remain unchanged before recovery, then show the seed plus one recovery Event and final value `2`. The PG path re-reads terminal status, ordered History, and Facet through a fresh public client after a real `PgServer` boundary restart. | `bash tools/test.sh -p loom-validator --test action_ingress -- --test-threads=1`; CI `Rust checks / Test` | `ready` — T11's merged PR #365 evidence observes the retryable lifecycle through public `LoomClient` status/History/Facet reads, with exactly one recovery `EventRef`; the no-worker `Unavailable` descriptor result is not used as a recovery Pass | Historical only: T08 Complementary Core / M13 Evidence, `19c797d` |
 
 ## 3. Scheduler / durable Work / fencing / restart
 
@@ -126,8 +126,8 @@ closure recorded by `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md#
 
 - Top-level domains: **10**, each present exactly once.
 - Public Validator CV IDs represented exactly once: **CV-001 through CV-040**.
-- `ready`: CV-001, CV-002, CV-003, CV-004, CV-005, CV-006, CV-007, CV-008, CV-009, CV-010, CV-011, CV-012, CV-013, CV-014, CV-015, CV-016, CV-020, CV-021, CV-022, CV-023, CV-024, CV-025, CV-026, CV-027, CV-030, CV-031, CV-032, CV-033, CV-038, CV-039, CV-040 (**31**).
-- `gap`: CV-017, CV-018, CV-019, CV-028, CV-029, CV-034, CV-035, CV-036, CV-037 (**9 capability rows**), plus the aggregate dependency/build-health row (**1 separate aggregate gap**).
+- `ready`: CV-001, CV-002, CV-003, CV-004, CV-005, CV-006, CV-007, CV-008, CV-009, CV-010, CV-011, CV-012, CV-013, CV-014, CV-015, CV-016, CV-017, CV-020, CV-021, CV-022, CV-023, CV-024, CV-025, CV-026, CV-027, CV-030, CV-031, CV-032, CV-033, CV-038, CV-039, CV-040 (**32**).
+- `gap`: CV-018, CV-019, CV-028, CV-029, CV-034, CV-035, CV-036, CV-037 (**8 capability rows**), plus the aggregate dependency/build-health row (**1 separate aggregate gap**).
 - `intentionally non-Validator-covered`: formal client/CLI contract, architecture DAG, and Storage SQL ownership (**3**).
 - The current certification source for all ten T20-required rows is the clean
   merged gate in PR #359, merge SHA `8761991c36c07b7ee32d2643228bfb458fdeb2d0`,
@@ -145,12 +145,29 @@ closure recorded by `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md#
   not override the clean merged CI evidence and is not used to downgrade any
   T20 row or to claim a current certification failure.
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json`
-  returns `valid: false` on this current-main checkout: T19 depends on
-  in-progress T10/T11/T13/T14/T15/T16/T17/T18 records; T20 depends on
-  in-progress T19; and T21 is `in_progress` with dependency `325` not
-  completed. The aggregate health row remains `gap`. The T17 capability gap is
-  tracked separately, and these readiness violations plus the nine capability
-  gaps block final V0 certification.
+  returns `valid: false` on this current-main checkout: T19 remains
+  in-progress with T10/T11/T13/T14/T15/T16/T17/T18 dependencies; T20 depends
+  on in-progress T19; and T21 is `in_progress` with dependency `325` not
+  completed. The aggregate health row remains `gap`; T19's new registry result
+  is not part of this candidate. The T17 capability gap is tracked separately,
+  and these readiness violations plus the eight capability gaps block final V0
+  certification.
+
+### Historical/non-current audit record
+
+The superseded T21 candidate `a4846837979b5da93bd5e193606f4d04a6a32fd5`
+(PR #360) recorded **`31 Pass / 9 Unavailable`**. That result is retained as a
+historical audit record only and is not evidence for this current-main
+manifest. Its CV-017 fault-injection blocker was:
+
+> `gap` — no public/controlled API can inject or observe
+> `Retryable(IngressTechnicalFailure)`; Validator intentionally returns
+> `Unavailable`, and an Architecture Amendment/public seam is required.
+
+The no-worker `Unavailable` descriptor result in that historical candidate is
+not a recovery Pass. The current CV-017 `ready` row above relies only on the
+merged T11 public recovery evidence and does not declare final V0
+certification.
 
 This manifest therefore does not declare final V0 certification. The explicit
 capability gaps and aggregate readiness gap must be resolved or decided by the
