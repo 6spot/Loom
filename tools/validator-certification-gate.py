@@ -19,14 +19,15 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "docs/tasks/validator-recert/stage-3/t22-certification-manifest.md"
+MANIFEST_PATH = "docs/tasks/validator-recert/stage-3/t22-certification-manifest.md"
+MANIFEST_REF = os.environ.get("LOOM_T22_MANIFEST_REF", "origin/main")
 REPORT = Path(
     os.environ.get(
         "LOOM_T24_REPORT_PATH", ROOT / "target/validator/t24-validator-certification-gate.json"
     )
 )
 LOG_DIR = REPORT.parent / "t24-logs"
-EXPECTED_CANDIDATE = "34fc8efa77cf61d8a9261eaec575bbe111615618"
+EXPECTED_CANDIDATE = "4efb1d346c926f2ee10654c3bc24cd92af351881"
 T24_PG_DATABASE = "loom_t24_certification"
 AUTHORIZED_T24_PATHS = frozenset(
     {
@@ -53,6 +54,9 @@ COMPLETED_CV_IDS = [
     "CV-014",
     "CV-015",
     "CV-016",
+    "CV-017",
+    "CV-018",
+    "CV-019",
     "CV-020",
     "CV-021",
     "CV-022",
@@ -65,10 +69,35 @@ COMPLETED_CV_IDS = [
     "CV-031",
     "CV-032",
     "CV-033",
+    "CV-034",
+    "CV-035",
+    "CV-036",
+    "CV-037",
     "CV-038",
     "CV-039",
     "CV-040",
 ]
+
+
+def manifest_text() -> str:
+    """Read the refreshed T22 input without making it a T24 source diff."""
+    try:
+        return subprocess.check_output(
+            ["git", "show", f"{MANIFEST_REF}:{MANIFEST_PATH}"],
+            cwd=ROOT,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            f"unable to read refreshed T22 manifest {MANIFEST_REF}:{MANIFEST_PATH}"
+        ) from error
+
+
+def manifest_identity() -> dict[str, str]:
+    commit = subprocess.check_output(
+        ["git", "rev-parse", MANIFEST_REF], cwd=ROOT, text=True
+    ).strip()
+    return {"ref": MANIFEST_REF, "commit": commit, "path": MANIFEST_PATH}
 
 TEST_TARGETS = {
     "lifecycle": ["bash", "tools/test.sh", "-p", "loom-validator", "--test", "lifecycle", "--", "--test-threads=1"],
@@ -140,7 +169,7 @@ def restart_is_required(requirement: str) -> bool:
 
 def parse_manifest() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    for line in MANIFEST.read_text(encoding="utf-8").splitlines():
+    for line in manifest_text().splitlines():
         if not line.startswith("|"):
             continue
         cells = split_row(line)
@@ -380,7 +409,10 @@ def main() -> int:
     candidate_ok, contract = candidate_contract(evidence_head)
     rows = parse_manifest()
     manifest_ids = sorted({item for row in rows for item in row["cv_ids"]}, key=lambda value: int(value[3:]))
-    expected_ids = sorted(COMPLETED_CV_IDS + [f"CV-{number:03d}" for number in [17, 18, 19, 28, 29, 34, 35, 36, 37]], key=lambda value: int(value[3:]))
+    expected_ids = sorted(
+        COMPLETED_CV_IDS + ["CV-028", "CV-029"],
+        key=lambda value: int(value[3:]),
+    )
     if manifest_ids != expected_ids:
         raise RuntimeError(f"T22 CV set mismatch: expected {expected_ids}, found {manifest_ids}")
     if not candidate_ok:
@@ -390,6 +422,7 @@ def main() -> int:
             "gate": "VALR-T24",
             **contract,
             "candidate_discipline": "fixed production baseline or evidence-only descendant with authorized T24-only diff",
+            "manifest": manifest_identity(),
             "gate_passes": False,
         }
         write_report(report)
@@ -453,6 +486,7 @@ def main() -> int:
         "base_sha": EXPECTED_CANDIDATE,
         "evidence_head": evidence_head,
         "candidate_discipline": "fixed production baseline or evidence-only descendant with authorized T24-only diff",
+        "manifest": manifest_identity(),
         "candidate_contract": contract,
         "race_protocol": "closed",
         "commands": [command_results[name] for name in sorted(command_results)],
