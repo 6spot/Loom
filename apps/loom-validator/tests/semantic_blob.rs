@@ -85,7 +85,7 @@ fn semantic_blob_suite_scaffold_is_non_registering_and_disjoint() {
     let registry = validator_registry();
     assert_eq!(
         registry.len(),
-        31,
+        32,
         "central registry contains T19's implementable scenarios"
     );
     assert!(registry.get("CV-028").is_none());
@@ -114,7 +114,7 @@ fn semantic_blob_suite_scaffold_is_non_registering_and_disjoint() {
 
     // The central registry contains T19's implementable scenarios.
     let after = validator_registry();
-    assert_eq!(after.len(), 31);
+    assert_eq!(after.len(), 32);
 }
 
 #[test]
@@ -342,7 +342,7 @@ fn cv028_cv029_do_not_enlarge_central_registry_even_when_executed() {
         let _ = semantic_blob::execute(&descriptor, &ctx);
     }
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-028").is_none());
     assert!(registry.get("CV-029").is_none());
     assert!(registry.get("CV-030").is_some());
@@ -354,12 +354,12 @@ fn cv028_cv029_do_not_enlarge_central_registry_even_when_executed() {
 fn semantic_blob_register_fence_preserves_only_cv030() {
     let mut isolated = loom_validator::ScenarioRegistry::bootstrap();
     let before = validator_registry().len();
-    assert_eq!(before, 31);
+    assert_eq!(before, 32);
     semantic_blob::register(&mut isolated).expect("register");
     assert_eq!(isolated.len(), 1);
     assert!(isolated.get("CV-030").is_some());
     assert!(isolated.get("CV-028").is_none());
     assert!(isolated.get("CV-029").is_none());
     // Ensure central remains untouched
-    assert_eq!(validator_registry().len(), 31);
+    assert_eq!(validator_registry().len(), 32);
 }

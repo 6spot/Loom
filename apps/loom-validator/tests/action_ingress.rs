@@ -1,8 +1,8 @@
 //! Action Ingress suite integration tests (T11 — CV-015..CV-017).
 //!
 //! Validates public Action path and durable idempotent Ingress semantics via
-//! the formal `loom_api`/`loom_client` surface. No `validator_registry`
-//! registration is performed until T19; this suite remains locally exercised.
+//! the formal `loom_api`/`loom_client` surface. T19 centrally composes the
+//! descriptors after this suite's independent evidence is available.
 //!
 //! - `CV-015`: accepted Action commits Event/Facet/history via `LoomClient`.
 //! - `CV-016`: Ingress idempotency via `IngressService` with polling and, for
@@ -100,13 +100,13 @@ fn action_ingress_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!action_ingress::owns_cv("CV-018"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-015").is_some());
     assert!(registry.get("CV-016").is_some());
-    assert!(registry.get("CV-017").is_none());
+    assert!(registry.get("CV-017").is_some());
     assert!(registry.get("CV-040").is_some());
 
-    // Local descriptors are present but not registered centrally.
+    // The three local descriptors are composed centrally exactly once.
     let descs = action_ingress::descriptors();
     assert_eq!(descs.len(), 3);
     assert!(descs.iter().any(|d| d.id_str() == "CV-015"));

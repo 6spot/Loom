@@ -69,7 +69,7 @@ fn query_catalog_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!query_catalog::owns_cv("CV-028"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-025").is_some());
     assert!(registry.get("CV-040").is_some());
 

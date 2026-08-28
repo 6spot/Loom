@@ -1172,7 +1172,7 @@ mod tests {
     #[test]
     fn local_registry_is_disjoint_from_global() {
         let global = crate::validator_registry();
-        assert_eq!(global.len(), 31);
+        assert_eq!(global.len(), 32);
         assert!(global.get(CV_025).is_some());
         let mut local = crate::registry::ScenarioRegistry::bootstrap();
         register_query_catalog(&mut local).expect("local registration should succeed");
