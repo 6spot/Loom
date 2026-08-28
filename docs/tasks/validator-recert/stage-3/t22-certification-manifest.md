@@ -2,10 +2,14 @@
 
 ## Basis and audit rules
 
-This is the V0 capability manifest for the exact current-main base
-`95f7e7a0233cfa917d0c9656b990fd2af4996874` (T11 merge PR #365). It is a
-review artifact, not a certification decision. T25 owns the final V0 decision;
-T21 owns Stage-3 README, roadmap, and index/status reconciliation.
+The certification candidate SHA for this manifest is
+`95f7e7a0233cfa917d0c9656b990fd2af4996874` (T11 / PR #365 merge), which is
+the current-main production baseline consumed by T23/T24. This document is an
+evidence-only descendant of that candidate and does not change it; this
+document's HEAD and any later docs-only descendants are not production
+candidate SHAs. It is a review artifact, not a certification decision; T25
+owns the final V0 decision, and T21 owns Stage-3 README, roadmap, and
+index/status reconciliation.
 
 The ten headings below are the only top-level domain mapping. Each capability
 appears once. `Validator` means an executable public-consumer scenario and its
