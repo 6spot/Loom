@@ -235,3 +235,31 @@ AC-05 and R-* repair mapping: AC-05 remains satisfied by the ledger-only
 boundary and unchanged central composition; R-01 remains dependency/base
 reconciliation only, with the race protocol closed and no persistence, claim,
 retry, terminal, receipt, fence or checkpoint authority.
+
+## New candidate trace after repair commit (2026-08-28)
+
+After committing the D-001 trace above, the new candidate was read from Git
+before this final append; no SHA or statistic below is inferred:
+
+| Field | Exact fact for new candidate |
+| --- | --- |
+| candidate HEAD after repair commit | `720cac65133bfa9ac7eed8bb6b94e149dc4e3404` |
+| base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 114 insertions(+);` the path above |
+| `git diff --numstat base..HEAD` | `114  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5 [ahead 1]` |
+| `git diff --check` | PASS |
+
+The actual increment from old candidate `76cafdf...` to this repair commit
+was 27 additional lines in the same ledger path. The complete `base..HEAD`
+boundary remained one modified ledger file and no production behavior,
+registry/dispatch, suite, core/runtime/storage/API, T08/T09 or other task
+change. This final append is another ledger-only descendant of the recorded
+candidate; it does not constitute a new production-test PASS. The previously
+recorded PASS/FAIL/non-pass evidence remains unchanged.
+
+AC-05 remains mapped to the single-file ledger-only boundary. R-01 remains
+limited to dependency/base reconciliation; the race protocol is closed and no
+persistence, claim, retry, terminal, receipt, fence or checkpoint authority
+was introduced.
