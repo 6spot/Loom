@@ -6,6 +6,17 @@ Architecture baseline: accepted Amendments 0001–0003 + `docs/architecture/READ
 
 This roadmap supersedes the unmerged historical M4–M13 planning from issues #60–#134 and draft PR #135. Milestones 1–3 remain historically completed and are not rewritten; M4 begins with an explicit reconciliation of their implementation against the current architecture.
 
+## Current-main re-certification boundary
+
+The current implementation candidate is
+`95f7e7a0233cfa917d0c9656b990fd2af4996874`, merged by PR #365. Its CV-017
+public ingress-recovery implementation is current-main evidence, not a final V0
+certificate. The clean PG18 matrix (T20), manifest (T22), core gate (T23), and
+Validator gate (T24) results recorded on earlier candidates remain
+historical/non-current until matching current-main reruns have complete terminal
+evidence. Re-certification remains **pending until T25**; Stage 3 and its root
+checklist stay open.
+
 ## Planning rules
 
 1. Read `docs/architecture/README.md` first and resolve reverse supersession before implementing a task.
