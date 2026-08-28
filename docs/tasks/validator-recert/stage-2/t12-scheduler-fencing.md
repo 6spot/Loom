@@ -1,13 +1,13 @@
 ---
 task: VALR-T12
 issue: 317
-status: in_progress
+status: completed
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-28
+completion_pr: 371
+merge_sha: 2c4bc4be8c2401c6b22598760aa99ff8a970300c
 ---
 
 # VALR-T12 — Validate scheduler logical-head admission + stale-work fencing
@@ -170,6 +170,26 @@ Enabled per Leader standard:
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test scheduler cv018_logical_head_rejection_and_order_on_controlled_postgres18_authority -- --nocapture` — CV-018 enters strict controlled PostgreSQL 18 (PASS).
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test scheduler cv019_stale_fence_rejection_and_single_winner_on_controlled_postgres18_authority -- --nocapture` — CV-019 enters strict controlled PostgreSQL 18 (PASS).
 
+### Post-merge reconciliation (2026-08-28)
+
+- **Merged candidate:** PR [#371](https://github.com/6spot/Loom/pull/371),
+  candidate HEAD `9103b0edf7c71438ed0b347711252072368102db`, candidate
+  parent/base `6f22531a909d0becd1d7b30836168f76cd3d5d33`.
+- **Merge facts:** PR target base was
+  `d05b0217c6f7bb33b3b176708785667f83008a5f`; the merged main commit is
+  `2c4bc4be8c2401c6b22598760aa99ff8a970300c`.
+- **Required CI:** run `33160671051` completed successfully: Rust checks job
+  `98814152132` SUCCESS and PostgreSQL 18 persistence contract job
+  `98814152467` SUCCESS.
+- **Scheduler result:** the merged candidate's scheduler suite recorded `8
+  passed, 0 failed, 0 ignored, 0 filtered out`; CV-018/CV-019 both entered
+  their controlled InMemory and PostgreSQL 18 paths.
+- **Close intent and boundary:** PR #371 used `Closes ME-288` and `Closes
+  #317`; the T12 leaf is merged and this ledger is reconciled. Historical PRs
+  #353/#354, the historical BLOCKED rows, and complementary-only evidence
+  remain preserved above. This does not declare T25, T22, or final V0
+  certification complete.
+
 ### PostgreSQL live path
 
 Controlled `PgServer::start()` is used as the live path where T08 marks supported. The harness auto-connects to `LOOM_TEST_POSTGRES_URL` or the repository-managed `postgresql://loom:loom@127.0.0.1:15432/loom_control` (via `tools/postgres-test.sh up`), then `health`+`migrate`. Evidence class is `postgresql` with trusted `controlled-boundary-restart`. Effective CV-018/CV-019 tests require this path and fail if it is unavailable; only the legacy CV-020 test reports `Unavailable`/`Prerequisite` instead of `Pass`.
@@ -202,3 +222,11 @@ If deterministic public validation would require introducing a new Scheduler aut
 - Corrected the lifecycle metadata to remain `in_progress`; `completed_at`, `completion_pr`, and `merge_sha` remain empty until the work is actually accepted and merged.
 - Post-merge completion audit: PR #353 was merged as `33efd0c865515d6a9437bbc08d0e22648de43373`; acceptance checklist and completion metadata were finalized on this follow-up audit branch.
 - Effective amendment (2026-08-28): current Leaf returned to `in_progress`; old PR #353 / merge `33efd0c865515d6a9437bbc08d0e22648de43373` and prior blocked CV-018/CV-019 disposition are historical only. This candidate adds strict controlled InMemory and PostgreSQL 18 harness evidence while preserving production API and Scheduler semantics.
+- Post-merge reconciliation (2026-08-28): PR #371 merged at
+  `2c4bc4be8c2401c6b22598760aa99ff8a970300c`; candidate
+  `9103b0edf7c71438ed0b347711252072368102db` was based on
+  `6f22531a909d0becd1d7b30836168f76cd3d5d33`, target base was
+  `d05b0217c6f7bb33b3b176708785667f83008a5f`, and required CI run
+  `33160671051` (jobs `98814152132` and `98814152467`) was SUCCESS. `Closes
+  ME-288` / `Closes #317` close intent was used; no T25/T22/final V0
+  certification claim is made.
