@@ -1,18 +1,35 @@
 //! Semantic Blob + pinned-read suite (T15) executed against real Loom service boundaries.
 //!
-//! - `InMemory`: `CV-030` passes via real `InMemory`-backed Loom HTTP service.
-//! - `PostgreSQL`: `CV-030` passes via real `PostgreSQL`-backed Loom HTTP service
-//!   (live, not mocked). `CV-028`/`CV-029` are explicit public-surface gaps and
-//!   remain `Unavailable` on every backend; they are never `Pass` and are not
-//!   registered into the central `validator_registry`.
-//! - Negative: blocked gaps cite gap evidence and never use internal
-//!   `loom-storage`/`loom-runtime` tables.
+//! - `CV-028`: a test-only Runtime-owned projection fixture drives
+//!   register/query/rebuild/delete while public History/Facet/Timeline reads
+//!   prove that the derived materialization can be rebuilt without changing
+//!   World Truth.
+//! - `CV-029`: a concrete `BlobStore` fixture produces a `BlobRef`, then exercises
+//!   typed missing/corrupt reads while public Facet/History reads remain stable.
+//! - `CV-030`: pinned reads pass via real `InMemory` and `PostgreSQL` HTTP services.
+//!
+//! Internal derived results are auxiliary only; no SQL/table read is an
+//! acceptance assertion.
 
 mod common;
 
 use std::sync::Arc;
 
+use loom_api::{
+    ActionInvocation, ActionRequest, ActionService, ActionTypeId, CreateWorldFromTemplateRequest,
+    EventQuery, FacetOwner, FacetQuery, FacetTypeId, HistoryService, QueryService, TimelineService,
+    WorldInstant, WorldService, WorldTemplateDescriptor,
+};
+use loom_capability::{SemanticIndexId, SemanticIndexMetric, SemanticIndexSource};
 use loom_client::LoomClient;
+use loom_core::SchemaRevision;
+use loom_runtime::{
+    BlobError, BlobStore, PlatformTime, Runtime, RuntimeRevisionCapability,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, RuntimeRevisionStore, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionRow,
+};
+use loom_storage::{InMemoryBlobStore, InMemoryStore, PgStorage};
 use loom_validator::{
     BackendContext, BackendKind, ScenarioDescriptor, ScenarioResult, semantic_blob,
     validator_registry,
@@ -66,6 +83,502 @@ fn assert_unavailable(result: &ScenarioResult, id: &str) {
 
 fn unique_scope(prefix: &str) -> String {
     format!("{}-{}-{}", prefix, Uuid::new_v4(), "t15")
+}
+
+fn validator_revision(registry: &loom_capability::CapabilityRegistry) -> RuntimeRevisionDescriptor {
+    RuntimeRevisionDescriptor::new(
+        RuntimeRevisionId::from("validator-t15-explicit-v0"),
+        PlatformTime::default(),
+        "validator-t15-test-build",
+        registry.loom_version().clone(),
+        registry.capabilities().map(|manifest| {
+            RuntimeRevisionCapability::from_manifest(
+                manifest,
+                format!("validator-t15:{}@{}", manifest.id, manifest.version),
+            )
+        }),
+    )
+    .expect("T15 validator revision should be valid")
+}
+
+fn start_t15_in_memory_runtime() -> (
+    Arc<Runtime<&'static InMemoryStore>>,
+    LoomClient,
+    tokio::task::JoinHandle<()>,
+    InMemoryBlobStore,
+) {
+    use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
+    use loom_neutral::registry as neutral_registry;
+
+    let store: &'static InMemoryStore = Box::leak(Box::new(InMemoryStore::new()));
+    let registry = neutral_registry();
+    registry
+        .validate()
+        .expect("neutral registry should validate");
+    let revision = validator_revision(&registry);
+    store
+        .confirm_revision(revision.clone())
+        .expect("T15 InMemory revision should confirm");
+    let active = store
+        .read_active_revision()
+        .expect("T15 InMemory active revision should read");
+    if active
+        .as_ref()
+        .is_none_or(|selection| selection.revision().id() != revision.id())
+    {
+        store
+            .activate_revision(
+                revision.id().clone(),
+                active
+                    .as_ref()
+                    .map(loom_runtime::RuntimeRevisionSelection::generation),
+                PlatformTime::default(),
+            )
+            .expect("T15 InMemory revision should activate");
+    }
+
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("T15 Runtime"));
+    let router = router_with_admin(
+        runtime.clone(),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let (client, server) = common::leaked_runtime().block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("T15 InMemory listener");
+        let address = listener.local_addr().expect("T15 InMemory address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("T15 InMemory server");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let client = LoomClient::builder(format!("http://{address}"))
+            .admin_token("validator-test-admin")
+            .expect("T15 client builder")
+            .build()
+            .expect("T15 client");
+        (client, server)
+    });
+    (runtime, client, server, InMemoryBlobStore::new())
+}
+
+fn start_t15_postgres_runtime() -> (
+    Arc<Runtime<PgStorage>>,
+    LoomClient,
+    tokio::task::JoinHandle<()>,
+    InMemoryBlobStore,
+    common::PgServer,
+) {
+    use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
+    use loom_neutral::registry as neutral_registry;
+
+    // PgServer owns the repository-managed PostgreSQL 18 startup contract.
+    // The T15 Runtime below is a second public boundary over the same control
+    // database, with unique World IDs and no direct SQL assertions.
+    let (bootstrap, _) = PgServer::start().expect("T15 PostgreSQL service should start");
+    let url = std::env::var("LOOM_TEST_POSTGRES_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "postgresql://loom:loom@127.0.0.1:15432/loom_control".to_owned());
+    let store = common::leaked_runtime().block_on(async {
+        let store = PgStorage::connect(&url)
+            .await
+            .expect("T15 PostgreSQL storage should connect");
+        store.health().await.expect("T15 PostgreSQL health");
+        store.migrate().await.expect("T15 PostgreSQL migrations");
+        let registry = neutral_registry();
+        registry
+            .validate()
+            .expect("neutral registry should validate");
+        let revision = validator_revision(&registry);
+        RuntimeRevisionStore::confirm_revision(&store, revision.clone())
+            .await
+            .expect("T15 PostgreSQL revision should confirm");
+        let active = RuntimeRevisionStore::read_active_revision(&store)
+            .await
+            .expect("T15 PostgreSQL active revision should read");
+        if active
+            .as_ref()
+            .is_none_or(|selection| selection.revision().id() != revision.id())
+        {
+            RuntimeRevisionStore::activate_revision(
+                &store,
+                revision.id().clone(),
+                active
+                    .as_ref()
+                    .map(loom_runtime::RuntimeRevisionSelection::generation),
+                PlatformTime::default(),
+            )
+            .await
+            .expect("T15 PostgreSQL revision should activate");
+        }
+        store
+    });
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("T15 Runtime"));
+    let router = router_with_admin(
+        runtime.clone(),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let (client, server) = common::leaked_runtime().block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("T15 PostgreSQL listener");
+        let address = listener.local_addr().expect("T15 PostgreSQL address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("T15 PostgreSQL server");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let client = LoomClient::builder(format!("http://{address}"))
+            .admin_token("validator-test-admin")
+            .expect("T15 client builder")
+            .build()
+            .expect("T15 client");
+        (client, server)
+    });
+    (runtime, client, server, InMemoryBlobStore::new(), bootstrap)
+}
+
+macro_rules! run_cv028_projection_case {
+    ($runtime:expr, $client:expr) => {{
+        let runtime = $runtime;
+        let client = $client;
+        common::leaked_runtime().block_on(async move {
+            let target = client
+                .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                    WorldTemplateDescriptor::new(
+                        format!("validator.t15.cv028.{}", Uuid::new_v4()),
+                        1,
+                        WorldInstant::new(42),
+                    )
+                    .requires_capability("neutral.counter", "^0.1.0"),
+                ))
+                .await
+                .expect("CV-028 world creation")
+                .target;
+            let entity_id = loom_api::EntityId::new(Uuid::new_v4());
+            let event_id = loom_api::EventId::new(Uuid::new_v4());
+            let seed = client
+                .invoke(ActionRequest::new(
+                    target,
+                    ActionInvocation::new(
+                        ActionTypeId::from("neutral.counter.seed"),
+                        serde_json::json!({
+                            "event_id": event_id.to_string(),
+                            "entity_id": entity_id.to_string(),
+                            "value": 3,
+                        }),
+                    ),
+                ))
+                .await
+                .expect("CV-028 seed action");
+            assert!(
+                matches!(seed, loom_api::ExecutionResult::Committed { .. }),
+                "CV-028 seed should commit: {seed:?}"
+            );
+
+            // These are the only authority observations: all projection
+            // operations below are test-only driver activity.
+            let history_before = client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("CV-028 history before projection");
+            let facet_before = client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("CV-028 facet before projection");
+            let timeline_before = client
+                .inspect_timeline(target)
+                .await
+                .expect("CV-028 timeline before projection");
+            assert_eq!(history_before.len(), 1);
+            assert_eq!(
+                facet_before
+                    .as_ref()
+                    .and_then(|facet| facet.value.get("value"))
+                    .and_then(serde_json::Value::as_i64),
+                Some(3)
+            );
+
+            let registration = SemanticProjectionRegistration::new(
+                SemanticProjectionKey::new(
+                    target.world_id,
+                    target.timeline_id,
+                    SemanticIndexId::new("neutral.counter.semantic"),
+                ),
+                SemanticIndexSource::new(
+                    "facet",
+                    "neutral.counter.value",
+                    SchemaRevision::new(1),
+                ),
+                SchemaRevision::new(1),
+                1,
+                "neutral-model-1",
+                2,
+                SemanticIndexMetric::Cosine,
+            )
+            .expect("CV-028 projection registration");
+            runtime
+                .register_semantic_projection(registration.clone())
+                .await
+                .expect("CV-028 Runtime projection registration");
+            let rebuild = SemanticProjectionRebuild::new(
+                registration.clone(),
+                Some(1),
+                vec![
+                    SemanticProjectionRow::new(
+                        history_before[0].event_ref(),
+                        "cv028-counter-seed",
+                        timeline_before.version,
+                        1,
+                        "neutral-model-1",
+                        vec![3.0, 0.0],
+                    )
+                    .expect("CV-028 projection row"),
+                ],
+            )
+            .expect("CV-028 rebuild request");
+            runtime
+                .rebuild_semantic_projection(&rebuild)
+                .await
+                .expect("CV-028 projection rebuild");
+            let query = SemanticProjectionQuery::new(
+                registration.key.clone(),
+                SchemaRevision::new(1),
+                1,
+                "neutral-model-1",
+                vec![3.0, 0.0],
+                1,
+            )
+            .expect("CV-028 projection query");
+            let first_hits = runtime
+                .query_semantic_projection(query.clone())
+                .await
+                .expect("CV-028 projection query after rebuild");
+            assert_eq!(first_hits.len(), 1);
+            assert_eq!(first_hits[0].source_ref, history_before[0].event_ref());
+
+            runtime
+                .delete_semantic_projection(registration.key.clone())
+                .await
+                .expect("CV-028 projection delete");
+            let history_after_delete = client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("CV-028 history after projection delete");
+            let facet_after_delete = client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("CV-028 facet after projection delete");
+            let timeline_after_delete = client
+                .inspect_timeline(target)
+                .await
+                .expect("CV-028 timeline after projection delete");
+            assert_eq!(history_after_delete, history_before);
+            assert_eq!(facet_after_delete, facet_before);
+            assert_eq!(timeline_after_delete.version, timeline_before.version);
+            assert_eq!(timeline_after_delete.world_time, timeline_before.world_time);
+
+            // Re-register/rebuild the derived rows, then repeat the public
+            // authority reads. The hit is auxiliary evidence only.
+            runtime
+                .register_semantic_projection(registration.clone())
+                .await
+                .expect("CV-028 projection re-registration");
+            runtime
+                .rebuild_semantic_projection(&rebuild)
+                .await
+                .expect("CV-028 projection rebuild after delete");
+            let second_hits = runtime
+                .query_semantic_projection(query)
+                .await
+                .expect("CV-028 projection query after rebuild");
+            assert_eq!(second_hits.len(), 1);
+            assert_eq!(second_hits[0].source_ref, history_before[0].event_ref());
+            assert_eq!(
+                client
+                    .list_events(EventQuery::all(target))
+                    .await
+                    .expect("CV-028 final public history"),
+                history_before
+            );
+            assert_eq!(
+                client
+                    .get_facet(FacetQuery::new(
+                        target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.counter.value"),
+                    ))
+                    .await
+                    .expect("CV-028 final public facet"),
+                facet_before
+            );
+            let timeline_after_rebuild = client
+                .inspect_timeline(target)
+                .await
+                .expect("CV-028 final public timeline");
+            assert_eq!(timeline_after_rebuild.version, timeline_before.version);
+            assert_eq!(timeline_after_rebuild.world_time, timeline_before.world_time);
+        });
+    }};
+}
+
+macro_rules! run_cv029_blob_case {
+    ($runtime:expr, $client:expr, $blobs:expr) => {{
+        let _runtime = $runtime;
+        let client = $client;
+        let blobs = $blobs;
+        common::leaked_runtime().block_on(async move {
+            let target = client
+                .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                    WorldTemplateDescriptor::new(
+                        format!("validator.t15.cv029.{}", Uuid::new_v4()),
+                        1,
+                        WorldInstant::new(42),
+                    )
+                    .requires_capability("neutral.counter", "^0.1.0"),
+                ))
+                .await
+                .expect("CV-029 world creation")
+                .target;
+            let entity_id = loom_api::EntityId::new(Uuid::new_v4());
+            let seed_event_id = loom_api::EventId::new(Uuid::new_v4());
+            client
+                .invoke(ActionRequest::new(
+                    target,
+                    ActionInvocation::new(
+                        ActionTypeId::from("neutral.counter.seed"),
+                        serde_json::json!({
+                            "event_id": seed_event_id.to_string(),
+                            "entity_id": entity_id.to_string(),
+                            "value": 1,
+                        }),
+                    ),
+                ))
+                .await
+                .expect("CV-029 seed action");
+
+            let reference = blobs
+                .put(b"cv029 immutable body", Some("text/plain"))
+                .await
+                .expect("CV-029 BlobRef creation");
+            assert!(reference.is_consistent());
+            assert_eq!(
+                blobs
+                    .read(&reference)
+                    .await
+                    .expect("CV-029 blob read before fault")
+                    .bytes(),
+                b"cv029 immutable body"
+            );
+            let attach_event_id = loom_api::EventId::new(Uuid::new_v4());
+            client
+                .invoke(ActionRequest::new(
+                    target,
+                    ActionInvocation::new(
+                        ActionTypeId::from("neutral.blob.attach"),
+                        serde_json::json!({
+                            "event_id": attach_event_id.to_string(),
+                            "entity_id": entity_id.to_string(),
+                            "hash": reference.id.to_string(),
+                            "media_type": "text/plain",
+                        }),
+                    ),
+                ))
+                .await
+                .expect("CV-029 blob attach action");
+
+            // Facet and History are the authority observations surrounding
+            // adapter-only missing/corrupt reads.
+            let history_before = client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("CV-029 history before blob fault");
+            let facet_before = client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.blob.reference"),
+                ))
+                .await
+                .expect("CV-029 blob facet before fault")
+                .expect("CV-029 blob facet should exist");
+            assert_eq!(
+                facet_before.value.get("hash").and_then(serde_json::Value::as_str),
+                Some(reference.id.to_string().as_str())
+            );
+
+            blobs
+                .delete(&reference)
+                .expect("CV-029 blob delete fault injection");
+            assert!(matches!(
+                blobs.read(&reference).await,
+                Err(BlobError::NotFound { .. })
+            ));
+            assert_eq!(
+                client
+                    .list_events(EventQuery::all(target))
+                    .await
+                    .expect("CV-029 history after missing blob"),
+                history_before
+            );
+            assert_eq!(
+                client
+                    .get_facet(FacetQuery::new(
+                        target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.blob.reference"),
+                    ))
+                    .await
+                    .expect("CV-029 facet after missing blob")
+                    .expect("CV-029 blob facet after missing blob"),
+                facet_before
+            );
+
+            let corrupt_reference = blobs
+                .put(b"cv029 corrupt body", Some("text/plain"))
+                .await
+                .expect("CV-029 corrupt BlobRef creation");
+            blobs
+                .corrupt(&corrupt_reference, b"cv029 corrupt bodx".to_vec())
+                .expect("CV-029 blob corruption fault injection");
+            assert!(matches!(
+                blobs.read(&corrupt_reference).await,
+                Err(BlobError::HashMismatch { .. })
+            ));
+            assert_eq!(
+                client
+                    .list_events(EventQuery::all(target))
+                    .await
+                    .expect("CV-029 history after corrupt blob"),
+                history_before
+            );
+            assert_eq!(
+                client
+                    .get_facet(FacetQuery::new(
+                        target,
+                        FacetOwner::entity(entity_id),
+                        FacetTypeId::from("neutral.blob.reference"),
+                    ))
+                    .await
+                    .expect("CV-029 facet after corrupt blob")
+                    .expect("CV-029 blob facet after corrupt blob"),
+                facet_before
+            );
+        });
+    }};
 }
 
 // ── Scaffold / registry fence ───────────────────────────────────────────────
@@ -274,6 +787,36 @@ fn cv030_pinned_read_pass_on_live_postgres() {
         result.finding().backend().as_str() == "postgresql",
         "CV-030 PG should be postgresql evidence"
     );
+}
+
+// ── CV-028/CV-029 controlled Runtime/Storage fixtures ──────────────────────
+
+#[test]
+fn cv028_projection_rebuild_delete_preserves_public_world_truth_in_memory() {
+    let (runtime, client, server, _blobs) = start_t15_in_memory_runtime();
+    let _keep = server;
+    run_cv028_projection_case!(runtime, client);
+}
+
+#[test]
+fn cv028_projection_rebuild_delete_preserves_public_world_truth_on_pg18() {
+    let (runtime, client, server, _blobs, _bootstrap) = start_t15_postgres_runtime();
+    let _keep = server;
+    run_cv028_projection_case!(runtime, client);
+}
+
+#[test]
+fn cv029_blob_failures_preserve_public_facet_and_history_in_memory() {
+    let (runtime, client, server, blobs) = start_t15_in_memory_runtime();
+    let _keep = server;
+    run_cv029_blob_case!(runtime, client, blobs);
+}
+
+#[test]
+fn cv029_blob_failures_preserve_public_facet_and_history_on_pg18() {
+    let (runtime, client, server, blobs, _bootstrap) = start_t15_postgres_runtime();
+    let _keep = server;
+    run_cv029_blob_case!(runtime, client, blobs);
 }
 
 // ── Blocked gaps ─────────────────────────────────────────────────────────────

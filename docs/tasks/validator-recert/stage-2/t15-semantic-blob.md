@@ -127,3 +127,36 @@ If existing public `loom-api` cannot express required pinned/semantic read witho
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → 7 passed; CV-030 controlled PostgreSQL restart/reconnect evidence passed.
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --all-targets` → all targets passed, including 154 unit tests and all live integration suites.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check` → passed.
+
+## Remediation Audit — CV-028/CV-029 (2026-08-28)
+
+This append-only record applies the T08 correction audit from the current
+baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874`: a test-only
+Runtime/Storage driver is permitted, while acceptance authority remains the
+formal `LoomClient` History/Facet/Timeline read surface. The previous
+pre-policy blocked wording above is retained as historical evidence.
+
+- `CV-028` → `apps/loom-validator/tests/semantic_blob.rs` now composes a real
+  Runtime over `InMemoryStore` and `PgStorage`. It drives the existing
+  Runtime-owned `SemanticProjectionStore` through `register`, `query`,
+  `rebuild`, `delete`, re-register and rebuild. Public `HistoryService`,
+  `QueryService` Facet, and `TimelineService` reads before/after deletion and
+  rebuild remain byte-for-byte/equivalent in their authoritative Event/Facet
+  values and Timeline version/time; projection hits are auxiliary evidence.
+- `CV-029` → the same controlled public HTTP composition uses the concrete
+  `InMemoryBlobStore` to produce a `BlobRef`, verifies a successful read, then
+  simulates missing (`BlobError::NotFound`) and corrupt (`BlobError::HashMismatch`)
+  bodies. Public `QueryService` Blob Facet and `HistoryService` reads remain
+  unchanged after both typed adapter errors. No BlobService, semantic
+  authority, SQL/table read, or production contract was added.
+- Controlled evidence is present for both InMemory and real PostgreSQL 18
+  Runtime/Storage backends. PostgreSQL is not a mandatory durability class for
+  CV-028/CV-029 under the corrected T08 policy, but the PG18 path is executed
+  and recorded here for backend parity. CV-030's existing pinned-read path is
+  unchanged.
+
+### Remediation verification
+
+- `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including InMemory and repository-default PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including explicit PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --all-targets` → FAIL in unrelated `authority_gate` report-writing cases because the shared filesystem reached `No space left on device`; the T15 semantic/blob tests had not failed. The executor-local `target/` was then cleaned and the targeted evidence above was rerun on the candidate.
