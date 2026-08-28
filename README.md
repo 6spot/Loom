@@ -171,6 +171,16 @@ Loom
 
 **Current-main certification:** The historical M13 candidate and closure records below remain preserved audit evidence. Current-main V0 re-certification is in progress and remains **pending until T25**; the repository must not be described as V0 re-certified or as having a complete recertification root before that final gate.
 
+**Current-main evidence snapshot (2026-08-28):** The current implementation
+candidate is `95f7e7a0233cfa917d0c9656b990fd2af4996874`, the merge of PR #365
+(CV-017 public ingress-recovery evidence). This establishes current-main CV-017
+implementation evidence, but is not a V0 certification. The clean T20 PG18
+matrix, T22 manifest, T23 core gate, and T24 Validator gate recorded on older
+candidates remain historical/non-current until their current-main reruns produce
+complete terminal evidence; T25 remains the final certification gate. See the
+[current-main recertification ledger](docs/tasks/validator-recert/README.md) for
+the exact PR, CI, candidate, and pending-state snapshot.
+
 **Historical M12/M13 delivery evidence (preserved):**
 
 - `#198` `loom-cli` — completed (post-#276 baseline, `apps/loom-cli` over `loom-client`/`loom-api` only)
