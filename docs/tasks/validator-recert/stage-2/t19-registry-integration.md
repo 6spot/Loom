@@ -208,3 +208,30 @@ registry readiness:
 The race protocol remains closed. R-01 is limited to dependency/base
 reconciliation; no persistence, claim, retry, terminal, receipt, fence or
 checkpoint authority was introduced.
+
+## D-001 candidate traceability repair (2026-08-28)
+
+This append-only repair preserves the previously reported validation and
+reconciliation semantics. It binds the previously reviewed candidate to the
+exact Git object and records the complete Git boundary facts that were missing
+from the earlier handoff:
+
+| Field | Exact fact for old candidate |
+| --- | --- |
+| candidate HEAD | `76cafdf9484b2074a7f88fa1d1c31cfa24b9c864` |
+| base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 87 insertions(+);` the path above |
+| `git diff --numstat base..HEAD` | `87  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5` |
+| `git diff --check` | PASS |
+
+The old candidate's complete `base..HEAD` diff therefore consisted solely of
+the 87-line append-only T19 ledger increment already present in this file; no
+production, suite, registry/dispatch, core/runtime/storage/API, T08/T09 or
+other task file was part of that boundary.
+
+AC-05 and R-* repair mapping: AC-05 remains satisfied by the ledger-only
+boundary and unchanged central composition; R-01 remains dependency/base
+reconciliation only, with the race protocol closed and no persistence, claim,
+retry, terminal, receipt, fence or checkpoint authority.
