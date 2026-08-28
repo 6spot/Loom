@@ -75,8 +75,9 @@ fresh World with no counter Facet causes the existing Runtime resolver failure
 to be recorded as `Retryable(IngressTechnicalFailure)`. The controlled test
 then reads `ingress_status`, `list_events`, and `get_facet` publicly to prove
 that Retryable did not create World truth; it uses a public seed Action to make
-the normal retry recover, and reads `Completed(Committed)`, one recovery
-EventRef, ordered history, and the final Facet publicly.
+the normal retry recover. The pump return value is ignored; the formal client
+reads `Completed(Committed)` and its `event_refs`, requiring exactly one
+recovery EventRef, ordered history, and the final Facet publicly.
 
 `tests/action_ingress.rs::cv017_retryable_ingress_recovery_keeps_world_truth_public_in_memory`
 executes this path on the controlled InMemory boundary. Runtime is used only

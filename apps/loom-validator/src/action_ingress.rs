@@ -1035,6 +1035,17 @@ fn cv017(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioR
                 events_after_retry.len()
             ));
         }
+        let facet_after_retry = client
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .map_err(|e| format!("get_facet after Retryable failed: {e:?} - {}", e.message))?;
+        if facet_after_retry.is_some() {
+            return Err("Retryable changed World Facet".to_string());
+        }
 
         let seed = client
             .invoke(ActionRequest::new(

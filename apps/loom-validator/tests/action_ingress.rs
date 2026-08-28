@@ -628,7 +628,7 @@ fn cv017_retryable_ingress_recovery_keeps_world_truth_public_in_memory() {
             .expect("seed recovery prerequisite");
         assert!(matches!(seed, loom_api::ExecutionResult::Committed { .. }));
 
-        let recovered = runtime
+        runtime
             .process_ingress(
                 ingress_id.clone(),
                 PlatformTime::new(0),
@@ -637,20 +637,17 @@ fn cv017_retryable_ingress_recovery_keeps_world_truth_public_in_memory() {
             )
             .await
             .expect("retry recovery");
-        let event_refs = match recovered {
-            IngressCompletion::Committed { event_refs, .. } => event_refs,
-            other => panic!("expected recovered Committed, got {other:?}"),
-        };
-        assert_eq!(event_refs.len(), 1);
 
         let terminal = client
             .ingress_status(ingress_id)
             .await
             .expect("terminal status");
-        assert!(matches!(
-            terminal.status,
-            IngressStatus::Completed(IngressCompletion::Committed { .. })
-        ));
+        let terminal_refs = match terminal.status {
+            IngressStatus::Completed(IngressCompletion::Committed { event_refs, .. }) => event_refs,
+            other => panic!("expected terminal Completed(Committed), got {other:?}"),
+        };
+        assert_eq!(terminal_refs.len(), 1);
+        assert_eq!(terminal_refs[0].event_id, retry_event_id);
         let events = client
             .list_events(EventQuery::all(target))
             .await
