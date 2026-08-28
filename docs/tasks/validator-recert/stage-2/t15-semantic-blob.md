@@ -160,3 +160,16 @@ pre-policy blocked wording above is retained as historical evidence.
 - `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including InMemory and repository-default PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS, 11 tests, including explicit PG18 CV-028/CV-029 fixtures and existing CV-030 coverage.
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --all-targets` → FAIL in unrelated `authority_gate` report-writing cases because the shared filesystem reached `No space left on device`; the T15 semantic/blob tests had not failed. The executor-local `target/` was then cleaned and the targeted evidence above was rerun on the candidate.
+
+## D-004 Rebase Verification — 2026-08-28
+
+The candidate was rebuilt from the fetched `origin/main` at
+`78781ba55f6fa5c21c377ff1d356be03a1742e72`; the prior exact-head evidence was
+not reused. The rebased candidate before this append was
+`5f5cf1ec61ee1a33792d228d6bc45bf2f7f55af8`; the final documentation-only
+follow-up commit contains the same test implementation and records the final
+HEAD in the delivery comment.
+
+- Default repository PG18: `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- Explicit PG18: `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test semantic_blob -- --nocapture` → 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` → passed on the rebased candidate.
