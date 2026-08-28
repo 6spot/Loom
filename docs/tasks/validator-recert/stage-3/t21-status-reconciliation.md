@@ -33,11 +33,14 @@ does not rewrite unrelated task evidence or architecture history.
 
 ## Current candidate and gate snapshot
 
-The current checkout is exactly `95f7e7a0233cfa917d0c9656b990fd2af4996874`
-(`origin/main`, PR #365 merge). PR #365's required CI run `33150850081`
-completed successfully for both `Rust checks` and `PostgreSQL 18 persistence
-contract`. The merged CV-017 implementation and its public recovery tests are
-current-main evidence; they do not constitute the final V0 certificate.
+The current production candidate under recertification is exactly
+`95f7e7a0233cfa917d0c9656b990fd2af4996874` (the PR #365 merge). The integration
+`main` currently advances at `8031d1df0a6512a651979c60e2e8e7ef31f08139`, which
+is the rebased PR #368 base; this does not change the production-candidate
+identity for the snapshot. PR #365's required CI run `33150850081` completed
+successfully for both `Rust checks` and `PostgreSQL 18 persistence contract`.
+The merged CV-017 implementation and its public recovery tests are current-main
+evidence; they do not constitute the final V0 certificate.
 
 | Task | Current status and exact linked-PR state | Current-main evidence disposition |
 | --- | --- | --- |

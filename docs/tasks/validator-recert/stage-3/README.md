@@ -37,9 +37,13 @@ ledger record is not rewritten by T21.
 
 ## Current-main candidate snapshot
 
-Current main is `95f7e7a0233cfa917d0c9656b990fd2af4996874`, the PR #365 merge.
-CV-017's public ingress-recovery evidence is present on this candidate, but the
-Stage-3 certification inputs have not converged on it. T20 has no fresh
+The current production candidate under recertification is
+`95f7e7a0233cfa917d0c9656b990fd2af4996874`, the PR #365 merge. The integration
+`main` currently advances at `8031d1df0a6512a651979c60e2e8e7ef31f08139`, which
+is the rebased PR #368 base and does not change the production-candidate
+identity for this recertification snapshot. CV-017's public ingress-recovery
+evidence is present on the candidate, but the Stage-3 certification inputs have
+not converged on it. T20 has no fresh
 terminal rerun recorded. T22's refresh is merged by PR #366 at
 `7cd6844ff3459b5dad200a2807c452ad70195efc` (base
 `95f7e7a0233cfa917d0c9656b990fd2af4996874`, head
