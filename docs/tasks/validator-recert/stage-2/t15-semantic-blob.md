@@ -186,3 +186,14 @@ Executor handoff comment.
 
 - Default repository PG18 and explicit PG18 T15 suites each ran 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out on the final implementation.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the final implementation.
+
+## D-004 Latest-main Rebase — 2026-08-28
+
+After the prior verification, `origin/main` advanced again. The candidate was
+rebased from the freshly fetched base
+`2c4bc4be8c2401c6b22598760aa99ff8a970300c`; the previous exact-head evidence
+was invalidated and the T15 suite was rerun on the rebased candidate. The
+final HEAD is recorded in the Executor handoff comment.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- fmt, check, clippy, architecture, storage ownership, and diff check all passed on this latest-main candidate.
