@@ -13,7 +13,7 @@
 
 mod common;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
 use loom_api::{
     ActionInvocation, ActionRequest, ActionService, ActionTypeId, CreateWorldFromTemplateRequest,
@@ -84,6 +84,24 @@ fn assert_unavailable(result: &ScenarioResult, id: &str) {
 fn unique_scope(prefix: &str) -> String {
     format!("{}-{}-{}", prefix, Uuid::new_v4(), "t15")
 }
+
+static POSTGRES_REVISION_STATE_GUARD: OnceLock<StdMutex<()>> = OnceLock::new();
+
+fn postgres_revision_state_guard() -> std::sync::MutexGuard<'static, ()> {
+    POSTGRES_REVISION_STATE_GUARD
+        .get_or_init(|| StdMutex::new(()))
+        .lock()
+        .expect("T15 PostgreSQL revision-state guard should not be poisoned")
+}
+
+type PostgresRuntimeFixture = (
+    Arc<Runtime<PgStorage>>,
+    LoomClient,
+    tokio::task::JoinHandle<()>,
+    InMemoryBlobStore,
+    common::PgServer,
+    std::sync::MutexGuard<'static, ()>,
+);
 
 fn validator_revision(registry: &loom_capability::CapabilityRegistry) -> RuntimeRevisionDescriptor {
     RuntimeRevisionDescriptor::new(
@@ -164,16 +182,11 @@ fn start_t15_in_memory_runtime() -> (
     (runtime, client, server, InMemoryBlobStore::new())
 }
 
-fn start_t15_postgres_runtime() -> (
-    Arc<Runtime<PgStorage>>,
-    LoomClient,
-    tokio::task::JoinHandle<()>,
-    InMemoryBlobStore,
-    common::PgServer,
-) {
+fn start_t15_postgres_runtime() -> PostgresRuntimeFixture {
     use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
     use loom_neutral::registry as neutral_registry;
 
+    let revision_state_guard = postgres_revision_state_guard();
     // PgServer owns the repository-managed PostgreSQL 18 startup contract.
     // The T15 Runtime below is a second public boundary over the same control
     // database, with unique World IDs and no direct SQL assertions.
@@ -240,7 +253,14 @@ fn start_t15_postgres_runtime() -> (
             .expect("T15 client");
         (client, server)
     });
-    (runtime, client, server, InMemoryBlobStore::new(), bootstrap)
+    (
+        runtime,
+        client,
+        server,
+        InMemoryBlobStore::new(),
+        bootstrap,
+        revision_state_guard,
+    )
 }
 
 macro_rules! run_cv028_projection_case {
@@ -735,6 +755,7 @@ fn cv030_pinned_read_pass_on_real_in_memory() {
 
 #[test]
 fn cv030_pinned_read_pass_on_live_postgres() {
+    let _revision_state_guard = postgres_revision_state_guard();
     let (server, client) = PgServer::start().expect("real PostgreSQL Loom service should start");
     let server_for_restart = server.clone();
     let strategy: Arc<dyn Fn() -> Result<LoomClient, String> + Send + Sync> =
@@ -800,7 +821,8 @@ fn cv028_projection_rebuild_delete_preserves_public_world_truth_in_memory() {
 
 #[test]
 fn cv028_projection_rebuild_delete_preserves_public_world_truth_on_pg18() {
-    let (runtime, client, server, _blobs, _bootstrap) = start_t15_postgres_runtime();
+    let (runtime, client, server, _blobs, _bootstrap, _revision_state_guard) =
+        start_t15_postgres_runtime();
     let _keep = server;
     run_cv028_projection_case!(runtime, client);
 }
@@ -814,7 +836,8 @@ fn cv029_blob_failures_preserve_public_facet_and_history_in_memory() {
 
 #[test]
 fn cv029_blob_failures_preserve_public_facet_and_history_on_pg18() {
-    let (runtime, client, server, blobs, _bootstrap) = start_t15_postgres_runtime();
+    let (runtime, client, server, blobs, _bootstrap, _revision_state_guard) =
+        start_t15_postgres_runtime();
     let _keep = server;
     run_cv029_blob_case!(runtime, client, blobs);
 }
