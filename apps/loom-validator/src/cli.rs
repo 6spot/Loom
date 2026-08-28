@@ -693,9 +693,9 @@ pub(crate) fn execute_registered_scenario(
     context: &BackendContext,
 ) -> crate::reports::ScenarioResult {
     match descriptor.id_str() {
-        crate::action_ingress::CV_015 | crate::action_ingress::CV_016 => {
-            crate::action_ingress::execute(descriptor, context)
-        }
+        crate::action_ingress::CV_015
+        | crate::action_ingress::CV_016
+        | crate::action_ingress::CV_017 => crate::action_ingress::execute(descriptor, context),
         crate::world_binding::CV_012
         | crate::world_binding::CV_013
         | crate::world_binding::CV_014 => {

@@ -77,7 +77,7 @@ fn scheduler_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!scheduler::owns_cv("CV-021"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-018").is_none());
     assert!(registry.get("CV-020").is_some());
     assert!(registry.get("CV-040").is_some());

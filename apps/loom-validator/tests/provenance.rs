@@ -66,7 +66,7 @@ fn provenance_suite_scaffold_is_non_registering_and_disjoint() {
     assert!(!provenance::owns_cv("CV-034"));
 
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-031").is_some());
     assert!(registry.get("CV-040").is_some());
 }

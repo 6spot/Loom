@@ -21,9 +21,9 @@ mod runtime_authority;
 mod scenario;
 pub mod scenarios;
 
-// Stage-2 parallel-safe suite scaffolds (T10-T18). Each leaf owns exactly one
-// production module + one integration-test module. Central registry
-// integration is reserved for T19; these modules remain unregistered.
+// Stage-2 suite modules (T10-T18). Each leaf owns exactly one production
+// module + one integration-test module; T19 is the sole central composition
+// point for their registered descriptors.
 pub mod action_ingress;
 pub mod agency;
 pub mod change_feed;
@@ -95,14 +95,7 @@ pub fn validator_registry() -> ScenarioRegistry {
 fn register_stage2(registry: &mut ScenarioRegistry) -> Result<(), RegistryError> {
     world_binding::register_world_binding(registry)?;
 
-    // T11 exposes CV-017 for its local blocked-gap evidence, but T08 marks it
-    // non-executable; only CV-015 and CV-016 are eligible for --all.
-    register_descriptors(
-        registry,
-        action_ingress::descriptors()
-            .into_iter()
-            .filter(|descriptor| descriptor.id_str() != action_ingress::CV_017),
-    )?;
+    register_descriptors(registry, action_ingress::descriptors())?;
     scheduler::register_scheduler(registry)?;
     world_time::register_world_time(registry)?;
     query_catalog::register_query_catalog(registry)?;
@@ -126,11 +119,11 @@ fn register_descriptors(
 mod tests {
     use super::{Runner, ScenarioRegistry, validator_registry};
 
-    const EXPECTED_IDS: [&str; 31] = [
+    const EXPECTED_IDS: [&str; 32] = [
         "CV-001", "CV-002", "CV-003", "CV-004", "CV-005", "CV-006", "CV-007", "CV-008", "CV-009",
-        "CV-010", "CV-011", "CV-012", "CV-013", "CV-014", "CV-015", "CV-016", "CV-020", "CV-021",
-        "CV-022", "CV-023", "CV-024", "CV-025", "CV-026", "CV-027", "CV-030", "CV-031", "CV-032",
-        "CV-033", "CV-038", "CV-039", "CV-040",
+        "CV-010", "CV-011", "CV-012", "CV-013", "CV-014", "CV-015", "CV-016", "CV-017", "CV-020",
+        "CV-021", "CV-022", "CV-023", "CV-024", "CV-025", "CV-026", "CV-027", "CV-030", "CV-031",
+        "CV-032", "CV-033", "CV-038", "CV-039", "CV-040",
     ];
 
     #[test]
@@ -173,8 +166,7 @@ mod tests {
             first.len()
         );
         for blocked in [
-            "CV-017", "CV-018", "CV-019", "CV-028", "CV-029", "CV-034", "CV-035", "CV-036",
-            "CV-037",
+            "CV-018", "CV-019", "CV-028", "CV-029", "CV-034", "CV-035", "CV-036", "CV-037",
         ] {
             assert!(
                 first.get(blocked).is_none(),
@@ -194,7 +186,7 @@ mod tests {
             ),
             ("runtime-authority", vec!["CV-010", "CV-011"]),
             ("world-binding", vec!["CV-012", "CV-013", "CV-014"]),
-            ("action-ingress", vec!["CV-015", "CV-016"]),
+            ("action-ingress", vec!["CV-015", "CV-016", "CV-017"]),
             ("scheduler", vec!["CV-020"]),
             ("world-time", vec!["CV-021", "CV-022", "CV-023", "CV-024"]),
             ("query-catalog", vec!["CV-025", "CV-026", "CV-027"]),

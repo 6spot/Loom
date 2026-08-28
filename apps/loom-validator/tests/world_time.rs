@@ -79,7 +79,7 @@ fn world_time_suite_is_local_and_non_registering() {
     assert!(world_time::owns_cv("CV-021") && world_time::owns_cv("CV-024"));
     assert!(!world_time::owns_cv("CV-020") && !world_time::owns_cv("CV-025"));
     let registry = validator_registry();
-    assert_eq!(registry.len(), 31);
+    assert_eq!(registry.len(), 32);
     assert!(registry.get("CV-021").is_some() && registry.get("CV-040").is_some());
     assert_eq!(
         world_time::descriptors()
