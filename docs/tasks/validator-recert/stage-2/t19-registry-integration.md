@@ -290,3 +290,30 @@ composition remains unchanged; no hidden suite fix or production behavior was
 introduced. Final R-01 binding: dependency/base reconciliation only; the race
 protocol remains closed, with no persistence, claim, retry, terminal, receipt,
 fence or checkpoint authority.
+
+## Final candidate binding after review (2026-08-28)
+
+This append-only entry closes the remaining D-001 traceability gap for the
+candidate reviewed at `fc6b051245fb694808ee7663251255535710b8d0`. The facts
+below were read from that exact candidate before this append:
+
+| Field | Exact fact for reviewed candidate |
+| --- | --- |
+| candidate HEAD | `fc6b051245fb694808ee7663251255535710b8d0` |
+| common base | `bed2dac9947d5c5f92e0d530378f5be712e041a6` |
+| `git diff --name-status base..HEAD` | `M docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `git diff --stat base..HEAD` | `1 file changed, 169 insertions(+), 0 deletions` |
+| `git diff --numstat base..HEAD` | `169  0  docs/tasks/validator-recert/stage-2/t19-registry-integration.md` |
+| `fc6b051...` parent | `3e49a102373c624bab5eb5897d065c9aeea43fd4` |
+| `git status --short --branch` | clean; `agent/executor/7f71a5523ef5...origin/agent/executor/7f71a5523ef5` |
+| `git diff --check` | PASS |
+
+The final reviewed candidate's complete `base..HEAD` boundary is one modified
+T19 ledger file, 169 insertions and 0 deletions (`numstat 169 0`). The direct
+`3e49a102.....fc6b051...` boundary is the same ledger file with 27 insertions
+and 0 deletions. This binds the reviewed candidate's final AC-05 scope: ledger
+reconciliation only, with unchanged 32-ID composition, eight unregistered
+gaps, eleven groups and stable ordering, and no production behavior change.
+Its final R-01 binding remains dependency/base reconciliation only; the race
+protocol is closed and no persistence, claim, retry, terminal, receipt, fence
+or checkpoint authority was introduced.
