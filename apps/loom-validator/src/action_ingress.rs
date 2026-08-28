@@ -5,8 +5,9 @@
 //! not register in `validator_registry`; T19 alone edits `registry.rs`/`lib.rs`.
 //! All observations use the formal `loom_api`/`loom_client` surface via
 //! `LoomApi` (`ActionService`/`IngressService`/`HistoryService`/`QueryService`)
-//! and never read Runtime/Storage tables. `CV-017` retry/fault-injection is
-//! honestly `Unavailable` because no public fault-injection API exists.
+//! and never read Runtime/Storage tables. `CV-017` uses the existing public
+//! Ingress lifecycle when a running service exposes its normal worker; a
+//! service without that worker remains explicitly `Unavailable`.
 
 #![allow(clippy::too_many_lines)]
 
@@ -90,10 +91,10 @@ pub fn descriptors() -> Vec<ScenarioDescriptor> {
         ),
         ScenarioDescriptor::new(
             CV_017,
-            "Ingress operational bookkeeping distinct from authoritative history (blocked — no fault injection)",
+            "Ingress operational bookkeeping distinct from authoritative history",
             CAPABILITY_AREA,
             vec![BackendKind::InMemory, BackendKind::PostgreSQL],
-            "blocked: no public API to inject or observe Retryable(IngressTechnicalFailure)",
+            "normal resolver failure reaches Retryable; public Action recovery commits one Event",
             vec!["VALR-T11".to_string()],
             vec![
                 "docs/architecture/world-runtime.md#ingress-lifecycle".to_string(),
@@ -261,6 +262,46 @@ fn finding_for(
                 "restart_capability:{}",
                 context.restart_capability().as_str()
             )),
+            EvidenceReference::new("public-surface:loom-api::ActionService::invoke"),
+            EvidenceReference::new("public-surface:loom-api::QueryService::get_facet"),
+            EvidenceReference::new("public-surface:loom-api::HistoryService::list_events"),
+            EvidenceReference::new(format!("validator:scenario:{}", descriptor.id_str())),
+        ],
+        outcome.clone(),
+    )
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn ingress_finding_for(
+    descriptor: &ScenarioDescriptor,
+    context: &BackendContext,
+    expected: &str,
+    actual: &str,
+    outcome: ScenarioOutcome,
+) -> Finding {
+    Finding::new(
+        descriptor.id().clone(),
+        descriptor.name(),
+        expected,
+        actual,
+        *context.backend_kind(),
+        format!(
+            "validator:{}:{}",
+            descriptor.id_str(),
+            context.backend_kind().as_str()
+        ),
+        vec![
+            EvidenceReference::new(format!("backend:{}", context.backend_kind().as_str())),
+            EvidenceReference::new(format!(
+                "backend_evidence:{}",
+                context.backend_evidence().as_str()
+            )),
+            EvidenceReference::new(format!(
+                "restart_capability:{}",
+                context.restart_capability().as_str()
+            )),
+            EvidenceReference::new("public-surface:loom-api::IngressService::submit_ingress"),
+            EvidenceReference::new("public-surface:loom-api::IngressService::ingress_status"),
             EvidenceReference::new("public-surface:loom-api::ActionService::invoke"),
             EvidenceReference::new("public-surface:loom-api::QueryService::get_facet"),
             EvidenceReference::new("public-surface:loom-api::HistoryService::list_events"),
@@ -872,42 +913,344 @@ fn validate_first_acceptance(
 
 fn cv017(descriptor: &ScenarioDescriptor, context: &BackendContext) -> ScenarioResult {
     let backend = *context.backend_kind();
-    let expected = "Ingress Retryable(IngressTechnicalFailure) does not create Event and recovery creates exactly one EventRef; operational Ingress status distinct from World history (requires fault-injection API — blocked)";
-    let actual = "Blocked: no public/controlled API to inject or observe IngressStatus::Retryable(IngressTechnicalFailure) via loom_api/loom_client; IngressService only exposes submit_ingress and ingress_status — explicit gap, requires Architecture Amendment adding public fault-injection API before Validator coverage. No fake Pass, no internal table inspection, no new seam.";
-    let finding = Finding::new(
-        descriptor.id().clone(),
-        descriptor.name(),
-        expected,
-        actual,
-        backend,
-        format!(
-            "validator:{}:{}:blocked-no-fault-injection",
-            descriptor.id_str(),
-            backend.as_str()
-        ),
-        vec![
-            EvidenceReference::new("public-surface:loom-api::IngressService::ingress_status"),
-            EvidenceReference::new("public-surface:loom-api::HistoryService::list_events"),
-            EvidenceReference::new("public-surface:loom-api::QueryService::get_facet"),
-            EvidenceReference::new("validator:gap:CV-017-retry-fault-injection-unavailable"),
-            EvidenceReference::new(format!("backend:{}", backend.as_str())),
-            EvidenceReference::new(format!(
-                "restart_capability:{}",
-                context.restart_capability().as_str()
-            )),
-        ],
-        ScenarioOutcome::Unavailable {
-            reason: actual.to_string(),
-        },
-    );
-    ScenarioResult::new(
-        descriptor.id().clone(),
-        ScenarioOutcome::Unavailable {
-            reason: actual.to_string(),
-        },
-        finding,
-    )
-    .with_capability_area(descriptor.capability_area().as_str())
+    let expected = "public Ingress status reaches Retryable after a normal resolver failure without a World Event; public Action recovery then reaches Completed(Committed) with exactly one recovery EventRef, and public history/facet show only authoritative mutations (PG re-read after controlled restart)";
+    let client = context.client();
+    let scope = format!("{}-cv017", context.scope());
+
+    let result = block_on(async {
+        let target = client
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(new_world_template(
+                &scope,
+            )))
+            .await
+            .map_err(|e| format!("create_world failed: {e:?} - {}", e.message))?
+            .target;
+        let entity_id = new_entity_id(0x0171);
+        let seed_event_id = new_event_id(0x0172);
+        let recovery_event_id = new_event_id(0x0173);
+        let ingress_id = IngressId::from(format!("{scope}-ingress"));
+        let idempotency_key = IdempotencyKey::from(format!("{scope}-key"));
+        let envelope = IngressEnvelope::new(
+            ingress_id.clone(),
+            idempotency_key.clone(),
+            IngressProvenance::new("validator-t11")
+                .with_metadata(json!({"cv":"CV-017", "scope":scope})),
+            target,
+            IngressAuthorizationContext::new(json!({"tenant":"validator-test"})),
+            IngressTimeMetadata::none(),
+            ActionInvocation::new(
+                ActionTypeId::from("neutral.counter.increment"),
+                json!({
+                    "event_id": recovery_event_id.to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1
+                }),
+            ),
+        );
+        let acceptance = client
+            .submit_ingress(envelope)
+            .await
+            .map_err(|e| format!("submit_ingress failed: {e:?} - {}", e.message))?;
+        match acceptance {
+            loom_api::IngressAcceptance::Accepted(receipt)
+                if receipt.ingress_id == ingress_id
+                    && receipt.idempotency_key == idempotency_key => {}
+            other => return Err(format!("expected fresh Accepted receipt, got {other:?}")),
+        }
+
+        let initial_events = client
+            .list_events(EventQuery::all(target))
+            .await
+            .map_err(|e| {
+                format!(
+                    "list_events before processing failed: {e:?} - {}",
+                    e.message
+                )
+            })?;
+        if !initial_events.is_empty() {
+            return Err(format!(
+                "fresh CV-017 World unexpectedly has {} events",
+                initial_events.len()
+            ));
+        }
+        if client
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .map_err(|e| format!("get_facet before processing failed: {e:?} - {}", e.message))?
+            .is_some()
+        {
+            return Err("fresh CV-017 World unexpectedly has a counter Facet".to_string());
+        }
+
+        let mut retry_failure = None;
+        let mut last_status = None;
+        for _ in 0..40 {
+            let record = client
+                .ingress_status(ingress_id.clone())
+                .await
+                .map_err(|e| format!("ingress_status failed: {e:?} - {}", e.message))?;
+            if record.ingress_id != ingress_id || record.idempotency_key != idempotency_key {
+                return Err(format!("status record mismatch: {record:?}"));
+            }
+            match record.status {
+                IngressStatus::Retryable(failure) => {
+                    retry_failure = Some(failure);
+                    break;
+                }
+                IngressStatus::Failed(failure) => {
+                    return Err(format!("Ingress reached terminal Failed: {failure:?}"));
+                }
+                IngressStatus::Completed(completion) => {
+                    return Err(format!(
+                        "Ingress completed before Retryable observation: {completion:?}"
+                    ));
+                }
+                status @ (IngressStatus::Accepted | IngressStatus::Processing) => {
+                    last_status = Some(status);
+                    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+                }
+            }
+        }
+        let retry_failure = retry_failure.ok_or_else(|| {
+            format!(
+                "no public worker/fault-injection seam exposed Retryable(IngressTechnicalFailure); last status {last_status:?}. A running Ingress worker or an explicit public fault-injection seam is required."
+            )
+        })?;
+        if retry_failure.code != "runtime_failure" || retry_failure.message.is_empty() {
+            return Err(format!(
+                "expected IngressTechnicalFailure runtime_failure details, got {retry_failure:?}"
+            ));
+        }
+        let events_after_retry = client
+            .list_events(EventQuery::all(target))
+            .await
+            .map_err(|e| format!("list_events after Retryable failed: {e:?} - {}", e.message))?;
+        if !events_after_retry.is_empty() {
+            return Err(format!(
+                "Retryable changed World history: {} events",
+                events_after_retry.len()
+            ));
+        }
+
+        let seed = client
+            .invoke(ActionRequest::new(
+                target,
+                ActionInvocation::new(
+                    ActionTypeId::from("neutral.counter.seed"),
+                    json!({
+                        "event_id": seed_event_id.to_string(),
+                        "entity_id": entity_id.to_string(),
+                        "value": 1
+                    }),
+                ),
+            ))
+            .await
+            .map_err(|e| {
+                format!(
+                    "public recovery prerequisite Action failed: {e:?} - {}",
+                    e.message
+                )
+            })?;
+        match seed {
+            ExecutionResult::Committed { event_ids, .. }
+                if event_ids.as_slice() == [seed_event_id] => {}
+            other => {
+                return Err(format!(
+                    "recovery prerequisite was not Committed: {other:?}"
+                ));
+            }
+        }
+
+        let mut completion = None;
+        let mut last_status = None;
+        for _ in 0..40 {
+            let record = client
+                .ingress_status(ingress_id.clone())
+                .await
+                .map_err(|e| {
+                    format!("ingress_status recovery poll failed: {e:?} - {}", e.message)
+                })?;
+            match record.status {
+                IngressStatus::Completed(value) => {
+                    completion = Some(value);
+                    break;
+                }
+                IngressStatus::Failed(failure) => {
+                    return Err(format!("Ingress recovery reached Failed: {failure:?}"));
+                }
+                status @ (IngressStatus::Accepted
+                | IngressStatus::Processing
+                | IngressStatus::Retryable(_)) => {
+                    last_status = Some(status);
+                    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
+                }
+            }
+        }
+        let completion = completion.ok_or_else(|| {
+            format!("Ingress recovery did not reach Completed; last status {last_status:?}")
+        })?;
+        let event_refs = match completion {
+            IngressCompletion::Committed { event_refs, .. } => event_refs,
+            other => return Err(format!("expected recovery Committed, got {other:?}")),
+        };
+        if event_refs.len() != 1 || event_refs[0].event_id != recovery_event_id {
+            return Err(format!(
+                "recovery EventRef mismatch: expected one {recovery_event_id}, got {event_refs:?}"
+            ));
+        }
+
+        let events = client
+            .list_events(EventQuery::all(target))
+            .await
+            .map_err(|e| format!("list_events after recovery failed: {e:?} - {}", e.message))?;
+        if events.len() != 2 || events[0].id != seed_event_id || events[1].id != recovery_event_id {
+            return Err(format!("recovery history mismatch: {events:?}"));
+        }
+        let facet = client
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .map_err(|e| format!("get_facet after recovery failed: {e:?} - {}", e.message))?
+            .ok_or_else(|| "recovery counter Facet missing".to_string())?;
+        let value = facet
+            .value
+            .get("value")
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| format!("recovery Facet value was not an integer: {:?}", facet.value))?;
+        if value != 2 {
+            return Err(format!("recovery Facet value expected 2, got {value}"));
+        }
+
+        if backend.is_postgres() && context.can_perform_boundary_restart() {
+            let restarted = context
+                .restart()
+                .map_err(|e| format!("controlled PostgreSQL boundary restart failed: {e}"))?;
+            let status = restarted.ingress_status(ingress_id).await.map_err(|e| {
+                format!("ingress_status after restart failed: {e:?} - {}", e.message)
+            })?;
+            if !matches!(
+                status.status,
+                IngressStatus::Completed(IngressCompletion::Committed { .. })
+            ) {
+                return Err(format!(
+                    "post-restart status was not Completed::Committed: {status:?}"
+                ));
+            }
+            let events_after_restart = restarted
+                .list_events(EventQuery::all(target))
+                .await
+                .map_err(|e| format!("list_events after restart failed: {e:?} - {}", e.message))?;
+            if events_after_restart.len() != 2
+                || events_after_restart[0].id != seed_event_id
+                || events_after_restart[1].id != recovery_event_id
+            {
+                return Err(format!(
+                    "post-restart history mismatch: {events_after_restart:?}"
+                ));
+            }
+            let facet_after_restart = restarted
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .map_err(|e| format!("get_facet after restart failed: {e:?} - {}", e.message))?
+                .ok_or_else(|| "post-restart recovery counter Facet missing".to_string())?;
+            if facet_after_restart
+                .value
+                .get("value")
+                .and_then(serde_json::Value::as_i64)
+                != Some(2)
+            {
+                return Err(format!(
+                    "post-restart Facet value mismatch: {:?}",
+                    facet_after_restart.value
+                ));
+            }
+        }
+
+        Ok::<String, String>(format!(
+            "public Ingress bookkeeping: Accepted -> Retryable({}) with history/facet unchanged, public seed recovery -> Completed(Committed) with one recovery EventRef {recovery_event_id}; authoritative history len 2 and facet value 2{}",
+            retry_failure.code,
+            if backend.is_postgres() && context.can_perform_boundary_restart() {
+                "; PostgreSQL state re-read through a new client after controlled boundary restart"
+            } else {
+                ""
+            }
+        ))
+    });
+
+    // CV-017 evidence includes both operational Ingress and authoritative World surfaces.
+    match result {
+        Ok(actual) => {
+            let finding = ingress_finding_for(
+                descriptor,
+                context,
+                expected,
+                &actual,
+                ScenarioOutcome::Pass,
+            );
+            ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Pass, finding)
+                .with_capability_area(descriptor.capability_area().as_str())
+        }
+        Err(actual) if is_infra_unavailable(&actual) || actual.contains("no public worker") => {
+            let outcome = ScenarioOutcome::Unavailable {
+                reason: actual.clone(),
+            };
+            let finding = Finding::new(
+                descriptor.id().clone(),
+                descriptor.name(),
+                expected,
+                actual.clone(),
+                backend,
+                format!(
+                    "validator:{}:{}:retry-unavailable",
+                    descriptor.id_str(),
+                    backend.as_str()
+                ),
+                vec![
+                    EvidenceReference::new(
+                        "public-surface:loom-api::IngressService::submit_ingress",
+                    ),
+                    EvidenceReference::new(
+                        "public-surface:loom-api::IngressService::ingress_status",
+                    ),
+                    EvidenceReference::new("public-surface:loom-api::HistoryService::list_events"),
+                    EvidenceReference::new("public-surface:loom-api::QueryService::get_facet"),
+                    EvidenceReference::new(
+                        "validator:gap:CV-017-retry-worker-or-fault-injection-unavailable",
+                    ),
+                    EvidenceReference::new(format!("backend:{}", backend.as_str())),
+                    EvidenceReference::new(format!(
+                        "restart_capability:{}",
+                        context.restart_capability().as_str()
+                    )),
+                ],
+                outcome.clone(),
+            );
+            ScenarioResult::new(descriptor.id().clone(), outcome, finding)
+                .with_capability_area(descriptor.capability_area().as_str())
+        }
+        Err(actual) => {
+            let finding = ingress_finding_for(
+                descriptor,
+                context,
+                expected,
+                &actual,
+                ScenarioOutcome::Fail,
+            );
+            ScenarioResult::new(descriptor.id().clone(), ScenarioOutcome::Fail, finding)
+                .with_capability_area(descriptor.capability_area().as_str())
+        }
+    }
 }
 
 #[cfg(test)]

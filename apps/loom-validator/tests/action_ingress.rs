@@ -7,7 +7,8 @@
 //! - `CV-015`: accepted Action commits Event/Facet/history via `LoomClient`.
 //! - `CV-016`: Ingress idempotency via `IngressService` with polling and, for
 //!   `PostgreSQL`, a genuine `PgServer` boundary restart.
-//! - `CV-017`: blocked retry/fault-injection is honestly `Unavailable`.
+//! - `CV-017`: normal Retryable/recovery semantics are public when driven by a
+//!   controlled worker; the shared no-worker harness remains honestly `Unavailable`.
 
 #![allow(clippy::too_many_lines)]
 
@@ -430,6 +431,493 @@ fn cv016_durable_idempotency_via_loom_client_with_controlled_pump() {
 }
 
 #[test]
+fn cv017_retryable_ingress_recovery_keeps_world_truth_public_in_memory() {
+    use loom_boundary::{BoundaryConfig, RequireAdminAuthorization, router_with_admin};
+    use loom_neutral::registry as neutral_registry;
+    use loom_runtime::{
+        PlatformTime, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+        RuntimeRevisionId,
+    };
+    use loom_storage::InMemoryStore;
+
+    fn validator_descriptor(
+        registry: &loom_capability::CapabilityRegistry,
+    ) -> RuntimeRevisionDescriptor {
+        RuntimeRevisionDescriptor::new(
+            RuntimeRevisionId::from("validator-explicit-v0"),
+            PlatformTime::default(),
+            "validator-test-build",
+            registry.loom_version().clone(),
+            registry.capabilities().map(|manifest| {
+                RuntimeRevisionCapability::from_manifest(
+                    manifest,
+                    format!("validator-test:{}@{}", manifest.id, manifest.version),
+                )
+            }),
+        )
+        .expect("validator revision")
+    }
+
+    fn leaked_runtime() -> &'static tokio::runtime::Runtime {
+        static RUNTIME: std::sync::OnceLock<&'static tokio::runtime::Runtime> =
+            std::sync::OnceLock::new();
+        RUNTIME.get_or_init(|| {
+            Box::leak(Box::new(
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("test runtime"),
+            ))
+        })
+    }
+
+    let store: &'static InMemoryStore = Box::leak(Box::new(InMemoryStore::new()));
+    let registry = neutral_registry();
+    registry.validate().expect("registry");
+    let revision = validator_descriptor(&registry);
+    store.confirm_revision(revision.clone()).expect("confirm");
+    store
+        .activate_revision(revision.id().clone(), None, PlatformTime::default())
+        .expect("activate");
+
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("runtime"));
+    let router = router_with_admin(
+        runtime.clone(),
+        Arc::new(RequireAdminAuthorization),
+        BoundaryConfig::default(),
+    );
+    let (client, _server) = leaked_runtime().block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let address = listener.local_addr().expect("address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.expect("server");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let client = LoomClient::builder(format!("http://{address}"))
+            .admin_token("validator-test-admin")
+            .expect("client builder")
+            .build()
+            .expect("client");
+        (client, server)
+    });
+
+    block_on_test(async {
+        let target = client
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                WorldTemplateDescriptor::new(
+                    "validator.action_ingress.cv017-retry",
+                    1,
+                    WorldInstant::new(42),
+                )
+                .requires_capability("neutral.counter", "^0.1.0"),
+            ))
+            .await
+            .expect("create world")
+            .target;
+        let entity_id = new_entity();
+        let seed_event_id = new_event();
+        let retry_event_id = new_event();
+        let ingress_id = IngressId::from(format!("ingress-cv017-{}", Uuid::new_v4()));
+        let idempotency_key = IdempotencyKey::from(format!("t11.cv017.{}", Uuid::new_v4()));
+        let envelope = IngressEnvelope::new(
+            ingress_id.clone(),
+            idempotency_key.clone(),
+            IngressProvenance::new("validator-t11").with_metadata(json!({"cv":"CV-017"})),
+            target,
+            IngressAuthorizationContext::new(json!({"tenant":"validator-test"})),
+            IngressTimeMetadata::none(),
+            ActionInvocation::new(
+                ActionTypeId::from("neutral.counter.increment"),
+                json!({
+                    "event_id": retry_event_id.to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1
+                }),
+            ),
+        );
+
+        let acceptance = client
+            .submit_ingress(envelope)
+            .await
+            .expect("submit ingress");
+        assert!(
+            acceptance.is_accepted(),
+            "expected Accepted, got {acceptance:?}"
+        );
+        let before = client
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("status");
+        assert_eq!(before.ingress_id, ingress_id);
+        assert_eq!(before.idempotency_key, idempotency_key);
+        assert!(matches!(before.status, IngressStatus::Accepted));
+        assert!(
+            client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("history before retry")
+                .is_empty()
+        );
+        assert!(
+            client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("facet before retry")
+                .is_none()
+        );
+
+        let first_process = runtime
+            .process_ingress(
+                ingress_id.clone(),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(0),
+            )
+            .await;
+        assert!(
+            first_process.is_err(),
+            "missing facet must be technical failure"
+        );
+        let retry_status = client
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("retry status");
+        let retry_failure = match retry_status.status {
+            IngressStatus::Retryable(failure) => failure,
+            other => panic!("expected Retryable, got {other:?}"),
+        };
+        assert_eq!(retry_failure.code, "runtime_failure");
+        assert!(
+            client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("history after retry")
+                .is_empty()
+        );
+        assert!(
+            client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("facet after retry")
+                .is_none()
+        );
+
+        let seed = client
+            .invoke(ActionRequest::new(
+                target,
+                ActionInvocation::new(
+                    ActionTypeId::from("neutral.counter.seed"),
+                    json!({
+                        "event_id": seed_event_id.to_string(),
+                        "entity_id": entity_id.to_string(),
+                        "value": 1
+                    }),
+                ),
+            ))
+            .await
+            .expect("seed recovery prerequisite");
+        assert!(matches!(seed, loom_api::ExecutionResult::Committed { .. }));
+
+        let recovered = runtime
+            .process_ingress(
+                ingress_id.clone(),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(0),
+            )
+            .await
+            .expect("retry recovery");
+        let event_refs = match recovered {
+            IngressCompletion::Committed { event_refs, .. } => event_refs,
+            other => panic!("expected recovered Committed, got {other:?}"),
+        };
+        assert_eq!(event_refs.len(), 1);
+
+        let terminal = client
+            .ingress_status(ingress_id)
+            .await
+            .expect("terminal status");
+        assert!(matches!(
+            terminal.status,
+            IngressStatus::Completed(IngressCompletion::Committed { .. })
+        ));
+        let events = client
+            .list_events(EventQuery::all(target))
+            .await
+            .expect("recovered history");
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].id, seed_event_id);
+        assert_eq!(events[1].id, retry_event_id);
+        let facet = client
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .expect("recovered facet")
+            .expect("counter facet");
+        assert_eq!(
+            facet.value.get("value").and_then(serde_json::Value::as_i64),
+            Some(2)
+        );
+    });
+}
+
+#[test]
+fn cv017_public_bookkeeping_and_authority_survive_pg_restart_if_available() {
+    use loom_neutral::registry as neutral_registry;
+    use loom_runtime::{PlatformTime, Runtime};
+    use loom_storage::PgStorage;
+
+    if !has_explicit_postgres_url() {
+        eprintln!(
+            "CV-017 PostgreSQL prerequisite: unavailable without explicit LOOM_TEST_POSTGRES_URL; no PG evidence claimed"
+        );
+        return;
+    }
+    let Some((ctx, pg_server)) = pg_context_opt() else {
+        eprintln!("CV-017 PostgreSQL prerequisite: PgServer unavailable; no PG evidence claimed");
+        return;
+    };
+    let client = ctx.client().clone();
+    // Keep the public PgServer as the observation boundary, while this
+    // test-only Runtime is the controlled worker pump over the same database.
+    let pg_url = std::env::var("LOOM_TEST_POSTGRES_URL").expect("explicit PG URL");
+    let store = common::leaked_runtime().block_on(async {
+        let store = PgStorage::connect(&pg_url)
+            .await
+            .expect("connect PG pump store");
+        store.health().await.expect("health PG pump store");
+        store
+    });
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("PG pump runtime"));
+    block_on_test(async {
+        let suffix = Uuid::new_v4();
+        let target = client
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                WorldTemplateDescriptor::new(
+                    format!("validator.action_ingress.cv017-pg-{suffix}"),
+                    1,
+                    WorldInstant::new(42),
+                )
+                .requires_capability("neutral.counter", "^0.1.0"),
+            ))
+            .await
+            .expect("create world")
+            .target;
+        let entity_id = new_entity();
+        let event_id = new_event();
+        let ingress_id = IngressId::from(format!("ingress-cv017-pg-{suffix}"));
+        let idempotency_key = IdempotencyKey::from(format!("t11.cv017.pg-{suffix}"));
+        let envelope = IngressEnvelope::new(
+            ingress_id.clone(),
+            idempotency_key.clone(),
+            IngressProvenance::new("validator-t11").with_metadata(json!({"cv":"CV-017"})),
+            target,
+            IngressAuthorizationContext::new(json!({"tenant":"validator-test"})),
+            IngressTimeMetadata::none(),
+            ActionInvocation::new(
+                ActionTypeId::from("neutral.counter.increment"),
+                json!({
+                    "event_id": event_id.to_string(),
+                    "entity_id": entity_id.to_string(),
+                    "amount": 1
+                }),
+            ),
+        );
+        let acceptance = client
+            .submit_ingress(envelope)
+            .await
+            .expect("submit ingress");
+        assert!(
+            acceptance.is_accepted(),
+            "expected Accepted, got {acceptance:?}"
+        );
+
+        let before = client
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("status");
+        assert_eq!(before.ingress_id, ingress_id);
+        assert_eq!(before.idempotency_key, idempotency_key);
+        assert!(matches!(before.status, IngressStatus::Accepted));
+        assert!(
+            client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("history before restart")
+                .is_empty()
+        );
+        assert!(
+            client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("facet before restart")
+                .is_none()
+        );
+
+        let first_process = runtime
+            .process_ingress(
+                ingress_id.clone(),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(0),
+            )
+            .await;
+        assert!(
+            first_process.is_err(),
+            "missing facet must produce an IngressTechnicalFailure"
+        );
+        let retry_status = client
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("retry status");
+        let retry_failure = match retry_status.status {
+            IngressStatus::Retryable(failure) => failure,
+            other => panic!("expected Retryable, got {other:?}"),
+        };
+        assert_eq!(retry_failure.code, "runtime_failure");
+        assert!(
+            client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("history after retry")
+                .is_empty()
+        );
+        assert!(
+            client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from("neutral.counter.value"),
+                ))
+                .await
+                .expect("facet after retry")
+                .is_none()
+        );
+
+        let seed = client
+            .invoke(ActionRequest::new(
+                target,
+                ActionInvocation::new(
+                    ActionTypeId::from("neutral.counter.seed"),
+                    json!({
+                        "event_id": new_event().to_string(),
+                        "entity_id": entity_id.to_string(),
+                        "value": 1
+                    }),
+                ),
+            ))
+            .await
+            .expect("seed recovery prerequisite");
+        let seed_event_id = match seed {
+            loom_api::ExecutionResult::Committed { event_ids, .. } => {
+                assert_eq!(event_ids.len(), 1);
+                event_ids[0]
+            }
+            other => panic!("expected seed Committed, got {other:?}"),
+        };
+
+        let recovered = runtime
+            .process_ingress(
+                ingress_id.clone(),
+                PlatformTime::new(0),
+                PlatformTime::new(10),
+                PlatformTime::new(0),
+            )
+            .await
+            .expect("retry recovery");
+        let recovery_refs = match recovered {
+            IngressCompletion::Committed { event_refs, .. } => event_refs,
+            other => panic!("expected recovered Committed, got {other:?}"),
+        };
+        assert_eq!(recovery_refs.len(), 1);
+        assert_eq!(recovery_refs[0].event_id, event_id);
+
+        let terminal = client
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("terminal status");
+        let terminal_refs = match terminal.status {
+            IngressStatus::Completed(IngressCompletion::Committed { event_refs, .. }) => event_refs,
+            other => panic!("expected terminal Completed(Committed), got {other:?}"),
+        };
+        assert_eq!(terminal_refs.len(), 1);
+        assert_eq!(terminal_refs[0].event_id, event_id);
+        let events = client
+            .list_events(EventQuery::all(target))
+            .await
+            .expect("recovered history");
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].id, seed_event_id);
+        assert_eq!(events[1].id, event_id);
+        let facet = client
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .expect("recovered facet")
+            .expect("counter facet");
+        assert_eq!(
+            facet.value.get("value").and_then(serde_json::Value::as_i64),
+            Some(2)
+        );
+
+        let restarted = pg_server.restart().expect("controlled PG restart");
+        let after = restarted
+            .ingress_status(ingress_id.clone())
+            .await
+            .expect("status after restart");
+        let after_refs = match after.status {
+            IngressStatus::Completed(IngressCompletion::Committed { event_refs, .. }) => event_refs,
+            other => panic!("expected terminal status after restart, got {other:?}"),
+        };
+        assert_eq!(after_refs.len(), 1);
+        assert_eq!(after_refs[0].event_id, event_id);
+        let events_after_restart = restarted
+            .list_events(EventQuery::all(target))
+            .await
+            .expect("history after restart");
+        assert_eq!(events_after_restart.len(), 2);
+        assert_eq!(events_after_restart[0].id, seed_event_id);
+        assert_eq!(events_after_restart[1].id, event_id);
+        let facet_after_restart = restarted
+            .get_facet(FacetQuery::new(
+                target,
+                FacetOwner::entity(entity_id),
+                FacetTypeId::from("neutral.counter.value"),
+            ))
+            .await
+            .expect("facet after restart")
+            .expect("counter facet after restart");
+        assert_eq!(
+            facet_after_restart
+                .value
+                .get("value")
+                .and_then(serde_json::Value::as_i64),
+            Some(2)
+        );
+    });
+}
+
+#[test]
 fn cv016_via_execute_controlled_in_memory_is_pass_or_fail_with_evidence() {
     // This exercises the `action_ingress::execute` path via the controlled InMemoryServer.
     // The server's HTTP path does not auto-process ingress, so this will timeout and
@@ -762,8 +1250,10 @@ fn cv016_via_pg_with_restart_if_available() {
 // ── CV-017 ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn cv017_blocked_is_unavailable_everywhere() {
-    // CV-017 must never be Pass, on any backend.
+fn cv017_execute_is_unavailable_without_worker_but_never_fakes_retry() {
+    // The shared public-only harness does not start a worker. The executor must
+    // report that prerequisite honestly; the controlled pump test above proves
+    // the existing Retryable/recovery semantics without internal reads.
     let (ctx_mem, _srv) = in_memory_context();
     let descs = action_ingress::descriptors();
     let desc = descs.iter().find(|d| d.id_str() == "CV-017").unwrap();
@@ -774,14 +1264,14 @@ fn cv017_blocked_is_unavailable_everywhere() {
         "CV-017 via InMemory should be Unavailable, got {result_mem:?}"
     );
     assert!(
-        result_mem.finding().actual().contains("Blocked")
+        result_mem.finding().actual().contains("Retryable")
             || result_mem.finding().actual().contains("no public"),
-        "CV-017 actual should explain blocked gap: {}",
+        "CV-017 actual should explain unavailable worker/fault-injection path: {}",
         result_mem.finding().actual()
     );
     assert!(!result_mem.outcome().is_pass(), "CV-017 must never be Pass");
 
-    // Also check via generic LoomClient (reconnect-only) — still blocked.
+    // Also check via generic LoomClient (reconnect-only).
     let generic_client = LoomClient::builder("http://127.0.0.1:8080".to_string())
         .build()
         .expect("client");
@@ -797,6 +1287,7 @@ fn cv017_blocked_is_unavailable_everywhere() {
     // And via PostgreSQL when the explicit test prerequisite is configured.
     if has_explicit_postgres_url() {
         if let Some((ctx_pg, _srv)) = pg_context_opt() {
+            let ctx_pg = ctx_pg.with_scope(format!("t11-cv017-execute-pg-{}", Uuid::new_v4()));
             let result_pg = action_ingress::execute(desc, &ctx_pg);
             assert!(
                 result_pg.outcome().is_unavailable(),
@@ -813,7 +1304,8 @@ fn cv017_blocked_is_unavailable_everywhere() {
         );
     }
 
-    // Verify that all backends report the same blocked reason and do not inspect internal tables.
+    // Verify that all backends report the public worker/fault-injection gap and
+    // do not inspect internal tables.
     for result in [result_mem, result_generic] {
         let evidence = result
             .finding()
