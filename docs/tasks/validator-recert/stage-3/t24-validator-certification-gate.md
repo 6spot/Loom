@@ -19,7 +19,7 @@ T25 owns the final current-main certification decision.
 
 ## Candidate and evidence contract
 
-- Fixed production candidate: `34fc8efa77cf61d8a9261eaec575bbe111615618`.
+- Fixed production candidate: `4efb1d346c926f2ee10654c3bc24cd92af351881`.
 - The gate accepts this exact production candidate or an evidence-only
   descendant only when the fixed candidate is an ancestor and the complete
   diff contains only these three authorized T24 files: this ledger and the two
@@ -43,11 +43,12 @@ T20 gate. Test summaries must be present, must contain no zero-test result,
 and must be all-pass before a ready row can be `Pass`. The script does not
 convert a shell success into evidence without an executed test summary.
 
-The T22 manifest is authoritative for the row set. Its 31 ready CVs are
-reported from the current test commands; its nine capability gaps remain
-`Unavailable` with trusted evidence class `none`, and therefore keep
-`gate_passes` false. The report also checks duplicate-free deterministic
-coverage of all 40 CV IDs represented by T22.
+The T22 manifest is authoritative for the row set. The refreshed manifest is
+read from the pinned `origin/main` ref and records its commit in the report;
+it has 38 ready CVs and two capability gaps (CV-028 and CV-029). The two gaps
+remain `Unavailable` with trusted evidence class `none`, and therefore keep
+`gate_passes` false. The report checks duplicate-free deterministic coverage
+of all 40 CV IDs represented by T22.
 
 ## AC mapping
 
@@ -69,33 +70,41 @@ coverage of all 40 CV IDs represented by T22.
 
 ## Verification record
 
-The gate's current result is intentionally not a certification pass while T22
-contains capability gaps. The exact command and per-command result are stored
-in the generated report and are summarized in the handoff comment for this
-issue. A nonzero gate result caused by the manifest gaps is expected fail-closed
-behavior, not a green certification.
+The gate's result is intentionally not a certification pass while T22 retains
+CV-028/CV-029 capability gaps. A nonzero gate result caused by those manifest
+gaps is expected fail-closed behavior, not a green certification.
 
-Latest candidate evidence (2026-08-27, fixed candidate above and its
-evidence-only descendant):
+### Current-main evidence run
 
-- `bash tools/validator-certification-gate.sh` — command exit `1` because the
-  T22 manifest contains 9 capability gaps; report generation completed with
-  `40` CV rows (`31 Pass`, `9 Unavailable`) and `gate_passes: false`.
-- The report's 17 underlying commands each had an executed nonzero test
-  summary, `0` failed summaries, and exit `0`. This includes the lifecycle,
-  replay/fork, runtime-authority, world-binding, action/ingress, scheduler,
-  agency, world-time, query/catalog, semantic/blob, provenance, change-feed,
-  backend-evidence, required-live, restart-evidence and Validator library
-  targets.
-- `bash tools/validator-pg18-gate.sh` — PASS inside the gate against a fresh
-  repository-managed PostgreSQL 18 database; the structured T20 matrix had 10
-  required rows, all trusted PostgreSQL evidence, and `gate_passes: true`.
-- `cargo test -p loom-validator --test required_live --all-features -- --nocapture`
-  — 3 passed, including unknown/zero selection exit 2 and generic external
-  endpoint negative evidence with an ambient PG URL.
-- `cargo test -p loom-validator --test restart_evidence --all-features -- --nocapture`
-  — 6 passed, including reconnect-only negative and controlled InMemory/PG
-  boundary restart evidence.
-- `cargo test -p loom-validator --lib --all-features -- --nocapture` — 165
-  passed, including single-pass call-count, strict policy, deterministic
-  registry/report and duplicate/selection regressions.
+- Candidate/base: `4efb1d346c926f2ee10654c3bc24cd92af351881`.
+- T22 input: `origin/main` at `856814dfef5ca800e7c94cdabffd926846663110`,
+  `docs/tasks/validator-recert/stage-3/t22-certification-manifest.md`.
+- Race protocol: closed; no persistence, claim, retry, checkpoint, marker, or
+  concurrency authority was added.
+- `bash tools/validator-certification-gate.sh` — exit `1` because the
+  refreshed T22 manifest contains the two real gaps CV-028/CV-029. The report
+  contains 40 sorted, duplicate-free CV rows: 38 `Pass`, 2 `Unavailable`, and
+  `gate_passes: false`.
+- All 17 underlying commands executed real tests with zero failed summaries:
+  lifecycle (3), replay/fork (4), runtime-authority (2), world-binding (10),
+  action/ingress (11), scheduler (8), agency (5), world-time (10),
+  query/catalog (7), semantic/blob (11), provenance (9), change-feed (7),
+  backend-evidence (1), required-live (3), restart-evidence (6), Validator
+  library (165), and the PG18 gate (2 aggregate tests). No required command
+  was skipped, ignored, filtered to zero tests, or treated as a pass from an
+  unavailable result.
+- `bash tools/validator-pg18-gate.sh` — exit `0`; repository-managed
+  PostgreSQL 18.6 required-live matrix executed 10/10 rows with trusted
+  PostgreSQL evidence, controlled boundary restart evidence, and
+  `gate_passes: true` (CV-014, CV-016, CV-022, CV-023, CV-030..CV-033,
+  CV-039, CV-040).
+- `python3 tools/validator-certification-gate.py --regression-check` — exit
+  `0`; boundary termination/rebuild and PG18 preparation failures remain
+  fail-closed.
+
+The two non-pass rows are intentionally preserved from the refreshed T22
+input: CV-028 lacks the formal semantic-projection observable required by
+T08, and CV-029 lacks the formal blob/reference fetch observable required by
+T08. T24 does not add a public seam or reinterpret internal controlled-driver
+evidence. No PR was created or merged by Executor; final certification remains
+owned by T25.
