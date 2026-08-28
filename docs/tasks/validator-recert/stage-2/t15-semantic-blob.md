@@ -208,3 +208,14 @@ recorded in the Executor handoff comment.
 
 - Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the rebased candidate.
+
+## D-005 Final Latest-main Rebase — 2026-08-28
+
+The candidate was rebased once more after the latest-main ledger merge. The
+freshly fetched base is
+`8031d1df0a6512a651979c60e2e8e7ef31f08139`; the final candidate HEAD is
+recorded in the Executor handoff comment. The prior exact-head evidence was
+not reused.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on this candidate.
