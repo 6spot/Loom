@@ -1464,6 +1464,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "loom-agency",
  "loom-api",
  "loom-boundary",
  "loom-capability",

@@ -17,6 +17,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+loom-agency = { path = "../../crates/loom-agency", version = "0.1.0" }
 loom-boundary = { path = "../../crates/loom-boundary", version = "0.1.0" }
 loom-capability = { path = "../../crates/loom-capability", version = "0.1.0" }
 loom-core = { path = "../../crates/loom-core", version = "0.1.0" }
