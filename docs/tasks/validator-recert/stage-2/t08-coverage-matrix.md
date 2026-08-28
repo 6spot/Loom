@@ -26,6 +26,83 @@ Provide a deterministic, implementable coverage matrix that:
 
 No scenario behavior, production Validator code, or central registry integration is part of this leaf.
 
+## Evidence Policy and Correction Audit (effective contract)
+
+This section is the effective evidence contract for the correction recorded in
+this ledger. It supersedes the pre-policy suitability wording below for the
+current candidate only; it does not rewrite the historical candidate or its
+completion facts.
+
+The Validator contract has three deliberately separate layers:
+
+1. **Test-only driver** — a controlled fixture may use the existing
+   `Runtime`, `WorkStore`, `Scheduler`, `Storage`/restart seam, and deterministic
+   `CognitiveExecutor` to set up or control failure, Work, claim/fence,
+   projection/blob, competitor, and recovery boundaries. This layer is setup
+   and control only. It is not acceptance evidence and does not add a
+   production API.
+2. **Public observable evidence** — every `Pass`, `Fail`, or `Unavailable`
+   conclusion is obtained through a `LoomClient` formal read/observation
+   surface: `HistoryService`, `QueryService`, `IngressService`,
+   `AdminService::timeline_logical_status`, session/provenance reads, or the
+   existing Facet/blob/reference surfaces. Internal state and SQL are never
+   Validator assertions.
+3. **Product API / architecture gap** — a row is an architecture/semantic gap
+   only when the Runtime authority or semantic contract itself is absent, the
+   existing controlled fixture cannot drive it, and no existing formal read
+   can observe it. A missing production-consumer creation/injection API alone
+   is not a gap when the controlled driver and public observation already
+   exist.
+
+The hard constraints remain: direct SQL/internal-storage reads cannot be
+acceptance evidence, and an unexecuted, fabricated, or internal-only result
+cannot be reported as `Pass`. If a required driver or public observable state
+is genuinely absent, the row remains `blocked` and names the missing Runtime
+authority/semantic; the contract must not reverse this into a product-API
+requirement.
+
+### Historical candidate / pre-policy record (append-only)
+
+The prior candidate was recorded on 2026-08-27 using the pre-policy rule that
+treated missing production-facing injection APIs as architecture blockers. Its
+reported result was **31 suitable / 9 blocked** across `CV-001..CV-040`.
+That result, the nine blocked records and their evidence wording are historical
+only. The original ledger front matter and completion facts remain unchanged:
+`completion_pr: 343`, `merge_sha:
+276981290b4d4b8b8d0299402944c5f75cbb9a69`; the prior candidate was based on
+the pre-policy `d4437fbd332c8e6cac78c3093e0c26f33e8b448b` audit and merged
+historical PR #343.
+
+For auditability, the blocked records retained from that candidate are:
+
+| CV | Historical pre-policy blocked record (evidence and unsuitable reason) |
+| --- | --- |
+| CV-017 | `blocked (no public/controlled fault-injection surface)`; `Retryable(IngressTechnicalFailure)` could not be injected; the old unsuitable reason required a public fault-injection API / Architecture Amendment. |
+| CV-018 | `blocked (no public/controlled schedule/claim surface)`; the old record said no `schedule_work`/`claim` API existed and required a public scheduler Work API, while noting `schedule_agency_wake` was not generic Work proof. |
+| CV-019 | `blocked (no public/controlled fence surface)`; the old record said no `claim`/fence injection API existed and required a public fence injection API; `terminalize_work` was correctly recorded as termination only. |
+| CV-028 | `blocked (no public surface)`; the old record said no public SemanticService/rebuild/delete/query API existed and required a semantic Architecture Amendment. |
+| CV-029 | `blocked (no public surface)`; the old record said no public BlobService/blob-read API existed and required a blob Architecture Amendment. |
+| CV-034 | `blocked (no public/controlled cognitive-injection + Work-execution surface)`; the old record said `cognition: String` was not Decision injection and required a public Agency execution API. |
+| CV-035 | `blocked (no public/controlled cognitive-injection + Work-execution surface)`; the old record said no deterministic Decision injection plus execution seam existed and required a public Agency execution API. |
+| CV-036 | `blocked (no public/controlled cognitive-injection + Work-execution surface)`; the old record said `Rejected` could not be driven/observed from `schedule_agency_wake` and required a public Agency execution API. |
+| CV-037 | `blocked (no public/controlled claim surface)`; the old record said no concurrent `claim`/`execute`/fence API existed and required a public scheduler claim API. |
+
+Those records are preserved as the historical candidate's evidence, not as the
+current result. The correction audit below is the effective contract against
+the current baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874`.
+
+## Correction Audit — current effective candidate
+
+The nine rows above are specified with existing test-only driver seams. On
+this effective candidate, CV-017, CV-018, CV-019, CV-034, CV-035, CV-036 and
+CV-037 are suitable with existing public observation surfaces, while CV-028
+and CV-029 remain blocked for formal-read gaps: `CV-012..CV-040` = **27
+suitable / 2 blocked**; the full `CV-001..CV-040` ledger = **38 suitable / 2
+blocked**. This is a current effective count and must not be added to or
+substituted for the historical 31/9 result. A future run may change the
+current count only on real execution evidence, never by treating fixture setup
+or internal state as a pass.
+
 ## Scope
 
 Allowed:
@@ -83,9 +160,12 @@ Allocation decision: keep planned non-overlapping ranges as issued. If a future 
 
 Every new CV ID has exactly one owner leaf (no overlap). `CV-012..CV-040` inclusive = 29 scenarios. Combined Stage-1+Stage-2 stable coverage after this freeze: `CV-001..CV-040` (40 IDs).
 
-## Matrix Overview
+## Historical Candidate Matrix Overview (preserved)
 
-The summary table below abbreviates the required matrix columns. The following Detailed Specifications section expands each row to the full 10-field contract so Executors need not choose semantics.
+The summary below is retained from the pre-policy candidate for auditability.
+The current effective overlay follows it and is authoritative for the nine
+corrected rows. The following Detailed Specifications section expands each row
+to the full contract so Executors need not choose semantics.
 
 Columns:
 
@@ -132,9 +212,34 @@ Columns:
 | CV-039 | Resume from valid cursor continues at documented boundary (`m8/t4`) | Change feed cursor at `EventSeq=5` (`ChangeFeedCursor::after(target, EventSeq(5))`); new events `6,7` committed after | `SubscriptionService::subscribe(SubscriptionRequest::resume(target, ChangeFeedCursor::after(target, EventSeq(5)), limit))` → `SubscriptionResult::Events(ChangeFeedPage { events: [E6,E7], next_cursor: Some(ChangeFeedCursor::after(target, EventSeq(7))) })` and `ChangeFeedPage.next_cursor: Option<ChangeFeedCursor>` for resume | First resume returns `Events` with `E6,E7`; second resume with no new events returns `Resumed(SubscriptionResume { cursor: ChangeFeedCursor::after(target, EventSeq(7)) })` | controlled InMemory, controlled PostgreSQL | Yes (cursor durability across restart) | T18 | `m8/t4` resume semantics; `loom-storage` change feed page/cursor | — |
 | CV-040 | Disconnect/reconnect recovery preserves history, transport duplicate != world duplicate (`m8/t5-t6`) | Formal client disconnect mid-page; reconnect with same cursor | `SubscriptionService::subscribe(SubscriptionRequest::new(target, limit))` → disconnect → `SubscriptionService::subscribe(SubscriptionRequest::resume(target, cursor, limit))`, `HistoryService::list_events` + `ChangeFeedPage.next_cursor: Option<ChangeFeedCursor>` | History `list_events` still exactly N authoritative commits; transport retry may deliver page again but `EventId` dedup shows no second commit; `SubscriptionResult::Events(ChangeFeedPage)` vs `Backpressure`/`Reconnect` distinguishable | controlled InMemory, controlled PostgreSQL, controlled restart | Yes (reconnect recovery durable) | T18 | `m8/t6` http-client reconnect; `m8/t8` black-box gate | — |
 
+## Current Effective Matrix Overview — correction overlay
+
+The nine rows below explicitly separate the **test-only driver**, **public
+observable evidence**, and **product API / architecture-gap** decision. The
+driver is never evidence; the public surface is the only basis for a result.
+
+| CV | Test-only driver (setup/control only) | Public observable evidence | Product API / architecture-gap rule | Current expected result | Evidence / PG | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| CV-017 | Controlled `Runtime` + `Ingress` + `Storage`/restart fixture injects `Retryable(IngressTechnicalFailure)`, recovery, and duplicate submission boundary. | `LoomClient` `IngressService::ingress_status` plus `HistoryService`/`QueryService`. | Existing `IngressService` is sufficient; missing production fault-injection API is not a gap. Block only if Runtime retry authority/semantic or these reads are absent. | Retryable status produces no Event; recovery produces exactly one authoritative Event/Facet; duplicate submission does not add another. | controlled InMemory, controlled PostgreSQL; PG restart if durability is asserted. | T11 (#316) |
+| CV-018 | Controlled `Scheduler` + `WorkStore` + `Runtime` fixture creates two same-Timeline ordered Pending Works and claim conditions. | `LoomClient` `AdminService::timeline_logical_status` Work/journal fields plus `HistoryService` ordering. | Generic production `schedule_work`/`claim` is not required when the controlled fixture drives existing authority. Block only if Work ordering/head authority or formal reads are absent. | Logical head admits the earliest `(effective_due_world_time, logical_schedule_order)` Work and preserves order; later Work does not bypass it. | controlled InMemory, controlled PostgreSQL; PG when durable Work state is asserted. | T12 (#317) |
+| CV-019 | Controlled `Scheduler` + `WorkStore` fixture creates stale/new fence or lease competitors and completion attempts. | `LoomClient` `AdminService::timeline_logical_status`, completion/history, and provenance reads. | `terminalize_work` is not a claim driver; no production claim API is required for this test-only seam. Block only if Runtime fence authority/semantic or formal reads are absent. | Stale actor is rejected; winner remains authoritative and cannot be overwritten. | controlled InMemory, controlled PostgreSQL; PG for durable fencing if required. | T12 (#317) |
+| CV-028 | Test-only Runtime-owned projection/storage fixture may build, delete, and rebuild a derived semantic projection from committed Events; driver is setup only. | Only `LoomClient` `HistoryService::list_events` and `QueryService::get_facet` are existing formal reads; `SemanticIndexDescriptor` is catalog metadata only. | **Blocked — `no existing formal semantic projection observable`**: no formal SemanticProjection read/rebuild/delete surface exists. This is a formal-read gap, not a product-API amendment request. | `Unavailable` until a formal semantic projection observable exists; internal projection state cannot establish Pass. | **No — blocked** (`no existing formal semantic projection observable`); PG not applicable while blocked. | T15 (#320) |
+| CV-029 | Test-only Runtime-owned projection/blob/storage fixture may create a Facet `BlobReference` and clear the referenced blob; BlobStore is setup only. | Only `LoomClient` `QueryService::get_facet` and `HistoryService::list_events` are existing formal reads; `FacetSnapshot.value` is opaque `Value`. | **Blocked — `no existing formal blob/reference fetch observable`**: no formal blob fetch/read surface exists. This is a formal-read gap, not a product-API amendment request. | `Unavailable` until a formal blob/reference fetch observable exists; internal BlobStore/SQL cannot establish Pass. | **No — blocked** (`no existing formal blob/reference fetch observable`); PG not applicable while blocked. | T15 (#320) |
+| CV-034 | Agency/Runtime controlled fixture installs deterministic `CognitiveExecutor` returning `Decision::NoAction` for a scheduled Wake and drives the Work boundary. | `LoomClient` `AdminService::timeline_logical_status`, `HistoryService`, `QueryService`, and session/provenance read. | `cognition: String` remains a request field; the controlled executor is a test driver, not a new product API. Block only if the existing Wake/NoAction authority or formal reads are absent. | Pending Wake becomes terminal/Completed with no fabricated Event or Facet mutation. | controlled InMemory, controlled PostgreSQL as applicable; PG not mandatory by policy. | T17 (#322) |
+| CV-035 | Agency/Runtime controlled fixture installs deterministic `CognitiveExecutor` returning legal `Decision::Act` and drives the scheduled Wake. | `LoomClient` logical status, `HistoryService`, `QueryService`, and session/provenance read. | Normal Action authority is reused; no public Decision-injection API is required. Block only if Agency Act authority/semantic or formal reads are absent. | Wake reaches terminal committed state through normal Action authority; expected Event/Facet and provenance are visible. | controlled InMemory, controlled PostgreSQL as applicable; PG not mandatory by policy. | T17 (#322) |
+| CV-036 | Agency/Runtime controlled fixture installs deterministic `CognitiveExecutor` returning a semantically invalid Act and drives the Wake. | `LoomClient` logical status, `HistoryService`, `QueryService`, and session/provenance read. | Rejection is existing Action/semantic authority; no public rejection-injection API is required. Block only if rejection semantics or formal reads are absent. | Wake reaches terminal Rejected/no-world-change state; no fabricated Event, Facet mutation, or false completion is observed. | controlled InMemory, controlled PostgreSQL as applicable; PG not mandatory by policy. | T17 (#322) |
+| CV-037 | Agency/Runtime controlled fixture creates two stale/new CAS or fence competitors for one logical-head Wake and records deterministic winner/loser Decisions. | `LoomClient` logical status, `HistoryService`, `QueryService`, and session/provenance reads. | Test-only claim/fence control is allowed; no production claim API is required. Block only if Runtime CAS/fence authority or formal winner/loser/provenance reads are absent. | One winner remains authoritative; stale loser is rejected/discarded; no overwrite or fabricated Event; provenance distinguishes winner/loser path. | controlled InMemory, controlled PostgreSQL as applicable; PG not mandatory by policy. | T17 (#322) |
+
 ## Detailed Scenario Specifications
 
-Each scenario below expands the 10 required matrix columns so T10–T18 Executors can implement without semantic choice. Any row requiring a new authority decision is marked `blocked` and escalated — at freeze 9 rows are blocked (`CV-017`, `CV-018`, `CV-019`, `CV-028`, `CV-029`, `CV-034`, `CV-035`, `CV-036`, `CV-037`) for missing public/controlled Agency/scheduler/fault-injection API (see Coverage Gaps 8/9/11/12/13/14/15/16/17); all others implementable via existing `loom-api`/`loom-client`; future discovery of additional missing authority must also mark blocked and stop.
+Each scenario below expands the required matrix columns so T10–T18
+Executors can implement without semantic choice. The nine corrected rows
+(`CV-017`, `CV-018`, `CV-019`, `CV-028`, `CV-029`, `CV-034`, `CV-035`,
+`CV-036`, `CV-037`) use explicit test-only drivers and public observable
+evidence below. The old 9-blocked wording is preserved in the historical
+record; it is not the current effective status. Future discovery of a missing
+Runtime authority/semantic, driver, or formal read must mark only the affected
+row blocked and stop.
 
 ### CV-012 — Immutable World Binding visible through formal reads
 
@@ -202,44 +307,47 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Complementary:** `m8/t2` ingress persistence + `ingress` table; `m8/t3` processing; `loom-boundary` HTTP Ingress handler tests.
 - **Unsuitable Reason:** —
 
-### CV-017 — Ingress operational bookkeeping distinct from authoritative history (blocked — no public failure injection)
+### CV-017 — Ingress operational bookkeeping distinct from authoritative history (current effective contract)
 
 - **Stable CV ID:** `CV-017`
 - **Clause:** `world-runtime.md` §2.2 vs §2.5 vs §2.6; `m8/t2` Ingress platform lifecycle; `loom-api::IngressStatus`.
-- **Preconditions:** N/A — blocked. Planned precondition would be: Ingress `Accepted` then platform `Retryable(IngressTechnicalFailure)` before terminal completion. Current `crates/loom-api`/`loom-client`/`loom-boundary` has no public API to inject or observe `IngressTechnicalFailure` via controlled harness (`IngressService` only exposes `submit_ingress` and `ingress_status`; no fault-injection API exists).
-- **Formal Surface:** Blocked: `IngressService::ingress_status(IngressId) -> IngressStatusRecord { status: IngressStatus::Retryable(IngressTechnicalFailure) }` observation has no public/controlled injection path; `HistoryService::list_events` + `QueryService::get_facet` authority check exists but transition `Accepted/Processing -> Retryable -> Completed` cannot be driven via public surface. No fault-injection or equivalent controlled fixture exists in repo.
-- **Expected Result:** Blocked: Intent is `Retryable` does not create Event and `Accepted/Retryable -> Completed(IngressCompletion::Committed { event_refs, timeline_version })` creates exactly one `EventRef` without duplicates; `IngressStatus::Retryable` never rendered as `Completed(Rejected)`. Current contract provides no public way to force `Retryable` and then observe recovery — explicit gap, requires Architecture Amendment adding public/controlled Ingress failure injection/observation before Validator coverage. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled fault-injection surface)
-- **PostgreSQL Live Mandatory:** No — blocked (no public/controlled fault-injection surface to drive PostgreSQL proof)
+- **Test-only Driver:** Controlled `Runtime` + `Ingress` + `Storage`/restart fixture injects `Retryable(IngressTechnicalFailure)` after acceptance, drives recovery, and repeats the submission at the duplicate boundary. This is setup/control only, not evidence.
+- **Public Observable Evidence:** `LoomClient` `IngressService::ingress_status(IngressId)` observes `Retryable` and terminal completion; `HistoryService::list_events` and `QueryService::get_facet` observe authoritative Event/Facet state. No SQL or internal storage read is an assertion.
+- **Product API / Architecture Gap:** Existing Runtime/Ingress authority and formal reads are sufficient. The absence of a production fault-injection endpoint is not a gap. Mark `blocked` only if the Runtime retry authority/semantic, controlled driver, or formal observations are genuinely absent.
+- **Expected Result:** `Retryable(IngressTechnicalFailure)` creates no Event or Facet mutation. Recovery reaches `Completed(IngressCompletion::Committed { event_refs, timeline_version })` with exactly one authoritative Event/Facet; repeating the same submission does not add a second EventRef. `Retryable` is never rendered as `Completed(Rejected)`.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL; controlled restart when durable recovery is asserted.
+- **PostgreSQL Live Mandatory:** No — PG evidence remains available for durability, but the logical Retryable/no-Event boundary is not itself PG-mandatory.
 - **Owner:** T11
 - **Complementary:** `m8/t2` status vs history table separation; `m8/t3` recovery not inventing truth — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public fault-injection surface; `IngressService` only exposes `submit_ingress`/`ingress_status`, no `Retryable` injection — explicit gap, requires Architecture Amendment adding public fault-injection API before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the existing controlled driver and public observations execute; missing production injection API alone is not an unsuitable reason).
 
-### CV-018 — Single-Timeline logical head ordering (blocked — no public Work schedule/claim)
+### CV-018 — Single-Timeline logical head ordering (current effective contract)
 
 - **Stable CV ID:** `CV-018`
 - **Clause:** `world-runtime.md` §8.3-§8.4 Deterministic logical Work order, Head-of-line rule; `runtime-contracts.md` §14; `m5/t4` head-aware scheduler claim.
-- **Preconditions:** N/A — blocked. Planned: Timeline at `WorldInstant T20`, two `WorkId` with same `effective_due_world_time=T20` but distinct `logical_schedule_order` (0,1) would be scheduled via `WorkMutation`. Current `loom-api` only exposes `AdminService::schedule_agency_wake` (agency wake scheduling, fields `target, expected_version, work_id, agent, cognition, payload, schedule`) and `AdminService::timeline_logical_status(target)` read; there is no public `schedule_work` or `claim_work` API for generic Work scheduling via `loom-api`/`loom-client` or controlled harness.
-- **Formal Surface:** Blocked for schedule/claim: `AdminService::schedule_agency_wake` is agency scheduling only, not generic Work head ordering; `ActionService` does not expose Work. Observation via `TimelineService::inspect_timeline` + `AdminService::timeline_logical_status` + `HistoryService::list_events` exists but driving two Works has no public invocation surface.
-- **Expected Result:** Blocked: no public/controlled `schedule_work`/`claim` surface to create `Pending` Works or observe head ordering; `AdminService::schedule_agency_wake` is agency scheduling only, `AdminService::timeline_logical_status` is read-only — explicit gap, requires public scheduler Work API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled schedule/claim surface)
-- **PostgreSQL Live Mandatory:** No — blocked (no public/controlled schedule/claim surface to drive PostgreSQL proof)
+- **Test-only Driver:** Controlled `Scheduler` + `WorkStore` + `Runtime` fixture creates two same-Timeline ordered Pending Works at `T20`, establishes claim conditions, and advances the controlled Work boundary. This is setup/control only, not evidence.
+- **Public Observable Evidence:** `LoomClient` `AdminService::timeline_logical_status` reads Work and logical-journal state; `HistoryService` observes the resulting admission/order. The test does not use SQL or internal Work state as an assertion.
+- **Product API / Architecture Gap:** Existing Scheduler/Work authority is exercised through the controlled fixture. Missing production `schedule_work`/`claim` endpoints is not a gap. Mark `blocked` only if logical-head authority/semantic or these formal reads are absent.
+- **Expected Result:** The logical head admits the earliest `(effective_due_world_time, logical_schedule_order)` Work; the later Work cannot bypass it. The formal logical status and resulting history show deterministic head/order.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL; PG when durable Work state is part of the claim.
+- **PostgreSQL Live Mandatory:** No — PG is optional for this logical ordering row unless the implementation claims durable Work ordering.
 - **Owner:** T12 (#317)
 - **Complementary:** `m5/t4` claim with `SKIP LOCKED` head-only; `loom-storage/tests/postgres_work.rs` ordering — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public `schedule_work`/`claim_work` API exists; `schedule_agency_wake` cannot prove generic Work head-only ordering — explicit gap, requires public scheduler Work API before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the existing controlled driver and public observations execute; missing production scheduling/claim API alone is not an unsuitable reason).
 
-### CV-019 — Stale fencing / ownership cannot commit after authority moved (blocked — no public fence injection)
+### CV-019 — Stale fencing / ownership cannot commit after authority moved (current effective contract)
 
 - **Stable CV ID:** `CV-019`
 - **Clause:** `world-runtime.md` §8.1 Semantic due vs operational claimability; `runtime-contracts.md` §14 claim/admission; `implementation.md` §13.3 `SKIP LOCKED` scope; `m5/t4`.
-- **Preconditions:** N/A — blocked. Planned: head Work `work_id` with `lease`/`fence` generation `g1` would be injected via `claim` with `expected_version` CAS, then stale `complete`. Current `loom-api` only exposes `AdminService::terminalize_work(AdminTerminalizeWorkRequest { target, work_id, expected_version, terminal_state })` for termination and `AdminService::timeline_logical_status(target)` for read; there is no public `claim_work` or fence token injection API via `loom-api`/`loom-client` or controlled harness.
-- **Formal Surface:** Blocked for claim: `AdminService::terminalize_work` is termination only (fields `target, work_id, expected_version, terminal_state`), not stale `claim`/`complete`. Observation via `TimelineService::inspect_timeline(TimelineTarget) -> TimelineSnapshot { version }` and `HistoryService::list_events` for winner's Event, but `claim`/`fence` injection has no public invocation surface.
-- **Expected Result:** Blocked: no public/controlled `lease`/`fence` token injection surface; `AdminService::terminalize_work` is termination only via `AdminTerminalizeWorkRequest { target, work_id, expected_version, terminal_state }` — explicit gap, requires public fence injection API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled fence surface)
-- **PostgreSQL Live Mandatory:** No — blocked (no public/controlled fence surface to drive PostgreSQL proof)
+- **Test-only Driver:** Controlled `Scheduler` + `WorkStore` fixture creates stale/new lease or fence competitors, performs the authoritative claim/complete attempts, and supplies the stale actor boundary. `AdminService::terminalize_work` is not used as a claim driver.
+- **Public Observable Evidence:** `LoomClient` `AdminService::timeline_logical_status` observes Work ownership/status; completion/history and session/provenance reads observe the winner and its authority. Internal fence values and SQL are not assertions.
+- **Product API / Architecture Gap:** Existing Runtime fence authority and controlled seam are sufficient. Missing public claim/fence injection is not a gap. Mark `blocked` only if fence/lease authority/semantic or the formal observations are genuinely absent.
+- **Expected Result:** The stale actor is rejected and cannot complete/overwrite the Work. The winner's authoritative state remains unchanged by the stale attempt, and the formal history/provenance read identifies the winning path.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL; controlled restart if durable fencing is asserted.
+- **PostgreSQL Live Mandatory:** No — PG is optional for the logical stale-fence boundary unless durable lease/fence persistence is claimed.
 - **Owner:** T12
 - **Complementary:** `loom-storage/tests/postgres_work_stale_completion.rs`; `m5/t4` fence.
-- **Unsuitable Reason:** No public `claim`/`fence` injection API; `terminalize_work` is termination only — explicit gap, requires public fence injection API before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the controlled claim/fence driver and public observations execute; `terminalize_work` remains termination-only).
 
 ### CV-020 — Independent Timelines not globally serialized
 
@@ -345,31 +453,33 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Complementary:** `m4/t2` binding catalog; `runtime_authority` CV-010/011 negative; `m7/t1`.
 - **Unsuitable Reason:** —
 
-### CV-028 — Semantic projection rebuildable, not authority (blocked — no public API)
+### CV-028 — Semantic projection rebuildable, not authority (current effective contract — blocked formal-read gap)
 
 - **Stable CV ID:** `CV-028`
 - **Clause:** `m7/t2` semantic indexes + pgvector, `m7/t3` mediator, `implementation.md` placeholder for vector.
-- **Preconditions:** N/A — blocked. Planned precondition would be: committed Events with `neutral.counter.seed` 3 times; semantic index `neutral.counter.projector@1` built via Runtime projection. No public API exists to trigger build/rebuild/delete/query.
-- **Formal Surface:** Blocked: `crates/loom-api/src/lib.rs` exposes `CatalogService::catalog` with `SemanticIndexDescriptor` metadata but no public `SemanticService` / `query_semantic_projection` / `rebuild_semantic_projection` / `delete_semantic_projection`; `crates/loom-client` also lacks such service. Authority is only `HistoryService::list_events` + `QueryService::get_facet`; projection observation has no public surface.
-- **Expected Result:** Blocked: Validator cannot observe semantic projection rebuild via public surface. If projection existed, delete/rebuild would leave `list_events`/`get_facet` authority unchanged (per `m7/t2`), but current contract provides no way to perform or observe the operation via `loom-api` — must not invent alternative via internal `loom-storage` table.
-- **Evidence Classes:** blocked (no public surface) — no External/InMemory/PostgreSQL evidence class applicable until API exists.
-- **PostgreSQL Live Mandatory:** No — blocked.
+- **Test-only Driver:** A controlled `Runtime::new` over `InMemoryStore` or `PgStorage` may use the Runtime-owned `SemanticProjectionStore` seam to commit representative Events, call `Runtime::rebuild_semantic_projection`, remove materialization with `SemanticProjectionStore::delete_semantic_projection`, and rebuild from authoritative history. This is setup/control only and cannot be Pass evidence.
+- **Public Observable Evidence:** The only existing formal reads are `LoomClient` `HistoryService::list_events` and `QueryService::get_facet`, which observe authoritative Events/Facets. `SemanticIndexDescriptor` through catalog is metadata only; there is no formal SemanticProjection read/rebuild/delete surface. Internal projection state, BlobStore, and SQL are not evidence.
+- **Product API / Architecture Gap:** **Blocked — `no existing formal semantic projection observable`.** The current Runtime projection contract cannot be certified for derived rebuildability through the available `LoomClient` reads. This records the formal-read gap only; it does not request or require an Architecture Amendment or product API.
+- **Expected Result:** `Unavailable` for the derived projection assertion: the driver may remove/rebuild it, but no existing formal observable can prove that operation. `HistoryService::list_events` and `QueryService::get_facet` remain the only authoritative reads and cannot be promoted to projection evidence.
+- **Evidence Classes:** **blocked (no existing formal semantic projection observable)**; no External, controlled InMemory, or controlled PostgreSQL Pass evidence applies while blocked.
+- **PostgreSQL Live Mandatory:** No — blocked on the formal-read gap; PG cannot substitute for a missing public observable.
 - **Owner:** T15 (#320)
 - **Complementary:** `m7/t2` pgvector add/rebuild leaves authority unchanged; `m7/t3` read not authority — internal evidence, not public Validator evidence.
-- **Unsuitable Reason:** No public SemanticService/semantic projection rebuild/delete/query API exists in current `loom-api` (only `SemanticIndexDescriptor` metadata via `CatalogService::catalog`); capability-owned index cannot be validated via current public `loom-api`/`loom-client` — explicit gap, requires Architecture Amendment adding public semantic projection service before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** **Blocked — `no existing formal semantic projection observable`**; the test-only driver and internal projection state cannot establish Validator acceptance.
 
-### CV-029 — Blob/reference missing does not rewrite history (blocked — no public API)
+### CV-029 — Blob/reference missing does not rewrite history (current effective contract — blocked formal-read gap)
 
 - **Stable CV ID:** `CV-029`
 - **Clause:** `m7/t4` immutable BlobStore; `implementation.md` blob.
-- **Preconditions:** N/A — blocked. Planned precondition: Facet `neutral.doc@1` stores `BlobReference` (`BlobId`); Blob deleted or never uploaded.
-- **Formal Surface:** Blocked: `crates/loom-api` exposes `FacetSnapshot.value` containing `BlobReference` (opaque JSON value via `QueryService::get_facet`) but no public `BlobService` / blob read API; `crates/loom-api/src/lib.rs` grep for `BlobService` returns 0 results; authority only `QueryService::get_facet` + `HistoryService::list_events`.
-- **Expected Result:** Blocked: Validator can observe `FacetSnapshot.value` containing blob reference via `get_facet`, but cannot validate blob fetch failure via public surface — no public blob read to assert `Unavailable`/`NotFound`. If API existed, blob read failure would not alter `get_facet` payload nor `list_events` history, but current contract provides no public blob fetch.
-- **Evidence Classes:** blocked (no public surface) — `get_facet` Facet value observation possible, but blob fetch evidence class N/A until API exists.
-- **PostgreSQL Live Mandatory:** No — blocked.
+- **Test-only Driver:** A controlled `Runtime::new` over `InMemoryStore` or `PgStorage` with `InMemoryBlobStore` may commit a Facet containing a `BlobReference`, then remove or make that reference unavailable without changing the authoritative record. BlobStore/SQL is setup only and cannot be acceptance evidence.
+- **Public Observable Evidence:** The only existing formal reads are `LoomClient` `QueryService::get_facet` and `HistoryService::list_events`; `FacetSnapshot.value` is opaque `Value`. No formal blob fetch/read surface exists to observe `Unavailable`/missing reference.
+- **Product API / Architecture Gap:** **Blocked — `no existing formal blob/reference fetch observable`.** This records the missing formal observable only; it does not request or require an Architecture Amendment or product API.
+- **Expected Result:** `Unavailable` for the missing-blob assertion: the driver may make the reference unavailable, but no existing formal observable can prove the failed fetch. `get_facet` and `list_events` remain authoritative and must not be replaced by internal BlobStore/SQL evidence.
+- **Evidence Classes:** **blocked (no existing formal blob/reference fetch observable)**; no External, controlled InMemory, or controlled PostgreSQL Pass evidence applies while blocked.
+- **PostgreSQL Live Mandatory:** No — blocked on the formal-read gap; PG cannot substitute for a missing blob/reference observable.
 - **Owner:** T15
 - **Complementary:** `m7/t4` blob immutability; `loom-storage` blob tests — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public BlobService/blob read API exists in current `loom-api`; blob availability failure cannot be validated via current public surface — explicit gap, requires Architecture Amendment adding public blob service before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** **Blocked — `no existing formal blob/reference fetch observable`**; internal BlobStore/SQL setup cannot establish Validator acceptance.
 
 ### CV-030 — Pinned/versioned read via fork at version (existing API)
 
@@ -423,57 +533,61 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Complementary:** `m9/t2` provenance evidence; `loom-runtime` entropy.
 - **Unsuitable Reason:** —
 
-### CV-034 — Agency NoAction completes wake without fabricating Event (blocked — no cognitive injection seam)
+### CV-034 — Agency NoAction completes wake without fabricating Event (current effective contract)
 
 - **Stable CV ID:** `CV-034`
 - **Clause:** `m10/t4` Atomic Agency Wake Decision/Action commit, NoAction path; `amendment 0003 §3`.
-- **Preconditions:** N/A — blocked. Planned: `AgencyWake` `work_id` with `cognition: String` would determine `Decision::NoAction`. Current `AdminScheduleAgencyWakeRequest.cognition: String` is stable requirement, not `Decision` injection; `Runtime::with_cognitive_executor(DeterministicCognitiveExecutor)` is application composition, not Validator `BackendHarness` seam; `AdminService::schedule_agency_wake` only creates `Pending` Work, does not execute Wake — no public/controlled cognitive-injection + Work-execution surface in `loom-api`/`loom-client`/`BackendHarness`.
-- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target, expected_version, work_id, agent, cognition, payload, schedule })` only creates `Pending` Work; no `Runtime::execute_work(target, work_id, now, claimed_until, retry_available_at)` or deterministic `CognitiveExecutor` injection via `BackendHarness`. Observation via `AdminService::timeline_logical_status` + `HistoryService::list_events` exists but driving `NoAction` to `Completed` has no public seam.
-- **Expected Result:** Blocked: Intent is `Pending→Completed` with no `CommittedEvent`. Current Validator has no `with_cognitive_executor` + `execute_work` seam to drive `NoAction` to `Completed` via public surface — explicit gap, requires public cognitive-injection + Work-execution API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
-- **PostgreSQL Live Mandatory:** No — blocked
+- **Test-only Driver:** `Runtime::new(...).with_cognitive_executor(DeterministicCognitiveExecutor::new([DeterministicCognitiveStep::no_action()]))`, `AdminService::schedule_agency_wake`, and `Runtime::execute_work` drive one scheduled Wake. The executor and Work control are setup only, not evidence.
+- **Public Observable Evidence:** `LoomClient` `AdminService::timeline_logical_status`, `HistoryService`, `QueryService`, and session/provenance reads observe the terminal Work and unchanged world state. No internal state or SQL is an assertion.
+- **Product API / Architecture Gap:** `cognition: String` remains a request requirement; deterministic executor injection is a test-only seam. Missing production Decision injection/execution API is not a gap. Mark `blocked` only if the existing Wake/NoAction authority/semantic or formal reads are absent.
+- **Expected Result:** The scheduled Pending Wake becomes terminal/Completed with no fabricated Event or Facet mutation.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL as applicable.
+- **PostgreSQL Live Mandatory:** No — PG is optional for this logical NoAction boundary.
 - **Owner:** T17 (#322)
 - **Complementary:** `m10/t4` NoAction atomic; `loom-agency` contracts — internal, not public Validator evidence.
-- **Unsuitable Reason:** `AdminScheduleAgencyWakeRequest.cognition: String` is not `Decision` provider; `Runtime::with_cognitive_executor` is app composition, `schedule_agency_wake` only creates `Pending` — no public/controlled seam to inject deterministic `CognitiveExecutor` and drive Wake to `Completed` via `execute_work` — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the controlled deterministic executor and formal observations execute).
 
-### CV-035 — Agency Act enters normal Action authority path (blocked — no cognitive injection seam)
+### CV-035 — Agency Act enters normal Action authority path (current effective contract)
 
 - **Stable CV ID:** `CV-035`
 - **Clause:** `m10/t4` Act via normal path; `runtime-contracts.md` §8 Agency Decision.
-- **Preconditions:** N/A — blocked. Planned: same `work_id` with `Decision::Act(ActionInvocation::new("neutral.counter.increment", json!({amount:1})))` via deterministic `CognitiveExecutor`. Current `cognition: String` is not `Decision` injection; `with_cognitive_executor` is app composition, `schedule_agency_wake` only creates `Pending`.
-- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake` only creates `Pending`; no `Runtime::execute_work` + `DeterministicCognitiveExecutor` seam. Observation via `AdminService::timeline_logical_status` + `HistoryService::list_events` exists but driving `Act` to `Committed` has no public seam.
-- **Expected Result:** Blocked: no public/controlled `with_cognitive_executor` + `execute_work` seam to drive `Act`; `AdminService::schedule_agency_wake` only creates `Pending` Work — explicit gap, requires public Agency execution API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
-- **PostgreSQL Live Mandatory:** No — blocked
+- **Test-only Driver:** `Runtime::new(...).with_cognitive_executor(DeterministicCognitiveExecutor::new([DeterministicCognitiveStep::act(ActionInvocation::new("neutral.counter.increment", ...))]))`, `AdminService::schedule_agency_wake`, and `Runtime::execute_work` drive the Wake through the existing Action authority.
+- **Public Observable Evidence:** `LoomClient` logical status, `HistoryService`, `QueryService`, and session/provenance reads observe terminal Work, committed Event/Facet, and provenance. Internal executor output is not acceptance evidence.
+- **Product API / Architecture Gap:** Normal Action authority is reused; no public Decision-injection API is required. Mark `blocked` only if Agency Act authority/semantic or the formal reads are absent.
+- **Expected Result:** Wake reaches terminal committed state through normal Action authority; the expected Event/Facet and session/provenance are visible.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL as applicable.
+- **PostgreSQL Live Mandatory:** No — PG is optional for this logical Act boundary.
 - **Owner:** T17
 - **Complementary:** `m10/t4` Act via normal path — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public cognitive-injection + Work-execution surface; `cognition` String is not `Decision` — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the controlled deterministic executor and formal observations execute).
 
-### CV-036 — Agency semantic rejection produces no false Event (blocked — no cognitive injection seam)
+### CV-036 — Agency semantic rejection produces no false Event (current effective contract)
 
 - **Stable CV ID:** `CV-036`
 - **Clause:** `m10/t4` R-1 semantic Rejected MUST complete Wake as determined no-world-change; `runtime-contracts.md` §5.4 Rejected.
-- **Preconditions:** N/A — blocked. Planned: `Act` with invalid payload (e.g., `amount: "bad-type"`) would be `Rejected` via `CognitiveExecutor` `Decision::Act` -> `ExecutionResult::Rejected`. Current `schedule_agency_wake` only creates `Pending`, no `execute_work` seam.
-- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake` only creates `Pending`; no `execute_work` seam. Observation via `HistoryService::list_events` exists but driving `Rejected` has no public seam.
-- **Expected Result:** Blocked: no public/controlled `with_cognitive_executor` + `execute_work` seam to drive `Rejected`; `AdminService::schedule_agency_wake` only creates `Pending` Work — explicit gap, requires public Agency execution API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled cognitive-injection + Work-execution surface)
-- **PostgreSQL Live Mandatory:** No — blocked
+- **Test-only Driver:** `Runtime::new(...).with_cognitive_executor(DeterministicCognitiveExecutor::new([DeterministicCognitiveStep::act(ActionInvocation::new("neutral.counter.increment", invalid_payload))]))`, `AdminService::schedule_agency_wake`, and `Runtime::execute_work` drive the Wake through semantic validation.
+- **Public Observable Evidence:** `LoomClient` logical status, `HistoryService`, `QueryService`, and session/provenance reads observe Rejected/terminal state and no authority mutation. Internal rejection state and SQL are not assertions.
+- **Product API / Architecture Gap:** Rejection is existing Action/semantic authority; no public rejection-injection API is required. Mark `blocked` only if rejection semantics or formal reads are absent.
+- **Expected Result:** Wake reaches terminal Rejected/no-world-change state; no fabricated Event, Facet mutation, or false completion is observed.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL as applicable.
+- **PostgreSQL Live Mandatory:** No — PG is optional for this logical rejection boundary.
 - **Owner:** T17
 - **Complementary:** `m10/t4` R-1; `loom-runtime` rejected path — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public cognitive-injection + Work-execution surface; `ExecutionResult::Rejected` cannot be observed via `schedule_agency_wake` alone — explicit gap, requires public Agency execution API. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the controlled deterministic executor and formal observations execute).
 
-### CV-037 — Concurrent/stale CAS loser cannot overwrite winner; provenance records path (blocked — no public claim API)
+### CV-037 — Concurrent/stale CAS loser cannot overwrite winner; provenance records path (current effective contract)
 
 - **Stable CV ID:** `CV-037`
 - **Clause:** `m10/t5` Agency Wake scheduling CAS policy, resample vs reuse; `world-runtime.md` §8.1; `runtime-contracts.md` §7.3.
-- **Preconditions:** N/A — blocked for claim portion. Planned: same logical head Wake `work_id` would be claimed by two workers with stale/new `TimelineVersion`/fence (`expected_version` CAS). Current `loom-api` only exposes `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest)` for scheduling and `AdminService::timeline_logical_status(target) -> AdminTimelineLogicalStatus` for read; there is no public `claim_work`/`execute_work` API — claim is internal scheduler (`loom-runtime`) not exposed via `loom-api`/`loom-client` or controlled harness.
-- **Formal Surface:** Blocked: `AdminService::schedule_agency_wake(AdminScheduleAgencyWakeRequest { target, expected_version, work_id, agent, cognition, payload, schedule })` is scheduling only, not concurrent `claim`/`execute`/`fence`; no public `claim_work`/`execute_work` API via `loom-api`/`loom-client` or controlled `BackendHarness`.
-- **Expected Result:** Blocked: no public/controlled `claim`/`execute`/`fence` surface to create or observe concurrent `CAS` winner/loser, `resample` or discarded provenance; `AdminService::schedule_agency_wake` only creates `Pending` Work — explicit gap, requires public scheduler claim API. Marked `BLOCKED` per Stop Conditions.
-- **Evidence Classes:** blocked (no public/controlled claim surface)
-- **PostgreSQL Live Mandatory:** No — blocked (no public/controlled claim surface to drive PostgreSQL proof)
+- **Test-only Driver:** Two controlled `Runtime::execute_work` calls over the same `WorkStore`/logical-head Wake use stale/new `TimelineVersion` or fence inputs and deterministic `CognitiveExecutor` Decisions to exercise the CAS winner/loser boundary. This is setup/control only.
+- **Public Observable Evidence:** `LoomClient` `AdminService::timeline_logical_status`, `HistoryService`, `QueryService`, and session/provenance reads observe one winner, the rejected/discarded loser, and the authority/provenance outcome. No SQL or internal claim state is an assertion.
+- **Product API / Architecture Gap:** Test-only claim/fence control is allowed; no production claim API is required. Mark `blocked` only if Runtime CAS/fence authority/semantic or formal winner/loser/provenance reads are absent.
+- **Expected Result:** Exactly one winner remains authoritative; stale loser is rejected/discarded; no overwrite or fabricated Event occurs; provenance distinguishes winner and loser paths.
+- **Evidence Classes:** controlled InMemory, controlled PostgreSQL as applicable.
+- **PostgreSQL Live Mandatory:** No — PG is optional for this logical CAS boundary unless durable contention is claimed.
 - **Owner:** T17
 - **Complementary:** `m10/t5` stale CAS; `loom-storage/tests/postgres_work_stale_completion.rs` — internal, not public Validator evidence.
-- **Unsuitable Reason:** No public `claim_work`/`fence` injection API; `schedule_agency_wake` is scheduling only — explicit gap, requires public scheduler claim API before Validator coverage. Marked blocked per Stop Conditions.
+- **Unsuitable Reason:** — (suitable when the controlled CAS/fence driver and formal observations execute).
 
 ### CV-038 — Committed Event observable via formal change-feed/SSE client
 
@@ -514,7 +628,13 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 - **Complementary:** `m8/t6` reconnect; `m8/t8` black-box gate.
 - **Unsuitable Reason:** —
 
-## Evidence Class Definitions (normative for Stage-2)
+## Evidence Class Definitions and Three-Layer Evidence Table (normative for Stage-2)
+
+| Layer | Allowed use | Disallowed substitution | Current effective rows |
+| --- | --- | --- | --- |
+| Test-only driver | Controlled `Runtime`, `WorkStore`, `Scheduler`, `Storage`/restart seams and deterministic `CognitiveExecutor` establish fixtures, failures, Work, claims/fences, projections/blobs, competitors and recovery boundaries. | Driver state, internal structs, SQL, or executor return values cannot be acceptance evidence. | CV-017, CV-018, CV-019, CV-028, CV-029, CV-034..CV-037 |
+| Public observable evidence | `LoomClient` formal `HistoryService`, `QueryService`, `IngressService`, `AdminService::timeline_logical_status`, session/provenance, Facet/blob/reference, and other existing `loom-api`/`loom-client` reads establish Pass/Fail/Unavailable. | Internal Runtime/Storage reads and direct SQL cannot establish a Validator result. | Every current Pass/Fail/Unavailable conclusion |
+| Product API / architecture gap | Use only when Runtime authority/semantic is absent, existing controlled fixtures cannot drive it, and no formal read can observe it. | Missing production-consumer setup/injection API alone is not a gap and is not an Unsuitable Reason. | CV-028 and CV-029 are blocked by `no existing formal semantic projection observable` / `no existing formal blob/reference fetch observable`; this is a formal-read gap, not a product-API amendment request. |
 
 - **External** — generic `LoomClient` against `LOOM_VALIDATOR_BASE_URL` without `BackendHarness::connect` controlled construction. `BackendEvidence::External` (`validator:scenario:external`). Never trusted for `required-live` or `controlled restart` gates. May be backed by any implementation; `LOOM_TEST_POSTGRES_URL` never upgrades `External` (VALR-T04).
 - **controlled InMemory** — `BackendHarness::connect(BackendKind::InMemory, base_url)` or `BackendContext::for_test_api` with `InMemory` kind + explicit `with_controlled_boundary_restart` where needed. `BackendEvidence::InMemory` trusted for logical correctness but not for durability across real restart (except via `InMemoryServer::restart` harness which preserves store and rebuilds boundary).
@@ -525,8 +645,13 @@ Each scenario below expands the 10 required matrix columns so T10–T18 Executor
 
 Mandatory `Yes` where durability, persistence, or concurrency correctness cannot be observed via `External`/`InMemory` alone:
 
-- `Yes`: CV-014, CV-016, CV-022, CV-023, CV-030, CV-031, CV-032, CV-033, CV-039, CV-040 (10 rows). Rationale in per-row table. `No — blocked`: CV-017, CV-018, CV-019, CV-028, CV-029, CV-034, CV-035, CV-036, CV-037 (9 rows) — no public/controlled Agency/scheduler/fault-injection surface to drive PostgreSQL proof.
-- `No`: remaining 10 rows validate logical semantics even without live PG; they still exercise PG path when available but remain pass via controlled InMemory.
+- `Yes`: CV-014, CV-016, CV-022, CV-023, CV-030, CV-031, CV-032, CV-033, CV-039, CV-040 (10 rows). Rationale in per-row table.
+- `No — blocked`: CV-028 and CV-029 are blocked because no existing formal semantic projection or blob/reference fetch observable exists. PG cannot substitute for a missing `LoomClient` surface.
+- `No`: the remaining 17 current No rows (CV-012, CV-013, CV-015, CV-017, CV-018, CV-019, CV-020, CV-021, CV-024, CV-025, CV-026, CV-027, CV-034, CV-035, CV-036, CV-037, CV-038) use controlled drivers and public observations; they are not blocked by missing production-facing setup/injection APIs and may use PG when available.
+
+The prior candidate's `No — blocked` labels for nine rows are retained only in
+the historical record above. They are not the current blocked count; current
+`No — blocked` is exactly CV-028/CV-029.
 
 Certification gate T20 (#325) proves real controlled PostgreSQL live evidence and rejects `skipped`/`unavailable`/fake-PG results (`VALR-T06`).
 
@@ -547,24 +672,41 @@ Validator is public-consumer evidence (`loom-client` / `loom-api` formal surface
 5. **Large-World benchmark thresholds** — measured capacity envelope in `docs/capacity-envelope.md`; larger-scale claims marked unproven.
 6. **Dynamic per-World Capability hot-plug** — `world-runtime.md` §3.4 v0 immutability; Validator does not cover hot-plug (future architecture review required).
 7. **Historical replay checkpoint acceleration** — deferred; `replay` correctness proven via `CV-023` without snapshot optimization.
-8. **Semantic projection rebuild (CV-028 blocked)** — no public `SemanticService` / semantic projection rebuild/delete/query API exists in `crates/loom-api` / `crates/loom-client`; only `SemanticIndexDescriptor` metadata via `CatalogService::catalog`. Current contract provides no way to create or observe projection via `loom-api`; Validator cannot implement `CV-028` via public surface — explicit gap, requires Architecture Amendment adding public semantic projection service. Marked `blocked` per Stop Conditions; evidence class `blocked (no public surface)`.
-9. **Blob reference fetch (CV-029 blocked)** — no public `BlobService` / blob read API exists; `FacetSnapshot.value` may contain opaque `BlobReference` but fetch cannot be observed via `loom-api`. `CV-029` blocked — explicit gap requiring public blob service Amendment.
-10. **Pinned read inventing API (CV-030 corrected)** — previous draft invented `get_facet_at_version`/`BaseWorldView`/`ResolutionContext`; corrected to existing `TimelineService::fork(ForkTimelineRequest::at_version)` + `QueryService::get_facet` on fork target. `CV-030` remains implementable via this existing path; `CV-028/029` remain blocked.
-11. **Ingress failure injection (CV-017 blocked)** — no public fault-injection or `Retryable` injection API exists; `IngressService` only exposes `submit_ingress`/`ingress_status`. `CV-017` `Retryable(IngressTechnicalFailure)` observation cannot be driven via public surface — explicit gap, requires Ingress failure injection API.
-12. **Concurrent scheduler claim (CV-037 blocked)** — no public `claim_work`/`execute_work` API; `AdminService::schedule_agency_wake` is scheduling only, and `timeline_logical_status` is read-only. Concurrent `CAS`/fence claim cannot be invoked via `loom-api` — explicit gap, requires public scheduler claim API.
-13. **Stale fence injection (CV-019 blocked)** — no public `claim`/`fence` token injection API; `AdminService::terminalize_work` is termination only. `CV-019` stale `complete` cannot be driven via public surface — explicit gap, requires public fence injection API.
-14. **Scheduler head ordering (CV-018 blocked)** — no public `schedule_work`/`claim_work` API; `AdminService::schedule_agency_wake` is agency scheduling only, `timeline_logical_status` is read-only. `CV-018` head `(T20,0)` claimability cannot be driven via public surface — explicit gap, requires public scheduler Work API.
-15. **Agency NoAction/Act/Rejected execution (CV-034/035/036 blocked)** — `AdminScheduleAgencyWakeRequest.cognition: String` is not `Decision` injection; `Runtime::with_cognitive_executor(DeterministicCognitiveExecutor)` is app composition, not Validator `BackendHarness` seam; `AdminService::schedule_agency_wake` only creates `Pending` Work, not execute. `CV-034` `NoAction`, `CV-035` `Act`, `CV-036` `Rejected` have no public/controlled cognitive-injection + `Runtime::execute_work(target, work_id, now, claimed_until, retry_available_at)` seam — explicit gap, requires public Agency execution API.
-16. **Concurrent Agency claim (CV-037 blocked)** — already listed as 12, but keep for Agency grouping; see 12.
-17. **Agency provenance via Agency execution (CV-034-037)** — `ExecutionResult::Rejected` and `NoAction` completion cannot be observed via `schedule_agency_wake` alone; requires `execute_work` + `timeline_logical_status` + `get_execution_session`/`session_for_event`.
+8. **Semantic projection rebuild (CV-028 current effective contract)** — the Runtime-owned projection/storage fixture may build, clear, and rebuild the derived projection as test-only setup/control. The only existing formal reads are `LoomClient` `HistoryService::list_events` and `QueryService::get_facet`; `SemanticIndexDescriptor` is catalog metadata only, and no formal SemanticProjection read/rebuild/delete surface exists. Current result is blocked: `no existing formal semantic projection observable`. This is a formal-read gap, not an Architecture Amendment conclusion.
+9. **Blob reference fetch (CV-029 current effective contract)** — the Runtime-owned blob/storage fixture may create and clear a referenced blob as test-only setup/control. The only existing formal reads are `LoomClient` `QueryService::get_facet` and `HistoryService::list_events`; `FacetSnapshot.value` is opaque `Value`, and no formal blob fetch/read surface exists. Current result is blocked: `no existing formal blob/reference fetch observable`. Internal BlobStore/SQL cannot serve as acceptance evidence, and this is a formal-read gap, not an Architecture Amendment conclusion.
+10. **Pinned read inventing API (CV-030 corrected)** — previous draft invented `get_facet_at_version`/`BaseWorldView`/`ResolutionContext`; corrected to existing `TimelineService::fork(ForkTimelineRequest::at_version)` + `QueryService::get_facet` on fork target. `CV-030` remains implementable via this existing path; CV-028/CV-029 remain blocked on the formal-read gaps recorded above. Their old blocked wording remains historical only.
+11. **Ingress failure boundary (CV-017 current effective contract)** — the controlled `Runtime`/`Ingress`/`Storage` seam drives `Retryable(IngressTechnicalFailure)` and recovery; `LoomClient` `IngressService::ingress_status` plus `HistoryService`/`QueryService` observe it. No production fault-injection endpoint is required.
+12. **Scheduler claim/head boundary (CV-018 current effective contract)** — controlled `Scheduler`/`WorkStore`/`Runtime` drives ordered Work and claims; formal `timeline_logical_status` and `HistoryService` observe order. No production `schedule_work`/`claim` endpoint is required.
+13. **Stale fence boundary (CV-019 current effective contract)** — controlled `Scheduler`/`WorkStore` drives stale/new fence or lease competitors; formal logical status, completion/history, and provenance reads observe rejection and winner. `terminalize_work` remains termination-only and is not used as a claim driver.
+14. **Agency Decision boundaries (CV-034/035/036 current effective contract)** — controlled Agency/Runtime fixture injects deterministic `CognitiveExecutor` Decisions and drives Wake execution; formal logical status, history, query, and session/provenance reads observe NoAction, Act, or Rejected. `cognition: String` remains a request field; no public Decision-injection API is required.
+15. **Concurrent Agency CAS (CV-037 current effective contract)** — controlled Agency/Runtime fixture creates stale/new CAS or fence competitors; formal logical status, history, query, and provenance reads observe winner/loser and no overwrite. No production claim API is required.
+16. **Current effective blocked rule** — these driver/read seams are not blocked merely because they are not production-consumer APIs. If a future implementation proves a Runtime authority/semantic or formal observable is absent, record that concrete gap and mark only the affected row blocked.
+17. **Historical distinction** — the old nine gap statements remain in the append-only historical candidate record and must not be mixed into the current effective coverage count.
 
 No new capability scenario invented beyond T10–T18 intents above; any additional need requires Architecture Amendment before coverage claim.
 
 ## Stop Conditions / Blocked Rows
 
 - If a required scenario cannot be specified without a new authority/semantic decision, mark that matrix row `blocked` and escalate. Do not invent the missing architecture in T08.
-- At freeze, 9 rows are blocked under current `docs/architecture/` + accepted Amendments `0001-0003` authority: `CV-017` (Ingress), `CV-018` (scheduler), `CV-019` (fence), `CV-028` (semantic), `CV-029` (blob), `CV-034` (Agency NoAction), `CV-035` (Agency Act), `CV-036` (Agency Rejected) and `CV-037` (concurrent claim) — no public/controlled Agency execution or scheduler injection API exists (see detailed sections and Coverage Gaps 8/9/11/12/13/14/15/16/17). `CV-030` remains implementable via `ForkTimelineRequest::at_version` + `get_facet`. All other rows are implementable via existing `loom-api` surfaces: `WorldService`, `ActionService`, `IngressService`, `TimelineService`, `QueryService`, `HistoryService`, `CatalogService`, `SubscriptionService`, `AdminService` (`get_execution_session`, `session_for_event`, `get_runtime_revision`, `timeline_logical_status`, `terminalize_work`, `advance_world_time` with `from`/`to`/`version`).
+- The historical candidate recorded 9 blocked rows (`CV-017`, `CV-018`, `CV-019`, `CV-028`, `CV-029`, `CV-034`, `CV-035`, `CV-036`, `CV-037`) under the pre-policy rule; that count is preserved only for audit. Under the current effective policy, CV-017/CV-018/CV-019/CV-034/CV-035/CV-036/CV-037 are suitable, while CV-028/CV-029 remain blocked on their formal-read gaps: current `CV-012..CV-040` is **27 suitable / 2 blocked**, and current `CV-001..CV-040` is **38 suitable / 2 blocked**. These counts must not be mixed.
+- A current row is `blocked` when the required Runtime authority/semantic, existing controlled driver, or existing public/formal read needed for the assertion is absent. Missing production `schedule_work`, `claim`, fault-injection, Decision-injection, or Work-execution endpoints alone do not trigger a block. CV-028/CV-029 are the current exceptions because their required formal semantic-projection and blob/reference observables do not exist; internal projection/blob state and SQL cannot replace them. No new authority or product API is invented.
 - If during T10–T18 implementation a public API cannot observe a required fact without inventing a new authority surface, stop and report coverage gap for architecture review (per each leaf's Stop Conditions).
+
+## Conclusion — current versus historical candidate
+
+The pre-policy candidate remains an append-only historical result of 31
+suitable / 9 blocked, with its original evidence, date, completion PR and
+merge SHA retained above. The correction changes only the effective evidence
+contract: controlled Runtime/Scheduler/Storage/Agency drivers perform setup,
+while `LoomClient` formal reads provide observable evidence. Missing
+production-facing setup or injection endpoints are not architecture gaps.
+CV-028 and CV-029 remain current blocked rows because the formal semantic
+projection and blob/reference observables do not exist. The current effective
+count is **27 suitable / 2 blocked** for `CV-012..CV-040` (**38 suitable / 2
+blocked** for `CV-001..CV-040`); no historical and current count is mixed.
+
+No new Loom authority, semantic, Scheduler, Agency meaning, product API, or
+scenario is introduced by this ledger correction.
 
 ## Parallel-Safe Implementation Boundary (for T09)
 
@@ -582,7 +724,11 @@ This matrix reserves one disjoint suite module + one test module per owning leaf
 
 Central registry integration (`T19` #324) alone may edit `apps/loom-validator/src/registry.rs` / `src/lib.rs` `validator_registry` + CLI dispatch. T10–T18 leaf owners must not edit the same registry; use local unit-test registries only. Shared helper contract (e.g., `loom-client` fixture wrapper) is owned by T09 and must be proven common to multiple suites before extraction.
 
-## Verification Evidence
+## Historical Candidate Verification Evidence (preserved)
+
+The entries in this section are the prior candidate's recorded verification
+claims and are retained as historical audit material, not as evidence for the
+current correction.
 
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` → `valid=true`, `violations=[]`, `record_count=7`, `ready=[]`, `blocked=[]` (all VALR-T01..T07 completed).
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-2 --check --format json` → See Progress Log note on cross-stage dependency: isolated root reports dependency `312` has no task metadata because that Stage-1 record is not under `stage-2`. When checked at `docs/tasks/validator-recert` (both stages) → `valid=true` after this ledger is added with `in_progress`. See command below.
@@ -591,7 +737,7 @@ Central registry integration (`T19` #324) alone may edit `apps/loom-validator/sr
 - `python3 tools/check_storage_sql_ownership.py` → `storage SQL ownership check passed`
 - `cargo fmt --all -- --check` → pending CI; local pre-merge candidate must run `cargo fmt --all`, `cargo check`, `cargo clippy`.
 
-## Acceptance
+## Historical Candidate Acceptance (preserved)
 
 - [x] Every new CV ID has exactly one owner leaf (table above; 29 IDs, disjoint).
 - [x] Every planned scenario has expected/public-surface/evidence/prerequisite fields (per-CV specifications).
@@ -600,7 +746,25 @@ Central registry integration (`T19` #324) alone may edit `apps/loom-validator/sr
 - [x] Reviewer confirms the matrix is implementable without semantic guesswork (Reviewer `01a03f69-80db-737c-beba-540324a07ecf` on head `64960df` — D-010/D-011/D-012 closed, AC-1~AC-6 passed).
 - [x] CI/docs checks complete before marking completed (canonical `validator_ready` PASS, `check_architecture`/`check_storage`/`fmt`/`diff --check` PASS; PR #343 required checks `Rust checks`/`PostgreSQL 18` SUCCESS on `64960df`).
 
+The checklist above is the historical candidate's acceptance record and is not
+reused as acceptance evidence for this correction. Current correction
+acceptance is tracked separately:
+
+## Current Correction Acceptance
+
+- [x] Driver, public observable evidence, and product API/gap are distinct in the policy, current overview, and nine detailed rows.
+- [x] CV-017/CV-018/CV-019/CV-034..CV-037 have current effective contracts with precise existing fixture seams and formal observations; CV-028/CV-029 have precise test-only drivers and are explicitly blocked because their required formal reads are absent.
+- [x] Historical 31/9 blocked accounting, old evidence wording, completion PR, merge SHA, date, and basis remain separately identified.
+- [x] Current blocked accounting is independent: `CV-012..CV-040` = **27 suitable / 2 blocked** (blocked exactly CV-028/CV-029); full `CV-001..CV-040` = **38 suitable / 2 blocked**.
+- Reviewer independently verifies the current correction candidate: pending Leader scheduling.
+- Required checks for this correction are recorded below after execution; this ledger does not claim Reviewer or CI acceptance.
+
 ## Progress Log
 
 - 2026-08-27 — Created `docs/tasks/validator-recert/stage-2/t08-coverage-matrix.md` as contract-only leaf with `status: in_progress`, `depends_on: [312]`, empty `completed_at`/`completion_pr`/`merge_sha`. Froze `CV-012..CV-040` allocation with no conflict (production registry at `d4437fb` contains `CV-001..CV-011`; `CV-012` in `reports.rs` test helpers is not a production registration). Specified per-scenario capability clause, preconditions/fixtures, formal `loom-api` surfaces (`WorldService`/`ActionService`/`IngressService`/`TimelineService`/`QueryService`/`HistoryService`/`CatalogService`/`SubscriptionService`/`AdminService`), expected results, evidence classes, PostgreSQL mandatory flags, owners, complementary core/M13 evidence, and unsuitable reasons. Ensured parallel-safe suite ownership for T09 and escalatable blocked marking. Noted cross-stage `validator_ready` nuance: `--root stage-2` isolated check cannot resolve dependency `312` (lives under `stage-1`); canonical combined `--root docs/tasks/validator-recert` validates correctly. No production code, registry, or T01–T07 files modified.
 - 2026-08-27 — Post-merge ledger audit (merge commit `276981290b4d4b8b8d0299402944c5f75cbb9a69` from PR #343 head `64960df540cfab9159648200f26b73e0a114d46b`): set `status: completed`, `completed_at: 2026-08-26`, `completion_pr: 343`, `merge_sha: 276981290b4d4b8b8d0299402944c5f75cbb9a69`, checked Acceptance `Reviewer`/`CI` boxes; Reviewer `01a03f69-80db-737c-beba-540324a07ecf` on `64960df` passed D-010/D-011/D-012 and AC-1~AC-6, `gh pr checks 343` `Rust checks`/`PostgreSQL 18` SUCCESS; canonical `validator_ready` `valid=true`/`violations=[]` (8 records, `VALR-T08` ready) confirmed. No matrix/CV allocation/T09/T01–T07 changes.
+- 2026-08-28 — Correction audit requested by Leader comment `01a047a2-396e-75f2-9ddd-eec9ce0515e9`, effective against Loom main baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874`. Preserved the historical 31 suitable / 9 blocked candidate and completion/merge facts; separated test-only driver, public observable evidence, and product API/architecture-gap policy. Rewrote the current effective contracts for CV-017/CV-018/CV-019/CV-028/CV-029/CV-034..CV-037 with existing Runtime/WorkStore/Scheduler/Storage/Agency controlled seams and `LoomClient` formal reads. The superseded pre-review correction candidate reported 29 suitable / 0 blocked for CV-012..CV-040; that candidate is retained as audit history only and is not the current result. No new authority, product API, registry, or scenario. Required command evidence for the corrected candidate is recorded in the next entry.
+- 2026-08-28 — Required correction checks executed against this candidate: `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` **FAIL** (`valid=false`) only because unrelated T19–T21/T24 dependency records are not completed; T08 itself has no violation after the correction. `python3 tools/check_architecture.py` **PASS** (`Loom architecture dependency policy: OK`); `python3 tools/check_storage_sql_ownership.py` **PASS** (`storage SQL ownership check passed`); `cargo fmt --all -- --check` **PASS**; `git diff --check` **PASS**. No CI or Reviewer result is claimed.
+- 2026-08-28 — Final-candidate command rerun after exact fixture-seam wording: same result and evidence (`validator_ready` **FAIL** only on unrelated T19–T21/T24 dependency eligibility; T08 has no violation; `check_architecture.py`, `check_storage_sql_ownership.py`, `cargo fmt --all -- --check`, and `git diff --check` **PASS**). This entry corresponds to the final single-file diff below; no CI or Reviewer result is claimed.
+- 2026-08-28 — Post-amend final candidate verification: `validator_ready` **FAIL** with `valid=false`, 11 unrelated T19–T21/T24 dependency violations and 0 T08 violations; `check_architecture.py`, `check_storage_sql_ownership.py`, `cargo fmt --all -- --check`, and `git diff --check` **PASS**. This is the final required-check result for the amended candidate; no CI or Reviewer result is claimed.
+- 2026-08-28 — Leader return decision `01a047cf-b3db-7e81-913a-d42882013553` accepted Reviewer defects D-001/D-002: CV-028/CV-029 are current blocked rows with exact formal-read gaps (`no existing formal semantic projection observable` / `no existing formal blob/reference fetch observable`), while the other seven corrected rows remain suitable. Current accounting is `CV-012..CV-040` = **27 suitable / 2 blocked** and `CV-001..CV-040` = **38 suitable / 2 blocked**; historical 31/9 and the superseded 29/0 candidate remain separately labeled audit history. Final local checks for this correction: canonical `validator_ready` **FAIL** (`valid=false`, `record_count=22`, 11 T19/T20/T21/T24 dependency violations, T08 violations=0); `check_architecture.py`, `check_storage_sql_ownership.py`, `cargo fmt --all -- --check`, and `git diff --check` **PASS**. No CI or Reviewer result is claimed.
