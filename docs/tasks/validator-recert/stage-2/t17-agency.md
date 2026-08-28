@@ -1,9 +1,9 @@
 ---
 task: VALR-T17
 issue: 322
-status: blocked
+status: in_progress
 depends_on: [314]
-architecture_blocker: true
+architecture_blocker: false
 created_at: 2026-08-26
 started_at: 2026-08-27
 completed_at:
@@ -13,20 +13,41 @@ merge_sha:
 
 # VALR-T17 — Validate Agency Wake NoAction/Act/rejection/CAS behavior
 
-Blocking ledger leaf for `CV-034..CV-037`. The current-main audit below is
-against the exact candidate `6f22531a909d0becd1d7b30836168f76cd3d5d33`, which
-is both `HEAD` and `origin/main` for this run. This is a public/formal-boundary
-audit, not a Validator capability result. The four CVs remain `blocked` because
-the public `loom-api`/`loom-client`/controlled Validator boundary can schedule
-an Agency Wake and read some administrative projections, but cannot inject a
-Decision, drive Agency Work execution, or inject/observe a competing claim and
-fence.
+## Current remediation evidence
 
-Race protocol: enabled by the authority contract for CV-037, but not executed
-in this leaf because the required public seam is absent. No race, claim, fence,
-or policy selection is performed here.
+The former architecture blocker was narrowed to a test-only controlled Agency
+harness, which is now present in
+`apps/loom-validator/tests/agency.rs`; it composes the existing
+`DeterministicCognitiveExecutor`, `Runtime::with_cognitive_executor`,
+`Runtime::with_cognitive_policy`, `Runtime::execute_work`, and `InMemoryStore`
+behind a real `loom-boundary` HTTP server. World/Work/Event/Facet/Timeline/
+Session assertions read through `LoomClient`.
 
-## Authority and current-main boundary audit
+The current candidate is the exact baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874`
+plus the uncommitted test-only diff in this checkout.
+
+| CV | Controlled evidence | Result |
+| --- | --- | --- |
+| CV-034 | `NoAction` completes the Wake as a Work-only commit; LoomClient reads Completed Work, unchanged History, absent Blob Facet, and Session cognitive `NoAction`/`Fresh` provenance. | pass (controlled InMemory) |
+| CV-035 | `Act(neutral.blob.attach)` is returned by cognition and committed through normal Action authority; LoomClient reads the Event, Blob Facet, Event→Session linkage, and `Act`/`Fresh` provenance. | pass (controlled InMemory) |
+| CV-036 | A test-only Capability returns typed semantic `Rejected`; Runtime completes the Wake without an Event or Facet mutation; LoomClient reads Rejected Work Session and unchanged History. | pass (controlled InMemory) |
+| CV-037 | Two independent Runtime worker paths claim the same Wake at different fences; the existing `InMemoryStore::inject_scheduler_conflict_once_for_test` performs real authority terminalization before Scheduler CAS. LoomClient reads one surviving Event/Facet, Completed/Cancelled Work, and discarded→fresh (`Resample`) or discarded→reused (`ReuseDeterministic`) Session provenance; the stale worker returns an error without overwriting the winner. | pass (controlled InMemory) |
+
+No new public Decision/execute/fence API, central registry entry, production
+Runtime/Storage change, T08 change, or T22 change was made. The Agency
+execution remains test-only and controlled; no PG18 result is claimed here.
+
+The following is the preserved historical blocked-boundary audit from before
+the controlled test harness was added; its blocked conclusions are superseded
+by the remediation evidence above.
+
+Race protocol: enabled and executed in this leaf. Two Runtime workers target
+the same Wake with distinct claims/fences; the existing storage seam is the
+only injected scheduler conflict and uses real authority terminalization.
+Timeline logical version and Work status are read through LoomClient, and the
+stale worker cannot write the winning World/Work state.
+
+## Historical authority and current-main boundary audit (superseded)
 
 The governing sources are T08's frozen rows and detailed specifications,
 Amendment 0003 §§3.2–3.7, completed M10-T4/M10-T5, and the current T22
@@ -163,31 +184,45 @@ T22 manifest input and does not make a T25 certification claim.
 - [x] Recorded the existing Session cognitive-provenance observation surface
   and the still-missing Decision injection, Agency execution/terminal result,
   and claim/fence control seams.
-- [x] Recorded CV-034..CV-037 blockers, current observable facts, non-claimable
-  evidence, and T22/T25 alignment without converting any row to `Pass`.
+- [x] Preserved the historical CV-034..CV-037 boundary audit and T22/T25
+  alignment as superseded context after adding the authorized test-only
+  harness evidence.
 - [x] Preserved M10-T4 R-1 and M10-T5 v0 default `Resample`; did not describe
   these defined semantics as unresolved.
 - [x] Did not modify central registry, T08/T09/other suites,
   `loom-api`/`loom-client`/`loom-runtime`/`loom-storage`/`loom-boundary`,
   production schema, or Validator scenario behavior; did not wire internal
   Runtime/Storage into a production Validator scenario.
-- [ ] Executable CV-034..CV-037 and PG18 public/formal evidence — **blocked by
-  the missing public/controlled Agency execution and claim/fence seams**.
+- [x] Executable controlled CV-034..CV-037 evidence — **pass in the
+  test-only InMemory harness**; no public production execution/fence API was
+  added.
+- [ ] PG18 live evidence — **not run**; this leaf uses the explicitly scoped
+  controlled InMemory harness and makes no PostgreSQL claim.
 
 ## Verification evidence
 
-All checks below were run after the ledger update on the exact candidate above:
+All checks below were run on the exact candidate above:
 
 - `git diff --check` — PASS (no whitespace errors).
-- `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` — FAIL for repository-wide readiness (`valid=false`), with the expected explicit T17 architecture blocker plus pre-existing Stage-3/T19/T20/T21/T24 dependency violations; the T17 record itself is parsed and listed as `blocked`, with no T17 schema violation.
+- `cargo test -p loom-validator --test agency -- --test-threads=1` — PASS (5 tests: scaffold plus CV-034..CV-037; all required scenarios executed).
+- `cargo fmt --all -- --check` — PASS.
+- `cargo check -p loom-validator --all-targets` — PASS.
+- `cargo clippy -p loom-validator --all-targets -- -D warnings` — PASS.
+- `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` — repository-wide result remains `valid=false` because of unrelated Stage-3/T19/T20/T21/T24 dependency violations; no T17 schema violation is claimed here.
 - `python3 tools/check_architecture.py` — PASS (`Loom architecture dependency policy: OK`).
 - `python3 tools/check_storage_sql_ownership.py` — PASS (`storage SQL ownership check passed`).
-- `git diff --stat` and `git status --short --branch` — PASS for scope: only this ledger is modified on branch `agent/executor/e27b45a4a664`.
-- Targeted current-main surface audit — PASS for the stated gap: `schedule_agency_wake` is the only Agency Work write surface in `loom-api`/`loom-client`/boundary; Session cognitive evidence reads exist; no public Decision injection, Agency `execute_work`/execution-result route, or claim/fence injection route exists; controlled Validator harness composes `Runtime::new` without cognitive injection.
+- `git diff --stat` and `git status --short --branch` — PASS for scope: only
+  `Cargo.lock`, `apps/loom-validator/Cargo.toml`,
+  `apps/loom-validator/tests/agency.rs`, and this T17 ledger are modified on
+  branch `agent/executor/d8f55fafb258`.
+- Targeted boundary audit — PASS for scope: production
+  `loom-api`/`loom-client`/boundary surfaces remain unchanged; the test-only
+  Validator harness composes Runtime/Storage as controlled drivers and reads
+  all required evidence through LoomClient.
 
-No Agency race or Validator CV execution was run: those required validations are
-`NOT_RUN` by design because the public/formal seam is absent, and this ledger
-does not claim them as passes.
+The controlled Agency target was executed serially. No PG18 live run was
+requested or performed, so no PostgreSQL durability/concurrency result is
+claimed.
 
 ## Progress log
 
@@ -197,3 +232,8 @@ does not claim them as passes.
   present, while public Decision injection, Agency execution/result, and
   claim/fence control remain absent. Updated this ledger only; retained
   `CV-034..CV-037` as blocked and did not execute a race or choose a policy.
+- 2026-08-28 — Reworked CV-037 after D-001: two Runtime worker paths now
+  compete for the same Wake, use the existing real terminalization/CAS seam,
+  and prove unique winner plus stale-worker fencing through LoomClient. The
+  serial Agency target and required static checks pass; candidate remains
+  baseline `95f7e7a0233cfa917d0c9656b990fd2af4996874` plus this test-only diff.
