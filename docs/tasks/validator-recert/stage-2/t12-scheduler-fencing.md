@@ -146,9 +146,9 @@ Enabled per Leader standard:
 - **Clock boundary:** fixed `WorldInstant(100)` for both Worlds and both `WorkSchedule::At(100)`; no wall/platform time.
 - **Winner:** Timeline B's normal Action commit (`ExecutionResult::Committed`, `version_b2>version_b1`).
 - **Terminal:** `A` remains `Pending` after `B` commit; `B` Action returns `Committed` and its `TimelineVersion`/`Event` history advances. No Wake execution is performed in this scenario.
-- **Fence:** `CV-020` does not claim a fence; `CV-018`/`CV-019` blocked because no public fence/claim authority exists.
-- **Failure semantics:** public API/domain failure is scenario failure; infra `Unavailable` can only produce `Unavailable`/`Prerequisite`, never `Pass`; blocked rows remain `BLOCKED` without downgrade to `Pass`.
-- **R-*:** `R-T12-01` Timeline-local logical admission, not cross-Timeline serialization; `R-T12-02` blocked claim/fence surface must not be replaced by internal implementation when producing Validator evidence.
+- **Fence:** `CV-020` does not claim a fence; effective `CV-018` uses existing Timeline-local logical-head admission, and effective `CV-019` uses the existing authoritative Scheduler commit fence. The historical blocker is not replaced by internal evidence.
+- **Failure semantics:** public API/domain failure is scenario failure; the effective CV-018/CV-019 controlled PostgreSQL cases fail on unavailable infrastructure rather than converting it to `Unavailable`, skip, or `Pass`. The legacy `Unavailable` behavior remains only for the pre-amendment CV-020 test.
+- **R-*:** `R-T12-01` is Timeline-local logical admission with no public mutation on non-head rejection; `R-T12-02` is authoritative claim/fence commit with the reclaimed owner as winner and stale old claim terminal rejection. No internal read is used as Validator evidence.
 
 ## Verification evidence
 
@@ -172,12 +172,12 @@ Enabled per Leader standard:
 
 ### PostgreSQL live path
 
-Controlled `PgServer::start()` is used as the live path where T08 marks supported. The harness auto-connects to `LOOM_TEST_POSTGRES_URL` or the repository-managed `postgresql://loom:loom@127.0.0.1:15432/loom_control` (via `tools/postgres-test.sh up`), then `health`+`migrate`. Evidence class is `postgresql` with trusted `controlled-boundary-restart`. If the live endpoint is unreachable, the scenario reports `Unavailable`/`Prerequisite`, not `Pass`.
+Controlled `PgServer::start()` is used as the live path where T08 marks supported. The harness auto-connects to `LOOM_TEST_POSTGRES_URL` or the repository-managed `postgresql://loom:loom@127.0.0.1:15432/loom_control` (via `tools/postgres-test.sh up`), then `health`+`migrate`. Evidence class is `postgresql` with trusted `controlled-boundary-restart`. Effective CV-018/CV-019 tests require this path and fail if it is unavailable; only the legacy CV-020 test reports `Unavailable`/`Prerequisite` instead of `Pass`.
 
 ## Acceptance mapping
 
 - **[x] CV-018..CV-020 match the effective T08 policy:** `CV-020` remains executable per T08's contract; historical CV-018/CV-019 public-API blockers are retained, while this amendment supplies strict test-only controlled evidence without production descriptors in this leaf.
-- **[x] Stale actor cannot produce an accepted authoritative completion:** `CV-019` blocked gap has no public fence injection surface; `CV-020` does not invent stale claim/complete authority; `terminalize_work` is not used as stale claim/complete.
+- **[x] Stale actor cannot produce an accepted authoritative completion:** effective CV-019 obtains old/new claims through the test-only driver, submits the stale old claim to existing `SchedulerCommitStore` authority, and proves via public reads that it caused no mutation or Event; `terminalize_work` is not used as stale claim/complete.
 - **[x] Independent Timelines remain independently progressable:** Proven by `CV-020` — `A` Pending at fixed due does not prevent `B` Committed; per-Timeline CAS, `logical_commit_count`, version, and history isolation observed via public reads.
 - **[x] Assertions via formal/public observable state:** All asserts via `WorldService`, `AdminService::schedule_agency_wake`, `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`, `HistoryService::list_events`/`list_events_page`; no `loom-storage`/`sqlx`/table inspection.
 - **[x] Dedicated suite tests, fmt/check/clippy and CI pass; review complete:** See verification evidence above; ledger records true verification commands.
