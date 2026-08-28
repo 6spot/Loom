@@ -1,18 +1,23 @@
-//! Scheduler suite (T12) — CV-020 Timeline independence via public surface.
+//! Scheduler suite (T12) — CV-018/CV-019 controlled fencing harness and CV-020
+//! Timeline independence via the public surface.
 //!
-//! `CV-018`/`CV-019` are frozen T08 blocked gaps: no public schedule/claim/fence
-//! surface exists, so no descriptor, no Pass, no central registry entry is
-//! produced for them. `CV-020` is the only executable row in this suite and is
-//! verified here against real `InMemory` and controlled `PostgreSQL` Loom
-//! services over the HTTP boundary. Assertions use only
-//! `loom-api`/`loom-client` public reads: `AdminService::schedule_agency_wake`,
-//! `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`,
-//! `HistoryService::list_events` — no DB/table inspection.
+//! CV-018/CV-019 use only the test composition root's existing
+//! Runtime/WorkStore/Scheduler/Storage authority for setup and control. Every
+//! finding assertion is made from `LoomClient` public/formal reads; the driver
+//! return values are never the Validator evidence. Production Scheduler
+//! descriptors remain unchanged until the separately owned registry work.
 
 mod common;
 
+use loom_api::{
+    ActionInvocation, ActionTypeId, AdminLogicalWorkStatus, AdminService, AdminWorkStatus,
+    CreateWorldFromTemplateRequest, EventQuery, HistoryService, TimelineService, TimelineTarget,
+    WorkId, WorkSchedule, WorldInstant, WorldService, WorldTemplateDescriptor,
+};
 use loom_client::LoomClient;
 use loom_validator::{BackendContext, BackendKind, ScenarioResult, scheduler, validator_registry};
+use serde_json::{Value, json};
+use uuid::Uuid;
 
 fn cv020_descriptor() -> loom_validator::ScenarioDescriptor {
     scheduler::descriptors()
@@ -64,6 +69,164 @@ fn context(client: LoomClient, backend: BackendKind, scope: &str) -> BackendCont
         .with_scope(scope)
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct PublicSchedulerObservation {
+    logical: loom_api::AdminTimelineLogicalStatus,
+    snapshot: loom_api::TimelineSnapshot,
+    history: Vec<loom_api::CommittedEvent>,
+}
+
+fn observe_scheduler_state(
+    client: &LoomClient,
+    target: TimelineTarget,
+) -> PublicSchedulerObservation {
+    common::leaked_runtime().block_on(async {
+        PublicSchedulerObservation {
+            logical: client
+                .timeline_logical_status(target)
+                .await
+                .expect("public Timeline logical status read should succeed"),
+            snapshot: client
+                .inspect_timeline(target)
+                .await
+                .expect("public Timeline inspect read should succeed"),
+            history: client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("public Timeline history read should succeed"),
+        }
+    })
+}
+
+fn public_work(
+    observation: &PublicSchedulerObservation,
+    work_id: WorkId,
+) -> &AdminLogicalWorkStatus {
+    observation
+        .logical
+        .works
+        .iter()
+        .find(|work| work.work_id == work_id)
+        .unwrap_or_else(|| panic!("public logical status omitted Work {work_id}"))
+}
+
+fn scheduler_fixture(client: &LoomClient) -> (TimelineTarget, loom_api::EntityId) {
+    let agent = loom_api::EntityId::new(Uuid::new_v4());
+    let bootstrap_event = loom_api::EventId::new(Uuid::new_v4());
+    let target = common::leaked_runtime().block_on(async {
+        client
+            .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                WorldTemplateDescriptor::new(
+                    "validator.t12.scheduler.controlled-fencing.v1",
+                    1,
+                    WorldInstant::new(100),
+                )
+                .requires_capability("neutral.counter", "^0.1.0")
+                .with_bootstrap_action(ActionInvocation::new(
+                    ActionTypeId::from("neutral.counter.seed"),
+                    json!({
+                        "event_id": bootstrap_event.to_string(),
+                        "entity_id": agent.to_string(),
+                        "value": 1,
+                    }),
+                )),
+            ))
+            .await
+            .expect("controlled scheduler fixture World should be created")
+            .target
+    });
+    (target, agent)
+}
+
+fn work_payload(work_id: WorkId, entity_id: loom_api::EntityId) -> Value {
+    json!({
+        "event_id": loom_api::EventId::new(Uuid::new_v4()).to_string(),
+        "entity_id": entity_id.to_string(),
+        "amount": 1,
+        "work_id": work_id.to_string(),
+    })
+}
+
+fn assert_logical_head_rejection_and_order(
+    client: &LoomClient,
+    target: TimelineTarget,
+    entity_id: loom_api::EntityId,
+    first: WorkId,
+    second: WorkId,
+    schedule: impl Fn(WorkId, Value) -> Result<(), String>,
+    execute: impl Fn(WorkId) -> Result<loom_api::ExecutionResult, String>,
+) {
+    schedule(first, work_payload(first, entity_id))
+        .expect("first controlled Work should be scheduled");
+    schedule(second, work_payload(second, entity_id))
+        .expect("second controlled Work should be scheduled");
+
+    let before = observe_scheduler_state(client, target);
+    let first_status = public_work(&before, first);
+    let second_status = public_work(&before, second);
+    assert_eq!(first_status.status, AdminWorkStatus::Pending);
+    assert_eq!(second_status.status, AdminWorkStatus::Pending);
+    assert_eq!(
+        first_status.effective_due_world_time,
+        second_status.effective_due_world_time
+    );
+    assert!(
+        first_status.logical_schedule_order < second_status.logical_schedule_order,
+        "the public logical status must expose deterministic predecessor order"
+    );
+
+    let later_error =
+        execute(second).expect_err("non-head Work must be rejected by Runtime authority");
+    assert!(
+        later_error.contains("NotLogicalHead")
+            || later_error.to_ascii_lowercase().contains("logical head"),
+        "non-head rejection should retain the authoritative reason: {later_error}"
+    );
+    let after_rejection = observe_scheduler_state(client, target);
+    assert_eq!(
+        after_rejection, before,
+        "non-head rejection must have no public authoritative mutation"
+    );
+
+    assert!(
+        matches!(
+            execute(first),
+            Ok(loom_api::ExecutionResult::Committed { .. })
+        ),
+        "logical head should execute through Runtime authority"
+    );
+    let after_head = observe_scheduler_state(client, target);
+    assert_eq!(
+        public_work(&after_head, first).status,
+        AdminWorkStatus::Completed
+    );
+    assert_eq!(
+        public_work(&after_head, second).status,
+        AdminWorkStatus::Pending
+    );
+    assert!(after_head.logical.logical_commit_count > before.logical.logical_commit_count);
+    assert!(after_head.history.len() > before.history.len());
+
+    assert!(
+        matches!(
+            execute(second),
+            Ok(loom_api::ExecutionResult::Committed { .. })
+        ),
+        "the successor should execute after its public predecessor completion"
+    );
+    let final_state = observe_scheduler_state(client, target);
+    assert_eq!(
+        public_work(&final_state, first).status,
+        AdminWorkStatus::Completed
+    );
+    assert_eq!(
+        public_work(&final_state, second).status,
+        AdminWorkStatus::Completed
+    );
+    assert!(final_state.logical.logical_commit_count > after_head.logical.logical_commit_count);
+    assert!(final_state.history.len() > after_head.history.len());
+}
+
 #[test]
 fn scheduler_suite_scaffold_is_non_registering_and_disjoint() {
     assert_eq!(scheduler::SUITE, "scheduler");
@@ -101,9 +264,10 @@ fn scheduler_suite_scaffold_is_non_registering_and_disjoint() {
 
 #[test]
 fn scheduler_cv020_blocked_gaps_have_no_descriptor_or_pass() {
-    // Frozen T08: CV-018 (logical-head) and CV-019 (stale fencing) have no public
-    // schedule/claim/fence surface. This test documents the blocked state without
-    // constructing Pass findings.
+    // Production descriptors remain owned by the central registry work. The
+    // effective T12 amendment exercises these rows below with a test-only
+    // controlled driver, without introducing a production schedule/claim/fence
+    // API in this leaf.
     let descriptors = scheduler::descriptors();
     assert!(
         descriptors.iter().all(|d| d.id_str() != "CV-018"),
@@ -115,7 +279,216 @@ fn scheduler_cv020_blocked_gaps_have_no_descriptor_or_pass() {
     );
     assert!(scheduler::owns_cv("CV-018"));
     assert!(scheduler::owns_cv("CV-019"));
-    // No ScenarioOutcome::Pass for blocked rows — verified by absence of descriptors.
+}
+
+#[test]
+fn cv018_logical_head_rejection_and_order_on_in_memory_authority() {
+    let (server, client) =
+        common::InMemoryServer::start().expect("real InMemory Loom service should start");
+    let (target, entity_id) = scheduler_fixture(&client);
+    let first = WorkId::new(Uuid::new_v4());
+    let second = WorkId::new(Uuid::new_v4());
+    assert_logical_head_rejection_and_order(
+        &client,
+        target,
+        entity_id,
+        first,
+        second,
+        |work_id, payload| {
+            server
+                .schedule_work_for_test(
+                    target,
+                    work_id,
+                    payload,
+                    WorkSchedule::At(WorldInstant::new(100)),
+                )
+                .map(|_| ())
+        },
+        |work_id| {
+            server.execute_work_for_test(
+                target,
+                work_id,
+                loom_runtime::PlatformTime::new(0),
+                loom_runtime::PlatformTime::new(10),
+                loom_runtime::PlatformTime::new(0),
+            )
+        },
+    );
+}
+
+#[test]
+fn cv018_logical_head_rejection_and_order_on_controlled_postgres18_authority() {
+    let (server, client) = common::PgServer::start()
+        .expect("controlled PostgreSQL 18 Loom service should start with explicit test URL");
+    let (target, entity_id) = scheduler_fixture(&client);
+    let first = WorkId::new(Uuid::new_v4());
+    let second = WorkId::new(Uuid::new_v4());
+    assert_logical_head_rejection_and_order(
+        &client,
+        target,
+        entity_id,
+        first,
+        second,
+        |work_id, payload| {
+            server
+                .schedule_work_for_test(
+                    target,
+                    work_id,
+                    payload,
+                    WorkSchedule::At(WorldInstant::new(100)),
+                )
+                .map(|_| ())
+        },
+        |work_id| {
+            server.execute_work_for_test(
+                target,
+                work_id,
+                loom_runtime::PlatformTime::new(0),
+                loom_runtime::PlatformTime::new(10),
+                loom_runtime::PlatformTime::new(0),
+            )
+        },
+    );
+}
+
+fn assert_stale_claim_rejection_and_single_winner(
+    client: &LoomClient,
+    target: TimelineTarget,
+    entity_id: loom_api::EntityId,
+    schedule: impl Fn(WorkId, Value) -> Result<(), String>,
+    claim: impl Fn(
+        WorkId,
+        loom_runtime::PlatformTime,
+        loom_runtime::PlatformTime,
+    ) -> Result<loom_runtime::WorkClaim, String>,
+    complete: impl Fn(loom_runtime::WorkClaim, loom_runtime::PlatformTime) -> Result<(), String>,
+    restart: impl Fn() -> LoomClient,
+) {
+    let work_id = WorkId::new(Uuid::new_v4());
+    schedule(work_id, work_payload(work_id, entity_id))
+        .expect("controlled Work should be scheduled");
+    let before = observe_scheduler_state(client, target);
+    assert_eq!(
+        public_work(&before, work_id).status,
+        AdminWorkStatus::Pending
+    );
+
+    let old_claim = claim(
+        work_id,
+        loom_runtime::PlatformTime::new(10),
+        loom_runtime::PlatformTime::new(20),
+    )
+    .expect("first owner should obtain the Work claim");
+    let new_claim = claim(
+        work_id,
+        loom_runtime::PlatformTime::new(20),
+        loom_runtime::PlatformTime::new(30),
+    )
+    .expect("expired claim should be reclaimed by the new owner");
+    assert_ne!(old_claim.fence(), new_claim.fence());
+
+    // Rebuild the HTTP boundary after reclaim. Claims remain the only control
+    // evidence; all acceptance assertions below use this fresh LoomClient.
+    let client_after_restart = restart();
+    let before_stale_completion = observe_scheduler_state(&client_after_restart, target);
+    assert_eq!(before_stale_completion, before);
+
+    let stale_error = complete(old_claim, loom_runtime::PlatformTime::new(21))
+        .expect_err("stale owner completion must be rejected by commit authority");
+    assert!(
+        stale_error.to_ascii_lowercase().contains("stale")
+            || stale_error.to_ascii_lowercase().contains("fence"),
+        "stale completion should retain its authoritative rejection: {stale_error}"
+    );
+    let after_stale_completion = observe_scheduler_state(&client_after_restart, target);
+    assert_eq!(
+        after_stale_completion, before_stale_completion,
+        "stale completion must not cause public Work, Timeline or History mutation"
+    );
+
+    complete(new_claim, loom_runtime::PlatformTime::new(22))
+        .expect("new owner's completion should commit through Scheduler authority");
+    let final_state = observe_scheduler_state(&client_after_restart, target);
+    assert_eq!(
+        public_work(&final_state, work_id).status,
+        AdminWorkStatus::Completed
+    );
+    assert!(final_state.logical.logical_commit_count > before.logical.logical_commit_count);
+    assert!(final_state.logical.version.state_revision > before.logical.version.state_revision);
+    assert_eq!(
+        final_state.history, before.history,
+        "empty Work completion must not fabricate a stale or winner Event"
+    );
+}
+
+#[test]
+fn cv019_stale_fence_rejection_and_single_winner_on_in_memory_authority() {
+    let (server, client) =
+        common::InMemoryServer::start().expect("real InMemory Loom service should start");
+    let (target, entity_id) = scheduler_fixture(&client);
+    assert_stale_claim_rejection_and_single_winner(
+        &client,
+        target,
+        entity_id,
+        |work_id, payload| {
+            server
+                .schedule_work_for_test(
+                    target,
+                    work_id,
+                    payload,
+                    WorkSchedule::At(WorldInstant::new(100)),
+                )
+                .map(|_| ())
+        },
+        |work_id, now, claimed_until| {
+            server.claim_work_for_test(target, work_id, now, claimed_until)
+        },
+        |claim, now| {
+            server
+                .complete_claim_for_test(target, claim, now)
+                .map(|_| ())
+        },
+        || {
+            server
+                .restart()
+                .expect("InMemory boundary restart should succeed")
+        },
+    );
+}
+
+#[test]
+fn cv019_stale_fence_rejection_and_single_winner_on_controlled_postgres18_authority() {
+    let (server, client) = common::PgServer::start()
+        .expect("controlled PostgreSQL 18 Loom service should start with explicit test URL");
+    let (target, entity_id) = scheduler_fixture(&client);
+    assert_stale_claim_rejection_and_single_winner(
+        &client,
+        target,
+        entity_id,
+        |work_id, payload| {
+            server
+                .schedule_work_for_test(
+                    target,
+                    work_id,
+                    payload,
+                    WorkSchedule::At(WorldInstant::new(100)),
+                )
+                .map(|_| ())
+        },
+        |work_id, now, claimed_until| {
+            server.claim_work_for_test(target, work_id, now, claimed_until)
+        },
+        |claim, now| {
+            server
+                .complete_claim_for_test(target, claim, now)
+                .map(|_| ())
+        },
+        || {
+            server
+                .restart()
+                .expect("PostgreSQL boundary restart should succeed")
+        },
+    );
 }
 
 #[test]

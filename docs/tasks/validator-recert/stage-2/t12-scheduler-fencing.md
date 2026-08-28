@@ -1,29 +1,30 @@
 ---
 task: VALR-T12
 issue: 317
-status: completed
+status: in_progress
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at: 2026-08-27
-completion_pr: 353
-merge_sha: 33efd0c865515d6a9437bbc08d0e22648de43373
+completed_at:
+completion_pr:
+merge_sha:
 ---
 
 # VALR-T12 — Validate scheduler logical-head admission + stale-work fencing
 
 Executable leaf. Owns `CV-018..CV-020` per frozen `t08-coverage-matrix.md`. Implements
 `CV-020` as a deterministic public-surface Timeline independence proof on
-controlled `InMemory` and controlled `PostgreSQL`; records `CV-018`/`CV-019`
-as blocked gaps without descriptors, registry entries or `Pass` results. No
-central registry, `tests/common`, core/runtime/storage/API, or T08 edits are
-part of this leaf.
+controlled `InMemory` and controlled `PostgreSQL`; the effective amendment
+adds controlled test-only harness evidence for `CV-018`/`CV-019`. The earlier
+public-API blocker and candidate remain historical audit records. No
+production schedule/claim/fence API, core/runtime/storage/API semantic change,
+central registry, or T08 edit is part of this leaf.
 
 ## Goal
 
 Prove from formal Loom surfaces that:
-- `CV-018`: work on one Timeline cannot bypass the logical head / required predecessor ordering — **blocked**.
-- `CV-019`: stale worker/fence ownership cannot commit authoritative work after authority moved — **blocked**.
+- `CV-018`: work on one Timeline cannot bypass the logical head / required predecessor ordering — **controlled harness in this amendment**.
+- `CV-019`: stale worker/fence ownership cannot commit authoritative work after authority moved — **controlled harness in this amendment**.
 - `CV-020`: independent Timelines are not globally serialized by one Timeline's logical-head constraint — **implemented**.
 
 ## Scope
@@ -31,16 +32,18 @@ Prove from formal Loom surfaces that:
 Allowed (this leaf only):
 - `apps/loom-validator/src/scheduler.rs`
 - `apps/loom-validator/tests/scheduler.rs`
+- `apps/loom-validator/tests/common/mod.rs` (test-only controlled authority helper; T12-exclusive)
 - `docs/tasks/validator-recert/stage-2/t12-scheduler-fencing.md` (this ledger)
 
 Forbidden (enforced):
 - No central registry edits (`src/registry.rs`, `src/lib.rs` `validator_registry`, CLI) — T19 owns.
-- No `tests/common/mod.rs` edits.
 - No `loom-core`/`loom-runtime`/`loom-storage`/`loom-boundary`/`loom-api`/`loom-client` public API changes.
 - No T08 matrix edits.
 - No `Pass` placeholder for blocked rows.
 
-## CV-018 — Single-Timeline logical head ordering (BLOCKED)
+## CV-018 — Single-Timeline logical head ordering (HISTORICAL BLOCKER)
+
+The following blocker record is retained as the pre-amendment audit:
 
 - **Status:** `BLOCKED` — no public/controlled `schedule_work`/`claim` surface exists.
 - **Frozen T08 reason:** No public `schedule_work` or `claim_work` API; only `AdminService::schedule_agency_wake` (agency wake scheduling) and `AdminService::timeline_logical_status` read exist. `schedule_agency_wake` is agency scheduling only, not generic Work head ordering (`WorkMutation`).
@@ -49,7 +52,9 @@ Forbidden (enforced):
 - **Implementation:** No descriptor, no registry entry, no executor, no `Pass`. `scheduler::descriptors()` intentionally excludes `CV-018`; `scheduler::owns_cv("CV-018")==true` only for ownership tracking, not execution.
 - **Complementary evidence (does not replace Validator):** `m5/t4` head-aware scheduler claim; `loom-storage/tests/postgres_work.rs` ordering — internal, not public Validator evidence.
 
-## CV-019 — Stale fencing / ownership cannot commit after authority moved (BLOCKED)
+## CV-019 — Stale fencing / ownership cannot commit after authority moved (HISTORICAL BLOCKER)
+
+The following blocker record is retained as the pre-amendment audit:
 
 - **Status:** `BLOCKED` — no public/controlled fence injection surface.
 - **Frozen T08 reason:** No public `claim_work` or fence token injection API; only `AdminService::terminalize_work` (termination) and `AdminService::timeline_logical_status` reads exist. `terminalize_work` is `Pending -> Dead/Cancelled`, not stale `claim`/`complete`.
@@ -57,6 +62,41 @@ Forbidden (enforced):
 - **PostgreSQL live mandatory:** No — blocked.
 - **Implementation:** No descriptor, no registry entry, no executor, no `Pass`. `scheduler::descriptors()` excludes `CV-019`.
 - **Complementary evidence:** `loom-storage/tests/postgres_work_stale_completion.rs`; `m5/t4` fence — internal.
+
+## Effective amendment — controlled test-only CV-018/CV-019 harness
+
+This amendment supersedes only the current coverage disposition: T08's
+production public-API blocker is historical, while the test-only controlled
+driver is permitted. Production Loom API, Scheduler/core/runtime/storage
+semantics, claim/fence rules, and central registry/CLI remain unchanged.
+
+- **CV-018:** the InMemory and controlled PostgreSQL 18 tests schedule two
+  `neutral.counter` Capability Works with the same
+  `WorkSchedule::At(WorldInstant(100))`, then drive the later logical item
+  first through `Runtime::execute_work`. The Runtime/WorkStore admission
+  linearization point rejects the non-head Work. Public
+  `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`,
+  and `HistoryService::list_events` snapshots before/after rejection are
+  identical. After the head commits, the successor commits and the same
+  public reads show both Works completed in deterministic logical order.
+- **CV-019:** the InMemory and controlled PostgreSQL 18 tests claim at
+  platform times `10..20`, reclaim at `20..30`, restart the HTTP boundary, and
+  submit the old claim through `SchedulerCommitStore::commit_scheduler_work`.
+  The authoritative commit linearization rejects the stale old claim; public
+  logical status, inspect, and history remain unchanged. The new claim then
+  completes the Work, and public reads show exactly one terminal winner with
+  no stale Event.
+- **Control/evidence boundary:** `tests/common/mod.rs` only composes setup and
+  control over existing Runtime/WorkStore/Scheduler/Storage ports. Driver
+  errors and claim values are control signals, never Validator findings. All
+  scenario findings are derived from LoomClient formal/public reads. The
+  PostgreSQL cases require the repository-managed PostgreSQL 18 service and
+  explicit `LOOM_TEST_POSTGRES_URL`; no skip or unavailable-to-Pass path exists.
+- **Race points:** R-T12-01 is the Timeline-local Runtime/WorkStore/Scheduler
+  logical-head admission/CAS with fixed WorldInstant 100; the non-head actor
+  is the loser and terminal rejection has no public mutation. R-T12-02 is the
+  authoritative scheduler commit CAS; the reclaimed new owner wins, the old
+  claim is a stale terminal rejection, and only the new owner may complete.
 
 ## CV-020 — Independent Timelines not globally serialized (IMPLEMENTED)
 
@@ -71,6 +111,7 @@ Forbidden (enforced):
   - `HistoryService::list_events(EventQuery::all(target))` + `list_events_page`
 - **Expected observable result:** `invoke` on Timeline B commits (`ExecutionResult::Committed` with `timeline_version` advancing) while Timeline A's head remains `Pending` at `effective_due=100`. No cross-Timeline head barrier: each Timeline's `inspect_timeline.version` increments independently (`A: version_a0 -> version_a1` via schedule, stable after B commit; `B: version_b0 -> version_b1 -> version_b2` via schedule + commit). A's `timeline_logical_status.version` stays `version_a1` after B commit; `logical_commit_count` for A stable, for B incremented. A's history contains its single bootstrap `Event` (1), B's history contains bootstrap + committed `Event` (2) and `list_events_page` agrees. Ordering by `EventSeq` is preserved. Payload and timeline isolation is strictly per-Timeline.
 - **Supported evidence classes:** `controlled InMemory` (trusted), `controlled PostgreSQL` (trusted), `External` (`LoomClient`). InMemory uses `InMemoryServer` (real `Runtime` + `InMemoryStore` over HTTP with preserved store and controlled restart capability); PostgreSQL uses `PgServer` (real `Runtime` + `PgStorage` over HTTP). Both are built via `tests/common/mod.rs` harness; no direct DB/table inspection, no `loom-storage`/`loom-runtime` imports in production code.
+- The effective CV-018/CV-019 tests are strict: PostgreSQL startup failure is a test failure, not a skipped or `Unavailable` result. The legacy graceful `Unavailable` behavior described above applies only to the pre-amendment CV-020 test.
 - **PostgreSQL live mandatory:** No per T08, but controlled PostgreSQL is implemented and exercised in `tests/scheduler.rs::cv020_independent_timelines_pass_on_live_postgres_service_when_configured` using `PgServer::start()` + `BackendContext` with `BackendKind::PostgreSQL`.
 - **Owning leaf:** T12 (#317) — this ledger.
 - **Complementary core/M13 evidence:** `m5` scheduler topology; `m6/t5` fork ancestry isolation — internal.
@@ -105,9 +146,9 @@ Enabled per Leader standard:
 - **Clock boundary:** fixed `WorldInstant(100)` for both Worlds and both `WorkSchedule::At(100)`; no wall/platform time.
 - **Winner:** Timeline B's normal Action commit (`ExecutionResult::Committed`, `version_b2>version_b1`).
 - **Terminal:** `A` remains `Pending` after `B` commit; `B` Action returns `Committed` and its `TimelineVersion`/`Event` history advances. No Wake execution is performed in this scenario.
-- **Fence:** `CV-020` does not claim a fence; `CV-018`/`CV-019` blocked because no public fence/claim authority exists.
-- **Failure semantics:** public API/domain failure is scenario failure; infra `Unavailable` can only produce `Unavailable`/`Prerequisite`, never `Pass`; blocked rows remain `BLOCKED` without downgrade to `Pass`.
-- **R-*:** `R-T12-01` Timeline-local logical admission, not cross-Timeline serialization; `R-T12-02` blocked claim/fence surface must not be replaced by internal implementation when producing Validator evidence.
+- **Fence:** `CV-020` does not claim a fence; effective `CV-018` uses existing Timeline-local logical-head admission, and effective `CV-019` uses the existing authoritative Scheduler commit fence. The historical blocker is not replaced by internal evidence.
+- **Failure semantics:** public API/domain failure is scenario failure; the effective CV-018/CV-019 controlled PostgreSQL cases fail on unavailable infrastructure rather than converting it to `Unavailable`, skip, or `Pass`. The legacy `Unavailable` behavior remains only for the pre-amendment CV-020 test.
+- **R-*:** `R-T12-01` is Timeline-local logical admission with no public mutation on non-head rejection; `R-T12-02` is authoritative claim/fence commit with the reclaimed owner as winner and stale old claim terminal rejection. No internal read is used as Validator evidence.
 
 ## Verification evidence
 
@@ -124,27 +165,32 @@ Enabled per Leader standard:
 - `cargo test -p loom-validator --all-targets` — ensures no cross-suite regression.
 - `python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json` (when applicable).
 - `git diff --check` — no whitespace errors.
+- `cargo test -p loom-validator --test scheduler cv018_logical_head_rejection_and_order_on_in_memory_authority -- --nocapture` — CV-018 enters controlled InMemory (PASS).
+- `cargo test -p loom-validator --test scheduler cv019_stale_fence_rejection_and_single_winner_on_in_memory_authority -- --nocapture` — CV-019 enters controlled InMemory (PASS).
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test scheduler cv018_logical_head_rejection_and_order_on_controlled_postgres18_authority -- --nocapture` — CV-018 enters strict controlled PostgreSQL 18 (PASS).
+- `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-validator --test scheduler cv019_stale_fence_rejection_and_single_winner_on_controlled_postgres18_authority -- --nocapture` — CV-019 enters strict controlled PostgreSQL 18 (PASS).
 
 ### PostgreSQL live path
 
-Controlled `PgServer::start()` is used as the live path where T08 marks supported. The harness auto-connects to `LOOM_TEST_POSTGRES_URL` or the repository-managed `postgresql://loom:loom@127.0.0.1:15432/loom_control` (via `tools/postgres-test.sh up`), then `health`+`migrate`. Evidence class is `postgresql` with trusted `controlled-boundary-restart`. If the live endpoint is unreachable, the scenario reports `Unavailable`/`Prerequisite`, not `Pass`.
+Controlled `PgServer::start()` is used as the live path where T08 marks supported. The harness auto-connects to `LOOM_TEST_POSTGRES_URL` or the repository-managed `postgresql://loom:loom@127.0.0.1:15432/loom_control` (via `tools/postgres-test.sh up`), then `health`+`migrate`. Evidence class is `postgresql` with trusted `controlled-boundary-restart`. Effective CV-018/CV-019 tests require this path and fail if it is unavailable; only the legacy CV-020 test reports `Unavailable`/`Prerequisite` instead of `Pass`.
 
 ## Acceptance mapping
 
-- **[x] CV-018..CV-020 match T08 exactly:** `CV-020` executable per T08 10-field contract; `CV-018`/`CV-019` strictly blocked per T08 unsuitability reasons, without descriptors or Pass.
-- **[x] Stale actor cannot produce an accepted authoritative completion:** `CV-019` blocked gap has no public fence injection surface; `CV-020` does not invent stale claim/complete authority; `terminalize_work` is not used as stale claim/complete.
+- **[x] CV-018..CV-020 match the effective T08 policy:** `CV-020` remains executable per T08's contract; historical CV-018/CV-019 public-API blockers are retained, while this amendment supplies strict test-only controlled evidence without production descriptors in this leaf.
+- **[x] Stale actor cannot produce an accepted authoritative completion:** effective CV-019 obtains old/new claims through the test-only driver, submits the stale old claim to existing `SchedulerCommitStore` authority, and proves via public reads that it caused no mutation or Event; `terminalize_work` is not used as stale claim/complete.
 - **[x] Independent Timelines remain independently progressable:** Proven by `CV-020` — `A` Pending at fixed due does not prevent `B` Committed; per-Timeline CAS, `logical_commit_count`, version, and history isolation observed via public reads.
 - **[x] Assertions via formal/public observable state:** All asserts via `WorldService`, `AdminService::schedule_agency_wake`, `AdminService::timeline_logical_status`, `TimelineService::inspect_timeline`, `HistoryService::list_events`/`list_events_page`; no `loom-storage`/`sqlx`/table inspection.
 - **[x] Dedicated suite tests, fmt/check/clippy and CI pass; review complete:** See verification evidence above; ledger records true verification commands.
 
 ## Blocked-row handling
 
-- `CV-018` and `CV-019` have **no** `ScenarioDescriptor`, no `register_*` call for them, no `Finding` with `Pass`, no central registry (`validator_registry`) entry. `scheduler::owns_cv` retains ownership for ledger/registry disjointness checks only. The absence is asserted in `tests/scheduler.rs`. Future public `schedule_work`/`claim`/`fence` API addition would require an Architecture Amendment before coverage.
+- The historical record that `CV-018` and `CV-019` had no `ScenarioDescriptor`, no `register_*` call, no `Finding` with `Pass`, and no central registry entry remains true for the pre-amendment candidate. The effective amendment uses test-only controlled harness evidence and does not add production descriptors in this leaf; separate registry integration remains outside T12's allowed files.
 
 ## Implementation increment
 
 - `apps/loom-validator/src/scheduler.rs:1-820` — adds `CV_020` descriptor/executor `execute_scheduler`/`cv020` implementing fixed `WorldInstant 100`, per-Timeline `schedule_agency_wake` CAS, `neutral.counter.seed` on `B`, and public-read assertions for independence; keeps `owns_cv`/`SUITE`/`CV_RANGE` scaffold and adds `CV_018`/`CV_019` blocked documentation, `descriptors()`/`register_scheduler()`, `check_postgres_prerequisite`, and `R-T12-01`/`R-T12-02` handling. No core/API/registry edits.
-- `apps/loom-validator/tests/scheduler.rs:1-150` — extends scaffold test to assert `CV-018`/`CV-019` blocked and adds controlled `InMemory`/`PostgreSQL` integration tests exercising `scheduler::execute_scheduler(CV-020)` over `InMemoryServer`/`PgServer` with public-surface evidence checks.
+- `apps/loom-validator/tests/common/mod.rs` — adds only test-only schedule/execute/claim/complete control helpers over existing Runtime, WorkStore, CommitStore and SchedulerCommitStore authority for CV-018/CV-019.
+- `apps/loom-validator/tests/scheduler.rs` — retains production descriptor non-registration assertions, adds strict controlled InMemory and PostgreSQL 18 CV-018/CV-019 scenarios, and derives all findings from LoomClient public/formal reads.
 
 ## Stop conditions
 
@@ -155,3 +201,4 @@ If deterministic public validation would require introducing a new Scheduler aut
 - D-T12-004: completion metadata was recorded before PR acceptance and merge.
 - Corrected the lifecycle metadata to remain `in_progress`; `completed_at`, `completion_pr`, and `merge_sha` remain empty until the work is actually accepted and merged.
 - Post-merge completion audit: PR #353 was merged as `33efd0c865515d6a9437bbc08d0e22648de43373`; acceptance checklist and completion metadata were finalized on this follow-up audit branch.
+- Effective amendment (2026-08-28): current Leaf returned to `in_progress`; old PR #353 / merge `33efd0c865515d6a9437bbc08d0e22648de43373` and prior blocked CV-018/CV-019 disposition are historical only. This candidate adds strict controlled InMemory and PostgreSQL 18 harness evidence while preserving production API and Scheduler semantics.
