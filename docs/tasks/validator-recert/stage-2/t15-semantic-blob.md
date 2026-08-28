@@ -197,3 +197,14 @@ final HEAD is recorded in the Executor handoff comment.
 
 - Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
 - fmt, check, clippy, architecture, storage ownership, and diff check all passed on this latest-main candidate.
+
+## D-005 Latest-main Rebase — 2026-08-28
+
+The T08 correction merge advanced `origin/main` after the prior D-004
+verification. The candidate was rebuilt from freshly fetched
+`c4e0ca14cf8746a6e43b5e87639a93cf321e3e1c` (which includes the T08 correction
+merge); all prior exact-head evidence was treated as stale. The final HEAD is
+recorded in the Executor handoff comment.
+
+- Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on the rebased candidate.
