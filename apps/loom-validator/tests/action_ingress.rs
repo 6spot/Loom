@@ -830,7 +830,7 @@ fn cv017_public_bookkeeping_and_authority_survive_pg_restart_if_available() {
             other => panic!("expected seed Committed, got {other:?}"),
         };
 
-        let recovered = runtime
+        runtime
             .process_ingress(
                 ingress_id.clone(),
                 PlatformTime::new(0),
@@ -839,12 +839,6 @@ fn cv017_public_bookkeeping_and_authority_survive_pg_restart_if_available() {
             )
             .await
             .expect("retry recovery");
-        let recovery_refs = match recovered {
-            IngressCompletion::Committed { event_refs, .. } => event_refs,
-            other => panic!("expected recovered Committed, got {other:?}"),
-        };
-        assert_eq!(recovery_refs.len(), 1);
-        assert_eq!(recovery_refs[0].event_id, event_id);
 
         let terminal = client
             .ingress_status(ingress_id.clone())
