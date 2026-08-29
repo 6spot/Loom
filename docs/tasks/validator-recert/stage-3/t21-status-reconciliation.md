@@ -180,3 +180,20 @@ baseline `103a75e96cd9f7b9e495a39bb6608316c47b76e6`. The earlier PR #381,
 candidate `4efb1d…`, snapshot/base `6da9989…` and prior actual-main
 `ef281f8…` remain historical/superseded; the six-file diff is limited to this
 T21/index scope and does not rewrite any owner ledger.
+
+- `PYTHONDONTWRITEBYTECODE=1 python3 tools/test_validator_ready.py` — PASS;
+  3 tests passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 tools/validator_ready.py --check --format json`
+  — PASS; historical Validator ledger `valid: true`, 10 records, no violations.
+- `PYTHONDONTWRITEBYTECODE=1 python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json`
+  — PASS; Stage-1 ledger `valid: true`, 7 records, no violations.
+- `PYTHONDONTWRITEBYTECODE=1 python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json`
+  — expected non-terminal FAIL/`valid: false`; unchanged T19/T20/T21
+  dependencies and T24's missing T22 task metadata remain reported. This is
+  not promoted to Pass and no sibling ledger is changed by T21.
+- `python3 tools/check_architecture.py` — PASS; architecture dependency policy
+  is OK and the storage SQL ownership check passed.
+- `python3 tools/check_storage_sql_ownership.py` — PASS.
+- T21 current-main/lineage/historical/pending assertions — PASS.
+- `git diff --check origin/main...HEAD` — PASS; forbidden-path scan — EMPTY.
+- T25 was not rerun; CV-028/CV-029 were not represented as Pass.
