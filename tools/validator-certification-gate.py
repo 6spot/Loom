@@ -27,7 +27,7 @@ REPORT = Path(
     )
 )
 LOG_DIR = REPORT.parent / "t24-logs"
-EXPECTED_CANDIDATE = "4efb1d346c926f2ee10654c3bc24cd92af351881"
+EXPECTED_CANDIDATE = "103a75e96cd9f7b9e495a39bb6608316c47b76e6"
 T24_PG_DATABASE = "loom_t24_certification"
 AUTHORIZED_T24_PATHS = frozenset(
     {
