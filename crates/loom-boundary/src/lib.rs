@@ -98,10 +98,10 @@ use loom_api::{
     ActionRequest, AdminActivateRuntimeRevisionRequest, AdminAdvanceWorldTimeRequest,
     AdminExecutionSessionRequest, AdminMissingImplementationRequest, AdminOperation,
     AdminRuntimeRevisionRequest, AdminScheduleAgencyWakeRequest, AdminService,
-    AdminTerminalizeWorkRequest, ApiError, ApiResult, BlobReadRequest, CausalQuery,
-    ChangeFeedCursor, CreateWorldFromTemplateRequest, EventQuery, EventRef, FacetQuery, IngressId,
-    IngressService, LoomApi, RelationshipTrajectoryQuery, SemanticProjectionQuery,
-    SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineTarget, WorldId,
+    AdminTerminalizeWorkRequest, ApiError, ApiResult, CausalQuery, ChangeFeedCursor,
+    CreateWorldFromTemplateRequest, EventQuery, EventRef, FacetQuery, IngressId, IngressService,
+    LoomApi, RelationshipTrajectoryQuery, SubscriptionRequest, SubscriptionResult,
+    SubscriptionService, TimelineTarget, WorldId,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer};
@@ -388,11 +388,6 @@ where
             get(change_feed::<S>),
         )
         .route("/v1/query/facet", post(get_facet::<S>))
-        .route(
-            "/v1/query/semantic-projection",
-            post(query_semantic_projection::<S>),
-        )
-        .route("/v1/query/blob", post(read_blob::<S>))
         .route("/v1/history/events", post(list_events::<S>))
         .route("/v1/history/event", post(get_event::<S>))
         .route("/v1/history/causes", post(direct_causes::<S>))
@@ -855,43 +850,6 @@ where
     };
     match block_on_api(state.api.get_facet(body)) {
         Ok(snapshot) => json_response(StatusCode::OK, &snapshot, state.config),
-        Err(error) => error_response(error, state.config),
-    }
-}
-
-async fn query_semantic_projection<S>(
-    State(state): State<AppState<S>>,
-    request: Request,
-) -> Response
-where
-    S: BoundaryApi,
-{
-    if let Err(error) = validate_headers(&request, state.config) {
-        return error_response(error, state.config);
-    }
-    let body = match json_body::<SemanticProjectionQuery>(request, state.config).await {
-        Ok(body) => body,
-        Err(error) => return error_response(error, state.config),
-    };
-    match block_on_api(state.api.query_semantic_projection(body)) {
-        Ok(read) => json_response(StatusCode::OK, &read, state.config),
-        Err(error) => error_response(error, state.config),
-    }
-}
-
-async fn read_blob<S>(State(state): State<AppState<S>>, request: Request) -> Response
-where
-    S: BoundaryApi,
-{
-    if let Err(error) = validate_headers(&request, state.config) {
-        return error_response(error, state.config);
-    }
-    let body = match json_body::<BlobReadRequest>(request, state.config).await {
-        Ok(body) => body,
-        Err(error) => return error_response(error, state.config),
-    };
-    match block_on_api(state.api.read_blob(body)) {
-        Ok(read) => json_response(StatusCode::OK, &read, state.config),
         Err(error) => error_response(error, state.config),
     }
 }
@@ -1456,17 +1414,11 @@ fn error_response(error: ApiError, config: BoundaryConfig) -> Response {
     };
     let status = match body.code.as_str() {
         "invalid_request" => StatusCode::BAD_REQUEST,
-        "not_found" | "blob_not_found" => StatusCode::NOT_FOUND,
+        "not_found" => StatusCode::NOT_FOUND,
         "conflict" => StatusCode::CONFLICT,
         "unavailable" => StatusCode::SERVICE_UNAVAILABLE,
         "unauthorized" => StatusCode::UNAUTHORIZED,
         "forbidden" => StatusCode::FORBIDDEN,
-        "semantic_projection_unavailable" | "semantic_projection_stale" | "blob_unavailable" => {
-            StatusCode::SERVICE_UNAVAILABLE
-        }
-        "semantic_projection_source_mismatch" | "blob_integrity_mismatch" => {
-            StatusCode::UNPROCESSABLE_ENTITY
-        }
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     let bytes = serde_json::to_vec(&body)

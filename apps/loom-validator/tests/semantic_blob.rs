@@ -16,10 +16,9 @@ mod common;
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
 use loom_api::{
-    ActionInvocation, ActionRequest, ActionService, ActionTypeId, BlobReadRequest,
-    CreateWorldFromTemplateRequest, EventQuery, FacetOwner, FacetQuery, FacetTypeId,
-    HistoryService, QueryService, TimelineService, WorldInstant, WorldService,
-    WorldTemplateDescriptor,
+    ActionInvocation, ActionRequest, ActionService, ActionTypeId, CreateWorldFromTemplateRequest,
+    EventQuery, FacetOwner, FacetQuery, FacetTypeId, HistoryService, QueryService, TimelineService,
+    WorldInstant, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{SemanticIndexId, SemanticIndexMetric, SemanticIndexSource};
 use loom_client::LoomClient;
@@ -156,12 +155,7 @@ fn start_t15_in_memory_runtime() -> (
             .expect("T15 InMemory revision should activate");
     }
 
-    let blob_store = InMemoryBlobStore::new();
-    let runtime = Arc::new(
-        Runtime::new(store, neutral_registry())
-            .expect("T15 Runtime")
-            .with_blob_store(blob_store.clone()),
-    );
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("T15 Runtime"));
     let router = router_with_admin(
         runtime.clone(),
         Arc::new(RequireAdminAuthorization),
@@ -185,7 +179,7 @@ fn start_t15_in_memory_runtime() -> (
             .expect("T15 client");
         (client, server)
     });
-    (runtime, client, server, blob_store)
+    (runtime, client, server, InMemoryBlobStore::new())
 }
 
 fn start_t15_postgres_runtime() -> PostgresRuntimeFixture {
@@ -235,12 +229,7 @@ fn start_t15_postgres_runtime() -> PostgresRuntimeFixture {
         }
         store
     });
-    let blob_store = InMemoryBlobStore::new();
-    let runtime = Arc::new(
-        Runtime::new(store, neutral_registry())
-            .expect("T15 Runtime")
-            .with_blob_store(blob_store.clone()),
-    );
+    let runtime = Arc::new(Runtime::new(store, neutral_registry()).expect("T15 Runtime"));
     let router = router_with_admin(
         runtime.clone(),
         Arc::new(RequireAdminAuthorization),
@@ -268,7 +257,7 @@ fn start_t15_postgres_runtime() -> PostgresRuntimeFixture {
         runtime,
         client,
         server,
-        blob_store,
+        InMemoryBlobStore::new(),
         bootstrap,
         revision_state_guard,
     )
@@ -397,37 +386,10 @@ macro_rules! run_cv028_projection_case {
             assert_eq!(first_hits.len(), 1);
             assert_eq!(first_hits[0].source_ref, history_before[0].event_ref());
 
-            let public_query = loom_api::SemanticProjectionQuery::new(
-                target,
-                "neutral.counter.semantic",
-                SchemaRevision::new(1),
-                1,
-                "neutral-model-1",
-                vec![3.0, 0.0],
-                1,
-            )
-            .at_source_revision(timeline_before.version);
-            let public_read = client
-                .query_semantic_projection(public_query.clone())
-                .await
-                .expect("CV-028 formal public projection read");
-            assert_eq!(public_read.target, target);
-            assert_eq!(public_read.source_revision, timeline_before.version);
-            assert_eq!(public_read.hits.len(), 1);
-            assert_eq!(public_read.hits[0].source_ref, history_before[0].event_ref());
-
             runtime
                 .delete_semantic_projection(registration.key.clone())
                 .await
                 .expect("CV-028 projection delete");
-            let unavailable = client
-                .query_semantic_projection(public_query.clone())
-                .await
-                .expect_err("CV-028 deleted projection should be unavailable");
-            assert_eq!(
-                unavailable.code,
-                loom_api::ApiErrorCode::SemanticProjectionUnavailable
-            );
             let history_after_delete = client
                 .list_events(EventQuery::all(target))
                 .await
@@ -465,11 +427,6 @@ macro_rules! run_cv028_projection_case {
                 .expect("CV-028 projection query after rebuild");
             assert_eq!(second_hits.len(), 1);
             assert_eq!(second_hits[0].source_ref, history_before[0].event_ref());
-            let public_rebuilt = client
-                .query_semantic_projection(public_query)
-                .await
-                .expect("CV-028 formal public projection read after rebuild");
-            assert_eq!(public_rebuilt, public_read);
             assert_eq!(
                 client
                     .list_events(EventQuery::all(target))
@@ -537,12 +494,6 @@ macro_rules! run_cv029_blob_case {
                 .put(b"cv029 immutable body", Some("text/plain"))
                 .await
                 .expect("CV-029 BlobRef creation");
-            let public_reference = loom_api::BlobReference::new(
-                reference.id.to_string(),
-                reference.metadata.content_hash.to_string(),
-                reference.metadata.size,
-                reference.metadata.content_type.clone(),
-            );
             assert!(reference.is_consistent());
             assert_eq!(
                 blobs
@@ -550,14 +501,8 @@ macro_rules! run_cv029_blob_case {
                     .await
                     .expect("CV-029 blob read before fault")
                     .bytes(),
-                    b"cv029 immutable body"
+                b"cv029 immutable body"
             );
-            let public_read = client
-                .read_blob(BlobReadRequest::new(public_reference.clone()))
-                .await
-                .expect("CV-029 formal public blob read before fault");
-            assert_eq!(public_read.reference, public_reference);
-            assert_eq!(public_read.bytes, b"cv029 immutable body");
             let attach_event_id = loom_api::EventId::new(Uuid::new_v4());
             client
                 .invoke(ActionRequest::new(
@@ -602,11 +547,6 @@ macro_rules! run_cv029_blob_case {
                 blobs.read(&reference).await,
                 Err(BlobError::NotFound { .. })
             ));
-            let public_missing = client
-                .read_blob(BlobReadRequest::new(public_reference.clone()))
-                .await
-                .expect_err("CV-029 missing blob should be typed through public API");
-            assert_eq!(public_missing.code, loom_api::ApiErrorCode::BlobNotFound);
             assert_eq!(
                 client
                     .list_events(EventQuery::all(target))
@@ -631,12 +571,6 @@ macro_rules! run_cv029_blob_case {
                 .put(b"cv029 corrupt body", Some("text/plain"))
                 .await
                 .expect("CV-029 corrupt BlobRef creation");
-            let public_corrupt_reference = loom_api::BlobReference::new(
-                corrupt_reference.id.to_string(),
-                corrupt_reference.metadata.content_hash.to_string(),
-                corrupt_reference.metadata.size,
-                corrupt_reference.metadata.content_type.clone(),
-            );
             blobs
                 .corrupt(&corrupt_reference, b"cv029 corrupt bodx".to_vec())
                 .expect("CV-029 blob corruption fault injection");
@@ -644,14 +578,6 @@ macro_rules! run_cv029_blob_case {
                 blobs.read(&corrupt_reference).await,
                 Err(BlobError::HashMismatch { .. })
             ));
-            let public_corrupt = client
-                .read_blob(BlobReadRequest::new(public_corrupt_reference))
-                .await
-                .expect_err("CV-029 corrupt blob should be typed through public API");
-            assert_eq!(
-                public_corrupt.code,
-                loom_api::ApiErrorCode::BlobIntegrityMismatch
-            );
             assert_eq!(
                 client
                     .list_events(EventQuery::all(target))
