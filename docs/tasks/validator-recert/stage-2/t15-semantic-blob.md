@@ -1,13 +1,13 @@
 ---
 task: VALR-T15
 issue: 320
-status: in_progress
+status: completed
 depends_on: [314]
 created_at: 2026-08-26
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-28
+completion_pr: 374
+merge_sha: bed2dac9947d5c5f92e0d530378f5be712e041a6
 ---
 
 # VALR-T15 — Validate Semantic projection + Blob references + pinned reads
@@ -92,7 +92,7 @@ Harness: `apps/loom-validator/tests/common/mod.rs` (`InMemoryServer::start`, `Pg
 
 Unique ID: `unique_scope` with `Uuid::new_v4()` per test (e.g. `cv030-inmem-<uuid>-t15`); prohibits direct SQL/storage/table assertion (only `get_facet`/`list_events`/`inspect_timeline`/`fork`).
 
-## Verification Evidence
+## Historical Verification Evidence — initial implementation candidate (superseded)
 
 - `cargo fmt --all -- --check` → `0` (via `cargo fmt --all` applied)
 - `cargo check -p loom-validator --all-targets` → pass (no `lib.rs` registry edit, `semantic_blob` compiles with `loom-api` only)
@@ -116,7 +116,7 @@ Unique ID: `unique_scope` with `Uuid::new_v4()` per test (e.g. `cv030-inmem-<uui
 
 If existing public `loom-api` cannot express required pinned/semantic read without new semantic decision, stop and record gap rather than reaching into internal storage — implemented: `CV-028`/`CV-029` are recorded as `Unavailable` gaps with `no existing formal semantic projection observable` / `no existing formal blob/reference fetch observable`; this is not product API or Architecture Amendment authorization. `CV-030` uses existing `ForkTimelineRequest::at_version` path and does not invent `get_facet_at_version`/`BaseWorldView`.
 
-## Progress Log
+## Historical Progress Log — append-only
 
 - 2026-08-27 — Implemented `CV-030` via public `loom-api`/`loom-client` (`create_world`, `seed` value `10` → `version_a`, `increment` to `11` → `version_b`, `fork at_version version_a`, `get_facet`/`list_events`/`inspect_timeline` for `fork_parent_version`/`fork_parent_event`/pinned history vs head). Kept `CV-028`/`CV-029` as `Unavailable` blocked gaps (`finding:gap:...`) without new API or storage inspection and without central registry enlargement (T09 fence: `validator_registry len 11`, `register` adds only `CV-030` for T19). Added `tests/semantic_blob.rs` real public-HTTP integration tests for `InMemory` and live `PostgreSQL` (T08 PG required, not skipped) with unique IDs and no SQL/table assertions. Preserved `SUITE`/`CV_RANGE`/`owns_cv` and exposed `descriptors`/`blocked_descriptors`/`register`/`execute` surface for T19. Verified `fmt`/`check`/`clippy`/`test` and architecture/storage checks with `git diff --check` clean.
 - 2026-08-27 — Rework for D-001/D-002/D-003: restricted PostgreSQL live endpoint validation to implementable `CV-030`, so `CV-028`/`CV-029` always dispatch directly to `Unavailable` with `finding:gap` regardless of backend URL environment; removed the obsolete env-presence prerequisite gate because the repository harness uses its default control database when unset. Bound both returned `TimelineVersion` fields to public history `EventSeq` and `StateRevision` progression, strictly matched fork inspect version and complete source `EventRef` ancestry, and added controlled PostgreSQL boundary restart/reconnect reads for source/fork facet, history, inspect, pinned value, EventSeq and ancestry. The PG integration test now injects `PgServer::restart` through `BackendContext::restart`; T09 registry and other ledgers remain untouched.
@@ -262,20 +262,37 @@ The already-implemented T15 candidate was delivered by PR #374 with head
 implementation delivery facts, not this documentation-only reconciliation's
 PR or merge result.
 
+### Current-main verification fence
+
+- T09 is **completed** on this current-main baseline. The effective central
+  `validator_registry` length is **32**; the historical `len 11` statement is
+  retained only in the explicitly historical evidence above.
+- The focused `semantic_blob` suite is the required **11/11** run: eleven
+  tests executed, zero failed, zero ignored, zero measured, and zero filtered
+  out. The historical seven-test statement is retained only in the explicitly
+  historical evidence above.
+- The exact executable baseline under this reconciliation is
+  `3c9d86912ea7f72818a11ffde1a5281b98e3c492`; this reconciliation changes only
+  this ledger and leaves production and test code unchanged. The final
+  docs-only candidate HEAD and the rerun results are supplied in the Executor
+  handoff for this candidate.
+
 ### Reconciliation verification and handoff
 
 - Final candidate base: `a898e5be6e33f5f448992c7ddb642af7336bc8f8`.
-- Final candidate HEAD: recorded in the Executor handoff for this
-  documentation-only reconciliation after the append-only change is committed
-  and verified.
+- Final candidate implementation baseline: `3c9d86912ea7f72818a11ffde1a5281b98e3c492`;
+  the reconciliation descendant is docs-only and contains no production or
+  test-code change.
 - `bash tools/test.sh -p loom-validator --test semantic_blob -- --nocapture`:
-  required 11/11 InMemory + PostgreSQL 18 run, with no skip/ignore/filter
-  bypass; result to be recorded against the final candidate.
+  `11 passed, 0 failed, 0 ignored, 0 measured, 0 filtered out` on the
+  current-main implementation candidate; this is the required 11/11 InMemory
+  + PostgreSQL 18 run with no skip/ignore/filter bypass.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`,
   `cargo clippy -p loom-validator --all-targets -- -D warnings`,
   `python3 tools/check_architecture.py`,
   `python3 tools/check_storage_sql_ownership.py`, and `git diff --check`:
-  results to be recorded against the final candidate.
+  PASS on the current-main implementation candidate and docs-only
+  reconciliation.
 - Reconciliation PR: pending Leader action; none created by this Executor.
 - Reconciliation Reviewer result: pending Leader action; not prefilled.
 - Reconciliation required CI result: pending Leader action; not prefilled.
