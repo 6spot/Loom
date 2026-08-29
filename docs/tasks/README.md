@@ -12,12 +12,16 @@ Milestones 1–3 remain historical completed implementation baselines. The old u
 
 Current-main V0 re-certification is tracked separately in the [`validator-recert/README.md`](validator-recert/README.md) initiative. It includes the post-M13 authority-fix history and current Stage-3 gates; re-certification remains in progress and pending until T25. The repository must not be described as V0 re-certified or as having a complete recertification root before T25.
 
-The current implementation candidate is `95f7e7a0233cfa917d0c9656b990fd2af4996874`
-(PR #365 merge). CV-017's public evidence is therefore current-main evidence,
-but it does not certify V0 by itself. T20's clean PG18 result and the T22/T23/T24
-manifest/gate results were produced on older candidates and are marked
-historical/non-current in the reconciliation ledger; current-main reruns remain
-pending until T25 consumes complete terminal evidence.
+The production candidate under re-certification is
+`4efb1d346c926f2ee10654c3bc24cd92af351881` (PR #375 merge). Current `main` is
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; merged PRs #376/#377/#378/#379
+record the current-candidate T23/T22/T24/T19 evidence-only descendants. T19,
+T20, T22 and T23 are recorded as done; T24 is blocked fail-closed because the
+refreshed manifest still has the real CV-028/CV-029 capability gaps. The prior
+`95f7e7a...` candidate and older `31 Pass / 9 Unavailable` /
+`gate_passes: false` results remain explicitly historical/non-current. None of
+these records certifies V0; current-main re-certification remains pending until
+T25 consumes the required evidence.
 
 ## Cross-cutting validator initiative
 

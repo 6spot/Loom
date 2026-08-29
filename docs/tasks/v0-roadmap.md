@@ -8,14 +8,16 @@ This roadmap supersedes the unmerged historical M4–M13 planning from issues #6
 
 ## Current-main re-certification boundary
 
-The current implementation candidate is
-`95f7e7a0233cfa917d0c9656b990fd2af4996874`, merged by PR #365. Its CV-017
-public ingress-recovery implementation is current-main evidence, not a final V0
-certificate. The clean PG18 matrix (T20), manifest (T22), core gate (T23), and
-Validator gate (T24) results recorded on earlier candidates remain
-historical/non-current until matching current-main reruns have complete terminal
-evidence. Re-certification remains **pending until T25**; Stage 3 and its root
-checklist stay open.
+The production candidate under re-certification is
+`4efb1d346c926f2ee10654c3bc24cd92af351881`, merged by PR #375. Current `main`
+is `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, with current-candidate
+evidence-only descendants merged by PRs #376 (T23), #377 (T22), #378 (T24) and
+#379 (T19). T19/T20/T22/T23 are recorded as done; T24 remains blocked
+fail-closed because CV-028 and CV-029 are still real manifest capability gaps.
+The prior `95f7e7a...` candidate, older PR results and `31 Pass / 9 Unavailable`
+/
+`gate_passes: false` records remain historical/non-current. Re-certification
+remains **pending until T25**; Stage 3 and its root checklist stay open.
 
 ## Planning rules
 

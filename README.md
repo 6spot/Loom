@@ -171,15 +171,21 @@ Loom
 
 **Current-main certification:** The historical M13 candidate and closure records below remain preserved audit evidence. Current-main V0 re-certification is in progress and remains **pending until T25**; the repository must not be described as V0 re-certified or as having a complete recertification root before that final gate.
 
-**Current-main evidence snapshot (2026-08-28):** The current implementation
-candidate is `95f7e7a0233cfa917d0c9656b990fd2af4996874`, the merge of PR #365
-(CV-017 public ingress-recovery evidence). This establishes current-main CV-017
-implementation evidence, but is not a V0 certification. The clean T20 PG18
-matrix, T22 manifest, T23 core gate, and T24 Validator gate recorded on older
-candidates remain historical/non-current until their current-main reruns produce
-complete terminal evidence; T25 remains the final certification gate. See the
-[current-main recertification ledger](docs/tasks/validator-recert/README.md) for
-the exact PR, CI, candidate, and pending-state snapshot.
+**Current-main evidence snapshot (2026-08-29):** The production candidate under
+re-certification is `4efb1d346c926f2ee10654c3bc24cd92af351881`, the merge of PR
+#375 (both required CI jobs passed). Current `main` is
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, reached through the merged
+docs/evidence-only T23/T22/T24/T19 records in PRs #376, #377, #378 and #379.
+This is not a V0 certification. T19 is done with the verified 32-ID registry
+and eight intentionally unregistered gap rows; T20 is done and its current-
+candidate PG18 matrix records 10/10 trusted rows; T22 is done with the
+refreshed manifest; T23 is done with current-candidate core evidence; and T24
+is blocked fail-closed by the real CV-028/CV-029 capability gaps. The prior
+`95f7e7a...` candidate, older PR results, and `31 Pass / 9 Unavailable` /
+`gate_passes: false` records remain historical/non-current evidence. T25
+remains the only final certification gate. See the [current-main
+recertification ledger](docs/tasks/validator-recert/README.md) for exact
+candidate, base, merge, CI, current, pending and historical mappings.
 
 **Historical M12/M13 delivery evidence (preserved):**
 
