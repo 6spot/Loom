@@ -12,12 +12,19 @@ Milestones 1–3 remain historical completed implementation baselines. The old u
 
 Current-main V0 re-certification is tracked separately in the [`validator-recert/README.md`](validator-recert/README.md) initiative. It includes the post-M13 authority-fix history and current Stage-3 gates; re-certification remains in progress and pending until T25. The repository must not be described as V0 re-certified or as having a complete recertification root before T25.
 
-The current implementation candidate is `95f7e7a0233cfa917d0c9656b990fd2af4996874`
-(PR #365 merge). CV-017's public evidence is therefore current-main evidence,
-but it does not certify V0 by itself. T20's clean PG18 result and the T22/T23/T24
-manifest/gate results were produced on older candidates and are marked
-historical/non-current in the reconciliation ledger; current-main reruns remain
-pending until T25 consumes complete terminal evidence.
+The production candidate under re-certification is
+`4efb1d346c926f2ee10654c3bc24cd92af351881` (PR #375 merge). The T21 evidence
+snapshot/base is `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual current
+`main` is now `ef281f886480663a94193f738179d14933040a12` after PR #380
+(head `3abc7f65d21fe7d6564c671ab18db11420da3741`) added production
+semantic/blob API and mediation changes. The merged PRs #376/#377/#378/#379
+are evidence-only descendants of the snapshot, so their T20/T22/T23/T24
+results require a re-audit against actual main and are not current-main proof.
+T19 remains a 32-ID registry snapshot; T24 remains fail-closed on the real
+CV-028/CV-029 gaps. The prior `95f7e7a...` candidate and older
+`31 Pass / 9 Unavailable` / `gate_passes: false` results remain explicitly
+historical/non-current. None of these records certifies V0; re-certification
+remains pending until T25 consumes evidence for actual main.
 
 ## Cross-cutting validator initiative
 
