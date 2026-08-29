@@ -9,12 +9,12 @@ Tracker: VALR-S3 / GitHub [#305](https://github.com/6spot/Loom/issues/305)
 ## Dependency graph
 
 ```text
-#325 T20 [done; PR #359, merge 8761991c; snapshot 4efb1d live matrix 10/10; re-audit pending]
+#325 T20 [done; PR #384, merge 103a75e9; current-main live matrix 10/10]
   ├─> #326 T21 [in_progress] ───────────────────────┐
-  └─> #327 T22 [done; PR #377, merge 856814df; snapshot evidence; re-audit pending] │
-             ├─> #328 T23 [done; PR #376, merge 657e571ce; snapshot evidence] ──────┤
-             └─> #329 T24 [blocked; PR #378, merge 7716c1c3; snapshot gap result] ────┤
-                                                     └─> #330 T25 [blocked; final gate]
+  └─> #327 T22 [done; PR #377; current-main re-review in progress] │
+             ├─> #328 T23 [backlog; no 103a75e current-main evidence] ──────┤
+             └─> #329 T24 [backlog; no 103a75e current-main evidence] ───────┤
+                                                     └─> #330 T25 [backlog; final gate]
 ```
 
 T21 and T22 are the independently unlocked Stage-3 entry leaves. T23 and T24
@@ -26,30 +26,30 @@ T23 and T24 and owns the final current-main certificate and root-close trigger.
 | Class | Task | Issue | Current state | Dependency | Stable record |
 | --- | --- | ---: | --- | --- | --- |
 | root A | VALR-T21 — status reconciliation | [#326](https://github.com/6spot/Loom/issues/326) | `in_progress` | #325 / T20 | [`t21-status-reconciliation.md`](t21-status-reconciliation.md) |
-| root B | VALR-T22 — certification manifest | [#327](https://github.com/6spot/Loom/issues/327) | `done` | #325 / T20 | `t22-certification-manifest.md` (T22-owned); PR #377 merged at `856814dfef5ca800e7c94cdabffd926846663110` |
-| gate A | VALR-T23 — full core integrated gate | [#328](https://github.com/6spot/Loom/issues/328) | `done` | #327 / T22 | `t23-core-integrated-gate.md` (T23-owned); PR #376 merged at `657e571ced6e06219e9d1a065775d762e4a83279`; 4efb1d snapshot evidence, actual-main re-audit pending |
-| gate B | VALR-T24 — Validator certification gate | [#329](https://github.com/6spot/Loom/issues/329) | `blocked` | #327 / T22 | `t24-validator-certification-gate.md` (T24-owned); PR #378 merged at `7716c1c33cd08cde57e8226ca063c6c83c650e8e`; 4efb1d snapshot gap result, actual-main re-audit pending |
-| final gate | VALR-T25 — final current-main certificate | [#330](https://github.com/6spot/Loom/issues/330) | `blocked` | #326, #328, #329 | `t25-final-certificate.md` (T25-owned) |
+| root B | VALR-T22 — certification manifest | [#327](https://github.com/6spot/Loom/issues/327) | `done` / re-review in progress | #325 / T20 | `t22-certification-manifest.md` (T22-owned); PR #377 is historical snapshot evidence |
+| gate A | VALR-T23 — full core integrated gate | [#328](https://github.com/6spot/Loom/issues/328) | `backlog` | #327 / T22 | `t23-core-integrated-gate.md` (T23-owned); PR #376 is historical snapshot evidence; no `103a75e…` evidence |
+| gate B | VALR-T24 — Validator certification gate | [#329](https://github.com/6spot/Loom/issues/329) | `backlog` | #327 / T22 | `t24-validator-certification-gate.md` (T24-owned); PR #378 is historical snapshot gap evidence; no `103a75e…` evidence |
+| final gate | VALR-T25 — final current-main certificate | [#330](https://github.com/6spot/Loom/issues/330) | `backlog` | #326, #328, #329 | `t25-final-certificate.md` (T25-owned) |
 
-The Stage-2 gate dependency is the completed T20 issue baseline: PR #359
-merged at `8761991c36c07b7ee32d2643228bfb458fdeb2d0`. The 10/10 trusted live
-matrix recorded by T23 is evidence for candidate `4efb1d…` on snapshot/base
-`6da9989…`; it is pending re-audit against actual `main` after PR #380. T20's
-own ledger record is not rewritten by T21.
+The Stage-2 gate dependency is the completed T20 issue baseline refreshed by
+PR #384 merge `103a75e96cd9f7b9e495a39bb6608316c47b76e6`; its 10/10 trusted
+live matrix is current-main evidence. T20's own ledger record is not rewritten
+by T21.
 
-## Current-main candidate snapshot
+## Current-main evidence snapshot
 
-The production candidate under recertification is
-`4efb1d346c926f2ee10654c3bc24cd92af351881`, the PR #375 merge. The T21
-evidence snapshot/base is `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual
-current `main` is `ef281f886480663a94193f738179d14933040a12` after PR #380
-(head `3abc7f65d21fe7d6564c671ab18db11420da3741`) added production
-semantic/blob API and mediation changes. PRs #376/#377/#378/#379 record
-evidence-only results for the snapshot, not actual-main evidence: T20's 10/10
-matrix, T22's 38-ready manifest with CV-028/CV-029 gaps, T23's passing core
-evidence and T24's fail-closed `gate_passes: false` result all require
-re-audit against actual main. The prior `95f7e7a...` candidate, older PRs and
-old `31 Pass / 9 Unavailable` result remain historical/non-current evidence.
+Actual current `main` and the current T20 evidence baseline are
+`103a75e96cd9f7b9e495a39bb6608316c47b76e6`, PR #384 merge. Post-rollback
+lineage is PR #382 merge `a898e5be6e33f5f448992c7ddb642af7336bc8f8`, PR #383
+merge `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, then PR #384; T20 records
+10/10 trusted PostgreSQL 18 rows on this baseline. T22's existing manifest is
+under parallel current-main re-review. T23, T24 and T25 have no current-main
+evidence on `103a75e…`. The former PR #381 reconciliation, candidate
+`4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
+`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24 results
+remain historical/superseded. The prior `95f7e7a...` candidate and old
+`31 Pass / 9 Unavailable` result remain historical/non-current evidence.
 Current-main V0 re-certification remains **pending until T25**; neither this
 Stage-3 index nor its root checklist is closed.
 

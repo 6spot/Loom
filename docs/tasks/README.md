@@ -12,19 +12,20 @@ Milestones 1–3 remain historical completed implementation baselines. The old u
 
 Current-main V0 re-certification is tracked separately in the [`validator-recert/README.md`](validator-recert/README.md) initiative. It includes the post-M13 authority-fix history and current Stage-3 gates; re-certification remains in progress and pending until T25. The repository must not be described as V0 re-certified or as having a complete recertification root before T25.
 
-The production candidate under re-certification is
-`4efb1d346c926f2ee10654c3bc24cd92af351881` (PR #375 merge). The T21 evidence
-snapshot/base is `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual current
-`main` is now `ef281f886480663a94193f738179d14933040a12` after PR #380
-(head `3abc7f65d21fe7d6564c671ab18db11420da3741`) added production
-semantic/blob API and mediation changes. The merged PRs #376/#377/#378/#379
-are evidence-only descendants of the snapshot, so their T20/T22/T23/T24
-results require a re-audit against actual main and are not current-main proof.
-T19 remains a 32-ID registry snapshot; T24 remains fail-closed on the real
-CV-028/CV-029 gaps. The prior `95f7e7a...` candidate and older
-`31 Pass / 9 Unavailable` / `gate_passes: false` results remain explicitly
-historical/non-current. None of these records certifies V0; re-certification
-remains pending until T25 consumes evidence for actual main.
+Actual current `main` and the current T20 evidence baseline are
+`103a75e96cd9f7b9e495a39bb6608316c47b76e6`, the PR #384 merge. The post-
+rollback lineage is PR #382 merge `a898e5be6e33f5f448992c7ddb642af7336bc8f8`,
+PR #383 merge `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, then PR #384; T20
+records 10/10 trusted PostgreSQL 18 rows on this baseline. T22's existing
+manifest is under parallel current-main re-review, while T23/T24/T25 have no
+current-main evidence on `103a75e…` yet. The former PR #381 reconciliation,
+candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
+`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24 results
+remain historical/superseded. T19 remains a historical 32-ID registry
+snapshot; prior CV gaps and `31 Pass / 9 Unavailable` /
+`gate_passes: false` records remain historical. None of these records
+certifies V0; re-certification remains pending until T25.
 
 ## Cross-cutting validator initiative
 
