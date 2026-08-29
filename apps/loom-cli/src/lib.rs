@@ -676,6 +676,12 @@ pub fn exit_code_for_api_error(code: ApiErrorCode) -> i32 {
         ApiErrorCode::Unauthorized => 14,
         ApiErrorCode::Forbidden => 15,
         ApiErrorCode::Internal => 16,
+        ApiErrorCode::SemanticProjectionUnavailable => 17,
+        ApiErrorCode::SemanticProjectionStale => 18,
+        ApiErrorCode::SemanticProjectionSourceMismatch => 19,
+        ApiErrorCode::BlobNotFound => 20,
+        ApiErrorCode::BlobIntegrityMismatch => 21,
+        ApiErrorCode::BlobUnavailable => 22,
     }
 }
 
