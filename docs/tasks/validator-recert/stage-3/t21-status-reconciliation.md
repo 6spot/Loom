@@ -1,13 +1,13 @@
 ---
 task: VALR-T21
 issue: 326
-status: in_progress
+status: completed
 depends_on: [325]
 created_at: 2026-08-27
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-29
+completion_pr: 385
+merge_sha: 4b134f391c307915da28df5846108210467dd1e3
 ---
 
 # VALR-T21 — Reconcile V0 roadmap/README/Task-Ledger status without rewriting history
@@ -29,7 +29,10 @@ historical M13 evidence.
 | Historical [`docs/tasks/validator/README.md`](../../validator/README.md) | Existing Validator initiative and VAL-T1..T10 records remain unchanged and are not marked complete by this recertification tree. |
 
 The inventory is deliberately limited to current-status/governance sources; it
-does not rewrite unrelated task evidence or architecture history.
+does not rewrite unrelated task evidence or architecture history. The table is
+the T21 execution-time snapshot; later T22/T23/T24 progress is owned by those
+tasks and by the Stage-3 current-status index rather than retroactively
+rewriting T21's historical snapshot.
 
 ## Current main and evidence snapshot
 
@@ -57,9 +60,9 @@ evidence on `103a75e…`. None of these records constitutes certification.
 | T24 / ME-300 | Issue `backlog`; PR #378 merged (head `5d77ddda808f5594c2efe3b8c169f82814d6898b`, base `856814dfef5ca800e7c94cdabffd926846663110`, merge `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33193706827` passed both required jobs | No current-main evidence exists for `103a75e…`; the former snapshot gate remains fail-closed at 38 `Pass`, 2 `Unavailable` (CV-028/CV-029), `gate_passes: false`, and is not certification. |
 
 The superseded 2026-08-28 `95f7e7a...` snapshot is retained as historical
-evidence: its
-production candidate was `95f7e7a0233cfa917d0c9656b990fd2af4996874` (PR #365
-merge, CI run `33150850081`), with integration base
+evidence: its production candidate was
+`95f7e7a0233cfa917d0c9656b990fd2af4996874` (PR #365 merge, CI run
+`33150850081`), with integration base
 `bed2dac9947d5c5f92e0d530378f5be712e041a6`. Its T20 row recorded the older
 PR #359 clean 10/10 result and a pending fresh rerun; T22 recorded PR #366
 merge `7cd6844ff3459b5dad200a2807c452ad70195efc`; T23 recorded PR #363 merge
@@ -89,26 +92,29 @@ the T20 ledger.
 
 ## Current graph and certification boundary
 
-| Task | Issue | Dependency | Current state | Record |
+The following table is the graph state recorded by T21 when it ran; later task
+completion is represented by each task's owner record and the Stage-3 index.
+
+| Task | Issue | Dependency | T21 execution-time state | Record |
 | --- | ---: | --- | --- | --- |
 | VALR-T21 | [#326](https://github.com/6spot/Loom/issues/326) | #325 / T20 | `in_progress` | this file |
-| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `done` / re-review in progress | `t22-certification-manifest.md` (T22-owned; PR #377 is historical snapshot evidence) |
-| VALR-T23 | [#328](https://github.com/6spot/Loom/issues/328) | #327 / T22 | `backlog` | `t23-core-integrated-gate.md` (T23-owned; no `103a75e…` current-main evidence) |
-| VALR-T24 | [#329](https://github.com/6spot/Loom/issues/329) | #327 / T22 | `backlog` | `t24-validator-certification-gate.md` (T24-owned; no `103a75e…` current-main evidence) |
-| VALR-T25 | [#330](https://github.com/6spot/Loom/issues/330) | #326, #328, #329 | `backlog` | `t25-final-certificate.md` (T25-owned; final certification boundary) |
+| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `done` / re-review in progress | `t22-certification-manifest.md` |
+| VALR-T23 | [#328](https://github.com/6spot/Loom/issues/328) | #327 / T22 | `backlog` | `t23-core-integrated-gate.md` |
+| VALR-T24 | [#329](https://github.com/6spot/Loom/issues/329) | #327 / T22 | `backlog` | `t24-validator-certification-gate.md` |
+| VALR-T25 | [#330](https://github.com/6spot/Loom/issues/330) | #326, #328, #329 | `backlog` | `t25-final-certificate.md` |
 
-Current-main V0 re-certification is **pending until T25**. Only T25 may publish
-the final certificate after T21, T22, T23 and T24 evidence converges. No root,
-Stage, or historical M13 completion claim is changed by this record.
+At T21 execution time, current-main V0 re-certification was pending until T25.
+T21 itself never published the final certificate and never changed Root/Stage
+closure state.
 
 ## Acceptance
 
-- [ ] Current status is consistent across README, task index, roadmap and new recertification indexes.
-- [ ] Historical M13 candidate/PR/merge evidence remains exact and explicitly historical.
-- [ ] Historical Validator ledger `docs/tasks/validator/` remains unchanged and not falsely complete.
-- [ ] Stage-3 T21–T25 graph, dependencies, states and stable record references are discoverable.
-- [ ] Current-main re-certification remains pending until T25; no V0 re-certified/root-complete claim is made.
-- [ ] Documentation/ledger checks and `git diff --check` pass; review/merge evidence is recorded by the Leader workflow.
+- [x] Current status was reconciled across README, task index, roadmap and recertification indexes for the T21 current-main snapshot.
+- [x] Historical M13 candidate/PR/merge evidence remains exact and explicitly historical.
+- [x] Historical Validator ledger `docs/tasks/validator/` remains unchanged and not falsely complete.
+- [x] Stage-3 T21–T25 graph, dependencies, states and stable record references are discoverable.
+- [x] T21 made no V0 re-certified/root-complete claim and preserved T25 as the final certification boundary.
+- [x] Documentation/ledger checks completed, PR #385 merged, and CI finished successfully.
 
 ## Progress Log
 
@@ -170,8 +176,10 @@ PR #380 was independently verified as merged (head
 T21 diff; no T20/T22/T23/T24 re-audit was run here, so their snapshot evidence
 is not promoted to actual-main evidence.
 
-Completion fields remain blank until the Leader's merge workflow supplies
-completion PR and merge evidence.
+T21 completion metadata is reconciled above from the merged current-main
+execution: PR #385, merge `4b134f391c307915da28df5846108210467dd1e3`,
+evidence head `77868980445976cc7009dedec99f1164b412a836`, and CI run
+`33251875589` with conclusion `success`.
 
 ## Latest verification evidence (2026-08-29 current-main update)
 
@@ -197,3 +205,12 @@ T21/index scope and does not rewrite any owner ledger.
 - T21 current-main/lineage/historical/pending assertions — PASS.
 - `git diff --check origin/main...HEAD` — PASS; forbidden-path scan — EMPTY.
 - T25 was not rerun; CV-028/CV-029 were not represented as Pass.
+
+## Completion reconciliation
+
+PR #385 is the completed T21 current-main reconciliation. Its exact head
+`77868980445976cc7009dedec99f1164b412a836` passed CI run `33251875589`, and
+the PR merged as `4b134f391c307915da28df5846108210467dd1e3`. T21 is therefore complete as
+a governance/status-reconciliation task. This completion does not certify V0
+and does not claim that later T22/T23/T24/T25 work was complete at T21's
+execution time.
