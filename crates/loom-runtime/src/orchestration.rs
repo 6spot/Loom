@@ -29,18 +29,23 @@ use loom_api::{
     AdminRuntimeRevisionCapability, AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection,
     AdminScheduleAgencyWakeRequest, AdminScheduleAgencyWakeResult, AdminService,
     AdminTerminalWorkState, AdminTerminalizeWorkRequest, AdminTerminalizeWorkResult,
-    AdminTimelineLogicalStatus, AdminWorkStatus, ApiError, ApiFuture, ApiResult, CatalogService,
-    CatalogSnapshot, CausalDirection, CausalQuery, CausalTraversal, ChangeFeedCursor,
-    ChangeFeedPage as ApiChangeFeedPage, CommittedEvent as ApiCommittedEvent,
-    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
-    EventDescriptor, EventPage, EventQuery, ExecutionResult, FacetDescriptor, FacetQuery,
-    FacetSnapshot as ApiFacetSnapshot, ForkTimelineRequest, HistoryService, IngressAcceptance,
-    IngressCompletion, IngressEnvelope, IngressId, IngressService, IngressStatus,
-    IngressStatusRecord, QueryService, ReactionDescriptor, RelationshipDescriptor,
-    RelationshipRoleDescriptor, RelationshipTrajectoryQuery, SemanticIndexDescriptor,
-    SubscriptionBackpressure, SubscriptionRequest, SubscriptionResult, SubscriptionResume,
-    SubscriptionService, TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget,
-    TrajectoryPage, WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
+    AdminTimelineLogicalStatus, AdminWorkStatus, ApiError, ApiFuture, ApiResult,
+    BlobReadRequest as ApiBlobReadRequest, BlobReadResult as ApiBlobReadResult,
+    BlobReference as ApiBlobReference, CatalogService, CatalogSnapshot, CausalDirection,
+    CausalQuery, CausalTraversal, ChangeFeedCursor, ChangeFeedPage as ApiChangeFeedPage,
+    CommittedEvent as ApiCommittedEvent, CreateWorldFromTemplateRequest,
+    CreateWorldFromTemplateResult, EntityTrajectoryQuery, EventDescriptor, EventPage, EventQuery,
+    ExecutionResult, FacetDescriptor, FacetQuery, FacetSnapshot as ApiFacetSnapshot,
+    ForkTimelineRequest, HistoryService, IngressAcceptance, IngressCompletion, IngressEnvelope,
+    IngressId, IngressService, IngressStatus, IngressStatusRecord, QueryService,
+    ReactionDescriptor, RelationshipDescriptor, RelationshipRoleDescriptor,
+    RelationshipTrajectoryQuery, SemanticIndexDescriptor,
+    SemanticProjectionHit as ApiSemanticProjectionHit,
+    SemanticProjectionQuery as ApiSemanticProjectionQuery,
+    SemanticProjectionRead as ApiSemanticProjectionRead, SubscriptionBackpressure,
+    SubscriptionRequest, SubscriptionResult, SubscriptionResume, SubscriptionService,
+    TimelineService, TimelineSnapshot as ApiTimelineSnapshot, TimelineTarget, TrajectoryPage,
+    WorkHandlerDescriptor, WorldService, WorldTemplateDescriptor,
 };
 use loom_capability::{
     CapabilityId, CapabilityRegistry, DispatchError, EntropyBudgetDimension, EntropyError,
@@ -56,16 +61,17 @@ use serde_json::{Value, json};
 
 use crate::{
     AdvanceWorldTime, AgentContextPlan, AgentWorldViewBuilder, BaseWorldSnapshot, BaseWorldView,
-    BindingError, BudgetDimension, BudgetError, BudgetUsage, CallProvenance, CandidateWorldView,
-    ChangeFeedStore, ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly,
-    CognitiveDisposition, CognitiveEvidence, CognitiveGatewayError, CognitiveOutcome,
-    CommitAuthorityContext, CommitError, CommitProvenance, CommitStore, CommittedEvent,
-    EffectEngine, EntropyEvidence, EntropySource, EntropySourceId, ExecutionAssembly,
-    ExecutionEvidence, ExecutionOrigin, ExecutionRoot, ExecutionSession, ExecutionSessionStatus,
-    ExecutionSessionStore, FailurePolicy, ForkError, ForkMaterialization, ForkWork,
-    HistoricalTimelineState, HistoryBudget, IdentityAllocator, IngressClaim, IngressError,
-    IngressStore, IngressSubmission, IngressTechnicalFailure, LifecycleError, LogicalCommit,
-    LogicalWorkState, LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
+    BindingError, BlobError, BlobHash, BlobId, BlobMetadata, BlobRef, BlobStore, BudgetDimension,
+    BudgetError, BudgetUsage, CallProvenance, CandidateWorldView, ChangeFeedStore,
+    ChronologyBudgetExceeded, ChronologyBudgetPolicy, CognitiveAssembly, CognitiveDisposition,
+    CognitiveEvidence, CognitiveGatewayError, CognitiveOutcome, CommitAuthorityContext,
+    CommitError, CommitProvenance, CommitStore, CommittedEvent, EffectEngine, EntropyEvidence,
+    EntropySource, EntropySourceId, ExecutionAssembly, ExecutionEvidence, ExecutionOrigin,
+    ExecutionRoot, ExecutionSession, ExecutionSessionStatus, ExecutionSessionStore, FailurePolicy,
+    ForkError, ForkMaterialization, ForkWork, HistoricalTimelineState, HistoryBudget,
+    IdentityAllocator, IngressClaim, IngressError, IngressStore, IngressSubmission,
+    IngressTechnicalFailure, LifecycleError, LogicalCommit, LogicalWorkState,
+    LogicalWorkTransition, MAX_SEMANTIC_QUERY_DEPTH, MAX_SEMANTIC_QUERY_FILTERS,
     MAX_SEMANTIC_QUERY_RESULT_BYTES, ManualPlatformClock, PersistenceFuture, PinnedReadBoundary,
     PinnedReadPolicy, PinnedReadSession, PinnedWorldReadStore, PlatformClock, PlatformTime,
     ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
@@ -159,6 +165,7 @@ pub struct Runtime<S> {
     failure_policy: FailurePolicy,
     chronology_budget: ChronologyBudgetPolicy,
     missing_implementation_observations: MissingImplementationObservations,
+    blob_store: Option<Arc<dyn BlobStore>>,
 }
 
 /// Runtime-only authority value for one validated Template birth.
@@ -215,7 +222,21 @@ where
             failure_policy: FailurePolicy::default(),
             chronology_budget: ChronologyBudgetPolicy::default(),
             missing_implementation_observations: Arc::new(Mutex::new(BTreeMap::new())),
+            blob_store: None,
         })
+    }
+
+    /// Injects the application-selected immutable blob adapter.
+    ///
+    /// The adapter is retained behind the Runtime-owned `BlobStore` port;
+    /// concrete object-store/provider types never cross the public API.
+    #[must_use]
+    pub fn with_blob_store<B>(mut self, blob_store: B) -> Self
+    where
+        B: BlobStore + 'static,
+    {
+        self.blob_store = Some(Arc::new(blob_store));
+        self
     }
 
     /// Injects the Runtime-owned operational clock used by public Action
@@ -4907,8 +4928,70 @@ where
 
 impl<S> Runtime<S>
 where
-    S: SemanticProjectionStore + WorldRuntimeBindingStore + RuntimeRevisionStore,
+    S: WorldStore
+        + WorldRuntimeBindingStore
+        + CommitStore
+        + WorkStore
+        + RuntimeRevisionStore
+        + ExecutionSessionStore
+        + SemanticProjectionStore,
 {
+    async fn read_semantic_projection(
+        &self,
+        query: ApiSemanticProjectionQuery,
+    ) -> ApiResult<ApiSemanticProjectionRead> {
+        let snapshot = self.snapshot_for_target(query.target).await?;
+        let source_revision = query.source_revision.unwrap_or(snapshot.version());
+        if source_revision.head_event_seq.value() > snapshot.version().head_event_seq.value()
+            || source_revision.state_revision.value() > snapshot.version().state_revision.value()
+        {
+            return Err(ApiError::invalid_request(
+                "requested semantic source revision is not committed on the Timeline",
+            ));
+        }
+
+        let mut internal = SemanticProjectionQuery::new(
+            SemanticProjectionKey::new(
+                query.target.world_id,
+                query.target.timeline_id,
+                query.index_id.clone().into(),
+            ),
+            query.source_schema_revision,
+            query.projection_revision,
+            query.model_revision.clone(),
+            query.vector,
+            query.limit,
+        )
+        .map_err(map_public_semantic_projection_error)?
+        .with_max_result_bytes(query.max_result_bytes)
+        .with_depth(query.depth);
+        if let Some(source_hash) = query.source_hash {
+            internal = internal.with_filter(SemanticProjectionFilter::source_hash(source_hash));
+        }
+        let hits = self
+            .query_semantic_projection(internal)
+            .await
+            .map_err(map_public_semantic_projection_error)?;
+        if let Some(actual) = hits
+            .iter()
+            .map(|hit| hit.source_revision)
+            .find(|actual| *actual != source_revision)
+        {
+            return Err(ApiError::semantic_projection_stale(format!(
+                "semantic projection source revision is stale: requested {source_revision:?}, materialized {actual:?}"
+            )));
+        }
+        Ok(ApiSemanticProjectionRead {
+            target: query.target,
+            index_id: query.index_id,
+            source_revision,
+            source_schema_revision: query.source_schema_revision,
+            projection_revision: query.projection_revision,
+            model_revision: query.model_revision,
+            hits: hits.into_iter().map(api_semantic_projection_hit).collect(),
+        })
+    }
+
     /// Registers one projection scope after checking its metadata against the
     /// Capability-owned semantic index definition.
     ///
@@ -5752,7 +5835,8 @@ where
         + CommitStore
         + WorkStore
         + RuntimeRevisionStore
-        + ExecutionSessionStore,
+        + ExecutionSessionStore
+        + SemanticProjectionStore,
 {
     fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<ApiFacetSnapshot>> {
         Box::pin(async move {
@@ -5766,6 +5850,31 @@ where
                     facet.value().clone(),
                 )
             }))
+        })
+    }
+
+    fn query_semantic_projection(
+        &self,
+        query: ApiSemanticProjectionQuery,
+    ) -> ApiFuture<'_, ApiSemanticProjectionRead> {
+        Box::pin(async move { self.read_semantic_projection(query).await })
+    }
+
+    fn read_blob(&self, request: ApiBlobReadRequest) -> ApiFuture<'_, ApiBlobReadResult> {
+        Box::pin(async move {
+            let store = self
+                .blob_store
+                .as_ref()
+                .ok_or_else(|| ApiError::blob_unavailable("BlobStore is not configured"))?;
+            let reference = runtime_blob_reference(&request.reference)?;
+            let object = store
+                .read(&reference)
+                .await
+                .map_err(|error| map_blob_error(&error))?;
+            Ok(ApiBlobReadResult {
+                reference: api_blob_reference(object.reference()),
+                bytes: object.into_bytes(),
+            })
         })
     }
 }
@@ -7259,6 +7368,92 @@ fn api_event(event: &CommittedEvent) -> ApiCommittedEvent {
         causal_links: event.causal_links.clone(),
         payload: event.payload.clone(),
         effects: event.effects.clone(),
+    }
+}
+
+fn map_public_semantic_projection_error(error: SemanticProjectionError) -> ApiError {
+    match error {
+        SemanticProjectionError::InvalidRequest { message } => ApiError::invalid_request(message),
+        SemanticProjectionError::LimitExceeded { limit, actual } => ApiError::invalid_request(
+            format!("semantic projection query exceeds bound {limit} with value {actual}"),
+        ),
+        SemanticProjectionError::ScopeNotFound { .. }
+        | SemanticProjectionError::IndexNotRegistered { .. }
+        | SemanticProjectionError::StorageUnavailable { .. } => {
+            ApiError::semantic_projection_unavailable(
+                "semantic projection materialization is unavailable",
+            )
+        }
+        SemanticProjectionError::SourceMismatch { .. } => {
+            ApiError::semantic_projection_source_mismatch(
+                "semantic projection source metadata does not match the request",
+            )
+        }
+        SemanticProjectionError::RevisionMismatch { .. }
+        | SemanticProjectionError::MetadataMismatch { .. } => ApiError::semantic_projection_stale(
+            "semantic projection materialization does not match the requested revision",
+        ),
+        SemanticProjectionError::DimensionMismatch { .. } => {
+            ApiError::invalid_request("semantic projection vector dimensions are invalid")
+        }
+    }
+}
+
+fn api_semantic_projection_hit(hit: SemanticProjectionHit) -> ApiSemanticProjectionHit {
+    ApiSemanticProjectionHit {
+        source_ref: hit.source_ref,
+        source_hash: hit.source_hash,
+        source_revision: hit.source_revision,
+        projection_revision: hit.projection_revision,
+        model_revision: hit.model_revision,
+        distance: hit.distance,
+    }
+}
+
+fn runtime_blob_reference(reference: &ApiBlobReference) -> ApiResult<BlobRef> {
+    let id_hash = BlobHash::from_hex(&reference.id)
+        .map_err(|_| ApiError::invalid_request("blob reference id is not a valid hash"))?;
+    let metadata_hash = BlobHash::from_hex(&reference.content_hash)
+        .map_err(|_| ApiError::invalid_request("blob reference content hash is not valid"))?;
+    let reference = BlobRef::new(
+        BlobId::new(id_hash),
+        BlobMetadata::new(
+            metadata_hash,
+            reference.size,
+            reference.content_type.clone(),
+        ),
+    );
+    if !reference.is_consistent() {
+        return Err(ApiError::invalid_request(
+            "blob reference identity and content hash must match",
+        ));
+    }
+    Ok(reference)
+}
+
+fn api_blob_reference(reference: &BlobRef) -> ApiBlobReference {
+    ApiBlobReference::new(
+        reference.id.to_string(),
+        reference.metadata.content_hash.to_string(),
+        reference.metadata.size,
+        reference.metadata.content_type.clone(),
+    )
+}
+
+fn map_blob_error(error: &BlobError) -> ApiError {
+    match error {
+        BlobError::NotFound { .. } => {
+            ApiError::blob_not_found("requested blob reference was not found")
+        }
+        BlobError::HashMismatch { .. }
+        | BlobError::SizeMismatch { .. }
+        | BlobError::InvalidReference { .. }
+        | BlobError::MetadataMismatch { .. } => {
+            ApiError::blob_integrity_mismatch("requested blob failed integrity verification")
+        }
+        BlobError::Unavailable { .. } => {
+            ApiError::blob_unavailable("requested blob is currently unavailable")
+        }
     }
 }
 
