@@ -370,3 +370,243 @@ restart.
   Validator contract described by T22.
 - Final V0 certification remains unclaimed. Independent Reviewer, CI/merge
   and FINAL_MERGE_GATE actions are outside Executor scope.
+
+## Current-main rerun on production candidate `103a75e96cd9f7b9e495a39bb6608316c47b76e6`
+
+This is an append-only rerun record. All earlier candidate sections, failures,
+skips, unavailable results, and historical evidence remain unchanged. The
+refreshed T22 manifest was read from evidence-only manifest merge
+`322a9268648d243abd6196f508f5c88681c0c6a1`; `git merge-base --is-ancestor`
+confirmed that merge is a descendant of the production candidate. The manifest
+merge is not used as a production candidate and no production behavior is
+changed by this record.
+
+### Run identity, candidate, and scope
+
+- Run date: 2026-08-30 (Asia/Shanghai).
+- Isolated checkout:
+  `/home/opc/multica_workspaces/me-ee43a71168f9/me-299-9b527e0cda75/workdir/Loom`.
+- Branch: `agent/executor/9b527e0cda75`.
+- Production candidate/base fixed before evidence collection:
+  `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
+- Evidence manifest reference:
+  `322a9268648d243abd6196f508f5c88681c0c6a1` (docs-only descendant).
+- Initial status: `## agent/executor/9b527e0cda75` (clean) and initial
+  `HEAD == 103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
+- Final pre-ledger-evidence HEAD remained the exact production candidate; the
+  only source change in this descendant is this ledger append. No production,
+  Runtime, Storage, Validator scenario/test source, schema/migration,
+  CI/workflow, acceptance, or other ledger file was changed.
+- `origin/main` was observed to have advanced independently to
+  `f0cf50061b31e9f5e5a595ddaa9c71a4eff554d2` after the fixed candidate was
+  selected; it was not used to mix or replace this run's candidate. The
+  current-main baseline for every result below is the fixed `103a75e…`
+  candidate.
+- Race protocol: closed. No persistence, receipt, claim/release, retry,
+  checkpoint, marker, or concurrency state was added.
+
+### PostgreSQL 18 service and fresh database isolation
+
+`bash tools/postgres-test.sh up` reported healthy
+`loom-postgres-test-1`, image `pgvector/pgvector:0.8.6-pg18`, bound to
+`127.0.0.1:15432`. `select version()` reported PostgreSQL `18.6` on
+`aarch64-unknown-linux-gnu`.
+
+The run created fresh databases owned by `loom`; each was independent of the
+sibling T24 database and of all historical/control databases:
+
+- `loom_t23_103a75e_core`: workspace aggregate.
+- `loom_t23_103a75e_runtime`, `_action`, `_lifecycle`, `_scheduler`, `_time`,
+  `_query`, `_semantic`, `_replay`, `_agency`, `_feed`, `_provenance`: separate
+  Validator focus controls.
+- `loom_t23_103a75e_contract`: all CI-listed PostgreSQL contract commands.
+- `loom_t23_103a75e_gate`: certifying T20 required-live matrix.
+- `loom_t23_103a75e_ws`: created for isolation planning; no certifying result
+  was attributed to it.
+
+All explicit test URLs were of the form
+`postgresql://loom:loom@127.0.0.1:15432/<database>`. No T24 database was
+reset, deleted, or used for T23 evidence. The generated reports and logs under
+`target/validator/` are ignored and are not source diff.
+
+### Static, security, build, and repository checks
+
+The following commands were executed against the fixed candidate and passed:
+
+| Exact command | Result |
+| --- | --- |
+| `python3 tools/check_architecture.py` | PASS: `Loom architecture dependency policy: OK` |
+| `python3 tools/check_storage_sql_ownership.py` | PASS: `storage SQL ownership check passed` |
+| `docker compose -f compose.test-db.yaml config --quiet` | PASS |
+| `docker compose -f compose.yaml config --quiet` | PASS |
+| `cargo deny check advisories bans licenses sources` | PASS: advisories, bans, licenses, sources all ok |
+| `cargo fmt --all -- --check` | PASS |
+| `cargo check --workspace --all-targets --all-features` | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | PASS |
+| `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | PASS |
+| `python3 tools/test_validator_ready.py` | PASS: 3 tests |
+| `python3 tools/validator_ready.py --check --format json` | PASS: `valid=true`, 10 records, no violations |
+| `python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json` | PASS: `valid=true`, 7 records, no violations |
+| `bash tools/validator-authority-gate.sh` | PASS: authority 7, backend 1, restart 6, required-live 3; stage-1 ledger and architecture checks passed |
+
+### Workspace and Validator focus evidence
+
+Workspace aggregate command:
+
+```text
+LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_103a75e_core CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/test.sh --workspace --all-features
+```
+
+Result: **PASS**, exit 0. The named tests actually executed and passed,
+including Validator unit 165; action/ingress 11; agency 5; authority gate 7;
+backend evidence 1; change feed 7; lifecycle 3; PostgreSQL live gate 3;
+provenance 9; query/catalog 7; replay/fork 4; required-live 3;
+restart-evidence 6; runtime authority 2; scheduler 8; semantic/blob 11;
+world binding 10; and world time 10. Storage tests executed and passed:
+schema 1, lifecycle 4, vertical 1, read 1, commit 9, work 12, stale
+completion 1, restart/resume 1, and revision 2. All executed test summaries
+reported zero failures and zero ignored tests. The auxiliary
+`query_catalog_causal_fixture` target reported 0 tests and is not used as
+evidence.
+
+Each focus command was then executed separately with
+`CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1` and `--test-threads=1`, using the
+named fresh database below. Every final run exited 0 with the stated tests
+executed and zero failures/ignored tests:
+
+| Exact command suffix | Fresh database | Result |
+| --- | --- | --- |
+| `bash tools/test.sh -p loom-validator --test runtime_authority -- --test-threads=1` | `loom_t23_103a75e_runtime` | PASS, 2 |
+| `bash tools/test.sh -p loom-validator --test action_ingress -- --test-threads=1` | `loom_t23_103a75e_action` | PASS, 11 |
+| `bash tools/test.sh -p loom-validator --test lifecycle -- --test-threads=1` | `loom_t23_103a75e_lifecycle` | PASS, 3 |
+| `bash tools/test.sh -p loom-validator --test scheduler -- --test-threads=1` | `loom_t23_103a75e_scheduler` | PASS, 8 |
+| `bash tools/test.sh -p loom-validator --test world_time -- --test-threads=1` | `loom_t23_103a75e_time` | PASS, 10 |
+| `bash tools/test.sh -p loom-validator --test query_catalog -- --test-threads=1` | `loom_t23_103a75e_query` | PASS, 7 |
+| `bash tools/test.sh -p loom-validator --test semantic_blob -- --test-threads=1` | `loom_t23_103a75e_semantic` | PASS, 11 |
+| `bash tools/test.sh -p loom-validator --test replay_fork -- --test-threads=1` | `loom_t23_103a75e_replay` | PASS, 4 |
+| `bash tools/test.sh -p loom-validator --test agency -- --test-threads=1` | `loom_t23_103a75e_agency` | PASS, 5 |
+| `bash tools/test.sh -p loom-validator --test change_feed -- --test-threads=1` | `loom_t23_103a75e_feed` | PASS, 7 |
+| `bash tools/test.sh -p loom-validator --test provenance -- --test-threads=1` | `loom_t23_103a75e_provenance` | PASS, 9 |
+
+The focus tests for CV-028/CV-029, CV-034..CV-037, and scheduler gap rows
+executed their fail-closed/scaffold assertions. Those assertions prove the
+documented absence of the required public capability surfaces; they are not
+capability passes. CV-028 and CV-029 therefore remain explicit blocking gaps
+from the refreshed manifest.
+
+Current CV coverage index is: CV-001..CV-004 lifecycle; CV-005..CV-009
+replay/fork; CV-010..CV-011 runtime authority; CV-012..CV-014 world binding
+and T20; CV-015..CV-017 action/ingress; CV-018..CV-020 scheduler; CV-021..CV-024
+World Time; CV-025..CV-027 query/catalog; CV-028..CV-030 semantic/blob and
+pinned reads; CV-031..CV-033 provenance and T20; CV-034..CV-037 Agency; and
+CV-038..CV-040 change feed and T20. Every range was exercised by the current
+candidate workspace/focus/T20 commands above; gap ranges retain their gap
+classification rather than being represented as capability passes.
+
+### PostgreSQL contract evidence
+
+Each command below used
+`LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_103a75e_contract`
+and `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1`, with the exact CI test command
+and `--nocapture`. Every named test executed and passed:
+
+```text
+cargo test -p loom-storage --test postgres_schema -- --nocapture                         # PASS, 1
+cargo test -p loom-storage --test postgres_lifecycle -- --nocapture                      # PASS, 4
+cargo test -p loom-storage --test postgres_lifecycle postgres_18_template_birth_is_atomic_and_snapshots_binding -- --nocapture  # PASS, 1; 3 filtered
+cargo test -p loom-storage --test postgres_vertical -- --nocapture                       # PASS, 1
+cargo test -p loom-storage --test postgres_read -- --nocapture                           # PASS, 1
+cargo test -p loom-storage --test postgres_commit -- --nocapture                         # PASS, 9
+cargo test -p loom-storage --test postgres_work -- --nocapture                           # PASS, 12
+cargo test -p loom-storage --test postgres_work_stale_completion -- --nocapture           # PASS, 1
+cargo test -p loom-storage --test postgres_restart_resume -- --nocapture                  # PASS, 1
+cargo test -p loom-storage --test postgres_revision -- --nocapture                       # PASS, 2
+cargo test -p loom-validator --test lifecycle -- --nocapture                             # PASS, 3
+cargo test -p loom-validator --test replay_fork -- --nocapture                           # PASS, 4
+```
+
+These results cover schema/migrations, World and Template birth/binding,
+public Runtime/API/read parity, commit/CAS, durable Work and stale fencing,
+restart/resume, Runtime Revision, and replay/fork on PostgreSQL 18.
+
+### T20 required-live matrix
+
+The certifying matrix used a separate empty database and the repository gate:
+
+```text
+LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_103a75e_gate LOOM_T20_REPORT_PATH=$PWD/target/validator/t23-103a75e-pg18-live-gate.json CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 bash tools/validator-pg18-gate.sh
+```
+
+Named CI job: `PostgreSQL 18 persistence contract / Validator PostgreSQL 18
+live capability matrix gate (VALR-T20)`. Result: **PASS**, exit 0;
+`postgres_live_gate` executed 3 tests, all passed. Report
+`target/validator/t23-103a75e-pg18-live-gate.json` records
+`backend_evidence=postgresql`, `backend_evidence_trusted=true`,
+`gate_passes=true`, and exactly **10 total / 10 pass / 0 fail / 0 skipped /
+0 unavailable**. The actual required-live rows were CV-014, CV-016, CV-022,
+CV-023, CV-030, CV-031, CV-032, CV-033, CV-039, and CV-040. Restart-sensitive
+rows include `controlled-boundary-restart`; CV-016 observed Accepted then
+Deduplicated, one committed EventRef/history/facet, and durable state after
+restart.
+
+### Non-certifying failures, skips, unavailable results, and historical facts
+
+All such outcomes remain explicit and are not promoted to certification:
+
+- A first focus attempt against this checkout failed at compilation with
+  `No space left on device` before the target test body ran (FAIL/NOT_RUN).
+  Only this checkout's generated `target/` files were cleaned; the focus was
+  rerun on fresh databases and passed. This is an environment observation,
+  not a production result.
+- A subsequent action-ingress attempt against the reused `_core` database
+  hung during `cv016_via_pg_with_restart_if_available` after earlier tests had
+  populated fixed keys; it was terminated with exit 130 and is
+  FAIL/NOT_RUN, not evidence. The final action-ingress run used the fresh
+  `_action` database and passed all 11 tests.
+- Exact CLI boundary command:
+
+  ```text
+  LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_t23_103a75e_contract CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo run -q -p loom-validator -- --all --strict --required-live --json target/validator/t23-103a75e-validator-all-required-live.json
+  ```
+
+  Result: **FAIL**, exit 1. The default external endpoint remained
+  `http://127.0.0.1:8080/`; machine report counts were **32 total / 0 pass /
+  2 fail / 17 skipped / 13 unavailable**. CV-023 and CV-024 failed as
+  reconnect-only, and the PG URL did not upgrade external evidence to trusted
+  PostgreSQL or real restart evidence.
+- CV-028/CV-029 remain blocking manifest gaps. The semantic/blob focus tests
+  only prove fail-closed public truth and non-registering scaffold behavior;
+  no missing public SemanticService projection or blob/reference operation was
+  relabeled as a capability PASS.
+- Inherited historical T23 records retain earlier candidate failures,
+  IdempotencyConflict observations, filtered/zero-test observations, CLI
+  failures, and all prior gap classifications. No historical candidate or
+  report substitutes for this `103a75e…` run.
+
+### AC mapping and final diff
+
+- **AC-1:** PASS evidence for candidate discipline. Every final command and
+  report above is tied to `103a75e96cd9f7b9e495a39bb6608316c47b76e6`; the T22
+  manifest ref `322a926…` is explicitly evidence-only and is an ancestor
+  descendant check, not a production baseline.
+- **AC-2:** PASS for executable/core evidence. The refreshed ten-domain T22
+  manifest was used as checklist; workspace, all Validator focus suites,
+  PostgreSQL contracts, T20 matrix, boundary/client/SSE/CLI and static checks
+  are recorded with concrete commands and named outcomes. Gap assertions do
+  not erase the CV-028/CV-029 capability gaps.
+- **AC-3:** PASS for PostgreSQL truth. The service was repository-controlled
+  `pgvector/pgvector:0.8.6-pg18`, PostgreSQL 18.6; contract tests and the
+  certifying T20 matrix used fresh independent databases. No skip/unavailable
+  or external endpoint result is reported as PG evidence.
+- **AC-4:** PASS for evidence integrity. The final certifying T20 report is
+  trusted 10/10; the CLI fail/skip/unavailable counts, environment
+  FAIL/NOT_RUN attempts, historical failures, and CV-028/CV-029 blocking gaps
+  remain explicit.
+- **AC-5:** PASS for reviewability. This append-only section records the
+  candidate/base/branch, manifest relation, DB isolation, exact commands,
+  named tests/jobs, report path, row outcomes, failures/gaps, and source
+  scope. Final V0 certification is **NOT CLAIMED**.
+- Final source diff after this append is only
+  `docs/tasks/validator-recert/stage-3/t23-core-integrated-gate.md`. No PR was
+  created or merged by Executor; Reviewer, CI merge/final gate, ownership and
+  issue status remain outside this execution.
