@@ -82,35 +82,52 @@ and archives the deterministic matrix artifact at the same root-relative path.
 - [ ] CI job completes successfully; review complete.
 - [ ] Completion evidence includes PR, merge SHA and exact live-gate result.
 
-## Current-main required-live rerun after T19 (2026-08-29)
+## Current-main canonical required-live rerun after T19 (2026-08-29)
 
 The earlier PR #359 result is historical evidence only. This rerun started from
 the post-T19 `origin/main` candidate `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`
 (T19 merge `4efb1d346c926f2ee10654c3bc24cd92af351881` is an ancestor). The
-working tree was clean before this ledger-only evidence append; no T10–T18
-suite, Runtime, Storage, registry, or scenario semantics changed.
+current candidate changes only the T20 integration-test report projection,
+determinism regression, and this ledger; no T10–T18 suite, Runtime, Storage,
+registry, or scenario semantics changed.
 
-The controlled clean PostgreSQL 18 command sequence was:
+The two controlled clean PostgreSQL 18 command sequences were:
 
 ```text
 docker compose --project-name loom -f compose.test-db.yaml down -v
 bash tools/postgres-test.sh up
 docker compose --project-name loom -f compose.test-db.yaml exec -T postgres-test psql -U loom -d loom_control -Atqc 'SHOW server_version_num;'
-LOOM_T20_REPORT_PATH="$PWD/target/validator/t20-current-main-pg18-live-gate.json" CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/validator-pg18-gate.sh
+LOOM_T20_REPORT_PATH="$PWD/target/validator/t20-canonical-run-a.json" CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 bash tools/validator-pg18-gate.sh
 ```
+
+The second run repeated the same sequence after writing the report to
+`target/validator/t20-canonical-run-b.json`; the first run used
+`target/validator/t20-canonical-run-a.json`. Each run removed and recreated
+only the repository test container, network, and test volume.
 
 The first command removed only the repository test container, network, and test
 volume. `tools/postgres-test.sh up` recreated the pinned
-`pgvector/pgvector:0.8.6-pg18` service and reported `healthy`; PostgreSQL
-reported `server_version_num=180006` (`18.6`). The required-live invocation
-ran the actual `postgres_live_gate` target: `running 2 tests`, `2 passed; 0
-failed`, with no ignored tests. Its report recorded `gate_passes=true`, strict
-`required_live=true`, and `10 total, 10 pass, 0 fail, 0 skipped, 0 unavailable`.
+`pgvector/pgvector:0.8.6-pg18` service and reported `healthy`; both runs
+reported `server_version_num=180006` (`18.6`). Each required-live invocation
+ran the actual `postgres_live_gate` target: `running 3 tests`, `3 passed; 0
+failed`, with no ignored tests. The live-gate report recorded
+`gate_passes=true`, strict `required_live=true`, and `10 total, 10 pass, 0
+fail, 0 skipped, 0 unavailable`.
 
-The generated artifact was
-`target/validator/t20-current-main-pg18-live-gate.json` (SHA-256
-`8845971c6ef2f33b43c8324926ed1e44b67fc8e15450387d6c8264fe4a35e142`). Its
-deterministic row order and independent evidence locators were:
+The generated canonical artifacts were byte-identical: both
+`target/validator/t20-canonical-run-a.json` and
+`target/validator/t20-canonical-run-b.json` have SHA-256
+`052973eb276488250f3f2d4bb65a4071697e84eb2f5e7ac42bbb67f0880398ba`;
+`cmp -s` passed. The canonical schema is version `2` with
+`representation=canonical-stable-evidence-projection`. It persists only stable
+CV ID, outcome, backend evidence, prerequisite status, live-PG requirement,
+stable Finding locator, restart capability/class/reference, and exact gate
+command. Raw `finding.actual`, runtime context, raw evidence arrays, and the
+raw Validator findings report are excluded from the digest payload. The full
+structured results are still executed and checked under
+`ValidationPolicy::required_live()` before this projection is serialized.
+
+The deterministic row order and independent evidence locators were:
 
 | CV | outcome | trusted evidence | restart evidence | evidence reference |
 | --- | --- | --- | --- | --- |
@@ -125,10 +142,15 @@ deterministic row order and independent evidence locators were:
 | CV-039 | pass | postgresql | controlled-boundary-restart | `validator:CV-039:postgresql` |
 | CV-040 | pass | postgresql | controlled-boundary-restart | `validator:CV-040:postgresql` |
 
-Artifact assertions passed for exact T08 membership/order, ten unique evidence
-references, trusted PostgreSQL evidence on every row, non-empty controlled
-restart evidence, and required-live strict policy. The independent negative
-test
+Artifact assertions passed for exact T08 membership/order, ten unique stable
+evidence references, trusted PostgreSQL evidence on every row, stable
+controlled restart evidence, and required-live strict policy. The automated
+projection regression
+`cargo test -p loom-validator --test postgres_live_gate
+canonical_projection_ignores_runtime_values_and_is_byte_stable -- --nocapture`
+passed 1 test: two structured results with different UUIDs/raw actual values
+produced equal canonical bytes and neither UUID entered the artifact. The
+independent negative test
 `cargo test -p loom-validator --test postgres_live_gate
 t20_required_live_policy_is_fail_closed_for_zero_nonpass_and_ambient_evidence
 -- --nocapture` passed 1 test covering zero rows, `Skipped`, `Unavailable`,
@@ -140,5 +162,6 @@ fail-closed behavior. T19 registry regressions passed 2 exact Stage-2 tests and
 Finally, `bash tools/postgres-test.sh down` followed by `bash
 tools/postgres-test.sh up` returned the repository service to `healthy`, and
 `pg_isready -U loom -d loom_control` returned `accepting connections`. The
-current branch candidate is a ledger-only refresh of the post-T19 mainline;
-PR/CI status and the eventual merge SHA remain to be supplied by the Leader.
+current branch candidate is limited to T20 report projection/test evidence and
+the corresponding ledger record; PR/CI status and the eventual merge SHA
+remain to be supplied by the Leader.

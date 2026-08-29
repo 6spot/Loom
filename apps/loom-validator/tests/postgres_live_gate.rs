@@ -131,81 +131,126 @@ fn report_for(results: Vec<ScenarioResult>) -> ValidationReport {
         )
 }
 
-fn restart_refs(result: &ScenarioResult) -> Vec<String> {
+fn stable_finding_locator(result: &ScenarioResult) -> (&'static str, String) {
+    let finding = result.finding();
+    let scenario_id = result.scenario_id().as_str();
+    if let Some(reference) = finding
+        .evidence()
+        .iter()
+        .map(EvidenceReference::as_str)
+        .find(|reference| reference.starts_with("validator:") && reference.contains(scenario_id))
+    {
+        return ("finding-evidence", reference.to_owned());
+    }
+
+    // CV-039 and CV-040 expose their independent scenario locator in Finding
+    // context rather than in the evidence list. Keep that stable context
+    // value, while deliberately excluding the rest of the runtime context.
+    let context = finding.context();
+    assert!(
+        context.starts_with("validator:") && context.contains(scenario_id),
+        "{} has no stable Finding locator: context={context:?} evidence={:?}",
+        result.scenario_id(),
+        finding.evidence()
+    );
+    ("finding-context", context.to_owned())
+}
+
+fn stable_restart_evidence_reference(result: &ScenarioResult) -> String {
     result
         .finding()
         .evidence()
         .iter()
         .map(EvidenceReference::as_str)
-        .filter(|evidence| evidence.to_ascii_lowercase().contains("restart"))
-        .map(ToOwned::to_owned)
-        .collect()
-}
-
-fn matrix_row(result: &ScenarioResult) -> Value {
-    let finding = result.finding();
-    let evidence = finding
-        .evidence()
-        .iter()
-        .map(|reference| reference.as_str().to_owned())
-        .collect::<Vec<_>>();
-    let restart_evidence = restart_refs(result);
-    assert!(
-        !restart_evidence.is_empty(),
-        "{} has no restart evidence: {:?}",
-        result.scenario_id(),
-        evidence
-    );
-    // Most suites expose a scenario-specific evidence reference. CV-039 and
-    // CV-040 currently expose the scenario ID in the Finding context instead;
-    // retain that real Finding locator so their separate results remain
-    // independently attributable without inventing a shared command pass.
-    let (evidence_reference, evidence_reference_kind) = evidence
-        .iter()
-        .find(|reference| reference.contains(result.scenario_id().as_str()))
-        .cloned()
+        .find(|reference| {
+            reference.starts_with("restart_capability:")
+                || reference.starts_with("validator:restart:")
+        })
         .map_or_else(
             || {
-                assert!(
-                    finding.context().contains(result.scenario_id().as_str()),
-                    "{} has no independent Finding locator: {:?}",
+                panic!(
+                    "{} structured finding has no stable restart evidence: {:?}",
                     result.scenario_id(),
-                    evidence
-                );
-                (finding.context().to_owned(), "finding-context")
+                    result.finding().evidence()
+                )
             },
-            |reference| (reference, "finding-evidence"),
-        );
-    let restart_capability = restart_evidence
-        .iter()
-        .find_map(|reference| {
-            reference
-                .strip_prefix("restart_capability:")
-                .or_else(|| reference.strip_prefix("validator:restart:"))
-        })
+            ToOwned::to_owned,
+        )
+}
+
+fn canonical_matrix_row(result: &ScenarioResult) -> Value {
+    let finding = result.finding();
+    let (evidence_reference_kind, evidence_reference) = stable_finding_locator(result);
+    let restart_evidence_reference = stable_restart_evidence_reference(result);
+    let restart_capability = restart_evidence_reference
+        .strip_prefix("restart_capability:")
+        .or_else(|| restart_evidence_reference.strip_prefix("validator:restart:"))
         .unwrap_or_else(|| {
             panic!(
-                "{} structured finding has no restart capability evidence: {:?}",
+                "{} stable restart evidence has no capability: {:?}",
                 result.scenario_id(),
-                evidence
+                restart_evidence_reference
             )
         });
+
+    // The full structured result has already been checked by the required-live
+    // policy and by the assertions in the live gate. Only this stable
+    // projection is persisted; runtime actual/context/evidence values are
+    // intentionally not part of the canonical digest input.
     json!({
         "cv_id": result.scenario_id().as_str(),
         "outcome": result.outcome().as_str(),
-        "expected": finding.expected(),
-        "actual": finding.actual(),
         "backend": finding.backend().as_str(),
         "trusted_backend_evidence_class": finding.backend().evidence().as_str(),
         "backend_evidence_trusted": finding.backend().evidence().is_trusted(),
-        "context": finding.context(),
-        "evidence": evidence,
         "evidence_reference": evidence_reference,
         "evidence_reference_kind": evidence_reference_kind,
         "restart_capability": restart_capability,
-        "restart_evidence": restart_evidence,
+        "restart_evidence": {
+            "class": restart_capability,
+            "reference": restart_evidence_reference,
+        },
         "prerequisite_status": result.outcome().as_str(),
         "live_pg_evidence_required": true,
+        "command": GATE_COMMAND,
+    })
+}
+
+fn canonical_artifact(report: &ValidationReport, results: &[ScenarioResult]) -> Value {
+    let backend_evidence = report
+        .backend_evidence()
+        .expect("required-live report backend evidence");
+    let rows = results.iter().map(canonical_matrix_row).collect::<Vec<_>>();
+    let canonical_counts = json!({
+        "total": report.scenario_count(),
+        "pass": report.passed_count(),
+        "fail": report.failed_count(),
+        "skipped": report.skipped_count(),
+        "unavailable": report.unavailable_count(),
+    });
+    json!({
+        "schema_version": 2,
+        "type": "loom-validator.pg18-live-gate",
+        "representation": "canonical-stable-evidence-projection",
+        "gate": "VALR-T20",
+        "command": GATE_COMMAND,
+        "backend_evidence": backend_evidence.as_str(),
+        "backend_evidence_trusted": backend_evidence.is_trusted(),
+        "live_pg_required_rows": REQUIRED_IDS,
+        "rows": rows,
+        "validator_report": {
+            "selected_scenario_ids": report.selected_scenario_ids(),
+            "backend_evidence": backend_evidence.as_str(),
+            "backend_evidence_trusted": backend_evidence.is_trusted(),
+            "policy": {
+                "required_live": report.policy().requires_live(),
+                "strict": report.policy().is_strict(),
+            },
+            "counts": canonical_counts,
+            "result_state": if report.gate_passes() { "pass" } else { "fail" },
+            "source": "structured-validator-results",
+        },
+        "gate_passes": report.gate_passes(),
     })
 }
 
@@ -257,7 +302,7 @@ fn t20_live_gate_runs_exactly_ten_structured_required_live_rows() {
         "required-live report rejected live rows: {}",
         report.serialize_json()
     );
-    let rows = results.iter().map(matrix_row).collect::<Vec<_>>();
+    let rows = results.iter().map(canonical_matrix_row).collect::<Vec<_>>();
     let references = rows
         .iter()
         .map(|row| row["evidence_reference"].as_str().unwrap())
@@ -267,21 +312,7 @@ fn t20_live_gate_runs_exactly_ten_structured_required_live_rows() {
         REQUIRED_IDS.len(),
         "row evidence references must be unique"
     );
-    let backend_evidence = report
-        .backend_evidence()
-        .expect("required-live report backend evidence");
-    let artifact = json!({
-        "schema_version": 1,
-        "type": "loom-validator.pg18-live-gate",
-        "gate": "VALR-T20",
-        "command": GATE_COMMAND,
-        "backend_evidence": backend_evidence.as_str(),
-        "backend_evidence_trusted": backend_evidence.is_trusted(),
-        "live_pg_required_rows": REQUIRED_IDS,
-        "rows": rows,
-        "validator_report": report.json_value(),
-        "gate_passes": report.gate_passes(),
-    });
+    let artifact = canonical_artifact(&report, &results);
     let path = report_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("report directory");
@@ -296,6 +327,55 @@ fn t20_live_gate_runs_exactly_ten_structured_required_live_rows() {
         "{}",
         serde_json::to_string(&artifact).expect("compact report JSON")
     );
+}
+
+fn pass_fixture_result(actual: &str, runtime_evidence: &str) -> ScenarioResult {
+    let id = ScenarioId::new("CV-014");
+    let finding = Finding::new(
+        id.clone(),
+        "determinism fixture",
+        "stable projection",
+        actual,
+        BackendKind::PostgreSQL,
+        "validator:CV-014:postgresql",
+        vec![
+            EvidenceReference::new(runtime_evidence),
+            EvidenceReference::new("validator:world_binding:CV-014"),
+            EvidenceReference::new("restart_capability:controlled-boundary-restart"),
+        ],
+        ScenarioOutcome::Pass,
+    );
+    ScenarioResult::new(id, ScenarioOutcome::Pass, finding)
+}
+
+#[test]
+fn canonical_projection_ignores_runtime_values_and_is_byte_stable() {
+    let first = pass_fixture_result(
+        "event_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "runtime:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    let second = pass_fixture_result(
+        "event_id=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "runtime:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    );
+    assert_ne!(first.finding().actual(), second.finding().actual());
+    assert_ne!(first.finding().evidence(), second.finding().evidence());
+
+    let canonical_bytes = |result: ScenarioResult| {
+        let report = report_for(vec![result.clone()]);
+        assert!(report.gate_passes());
+        serde_json::to_vec(&canonical_artifact(&report, &[result]))
+            .expect("canonical artifact should serialize")
+    };
+    let first_bytes = canonical_bytes(first);
+    let second_bytes = canonical_bytes(second);
+    assert_eq!(
+        first_bytes, second_bytes,
+        "runtime UUIDs must not alter canonical artifact bytes"
+    );
+    let canonical = String::from_utf8(first_bytes).expect("artifact is UTF-8");
+    assert!(!canonical.contains("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
+    assert!(!canonical.contains("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
 }
 
 fn fixture_result(outcome: ScenarioOutcome, backend: BackendKind) -> ScenarioResult {
