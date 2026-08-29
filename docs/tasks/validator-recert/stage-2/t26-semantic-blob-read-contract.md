@@ -1,7 +1,7 @@
 ---
 task: VALR-T26
 issue: ME-302
-status: in_progress
+status: cancelled
 depends_on: []
 created_at: 2026-08-29
 started_at: 2026-08-29
@@ -12,76 +12,86 @@ merge_sha:
 
 # VALR-T26 — Public semantic derived-read and blob/reference availability contract
 
-This record covers the public read boundary required before the T15 CV-028/CV-029
-re-audit. It does not change T15's result or ledger, the central Validator
-registry (T19), or the certification manifest/gate (T22/T24).
+This record is retained as an audit history for the public-read implementation
+that was merged by PR #380 and subsequently reverted by ME-303. The contract
+below is historical evidence only; it is not a current production capability,
+Validator Pass, or accepted architecture amendment.
 
-## Contract
+## Historical contract (implemented in PR #380; not current)
 
-- `QueryService::query_semantic_projection` addresses an explicit World/Timeline,
+- `QueryService::query_semantic_projection` addressed an explicit World/Timeline,
   index identity, query/model revisions and either an exact committed source
   revision or the current committed revision. A successful
-  `SemanticProjectionRead` returns the resolved source revision and projection
+  `SemanticProjectionRead` returned the resolved source revision and projection
   identity with provider-neutral hits.
-- Missing/rebuilding materialization is
-  `semantic_projection_unavailable`; stale projection revisions are
-  `semantic_projection_stale`; source metadata mismatch is
-  `semantic_projection_source_mismatch`. None is an empty success or an
-  inferred World read.
-- `QueryService::read_blob` addresses one exact `BlobReference` and returns
-  verified bytes plus the same stable reference metadata. Missing, integrity
-  failure and adapter unavailability are respectively `blob_not_found`,
-  `blob_integrity_mismatch` and `blob_unavailable`; no alternate reference or
-  latest object is consulted.
-- Runtime owns the mediation and retains the existing `BlobStore` behind its
-  port. Boundary and Client expose only `loom-api` values and routes; no SQL,
-  provider, object-store or storage-handle type crosses the public boundary.
+- Missing/rebuilding materialization mapped to
+  `semantic_projection_unavailable`; stale projection revisions mapped to
+  `semantic_projection_stale`; source metadata mismatch mapped to
+  `semantic_projection_source_mismatch`.
+- `QueryService::read_blob` addressed one exact `BlobReference` and returned
+  verified bytes plus stable reference metadata. Missing, integrity failure and
+  adapter unavailability mapped to `blob_not_found`,
+  `blob_integrity_mismatch` and `blob_unavailable`.
+- Runtime mediated these reads behind the existing `BlobStore` port, while
+  Boundary and Client exposed `loom-api` values and routes.
 
-## Implementation and evidence
+## Historical implementation and evidence
 
-- `crates/loom-api`: provider-neutral semantic/blob request and result models,
-  typed error codes, and QueryService methods.
-- `crates/loom-runtime`: Runtime-mediated semantic read with resolved source
-  revision, exact blob verification through injected `BlobStore`, and typed
-  error mapping.
-- `crates/loom-boundary` and `crates/loom-client`: formal JSON routes and
-  client adapters for both reads.
-- `apps/loom-server`: production composition injects the existing local blob
-  adapter into Runtime.
-- `apps/loom-validator/tests/semantic_blob.rs`: controlled InMemory and
-  PostgreSQL 18 fixtures now observe semantic rebuild/delete/recreate and blob
-  missing/integrity behavior through the formal client surface while public
-  History/Facet/Timeline reads remain unchanged.
+PR #380 (merge commit
+`ef281f886480663a94193f738179d14933040a12`, head
+`3abc7f65d21fe7d6564c671ab18db11420da3741`) changed the following paths:
 
-## AC mapping
+- `crates/loom-api`, `crates/loom-runtime`, `crates/loom-boundary`, and
+  `crates/loom-client`;
+- `apps/loom-server`, `apps/loom-cli`, and
+  `apps/loom-validator/tests/semantic_blob.rs`.
+
+The PR's recorded candidate checks and semantic_blob evidence remain historical
+facts about that merged candidate, not evidence for the reverted code. The
+implementation was not accepted as a current architecture/remediation because
+the required Architecture Amendment was absent.
+
+### Historical AC mapping
 
 - Formal semantic read identity/revision and typed unavailable/stale/source
-  outcomes → `loom-api` QueryService, Runtime mapping, boundary/client routes.
+  outcomes → `loom-api` QueryService, Runtime mapping, Boundary/Client routes.
 - Projection delete/rebuild equivalence and authoritative-history isolation →
-  CV-028 fixture's formal reads and public History/Facet/Timeline assertions.
+  CV-028 formal reads and public History/Facet/Timeline assertions.
 - Exact blob success/not-found/integrity distinction and no World mutation →
-  CV-029 fixture's formal reads and public History/Facet assertions.
-- Pinned/versioned behavior remains explicit → semantic query's
-  `at_source_revision` and existing CV-030 path; no T15 result change.
-- InMemory + controlled PostgreSQL 18 execution → 11-test semantic_blob suite.
+  CV-029 formal reads and public History/Facet assertions.
+- Pinned/versioned behavior remained explicit → semantic query's
+  `at_source_revision` and the existing CV-030 path; no T15 result change.
+- InMemory + controlled PostgreSQL 18 execution → the 11-test semantic_blob
+  suite.
 
-## Verification evidence
+### Historical verification evidence
 
-Recorded against the candidate before review:
+The following evidence was recorded against the PR #380 candidate before
+review. It remains historical and does not certify the reverted implementation:
 
 - `cargo check -p loom-api -p loom-runtime -p loom-boundary -p loom-client -p loom-server` → PASS.
 - `cargo check -p loom-validator --test semantic_blob` → PASS.
-- `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS; 11 passed, 0 failed, 0 ignored, 0 filtered out, including InMemory and repository-managed PostgreSQL 18 cases.
-- `bash tools/validator-pg18-gate.sh` with a fresh PostgreSQL 18 control database → PASS; both gate tests passed and all 10 required live rows were `pass`, with trusted PostgreSQL evidence and controlled-boundary-restart evidence.
-- `cargo fmt --all -- --check` → PASS.
-- `cargo check --workspace --all-targets --all-features` → PASS.
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` → PASS.
-- `python3 tools/test_validator_ready.py` and `python3 tools/validator_ready.py --check` → PASS; the latter reported the repository's existing planned/in-progress validator dependencies without a checker failure.
-- `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, `git diff --check`, and `cargo deny check advisories bans licenses sources` → PASS.
-- `LOOM_TEST_POSTGRES_URL=<fresh PostgreSQL 18 control database> bash tools/test.sh --workspace --all-features` → PASS; all workspace targets, validator suites, semantic_blob (11 tests), PostgreSQL live gate (2 tests), and doc-tests passed with zero failures.
+- `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS; 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `bash tools/validator-pg18-gate.sh` with a fresh PostgreSQL 18 control database → PASS; 10 required live rows passed.
+- `cargo fmt --all -- --check`, workspace check, strict clippy, architecture
+  check, storage SQL ownership, `git diff --check`, and cargo-deny checks →
+  PASS.
+- Validator readiness checks and the full workspace test wrapper were recorded
+  as PASS for that candidate.
+
+## Cancellation and rollback log
+
+- 2026-08-29 — PR #380 merged the implementation described above.
+- 2026-08-29 — ME-303 reverted merge commit
+  `ef281f886480663a94193f738179d14933040a12` with ordinary revert commit
+  `33a916e02d5a458261b6eaf63e5bf510f1758af5`. The revert restores the pre-#380 public API boundary while
+  preserving the #380 merge and this audit record.
+- 2026-08-29 — T26 is marked `cancelled`; no current semantic/blob public
+  capability or Validator certification is claimed. Any future public-read
+  work requires the Architecture Amendment gate and a separately scoped task.
 
 ## Scope fence
 
-No T15/T19/T22/T24 ledger, registry, result, manifest or gate file was edited.
-The next action after this contract is merged is the separate T15 CV-028/CV-029
-re-audit.
+No T15/T19/T22/T24 ledger, registry, result, manifest or gate file was edited
+by PR #380 or this rollback. T15 CV-028/CV-029 remain the documented gaps;
+this retained record does not convert either gap to Pass.

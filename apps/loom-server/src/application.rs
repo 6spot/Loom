@@ -15,11 +15,11 @@ use loom_api::{
     AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminScheduleAgencyWakeRequest,
     AdminScheduleAgencyWakeResult, AdminService, AdminTerminalizeWorkRequest,
     AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError, ApiFuture, ApiResult,
-    BlobReadRequest, BlobReadResult, CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal,
-    CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult,
-    EntityTrajectoryQuery, EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery,
-    FacetSnapshot, ForkTimelineRequest, HistoryService, IngressAcceptance, IngressEnvelope,
-    IngressId, IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
+    CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal, CommittedEvent,
+    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EntityTrajectoryQuery,
+    EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot,
+    ForkTimelineRequest, HistoryService, IngressAcceptance, IngressEnvelope, IngressId,
+    IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
     SubscriptionRequest, SubscriptionResult, SubscriptionService, TimelineService,
     TimelineSnapshot, TimelineTarget, TrajectoryPage, WorldService,
 };
@@ -154,17 +154,6 @@ impl TimelineService for ApplicationApi {
 impl QueryService for ApplicationApi {
     fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<FacetSnapshot>> {
         self.runtime.get_facet(query)
-    }
-
-    fn query_semantic_projection(
-        &self,
-        query: loom_api::SemanticProjectionQuery,
-    ) -> ApiFuture<'_, loom_api::SemanticProjectionRead> {
-        loom_api::QueryService::query_semantic_projection(&*self.runtime, query)
-    }
-
-    fn read_blob(&self, request: BlobReadRequest) -> ApiFuture<'_, BlobReadResult> {
-        loom_api::QueryService::read_blob(&*self.runtime, request)
     }
 }
 
@@ -428,8 +417,7 @@ impl LoomServer {
             .with_resolution_budget(config.resolution_budget)
             .with_history_budget(config.history_budget)
             .with_failure_policy(config.failure_policy)
-            .with_chronology_budget(config.chronology_budget)
-            .with_blob_store(blob_store.clone());
+            .with_chronology_budget(config.chronology_budget);
         let revision =
             match RuntimeRevisionStore::read_revision(&storage, config.revision_id.clone().into())
                 .await

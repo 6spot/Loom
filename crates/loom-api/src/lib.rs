@@ -11,9 +11,9 @@
 //! # Public domains
 //!
 //! This v0 surface contains focused World-facing contracts for Action
-//! invocation, Timeline inspection, current Facet and derived-resource queries,
-//! committed Event history, external Ingress, committed Change Feed/Subscription
-//! reads and central Capability/Action discovery. Runtime administration is defined in
+//! invocation, Timeline inspection, current Facet queries, committed Event
+//! history, external Ingress, committed Change Feed/Subscription reads and
+//! central Capability/Action discovery. Runtime administration is defined in
 //! the separate Admin service module and namespace; it is deliberately not mixed
 //! into these ordinary World service traits.
 //!
@@ -1221,18 +1221,6 @@ pub enum ApiErrorCode {
     /// A failure occurred inside the service boundary and has no more specific
     /// public classification.
     Internal,
-    /// A semantic projection is absent, rebuilding or otherwise unavailable.
-    SemanticProjectionUnavailable,
-    /// A semantic projection does not represent the requested source revision.
-    SemanticProjectionStale,
-    /// A semantic projection's source identity or metadata does not match.
-    SemanticProjectionSourceMismatch,
-    /// The exact requested blob reference is absent.
-    BlobNotFound,
-    /// The exact blob body failed integrity verification.
-    BlobIntegrityMismatch,
-    /// The exact blob reference cannot currently be read.
-    BlobUnavailable,
 }
 
 /// A typed failure returned by a public Loom service.
@@ -1303,42 +1291,6 @@ impl ApiError {
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ApiErrorCode::Internal, message)
     }
-
-    /// Creates a typed semantic projection availability failure.
-    #[must_use]
-    pub fn semantic_projection_unavailable(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::SemanticProjectionUnavailable, message)
-    }
-
-    /// Creates a typed stale semantic projection failure.
-    #[must_use]
-    pub fn semantic_projection_stale(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::SemanticProjectionStale, message)
-    }
-
-    /// Creates a typed semantic source mismatch failure.
-    #[must_use]
-    pub fn semantic_projection_source_mismatch(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::SemanticProjectionSourceMismatch, message)
-    }
-
-    /// Creates a typed missing exact-blob failure.
-    #[must_use]
-    pub fn blob_not_found(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::BlobNotFound, message)
-    }
-
-    /// Creates a typed blob-integrity failure.
-    #[must_use]
-    pub fn blob_integrity_mismatch(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::BlobIntegrityMismatch, message)
-    }
-
-    /// Creates a typed blob availability failure.
-    #[must_use]
-    pub fn blob_unavailable(message: impl Into<String>) -> Self {
-        Self::new(ApiErrorCode::BlobUnavailable, message)
-    }
 }
 
 impl fmt::Display for ApiError {
@@ -1357,12 +1309,6 @@ impl fmt::Display for ApiErrorCode {
             Self::Unauthorized => "unauthorized",
             Self::Forbidden => "forbidden",
             Self::Internal => "internal",
-            Self::SemanticProjectionUnavailable => "semantic_projection_unavailable",
-            Self::SemanticProjectionStale => "semantic_projection_stale",
-            Self::SemanticProjectionSourceMismatch => "semantic_projection_source_mismatch",
-            Self::BlobNotFound => "blob_not_found",
-            Self::BlobIntegrityMismatch => "blob_integrity_mismatch",
-            Self::BlobUnavailable => "blob_unavailable",
         };
         formatter.write_str(code)
     }
@@ -1483,196 +1429,6 @@ pub struct FacetSnapshot {
     pub schema_revision: SchemaRevision,
     /// Complete current Facet value in the owning Capability's schema.
     pub value: Value,
-}
-
-/// A provider-neutral query for one semantic projection materialization.
-///
-/// `source_revision = Some(...)` pins the read to that exact committed source
-/// position. `None` means the Runtime first resolves the current committed
-/// Timeline version and then performs the read at that version. The request
-/// contains no embedding-provider, SQL, table or storage-handle value.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct SemanticProjectionQuery {
-    /// World and Timeline containing the derived projection.
-    pub target: TimelineTarget,
-    /// Capability-owned projection identity.
-    pub index_id: String,
-    /// Exact source revision, or the current revision when omitted.
-    #[serde(default)]
-    pub source_revision: Option<TimelineVersion>,
-    /// Source semantic schema revision used to produce the projection.
-    pub source_schema_revision: SchemaRevision,
-    /// Projection algorithm/configuration revision.
-    pub projection_revision: u64,
-    /// Provider-neutral model revision metadata.
-    pub model_revision: String,
-    /// Query vector supplied by the owning semantic consumer.
-    pub vector: Vec<f32>,
-    /// Maximum number of deterministic hits.
-    pub limit: u32,
-    /// Optional exact source fingerprint filter.
-    #[serde(default)]
-    pub source_hash: Option<String>,
-    /// Maximum encoded result budget requested by the consumer.
-    #[serde(default = "default_semantic_result_bytes")]
-    pub max_result_bytes: u32,
-    /// Bounded semantic traversal/context depth.
-    #[serde(default)]
-    pub depth: u32,
-}
-
-const fn default_semantic_result_bytes() -> u32 {
-    1_048_576
-}
-
-impl SemanticProjectionQuery {
-    /// Creates a current-revision semantic projection query.
-    #[must_use]
-    pub fn new(
-        target: TimelineTarget,
-        index_id: impl Into<String>,
-        source_schema_revision: SchemaRevision,
-        projection_revision: u64,
-        model_revision: impl Into<String>,
-        vector: Vec<f32>,
-        limit: u32,
-    ) -> Self {
-        Self {
-            target,
-            index_id: index_id.into(),
-            source_revision: None,
-            source_schema_revision,
-            projection_revision,
-            model_revision: model_revision.into(),
-            vector,
-            limit,
-            source_hash: None,
-            max_result_bytes: default_semantic_result_bytes(),
-            depth: 0,
-        }
-    }
-
-    /// Pins the query to one exact committed source revision.
-    #[must_use]
-    pub const fn at_source_revision(mut self, revision: TimelineVersion) -> Self {
-        self.source_revision = Some(revision);
-        self
-    }
-
-    /// Adds an exact source fingerprint filter.
-    #[must_use]
-    pub fn with_source_hash(mut self, source_hash: impl Into<String>) -> Self {
-        self.source_hash = Some(source_hash.into());
-        self
-    }
-
-    /// Sets the result-byte bound.
-    #[must_use]
-    pub const fn with_max_result_bytes(mut self, max_result_bytes: u32) -> Self {
-        self.max_result_bytes = max_result_bytes;
-        self
-    }
-
-    /// Sets the bounded semantic traversal/context depth.
-    #[must_use]
-    pub const fn with_depth(mut self, depth: u32) -> Self {
-        self.depth = depth;
-        self
-    }
-}
-
-/// One provider-neutral hit returned by a semantic projection read.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct SemanticProjectionHit {
-    /// Qualified authoritative source Event identity.
-    pub source_ref: EventRef,
-    /// Source fingerprint stored with the derived row.
-    pub source_hash: String,
-    /// Committed source revision represented by the derived row.
-    pub source_revision: TimelineVersion,
-    /// Projection revision that produced the row.
-    pub projection_revision: u64,
-    /// Provider-neutral model revision that produced the row.
-    pub model_revision: String,
-    /// Deterministic metric distance; lower values are more similar.
-    pub distance: f32,
-}
-
-/// Successful semantic projection read with stable request provenance.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct SemanticProjectionRead {
-    /// World and Timeline queried.
-    pub target: TimelineTarget,
-    /// Projection identity queried.
-    pub index_id: String,
-    /// Exact committed source revision used by this read.
-    pub source_revision: TimelineVersion,
-    /// Source schema revision requested.
-    pub source_schema_revision: SchemaRevision,
-    /// Projection revision requested.
-    pub projection_revision: u64,
-    /// Model revision requested.
-    pub model_revision: String,
-    /// Deterministically ordered derived hits.
-    pub hits: Vec<SemanticProjectionHit>,
-}
-
-/// Exact immutable blob/reference requested through the public read boundary.
-///
-/// The identity and content hash are serialized opaque hexadecimal values at
-/// this boundary. No object-store, SQL or provider type is exposed.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct BlobReference {
-    /// Content-addressed blob identity.
-    pub id: String,
-    /// Integrity hash recorded in the immutable metadata.
-    pub content_hash: String,
-    /// Expected complete body size.
-    pub size: u64,
-    /// Optional media type metadata.
-    pub content_type: Option<String>,
-}
-
-impl BlobReference {
-    /// Creates an exact blob reference value.
-    #[must_use]
-    pub fn new(
-        id: impl Into<String>,
-        content_hash: impl Into<String>,
-        size: u64,
-        content_type: Option<String>,
-    ) -> Self {
-        Self {
-            id: id.into(),
-            content_hash: content_hash.into(),
-            size,
-            content_type,
-        }
-    }
-}
-
-/// Request for one exact immutable blob reference.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct BlobReadRequest {
-    /// Exact reference to fetch; the server never substitutes another ID.
-    pub reference: BlobReference,
-}
-
-impl BlobReadRequest {
-    /// Creates a request for one exact reference.
-    #[must_use]
-    pub const fn new(reference: BlobReference) -> Self {
-        Self { reference }
-    }
-}
-
-/// Successful exact blob read.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct BlobReadResult {
-    /// Verified reference associated with the returned bytes.
-    pub reference: BlobReference,
-    /// Complete immutable blob body.
-    pub bytes: Vec<u8>,
 }
 
 impl FacetSnapshot {
@@ -2353,34 +2109,6 @@ pub trait QueryService {
     ///
     /// Returns an `ApiError` when the target cannot be found or read.
     fn get_facet(&self, query: FacetQuery) -> ApiFuture<'_, Option<FacetSnapshot>>;
-
-    /// Reads one derived semantic projection at an exact committed source
-    /// revision (or the current revision when the request omits one).
-    ///
-    /// A successful value includes the resolved source revision and projection
-    /// identity. Missing, stale, rebuilding and source-mismatched materialized
-    /// data are typed `ApiError` outcomes; they are never empty success values
-    /// or inferred World state.
-    fn query_semantic_projection(
-        &self,
-        _query: SemanticProjectionQuery,
-    ) -> ApiFuture<'_, SemanticProjectionRead> {
-        Box::pin(async {
-            Err(ApiError::semantic_projection_unavailable(
-                "semantic projection reads are not implemented by this service",
-            ))
-        })
-    }
-
-    /// Reads one exact immutable blob reference and verifies its returned
-    /// bytes against the reference metadata.
-    fn read_blob(&self, _request: BlobReadRequest) -> ApiFuture<'_, BlobReadResult> {
-        Box::pin(async {
-            Err(ApiError::blob_unavailable(
-                "blob reads are not implemented by this service",
-            ))
-        })
-    }
 }
 
 /// Reads committed World history through the unified API.
