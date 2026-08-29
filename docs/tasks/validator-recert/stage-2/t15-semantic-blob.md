@@ -265,8 +265,8 @@ PR or merge result.
 ### Reconciliation verification and handoff
 
 - Final candidate base: `a898e5be6e33f5f448992c7ddb642af7336bc8f8`.
-- Final candidate HEAD: to be recorded in the Executor handoff after this
-  append-only ledger change is committed and verified.
+- Final candidate HEAD for this documentation-only reconciliation:
+  `7287f7cc61713a8282fcae748a9a389189fc14c7`.
 - `bash tools/test.sh -p loom-validator --test semantic_blob -- --nocapture`:
   required 11/11 InMemory + PostgreSQL 18 run, with no skip/ignore/filter
   bypass; result to be recorded against the final candidate.
