@@ -173,19 +173,19 @@ Loom
 
 **Current-main evidence snapshot (2026-08-29):** The production candidate under
 re-certification is `4efb1d346c926f2ee10654c3bc24cd92af351881`, the merge of PR
-#375 (both required CI jobs passed). Current `main` is
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, reached through the merged
-docs/evidence-only T23/T22/T24/T19 records in PRs #376, #377, #378 and #379.
-This is not a V0 certification. T19 is done with the verified 32-ID registry
-and eight intentionally unregistered gap rows; T20 is done and its current-
-candidate PG18 matrix records 10/10 trusted rows; T22 is done with the
-refreshed manifest; T23 is done with current-candidate core evidence; and T24
-is blocked fail-closed by the real CV-028/CV-029 capability gaps. The prior
-`95f7e7a...` candidate, older PR results, and `31 Pass / 9 Unavailable` /
-`gate_passes: false` records remain historical/non-current evidence. T25
-remains the only final certification gate. See the [current-main
-recertification ledger](docs/tasks/validator-recert/README.md) for exact
-candidate, base, merge, CI, current, pending and historical mappings.
+#375 (both required CI jobs passed). The T21 evidence snapshot/base is
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual current `main` has since
+advanced through PR #380 (head `3abc7f65d21fe7d6564c671ab18db11420da3741`)
+to `ef281f886480663a94193f738179d14933040a12`, including production
+semantic/blob API and mediation changes. Therefore T20/T22/T23/T24 results
+on `4efb1d…` are snapshot evidence only; their re-audit against actual main is
+pending. T19 remains the verified 32-ID registry snapshot with eight
+intentionally unregistered gap rows. T24 remains fail-closed by the real
+CV-028/CV-029 gaps. The prior `95f7e7a...` candidate, older PR results, and
+`31 Pass / 9 Unavailable` / `gate_passes: false` records remain
+historical/non-current evidence. T25 remains the only final certification gate.
+See the [current-main recertification ledger](docs/tasks/validator-recert/README.md)
+for exact candidate, snapshot, actual-main, pending and historical mappings.
 
 **Historical M12/M13 delivery evidence (preserved):**
 

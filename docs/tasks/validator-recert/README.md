@@ -29,20 +29,22 @@ ledger, with its existing VAL-T1..T10 states unchanged.
 As of 2026-08-29, the production candidate under re-certification is
 `4efb1d346c926f2ee10654c3bc24cd92af351881`, the merge commit for PR #375; its
 Rust and PostgreSQL required CI jobs passed. Current `main` is
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`. PRs #376, #377, #378 and #379
-are merged evidence-only/documentation descendants for T23, T22, T24 and T19;
-they do not change the production-candidate identity. This snapshot is not a
-certification decision.
+`ef281f886480663a94193f738179d14933040a12`, after PR #380 merged head
+`3abc7f65d21fe7d6564c671ab18db11420da3741` onto snapshot/base
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`. PR #380 includes production
+semantic/blob API and mediation changes. PRs #376, #377, #378 and #379 are
+evidence-only/documentation descendants of the snapshot; this snapshot is not
+a certification decision.
 
 The current graph and evidence disposition are:
 
 | Leaf | Issue / linked PR state | Current-candidate evidence status | Historical/non-current evidence retained |
 | --- | --- | --- | --- |
-| T19 | ME-295 `done`; PR #379 merged (`f1f36856b6e33d41e59d6cfe81eada39f289b43f` → `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, base `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33221134508` passed both required jobs | Current registry/list/group surface remains the verified 32-ID set; CV-018/019/028/029/034..037 remain unregistered gap rows. This is controlled evidence, not a certification claim. | Prior candidate traces, eight gap explanations and non-pass/readiness records remain in the T19 ledger |
-| T20 | ME-296 `done`; PR #359 merged at `8761991c36c07b7ee32d2643228bfb458fdeb2d0`, CI run `33065369687` passed | Current-candidate T20 required-live evidence recorded by the T23 run is terminal and trusted: 10/10 rows passed, 0 failed/skipped/unavailable. The T20 owner ledger is not rewritten here. | PR #359 head `a1d7d3cd274499e613fac70ce57d34e79483e613` and its original completion evidence remain historical implementation evidence |
-| T22 | ME-298 `done`; PR #377 merged (`d3232672c31a133ca6f5f3172e306ea768259c4c` → `856814dfef5ca800e7c94cdabffd926846663110`, base `657e571ced6e06219e9d1a065775d762e4a83279`), CI run `33190567067` passed both required jobs | Refreshed manifest is current-candidate evidence consumed by T24: 38 rows ready and CV-028/CV-029 remain explicit capability gaps; no final certification is claimed. | Prior PR #366/#361 candidate traces and old `31 Pass / 9 Unavailable` / `gate_passes: false` result remain historical/non-current |
-| T23 | ME-299 `done`; PR #376 merged (`92a2a8eb763976b65f84b889b4de95a9124e6fce` → `657e571ced6e06219e9d1a065775d762e4a83279`, base `4efb1d346c926f2ee10654c3bc24cd92af351881`), CI run `33182385085` passed both required jobs | Current-candidate core integrated evidence is passing; its non-certifying CLI/gap observations remain recorded and T25 still owns final certification. | Earlier `34fc8efa...` candidate and PR #363 evidence remain historical/non-current |
-| T24 | ME-300 `blocked`; PR #378 merged (`5d77ddda808f5594c2efe3b8c169f82814d6898b` → `7716c1c33cd08cde57e8226ca063c6c83c650e8e`, base `856814dfef5ca800e7c94cdabffd926846663110`), CI run `33193706827` passed both required jobs | Current-candidate gate is fail-closed: 38 `Pass`, 2 `Unavailable` (CV-028/CV-029), `gate_passes: false`. This is not certification. | Prior PR #362/#361 traces, old candidate and old `31 Pass / 9 Unavailable` / `gate_passes: false` remain historical/non-current |
+| T19 | ME-295 `done`; PR #379 merged (`f1f36856b6e33d41e59d6cfe81eada39f289b43f` → `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, base `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33221134508` passed both required jobs | Snapshot evidence remains the verified 32-ID registry/list/group set; CV-018/019/028/029/034..037 remain unregistered gap rows. Actual-main impact is limited to the T15 re-audit boundary and no certification is claimed. | Prior candidate traces, eight gap explanations and non-pass/readiness records remain in the T19 ledger |
+| T20 | ME-296 `done`; PR #359 merged at `8761991c36c07b7ee32d2643228bfb458fdeb2d0`, CI run `33065369687` passed | The 10/10 trusted PG18 matrix recorded by T23 is evidence for snapshot/base `6da9989…` and candidate `4efb1d…` only; re-audit against actual main `ef281f8…` is **pending**. The T20 owner ledger is not rewritten here. | PR #359 head `a1d7d3cd274499e613fac70ce57d34e79483e613` and its original completion evidence remain historical implementation evidence |
+| T22 | ME-298 `done`; PR #377 merged (`d3232672c31a133ca6f5f3172e306ea768259c4c` → `856814dfef5ca800e7c94cdabffd926846663110`, base `657e571ced6e06219e9d1a065775d762e4a83279`), CI run `33190567067` passed both required jobs | The refreshed manifest is snapshot evidence consumed by T24: 38 rows ready and CV-028/CV-029 remain explicit gaps; re-audit against actual main `ef281f8…` is **pending** and no final certification is claimed. | Prior PR #366/#361 candidate traces and old `31 Pass / 9 Unavailable` / `gate_passes: false` result remain historical/non-current |
+| T23 | ME-299 `done`; PR #376 merged (`92a2a8eb763976b65f84b889b4de95a9124e6fce` → `657e571ced6e06219e9d1a065775d762e4a83279`, base `4efb1d346c926f2ee10654c3bc24cd92af351881`), CI run `33182385085` passed both required jobs | The passing core evidence is for snapshot/base `6da9989…` and candidate `4efb1d…`; re-audit against actual main `ef281f8…` is **pending**. Its CLI/gap observations remain non-certifying facts. | Earlier `34fc8efa...` candidate and PR #363 evidence remain historical/non-current |
+| T24 | ME-300 `blocked`; PR #378 merged (`5d77ddda808f5594c2efe3b8c169f82814d6898b` → `7716c1c33cd08cde57e8226ca063c6c83c650e8e`, base `856814dfef5ca800e7c94cdabffd926846663110`), CI run `33193706827` passed both required jobs | Snapshot gate is fail-closed: 38 `Pass`, 2 `Unavailable` (CV-028/CV-029), `gate_passes: false`; re-audit against actual main `ef281f8…` is **pending**. This is not certification. | Prior PR #362/#361 traces, old candidate and old `31 Pass / 9 Unavailable` / `gate_passes: false` remain historical/non-current |
 
 The historical CV-017 fault-injection blocker and the historical blocked
 conclusions for CV-018, CV-019, CV-028, CV-029, and CV-034..CV-037 remain in
