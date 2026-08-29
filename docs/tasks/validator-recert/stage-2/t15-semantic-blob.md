@@ -12,7 +12,7 @@ merge_sha:
 
 # VALR-T15 — Validate Semantic projection + Blob references + pinned reads
 
-T15 owns `CV-028..CV-030`. `CV-028`/`CV-029` are explicit public-surface coverage gaps per `t08-coverage-matrix.md` (no public semantic projection rebuild/query or blob fetch service in current `loom-api`/`loom-client`); `CV-030` is the sole implementable candidate via existing `ForkTimelineRequest::at_version` + `QueryService::get_facet`/`HistoryService::list_events`/`TimelineService::inspect_timeline`. This leaf implements `CV-030` pinned-version stability via real `create-world`/`seed`/`increment`/`fork at_version` and documents the gaps without inventing authority, storage inspection, or `Pass`.
+T15 owns `CV-028..CV-030`. `CV-028`/`CV-029` are explicit formal-read gaps per `t08-coverage-matrix.md`: `no existing formal semantic projection observable` and `no existing formal blob/reference fetch observable`. These are not product API or Architecture Amendment authorization; controlled Runtime/Storage fixtures are test-only drivers, and the formal result remains `Unavailable`. `CV-030` is the sole implementable candidate via existing `ForkTimelineRequest::at_version` + `QueryService::get_facet`/`HistoryService::list_events`/`TimelineService::inspect_timeline`. This leaf implements `CV-030` pinned-version stability via real `create-world`/`seed`/`increment`/`fork at_version` and records the CV-028/CV-029 gaps without inventing authority, storage inspection, or `Pass`.
 
 ## Goal
 
@@ -36,8 +36,8 @@ Forbidden:
 
 | CV | Capability / Clause | Formal Public Surface | Expected Observable Result | Evidence Class | PG live? | Owner | Status in this leaf |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| CV-028 | Semantic projection rebuildable, not authority (`m7/t2-t3`) | No public `SemanticService`; only `CatalogService::catalog#SemanticIndexDescriptor` metadata; authority via `HistoryService::list_events` + `QueryService::get_facet` | Blocked: no public API to create/rebuild/delete/query semantic projection; Validator cannot observe projection via public surface — explicit gap requiring Architecture Amendment | blocked (no public surface) | No — blocked | T15 (#320) | Blocked gap: `Unavailable` with `finding:gap:CV-028-no-public-semantic-projection-api`; not registered; documented here |
-| CV-029 | Blob/reference missing does not rewrite history (`m7/t4`) | No public `BlobService`; only `FacetSnapshot.value` opaque `BlobReference` via `QueryService::get_facet` + `HistoryService::list_events` | Blocked: no public blob read API; blob fetch failure cannot be validated via public surface — explicit gap | blocked (no public surface) | No — blocked | T15 | Blocked gap: `Unavailable` with `finding:gap:CV-029-no-public-blob-service-api`; not registered |
+| CV-028 | Semantic projection rebuildable, not authority (`m7/t2-t3`) | No existing formal semantic projection observable; only `CatalogService::catalog#SemanticIndexDescriptor` metadata plus authoritative `HistoryService::list_events`/`QueryService::get_facet` reads | Blocked: the controlled driver may build/delete/rebuild, but Validator cannot formally observe that projection operation; this is a formal-read gap, not a product API / Architecture Amendment request | blocked (`no existing formal semantic projection observable`) | No — blocked | T15 (#320) | Blocked gap: `Unavailable` with `finding:gap:CV-028-no-public-semantic-projection-api`; not registered; documented here |
+| CV-029 | Blob/reference missing does not rewrite history (`m7/t4`) | No existing formal blob/reference fetch observable; only authoritative `QueryService::get_facet` + `HistoryService::list_events`, with opaque `FacetSnapshot.value` | Blocked: the controlled driver may make a reference unavailable, but Validator cannot formally observe the fetch failure; this is a formal-read gap, not a product API / Architecture Amendment request | blocked (`no existing formal blob/reference fetch observable`) | No — blocked | T15 | Blocked gap: `Unavailable` with `finding:gap:CV-029-no-public-blob-service-api`; not registered |
 | CV-030 | Pinned/versioned read via `fork at_version` (`m7/t5`, amendment 0003 §4) | `TimelineService::fork(ForkTimelineRequest::at_version(source, TimelineVersion))` then `QueryService::get_facet` + `HistoryService::list_events` + `TimelineService::inspect_timeline` for `ancestry.fork_parent_version`/`fork_parent_event` | Fork `get_facet` returns pinned value `10` even though head is `11`; `fork_parent_version == Some(pinned)` and `fork_parent_event == Some(pinned EventRef)`; `list_events(fork)` contains pinned history only (1 event) with `EventSeq` ordering; source remains `11` after fork | controlled `InMemory`, controlled `PostgreSQL` | Yes | T15 | Implementable: `Pass` via real public HTTP client; T19 candidate |
 
 Details per T08: `CV-028`/`CV-029` gaps are `Coverage Gaps 8/9`; `CV-030` is the corrected existing API path (no invented `get_facet_at_version`/`BaseWorldView`).
@@ -60,7 +60,7 @@ Evidences: `public-surface:loom-client::WorldService::create_world_from_template
 
 ## T09 Dependency Fence and T19 Surface
 
-- **Fence:** No `src/lib.rs`/`registry.rs` edits; `validator_registry()` remains `11` (`CV-001..CV-011`). Suite exposes isolated `ScenarioRegistry` via `semantic_blob::register(&mut isolated)` adding only `CV-030` (tested to be `1` and `12` total with stable). No `CV-012..040` placeholder `Pass` in `src/`/`tests/`.
+- **Fence:** No `src/lib.rs`/`registry.rs` edits; on current main the central `validator_registry()` contains the 32 implementable scenarios and still excludes blocked CV-028/CV-029. Suite exposes isolated `ScenarioRegistry` via `semantic_blob::register(&mut isolated)` adding only `CV-030` (tested to be `1`); no `CV-012..040` placeholder `Pass` is introduced in `src/`/`tests/`.
 - **T19 surface:** `semantic_blob::descriptors() -> Vec<ScenarioDescriptor>` (len `1`, `CV-030` only), `blocked_descriptors() -> Vec<ScenarioDescriptor>` (len `2`, `CV-028`/`CV-029` gap metadata), `register(registry) -> Result<usize, RegistryError>` (registers only `CV-030`), `execute(descriptor, ctx) -> ScenarioResult` (handles `CV-030` `Pass`/`Fail` and blocked `Unavailable` with gap evidence), `owns_cv`, `suite_name`, `SUITE`, `CV_RANGE`, `CAPABILITY_AREA`. Central registry enlargement stays in `T19`; blocked items never become `Pass`.
 
 ## AC → Implementation Mapping
@@ -73,22 +73,22 @@ Evidences: `public-surface:loom-client::WorldService::create_world_from_template
 
 ## Blocked Gaps Detail (must not be registered)
 
-- **CV-028:** No public `SemanticService`/`query_semantic_projection`/`rebuild`/`delete` in `crates/loom-api`/`loom-client`; only `SemanticIndexDescriptor` metadata via `CatalogService::catalog`. Current contract provides no way to perform or observe semantic projection rebuild via `loom-api` — do not invent alternative via internal `loom-storage` table. Evidence `finding:gap:CV-028-no-public-semantic-projection-api`. Trigger: `semantic_blob::execute` for `CV-028` returns `Unavailable` with gap reason; `descriptors()` intentionally excludes it; `blocked_descriptors()` documents it.
-- **CV-029:** No public `BlobService`/blob read in `loom-api`; `FacetSnapshot.value` may contain opaque `BlobReference` via `get_facet` but fetch cannot be observed. Same blocked semantics: `Unavailable` with `finding:gap:CV-029-no-public-blob-service-api`.
+- **CV-028:** No existing formal semantic projection observable: `crates/loom-api`/`loom-client` expose only `SemanticIndexDescriptor` metadata via `CatalogService::catalog` and authoritative `HistoryService`/`QueryService` reads. The controlled driver cannot turn those reads into projection evidence; do not invent an alternative via internal `loom-storage` tables. Evidence `finding:gap:CV-028-no-public-semantic-projection-api`; `semantic_blob::execute` returns `Unavailable`, `descriptors()` excludes it, and `blocked_descriptors()` documents it.
+- **CV-029:** No existing formal blob/reference fetch observable: `FacetSnapshot.value` may contain opaque `BlobReference`, but public `get_facet`/`list_events` cannot observe fetch failure. Internal BlobStore/SQL cannot substitute. Evidence `finding:gap:CV-029-no-public-blob-service-api`; `semantic_blob::execute` returns `Unavailable`, `descriptors()` excludes it, and `blocked_descriptors()` documents it.
 
-Both gaps require Architecture Amendment adding public semantic/blob service before Validator coverage. This leaf does not add API, storage table inspection, or fake `Pass`.
+Both gaps remain formal-read gaps; this leaf does not request or authorize a product API or Architecture Amendment, and does not add API, storage table inspection, or fake `Pass`.
 
 ## Integration Tests (real public HTTP, no storage SQL)
 
 Harness: `apps/loom-validator/tests/common/mod.rs` (`InMemoryServer::start`, `PgServer::start`, `PgStorage`/`InMemoryStore` + `Runtime` + `loom-boundary::router_with_admin` over HTTP, `LoomClient` via `BackendContext::new(client).with_backend_kind(...).with_scope(...)`).
 
-- `semantic_blob_suite_scaffold_is_non_registering_and_disjoint` — `SUITE`/`CV_RANGE`/`owns_cv`, `validator_registry len 11`, no `CV-028..040` registered, isolated `register` adds only `CV-030`.
+- `semantic_blob_suite_scaffold_is_non_registering_and_disjoint` — `SUITE`/`CV_RANGE`/`owns_cv`, current-main `validator_registry len 32`, no blocked CV-028/CV-029 registered, isolated `register` adds only `CV-030`.
 - `semantic_blob_descriptors_are_stable_and_not_centrally_registered` — `descriptors len 1 == CV-030`, `blocked len 2`, none centrally registered.
 - `cv030_pinned_read_pass_on_real_in_memory` — InMemory live service: `execute CV-030` should `Pass`; evidences contain `public-surface:loom-client::WorldService::create_world_from_template`, `ActionService`, `QueryService`, `HistoryService`, `TimelineService::fork#at_version`/`inspect_timeline`; no `loom_storage`/`pgstorage`/`sqlx`/`semantic_projection`/`blobstore`; actual contains `pinned`, `fork_parent_version`, `ancestry`; source stability verified; unique scope.
 - `cv030_pinned_read_pass_on_live_postgres` — PostgreSQL live: same checks with `backend postgresql` evidence; T08 requires PG and not skipped; uses `PgServer::start` (starts `compose.test-db.yaml` if needed) via `LoomClient`; no `skip` bypass.
 - `cv028_and_cv029_are_blocked_gaps_on_in_memory_and_pg` — `CV-028`/`CV-029` on both backends return `Unavailable` with `gap` evidence and never `Pass`.
-- `cv028_cv029_do_not_enlarge_central_registry_even_when_executed` — executing blocked scenarios does not enlarge `validator_registry` (`len 11`).
-- `semantic_blob_register_fence_preserves_only_cv030` — `register(&mut isolated)` adds `1` (`CV-030` only) and central remains `11`.
+- `cv028_cv029_do_not_enlarge_central_registry_even_when_executed` — executing blocked scenarios does not enlarge current-main `validator_registry` (`len 32`) and leaves CV-028/CV-029 absent.
+- `semantic_blob_register_fence_preserves_only_cv030` — `register(&mut isolated)` adds `1` (`CV-030` only), while current-main central remains `32` and excludes CV-028/CV-029.
 
 Unique ID: `unique_scope` with `Uuid::new_v4()` per test (e.g. `cv030-inmem-<uuid>-t15`); prohibits direct SQL/storage/table assertion (only `get_facet`/`list_events`/`inspect_timeline`/`fork`).
 
@@ -114,7 +114,7 @@ Unique ID: `unique_scope` with `Uuid::new_v4()` per test (e.g. `cv030-inmem-<uui
 
 ## Stop Conditions
 
-If existing public `loom-api` cannot express required pinned/semantic read without new semantic decision, stop and record gap rather than reaching into internal storage — implemented: `CV-028`/`CV-029` are recorded as `Unavailable` gaps with `Architecture Amendment` required; `CV-030` uses existing `ForkTimelineRequest::at_version` path and does not invent `get_facet_at_version`/`BaseWorldView`.
+If existing public `loom-api` cannot express required pinned/semantic read without new semantic decision, stop and record gap rather than reaching into internal storage — implemented: `CV-028`/`CV-029` are recorded as `Unavailable` gaps with `no existing formal semantic projection observable` / `no existing formal blob/reference fetch observable`; this is not product API or Architecture Amendment authorization. `CV-030` uses existing `ForkTimelineRequest::at_version` path and does not invent `get_facet_at_version`/`BaseWorldView`.
 
 ## Progress Log
 
@@ -219,3 +219,64 @@ not reused.
 
 - Default repository PG18 and explicit PG18: each T15 `semantic_blob` run executed 11 tests with 11 passed, 0 failed, 0 ignored, 0 filtered out.
 - `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`, `cargo clippy -p loom-validator --all-targets -- -D warnings`, `python3 tools/check_architecture.py`, `python3 tools/check_storage_sql_ownership.py`, and `git diff --check origin/main..HEAD` all passed on this candidate.
+
+## Current-main Reconciliation — 2026-08-29
+
+This append-only reconciliation is bound to current main base
+`a898e5be6e33f5f448992c7ddb642af7336bc8f8`. It does not alter the historical
+implementation, remediation, rebase, or verification records above.
+
+### Effective disposition
+
+- `CV-028` remains `Unavailable` with
+  `finding:gap:CV-028-no-public-semantic-projection-api`. The controlled
+  Runtime/Storage projection fixture is a test-only driver. InMemory and
+  PostgreSQL 18 controlled runs show stable authoritative public
+  `HistoryService`/`QueryService` Facet/`TimelineService` observations before
+  and after the derived projection operations, but no existing formal semantic
+  projection observable exists. `semantic_blob::descriptors()` intentionally
+  contains only `CV-030`; CV-028 is exposed only through blocked metadata and
+  is not registered.
+- `CV-029` remains `Unavailable` with
+  `finding:gap:CV-029-no-public-blob-service-api`. The controlled
+  Runtime/Storage/BlobStore fixture is a test-only driver. InMemory and
+  PostgreSQL 18 controlled runs show stable authoritative public Facet/History
+  observations after typed missing/corrupt adapter failures, but no existing
+  formal blob/reference fetch observable exists. `FacetSnapshot.value` remains
+  opaque; internal BlobStore/SQL is not formal evidence, and CV-029 is not
+  registered.
+- The current effective T08 accounting remains **38 suitable / 2 blocked** for
+  `CV-001..CV-040`; the two blocked rows are exactly CV-028 and CV-029. The
+  controlled evidence does not convert either row to `Pass` and does not
+  authorize a product API or Architecture Amendment. The gap itself is the
+  truthful completion disposition for this leaf under the current T08 policy.
+- PR #380 and its deleted public semantic/blob surface are not evidence for
+  this reconciliation. The current evidence is only the surviving
+  current-main production/test boundary and the controlled runs recorded above.
+
+### Existing implementation delivery facts
+
+The already-implemented T15 candidate was delivered by PR #374 with head
+`4cee49887d858cb62612c601ddcc296d93e662b1` and merge
+`bed2dac9947d5c5f92e0d530378f5be712e041a6`. Those facts are historical
+implementation delivery facts, not this documentation-only reconciliation's
+PR or merge result.
+
+### Reconciliation verification and handoff
+
+- Final candidate base: `a898e5be6e33f5f448992c7ddb642af7336bc8f8`.
+- Final candidate HEAD: to be recorded in the Executor handoff after this
+  append-only ledger change is committed and verified.
+- `bash tools/test.sh -p loom-validator --test semantic_blob -- --nocapture`:
+  required 11/11 InMemory + PostgreSQL 18 run, with no skip/ignore/filter
+  bypass; result to be recorded against the final candidate.
+- `cargo fmt --all -- --check`, `cargo check -p loom-validator --all-targets`,
+  `cargo clippy -p loom-validator --all-targets -- -D warnings`,
+  `python3 tools/check_architecture.py`,
+  `python3 tools/check_storage_sql_ownership.py`, and `git diff --check`:
+  results to be recorded against the final candidate.
+- Reconciliation PR: pending Leader action; none created by this Executor.
+- Reconciliation Reviewer result: pending Leader action; not prefilled.
+- Reconciliation required CI result: pending Leader action; not prefilled.
+- Reconciliation merge SHA and post-merge current-main SHA: pending Leader
+  action; not prefilled.
