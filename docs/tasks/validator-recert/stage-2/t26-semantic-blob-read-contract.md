@@ -56,7 +56,7 @@ the required Architecture Amendment was absent.
 - 2026-08-29 — PR #380 merged the implementation described above.
 - 2026-08-29 — ME-303 reverted merge commit
   `ef281f886480663a94193f738179d14933040a12` with ordinary revert commit
-  `33a916e`. The revert restores the pre-#380 public API boundary while
+  `33a916e02d5a458261b6eaf63e5bf510f1758af5`. The revert restores the pre-#380 public API boundary while
   preserving the #380 merge and this audit record.
 - 2026-08-29 — T26 is marked `cancelled`; no current semantic/blob public
   capability or Validator certification is claimed. Any future public-read
