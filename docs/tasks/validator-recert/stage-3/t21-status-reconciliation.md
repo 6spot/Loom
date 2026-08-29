@@ -21,11 +21,11 @@ historical M13 evidence.
 
 | Source | Status claim after reconciliation |
 | --- | --- |
-| Root [`README.md`](../../../../README.md) | Production candidate is `4efb1d346c926f2ee10654c3bc24cd92af351881`; evidence snapshot/base is `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual `main` is `ef281f886480663a94193f738179d14933040a12`. T20/T22/T23/T24 snapshot results require actual-main re-audit; T25 remains the final gate. |
-| [`docs/tasks/README.md`](../../README.md) | M4–M13 remains historical; snapshot evidence is separately indexed and actual-main re-audit is pending after PR #380. T24 remains fail-closed/blocked and final re-certification remains pending until T25. |
-| [`docs/tasks/v0-roadmap.md`](../../v0-roadmap.md) | M4–M13 is a historical implementation baseline; candidate `4efb1d…`, evidence snapshot `6da9989…`, actual `main` `ef281f8…`, and the pending re-audit/T25 boundary are explicit. |
-| [`docs/tasks/validator-recert/README.md`](../README.md) | Exact PR/SHA/CI snapshot distinguishes candidate, snapshot evidence, actual-main re-audit pending, T24's 38/2 fail-closed result, and historical `95f7e7…` records. |
-| [`stage-3/README.md`](README.md) | T20/T22/T23/T24 statuses remain done/done/done/blocked, but their `4efb1d…` results are snapshot evidence pending re-audit against actual `main`; T21 remains in progress and T25 is the final gate. |
+| Root [`README.md`](../../../../README.md) | Actual current `main` and current T20 baseline are `103a75e96cd9f7b9e495a39bb6608316c47b76e6` (PR #384); T22 re-review is pending/in progress, T23/T24/T25 have no current-main evidence, and T25 remains the final gate. |
+| [`docs/tasks/README.md`](../../README.md) | M4–M13 and the former PR #381 / `4efb1d…` / `6da9989…` / `ef281f8…` status snapshots remain historical; T20 is current at `103a75e…`, T22 is under parallel re-review, and T23/T24/T25 remain pending. |
+| [`docs/tasks/v0-roadmap.md`](../../v0-roadmap.md) | M4–M13 is historical; current main/T20 baseline `103a75e…`, post-rollback lineage, T22 re-review, later pending gates and the T25 boundary are explicit. |
+| [`docs/tasks/validator-recert/README.md`](../README.md) | Exact PR/SHA/CI maps current T20 PR #384 evidence, T22 parallel re-review, no current-main T23/T24/T25 evidence, and historical `4efb1d…`/`6da9989…`/`ef281f8…` records. |
+| [`stage-3/README.md`](README.md) | T20 is current-main done at PR #384; T22's existing manifest is under parallel re-review; T23/T24/T25 have no `103a75e…` evidence; T21 remains in progress and T25 is final. |
 | Historical [`docs/tasks/validator/README.md`](../../validator/README.md) | Existing Validator initiative and VAL-T1..T10 records remain unchanged and are not marked complete by this recertification tree. |
 
 The inventory is deliberately limited to current-status/governance sources; it
@@ -33,26 +33,28 @@ does not rewrite unrelated task evidence or architecture history.
 
 ## Current main and evidence snapshot
 
-The production candidate under re-certification is exactly
-`4efb1d346c926f2ee10654c3bc24cd92af351881`, the PR #375 merge from base
-`bed2dac9947d5c5f92e0d530378f5be712e041a6` and head
-`26937594e899ef5fed3b6ca08050fb6c8c7`; CI run `33177572494` passed both
-required jobs. The T21 evidence snapshot/base is exactly
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`. Actual current `main` is exactly
-`ef281f886480663a94193f738179d14933040a12`, after PR #380 merged head
-`3abc7f65d21fe7d6564c671ab18db11420da3741` onto that snapshot. PR #380
-contains production semantic/blob API and mediation changes, so the T20/T22/
-T23/T24 results below are evidence for candidate `4efb1d…` on snapshot `6da…`
-only; actual-main re-audit is pending. None of these records changes the
-production-candidate identity or constitutes certification.
+Actual current `main` and the current T20 evidence baseline are exactly
+`103a75e96cd9f7b9e495a39bb6608316c47b76e6`, the PR #384 merge. Its
+post-rollback lineage is PR #382 merge
+`a898e5be6e33f5f448992c7ddb642af7336bc8f8`, PR #383 merge
+`7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, then PR #384 head
+`d6654ca09d0c9d46701288054090a9bcbddc31af`; PR #384 CI run `33250772703`
+passed both required jobs and its T20 ledger records 10/10 trusted PG18 rows.
+The former PR #381 reconciliation, candidate
+`4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
+`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24
+results are retained as historical/superseded. T22's existing manifest is
+under parallel current-main re-review; T23/T24/T25 have no current-main
+evidence on `103a75e…`. None of these records constitutes certification.
 
 | Task | Current issue/PR state | Candidate/snapshot evidence disposition |
 | --- | --- | --- |
-| T19 / ME-295 | Issue `done`; PR #379 merged (head `f1f36856b6e33d41e59d6cfe81eada39f289b43f`, base `7716c1c33cd08cde57e8226ca063c6c83c650e8e`, merge `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`), CI run `33221134508` passed both required jobs | Snapshot controlled registry evidence remains the exact 32-ID set; CV-018/019/028/029/034..037 remain unregistered gaps. Actual-main impact is not re-audited here. |
-| T20 / ME-296 | Issue `done`; PR #359 merged (head `a1d7d3cd274499e613fac70ce57d34e79483e613`, base `4cb890cc4728402ba8dca2ee6131d45bda61a6d9`, merge `8761991c36c07b7ee32d2643228bfb458fdeb2d0`), CI run `33065369687` passed both required jobs | T23's 10/10 trusted PG18 run is evidence for candidate `4efb1d…`/snapshot `6da…` only; actual-main re-audit after PR #380 is **pending**. T20's owner ledger is not rewritten here. |
-| T22 / ME-298 | Issue `done`; PR #377 merged (head `d3232672c31a133ca6f5f3172e306ea768259c4c`, base `657e571ced6e06219e9d1a065775d762e4a83279`, merge `856814dfef5ca800e7c94cdabffd926846663110`), CI run `33190567067` passed both required jobs | Refreshed 38-ready manifest with CV-028/CV-029 gaps is snapshot evidence only; actual-main re-audit after PR #380 is **pending**. The old `31 Pass / 9 Unavailable` / `gate_passes: false` result remains historical/non-current. |
-| T23 / ME-299 | Issue `done`; PR #376 merged (head `92a2a8eb763976b65f84b889b4de95a9124e6fce`, base/candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, merge `657e571ced6e06219e9d1a065775d762e4a83279`), CI run `33182385085` passed both required jobs | Passing core evidence is for candidate `4efb1d…` on snapshot `6da…` only; actual-main re-audit after PR #380 is **pending**. CLI external-boundary failure and capability gaps remain non-certifying facts. |
-| T24 / ME-300 | Issue `blocked`; PR #378 merged (head `5d77ddda808f5594c2efe3b8c169f82814d6898b`, base `856814dfef5ca800e7c94cdabffd926846663110`, merge `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33193706827` passed both required jobs | Snapshot gate is fail-closed: 38 `Pass`, 2 `Unavailable` for CV-028/CV-029, `gate_passes: false`; actual-main re-audit after PR #380 is **pending**. This is not certification and does not convert either gap to Pass. |
+| T19 / ME-295 | Issue `done`; PR #379 merged (head `f1f36856b6e33d41e59d6cfe81eada39f289b43f`, base `7716c1c33cd08cde57e8226ca063c6c83c650e8e`, merge `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`), CI run `33221134508` passed both required jobs | Historical snapshot controlled registry evidence remains the exact 32-ID set; CV-018/019/028/029/034..037 remain unregistered gaps. |
+| T20 / ME-296 | Issue `done`; PR #384 merged (head `d6654ca09d0c9d46701288054090a9bcbddc31af`, base `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, merge `103a75e96cd9f7b9e495a39bb6608316c47b76e6`), CI run `33250772703` passed both required jobs | Current-main T20 evidence: 10/10 trusted PostgreSQL 18 rows on `103a75e…`; the T20 owner ledger is not rewritten here. |
+| T22 / ME-298 | Issue `done` for existing manifest; PR #377 merged (head `d3232672c31a133ca6f5f3172e306ea768259c4c`, base `657e571ced6e06219e9d1a065775d762e4a83279`, merge `856814dfef5ca800e7c94cdabffd926846663110`), CI run `33190567067` passed both required jobs | Current-main re-review is in progress in parallel; no new `103a75e…` evidence is recorded by T21. The 38-ready/CV-028/CV-029 result remains historical snapshot evidence. |
+| T23 / ME-299 | Issue `backlog`; PR #376 merged (head `92a2a8eb763976b65f84b889b4de95a9124e6fce`, base/candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, merge `657e571ced6e06219e9d1a065775d762e4a83279`), CI run `33182385085` passed both required jobs | No current-main evidence exists for `103a75e…`; the former passing core result remains historical/superseded. |
+| T24 / ME-300 | Issue `backlog`; PR #378 merged (head `5d77ddda808f5594c2efe3b8c169f82814d6898b`, base `856814dfef5ca800e7c94cdabffd926846663110`, merge `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33193706827` passed both required jobs | No current-main evidence exists for `103a75e…`; the former snapshot gate remains fail-closed at 38 `Pass`, 2 `Unavailable` (CV-028/CV-029), `gate_passes: false`, and is not certification. |
 
 The superseded 2026-08-28 `95f7e7a...` snapshot is retained as historical
 evidence: its
@@ -90,10 +92,10 @@ the T20 ledger.
 | Task | Issue | Dependency | Current state | Record |
 | --- | ---: | --- | --- | --- |
 | VALR-T21 | [#326](https://github.com/6spot/Loom/issues/326) | #325 / T20 | `in_progress` | this file |
-| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `done` | `t22-certification-manifest.md` (T22-owned; PR #377 merged and consumed) |
-| VALR-T23 | [#328](https://github.com/6spot/Loom/issues/328) | #327 / T22 | `done` | `t23-core-integrated-gate.md` (T23-owned; PR #376 merged; current evidence passing) |
-| VALR-T24 | [#329](https://github.com/6spot/Loom/issues/329) | #327 / T22 | `blocked` | `t24-validator-certification-gate.md` (T24-owned; PR #378 merged; CV-028/CV-029 gaps remain) |
-| VALR-T25 | [#330](https://github.com/6spot/Loom/issues/330) | #326, #328, #329 | `blocked` | `t25-final-certificate.md` (T25-owned; blocked until prerequisite evidence converges) |
+| VALR-T22 | [#327](https://github.com/6spot/Loom/issues/327) | #325 / T20 | `done` / re-review in progress | `t22-certification-manifest.md` (T22-owned; PR #377 is historical snapshot evidence) |
+| VALR-T23 | [#328](https://github.com/6spot/Loom/issues/328) | #327 / T22 | `backlog` | `t23-core-integrated-gate.md` (T23-owned; no `103a75e…` current-main evidence) |
+| VALR-T24 | [#329](https://github.com/6spot/Loom/issues/329) | #327 / T22 | `backlog` | `t24-validator-certification-gate.md` (T24-owned; no `103a75e…` current-main evidence) |
+| VALR-T25 | [#330](https://github.com/6spot/Loom/issues/330) | #326, #328, #329 | `backlog` | `t25-final-certificate.md` (T25-owned; final certification boundary) |
 
 Current-main V0 re-certification is **pending until T25**. Only T25 may publish
 the final certificate after T21, T22, T23 and T24 evidence converges. No root,
@@ -113,6 +115,7 @@ Stage, or historical M13 completion claim is changed by this record.
 - 2026-08-27 — Created the current-main recertification root and Stage-3 navigation, reconciled README/task-index/roadmap status wording, and created this T21 in-progress ledger. Preserved M13 candidate/PR/merge facts, separated post-M13 authority-fix history, left the historical Validator ledger untouched, and kept final certification pending until T25.
 - 2026-08-29 — Initial snapshot reconciliation against candidate `4efb1d346c926f2ee10654c3bc24cd92af351881` and evidence snapshot/base `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`. Recorded merged T19/T22/T23/T24 snapshot evidence, replaced the superseded `95f7e7...`/pending current-state claims, and retained the prior candidate and non-current evidence as historical. T24 remains blocked by CV-028/CV-029; final certification remains pending until T25.
 - 2026-08-29 — D-001 rework: corrected actual `main` to `ef281f886480663a94193f738179d14933040a12` after PR #380, while retaining `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d` as the evidence snapshot/base and `4efb1d…` as the production candidate. Reclassified T20/T22/T23/T24 results as snapshot evidence with actual-main re-audit pending; preserved all historical evidence and certification/T25 boundaries.
+- 2026-08-29 — Current-main update: actual `main` and the T20 evidence baseline advanced to `103a75e96cd9f7b9e495a39bb6608316c47b76e6` through PR #382 merge `a898e5be6e33f5f448992c7ddb642af7336bc8f8`, PR #383 merge `7e92033c5b3a14ea30ad8b18bbc68f73145866bb` and PR #384. T20 is refreshed with 10/10 trusted PG18 evidence; T22 is under parallel re-review; T23/T24/T25 have no current-main evidence. Former PR #381, `4efb1d…`, `6da9989…` and `ef281f8…` records remain historical/superseded.
 
 ## Historical verification evidence (superseded 2026-08-29 snapshot)
 
@@ -135,7 +138,7 @@ Stage, or historical M13 completion claim is changed by this record.
   checked against this candidate.
 - `git diff --check` — PASS; no whitespace errors in the candidate diff.
 
-## Latest verification evidence (2026-08-29)
+## Superseded verification evidence (2026-08-29 ef snapshot)
 
 The reconciliation was checked against actual `main` at
 `ef281f886480663a94193f738179d14933040a12`, with snapshot/base
@@ -169,3 +172,11 @@ is not promoted to actual-main evidence.
 
 Completion fields remain blank until the Leader's merge workflow supplies
 completion PR and merge evidence.
+
+## Latest verification evidence (2026-08-29 current-main update)
+
+The reconciliation update was checked against actual `main` and T20 evidence
+baseline `103a75e96cd9f7b9e495a39bb6608316c47b76e6`. The earlier PR #381,
+candidate `4efb1d…`, snapshot/base `6da9989…` and prior actual-main
+`ef281f8…` remain historical/superseded; the six-file diff is limited to this
+T21/index scope and does not rewrite any owner ledger.

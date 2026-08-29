@@ -171,21 +171,23 @@ Loom
 
 **Current-main certification:** The historical M13 candidate and closure records below remain preserved audit evidence. Current-main V0 re-certification is in progress and remains **pending until T25**; the repository must not be described as V0 re-certified or as having a complete recertification root before that final gate.
 
-**Current-main evidence snapshot (2026-08-29):** The production candidate under
-re-certification is `4efb1d346c926f2ee10654c3bc24cd92af351881`, the merge of PR
-#375 (both required CI jobs passed). The T21 evidence snapshot/base is
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; actual current `main` has since
-advanced through PR #380 (head `3abc7f65d21fe7d6564c671ab18db11420da3741`)
-to `ef281f886480663a94193f738179d14933040a12`, including production
-semantic/blob API and mediation changes. Therefore T20/T22/T23/T24 results
-on `4efb1d…` are snapshot evidence only; their re-audit against actual main is
-pending. T19 remains the verified 32-ID registry snapshot with eight
-intentionally unregistered gap rows. T24 remains fail-closed by the real
-CV-028/CV-029 gaps. The prior `95f7e7a...` candidate, older PR results, and
-`31 Pass / 9 Unavailable` / `gate_passes: false` records remain
-historical/non-current evidence. T25 remains the only final certification gate.
+**Current-main evidence snapshot (2026-08-29):** Actual current `main` and the
+current T20 evidence baseline are
+`103a75e96cd9f7b9e495a39bb6608316c47b76e6`, the merge of PR #384. Its
+post-rollback lineage is PR #382 (`a898e5be6e33f5f448992c7ddb642af7336bc8f8`),
+PR #383 (`7e92033c5b3a14ea30ad8b18bbc68f73145866bb`) and PR #384; T20 records
+10/10 trusted PostgreSQL 18 rows on this baseline. T22's existing manifest is
+under parallel current-main re-review; T23, T24 and T25 have not produced
+current-main evidence for `103a75e…`. The former PR #381 reconciliation,
+candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
+`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
+`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24 results
+are retained as historical/superseded evidence. T19 remains a historical
+32-ID registry snapshot; prior CV gaps and `31 Pass / 9 Unavailable` /
+`gate_passes: false` records remain unchanged. T25 remains the only final
+certification gate, and current-main re-certification is still pending.
 See the [current-main recertification ledger](docs/tasks/validator-recert/README.md)
-for exact candidate, snapshot, actual-main, pending and historical mappings.
+for exact current, pending and historical mappings.
 
 **Historical M12/M13 delivery evidence (preserved):**
 
