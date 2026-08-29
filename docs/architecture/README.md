@@ -47,6 +47,7 @@ Accepted amendments are part of the current baseline from their merge point onwa
 - `amendments/0001-runtime-liveness-and-boundaries.md` — Work failure exit, same-World-Time liveness budget, scheduler driver ownership, `SKIP_LOCKED` scope, Event occurrence-time ownership, Ingress contract, Template technical placement and terminology reconciliation.
 - `amendments/0002-supersession-and-authority-linkage.md` — exact supersession mapping, one claimability contract, Chronology Budget authority placement, current CI baseline, missing-implementation observability and Amendment linkage rules.
 - `amendments/0003-agency-execution-and-pinned-read-boundary.md` — autonomous Agent-wake execution closure, target-specific Scheduler admission for Agency Wake, AgentWorldView production authority, scalable pinned-read semantics, explicit Timeline-wide commit serialization and scale-related deferred decisions.
+- `amendments/0004-derived-resource-public-read-boundary.md` — narrow Runtime-mediated `QueryService` reads for semantic projections and exact blob references; no projection/blob mutation surface or Storage authority is exposed.
 
 A frozen document does not mean “never change.” It means changes are explicit, reviewable Amendments rather than silent edits that make history impossible to audit.
 
@@ -71,16 +72,18 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `runtime-contracts.md` | §16.5 | Amendment 0003 §4 — pinned `BaseWorldView` is a consistency contract, not a requirement to eagerly materialize the complete World in memory |
 | `runtime-contracts.md` | §9.5, §10.1, §16.1 | Amendment 0001 §5 — Capability does not choose authoritative `occurred_at` |
 | `runtime-contracts.md` | §14.11 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common Scheduler claim/admission contract with Agency-Wake target-specific compatibility |
-| `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 — public API includes Ingress service/domain |
+| `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 + Amendment 0004 §3–§5 — public API includes Ingress plus provider-neutral semantic-projection and exact blob-reference reads mediated by Runtime |
 | `runtime-contracts.md` | §20.2 | Amendment 0001 §7 — Runtime owns Template validation / ValidatedWorldBirthPlan authority |
 | `runtime-contracts.md` | §22 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, not an independent specification layer |
+| `governance.md` | public exposure rules | Amendment 0004 §5 — derived-resource public DTOs remain provider/storage-neutral; Runtime/Storage/SQL/BlobStore authority is not exposed to external consumers |
 | `governance.md` | §15 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, subordinate to accepted Amendments and detailed governance sections |
 | `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
-| `implementation.md` | §5.1 | Amendment 0001 §6.2 — public API includes Ingress |
-| `implementation.md` | §6.5, §13/§13.3 `SKIP LOCKED` statements | Amendment 0001 §4 — `SKIP LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
+| `implementation.md` | §5.1 | Amendment 0001 §6.2 + Amendment 0004 §3–§5 — public API includes Ingress plus the two narrow derived-resource reads |
+| `implementation.md` | §6.5, §13/§13.3 `SKIP LOCKED` statements | Amendment 0001 §4 — `SKIP_LOCKED` may distribute across independent Timeline heads but must never skip a logical head within one Timeline |
 | `implementation.md` | §11.5 | Amendment 0003 §5 — optimistic TimelineVersion CAS implies Timeline-wide successful-commit serialization in v0 |
 | `implementation.md` | §13.1, §13.2 | Amendment 0003 §3.2 — logical Work target/compatibility is target-specific for Capability Work vs Agency Wake while due/order/status remain shared |
 | `implementation.md` | §15.2, §16 | Amendment 0003 §3 — Agency cognition tail is preceded by durable wake/session/context orchestration |
+| `implementation.md` | §16 | Amendment 0004 §3 — semantic projection reads may be consumed externally only through the Runtime-mediated provider-neutral `QueryService` contract |
 | `implementation.md` | §12.2, §21.5 | Amendment 0001 §5 — Runtime-stamped Event occurrence time |
 | `implementation.md` | §12.3 | Amendment 0001 §9 + Amendment 0002 §2 + Amendment 0003 §3.2 — common claim/admission contract plus target-specific Agency-Wake compatibility |
 | `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
