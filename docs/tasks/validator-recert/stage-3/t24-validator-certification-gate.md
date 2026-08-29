@@ -19,7 +19,7 @@ T25 owns the final current-main certification decision.
 
 ## Candidate and evidence contract
 
-- Fixed production candidate: `4efb1d346c926f2ee10654c3bc24cd92af351881`.
+- Fixed production candidate: `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
 - The gate accepts this exact production candidate or an evidence-only
   descendant only when the fixed candidate is an ancestor and the complete
   diff contains only these three authorized T24 files: this ledger and the two
@@ -108,3 +108,25 @@ T08, and CV-029 lacks the formal blob/reference fetch observable required by
 T08. T24 does not add a public seam or reinterpret internal controlled-driver
 evidence. No PR was created or merged by Executor; final certification remains
 owned by T25.
+
+### Current-main rerun on `103a75e96cd9f7b9e495a39bb6608316c47b76e6`
+
+This append-only record supersedes the prior `4efb1d…` run for current-main
+evidence. The prior candidate and report remain historical only.
+
+- Candidate/base: `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
+- Evidence HEAD: recorded after the T24-only tooling/ledger update below;
+  the production candidate remains unchanged.
+- T22 manifest input: merge `322a9268648d243abd6196f508f5c88681c0c6a1`
+  (PR #386), read by the gate at the exact manifest ref.
+- T19 latest ledger input remains merge
+  `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; T23 core evidence input remains
+  merge `657e571ced6e06219e9d1a065775d762e4a83279`.
+- Race protocol: closed; no persistence, claim, retry, checkpoint, marker, or
+  concurrency authority was added.
+- The complete 40-row report, command summaries, PG18 report, artifact hashes,
+  and exact non-pass reasons are recorded in the handoff comment for this run.
+- CV-028 and CV-029 remain truthful `Unavailable` rows because the refreshed
+  manifest still lacks the required formal semantic-projection and
+  blob/reference-fetch observables. No descriptor, registry entry, or Pass was
+  fabricated; final certification remains unclaimed.
