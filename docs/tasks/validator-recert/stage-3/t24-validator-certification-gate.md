@@ -1,13 +1,13 @@
 ---
 task: VALR-T24
 issue: 329
-status: in_progress
+status: completed
 depends_on: [327]
 created_at: 2026-08-27
 started_at: 2026-08-27
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-30
+completion_pr: 387
+merge_sha: f0cf50061b31e9f5e5a595ddaa9c71a4eff554d2
 ---
 
 # VALR-T24 — Validator certification/integration gate
@@ -115,8 +115,7 @@ This append-only record supersedes the prior `4efb1d…` run for current-main
 evidence. The prior candidate and report remain historical only.
 
 - Candidate/base: `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
-- Evidence HEAD: recorded after the T24-only tooling/ledger update below;
-  the production candidate remains unchanged.
+- Evidence HEAD: `a45ed079637644e02e1d72d9a0025ea1723adae1`.
 - T22 manifest input: merge `322a9268648d243abd6196f508f5c88681c0c6a1`
   (PR #386), read by the gate at the exact manifest ref.
 - T19 latest ledger input remains merge
@@ -130,3 +129,17 @@ evidence. The prior candidate and report remain historical only.
   manifest still lacks the required formal semantic-projection and
   blob/reference-fetch observables. No descriptor, registry entry, or Pass was
   fabricated; final certification remains unclaimed.
+
+## Completion reconciliation
+
+T24 is complete as a **truthfulness/certification-gate execution task**, not as
+a claim that V0 itself is certified. PR #387 merged the current-main T24
+evidence as `f0cf50061b31e9f5e5a595ddaa9c71a4eff554d2`; its exact head
+`a45ed079637644e02e1d72d9a0025ea1723adae1` completed CI run `33262635979`
+with conclusion `success`.
+
+The durable result handed to T25 is intentionally fail-closed: 38 `Pass`,
+2 `Unavailable` (`CV-028`, `CV-029`), `gate_passes: false`. Completing T24
+therefore means the Validator gate is trustworthy and its evidence is complete;
+it does **not** erase the two product-observability gaps or authorize a final
+green V0 certificate.
