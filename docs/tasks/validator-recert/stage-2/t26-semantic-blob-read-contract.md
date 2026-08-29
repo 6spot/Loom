@@ -51,6 +51,34 @@ facts about that merged candidate, not evidence for the reverted code. The
 implementation was not accepted as a current architecture/remediation because
 the required Architecture Amendment was absent.
 
+### Historical AC mapping
+
+- Formal semantic read identity/revision and typed unavailable/stale/source
+  outcomes → `loom-api` QueryService, Runtime mapping, Boundary/Client routes.
+- Projection delete/rebuild equivalence and authoritative-history isolation →
+  CV-028 formal reads and public History/Facet/Timeline assertions.
+- Exact blob success/not-found/integrity distinction and no World mutation →
+  CV-029 formal reads and public History/Facet assertions.
+- Pinned/versioned behavior remained explicit → semantic query's
+  `at_source_revision` and the existing CV-030 path; no T15 result change.
+- InMemory + controlled PostgreSQL 18 execution → the 11-test semantic_blob
+  suite.
+
+### Historical verification evidence
+
+The following evidence was recorded against the PR #380 candidate before
+review. It remains historical and does not certify the reverted implementation:
+
+- `cargo check -p loom-api -p loom-runtime -p loom-boundary -p loom-client -p loom-server` → PASS.
+- `cargo check -p loom-validator --test semantic_blob` → PASS.
+- `env -u LOOM_TEST_POSTGRES_URL cargo test -p loom-validator --test semantic_blob -- --nocapture` → PASS; 11 passed, 0 failed, 0 ignored, 0 filtered out.
+- `bash tools/validator-pg18-gate.sh` with a fresh PostgreSQL 18 control database → PASS; 10 required live rows passed.
+- `cargo fmt --all -- --check`, workspace check, strict clippy, architecture
+  check, storage SQL ownership, `git diff --check`, and cargo-deny checks →
+  PASS.
+- Validator readiness checks and the full workspace test wrapper were recorded
+  as PASS for that candidate.
+
 ## Cancellation and rollback log
 
 - 2026-08-29 — PR #380 merged the implementation described above.
