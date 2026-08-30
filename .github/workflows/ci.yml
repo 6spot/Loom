@@ -78,6 +78,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # T24 proves that a fixed production candidate is an ancestor of the
+          # evidence head. A depth-1 PR checkout contains only GitHub's
+          # synthetic merge commit and cannot prove that ancestry.
+          fetch-depth: 0
 
       - name: Install Rust
         run: |
