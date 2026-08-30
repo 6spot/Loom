@@ -1,10 +1,10 @@
 ---
 task: SCHD-T18
 issue: 420
-status: in_progress
+status: planned
 depends_on: [417]
 created_at: 2026-08-30
-started_at: 2026-08-31
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -20,14 +20,14 @@ drive.
 
 ## Scope and acceptance
 
-- [x] Start the real `LoomServer`/HTTP boundary against controlled PostgreSQL
+- [ ] Start the real `LoomServer`/HTTP boundary against controlled PostgreSQL
       18 with normal config and no target fields.
-- [x] Create a representative World through supported public/client surfaces,
+- [ ] Create a representative World through supported public/client surfaces,
       observe its Pending Scheduler obligation through formal History/Facet/
       Admin reads, and make no internal helper call.
-- [x] Assert no restart/rebuild/env mutation and no semantic proof via direct
+- [ ] Assert no restart/rebuild/env mutation and no semantic proof via direct
       SQL or unbounded sleeps.
-- [x] The required live PG18 test actually executes and remains stable.
+- [ ] The required live PG18 test actually executes and remains stable.
 
 ## Progress Log
 
@@ -35,6 +35,9 @@ drive.
   create a World after the target-neutral server is already serving, schedule
   a neutral reaction through the public Action API, and observe Scheduler
   progression through public Facet, History and Admin reads.
+- 2026-08-31 — Governance reconciliation: prerequisite #417 remains
+  `planned` on the canonical task ledger, so T18 is kept `planned` and its
+  acceptance remains pending until the dependency is post-merge reconciled.
 
 ## Verification Evidence
 
