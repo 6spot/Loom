@@ -1,12 +1,12 @@
 ---
 task: SCHD-T11
 issue: 413
-status: planned
+status: in_progress
 depends_on: [412]
 created_at: 2026-08-30
-started_at:
+started_at: 2026-08-31
 completed_at:
-completion_pr:
+completion_pr: 447
 merge_sha:
 ---
 
@@ -38,9 +38,11 @@ later stable Timelines cannot be permanently starved.
 - 2026-08-31 — Added deterministic Supervisor coverage for bounded repeated
   visits, end wrapping, a permanently blocked first target, cursor-adjacent
   terminalization, empty-page cursor recovery and later target creation.
-- 2026-08-31 — Ledger governance reconciliation: the implementation candidate
-  is prepared, but prerequisite SCHD-T10 remains canonically `in_progress`;
-  task state is therefore kept `planned` until that dependency is reconciled.
+- 2026-08-31 — Initial ledger reconciliation kept this task `planned` because
+  prerequisite SCHD-T10 had not yet been post-merge reconciled.
+- 2026-08-31 — SCHD-T10 was reconciled to canonical `completed` by PR #448
+  after delivery PR #445 merged. T11 is now legitimately `in_progress`; this
+  ledger-only update changes no implementation semantics.
 
 ## Verification Evidence
 
