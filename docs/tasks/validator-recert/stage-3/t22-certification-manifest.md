@@ -1,13 +1,13 @@
 ---
 task: VALR-T22
 issue: 327
-status: in_progress
+status: completed
 depends_on: [326]
 created_at: 2026-08-29
 started_at: 2026-08-30
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-30
+completion_pr: 394
+merge_sha: b225d9c36662432bc4f377d8d4f29d0f1ed763fa
 architecture_decision_blocker: false
 ---
 
@@ -101,6 +101,7 @@ Status semantics:
 - Candidate tree: `71bb8da37f55cc5b1bb4c8ed0f004f47a4ebf00e`.
 - Exact-tree implementation head: `91e162105936bc1be9743ea0bc7f3dd1423a5143`.
 - Exact-tree CI: run `33269628735`, Rust checks success, PostgreSQL 18 persistence contract success.
+- Evidence-preparation PR: #394, merge `b225d9c36662432bc4f377d8d4f29d0f1ed763fa`, CI run `33288294125`, both required jobs success.
 - Public Validator CV set: exactly CV-001 through CV-040, duplicate-free.
 - Capability status: **40 ready / 0 gap**.
 - CV-028/CV-029 evidence source: controlled `semantic_blob` tests with formal LoomClient observations under Amendment 0004; 11/11 semantic/blob tests passed in the full workspace run, including InMemory and PostgreSQL 18 controlled paths.
