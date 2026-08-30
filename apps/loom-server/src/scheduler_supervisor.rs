@@ -5,6 +5,8 @@
 //! [`loom_api::TimelineTarget`]: target identities are discovered through the
 //! Runtime-owned discovery port for each cycle.
 
+use std::time::Duration;
+
 use loom_api::{ApiError, ApiResult, TimelineTarget};
 use loom_runtime::{
     ExecutionSessionStore, PinnedWorldReadStore, PlatformClock, Runtime, RuntimeControlStore,
@@ -13,6 +15,7 @@ use loom_runtime::{
     SemanticProjectionStore, TimelineDriverResult, WorkStore, WorldRuntimeBindingStore, WorldStore,
     WorldTimeStore,
 };
+use tokio::time::sleep;
 
 use crate::{ShutdownSignal, WorkerConfig};
 
@@ -141,6 +144,38 @@ where
         self.shutdown.clone()
     }
 
+    /// Runs bounded discovery/drive cycles until graceful shutdown.
+    ///
+    /// `worker_poll_interval` is the existing application worker cadence. It
+    /// is used only as platform timing between completed cycles; it does not
+    /// participate in discovery ordering or Runtime World-Time decisions. A
+    /// shutdown request observed while a cycle is driving a target allows that
+    /// active Runtime operation to finish, then prevents any subsequent target
+    /// or cycle from starting.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first genuine discovery or Runtime authority error surfaced
+    /// by a bounded cycle.
+    pub async fn run_until_shutdown(&mut self, worker_poll_interval: Duration) -> ApiResult<()> {
+        loop {
+            if self.shutdown.is_requested() {
+                return Ok(());
+            }
+
+            self.run_cycle().await?;
+
+            if self.shutdown.is_requested() {
+                return Ok(());
+            }
+
+            tokio::select! {
+                () = sleep(worker_poll_interval) => {}
+                () = self.shutdown.wait() => return Ok(()),
+            }
+        }
+    }
+
     /// Discovers and drives one bounded page of Scheduler Timeline targets.
     ///
     /// The existing `WorkerConfig::scheduler_poll_limit` is used as both the
@@ -189,11 +224,17 @@ where
         let mut outcomes = Vec::with_capacity(discovered_targets.len());
 
         for target in &discovered_targets {
+            if self.shutdown.is_requested() {
+                break;
+            }
             let now = self.clock.now();
             let claimed_until =
                 crate::add_platform_duration(now, self.worker_config.lease_duration())?;
             let retry_available_at =
                 crate::add_platform_duration(now, self.worker_config.retry_backoff())?;
+            if self.shutdown.is_requested() {
+                break;
+            }
             let result = self
                 .runtime
                 .drive_timeline(*target, now, claimed_until, retry_available_at)
@@ -232,7 +273,11 @@ mod tests {
         WorkTerminalization, WorldRuntimeBinding,
     };
     use loom_storage::InMemoryStore;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+    use std::time::Duration;
 
     use super::SchedulerSupervisor;
     use crate::{ShutdownSignal, WorkerConfig};
@@ -358,6 +403,24 @@ mod tests {
         }
     }
 
+    struct ShutdownAfterFirstClock {
+        shutdown: ShutdownSignal,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl PlatformClock for ShutdownAfterFirstClock {
+        fn now(&self) -> PlatformTime {
+            if self.calls.fetch_add(1, Ordering::AcqRel) == 0 {
+                let shutdown = self.shutdown.clone();
+                tokio::spawn(async move {
+                    tokio::task::yield_now().await;
+                    shutdown.request();
+                });
+            }
+            PlatformTime::new(7)
+        }
+    }
+
     fn runtime() -> Runtime<InMemoryStore> {
         Runtime::new(InMemoryStore::new(), CapabilityRegistry::new())
             .expect("empty registry should assemble")
@@ -416,6 +479,150 @@ mod tests {
         assert_eq!(report.driven_count(), 0);
         assert!(report.discovered_targets().is_empty());
         assert!(report.outcomes().is_empty());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn shutdown_before_loop_start_performs_no_discovery_or_drive() {
+        let store = InMemoryStore::new();
+        let runtime = Runtime::new(&store, CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let shutdown = ShutdownSignal::new();
+        shutdown.request();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ShutdownAfterFirstClock {
+                shutdown: shutdown.clone(),
+                calls: Arc::clone(&calls),
+            },
+            worker_config(1),
+            shutdown,
+        );
+
+        supervisor
+            .run_until_shutdown(Duration::from_millis(1))
+            .await
+            .expect("pre-start shutdown should be a normal loop result");
+
+        assert_eq!(calls.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn shutdown_after_one_cycle_prevents_a_second_cycle() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x600);
+        let timeline_id: TimelineId = id(0x601);
+        store
+            .create_timeline(world_id, timeline_id)
+            .expect("test Timeline should be created");
+        store
+            .seed_work(pending_work(timeline_id, id(0x602)))
+            .expect("Pending Work should be seeded");
+        let runtime = blocked_runtime(&store, world_id);
+        let shutdown = ShutdownSignal::new();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ShutdownAfterFirstClock {
+                shutdown: shutdown.clone(),
+                calls: Arc::clone(&calls),
+            },
+            worker_config(1),
+            shutdown,
+        );
+
+        supervisor
+            .run_until_shutdown(Duration::from_mins(1))
+            .await
+            .expect("shutdown after one cycle should be a normal loop result");
+
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn empty_discovery_continues_until_shutdown_instead_of_exiting() {
+        let store = InMemoryStore::new();
+        let runtime = Runtime::new(&store, CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let shutdown = ShutdownSignal::new();
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(1),
+            shutdown.clone(),
+        );
+        let mut run = Box::pin(supervisor.run_until_shutdown(Duration::from_mins(1)));
+
+        tokio::select! {
+            result = &mut run => panic!("empty discovery exited before shutdown: {result:?}"),
+            () = tokio::time::sleep(Duration::from_millis(10)) => shutdown.request(),
+        }
+        run.await
+            .expect("shutdown should stop an idle loop normally");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn idle_result_continues_until_shutdown_instead_of_exiting() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x610);
+        let timeline_id: TimelineId = id(0x611);
+        let work_id: WorkId = id(0x612);
+        store
+            .create_timeline(world_id, timeline_id)
+            .expect("test Timeline should be created");
+        store
+            .seed_work(pending_work(timeline_id, work_id))
+            .expect("Pending Work should be seeded");
+        let runtime = Runtime::new(&store, CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let shutdown = ShutdownSignal::new();
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ClearingClock {
+                store: &store,
+                timeline_id,
+                work_id,
+                cleared: AtomicBool::new(false),
+            },
+            worker_config(1),
+            shutdown.clone(),
+        );
+        let mut run = Box::pin(supervisor.run_until_shutdown(Duration::from_mins(1)));
+
+        tokio::select! {
+            result = &mut run => panic!("idle result exited before shutdown: {result:?}"),
+            () = tokio::time::sleep(Duration::from_millis(10)) => shutdown.request(),
+        }
+        run.await
+            .expect("shutdown should stop an idle-result loop normally");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn genuine_runtime_error_terminates_the_loop_with_an_error() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x620);
+        let timeline_id: TimelineId = id(0x621);
+        store
+            .create_timeline(world_id, timeline_id)
+            .expect("test Timeline should be created");
+        store
+            .seed_work(pending_work(timeline_id, id(0x622)))
+            .expect("Pending Work should be seeded");
+        let runtime = Runtime::new(&store, CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(1),
+            ShutdownSignal::new(),
+        );
+
+        assert!(
+            supervisor
+                .run_until_shutdown(Duration::from_millis(1))
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
