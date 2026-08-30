@@ -33,10 +33,10 @@ use loom_runtime::{
     WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
 };
 use loom_storage::{BlobStoreInitError, LocalBlobStore, PgStorage};
-use tokio::{net::TcpListener, sync::mpsc, time::sleep};
+use tokio::{net::TcpListener, sync::mpsc};
 use tracing::{error, info};
 
-use crate::{IngressWorker, SchedulerWorker, ServerConfig, ServerConfigError, ShutdownSignal};
+use crate::{IngressWorker, SchedulerSupervisor, ServerConfig, ServerConfigError, ShutdownSignal};
 
 /// Redacted startup/runtime failure for the application boundary.
 #[derive(Debug)]
@@ -367,7 +367,7 @@ pub struct LoomServer {
     // root lifetime even though current public API routes do not read blobs.
     _blob_store: Arc<dyn loom_runtime::BlobStore>,
     ingress_worker: Option<IngressWorker<PgStorage, SystemClock>>,
-    scheduler_worker: Option<SchedulerWorker<PgStorage, SystemClock>>,
+    scheduler_supervisor: SchedulerSupervisor<PgStorage, SystemClock>,
     shutdown: ShutdownSignal,
 }
 
@@ -500,15 +500,12 @@ impl LoomServer {
             config.worker_poll_interval,
             shutdown.clone(),
         ));
-        let scheduler_worker = config.scheduler_target.map(|target| {
-            SchedulerWorker::new(
-                scheduler_runtime,
-                target,
-                SystemClock,
-                config.worker_config,
-                shutdown.clone(),
-            )
-        });
+        let scheduler_supervisor = SchedulerSupervisor::new(
+            scheduler_runtime,
+            SystemClock,
+            config.worker_config,
+            shutdown.clone(),
+        );
 
         Ok(Self {
             config,
@@ -516,7 +513,7 @@ impl LoomServer {
             storage,
             _blob_store: Arc::new(blob_store),
             ingress_worker,
-            scheduler_worker,
+            scheduler_supervisor,
             shutdown,
         })
     }
@@ -527,9 +524,10 @@ impl LoomServer {
         self.router.clone()
     }
 
-    /// Runs HTTP, Ingress and optional Scheduler loops under one graceful
-    /// shutdown signal. No worker is spawned per request; each queue/loop is
-    /// bounded and uses the shared `PostgreSQL` authority contracts.
+    /// Runs HTTP, Ingress and automatic Scheduler supervision under one
+    /// graceful shutdown signal. No worker is spawned per request; each
+    /// queue/loop is bounded and uses the shared `PostgreSQL` authority
+    /// contracts.
     ///
     /// # Errors
     ///
@@ -547,7 +545,7 @@ impl LoomServer {
             storage,
             _blob_store,
             ingress_worker,
-            scheduler_worker,
+            scheduler_supervisor,
             shutdown,
         } = self;
         let serve_shutdown = shutdown.clone();
@@ -578,23 +576,12 @@ impl LoomServer {
 
         let scheduler_shutdown = shutdown.clone();
         let scheduler_poll = async move {
-            let Some(mut worker) = scheduler_worker else {
-                return Ok(());
-            };
-            let result = run_scheduler_until_shutdown(
-                &mut worker,
+            run_scheduler_supervisor_until_shutdown(
+                scheduler_supervisor,
                 config.worker_poll_interval,
-                config.worker_config.scheduler_poll_limit(),
-                scheduler_shutdown.clone(),
+                scheduler_shutdown,
             )
             .await
-            .map_err(|error| ServerError::Worker {
-                message: error.message,
-            });
-            if result.is_err() {
-                scheduler_shutdown.request();
-            }
-            result
         };
 
         let (serve_result, ingress_result, scheduler_result) =
@@ -615,14 +602,14 @@ pub async fn run_from_env() -> Result<(), ServerError> {
     Box::pin(server.run()).await
 }
 
-async fn run_scheduler_until_shutdown<S>(
-    worker: &mut SchedulerWorker<S, SystemClock>,
+async fn run_scheduler_supervisor_until_shutdown<S, C>(
+    mut supervisor: SchedulerSupervisor<S, C>,
     poll_interval: std::time::Duration,
-    poll_limit: usize,
     shutdown: ShutdownSignal,
-) -> ApiResult<()>
+) -> Result<(), ServerError>
 where
-    S: WorldStore
+    S: loom_runtime::SchedulerDiscoveryStore
+        + WorldStore
         + WorldRuntimeBindingStore
         + WorkStore
         + RuntimeRevisionStore
@@ -632,12 +619,18 @@ where
         + WorldTimeStore
         + SemanticProjectionStore
         + PinnedWorldReadStore,
+    C: PlatformClock,
 {
-    while !shutdown.is_requested() {
-        worker.run_bounded(poll_limit).await?;
-        sleep(poll_interval).await;
+    let result = supervisor
+        .run_until_shutdown(poll_interval)
+        .await
+        .map_err(|error| ServerError::Worker {
+            message: error.message,
+        });
+    if result.is_err() {
+        shutdown.request();
     }
-    Ok(())
+    result
 }
 
 async fn ensure_active_revision(
@@ -735,9 +728,53 @@ fn installed_registry() -> Result<CapabilityRegistry, ServerError> {
 
 #[cfg(test)]
 mod tests {
-    use loom_runtime::{PlatformTime, RuntimeRevisionCapability, RuntimeRevisionDescriptor};
+    use loom_capability::CapabilityRegistry;
+    use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId, WorldInstant};
+    use loom_runtime::{
+        ManualPlatformClock, PlatformTime, Runtime, RuntimeRevisionCapability,
+        RuntimeRevisionDescriptor, WorkRecord, WorkStatus, WorkTarget,
+    };
+    use loom_storage::InMemoryStore;
+    use std::time::Duration;
 
-    use super::{ServerError, ensure_candidate_revision_matches_published, installed_registry};
+    use super::{
+        ServerError, SystemClock, ensure_candidate_revision_matches_published, installed_registry,
+        run_scheduler_supervisor_until_shutdown,
+    };
+    use crate::{SchedulerSupervisor, ShutdownSignal, WorkerConfig};
+
+    fn id<T>(value: u128) -> T
+    where
+        T: std::str::FromStr,
+        T::Err: std::fmt::Debug,
+    {
+        format!("00000000-0000-0000-0000-{value:012x}")
+            .parse()
+            .expect("test identity should parse")
+    }
+
+    fn pending_work(timeline_id: TimelineId, work_id: WorkId) -> WorkRecord {
+        WorkRecord {
+            id: work_id,
+            timeline_id,
+            target: WorkTarget::CapabilityWork {
+                owner: None,
+                handler: WorkHandlerId::from("missing.scheduler.handler"),
+            },
+            schema_revision: SchemaRevision::new(1),
+            payload: false.into(),
+            effective_due_world_time: WorldInstant::default(),
+            logical_schedule_order: 1,
+            causal_event_id: None,
+            origin_work_id: None,
+            status: WorkStatus::Pending,
+            attempt_count: 0,
+            claim_generation: 0,
+            available_at: PlatformTime::default(),
+            last_error: None,
+            lease: None,
+        }
+    }
 
     fn revision(
         core_build_ref: &str,
@@ -807,5 +844,51 @@ mod tests {
                 stage: "Runtime Revision candidate validation"
             })
         ));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn scheduler_supervisor_failure_requests_shared_server_shutdown() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x100);
+        let timeline_id: TimelineId = id(0x101);
+        store
+            .create_timeline(world_id, timeline_id)
+            .expect("test Timeline should be created");
+        store
+            .seed_work(pending_work(timeline_id, id(0x102)))
+            .expect("Pending Work should be seeded");
+        let runtime = Runtime::new(&store, CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let shutdown = ShutdownSignal::new();
+        let supervisor = SchedulerSupervisor::new(
+            runtime,
+            SystemClock,
+            WorkerConfig::new(10, 1).expect("worker timings should be valid"),
+            shutdown.clone(),
+        );
+
+        let result = run_scheduler_supervisor_until_shutdown(
+            supervisor,
+            Duration::from_millis(1),
+            shutdown.clone(),
+        )
+        .await;
+
+        assert!(matches!(result, Err(ServerError::Worker { .. })));
+        assert!(shutdown.is_requested());
+    }
+
+    #[test]
+    fn scheduler_supervisor_uses_no_fixed_target_for_an_empty_store() {
+        let runtime = Runtime::new(InMemoryStore::new(), CapabilityRegistry::new())
+            .expect("empty registry should assemble");
+        let supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            WorkerConfig::new(10, 1).expect("worker timings should be valid"),
+            ShutdownSignal::new(),
+        );
+
+        assert!(!supervisor.shutdown_signal().is_requested());
     }
 }
