@@ -21,6 +21,27 @@ For architecture-sensitive work, additionally read `docs/architecture/README.md`
 
 Repository canonical documents are the project authority. If a role prompt or previous-run assumption conflicts with the current repository procedure, do not silently follow the stale assumption; resolve the conflict against the canonical repository documents first.
 
+## Task completion invariant
+
+For every executable Loom task that has a record under `docs/tasks/`, a merged delivery PR is **not** completion.
+
+Before the task may be reported complete, its GitHub Issue may be closed, or an external workflow may be marked done, the repository default branch must show all required completion evidence:
+
+- task front matter has `status: completed`;
+- `completed_at` is set;
+- `completion_pr` is the actual delivery PR number;
+- `merge_sha` is the actual default-branch merge commit for that delivery PR;
+- every task acceptance checkbox that was satisfied by the delivered work is checked;
+- verification / CI evidence is recorded;
+- the initiative or milestone index agrees with the task record;
+- applicable Task Ledger / governance checks pass.
+
+If the real merge SHA is only available after the delivery PR merges, an immediate post-merge reconciliation change is required. The task remains incomplete until that reconciliation reaches the default branch and the canonical record is re-read and confirmed.
+
+Do not close the GitHub Issue, mark Multica/external state done, or activate a dependent task from the delivery merge alone. Automation must schedule/continue the post-merge reconciliation instead of skipping it.
+
+`docs/development/task-completion.md` contains the detailed operational procedure; the invariant above is mandatory even if that deeper guide is not otherwise needed for the current change.
+
 ## Before editing
 
 - Read `docs/README.md` and follow the canonical document for the task.
