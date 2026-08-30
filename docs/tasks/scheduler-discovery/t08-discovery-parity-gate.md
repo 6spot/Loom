@@ -58,6 +58,9 @@ dependency.
 - `cargo fmt --all -- --check`, `git diff --check`,
   `python3 tools/check_architecture.py` and
   `python3 tools/check_storage_sql_ownership.py` — passed.
+- `python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery
+  --check --format json` — passed with `valid: true` and no violations; T08
+  remains planned until its canonical hard dependencies are completed.
 - `bash tools/test.sh --workspace --all-features` was attempted but the host
   filesystem exhausted its remaining space while linking unrelated workspace
   test binaries (`ld: No space left on device`); no test assertion failure was
