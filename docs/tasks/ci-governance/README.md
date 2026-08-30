@@ -10,7 +10,7 @@ Only dedicated CI/governance tasks may intentionally change `.github/workflows/*
 | --- | --- | --- | --- | --- |
 | CI-GOV-T01 | #428 | completed | — | Retire completed VALR-T24 full certification from routine CI and establish Code Owner coverage for CI authority surfaces. |
 | CI-GOV-T02 | #431 | completed | CI-GOV-T01 | Stop generic `Cargo.lock` changes from triggering the PostgreSQL 18 persistence-contract lane. |
-| CI-GOV-T03 | #435 | in_progress | CI-GOV-T02 | Isolate Validator from routine core CI and move it to a dedicated staged validation workflow. |
+| CI-GOV-T03 | #435 | completed | CI-GOV-T02 | Isolate Validator from routine core CI and move it to a dedicated staged validation workflow. |
 
 ## Governance boundary
 
