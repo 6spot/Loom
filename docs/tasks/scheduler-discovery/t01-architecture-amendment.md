@@ -1,13 +1,13 @@
 ---
 task: SCHD-T01
 issue: 403
-status: in_progress
+status: completed
 depends_on: []
 created_at: 2026-08-30
 started_at: 2026-08-30
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-30
+completion_pr: 424
+merge_sha: 235d6b53f1f64e49837b0039ad785fe0bb0a22d2
 ---
 
 # SCHD-T01 — Architecture amendment for automatic Timeline discovery
@@ -56,8 +56,7 @@ concern governed by existing lease/fence/CAS rules.
       change.
 - [x] Documentation, architecture, compose, format, compile, lint, full
       workspace test and Rustdoc checks pass locally on the candidate.
-- [ ] Delivery PR CI passes and completion metadata is filled after the
-      delivery PR merges.
+- [x] Delivery PR #424 merged and completion metadata is reconciled.
 
 ## Progress Log
 
@@ -71,6 +70,8 @@ concern governed by existing lease/fence/CAS rules.
   compose, format, compile, clippy, full workspace test, dependency-policy and
   Rustdoc checks passed; the clean PostgreSQL test volume was used for the
   required live gate.
+- 2026-08-30 — Reconciled completion from merged delivery PR #424 at
+  `235d6b53f1f64e49837b0039ad785fe0bb0a22d2`.
 
 ## Verification Evidence
 
@@ -98,6 +99,5 @@ Verification completed on 2026-08-30:
   cargo-deny 0.18.9.
 - `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` — passed.
 
-The task remains `in_progress` until its delivery PR has a merge SHA, per the
-repository Task Ledger rules; PR CI and completion metadata are intentionally
-pending that merge.
+Delivery PR #424 merged successfully; the canonical task record now carries its
+actual merge evidence.
