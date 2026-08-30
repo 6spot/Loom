@@ -6,7 +6,7 @@ depends_on: []
 created_at: 2026-08-30
 started_at: 2026-08-30
 completed_at:
-completion_pr:
+completion_pr: 429
 merge_sha:
 ---
 
@@ -46,6 +46,7 @@ A completed fixed-candidate certification may remain as a reproducible explicit 
 ## Progress Log
 
 - 2026-08-30 — Started after PR #426 exposed that the completed VALR-T24 fixed-candidate evidence fence was still present in routine development CI. The dedicated governance issue is #428; Scheduler discovery and Validator feature leaves remain unchanged.
+- 2026-08-30 — Delivery PR #429 opened with only CI/governance files changed. The existing external Validator job/check name is retained for required-check compatibility while the internal lane becomes regression-only.
 
 ## Verification Evidence
 
