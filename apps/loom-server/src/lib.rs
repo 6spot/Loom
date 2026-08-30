@@ -26,7 +26,7 @@ pub use application::{
 };
 pub use config::{ServerConfig, ServerConfigError};
 pub use ingress::{IngressWorker, IngressWorkerReport, IngressWorkerStopReason};
-pub use scheduler_supervisor::SchedulerSupervisor;
+pub use scheduler_supervisor::{SchedulerCycleReport, SchedulerDriveOutcome, SchedulerSupervisor};
 
 use std::sync::{
     Arc,
