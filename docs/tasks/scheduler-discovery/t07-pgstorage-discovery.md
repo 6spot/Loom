@@ -1,10 +1,10 @@
 ---
 task: SCHD-T07
 issue: 409
-status: in_progress
+status: planned
 depends_on: [405, 408]
 created_at: 2026-08-30
-started_at: 2026-08-30
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -18,14 +18,14 @@ Wire the T06 SQL into `PgStorage` as the T03 persistence implementation.
 
 ## Scope and acceptance
 
-- [x] Load repository SQL through the existing `include_str!` ownership pattern
+- [ ] Load repository SQL through the existing `include_str!` ownership pattern
       and implement the T03 trait.
-- [x] Bind bound/cursor values once, decode typed target IDs with existing
+- [ ] Bind bound/cursor values once, decode typed target IDs with existing
       helpers, and preserve SQL order/continuation.
-- [x] Map SQL/decoding failures to the typed storage error without exposing
+- [ ] Map SQL/decoding failures to the typed storage error without exposing
       SQLx/PostgreSQL types above `loom-storage`.
-- [x] Keep the operation read-only and avoid schema/index or claim changes.
-- [x] Focused success, empty-result and error-mapping tests plus standard
+- [ ] Keep the operation read-only and avoid schema/index or claim changes.
+- [ ] Focused success, empty-result and error-mapping tests plus standard
       storage checks pass.
 
 ## Progress Log
@@ -39,6 +39,11 @@ Wire the T06 SQL into `PgStorage` as the T03 persistence implementation.
   duplicate-target collapse, future/leased Pending Work visibility, empty
   results, read-only state preservation, bound validation and storage failure
   mapping.
+- 2026-08-30 — Reviewer D-001 governance reconciliation: T03 (#405) and T06
+  (#408) remain `planned`, so T07 was reverted from `in_progress` to `planned`,
+  its start marker was cleared, and acceptance was reset to pending. The hard
+  dependency declarations remain unchanged; the implementation evidence above
+  is retained while canonical eligibility waits for dependency completion.
 
 ## Verification Evidence
 
@@ -56,9 +61,12 @@ Verification completed on 2026-08-30:
   storage unit/integration targets).
 - `cargo test -p loom-storage --lib --all-features` — passed after cleaning
   disposable build artifacts.
+- `python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery
+  --check` — passed (exit 0 with no real ledger invariant violations); T07 is
+  correctly blocked by its still-planned hard dependencies.
 
 The repository-wide `bash tools/test.sh --workspace --all-features` attempt
 reached the Validator live gate but reported an unrelated existing `CV-016`
 PostgreSQL idempotency-key collision; all storage-focused checks above passed.
-The task remains `in_progress` until the delivery PR is merged, consistent
-with the task-ledger convention.
+The task remains `planned` until T03 and T06 are completed, consistent with
+the task-ledger dependency-eligibility convention.
