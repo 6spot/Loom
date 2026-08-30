@@ -1428,13 +1428,18 @@ dependencies = [
  "loom-api",
  "loom-boundary",
  "loom-capability",
+ "loom-client",
  "loom-core",
  "loom-neutral",
  "loom-runtime",
  "loom-storage",
+ "serde_json",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
