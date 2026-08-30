@@ -36,12 +36,23 @@ drives each discovered target once through `Runtime::drive_timeline`.
   `Runtime::drive_timeline` calls. Added an application-owned cycle report and
   coverage for empty, bounded, exact-target, Blocked and stale-discovery Idle
   outcomes.
+- 2026-08-30 — Addressed the Supervisor Clippy findings by using the discovery
+  target method item and borrowing discovery errors for API mapping. Reclaimed
+  disposable host cache space and completed the focused and standard Rust
+  checks.
 
 ## Verification Evidence
 
 - `cargo fmt --all -- --check` — passed.
 - `git diff --check` — passed.
-- `cargo test -p loom-server --lib -j1` — attempted; the host filesystem was
-  full while Cargo wrote `hashbrown`/`sqlx-core` artifacts (`No space left on
-  device`), before the crate compiled. Focused test execution remains pending
-  available disk space.
+- `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo test -p loom-server
+  --lib -j1` — passed (14 tests).
+- `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo check --workspace
+  --exclude loom-validator --all-targets --all-features` — passed.
+- `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo clippy --workspace
+  --exclude loom-validator --all-targets --all-features -- -D warnings` —
+  passed.
+- `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --workspace
+  --all-features --exclude loom-storage --exclude loom-validator` — passed.
+- `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo test -p loom-storage
+  --all-features --lib` — passed (65 tests, including PostgreSQL coverage).

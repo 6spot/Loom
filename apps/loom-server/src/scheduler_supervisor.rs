@@ -9,8 +9,9 @@ use loom_api::{ApiError, ApiResult, TimelineTarget};
 use loom_runtime::{
     ExecutionSessionStore, PinnedWorldReadStore, PlatformClock, Runtime, RuntimeControlStore,
     RuntimeRevisionStore, SchedulerCommitStore, SchedulerDiscoveryCursor, SchedulerDiscoveryError,
-    SchedulerDiscoveryRequest, SchedulerDiscoveryStore, SemanticProjectionStore,
-    TimelineDriverResult, WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
+    SchedulerDiscoveryRequest, SchedulerDiscoveryStore, SchedulerDiscoveryTarget,
+    SemanticProjectionStore, TimelineDriverResult, WorkStore, WorldRuntimeBindingStore, WorldStore,
+    WorldTimeStore,
 };
 
 use crate::{ShutdownSignal, WorkerConfig};
@@ -162,16 +163,16 @@ where
     /// reported before any drive call is attempted.
     pub async fn run_cycle(&mut self) -> ApiResult<SchedulerCycleReport> {
         let request = SchedulerDiscoveryRequest::new(self.worker_config.scheduler_poll_limit())
-            .map_err(map_discovery_error)?;
+            .map_err(|error| map_discovery_error(&error))?;
         let page = self
             .runtime
             .discover_scheduler_targets(request)
             .await
-            .map_err(map_discovery_error)?;
+            .map_err(|error| map_discovery_error(&error))?;
         let discovered_targets = page
             .targets
             .into_iter()
-            .map(|target| target.timeline_target())
+            .map(SchedulerDiscoveryTarget::timeline_target)
             .collect::<Vec<_>>();
         let mut outcomes = Vec::with_capacity(discovered_targets.len());
 
@@ -198,7 +199,7 @@ where
     }
 }
 
-fn map_discovery_error(error: SchedulerDiscoveryError) -> ApiError {
+fn map_discovery_error(error: &SchedulerDiscoveryError) -> ApiError {
     match error {
         SchedulerDiscoveryError::InvalidPageSize { .. } => {
             ApiError::invalid_request("Scheduler discovery page bound is invalid")
@@ -243,7 +244,7 @@ mod tests {
                 handler: WorkHandlerId::from("missing.scheduler.handler"),
             },
             schema_revision: SchemaRevision::new(1),
-            payload: Default::default(),
+            payload: false.into(),
             effective_due_world_time: WorldInstant::default(),
             logical_schedule_order: 1,
             causal_event_id: None,
@@ -262,7 +263,7 @@ mod tests {
         store
             .persist_binding(
                 world_id,
-                WorldRuntimeBinding::new(Vec::new(), Default::default(), 1, None),
+                WorldRuntimeBinding::new(Vec::new(), false.into(), 1, None),
             )
             .expect("test Runtime binding should be persisted");
         let revision = RuntimeRevisionDescriptor::new(
