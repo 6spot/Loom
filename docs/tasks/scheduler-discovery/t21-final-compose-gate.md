@@ -139,6 +139,7 @@ T16–T20 to their actual merged delivery PRs and SHAs: #453 /
 `6a4279e63273b8a53742af8c118e984ebd93f07b`, #456 /
 `3b40633b70f232d64927f75ece461dec63b56897`, #454 /
 `937de28f56bfb4034eb28e8b91cca74b5d732d85` and #455 /
-`c508f6173b0c6a16dadf0af52bd2b50c590f889`. T21 remains `in_progress` until
-this evidence-only delivery is merged; its `completion_pr` and `merge_sha`
-are intentionally blank rather than claiming an unmerged SHA.
+`c508f6173b0c6a16dadf0af52bd2b50c590f889`. The T21 evidence-only delivery is
+PR #458 and remains `in_progress` until that PR is merged; its
+`completion_pr` and `merge_sha` are intentionally blank rather than claiming
+an unmerged SHA.
