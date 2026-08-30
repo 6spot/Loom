@@ -8,7 +8,7 @@ Only dedicated CI/governance tasks may intentionally change `.github/workflows/*
 
 | Task | Issue | Status | Depends on | Purpose |
 | --- | --- | --- | --- | --- |
-| CI-GOV-T01 | #428 | in_progress | — | Retire completed VALR-T24 full certification from routine CI and establish Code Owner coverage for CI authority surfaces. |
+| CI-GOV-T01 | #428 | completed | — | Retire completed VALR-T24 full certification from routine CI and establish Code Owner coverage for CI authority surfaces. |
 
 ## Governance boundary
 
