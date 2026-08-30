@@ -4,6 +4,8 @@ This directory is the repository-level audit trail for Loom implementation work.
 
 GitHub issues remain the collaboration surface for discussion, assignment and checklists. Task files preserve durable implementation status and completion evidence next to the code and architecture they describe.
 
+The canonical operational procedure for finishing an executable task is [`../development/task-completion.md`](../development/task-completion.md). This file defines the Task Ledger state model and invariants; the development guide defines the required completion sequence.
+
 ## V0 implementation history and current certification
 
 The post-Amendment V0 roadmap is [`v0-roadmap.md`](v0-roadmap.md), covering the M4–M13 implementation history and GitHub issues #136–#203. It is an audit record of that delivery history, not a current certification claim.
@@ -111,11 +113,14 @@ A task is not complete merely because code was merged or an issue was closed. Co
 2. `status: completed`;
 3. `completed_at` is set;
 4. `completion_pr` is recorded;
-5. `merge_sha` is recorded;
+5. `merge_sha` is recorded from the actual integration/default-branch merge;
 6. verification evidence records the relevant architecture/build/test/CI gates;
-7. the GitHub issue is closed as completed and its checklist agrees with the task file.
+7. the initiative or milestone index agrees with the task record where such an index exists;
+8. the GitHub issue is closed as completed and its checklist agrees with the task file.
 
-Prefer updating the task record in the completion PR. If the final merge SHA only exists after merge, add it immediately in a small follow-up audit commit/PR; do not leave the field permanently blank.
+The canonical record on the repository default branch is authoritative for completion and dependency eligibility. A merged delivery PR, closed GitHub Issue, agent claim, external workflow state, or task record that exists only on a feature branch does not satisfy this invariant.
+
+Follow [`../development/task-completion.md`](../development/task-completion.md) for the required post-merge reconciliation sequence. Prefer updating the task record in the completion PR when the final evidence is already known. If the final merge SHA only exists after merge, add it immediately in a small follow-up audit commit/PR, merge that reconciliation to the default branch, run the applicable ledger/governance checks, and re-read the canonical record before treating the task as complete.
 
 ### Cancellation / duplication
 
