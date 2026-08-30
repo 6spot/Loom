@@ -1,13 +1,13 @@
 ---
 task: SCHD-T11
 issue: 413
-status: in_progress
+status: completed
 depends_on: [412]
 created_at: 2026-08-30
 started_at: 2026-08-31
-completed_at:
+completed_at: 2026-08-30
 completion_pr: 447
-merge_sha:
+merge_sha: 215febbdb2da4b47d6c8029d42f7dbddf3600469
 ---
 
 # SCHD-T11 — Add bounded round-robin cursor progression across Timeline pages
@@ -19,15 +19,15 @@ later stable Timelines cannot be permanently starved.
 
 ## Scope and acceptance
 
-- [ ] Persist only an operational in-memory cursor and advance it from the T03
+- [x] Persist only an operational in-memory cursor and advance it from the T03
       continuation; wrap at the ordered scan end.
-- [ ] Tolerate target creation/removal and reset safely when the cursor has no
+- [x] Tolerate target creation/removal and reset safely when the cursor has no
       successor; treat the cursor as a hint, never persisted authority.
-- [ ] Blocked/Idle/normal outcomes for an earlier target cannot starve later
+- [x] Blocked/Idle/normal outcomes for an earlier target cannot starve later
       targets.
-- [ ] Deterministic tests cover bounded repeated visits, wrap, blocked first
+- [x] Deterministic tests cover bounded repeated visits, wrap, blocked first
       target, deletion and later target addition.
-- [ ] No reservation table, randomness, persistent cursor, weighted priority or
+- [x] No reservation table, randomness, persistent cursor, weighted priority or
       per-target parallelism is introduced.
 
 ## Progress Log
@@ -43,6 +43,9 @@ later stable Timelines cannot be permanently starved.
 - 2026-08-31 — SCHD-T10 was reconciled to canonical `completed` by PR #448
   after delivery PR #445 merged. T11 is now legitimately `in_progress`; this
   ledger-only update changes no implementation semantics.
+- 2026-08-31 — Post-merge completion audit: delivery PR #447 merged as
+  `215febbdb2da4b47d6c8029d42f7dbddf3600469`; completion metadata and
+  acceptance evidence are now reconciled on the canonical ledger.
 
 ## Verification Evidence
 
@@ -57,3 +60,5 @@ later stable Timelines cannot be permanently starved.
   --exclude loom-validator` — passed.
 - `python3 tools/check_architecture.py` — passed.
 - `python3 tools/check_storage_sql_ownership.py` — passed.
+- PR #447 CI run `33323768198` — Task ledger governance and Rust checks passed;
+  the merged integration commit is recorded above.
