@@ -1,13 +1,13 @@
 ---
 task: SCHD-T02
 issue: 404
-status: planned
+status: completed
 depends_on: [403]
 created_at: 2026-08-30
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-30
+completed_at: 2026-08-30
+completion_pr: 425
+merge_sha: 3c6ef8699b8350587565e3271647327027d546dd
 ---
 
 # SCHD-T02 — Register scheduler-discovery Task Ledger + executable dependency graph
@@ -38,18 +38,19 @@ implementation, dependency semantics or any downstream task status.
 
 ## Acceptance
 
-- [ ] Every executable issue T01–T21 has exactly one task file.
-- [ ] Every task file has the same dependency relation as its GitHub issue.
-- [ ] Root/stage trackers are clearly non-executable.
-- [ ] The first READY implementation leaf after T02 is mechanically
+- [x] Every executable issue T01–T21 has exactly one task file.
+- [x] Every task file has the same dependency relation as its GitHub issue.
+- [x] Root/stage trackers are clearly non-executable.
+- [x] The first READY implementation leaf after T02 is mechanically
       determinable as T03 (`#405`) after its declared prerequisites complete.
-- [ ] Real-ledger/task-graph governance checks include this initiative.
-- [ ] Documentation/governance CI passes.
+- [x] Real-ledger/task-graph governance checks include this initiative.
+- [x] Documentation/governance CI passes.
 
 ## Progress Log
 
 - 2026-08-30 — Added the scheduler-discovery initiative index, registered it
   from the repository task ledger, and created one record for each executable
-  issue `#404`–`#423` with the root graph's exact dependencies. The record is
-  kept `planned` until its declared prerequisite `#403` is completed in the
-  canonical ledger.
+  issue `#404`–`#423` with the root graph's exact dependencies.
+- 2026-08-30 — Delivery PR #425 merged at
+  `3c6ef8699b8350587565e3271647327027d546dd`; completion metadata was later
+  reconciled after historical ledger drift was detected by T10 CI.
