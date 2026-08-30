@@ -1,0 +1,18 @@
+# Repository CI authority surfaces.
+#
+# Changes here belong in a dedicated CI/governance task rather than an ordinary
+# product, architecture, Scheduler, Storage, API, capability, or Validator leaf.
+# Enforcement requires the repository branch/ruleset policy to require Code
+# Owner review; this file defines the ownership boundary.
+
+/.github/workflows/ @6spot
+/tools/check_architecture.py @6spot
+/tools/check_storage_sql_ownership.py @6spot
+/tools/postgres-test.sh @6spot
+/tools/test.sh @6spot
+/tools/test_validator_ready.py @6spot
+/tools/validator_ready.py @6spot
+/tools/validator-authority-gate.sh @6spot
+/tools/validator-certification-gate.py @6spot
+/tools/validator-certification-gate.sh @6spot
+/tools/validator-pg18-gate.sh @6spot

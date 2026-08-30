@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - ".github/workflows/ci.yml"
+      - ".github/CODEOWNERS"
       - ".dockerignore"
       - ".env.example"
       - "Cargo.toml"
@@ -37,9 +38,11 @@ on:
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
+      - "docs/tasks/ci-governance/**"
   pull_request:
     paths:
       - ".github/workflows/ci.yml"
+      - ".github/CODEOWNERS"
       - ".dockerignore"
       - ".env.example"
       - "Cargo.toml"
@@ -70,6 +73,7 @@ on:
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
+      - "docs/tasks/ci-governance/**"
 
 permissions:
   contents: read
@@ -139,9 +143,9 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
 
-              # Changing CI itself validates every route once.
+              # Changing CI authority itself validates every route once.
               case "$path" in
-                .github/workflows/ci.yml)
+                .github/workflows/ci.yml|.github/CODEOWNERS)
                   rust=true
                   dependency=true
                   ledger=true
@@ -167,7 +171,7 @@ jobs:
 
               # Machine-readable task records are governance inputs, not code.
               case "$path" in
-                docs/tasks/validator/*|docs/tasks/validator-recert/*|docs/tasks/scheduler-discovery/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
+                docs/tasks/validator/*|docs/tasks/validator-recert/*|docs/tasks/scheduler-discovery/*|docs/tasks/ci-governance/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
                   ledger=true
                   ;;
               esac
@@ -242,6 +246,9 @@ jobs:
 
       - name: Scheduler discovery task ledger
         run: python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery --check --format json
+
+      - name: CI governance task ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/ci-governance --check --format json
 
   dependency-policy:
     name: Dependency and security policy
@@ -382,6 +389,8 @@ jobs:
           done
 
   validator-certification:
+    # Keep the historical job/check name stable so existing required-check
+    # configuration does not lose its check while the lane becomes regression-only.
     name: Validator authority and T24 certification
     needs: changes
     if: needs.changes.outputs.validator == 'true'
@@ -391,7 +400,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # T24 proves candidate ancestry and therefore needs main history.
+          # The T24 tool-contract regression check reads the merged manifest
+          # from origin/main and therefore keeps main history available.
           fetch-depth: 0
 
       - name: Install Rust
@@ -415,20 +425,8 @@ jobs:
       - name: Validator authority regression gate
         run: bash tools/validator-authority-gate.sh
 
-      - name: Validator final certification gate (VALR-T24)
-        run: |
-          python3 tools/validator-certification-gate.py --regression-check
-          bash tools/validator-certification-gate.sh
-
-      - name: Upload Validator T24 certification report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: validator-t24-final-certification
-          path: |
-            target/validator/t24-validator-certification-gate.json
-            target/validator/t24-logs/
-          if-no-files-found: error
+      - name: Validator T24 certification-tool regression
+        run: python3 tools/validator-certification-gate.py --regression-check
 
   deployment:
     name: Loom server Compose config
