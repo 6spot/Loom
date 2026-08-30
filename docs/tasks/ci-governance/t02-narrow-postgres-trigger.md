@@ -6,7 +6,7 @@ depends_on: [CI-GOV-T01]
 created_at: 2026-08-30
 started_at: 2026-08-30
 completed_at:
-completion_pr:
+completion_pr: 434
 merge_sha:
 ---
 
@@ -38,6 +38,7 @@ No Runtime, Storage, Scheduler, API, Validator, schema, SQL, dependency-version,
 ## Progress Log
 
 - 2026-08-30 — Started as dedicated CI governance issue #431 after reviewing the split classifier on current `main`. The intended change is one routing deletion: remove the generic PostgreSQL side effect from the `Cargo.lock` branch while preserving every persistence-specific trigger.
+- 2026-08-30 — Delivery PR #434 opened. Its workflow diff is exactly one deleted line; the remaining changes are this task record and the CI governance index.
 
 ## Verification Evidence
 
