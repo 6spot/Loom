@@ -6,57 +6,67 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/**"
-      - "compose.test-db.yaml"
-      - "compose.yaml"
-      - "Dockerfile"
+      - ".github/workflows/ci.yml"
+      - ".dockerignore"
       - ".env.example"
       - "Cargo.toml"
       - "Cargo.lock"
       - "**/Cargo.toml"
-      - "**/*.lock"
-      - "**/*.toml"
       - "**/*.rs"
       - "**/*.sql"
-      - "**/*.py"
-      - "**/*.sh"
-      - "**/*.yaml"
-      - "**/*.yml"
-      - "**/tests/**"
       - "capabilities/**"
+      - "tests/**"
+      - "compose.test-db.yaml"
+      - "compose.yaml"
+      - "Dockerfile"
       - "docker/**"
       - "deny.toml"
       - "rust-toolchain.toml"
       - "rustfmt.toml"
-      - "tools/**"
+      - "tools/check_architecture.py"
+      - "tools/check_storage_sql_ownership.py"
+      - "tools/postgres-test.sh"
+      - "tools/test.sh"
+      - "tools/test_validator_ready.py"
+      - "tools/validator_ready.py"
+      - "tools/validator-authority-gate.sh"
+      - "tools/validator-certification-gate.py"
+      - "tools/validator-certification-gate.sh"
+      - "tools/validator-pg18-gate.sh"
+      - "tools/fixtures/validator-ready/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
   pull_request:
     paths:
-      - ".github/workflows/**"
-      - "compose.test-db.yaml"
-      - "compose.yaml"
-      - "Dockerfile"
+      - ".github/workflows/ci.yml"
+      - ".dockerignore"
       - ".env.example"
       - "Cargo.toml"
       - "Cargo.lock"
       - "**/Cargo.toml"
-      - "**/*.lock"
-      - "**/*.toml"
       - "**/*.rs"
       - "**/*.sql"
-      - "**/*.py"
-      - "**/*.sh"
-      - "**/*.yaml"
-      - "**/*.yml"
-      - "**/tests/**"
       - "capabilities/**"
+      - "tests/**"
+      - "compose.test-db.yaml"
+      - "compose.yaml"
+      - "Dockerfile"
       - "docker/**"
       - "deny.toml"
       - "rust-toolchain.toml"
       - "rustfmt.toml"
-      - "tools/**"
+      - "tools/check_architecture.py"
+      - "tools/check_storage_sql_ownership.py"
+      - "tools/postgres-test.sh"
+      - "tools/test.sh"
+      - "tools/test_validator_ready.py"
+      - "tools/validator_ready.py"
+      - "tools/validator-authority-gate.sh"
+      - "tools/validator-certification-gate.py"
+      - "tools/validator-certification-gate.sh"
+      - "tools/validator-pg18-gate.sh"
+      - "tools/fixtures/validator-ready/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
@@ -73,18 +83,204 @@ env:
   CARGO_DENY_VERSION: "0.18.9"
 
 jobs:
-  rust:
-    name: Rust checks
+  changes:
+    name: Classify changes
     runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.classify.outputs.rust }}
+      dependency: ${{ steps.classify.outputs.dependency }}
+      ledger: ${{ steps.classify.outputs.ledger }}
+      postgres: ${{ steps.classify.outputs.postgres }}
+      validator: ${{ steps.classify.outputs.validator }}
+      deployment: ${{ steps.classify.outputs.deployment }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # T24 proves that a fixed production candidate is an ancestor of the
-          # evidence head. A depth-1 PR checkout contains only GitHub's
-          # synthetic merge commit and cannot prove that ancestry.
           fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rust=false
+          dependency=false
+          ledger=false
+          postgres=false
+          validator=false
+          deployment=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            rust=true
+            dependency=true
+            ledger=true
+            postgres=true
+            validator=true
+            deployment=true
+          else
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              base="${{ github.event.pull_request.base.sha }}"
+              head="${{ github.event.pull_request.head.sha }}"
+            else
+              base="${{ github.event.before }}"
+              head="${{ github.sha }}"
+              if [[ "$base" =~ ^0+$ ]]; then
+                base="${head}^"
+              fi
+            fi
+
+            echo "Classifying changes from $base to $head"
+            git diff --name-only "$base" "$head" > /tmp/loom-ci-changed-files
+            cat /tmp/loom-ci-changed-files
+
+            while IFS= read -r path; do
+              [[ -n "$path" ]] || continue
+
+              # Changing CI itself validates every route once.
+              case "$path" in
+                .github/workflows/ci.yml)
+                  rust=true
+                  dependency=true
+                  ledger=true
+                  postgres=true
+                  validator=true
+                  deployment=true
+                  ;;
+              esac
+
+              # Dependency policy is only relevant when dependency metadata changes.
+              case "$path" in
+                Cargo.lock)
+                  dependency=true
+                  rust=true
+                  postgres=true
+                  validator=true
+                  ;;
+                Cargo.toml|*/Cargo.toml|deny.toml)
+                  dependency=true
+                  rust=true
+                  ;;
+              esac
+
+              # Machine-readable task records are governance inputs, not code.
+              case "$path" in
+                docs/tasks/validator/*|docs/tasks/validator-recert/*|docs/tasks/scheduler-discovery/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
+                  ledger=true
+                  ;;
+              esac
+
+              # Storage implementation and SQL changes need the PostgreSQL contract.
+              case "$path" in
+                crates/loom-storage/*|*.sql)
+                  postgres=true
+                  ;;
+                compose.test-db.yaml|tools/postgres-test.sh)
+                  postgres=true
+                  validator=true
+                  ;;
+              esac
+
+              # Validator implementation/certification changes keep the heavy gates local.
+              case "$path" in
+                apps/loom-validator/*|tools/test.sh|tools/validator-authority-gate.sh|tools/validator-certification-gate.py|tools/validator-certification-gate.sh|tools/validator-pg18-gate.sh)
+                  validator=true
+                  ;;
+              esac
+
+              # Rust source and architecture changes get the ordinary Rust lane.
+              case "$path" in
+                *.rs|capabilities/*|tests/*|rust-toolchain.toml|rustfmt.toml|tools/check_architecture.py|tools/check_storage_sql_ownership.py)
+                  rust=true
+                  ;;
+              esac
+
+              # Deployment configuration has its own cheap validation lane.
+              case "$path" in
+                compose.yaml|Dockerfile|.dockerignore|.env.example|docker/*)
+                  deployment=true
+                  ;;
+              esac
+            done < /tmp/loom-ci-changed-files
+          fi
+
+          {
+            echo "rust=$rust"
+            echo "dependency=$dependency"
+            echo "ledger=$ledger"
+            echo "postgres=$postgres"
+            echo "validator=$validator"
+            echo "deployment=$deployment"
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'rust=%s dependency=%s ledger=%s postgres=%s validator=%s deployment=%s\n' \
+            "$rust" "$dependency" "$ledger" "$postgres" "$validator" "$deployment"
+
+  ledger:
+    name: Task ledger governance
+    needs: changes
+    if: needs.changes.outputs.ledger == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validator READY fixtures
+        run: python3 tools/test_validator_ready.py
+
+      - name: Validator task ledger
+        run: python3 tools/validator_ready.py --check
+
+      - name: Validator re-certification ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json
+
+      - name: Validator Stage-1 re-certification ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
+
+      - name: Scheduler discovery task ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery --check --format json
+
+  dependency-policy:
+    name: Dependency and security policy
+    needs: changes
+    if: needs.changes.outputs.dependency == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+
+      - name: Restore cargo-deny cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-${{ env.CARGO_DENY_VERSION }}
+
+      - name: Dependency and security policy
+        run: |
+          if ! command -v cargo-deny >/dev/null 2>&1; then
+            cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
+          fi
+          cargo-deny --version
+          cargo deny check advisories bans licenses sources
+
+  rust:
+    name: Rust checks
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
       - name: Install Rust
         run: |
@@ -93,37 +289,19 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Dependency and security policy
-        run: |
-          cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
-          cargo deny check advisories bans licenses sources
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            rust-${{ runner.os }}-${{ env.RUST_VERSION }}-
 
       - name: Architecture policy
         run: python3 tools/check_architecture.py
-
-      - name: Validator READY fixtures (unit)
-        run: python3 tools/test_validator_ready.py
-
-      - name: Validator real ledger governance (real task records)
-        run: python3 tools/validator_ready.py --check
-
-      - name: Validator full re-certification ledger
-        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json
-
-      - name: Validator Stage-1 recert ledger (VALR-T01..T07)
-        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
-
-      - name: Scheduler discovery task ledger governance
-        run: python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery --check --format json
-
-      - name: Validator Stage-1 authority regression gate (VALR-T07)
-        run: bash tools/validator-authority-gate.sh
-
-      - name: Local PostgreSQL Compose config
-        run: docker compose -f compose.test-db.yaml config --quiet
-
-      - name: Loom server Compose config
-        run: docker compose -f compose.yaml config --quiet
 
       - name: Format
         run: cargo fmt --all -- --check
@@ -134,29 +312,21 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Test
-        run: bash tools/test.sh --workspace --all-features
-
-      - name: Validator final certification gate (VALR-T24)
+      - name: Core and unit tests
         run: |
-          python3 tools/validator-certification-gate.py --regression-check
-          bash tools/validator-certification-gate.sh
-
-      - name: Upload Validator T24 certification report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: validator-t24-final-certification
-          path: |
-            target/validator/t24-validator-certification-gate.json
-            target/validator/t24-logs/
-          if-no-files-found: error
+          # Database-backed loom-storage and full loom-validator integration suites
+          # run in their dedicated lanes instead of starting PostgreSQL here.
+          cargo test --workspace --all-features --exclude loom-storage --exclude loom-validator
+          cargo test -p loom-storage --all-features --lib
+          cargo test -p loom-validator --all-features --lib
 
       - name: Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
 
   postgres-contract:
     name: PostgreSQL 18 persistence contract
+    needs: changes
+    if: needs.changes.outputs.postgres == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -173,8 +343,6 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      # Ephemeral CI-only control connection. Individual tests create/drop their
-      # own migrated databases and never share application state.
       LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
 
     steps:
@@ -188,51 +356,89 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: PostgreSQL schema and migration contract
-        run: cargo test -p loom-storage --test postgres_schema -- --nocapture
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: postgres-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            postgres-${{ runner.os }}-${{ env.RUST_VERSION }}-
 
-      - name: PostgreSQL World lifecycle contract
-        run: cargo test -p loom-storage --test postgres_lifecycle -- --nocapture
+      - name: PostgreSQL Compose config
+        run: docker compose -f compose.test-db.yaml config --quiet
 
-      - name: PostgreSQL Template birth transaction contract
-        run: >-
-          cargo test -p loom-storage --test postgres_lifecycle
-          postgres_18_template_birth_is_atomic_and_snapshots_binding -- --nocapture
+      - name: PostgreSQL integration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test_file in crates/loom-storage/tests/postgres_*.rs; do
+            test_name="$(basename "$test_file" .rs)"
+            echo "::group::$test_name"
+            cargo test -p loom-storage --test "$test_name" -- --nocapture
+            echo "::endgroup::"
+          done
 
-      - name: PostgreSQL public Runtime/API vertical parity
-        run: cargo test -p loom-storage --test postgres_vertical -- --nocapture
+  validator-certification:
+    name: Validator authority and T24 certification
+    needs: changes
+    if: needs.changes.outputs.validator == 'true'
+    runs-on: ubuntu-latest
 
-      - name: PostgreSQL read parity
-        run: cargo test -p loom-storage --test postgres_read -- --nocapture
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # T24 proves candidate ancestry and therefore needs main history.
+          fetch-depth: 0
 
-      - name: PostgreSQL commit and CAS parity
-        run: cargo test -p loom-storage --test postgres_commit -- --nocapture
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup default "$RUST_VERSION"
+          rustc --version
+          cargo --version
 
-      - name: PostgreSQL Durable Work parity
-        run: cargo test -p loom-storage --test postgres_work -- --nocapture
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: validator-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            validator-${{ runner.os }}-${{ env.RUST_VERSION }}-
 
-      - name: PostgreSQL stale Work fence regression
-        run: cargo test -p loom-storage --test postgres_work_stale_completion -- --nocapture
+      - name: Validator authority regression gate
+        run: bash tools/validator-authority-gate.sh
 
-      - name: PostgreSQL Runtime restart/resume vertical slice
-        run: cargo test -p loom-storage --test postgres_restart_resume -- --nocapture
+      - name: Validator final certification gate (VALR-T24)
+        run: |
+          python3 tools/validator-certification-gate.py --regression-check
+          bash tools/validator-certification-gate.sh
 
-      - name: PostgreSQL Runtime Revision ledger and activation contract
-        run: cargo test -p loom-storage --test postgres_revision -- --nocapture
-
-      - name: Validator lifecycle live path on PostgreSQL 18 (VAL-T8)
-        run: cargo test -p loom-validator --test lifecycle -- --nocapture
-
-      - name: Validator replay/fork live path on PostgreSQL 18 (VAL-T9 CV-005..CV-009)
-        run: cargo test -p loom-validator --test replay_fork -- --nocapture
-
-      - name: Validator PostgreSQL 18 live capability matrix gate (VALR-T20)
-        run: bash tools/validator-pg18-gate.sh
-
-      - name: Upload Validator PostgreSQL 18 live matrix
+      - name: Upload Validator T24 certification report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: validator-t20-pg18-live-matrix
-          path: target/validator/t20-pg18-live-gate.json
+          name: validator-t24-final-certification
+          path: |
+            target/validator/t24-validator-certification-gate.json
+            target/validator/t24-logs/
           if-no-files-found: error
+
+  deployment:
+    name: Loom server Compose config
+    needs: changes
+    if: needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Compose config
+        run: docker compose -f compose.yaml config --quiet
