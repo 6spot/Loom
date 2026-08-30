@@ -26,15 +26,15 @@ stage tracker is not a hard dependency and must never be added to a leaf's
 
 | Task | GitHub issue | Status | Depends on | Record |
 | --- | ---: | --- | --- | --- |
-| SCHD-T01 | #403 | in_progress | — | [t01-architecture-amendment.md](t01-architecture-amendment.md) |
-| SCHD-T02 | #404 | planned | #403 | [t02-task-ledger-graph.md](t02-task-ledger-graph.md) |
-| SCHD-T03 | #405 | planned | #404 | [t03-discovery-port.md](t03-discovery-port.md) |
-| SCHD-T04 | #406 | planned | #405 | [t04-runtime-discovery.md](t04-runtime-discovery.md) |
-| SCHD-T05 | #407 | planned | #405 | [t05-inmemory-discovery.md](t05-inmemory-discovery.md) |
-| SCHD-T06 | #408 | planned | #405 | [t06-postgres-discovery-sql.md](t06-postgres-discovery-sql.md) |
-| SCHD-T07 | #409 | planned | #405, #408 | [t07-pgstorage-discovery.md](t07-pgstorage-discovery.md) |
-| SCHD-T08 | #410 | planned | #406, #407, #409 | [t08-discovery-parity-gate.md](t08-discovery-parity-gate.md) |
-| SCHD-T09 | #411 | planned | #410 | [t09-supervisor-type.md](t09-supervisor-type.md) |
+| SCHD-T01 | #403 | completed | — | [t01-architecture-amendment.md](t01-architecture-amendment.md) |
+| SCHD-T02 | #404 | completed | #403 | [t02-task-ledger-graph.md](t02-task-ledger-graph.md) |
+| SCHD-T03 | #405 | completed | #404 | [t03-discovery-port.md](t03-discovery-port.md) |
+| SCHD-T04 | #406 | completed | #405 | [t04-runtime-discovery.md](t04-runtime-discovery.md) |
+| SCHD-T05 | #407 | completed | #405 | [t05-inmemory-discovery.md](t05-inmemory-discovery.md) |
+| SCHD-T06 | #408 | completed | #405 | [t06-postgres-discovery-sql.md](t06-postgres-discovery-sql.md) |
+| SCHD-T07 | #409 | completed | #405, #408 | [t07-pgstorage-discovery.md](t07-pgstorage-discovery.md) |
+| SCHD-T08 | #410 | completed | #406, #407, #409 | [t08-discovery-parity-gate.md](t08-discovery-parity-gate.md) |
+| SCHD-T09 | #411 | completed | #410 | [t09-supervisor-type.md](t09-supervisor-type.md) |
 | SCHD-T10 | #412 | planned | #411 | [t10-supervisor-cycle.md](t10-supervisor-cycle.md) |
 | SCHD-T11 | #413 | planned | #412 | [t11-supervisor-fairness.md](t11-supervisor-fairness.md) |
 | SCHD-T12 | #414 | planned | #413 | [t12-supervisor-loop.md](t12-supervisor-loop.md) |
@@ -93,6 +93,13 @@ The dispatcher must recompute READY leaves from task-file metadata after each
 leaf's review/CI/evidence transition. A stage tracker may be reconciled for
 coordination, but its GitHub OPEN/CLOSED state cannot block a leaf whose
 declared leaf dependencies are completed.
+
+After a delivery PR merges, its leaf record must be reconciled to `completed`
+with the real merge evidence before any dependent leaf may be dispatched or
+marked `in_progress`. Code merge alone is not a canonical dependency-state
+transition; the durable ledger is the READY authority. This prevents an
+executor from outrunning the repository's dependency graph and avoids the
+T01–T09 drift detected while validating T10.
 
 ## Record contract
 
