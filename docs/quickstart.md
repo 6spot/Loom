@@ -48,11 +48,9 @@ LOOM_CORE_BUILD_REF=loom-server-0.1.0
 LOOM_WORKER_LEASE_MS=30000
 LOOM_WORKER_RETRY_BACKOFF_MS=1000
 LOOM_WORKER_POLL_MS=100
+LOOM_WORKER_SCHEDULER_POLL_LIMIT=1
 # Admin token is NOT in .env.example; set it for every admin command (no hard-coded secret):
 # LOOM_ADMIN_TOKEN=<generate-and-export>
-# Scheduler target is NOT set by default (see §3.5):
-# LOOM_SCHEDULER_WORLD_ID=
-# LOOM_SCHEDULER_TIMELINE_ID=
 ```
 
 `LOOM_SERVER_URL`, `LOOM_BEARER_TOKEN`, `LOOM_ADMIN_TOKEN` are CLI-only (global flags `--server/--bearer-token/--admin-token` or env) and are never hard-coded. Provider credentials are not part of this composition root.
@@ -91,8 +89,12 @@ docker compose -f compose.test-db.yaml config --quiet  # test-only control DB
 ### 2.2 Bring up the durable stack
 
 ```bash
-docker compose up --build
+docker compose up -d
 ```
+
+This one command starts PostgreSQL and `loom-server`. Scheduler supervision is
+part of the `loom-server` lifecycle, so the stack does not need a deployment
+target to begin discovering Scheduler Work.
 
 The durable root is `${LOOM_DATA_DIR:-./loom}`:
 
@@ -119,7 +121,19 @@ LOOM_DATA_DIR=./loom \
 cargo run -p loom-server
 ```
 
-> **Scheduler note (D-004):** The default `.env.example` leaves `LOOM_SCHEDULER_WORLD_ID`/`LOOM_SCHEDULER_TIMELINE_ID` empty and `compose.yaml` does not set them. `apps/loom-server/src/config.rs:367-380` returns `None` and `application.rs:491-499` only creates a worker when the target exists. The default Compose therefore **does not auto-drive** Scheduler Work. After creating a World (§3.2), set those two variables to the new World's IDs and restart the server (§3.5) before expecting Work/World Time progress.
+> **Scheduler note (Amendment 0005):** `docker compose up -d` starts
+> PostgreSQL and `loom-server`; automatic Scheduler supervision is part of the
+> server lifecycle. Its bounded discovery cycles find Timelines with at least
+> one logical `Pending` Work obligation, including Work that is future relative
+> to the Timeline's World Time, temporarily unclaimable because of platform
+> backoff or a lease, or blocked by missing compatible software.
+> A newly created or forked Timeline with `Pending` Work is discovered during
+> normal operation while the server remains running. PostgreSQL remains the
+> authority: discovery supplies advisory Timeline targets only. Runtime selects
+> the logical head, applies due-ness and claimability, advances World Time and
+> commits semantic state.
+> No per-Timeline IDs, `.env` edits or restart are required to activate
+> discovery.
 
 > **Admin note (D-007):** The default server uses `RequireAdminAuthorization` (`application.rs:478-481`) and the boundary requires non-empty `x-loom-admin-authorization` (`loom-boundary/src/lib.rs:315-332`). Every `admin` command below includes `--admin-token` (global, before subcommand) with a non-hard-coded value via `LOOM_ADMIN_TOKEN` environment or flag. Without it the server returns `Unauthorized`.
 
@@ -268,19 +282,22 @@ A durable `IdempotencyKey` guarantees at-most-once acceptance; the committed fee
 
 ### 3.5 Scheduler progression and World Time
 
-The default Compose does **not** run a Scheduler worker until `LOOM_SCHEDULER_WORLD_ID` and `LOOM_SCHEDULER_TIMELINE_ID` are set (see §2.2 note). After creating the World, configure the target and restart the server:
+The running `loom-server` includes a bounded Scheduler Supervisor. It scans
+PostgreSQL for Timelines with logical `Pending` Work and passes each advisory
+target to `Runtime::drive_timeline`. Runtime then decides whether the logical
+head is due and claimable, completes it, or performs a legal explicit
+World-Time transition. This applies to Worlds and Timelines that already exist
+when the server starts and to new or forked Timelines created later. No target
+IDs, deployment registration or server restart are needed after creating a
+World.
 
 ```bash
-# One-time Scheduler target setup (non-secret, no hard-coded secret):
-echo "LOOM_SCHEDULER_WORLD_ID=$WORLD" >> .env
-echo "LOOM_SCHEDULER_TIMELINE_ID=$TIMELINE" >> .env
-docker compose up -d --build loom-server
-# Native: export LOOM_SCHEDULER_WORLD_ID=$WORLD LOOM_SCHEDULER_TIMELINE_ID=$TIMELINE; cargo run -p loom-server
+# The Supervisor is already running as part of loom-server:
+docker compose up -d
 
 # Observe scheduled Reaction Work (counter increment schedules Immediate Work; Admin token required):
 cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world $WORLD --timeline $TIMELINE
-# This command is read-only; it does not drive the Scheduler. Driving requires the configured worker above.
-# The server's bounded worker calls Runtime::drive_timeline on the configured Timeline when the target is present.
+# This command is read-only; the in-process Supervisor drives discovered targets.
 
 # When quiescent (no Pending semantically due Work), advance World Time explicitly (requires Admin token, global before subcommand):
 export LOOM_ADMIN_TOKEN=$(openssl rand -hex 16)  # generate; do not hard-code; must match server's LOOM_ADMIN_TOKEN
@@ -290,6 +307,12 @@ cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin wo
   --current 0 --next 1
 cargo run -p loom-cli -- --output human timeline inspect --world $WORLD --timeline $TIMELINE
 ```
+
+The existing `LOOM_WORKER_SCHEDULER_POLL_LIMIT` bounds how many discovered
+targets one cycle observes and drives; `LOOM_WORKER_POLL_MS` controls the delay
+between cycles. These are operational bounds only. They do not choose a
+logical Work order or change Runtime's PostgreSQL-backed authority. Lease and
+retry settings remain platform bookkeeping, not World-Time semantics.
 
 Key laws (operator guide for deep-dive):
 
@@ -334,6 +357,10 @@ cargo run -p loom-cli -- --output human history events --world $WORLD --timeline
 ```
 
 `TimelineAncestry`/`TimelineVersion` lineage is immutable and queryable via `history` causality. Cross-branch `Event`/`call` provenance never leaks.
+
+When a fork retains branch-local `Pending` Work, the running Supervisor
+discovers the child Timeline automatically; no per-Timeline registration or
+manual drive is required.
 
 ### 3.8 Inspect provenance (Runtime Revision / Session)
 
@@ -387,7 +414,7 @@ Real vendor LLM integration similarly remains non-blocking / deferred and must a
 # Restart is durable — all truth is in PostgreSQL + blob store:
 docker compose restart loom-server
 # Or native: stop loom-server (Ctrl-C / SIGTERM) then run it again with the same LOOM_DATABASE_URL/LOOM_DATA_DIR
-# and the same Scheduler target and Admin token if you need those features.
+# and the same Admin token if you need admin-only inspection commands.
 
 # Verify after restart: history, feed, and scheduler all resume from committed position:
 cargo run -p loom-cli -- --output human history events --world $WORLD --timeline $TIMELINE
@@ -406,14 +433,14 @@ The worker helper checks the shutdown signal before each `drive_timeline` step; 
 
 - Copy `.env.example` → `.env`; the committed defaults run locally with `POSTGRES_USER=loom`, `POSTGRES_PASSWORD=loom` (local-test-only).
 - Replace `POSTGRES_PASSWORD` outside development; never commit provider/LLM credentials.
-- `LOOM_ADMIN_TOKEN` and `LOOM_SCHEDULER_WORLD_ID`/`LOOM_SCHEDULER_TIMELINE_ID` must be supplied without hard-coded secrets via environment or `cargo run -p loom-cli -- --admin-token ...` and `.env` edits when those features are needed (see §2.1, §3.5, §3.8).
+- `LOOM_ADMIN_TOKEN` must be supplied without hard-coded secrets via the environment or `cargo run -p loom-cli -- --admin-token ...` when admin-only features are needed (see §2.1, §3.5, §3.8).
 - Example `WorldTemplateDescriptor` and `IngressEnvelope` JSON are submitted through the CLI/API — never through direct SQL fixture mutation (`loom-storage` owns migrations/SQL exclusively).
 
 ## 5. Validated commands checklist
 
 Every command above is a syntactically valid public CLI invocation verified by a parser sweep (`cargo run -p loom-cli -- <subcommand> --help` for each subcommand and `cargo run -p loom-cli -- --output human --help` for globals) and by `serde_json` deserialization for every JSON payload (WorldTemplateDescriptor, IngressEnvelope with `invocation.action`, SubscriptionRequest). The full sweep is recorded in the task evidence.
 
-- Server: `cargo run -p loom-server` / `docker compose up` → `SystemClock` + `PgStorage` + `loom-boundary` → `Runtime::drive_timeline` via bounded `SchedulerWorker` **only when** `LOOM_SCHEDULER_WORLD_ID`/`LOOM_SCHEDULER_TIMELINE_ID` are configured (§3.5).
+- Server: `cargo run -p loom-server` / `docker compose up -d` → `SystemClock` + `PgStorage` + `loom-boundary` + lifecycle-managed `SchedulerSupervisor` → bounded discovery → `Runtime::drive_timeline` (§3.5).
 - Client: `loom-client` (`crates/loom-client`) — HTTP/JSON + SSE over `loom-api`.
 - CLI: `cargo run -p loom-cli -- --help` plus all subcommand helps (listed in `apps/loom-cli/src/lib.rs`); `cargo test -p loom-cli --all-features` (deterministic JSON/cursors, `ApiErrorCode` exit codes 10–16, feed resume/fork/provenance/Admin workflows via `loom-boundary` + `InMemoryStore`). Global flags are `--output/--server/--admin-token` **before** subcommand.
 - Persistence: `bash tools/postgres-test.sh up` then `cargo test --workspace --all-features` (or `bash tools/test.sh --workspace --all-features` which starts/uses the `loom_control` service at `postgresql://loom:loom@127.0.0.1:15432/loom_control` if `LOOM_TEST_POSTGRES_URL` is unset).

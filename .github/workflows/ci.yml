@@ -32,6 +32,9 @@ on:
       - "tools/fixtures/validator-ready/**"
       - "docs/tasks/scheduler-discovery/**"
       - "docs/tasks/ci-governance/**"
+      - "README.md"
+      - "docs/quickstart.md"
+      - "docs/operator-guide.md"
       - "!apps/loom-validator/**"
   pull_request:
     paths:
@@ -61,6 +64,9 @@ on:
       - "tools/fixtures/validator-ready/**"
       - "docs/tasks/scheduler-discovery/**"
       - "docs/tasks/ci-governance/**"
+      - "README.md"
+      - "docs/quickstart.md"
+      - "docs/operator-guide.md"
       - "!apps/loom-validator/**"
 
 permissions:
@@ -84,6 +90,7 @@ jobs:
       ledger: ${{ steps.classify.outputs.ledger }}
       postgres: ${{ steps.classify.outputs.postgres }}
       deployment: ${{ steps.classify.outputs.deployment }}
+      documentation: ${{ steps.classify.outputs.documentation }}
 
     steps:
       - name: Checkout
@@ -102,6 +109,7 @@ jobs:
           ledger=false
           postgres=false
           deployment=false
+          documentation=false
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             rust=true
@@ -109,6 +117,7 @@ jobs:
             ledger=true
             postgres=true
             deployment=true
+            documentation=true
           else
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               base="${{ github.event.pull_request.base.sha }}"
@@ -178,6 +187,12 @@ jobs:
                   deployment=true
                   ;;
               esac
+
+              case "$path" in
+                README.md|docs/quickstart.md|docs/operator-guide.md)
+                  documentation=true
+                  ;;
+              esac
             done < /tmp/loom-ci-changed-files
           fi
 
@@ -187,10 +202,45 @@ jobs:
             echo "ledger=$ledger"
             echo "postgres=$postgres"
             echo "deployment=$deployment"
+            echo "documentation=$documentation"
           } >> "$GITHUB_OUTPUT"
 
-          printf 'rust=%s dependency=%s ledger=%s postgres=%s deployment=%s\n' \
-            "$rust" "$dependency" "$ledger" "$postgres" "$deployment"
+          printf 'rust=%s dependency=%s ledger=%s postgres=%s deployment=%s documentation=%s\n' \
+            "$rust" "$dependency" "$ledger" "$postgres" "$deployment" "$documentation"
+
+  documentation:
+    name: Active deployment documentation
+    needs: changes
+    if: needs.changes.outputs.documentation == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate active deployment guidance
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -REn 'LOOM_SCHEDULER_WORLD_ID|LOOM_SCHEDULER_TIMELINE_ID|docker compose up -d --force-recreate' \
+            README.md docs/quickstart.md docs/operator-guide.md; then
+            echo "active deployment docs contain removed target or recreate instructions" >&2
+            exit 1
+          fi
+
+          for document in README.md docs/quickstart.md docs/operator-guide.md; do
+            grep -Eq 'docker compose up -d' "$document"
+          done
+          grep -Eq 'LOOM_WORKER_SCHEDULER_POLL_LIMIT' docs/quickstart.md docs/operator-guide.md
+          grep -Eq 'LOOM_WORKER_POLL_MS' docs/quickstart.md docs/operator-guide.md
+
+      - name: Validate Compose configuration and scheduler limit wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.yaml config | grep -Fq 'LOOM_WORKER_SCHEDULER_POLL_LIMIT'
 
   ledger:
     name: Task ledger governance

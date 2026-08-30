@@ -34,7 +34,7 @@ Laws (world-runtime §2.4, §7):
 | --- | --- | --- |
 | Where | `TimelineSnapshot.world_time`, Event `occurred_at` stamped by Runtime at commit | `Work.lease_deadline`, `Work.available_at`, Ingress `received_at`, Session `started_at` |
 | Mutation | Explicit Logical Commit `AdvanceWorldTime` when quiescent; consumed alongside Work completion in same Logical Commit (`Chronology Budget`) | Sampled by the application via `PlatformClock::now_milli` for claim/fence bookkeeping |
-| Operator control | `admin world-time advance --world --timeline --expected-head-seq --expected-state-rev --current --next` (CAS-guarded by expected `TimelineVersion`) | `LOOM_WORKER_LEASE_MS`, `LOOM_WORKER_RETRY_BACKOFF_MS`, `LOOM_WORKER_POLL_MS` (non-secret env) |
+| Operator control | `admin world-time advance --world --timeline --expected-head-seq --expected-state-rev --current --next` (CAS-guarded by expected `TimelineVersion`) | `LOOM_WORKER_LEASE_MS`, `LOOM_WORKER_RETRY_BACKOFF_MS`, `LOOM_WORKER_POLL_MS`, `LOOM_WORKER_SCHEDULER_POLL_LIMIT` (non-secret env) |
 
 A common mis-operation is to set a large retry backoff and assume `World Time` will catch up automatically. It will not — the Timeline remains at the due head's `effective_due_world_time` until the Scheduler resolves it.
 
@@ -53,6 +53,29 @@ Operational Work state  = Platform Operational State: lease_deadline / fence / a
 Inspect: `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin timeline status --world <world> --timeline <timeline>` (logical status + budget; global `--admin-token` before subcommand), `loom --admin-token $LOOM_ADMIN_TOKEN --output human admin work terminalize --world <world> --timeline <timeline> --work-id <work> --expected-head-seq <seq> --expected-state-rev <rev> --terminal-state dead` (or `cancelled`).
 
 ## 4. Head-of-line chronology barrier, quiescence and Chronology Budget
+
+The official Compose deployment is a single command:
+
+```bash
+docker compose up -d
+```
+
+It starts PostgreSQL and `loom-server` together. Scheduler supervision is part
+of the `loom-server` lifecycle. Each bounded Supervisor cycle observes
+Timelines with at least one logical `Pending` Work obligation and passes
+advisory targets to `Runtime::drive_timeline`. The observation includes future
+World-Time Work, Work that is temporarily unclaimable because of platform
+backoff or a lease, and Work blocked by missing compatible software. Existing
+Timelines are found at startup, and new or forked Timelines with `Pending` Work
+are found during normal operation without deployment registration or a restart.
+
+PostgreSQL remains the authority. Discovery does not choose a logical Work
+order, skip a head, claim or reserve Work, advance World Time or commit
+semantic state; Runtime reloads authoritative state and applies the existing
+due-ness, claimability, Chronology Budget and Logical Commit rules. The
+existing `LOOM_WORKER_SCHEDULER_POLL_LIMIT` bounds targets per cycle and
+`LOOM_WORKER_POLL_MS` controls the delay between cycles. These settings affect
+operational cadence only.
 
 **Head-of-line barrier:** when the logical head is semantically due, later Work on the same Timeline cannot be claimed or executed before it, and `World Time` cannot be advanced past it. `SKIP LOCKED` helps distribute work across *independent* Timeline heads but never skips a logical head within one Timeline (Amendment 0001 §4).
 
@@ -75,7 +98,7 @@ cargo run -p loom-cli -- --admin-token $LOOM_ADMIN_TOKEN --output human admin ti
 
 Recovery paths (mutually exclusive, both explicit Logical Commits):
 
-1. **Provide compatible software** — publish and activate a new `Runtime Revision` containing the required capability/provider implementation; the Scheduler will then admit the same head on the next drive (requires `LOOM_SCHEDULER_WORLD_ID`/`TIMELINE_ID` to be set and the server restarted, see quickstart §3.5).
+1. **Provide compatible software** — publish and activate a new `Runtime Revision` containing the required capability/provider implementation; the running Supervisor will pass the same Timeline to Runtime on a later bounded discovery cycle, and Runtime will then admit the same head when its compatibility and claimability checks pass. No deployment target or restart is required.
 2. **Authorized terminalization** — an operator with `AdminOperation::TerminalizeWork` authority explicitly moves `Pending → Dead | Cancelled` via (global `--admin-token` before subcommand; `--expected-head-seq`/`--expected-state-rev` are mandatory CAS guards; `--terminal-state` is `dead` or `cancelled`):
 
 ```bash
@@ -112,6 +135,10 @@ A Timeline fork is a Logical Commit that clones `Timeline Logical State` history
 - Parent Binding, `World Time`, `chronology_consumed`, `TimelineVersion` lineage and branch-local `Pending` Works are cloned; `Platform Operational State` (lease/fence/retry) is not forked — child Works start with fresh operational state.
 - `TimelineAncestry`/`TimelineVersion`/`fork_position` are immutable, queryable via `history causes/effects/walk` (`CausalTraversal` with `CausalDirection::Ancestors|Descendants`).
 - Branch-local Events/`Work`/`Session` provenance never leak across branches; the storage tests prove restart/replay/fork isolation (`crates/loom-storage/tests/postgres_work.rs`, `postgres_restart_resume`).
+
+When a fork retains branch-local `Pending` Work, the running Supervisor
+discovers the child Timeline automatically. Discovery remains advisory; the
+child's logical head, ordering and commits are still determined by Runtime.
 
 Historical fork (`source_version` at an older committed position) preserves the parent Binding as of that position; head fork without explicit version uses the current head as a convenience default.
 
