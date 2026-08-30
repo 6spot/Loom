@@ -1,145 +1,59 @@
 ---
 task: VALR-T24
 issue: 329
-status: completed
+status: in_progress
 depends_on: [327]
 created_at: 2026-08-27
-started_at: 2026-08-27
-completed_at: 2026-08-30
-completion_pr: 387
-merge_sha: f0cf50061b31e9f5e5a595ddaa9c71a4eff554d2
+started_at: 2026-08-30
+completed_at:
+completion_pr:
+merge_sha:
+architecture_decision_blocker: false
 ---
 
-# VALR-T24 — Validator certification/integration gate
+# VALR-T24 — Final Validator certification gate
 
-This record certifies the Validator as an evidence consumer only after the
-gate's real test commands and the T22 manifest have been joined. It does not
-change Validator, Runtime, Storage, schema, migration, or scenario semantics.
-T25 owns the final current-main certification decision.
+## Purpose
 
-## Candidate and evidence contract
+T24 is being re-executed against production candidate `02c55a6b5c34f227abfcb732a21bf6c390e22578`. The prior T24 run on `103a75e96cd9f7b9e495a39bb6608316c47b76e6` remains historical: it truthfully produced 38 Pass / 2 Unavailable before Architecture Amendment 0004 and T27 closed the two formal-observation gaps.
 
-- Fixed production candidate: `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
-- The gate accepts this exact production candidate or an evidence-only
-  descendant only when the fixed candidate is an ancestor and the complete
-  diff contains only these three authorized T24 files: this ledger and the two
-  `tools/validator-certification-gate.*` files. Any unrelated base, non-ancestor
-  head, or forbidden production diff fails closed before test execution.
-- Reports keep `candidate_sha` and `base_sha` fixed at the production SHA and
-  record the actual executed commit separately as `evidence_head`.
-- Race protocol: closed. No persistence, claim, retry, checkpoint, marker, or
-  concurrency authority is introduced.
-- Machine-readable artifact: `target/validator/t24-validator-certification-gate.json`.
-- Per-CV rows are sorted by CV ID and include outcome, trusted evidence class,
-  restart/PG requirement, prerequisite, exact T22 command, executed command ID,
-  and evidence log.
+This refresh does not change production semantics or acceptance criteria. It consumes the T22 manifest already merged by PR #394 and independently executes the named Validator targets plus the PostgreSQL 18 live gate.
 
-## Gate behavior
+## Candidate discipline
 
-`bash tools/validator-certification-gate.sh` runs the existing Validator
-integration targets, the negative backend/restart/required-live regressions,
-the Validator library registry/report tests, and the controlled PostgreSQL 18
-T20 gate. Test summaries must be present, must contain no zero-test result,
-and must be all-pass before a ready row can be `Pass`. The script does not
-convert a shell success into evidence without an executed test summary.
+The gate keeps `02c55a6b5c34f227abfcb732a21bf6c390e22578` fixed as the production candidate. An evidence descendant is accepted only when:
 
-The T22 manifest is authoritative for the row set. The refreshed manifest is
-read from the pinned `origin/main` ref and records its commit in the report;
-it has 38 ready CVs and two capability gaps (CV-028 and CV-029). The two gaps
-remain `Unavailable` with trusted evidence class `none`, and therefore keep
-`gate_passes` false. The report checks duplicate-free deterministic coverage
-of all 40 CV IDs represented by T22.
+- the candidate is an ancestor of the executed HEAD; and
+- every candidate-to-HEAD change is documentation, the CI workflow, or the T24 certification-gate tooling itself.
 
-## AC mapping
+Any Rust, SQL, schema, Runtime, Storage, Validator scenario, capability or other production change fails before certification tests execute.
 
-- AC-1: the library/runner test target records the existing single-pass and
-  call-count regressions; the gate invokes each selected target once.
-- AC-2: the required-live and Validator library targets exercise strict,
-  skipped, unavailable, fail, unknown, and zero-selection fail-closed paths.
-- AC-3: `backend_evidence`, `required_live`, and `restart_evidence` targets
-  preserve external and reconnect-only negative classifications.
-- AC-4: `validator-pg18-gate.sh` runs the controlled PG18 required-live matrix
-  and rejects zero-test/self-skip evidence.
-- AC-5: the JSON report validates the completed CV registry, ordering, and
-  duplicate-free row coverage.
-- AC-6: each T22 CV row carries the fixed candidate, evidence head, current
-  command evidence, and truthful manifest status; gaps are not hidden.
-- AC-7: results below are recorded only from the fixed candidate or its
-  authorized evidence-only descendant's real commands;
-  no Reviewer/CI/Task completion is asserted here.
+## Required result
 
-## Verification record
+`bash tools/validator-certification-gate.sh` must:
 
-The gate's result is intentionally not a certification pass while T22 retains
-CV-028/CV-029 capability gaps. A nonzero gate result caused by those manifest
-gaps is expected fail-closed behavior, not a green certification.
+- read T22 from merged main rather than from an unmerged manifest edit;
+- find exactly CV-001 through CV-040, duplicate-free;
+- execute every named Validator/public-consumer target with nonzero real test summaries;
+- execute the repository-managed PostgreSQL 18 live gate;
+- preserve backend/restart/required-live negative checks;
+- classify every CV as Pass only from an actually executed passing suite;
+- write `target/validator/t24-validator-certification-gate.json`;
+- report `40 Pass`, `0 Unavailable`, `0 gap`, and `gate_passes=true`.
 
-### Current-main evidence run
+CV-028/CV-029 are not generic-registry scenarios. Their certification source is the controlled `semantic_blob` suite: setup/fault injection may use Runtime/ProjectionStore/BlobStore, while the capability observations themselves use the formal LoomClient semantic/blob read boundary.
 
-- Candidate/base: `4efb1d346c926f2ee10654c3bc24cd92af351881`.
-- T22 input: `origin/main` at `856814dfef5ca800e7c94cdabffd926846663110`,
-  `docs/tasks/validator-recert/stage-3/t22-certification-manifest.md`.
-- Race protocol: closed; no persistence, claim, retry, checkpoint, marker, or
-  concurrency authority was added.
-- `bash tools/validator-certification-gate.sh` — exit `1` because the
-  refreshed T22 manifest contains the two real gaps CV-028/CV-029. The report
-  contains 40 sorted, duplicate-free CV rows: 38 `Pass`, 2 `Unavailable`, and
-  `gate_passes: false`.
-- All 17 underlying commands executed real tests with zero failed summaries:
-  lifecycle (3), replay/fork (4), runtime-authority (2), world-binding (10),
-  action/ingress (11), scheduler (8), agency (5), world-time (10),
-  query/catalog (7), semantic/blob (11), provenance (9), change-feed (7),
-  backend-evidence (1), required-live (3), restart-evidence (6), Validator
-  library (165), and the PG18 gate (2 aggregate tests). No required command
-  was skipped, ignored, filtered to zero tests, or treated as a pass from an
-  unavailable result.
-- `bash tools/validator-pg18-gate.sh` — exit `0`; repository-managed
-  PostgreSQL 18.6 required-live matrix executed 10/10 rows with trusted
-  PostgreSQL evidence, controlled boundary restart evidence, and
-  `gate_passes: true` (CV-014, CV-016, CV-022, CV-023, CV-030..CV-033,
-  CV-039, CV-040).
-- `python3 tools/validator-certification-gate.py --regression-check` — exit
-  `0`; boundary termination/rebuild and PG18 preparation failures remain
-  fail-closed.
+## Governance hardening
 
-The two non-pass rows are intentionally preserved from the refreshed T22
-input: CV-028 lacks the formal semantic-projection observable required by
-T08, and CV-029 lacks the formal blob/reference fetch observable required by
-T08. T24 does not add a public seam or reinterpret internal controlled-driver
-evidence. No PR was created or merged by Executor; final certification remains
-owned by T25.
+This refresh also adds a CI invariant for the complete `docs/tasks/validator-recert` Task Graph. Stage-2/Stage-3 metadata may no longer be invalid while ordinary CI remains green.
 
-### Current-main rerun on `103a75e96cd9f7b9e495a39bb6608316c47b76e6`
+## Acceptance
 
-This append-only record supersedes the prior `4efb1d…` run for current-main
-evidence. The prior candidate and report remain historical only.
-
-- Candidate/base: `103a75e96cd9f7b9e495a39bb6608316c47b76e6`.
-- Evidence HEAD: `a45ed079637644e02e1d72d9a0025ea1723adae1`.
-- T22 manifest input: merge `322a9268648d243abd6196f508f5c88681c0c6a1`
-  (PR #386), read by the gate at the exact manifest ref.
-- T19 latest ledger input remains merge
-  `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`; T23 core evidence input remains
-  merge `657e571ced6e06219e9d1a065775d762e4a83279`.
-- Race protocol: closed; no persistence, claim, retry, checkpoint, marker, or
-  concurrency authority was added.
-- The complete 40-row report, command summaries, PG18 report, artifact hashes,
-  and exact non-pass reasons are recorded in the handoff comment for this run.
-- CV-028 and CV-029 remain truthful `Unavailable` rows because the refreshed
-  manifest still lacks the required formal semantic-projection and
-  blob/reference-fetch observables. No descriptor, registry entry, or Pass was
-  fabricated; final certification remains unclaimed.
-
-## Completion reconciliation
-
-T24 is complete as a **truthfulness/certification-gate execution task**, not as
-a claim that V0 itself is certified. PR #387 merged the current-main T24
-evidence as `f0cf50061b31e9f5e5a595ddaa9c71a4eff554d2`; its exact head
-`a45ed079637644e02e1d72d9a0025ea1723adae1` completed CI run `33262635979`
-with conclusion `success`.
-
-The durable result handed to T25 is intentionally fail-closed: 38 `Pass`,
-2 `Unavailable` (`CV-028`, `CV-029`), `gate_passes: false`. Completing T24
-therefore means the Validator gate is trustworthy and its evidence is complete;
-it does **not** erase the two product-observability gaps or authorize a final
-green V0 certificate.
+- [x] T22 is merged and records 40 ready / 0 gap for the fixed production candidate.
+- [x] T23 is completed from PR #394 core/PG18 evidence on an evidence-only descendant.
+- [x] T24 tooling is fail-closed on production-changing descendants.
+- [x] Full recert Task Ledger validation is wired into CI.
+- [ ] T24 certification report contains exactly 40 Pass and `gate_passes=true`.
+- [ ] All underlying commands execute real tests with no failed or zero-test summary.
+- [ ] Required CI, including PostgreSQL 18, completes successfully on this exact PR head.
+- [ ] Completion metadata is populated only after the T24 PR merges.
