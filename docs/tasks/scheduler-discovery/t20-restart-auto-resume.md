@@ -1,10 +1,10 @@
 ---
 task: SCHD-T20
 issue: 422
-status: planned
+status: in_progress
 depends_on: [417]
 created_at: 2026-08-30
-started_at:
+started_at: 2026-08-31
 completed_at:
 completion_pr:
 merge_sha:
@@ -28,3 +28,7 @@ server boundary restart without a fixed target or persisted in-memory cursor.
 - [ ] Verify existing Work lease/fence/retry semantics remain authoritative.
 - [ ] Use a real application restart, not reconnect-only substitution; no new
       scheduler state, restart manager, direct SQL assertion or manual drive.
+
+## Progress Log
+
+- 2026-08-31 — Added an integration gate that launches the official loom-server binary twice against the same controlled PostgreSQL state, with no Scheduler target IDs and no cursor transfer between processes. The gate checks pending Work recovery through public/Admin/History/Query surfaces and records distinct process IDs as restart evidence.

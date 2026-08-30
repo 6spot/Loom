@@ -1424,17 +1424,23 @@ name = "loom-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "futures-util",
  "getrandom 0.3.4",
  "loom-api",
  "loom-boundary",
  "loom-capability",
+ "loom-client",
  "loom-core",
  "loom-neutral",
  "loom-runtime",
  "loom-storage",
+ "serde_json",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
