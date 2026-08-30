@@ -31,6 +31,7 @@ on:
       - "tools/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
+      - "docs/tasks/scheduler-discovery/**"
   pull_request:
     paths:
       - ".github/workflows/**"
@@ -58,6 +59,7 @@ on:
       - "tools/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
+      - "docs/tasks/scheduler-discovery/**"
 
 permissions:
   contents: read
@@ -110,6 +112,9 @@ jobs:
 
       - name: Validator Stage-1 recert ledger (VALR-T01..T07)
         run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
+
+      - name: Scheduler discovery task ledger governance
+        run: python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery --check --format json
 
       - name: Validator Stage-1 authority regression gate (VALR-T07)
         run: bash tools/validator-authority-gate.sh

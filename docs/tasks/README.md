@@ -43,6 +43,14 @@ Before implementing any planned task:
 3. read the task file and linked GitHub Issue;
 4. if the implementation would require a new authority/semantic decision, stop and create an Architecture Amendment rather than deciding it inside the implementation task.
 
+## Automatic Scheduler discovery initiative
+
+The automatic Scheduler discovery initiative is tracked in the
+[`scheduler-discovery/README.md`](scheduler-discovery/README.md) ledger. It
+records the executable leaves for GitHub issues #403–#423 after the accepted
+Architecture Amendment 0005. The root issue #398 and stage trackers #399–#402
+are coordination records; only the leaf records in that ledger are executable.
+
 ## One task, one file
 
 Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.
