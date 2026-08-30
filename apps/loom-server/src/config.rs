@@ -2,7 +2,6 @@
 
 use std::{net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
-use loom_api::{TimelineId, TimelineTarget, WorldId};
 use loom_boundary::BoundaryConfig;
 use loom_runtime::{ChronologyBudgetPolicy, FailurePolicy, HistoryBudget, ResolutionBudget};
 
@@ -24,7 +23,6 @@ pub struct ServerConfig {
     pub(crate) worker_config: WorkerConfig,
     pub(crate) worker_poll_interval: Duration,
     pub(crate) ingress_queue_capacity: usize,
-    pub(crate) scheduler_target: Option<TimelineTarget>,
     pub(crate) boundary_config: BoundaryConfig,
     pub(crate) resolution_budget: ResolutionBudget,
     pub(crate) history_budget: HistoryBudget,
@@ -229,7 +227,6 @@ impl ServerConfig {
             message: error.to_string(),
         })?;
 
-        let scheduler_target = scheduler_target_from_env()?;
         Ok(Self {
             database_url,
             bind_addr,
@@ -242,7 +239,6 @@ impl ServerConfig {
             worker_config,
             worker_poll_interval: Duration::from_millis(poll_millis),
             ingress_queue_capacity,
-            scheduler_target,
             boundary_config,
             resolution_budget,
             history_budget,
@@ -283,7 +279,6 @@ impl std::fmt::Debug for ServerConfig {
             .field("worker_config", &self.worker_config)
             .field("worker_poll_interval", &self.worker_poll_interval)
             .field("ingress_queue_capacity", &self.ingress_queue_capacity)
-            .field("scheduler_target", &self.scheduler_target)
             .field("boundary_config", &self.boundary_config)
             .field("resolution_budget", &self.resolution_budget)
             .field("history_budget", &self.history_budget)
@@ -364,37 +359,108 @@ where
     Ok(value)
 }
 
-fn scheduler_target_from_env() -> Result<Option<TimelineTarget>, ServerConfigError> {
-    let world = std::env::var("LOOM_SCHEDULER_WORLD_ID")
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty());
-    let timeline = std::env::var("LOOM_SCHEDULER_TIMELINE_ID")
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty());
-    match (world, timeline) {
-        (None, None) => Ok(None),
-        (Some(world), Some(timeline)) => Ok(Some(TimelineTarget::new(
-            parse_identity::<WorldId>("LOOM_SCHEDULER_WORLD_ID", &world)?,
-            parse_identity::<TimelineId>("LOOM_SCHEDULER_TIMELINE_ID", &timeline)?,
-        ))),
-        (Some(_), None) | (None, Some(_)) => Err(ServerConfigError::InvalidValue {
-            name: "LOOM_SCHEDULER_WORLD_ID/LOOM_SCHEDULER_TIMELINE_ID",
-            message: "both values must be supplied together".to_owned(),
-        }),
-    }
-}
+#[cfg(test)]
+mod tests {
+    use std::process::Command;
 
-fn parse_identity<T>(name: &'static str, value: &str) -> Result<T, ServerConfigError>
-where
-    T: FromStr,
-    T::Err: std::fmt::Display,
-{
-    value
-        .parse::<T>()
-        .map_err(|error: T::Err| ServerConfigError::InvalidValue {
-            name,
-            message: error.to_string(),
-        })
+    use super::{ServerConfig, ServerConfigError};
+
+    fn run_config_probe(mode: &str, database_url: Option<&str>, extra_env: &[(&str, &str)]) {
+        let mut command = Command::new(
+            std::env::current_exe().expect("configuration test should locate its test binary"),
+        );
+        command.env_clear().env("LOOM_CONFIG_PROBE", mode).args([
+            "--exact",
+            "config::tests::config_probe_child",
+            "--nocapture",
+        ]);
+        if let Some(database_url) = database_url {
+            command.env("LOOM_DATABASE_URL", database_url);
+        }
+        for &(name, value) in extra_env {
+            command.env(name, value);
+        }
+
+        let output = command
+            .output()
+            .expect("configuration test should execute its probe child");
+        assert!(
+            output.status.success(),
+            "configuration probe {mode} failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn from_env_accepts_startup_without_scheduler_target_variables() {
+        run_config_probe(
+            "without_scheduler_target",
+            Some("postgresql://localhost/loom"),
+            &[],
+        );
+    }
+
+    #[test]
+    fn from_env_ignores_invalid_legacy_scheduler_target_variables() {
+        run_config_probe(
+            "invalid_scheduler_target",
+            Some("postgresql://localhost/loom"),
+            &[
+                ("LOOM_SCHEDULER_WORLD_ID", "not-a-world-id"),
+                ("LOOM_SCHEDULER_TIMELINE_ID", "not-a-timeline-id"),
+            ],
+        );
+    }
+
+    #[test]
+    fn from_env_still_requires_database_url() {
+        run_config_probe("missing_database", None, &[]);
+    }
+
+    #[test]
+    fn from_env_still_rejects_zero_scheduler_poll_limit() {
+        run_config_probe(
+            "zero_scheduler_poll_limit",
+            Some("postgresql://localhost/loom"),
+            &[("LOOM_WORKER_SCHEDULER_POLL_LIMIT", "0")],
+        );
+    }
+
+    #[test]
+    fn config_probe_child() {
+        let Ok(mode) = std::env::var("LOOM_CONFIG_PROBE") else {
+            return;
+        };
+
+        match mode.as_str() {
+            "without_scheduler_target" | "invalid_scheduler_target" => {
+                let config = ServerConfig::from_env()
+                    .expect("configuration probe should accept the supplied environment");
+                let debug = format!("{config:?}");
+                assert!(!debug.contains("scheduler_target"));
+            }
+            "missing_database" => {
+                let error = ServerConfig::from_env()
+                    .expect_err("configuration should require LOOM_DATABASE_URL");
+                assert!(matches!(
+                    error,
+                    ServerConfigError::Missing {
+                        name: "LOOM_DATABASE_URL"
+                    }
+                ));
+            }
+            "zero_scheduler_poll_limit" => {
+                let error = ServerConfig::from_env()
+                    .expect_err("configuration should reject a zero scheduler poll limit");
+                assert!(matches!(
+                    error,
+                    ServerConfigError::InvalidValue {
+                        name: "LOOM_WORKER_SCHEDULER_POLL_LIMIT",
+                        message
+                    } if message == "must be positive"
+                ));
+            }
+            _ => panic!("unknown configuration probe mode: {mode}"),
+        }
+    }
 }
