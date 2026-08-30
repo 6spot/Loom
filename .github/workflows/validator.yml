@@ -1,0 +1,181 @@
+name: Validator
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/validator.yml"
+      - ".github/CODEOWNERS"
+      - "apps/loom-validator/**"
+      - "tools/test.sh"
+      - "tools/test_validator_ready.py"
+      - "tools/validator_ready.py"
+      - "tools/validator-authority-gate.sh"
+      - "tools/validator-certification-gate.py"
+      - "tools/validator-certification-gate.sh"
+      - "tools/validator-pg18-gate.sh"
+      - "tools/fixtures/validator-ready/**"
+      - "docs/tasks/validator/**"
+      - "docs/tasks/validator-recert/**"
+  pull_request:
+    paths:
+      - ".github/workflows/validator.yml"
+      - ".github/CODEOWNERS"
+      - "apps/loom-validator/**"
+      - "tools/test.sh"
+      - "tools/test_validator_ready.py"
+      - "tools/validator_ready.py"
+      - "tools/validator-authority-gate.sh"
+      - "tools/validator-certification-gate.py"
+      - "tools/validator-certification-gate.sh"
+      - "tools/validator-pg18-gate.sh"
+      - "tools/fixtures/validator-ready/**"
+      - "docs/tasks/validator/**"
+      - "docs/tasks/validator-recert/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validator-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  changes:
+    name: Classify Validator changes
+    runs-on: ubuntu-latest
+    outputs:
+      implementation: ${{ steps.classify.outputs.implementation }}
+      ledger: ${{ steps.classify.outputs.ledger }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify Validator-owned changes
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          implementation=false
+          ledger=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            implementation=true
+            ledger=true
+          else
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              base="${{ github.event.pull_request.base.sha }}"
+              head="${{ github.event.pull_request.head.sha }}"
+            else
+              base="${{ github.event.before }}"
+              head="${{ github.sha }}"
+              if [[ "$base" =~ ^0+$ ]]; then
+                base="${head}^"
+              fi
+            fi
+
+            git diff --name-only "$base" "$head" > /tmp/loom-validator-changed-files
+            cat /tmp/loom-validator-changed-files
+
+            while IFS= read -r path; do
+              [[ -n "$path" ]] || continue
+
+              case "$path" in
+                .github/workflows/validator.yml|.github/CODEOWNERS|apps/loom-validator/*|tools/test.sh|tools/validator-authority-gate.sh|tools/validator-certification-gate.py|tools/validator-certification-gate.sh|tools/validator-pg18-gate.sh)
+                  implementation=true
+                  ;;
+              esac
+
+              case "$path" in
+                .github/workflows/validator.yml|.github/CODEOWNERS|docs/tasks/validator/*|docs/tasks/validator-recert/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
+                  ledger=true
+                  ;;
+              esac
+            done < /tmp/loom-validator-changed-files
+          fi
+
+          {
+            echo "implementation=$implementation"
+            echo "ledger=$ledger"
+          } >> "$GITHUB_OUTPUT"
+
+          printf 'implementation=%s ledger=%s\n' "$implementation" "$ledger"
+
+  ledger:
+    name: Validator task ledger
+    needs: changes
+    if: needs.changes.outputs.ledger == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: READY fixtures
+        run: python3 tools/test_validator_ready.py
+
+      - name: Validator task ledger
+        run: python3 tools/validator_ready.py --check
+
+      - name: Validator re-certification ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json
+
+      - name: Validator Stage-1 re-certification ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
+
+  validator:
+    name: Validator stage checks
+    needs: changes
+    if: needs.changes.outputs.implementation == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy
+          rustup default "$RUST_VERSION"
+          rustc --version
+          cargo --version
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: validator-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            validator-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      - name: Check Validator
+        run: cargo check -p loom-validator --all-targets --all-features
+
+      - name: Clippy Validator
+        run: cargo clippy -p loom-validator --all-targets --all-features -- -D warnings
+
+      - name: Validator unit tests
+        run: cargo test -p loom-validator --all-features --lib
+
+      - name: Validator Rustdoc
+        run: RUSTDOCFLAGS='-D warnings' cargo doc -p loom-validator --no-deps
+
+      - name: Validator authority regression
+        run: bash tools/validator-authority-gate.sh
+
+      - name: T24 certification-tool regression
+        run: python3 tools/validator-certification-gate.py --regression-check
