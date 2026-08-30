@@ -3,7 +3,7 @@
 //! This module is enabled only by the `test-support` feature. It keeps
 //! PostgreSQL control connections and database lifecycle operations inside the
 //! storage adapter, while callers receive only an isolated database URL and
-//! continue to exercise the application through its public surfaces.
+//! storage-port operations.
 
 use std::{
     path::Path,
@@ -11,6 +11,8 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use loom_core::{TimelineId, WorkId};
+use loom_runtime::{PlatformTime, ReadError, WorkClaim, WorkError, WorkRecord, WorkStore};
 use sqlx::{AssertSqlSafe, PgPool};
 use url::Url;
 
@@ -21,11 +23,13 @@ const SERVER_VERSION_SQL: &str = include_str!("../sql/health/server_version.sql"
 
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 
-/// An isolated `PostgreSQL` database for a cross-crate integration-test fixture.
+/// An isolated `PostgreSQL` database for a cross-crate integration-test
+/// fixture.
 ///
 /// The control connection and database lifecycle remain owned by
 /// `loom-storage`. Callers can pass [`Self::database_url`] to a real server,
-/// then explicitly call [`Self::cleanup`] after the test has finished.
+/// use the storage-port helpers for deterministic operational setup, then
+/// explicitly call [`Self::cleanup`] after the test has finished.
 #[derive(Debug)]
 pub struct TestDatabase {
     control_pool: PgPool,
@@ -76,10 +80,77 @@ impl TestDatabase {
         &self.database_url
     }
 
+    /// Claims one Work through the storage-owned Runtime Work port.
+    ///
+    /// This is test setup for an operational lease; it does not select a
+    /// logical Work head or perform Scheduler execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Runtime Work-port error when the claim cannot be
+    /// established.
+    pub async fn claim_work(
+        &self,
+        timeline_id: TimelineId,
+        work_id: WorkId,
+        now: PlatformTime,
+        claimed_until: PlatformTime,
+    ) -> Result<WorkClaim, WorkError> {
+        let storage = self.connect_storage().await;
+        let result = storage
+            .claim(timeline_id, work_id, now, claimed_until)
+            .await;
+        storage.close().await;
+        result
+    }
+
+    /// Records one technical Work retry through the storage-owned Runtime Work
+    /// port, preserving the Work's logical identity and schedule position.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Runtime Work-port error when the claim is stale, expired or
+    /// otherwise cannot be retried.
+    pub async fn retry_work(
+        &self,
+        claim: &WorkClaim,
+        now: PlatformTime,
+        available_at: PlatformTime,
+        last_error: Option<String>,
+    ) -> Result<WorkRecord, WorkError> {
+        let storage = self.connect_storage().await;
+        let result = storage.retry(claim, now, available_at, last_error).await;
+        storage.close().await;
+        result
+    }
+
+    /// Reads one Work's operational and logical state through the storage-owned
+    /// Runtime Work port.
+    ///
+    /// # Errors
+    ///
+    /// Returns the Runtime read error when the Timeline cannot be read.
+    pub async fn read_work(
+        &self,
+        timeline_id: TimelineId,
+        work_id: WorkId,
+    ) -> Result<Option<WorkRecord>, ReadError> {
+        let storage = self.connect_storage().await;
+        let result = storage.work(timeline_id, work_id).await;
+        storage.close().await;
+        result
+    }
+
     /// Drops the isolated database and closes the control connection.
     pub async fn cleanup(self) {
         drop_database(&self.control_pool, &self.database_name).await;
         self.control_pool.close().await;
+    }
+
+    async fn connect_storage(&self) -> PgStorage {
+        PgStorage::connect(&self.database_url)
+            .await
+            .expect("isolated PostgreSQL test database should accept connections")
     }
 }
 

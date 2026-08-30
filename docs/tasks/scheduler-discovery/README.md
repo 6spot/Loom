@@ -36,16 +36,16 @@ stage tracker is not a hard dependency and must never be added to a leaf's
 | SCHD-T08 | #410 | completed | #406, #407, #409 | [t08-discovery-parity-gate.md](t08-discovery-parity-gate.md) |
 | SCHD-T09 | #411 | completed | #410 | [t09-supervisor-type.md](t09-supervisor-type.md) |
 | SCHD-T10 | #412 | completed | #411 | [t10-supervisor-cycle.md](t10-supervisor-cycle.md) |
-| SCHD-T11 | #413 | planned | #412 | [t11-supervisor-fairness.md](t11-supervisor-fairness.md) |
-| SCHD-T12 | #414 | planned | #413 | [t12-supervisor-loop.md](t12-supervisor-loop.md) |
-| SCHD-T13 | #415 | planned | #414 | [t13-server-supervisor-wiring.md](t13-server-supervisor-wiring.md) |
-| SCHD-T14 | #416 | planned | #415 | [t14-remove-fixed-worker.md](t14-remove-fixed-worker.md) |
-| SCHD-T15 | #417 | planned | #416 | [t15-remove-target-config.md](t15-remove-target-config.md) |
+| SCHD-T11 | #413 | completed | #412 | [t11-supervisor-fairness.md](t11-supervisor-fairness.md) |
+| SCHD-T12 | #414 | completed | #413 | [t12-supervisor-loop.md](t12-supervisor-loop.md) |
+| SCHD-T13 | #415 | completed | #414 | [t13-server-supervisor-wiring.md](t13-server-supervisor-wiring.md) |
+| SCHD-T14 | #416 | completed | #415 | [t14-remove-fixed-worker.md](t14-remove-fixed-worker.md) |
+| SCHD-T15 | #417 | completed | #416 | [t15-remove-target-config.md](t15-remove-target-config.md) |
 | SCHD-T16 | #418 | planned | #417 | [t16-compose-env-cleanup.md](t16-compose-env-cleanup.md) |
 | SCHD-T17 | #419 | planned | #418 | [t17-docs-automatic-scheduler.md](t17-docs-automatic-scheduler.md) |
 | SCHD-T18 | #420 | planned | #417 | [t18-new-world-auto-schedule.md](t18-new-world-auto-schedule.md) |
 | SCHD-T19 | #421 | planned | #417 | [t19-fork-auto-schedule.md](t19-fork-auto-schedule.md) |
-| SCHD-T20 | #422 | planned | #417 | [t20-restart-auto-resume.md](t20-restart-auto-resume.md) |
+| SCHD-T20 | #422 | in_progress | #417 | [t20-restart-auto-resume.md](t20-restart-auto-resume.md) |
 | SCHD-T21 | #423 | planned | #418, #419, #420, #421, #422 | [t21-final-compose-gate.md](t21-final-compose-gate.md) |
 
 ## Dependency graph
