@@ -1,13 +1,13 @@
 ---
 task: SCHD-T19
 issue: 421
-status: planned
+status: completed
 depends_on: [417]
 created_at: 2026-08-30
-started_at:
-completed_at:
+started_at: 2026-08-30
+completed_at: 2026-08-31
 completion_pr: 454
-merge_sha:
+merge_sha: 937de28f56bfb4034eb28e8b91cca74b5d732d85
 ---
 
 # SCHD-T19 — Prove a Timeline forked after startup is auto-scheduled
@@ -37,8 +37,15 @@ and progressed automatically, independently of World creation.
   World after readiness, forks through `LoomClient`, and triggers a child-only
   counter reaction Work through the public Action API.
 
+- 2026-08-31 — Post-merge completion audit: delivery PR #454 merged as
+  `937de28f56bfb4034eb28e8b91cca74b5d732d85`; the parent/child live evidence
+  and acceptance are reconciled here.
+
 ## Verification Evidence
 
 - `LOOM_TEST_POSTGRES_URL=postgresql://loom:loom@127.0.0.1:15432/loom_control cargo test -p loom-server --test t19_fork_auto_schedule -- --nocapture` — PASS; real `loom-server` process, isolated child database, public Timeline/History/Facet/Admin reads, automatic child Work completion, and unchanged parent state.
 - `cargo clippy -p loom-server --test t19_fork_auto_schedule -- -D warnings` — PASS.
 - `cargo fmt --all -- --check` — PASS.
+- PR #454 CI run `33330603285` — Classify changes, Task ledger governance,
+  Dependency and security policy, Rust checks, PostgreSQL 18 persistence
+  contract and Compose config all passed.
