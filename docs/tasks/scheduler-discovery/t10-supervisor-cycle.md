@@ -40,6 +40,10 @@ drives each discovered target once through `Runtime::drive_timeline`.
   target method item and borrowing discovery errors for API mapping. Reclaimed
   disposable host cache space and completed the focused and standard Rust
   checks.
+- 2026-08-30 — Upstream canonical Scheduler ledger drift was reconciled on
+  `main` through SCHD-T09 by PR #446. This evidence-only update intentionally
+  retriggers PR #445 against the corrected prerequisite chain; no T10
+  implementation semantics changed.
 
 ## Verification Evidence
 
