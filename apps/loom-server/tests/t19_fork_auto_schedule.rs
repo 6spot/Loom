@@ -11,7 +11,7 @@
 use std::{
     fs,
     net::TcpListener,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{self, Child, Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
@@ -27,62 +27,14 @@ use loom_client::LoomClient;
 use loom_neutral::{
     COUNTER_CAPABILITY, COUNTER_FACET, COUNTER_INCREMENT_ACTION, COUNTER_SEED_ACTION,
 };
-use loom_storage::PgStorage;
+use loom_storage::test_support::TestDatabase;
 use serde_json::{Value, json};
-use sqlx::{AssertSqlSafe, PgPool};
-use url::Url;
 use uuid::Uuid;
 
-const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 const SERVER_ADMIN_TOKEN: &str = "me-328-t19-admin";
 const SERVER_POLL_MILLIS: &str = "1000";
 
-static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 static NEXT_DATA_DIR: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Debug)]
-struct TestDatabase {
-    control_pool: PgPool,
-    database_name: String,
-    database_url: String,
-}
-
-impl TestDatabase {
-    async fn provision(label: &str) -> Self {
-        let (control_url, uses_repository_default) = postgres_control_url();
-        let control_pool = connect_control_database(&control_url, uses_repository_default).await;
-        assert_postgres_18(&control_pool).await;
-
-        let database_name = unique_database_name(label);
-        let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
-        sqlx::query(AssertSqlSafe(create_sql))
-            .execute(&control_pool)
-            .await
-            .expect("controlled PostgreSQL role should create an isolated T19 database");
-
-        let database_url = child_database_url(&control_url, &database_name);
-        let storage = PgStorage::connect(&database_url)
-            .await
-            .expect("isolated T19 PostgreSQL database should accept connections");
-        if let Err(error) = storage.migrate().await {
-            storage.close().await;
-            drop_database(&control_pool, &database_name).await;
-            panic!("isolated T19 database migrations should succeed: {error}");
-        }
-        storage.close().await;
-
-        Self {
-            control_pool,
-            database_name,
-            database_url,
-        }
-    }
-
-    async fn cleanup(self) {
-        drop_database(&self.control_pool, &self.database_name).await;
-        self.control_pool.close().await;
-    }
-}
 
 #[derive(Debug)]
 struct ServerProcess {
@@ -168,7 +120,7 @@ struct Observation {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn timeline_forked_after_startup_is_discovered_and_progressed() {
     let database = TestDatabase::provision("t19-fork").await;
-    let mut server = ServerProcess::start(&database.database_url);
+    let mut server = ServerProcess::start(database.database_url());
     let base_url = server_base_url(&server);
     let client = LoomClient::builder(base_url)
         .admin_token(SERVER_ADMIN_TOKEN)
@@ -392,95 +344,4 @@ fn terminate_child(child: &mut Child) {
     }
     let _ = child.kill();
     let _ = child.wait();
-}
-
-fn postgres_control_url() -> (String, bool) {
-    match std::env::var("LOOM_TEST_POSTGRES_URL") {
-        Ok(url) if !url.trim().is_empty() => (url, false),
-        _ => (DEFAULT_POSTGRES_CONTROL_URL.to_owned(), true),
-    }
-}
-
-async fn connect_control_database(control_url: &str, uses_repository_default: bool) -> PgPool {
-    match PgPool::connect(control_url).await {
-        Ok(pool) => pool,
-        Err(error) if uses_repository_default => {
-            start_repository_postgres(&error);
-            PgPool::connect(control_url).await.unwrap_or_else(|retry_error| {
-                panic!(
-                    "repository-managed PostgreSQL test service is still unreachable after startup: {retry_error}"
-                )
-            })
-        }
-        Err(error) => panic!(
-            "PostgreSQL control database from LOOM_TEST_POSTGRES_URL is unavailable: {error}"
-        ),
-    }
-}
-
-fn start_repository_postgres(initial_error: &sqlx::Error) {
-    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/postgres-test.sh");
-    let status = Command::new("bash").arg(&script).arg("up").status();
-    match status {
-        Ok(status) if status.success() => {}
-        Ok(status) => panic!(
-            "default PostgreSQL control database was unreachable ({initial_error}); `{}` exited with {status}",
-            script.display()
-        ),
-        Err(error) => panic!(
-            "default PostgreSQL control database was unreachable ({initial_error}); failed to start `{}`: {error}",
-            script.display()
-        ),
-    }
-}
-
-async fn assert_postgres_18(pool: &PgPool) {
-    let server_version: i32 =
-        sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
-            .fetch_one(pool)
-            .await
-            .expect("controlled PostgreSQL should report its server version");
-    assert!(
-        (180_000..190_000).contains(&server_version),
-        "T19 requires controlled PostgreSQL 18, got server_version_num={server_version}"
-    );
-}
-
-fn child_database_url(control_url: &str, database_name: &str) -> String {
-    let mut url = Url::parse(control_url).expect("LOOM_TEST_POSTGRES_URL should be a valid URL");
-    url.set_path(&format!("/{database_name}"));
-    url.to_string()
-}
-
-fn unique_database_name(label: &str) -> String {
-    let label = label
-        .chars()
-        .filter(char::is_ascii_alphanumeric)
-        .take(20)
-        .collect::<String>()
-        .to_ascii_lowercase();
-    let counter = NEXT_DATABASE.fetch_add(1, Ordering::Relaxed);
-    format!("loom_{label}_{}_{}", process::id(), counter)
-}
-
-fn quote_identifier(identifier: &str) -> String {
-    debug_assert!(
-        identifier
-            .chars()
-            .all(|character| character.is_ascii_lowercase()
-                || character.is_ascii_digit()
-                || character == '_')
-    );
-    format!("\"{identifier}\"")
-}
-
-async fn drop_database(control_pool: &PgPool, database_name: &str) {
-    let drop_sql = format!(
-        "DROP DATABASE IF EXISTS {} WITH (FORCE)",
-        quote_identifier(database_name)
-    );
-    sqlx::query(AssertSqlSafe(drop_sql))
-        .execute(control_pool)
-        .await
-        .expect("isolated T19 PostgreSQL database should be droppable");
 }

@@ -88,5 +88,9 @@ pub use blob::{
 pub use in_memory::{InMemoryStore, SetupError};
 pub use postgres::PgStorage;
 
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub mod test_support;
+
 #[cfg(test)]
 mod tests;

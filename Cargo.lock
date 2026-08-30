@@ -1434,11 +1434,9 @@ dependencies = [
  "loom-runtime",
  "loom-storage",
  "serde_json",
- "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "url",
  "uuid",
 ]
 
