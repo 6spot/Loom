@@ -25,14 +25,15 @@ use loom_api::{
     AdminRuntimeRevisionRequest, AdminRuntimeRevisionSelection, AdminScheduleAgencyWakeRequest,
     AdminScheduleAgencyWakeResult, AdminService, AdminTerminalizeWorkRequest,
     AdminTerminalizeWorkResult, AdminTimelineLogicalStatus, ApiError, ApiErrorCode, ApiFuture,
-    ApiResult, CatalogService, CatalogSnapshot, CausalQuery, CausalTraversal, ChangeFeedCursor,
-    ChangeFeedPage, CommittedEvent, CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult,
-    EventPage, EventQuery, EventRef, ExecutionResult, FacetQuery, FacetSnapshot,
-    ForkTimelineRequest, ForkTimelineResult, HistoryService, IngressAcceptance, IngressEnvelope,
-    IngressId, IngressService, IngressStatusRecord, QueryService, RelationshipTrajectoryQuery,
-    SubscriptionEnd, SubscriptionReconnect, SubscriptionRequest, SubscriptionResult,
-    SubscriptionResume, SubscriptionService, TimelineService, TimelineSnapshot, TimelineTarget,
-    TrajectoryPage, WorldId, WorldService,
+    ApiResult, BlobReadRequest, BlobReadResult, CatalogService, CatalogSnapshot, CausalQuery,
+    CausalTraversal, ChangeFeedCursor, ChangeFeedPage, CommittedEvent,
+    CreateWorldFromTemplateRequest, CreateWorldFromTemplateResult, EventPage, EventQuery, EventRef,
+    ExecutionResult, FacetQuery, FacetSnapshot, ForkTimelineRequest, ForkTimelineResult,
+    HistoryService, IngressAcceptance, IngressEnvelope, IngressId, IngressService,
+    IngressStatusRecord, QueryService, RelationshipTrajectoryQuery, SemanticProjectionQuery,
+    SemanticProjectionRead, SubscriptionEnd, SubscriptionReconnect, SubscriptionRequest,
+    SubscriptionResult, SubscriptionResume, SubscriptionService, TimelineService, TimelineSnapshot,
+    TimelineTarget, TrajectoryPage, WorldId, WorldService,
 };
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::{
@@ -550,6 +551,27 @@ impl QueryService for LoomClient {
                 .await
         })
     }
+
+    fn query_semantic_projection(
+        &self,
+        query: SemanticProjectionQuery,
+    ) -> ApiFuture<'_, SemanticProjectionRead> {
+        Box::pin(async move {
+            self.send_json_once(
+                Method::POST,
+                format!("{API_PREFIX}/query/semantic-projection"),
+                &query,
+            )
+            .await
+        })
+    }
+
+    fn read_blob(&self, request: BlobReadRequest) -> ApiFuture<'_, BlobReadResult> {
+        Box::pin(async move {
+            self.send_json_once(Method::POST, format!("{API_PREFIX}/query/blob"), &request)
+                .await
+        })
+    }
 }
 
 impl HistoryService for LoomClient {
@@ -876,6 +898,18 @@ fn parse_error_code(code: &str) -> ApiErrorCode {
         "unavailable" | "Unavailable" => ApiErrorCode::Unavailable,
         "unauthorized" | "Unauthorized" => ApiErrorCode::Unauthorized,
         "forbidden" | "Forbidden" => ApiErrorCode::Forbidden,
+        "semantic_projection_unavailable" | "SemanticProjectionUnavailable" => {
+            ApiErrorCode::SemanticProjectionUnavailable
+        }
+        "semantic_projection_stale" | "SemanticProjectionStale" => {
+            ApiErrorCode::SemanticProjectionStale
+        }
+        "semantic_projection_source_mismatch" | "SemanticProjectionSourceMismatch" => {
+            ApiErrorCode::SemanticProjectionSourceMismatch
+        }
+        "blob_not_found" | "BlobNotFound" => ApiErrorCode::BlobNotFound,
+        "blob_integrity_mismatch" | "BlobIntegrityMismatch" => ApiErrorCode::BlobIntegrityMismatch,
+        "blob_unavailable" | "BlobUnavailable" => ApiErrorCode::BlobUnavailable,
         _ => ApiErrorCode::Internal,
     }
 }
