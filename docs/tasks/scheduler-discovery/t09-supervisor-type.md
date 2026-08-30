@@ -26,3 +26,23 @@ polling loop.
       server wiring, env/config changes, worker pools or spawned per-Timeline
       tasks.
 - [ ] InMemory construction/no-target and shutdown ownership tests pass.
+
+## Progress Log
+
+- 2026-08-30 — Added the target-neutral `SchedulerSupervisor` shell under
+  `apps/loom-server`. It owns one generic Runtime, application clock,
+  `WorkerConfig`, shared shutdown signal and in-memory
+  `SchedulerDiscoveryCursor` frontier; it does not store a fixed Timeline
+  target or add polling/wiring/concurrency behavior.
+- 2026-08-30 — Added InMemory construction and shared-shutdown ownership tests.
+
+## Verification Evidence
+
+- `cargo fmt --all -- --check` — passed.
+- `git diff --check` — passed.
+- `cargo test -p loom-server --lib -j1` — passed: 8 loom-server unit tests,
+  including the two new Supervisor tests.
+- `cargo clippy -p loom-server --all-targets -- -D warnings` was attempted;
+  the host filesystem exhausted its remaining space while writing the
+  dependency query cache, before a lint diagnostic was reported. The task
+  remains pending review/merge evidence in the canonical ledger.
