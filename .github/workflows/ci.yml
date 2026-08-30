@@ -100,6 +100,9 @@ jobs:
       - name: Validator real ledger governance (real task records)
         run: python3 tools/validator_ready.py --check
 
+      - name: Validator full re-certification ledger
+        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json
+
       - name: Validator Stage-1 recert ledger (VALR-T01..T07)
         run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
 
@@ -123,6 +126,21 @@ jobs:
 
       - name: Test
         run: bash tools/test.sh --workspace --all-features
+
+      - name: Validator final certification gate (VALR-T24)
+        run: |
+          python3 tools/validator-certification-gate.py --regression-check
+          bash tools/validator-certification-gate.sh
+
+      - name: Upload Validator T24 certification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-t24-final-certification
+          path: |
+            target/validator/t24-validator-certification-gate.json
+            target/validator/t24-logs/
+          if-no-files-found: error
 
       - name: Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
