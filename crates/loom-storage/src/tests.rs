@@ -41,9 +41,10 @@ use loom_runtime::{
     IngressSubmission, LogicalWorkTransition, ManualPlatformClock, PinnedReadPolicy, PlatformTime,
     Runtime, RuntimeControlStore, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionStore, SchedulerCommitStore,
-    TimelineDriverResult, TimelineFork, TimelineForkStore, WorkError, WorkRecord, WorkStatus,
-    WorkTarget, WorkTerminalState, WorkTerminalization, WorldRuntimeBinding,
-    WorldRuntimeBindingStore, WorldTimeError,
+    SchedulerDiscoveryCursor, SchedulerDiscoveryError, SchedulerDiscoveryRequest,
+    SchedulerDiscoveryStore, SchedulerDiscoveryTarget, TimelineDriverResult, TimelineFork,
+    TimelineForkStore, WorkError, WorkLease, WorkRecord, WorkStatus, WorkTarget, WorkTerminalState,
+    WorkTerminalization, WorldRuntimeBinding, WorldRuntimeBindingStore, WorldTimeError,
 };
 use semver::{Version, VersionReq};
 use serde_json::{Value, json};
@@ -491,6 +492,12 @@ fn pending_work(work_id: WorkId) -> WorkRecord {
     pending_work_with_handler(work_id, WorkHandlerId::from("test.handler"))
 }
 
+fn pending_work_at(timeline_id: TimelineId, work_id: WorkId) -> WorkRecord {
+    let mut work = pending_work(work_id);
+    work.timeline_id = timeline_id;
+    work
+}
+
 fn pending_work_with_handler(work_id: WorkId, handler: WorkHandlerId) -> WorkRecord {
     WorkRecord {
         id: work_id,
@@ -532,6 +539,190 @@ fn pending_agency_work(work_id: WorkId, agent: EntityId, cognition: &str) -> Wor
         last_error: None,
         lease: None,
     }
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_empty_store_returns_empty_page() {
+    let store = InMemoryStore::new();
+    let request = SchedulerDiscoveryRequest::new(2).expect("page bound should be valid");
+
+    let page = SchedulerDiscoveryStore::discover_scheduler_targets(&store, request)
+        .await
+        .expect("empty discovery should succeed");
+
+    assert!(page.targets.is_empty());
+    assert_eq!(page.continuation(), None);
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_returns_one_pending_target_once() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(300)))
+        .expect("Pending Work should be seeded");
+
+    let page = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2).expect("page bound should be valid"),
+    )
+    .await
+    .expect("discovery should succeed");
+
+    assert_eq!(
+        page.targets,
+        vec![SchedulerDiscoveryTarget::new(world(), timeline())]
+    );
+    assert_eq!(page.continuation(), None);
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_deduplicates_pending_work_per_timeline() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    store
+        .seed_work(pending_work(work(301)))
+        .expect("first Pending Work should be seeded");
+    let mut second = pending_work(work(302));
+    second.logical_schedule_order = 2;
+    store
+        .seed_work(second)
+        .expect("second Pending Work should be seeded");
+
+    let page = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2).expect("page bound should be valid"),
+    )
+    .await
+    .expect("discovery should succeed");
+
+    assert_eq!(
+        page.targets,
+        vec![SchedulerDiscoveryTarget::new(world(), timeline())]
+    );
+    assert_eq!(page.continuation(), None);
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_excludes_terminal_only_timelines() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), second_timeline())
+        .expect("test Timeline should be created");
+
+    for (work_id, status) in [
+        (work(310), WorkStatus::Completed),
+        (work(311), WorkStatus::Dead),
+        (work(312), WorkStatus::Cancelled),
+    ] {
+        let mut terminal = pending_work_at(second_timeline(), work_id);
+        terminal.status = status;
+        store
+            .seed_work(terminal)
+            .expect("terminal Work should be seeded");
+    }
+
+    let page = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2).expect("page bound should be valid"),
+    )
+    .await
+    .expect("discovery should succeed");
+
+    assert!(page.targets.is_empty());
+    assert_eq!(page.continuation(), None);
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_keeps_future_and_unclaimable_pending_work_visible() {
+    let store = InMemoryStore::new();
+    store
+        .create_timeline(world(), timeline())
+        .expect("test Timeline should be created");
+    let mut future = pending_work(work(320));
+    future.effective_due_world_time = WorldInstant::new(100);
+    future.available_at = PlatformTime::new(1_000);
+    future.lease = Some(WorkLease::new(PlatformTime::new(2_000), 7));
+    store
+        .seed_work(future)
+        .expect("future Pending Work should be seeded");
+    let before = store.snapshot(timeline()).expect("snapshot should exist");
+
+    let page = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2).expect("page bound should be valid"),
+    )
+    .await
+    .expect("discovery should succeed");
+
+    assert_eq!(
+        page.targets,
+        vec![SchedulerDiscoveryTarget::new(world(), timeline())]
+    );
+    assert_eq!(page.continuation(), None);
+    let after = store.snapshot(timeline()).expect("snapshot should exist");
+    assert_eq!(before.version(), after.version());
+    assert_eq!(before.world_time(), after.world_time());
+    assert_eq!(before.works, after.works);
+}
+
+#[tokio::test]
+async fn scheduler_discovery_in_memory_honors_bound_order_and_exclusive_cursor() {
+    let store = InMemoryStore::new();
+    let targets = [
+        SchedulerDiscoveryTarget::new(id(10), id(30)),
+        SchedulerDiscoveryTarget::new(id(10), id(40)),
+        SchedulerDiscoveryTarget::new(id(20), id(10)),
+    ];
+    for (index, target) in targets.iter().enumerate() {
+        store
+            .create_timeline(target.world_id, target.timeline_id)
+            .expect("test Timeline should be created");
+        let mut work = pending_work_at(target.timeline_id, work(400 + index as u128));
+        work.logical_schedule_order = index as u64 + 1;
+        store
+            .seed_work(work)
+            .expect("Pending Work should be seeded");
+    }
+
+    let first = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2).expect("page bound should be valid"),
+    )
+    .await
+    .expect("first discovery page should succeed");
+    assert_eq!(first.targets, targets[..2]);
+    let cursor = first
+        .continuation()
+        .expect("a later target should produce a continuation");
+    assert_eq!(cursor, SchedulerDiscoveryCursor::after(targets[1]));
+
+    let resumed = SchedulerDiscoveryStore::discover_scheduler_targets(
+        &store,
+        SchedulerDiscoveryRequest::new(2)
+            .expect("page bound should be valid")
+            .with_cursor(cursor),
+    )
+    .await
+    .expect("resumed discovery page should succeed");
+    assert_eq!(resumed.targets, targets[2..]);
+    assert_eq!(resumed.continuation(), None);
+
+    let invalid = SchedulerDiscoveryRequest {
+        page_size: 0,
+        cursor: None,
+    };
+    assert_eq!(
+        SchedulerDiscoveryStore::discover_scheduler_targets(&store, invalid).await,
+        Err(SchedulerDiscoveryError::InvalidPageSize {
+            max: loom_runtime::MAX_SCHEDULER_DISCOVERY_PAGE_SIZE,
+            actual: 0,
+        })
+    );
 }
 
 fn event_with_effect(event_id: EventId, effect: WorldEffect, source_time: i64) -> ProposedEvent {

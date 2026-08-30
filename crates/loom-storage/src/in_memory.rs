@@ -8,7 +8,7 @@
 //! leaves the observable adapter state unchanged.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt,
     sync::{Mutex, RwLock},
 };
@@ -33,7 +33,9 @@ use loom_runtime::{
     PinnedReadSession, PinnedWorldReadStore, PlatformTime, ProposedEvent, ReadError,
     RuntimeControlStore, RuntimeRevisionActivation, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit,
+    SchedulerCommitStore, SchedulerDiscoveryCursor, SchedulerDiscoveryError,
+    SchedulerDiscoveryPage, SchedulerDiscoveryRequest, SchedulerDiscoveryStore,
+    SchedulerDiscoveryTarget, SemanticIndexMetric, SemanticProjectionError, SemanticProjectionHit,
     SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
     SemanticProjectionRegistration, SemanticProjectionRow, SemanticProjectionStore, SessionError,
     TimelineFork, TimelineForkStore, TimelineSnapshot, ValidatedResolution, WorkClaim, WorkError,
@@ -1210,6 +1212,46 @@ impl InMemoryStore {
         Ok(timeline.works.get(&work_id).cloned())
     }
 
+    /// Reads one bounded, deterministic page of Timeline identities that have
+    /// at least one logical Pending Work obligation.
+    ///
+    /// Discovery is an advisory observation only. It deliberately ignores
+    /// World Time, platform retry availability, leases, handler availability
+    /// and chronology budget, leaving due-ness and claimability to Runtime.
+    /// The exclusive identity cursor advances across pages without changing
+    /// any Timeline or Work state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SchedulerDiscoveryError::InvalidPageSize`] when the request
+    /// is outside the positive Runtime bound.
+    pub fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> Result<SchedulerDiscoveryPage, SchedulerDiscoveryError> {
+        request.validate()?;
+        let cursor = request.cursor().map(SchedulerDiscoveryTarget::from);
+        let page_size = request.page_size();
+        let guard = self.read_state();
+        let mut targets: Vec<_> = guard
+            .timelines
+            .values()
+            .filter(|timeline| timeline.works.values().any(WorkRecord::is_pending))
+            .map(|timeline| SchedulerDiscoveryTarget::new(timeline.world_id, timeline.timeline_id))
+            .filter(|target| cursor.is_none_or(|cursor| *target > cursor))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+
+        let has_more = targets.len() > page_size;
+        targets.truncate(page_size);
+        let next_cursor = has_more
+            .then(|| targets.last().copied())
+            .flatten()
+            .map(SchedulerDiscoveryCursor::after);
+        Ok(SchedulerDiscoveryPage::new(targets, next_cursor))
+    }
+
     /// Atomically commits one Runtime-validated proposal.
     ///
     /// # Errors
@@ -2233,6 +2275,15 @@ impl ChangeFeedStore for InMemoryStore {
         limit: usize,
     ) -> PersistenceFuture<'_, Result<ChangeFeedRead, ReadError>> {
         Box::pin(async move { InMemoryStore::read_change_feed(self, timeline_id, after, limit) })
+    }
+}
+
+impl SchedulerDiscoveryStore for InMemoryStore {
+    fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>> {
+        Box::pin(async move { InMemoryStore::discover_scheduler_targets(self, request) })
     }
 }
 
