@@ -1,13 +1,13 @@
 ---
 task: SCHD-T20
 issue: 422
-status: in_progress
+status: completed
 depends_on: [417]
 created_at: 2026-08-30
 started_at: 2026-08-31
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-08-31
+completion_pr: 455
+merge_sha: c508f6173b0c6a16dadf0af52bd2b50c590f889
 ---
 
 # SCHD-T20 — Prove restart resumes pending Scheduler obligations without target config
@@ -19,14 +19,14 @@ server boundary restart without a fixed target or persisted in-memory cursor.
 
 ## Scope and acceptance
 
-- [ ] Start a real server with controlled PostgreSQL 18 and no target fields,
+- [x] Start a real server with controlled PostgreSQL 18 and no target fields,
       create representative Pending Work, then stop/rebuild the boundary while
       preserving PostgreSQL state.
-- [ ] Restart with the same normal deployment config, do not copy a cursor or
+- [x] Restart with the same normal deployment config, do not copy a cursor or
       inject IDs, and observe recovery/progression through formal public/Admin/
       History surfaces.
-- [ ] Verify existing Work lease/fence/retry semantics remain authoritative.
-- [ ] Use a real application restart, not reconnect-only substitution; no new
+- [x] Verify existing Work lease/fence/retry semantics remain authoritative.
+- [x] Use a real application restart, not reconnect-only substitution; no new
       scheduler state, restart manager, direct SQL assertion or manual drive.
 
 ## Progress Log
@@ -49,7 +49,17 @@ server boundary restart without a fixed target or persisted in-memory cursor.
   `lease_expired_before_recovery=true`, `recovery_attempt=3`,
   `history=2->3`, `counter=1->2`, `cursor_reused=false`,
   `scheduler_target_configured=false`, and `stale_fence_rejected=true`.
-- `cargo test -p loom-storage --lib -- --test-threads=1` — PASS (65 tests) against a fresh PostgreSQL 18 validation database; the default shared local database has stale fixed parity-fixture rows and is not used as acceptance evidence.
+- `cargo test -p loom-storage --all-features --lib -- --test-threads=1` — PASS
+  (65 tests) against a fresh PostgreSQL 18 validation database; the default
+  shared local database has stale fixed parity-fixture rows and is not used as
+  acceptance evidence.
 - `python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery
-  --check --format json` — PASS after canonical T11–T15 reconciliation;
+  --check --format json` — PASS after canonical T11–T20 reconciliation;
   `valid=true`, no dependency-eligibility violations.
+- 2026-08-31 — Post-merge completion audit: delivery PR #455 merged as
+  `c508f6173b0c6a16dadf0af52bd2b50c590f889`; the restart/resume evidence and
+  acceptance are reconciled here.
+- PR #455 CI run `33332460129` — Classify changes, Task ledger governance,
+  Dependency and security policy, Rust checks and PostgreSQL 18 persistence
+  contract passed; Compose config was correctly skipped for the application
+  integration-test-only change.

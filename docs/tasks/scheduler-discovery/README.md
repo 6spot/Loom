@@ -41,12 +41,12 @@ stage tracker is not a hard dependency and must never be added to a leaf's
 | SCHD-T13 | #415 | completed | #414 | [t13-server-supervisor-wiring.md](t13-server-supervisor-wiring.md) |
 | SCHD-T14 | #416 | completed | #415 | [t14-remove-fixed-worker.md](t14-remove-fixed-worker.md) |
 | SCHD-T15 | #417 | completed | #416 | [t15-remove-target-config.md](t15-remove-target-config.md) |
-| SCHD-T16 | #418 | planned | #417 | [t16-compose-env-cleanup.md](t16-compose-env-cleanup.md) |
-| SCHD-T17 | #419 | planned | #418 | [t17-docs-automatic-scheduler.md](t17-docs-automatic-scheduler.md) |
-| SCHD-T18 | #420 | planned | #417 | [t18-new-world-auto-schedule.md](t18-new-world-auto-schedule.md) |
-| SCHD-T19 | #421 | planned | #417 | [t19-fork-auto-schedule.md](t19-fork-auto-schedule.md) |
-| SCHD-T20 | #422 | in_progress | #417 | [t20-restart-auto-resume.md](t20-restart-auto-resume.md) |
-| SCHD-T21 | #423 | planned | #418, #419, #420, #421, #422 | [t21-final-compose-gate.md](t21-final-compose-gate.md) |
+| SCHD-T16 | #418 | completed | #417 | [t16-compose-env-cleanup.md](t16-compose-env-cleanup.md) |
+| SCHD-T17 | #419 | completed | #418 | [t17-docs-automatic-scheduler.md](t17-docs-automatic-scheduler.md) |
+| SCHD-T18 | #420 | completed | #417 | [t18-new-world-auto-schedule.md](t18-new-world-auto-schedule.md) |
+| SCHD-T19 | #421 | completed | #417 | [t19-fork-auto-schedule.md](t19-fork-auto-schedule.md) |
+| SCHD-T20 | #422 | completed | #417 | [t20-restart-auto-resume.md](t20-restart-auto-resume.md) |
+| SCHD-T21 | #423 | in_progress | #418, #419, #420, #421, #422 | [t21-final-compose-gate.md](t21-final-compose-gate.md) |
 
 ## Dependency graph
 
