@@ -1,12 +1,12 @@
 ---
 task: SCHD-T11
 issue: 413
-status: planned
+status: in_progress
 depends_on: [412]
 created_at: 2026-08-30
-started_at:
+started_at: 2026-08-31
 completed_at:
-completion_pr:
+completion_pr: 447
 merge_sha:
 ---
 
@@ -29,3 +29,31 @@ later stable Timelines cannot be permanently starved.
       target, deletion and later target addition.
 - [ ] No reservation table, randomness, persistent cursor, weighted priority or
       per-target parallelism is introduced.
+
+## Progress Log
+
+- 2026-08-31 — Implementing the Supervisor's in-memory round-robin cursor by
+  carrying the T03 exclusive continuation between bounded cycles and resetting
+  it at the ordered scan end or when a cursor has no remaining successor.
+- 2026-08-31 — Added deterministic Supervisor coverage for bounded repeated
+  visits, end wrapping, a permanently blocked first target, cursor-adjacent
+  terminalization, empty-page cursor recovery and later target creation.
+- 2026-08-31 — Initial ledger reconciliation kept this task `planned` because
+  prerequisite SCHD-T10 had not yet been post-merge reconciled.
+- 2026-08-31 — SCHD-T10 was reconciled to canonical `completed` by PR #448
+  after delivery PR #445 merged. T11 is now legitimately `in_progress`; this
+  ledger-only update changes no implementation semantics.
+
+## Verification Evidence
+
+- `cargo fmt --all -- --check` — passed.
+- `git diff --check` — passed.
+- `cargo test -p loom-server --lib -j1` — passed: 19 tests.
+- `cargo check --workspace --exclude loom-validator --all-targets
+  --all-features` — passed.
+- `cargo clippy --workspace --exclude loom-validator --all-targets
+  --all-features -- -D warnings` — passed.
+- `cargo test --workspace --all-features --exclude loom-storage
+  --exclude loom-validator` — passed.
+- `python3 tools/check_architecture.py` — passed.
+- `python3 tools/check_storage_sql_ownership.py` — passed.

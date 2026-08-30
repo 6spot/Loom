@@ -164,11 +164,23 @@ where
     pub async fn run_cycle(&mut self) -> ApiResult<SchedulerCycleReport> {
         let request = SchedulerDiscoveryRequest::new(self.worker_config.scheduler_poll_limit())
             .map_err(|error| map_discovery_error(&error))?;
+        let request = self
+            .discovery_cursor
+            .map_or(request, |cursor| request.with_cursor(cursor));
         let page = self
             .runtime
             .discover_scheduler_targets(request)
             .await
             .map_err(|error| map_discovery_error(&error))?;
+        // The cursor is only an operational hint. A missing continuation means
+        // that this read reached the ordered scan end, including the case where
+        // a previously remembered frontier no longer has a successor. Clear it
+        // so the next successful cycle wraps to the beginning.
+        self.discovery_cursor = if page.targets.is_empty() {
+            None
+        } else {
+            page.continuation()
+        };
         let discovered_targets = page
             .targets
             .into_iter()
@@ -256,6 +268,39 @@ mod tests {
             last_error: None,
             lease: None,
         }
+    }
+
+    fn worker_config(limit: usize) -> WorkerConfig {
+        WorkerConfig::new(10, 1)
+            .expect("worker timings should be valid")
+            .with_scheduler_poll_limit(limit)
+            .expect("scheduler limit should be valid")
+    }
+
+    fn seed_pending_targets(
+        store: &InMemoryStore,
+        world_id: WorldId,
+        timeline_start: u128,
+        work_start: u128,
+        count: usize,
+    ) -> Vec<(loom_api::TimelineTarget, WorkId)> {
+        (0..count)
+            .map(|offset| {
+                let offset = offset as u128;
+                let timeline_id: TimelineId = id(timeline_start + offset);
+                let work_id: WorkId = id(work_start + offset);
+                store
+                    .create_timeline(world_id, timeline_id)
+                    .expect("test Timeline should be created");
+                store
+                    .seed_work(pending_work(timeline_id, work_id))
+                    .expect("Pending Work should be seeded");
+                (
+                    loom_api::TimelineTarget::new(world_id, timeline_id),
+                    work_id,
+                )
+            })
+            .collect()
     }
 
     fn blocked_runtime(store: &InMemoryStore, world_id: WorldId) -> Runtime<&InMemoryStore> {
@@ -442,6 +487,199 @@ mod tests {
         assert_eq!(report.discovered_count(), limit);
         assert_eq!(report.driven_count(), limit);
         assert_eq!(report.discovered_targets(), &all_targets[..limit]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn bounded_cycles_visit_every_target_and_wrap_after_the_scan_end() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x500);
+        let seeded = seed_pending_targets(&store, world_id, 0x510, 0x520, 4);
+        let expected = seeded.iter().map(|(target, _)| *target).collect::<Vec<_>>();
+        let runtime = blocked_runtime(&store, world_id);
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(2),
+            ShutdownSignal::new(),
+        );
+
+        let first = supervisor
+            .run_cycle()
+            .await
+            .expect("first bounded cycle should succeed");
+        let second = supervisor
+            .run_cycle()
+            .await
+            .expect("second bounded cycle should succeed");
+        let third = supervisor
+            .run_cycle()
+            .await
+            .expect("wrapped bounded cycle should succeed");
+
+        assert_eq!(first.discovered_targets(), &expected[..2]);
+        assert_eq!(second.discovered_targets(), &expected[2..4]);
+        assert_eq!(third.discovered_targets(), &expected[..2]);
+        assert!(first.outcomes().iter().all(|outcome| matches!(
+            outcome.result(),
+            loom_runtime::TimelineDriverResult::Blocked { .. }
+        )));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn permanently_blocked_first_target_does_not_starve_later_targets() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x550);
+        let seeded = seed_pending_targets(&store, world_id, 0x560, 0x570, 3);
+        let expected = seeded.iter().map(|(target, _)| *target).collect::<Vec<_>>();
+        let runtime = blocked_runtime(&store, world_id);
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(1),
+            ShutdownSignal::new(),
+        );
+
+        for expected_target in expected {
+            let report = supervisor
+                .run_cycle()
+                .await
+                .expect("a normal Blocked result should not fail the cycle");
+
+            assert_eq!(report.discovered_targets(), &[expected_target]);
+            assert!(matches!(
+                report.outcomes()[0].result(),
+                loom_runtime::TimelineDriverResult::Blocked { .. }
+            ));
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn terminalizing_the_cursor_adjacent_target_does_not_wedge_discovery() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x580);
+        let seeded = seed_pending_targets(&store, world_id, 0x590, 0x5a0, 3);
+        let expected = seeded.iter().map(|(target, _)| *target).collect::<Vec<_>>();
+        let runtime = blocked_runtime(&store, world_id);
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(2),
+            ShutdownSignal::new(),
+        );
+
+        let first = supervisor
+            .run_cycle()
+            .await
+            .expect("first bounded cycle should succeed");
+        assert_eq!(first.discovered_targets(), &expected[..2]);
+
+        let cursor_adjacent = &seeded[1];
+        let version = store
+            .snapshot(cursor_adjacent.0.timeline_id)
+            .expect("cursor-adjacent Timeline should exist")
+            .version();
+        store
+            .terminalize_work(&WorkTerminalization::new(
+                cursor_adjacent.0.timeline_id,
+                version,
+                cursor_adjacent.1,
+                WorkTerminalState::Cancelled,
+                PlatformTime::new(7),
+            ))
+            .expect("cursor-adjacent Work should be terminalized");
+
+        let second = supervisor
+            .run_cycle()
+            .await
+            .expect("discovery should recover after target removal");
+
+        assert_eq!(second.discovered_targets(), &[expected[2]]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn an_empty_page_after_the_cursor_resets_the_next_cycle_to_the_beginning() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x5a0);
+        let seeded = seed_pending_targets(&store, world_id, 0x5b0, 0x5c0, 2);
+        let first_target = seeded[0].0;
+        let removed_target = &seeded[1];
+        let runtime = blocked_runtime(&store, world_id);
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(1),
+            ShutdownSignal::new(),
+        );
+
+        let first = supervisor
+            .run_cycle()
+            .await
+            .expect("first bounded cycle should succeed");
+        assert_eq!(first.discovered_targets(), &[first_target]);
+
+        let version = store
+            .snapshot(removed_target.0.timeline_id)
+            .expect("removed Timeline should exist")
+            .version();
+        store
+            .terminalize_work(&WorkTerminalization::new(
+                removed_target.0.timeline_id,
+                version,
+                removed_target.1,
+                WorkTerminalState::Cancelled,
+                PlatformTime::new(7),
+            ))
+            .expect("removed Work should be terminalized");
+
+        let empty = supervisor
+            .run_cycle()
+            .await
+            .expect("an empty post-cursor page should be successful");
+        assert!(empty.discovered_targets().is_empty());
+
+        let wrapped = supervisor
+            .run_cycle()
+            .await
+            .expect("the cursor should recover after an empty page");
+        assert_eq!(wrapped.discovered_targets(), &[first_target]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn newly_added_later_target_becomes_reachable_without_restarting_supervisor() {
+        let store = InMemoryStore::new();
+        let world_id: WorldId = id(0x5b0);
+        let seeded = seed_pending_targets(&store, world_id, 0x5c0, 0x5d0, 3);
+        let expected = seeded.iter().map(|(target, _)| *target).collect::<Vec<_>>();
+        let runtime = blocked_runtime(&store, world_id);
+        let mut supervisor = SchedulerSupervisor::new(
+            runtime,
+            ManualPlatformClock::new(PlatformTime::new(7)),
+            worker_config(2),
+            ShutdownSignal::new(),
+        );
+
+        let first = supervisor
+            .run_cycle()
+            .await
+            .expect("first bounded cycle should succeed");
+        assert_eq!(first.discovered_targets(), &expected[..2]);
+
+        let later_timeline_id: TimelineId = id(0x5c3);
+        let later_work_id: WorkId = id(0x5d3);
+        store
+            .create_timeline(world_id, later_timeline_id)
+            .expect("new later Timeline should be created");
+        store
+            .seed_work(pending_work(later_timeline_id, later_work_id))
+            .expect("new later Pending Work should be seeded");
+        let later_target = loom_api::TimelineTarget::new(world_id, later_timeline_id);
+
+        let second = supervisor
+            .run_cycle()
+            .await
+            .expect("new later target should be discovered");
+
+        assert_eq!(second.discovered_targets(), &[expected[2], later_target]);
     }
 
     #[tokio::test(flavor = "current_thread")]
