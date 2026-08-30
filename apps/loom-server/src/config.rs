@@ -2,7 +2,6 @@
 
 use std::{net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
-use loom_api::{TimelineId, TimelineTarget, WorldId};
 use loom_boundary::BoundaryConfig;
 use loom_runtime::{ChronologyBudgetPolicy, FailurePolicy, HistoryBudget, ResolutionBudget};
 
@@ -24,7 +23,6 @@ pub struct ServerConfig {
     pub(crate) worker_config: WorkerConfig,
     pub(crate) worker_poll_interval: Duration,
     pub(crate) ingress_queue_capacity: usize,
-    pub(crate) scheduler_target: Option<TimelineTarget>,
     pub(crate) boundary_config: BoundaryConfig,
     pub(crate) resolution_budget: ResolutionBudget,
     pub(crate) history_budget: HistoryBudget,
@@ -229,7 +227,6 @@ impl ServerConfig {
             message: error.to_string(),
         })?;
 
-        let scheduler_target = scheduler_target_from_env()?;
         Ok(Self {
             database_url,
             bind_addr,
@@ -242,7 +239,6 @@ impl ServerConfig {
             worker_config,
             worker_poll_interval: Duration::from_millis(poll_millis),
             ingress_queue_capacity,
-            scheduler_target,
             boundary_config,
             resolution_budget,
             history_budget,
@@ -283,7 +279,6 @@ impl std::fmt::Debug for ServerConfig {
             .field("worker_config", &self.worker_config)
             .field("worker_poll_interval", &self.worker_poll_interval)
             .field("ingress_queue_capacity", &self.ingress_queue_capacity)
-            .field("scheduler_target", &self.scheduler_target)
             .field("boundary_config", &self.boundary_config)
             .field("resolution_budget", &self.resolution_budget)
             .field("history_budget", &self.history_budget)
@@ -362,39 +357,4 @@ where
         });
     }
     Ok(value)
-}
-
-fn scheduler_target_from_env() -> Result<Option<TimelineTarget>, ServerConfigError> {
-    let world = std::env::var("LOOM_SCHEDULER_WORLD_ID")
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty());
-    let timeline = std::env::var("LOOM_SCHEDULER_TIMELINE_ID")
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty());
-    match (world, timeline) {
-        (None, None) => Ok(None),
-        (Some(world), Some(timeline)) => Ok(Some(TimelineTarget::new(
-            parse_identity::<WorldId>("LOOM_SCHEDULER_WORLD_ID", &world)?,
-            parse_identity::<TimelineId>("LOOM_SCHEDULER_TIMELINE_ID", &timeline)?,
-        ))),
-        (Some(_), None) | (None, Some(_)) => Err(ServerConfigError::InvalidValue {
-            name: "LOOM_SCHEDULER_WORLD_ID/LOOM_SCHEDULER_TIMELINE_ID",
-            message: "both values must be supplied together".to_owned(),
-        }),
-    }
-}
-
-fn parse_identity<T>(name: &'static str, value: &str) -> Result<T, ServerConfigError>
-where
-    T: FromStr,
-    T::Err: std::fmt::Display,
-{
-    value
-        .parse::<T>()
-        .map_err(|error: T::Err| ServerConfigError::InvalidValue {
-            name,
-            message: error.to_string(),
-        })
 }
