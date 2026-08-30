@@ -1,91 +1,123 @@
 # Current-main V0 Validator Re-certification
 
-Status: **in_progress** — this initiative reconciles post-M13 Validator
-authority/coverage evidence with the current `main` checkout. Current-main V0
-re-certification remains **pending until T25**; this index does not declare V0
-re-certified and does not close the recertification root.
+Status: **completed** — the post-M13 Validator trust/coverage initiative has
+finished and the final current-main V0 certificate is published.
 
-Parent tracker: VALR-S3 / GitHub [#305](https://github.com/6spot/Loom/issues/305)
+Root issue: VALR-R0 / GitHub [#302](https://github.com/6spot/Loom/issues/302)
 
-## History boundary
+## Final certified baseline
 
-The M13 release and closure records are preserved as historical evidence:
+- Certified production candidate:
+  `02c55a6b5c34f227abfcb732a21bf6c390e22578` (PR #393 merge).
+- Final certificate: [`stage-3/t25-final-certificate.md`](stage-3/t25-final-certificate.md).
+- Certificate publication PR: #396, merge
+  `c443091783e5a49a0e280366bb85129af536a0bb`.
+- Publication CI: run `33290933514`, Rust checks success and PostgreSQL 18
+  persistence contract success.
+- Final Validator certification: **40 Pass / 0 Fail / 0 Unavailable / 0 gap**,
+  `gate_passes=true`.
+- Required-live evidence: real PostgreSQL 18 execution; no required row is
+  certified from skip, environment inference, or unavailable status.
 
-- M13-T1 / GitHub #202 used historical candidate
-  `52905862f3c26a6fb4d9991da2aa9fe8cfd11bc2`, integrated by historical PR #283
-  at merge `19c797d3e1e8bd20a21cda419789793623c5ca1f`.
-- M13-T2 / GitHub #203 recorded historical checklist/status reconciliation at
-  merge `dca5463a341bcb4cde19a999eba8ef37e0ea60dd`.
+## Completed initiative graph
 
-Those candidate, PR and merge values are append-only historical facts. The
-post-M13 authority-fix and public-surface evidence is recorded in the Stage-1
-and Stage-2 ledgers below; it is not silently substituted for a current-main
-certificate. The historical Validator initiative at
-[`docs/tasks/validator/README.md`](../validator/README.md) remains a separate
-ledger, with its existing VAL-T1..T10 states unchanged.
+```text
+Stage 1 / #303
+  T01..T07 completed
+  -> trustworthy Validator evidence/selection/restart/required-live semantics
 
-## Current-main evidence snapshot
+Stage 2 / #304
+  T08..T20 completed
+  + T27 completed for the sanctioned derived-resource read boundary
+  -> broad V0 public-surface coverage + PostgreSQL 18 live gate
 
-As of 2026-08-29, actual current `main` and the current T20 evidence baseline
-are `103a75e96cd9f7b9e495a39bb6608316c47b76e6`, the merge commit for PR #384.
-The post-rollback lineage is PR #382 merge
-`a898e5be6e33f5f448992c7ddb642af7336bc8f8`, PR #383 merge
-`7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, then PR #384 (head
-`d6654ca09d0c9d46701288054090a9bcbddc31af`). T20's owner ledger records
-10/10 trusted PostgreSQL 18 rows on `103a75e…`. T22's existing manifest is
-under parallel current-main re-review; T23, T24 and T25 have not produced
-current-main evidence on this baseline. The former PR #381 reconciliation
-(merged as `c1169d26350c19ff7f0ce05f863eea37a116332f`),
-candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
-`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24 results
-are retained as historical/superseded evidence; this snapshot is not a
-certification decision.
+Stage 3 / #305
+  T21 completed
+  T22 completed: 40 ready / 0 gap
+  T23 completed: integrated core + PostgreSQL 18 gate
+  T24 completed: 40/40 trustworthy Validator certification
+  T25 completed: final current-main V0 certificate
 
-The current graph and evidence disposition are:
+#330 T25 completed
+  -> #305 and #302 eligible for closure
+```
 
-| Leaf | Issue / linked PR state | Current-candidate evidence status | Historical/non-current evidence retained |
-| --- | --- | --- | --- |
-| T19 | ME-295 `done`; PR #379 merged (`f1f36856b6e33d41e59d6cfe81eada39f289b43f` → `6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, base `7716c1c33cd08cde57e8226ca063c6c83c650e8e`), CI run `33221134508` passed both required jobs | Historical snapshot remains the verified 32-ID registry/list/group set; CV-018/019/028/029/034..037 remain unregistered gap rows. No current-main re-audit is recorded here. | Prior candidate traces, eight gap explanations and non-pass/readiness records remain in the T19 ledger |
-| T20 | ME-296 `done`; PR #384 merged (head `d6654ca09d0c9d46701288054090a9bcbddc31af`, base `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, merge `103a75e96cd9f7b9e495a39bb6608316c47b76e6`), CI run `33250772703` passed both required jobs | Current-main T20 evidence: 10/10 trusted PostgreSQL 18 rows on `103a75e…`; the T20 owner ledger is not rewritten here. | PR #359 and the former `4efb1d…`/`6da9989…` matrix remain historical/superseded evidence |
-| T22 | ME-298 `done` for the existing manifest; PR #377 merged (`d3232672c31a133ca6f5f3172e306ea768259c4c` → `856814dfef5ca800e7c94cdabffd926846663110`, base `657e571ced6e06219e9d1a065775d762e4a83279`), CI run `33190567067` passed both required jobs | Current-main re-review is in progress in parallel; no new `103a75e…` evidence is recorded by T21. The 38-ready/CV-028/CV-029 result remains historical snapshot evidence. | Prior PR #366/#361 traces, old `31 Pass / 9 Unavailable` / `gate_passes: false`, and the existing manifest ledger remain historical/non-current |
-| T23 | ME-299 `backlog`; PR #376 merged (`92a2a8eb763976b65f84b889b4de95a9124e6fce` → `657e571ced6e06219e9d1a065775d762e4a83279`, base `4efb1d346c926f2ee10654c3bc24cd92af351881`), CI run `33182385085` passed both required jobs | No current-main evidence exists for `103a75e…`; the prior passing core evidence remains candidate/snapshot evidence only and is not promoted by T21. | Earlier `34fc8efa...` candidate, PR #363, and the former PR #376 result remain historical/non-current |
-| T24 | ME-300 `backlog`; PR #378 merged (`5d77ddda808f5594c2efe3b8c169f82814d6898b` → `7716c1c33cd08cde57e8226ca063c6c83c650e8e`, base `856814dfef5ca800e7c94cdabffd926846663110`), CI run `33193706827` passed both required jobs | No current-main evidence exists for `103a75e…`; the former snapshot gate remains fail-closed at 38 `Pass`, 2 `Unavailable` (CV-028/CV-029), `gate_passes: false`, and is not certification. | Prior PR #362/#361 traces, old candidate, and old `31 Pass / 9 Unavailable` / `gate_passes: false` remain historical/non-current |
+## Stage status
 
-The historical CV-017 fault-injection blocker and the historical blocked
-conclusions for CV-018, CV-019, CV-028, CV-029, and CV-034..CV-037 remain in
-their owner ledgers as historical/non-current records. They are not deleted or
-rewritten here. Current-main re-certification remains **pending until T25**;
-Stage 3 and the recertification root remain open.
+| Stage | Tracker | State | Key evidence |
+| --- | ---: | --- | --- |
+| Stage 1 — evidence integrity | #303 | `completed` | T01..T07 ledgers; T07 authority regression gate |
+| Stage 2 — public-surface coverage | #304 | `completed` | T08..T20 plus T27; T20 PostgreSQL 18 live matrix |
+| Stage 3 — current-main certification | #305 | `completed` | T21..T25; PRs #394/#395/#396 |
+| Root — trust closure + V0 recertification | #302 | `completed` | final T25 certificate |
 
-## Re-certification records
+All executable leaf records under `stage-1/`, `stage-2/`, and `stage-3/` have
+durable completion metadata or an explicit historical/cancelled disposition.
+The full `docs/tasks/validator-recert` Task Graph is checked by CI.
 
-The earlier post-M13 work remains discoverable in its existing ledgers:
+## Final evidence chain
 
-- Stage 1 authority/evidence history: `stage-1/` (including
-  [`t07-authority-gate.md`](stage-1/t07-authority-gate.md)).
-- Stage 2 public-surface history: `stage-2/` (including
-  [`t20-pg18-live-gate.md`](stage-2/t20-pg18-live-gate.md)).
+1. **T27 / PR #393** — Architecture Amendment 0004 and the minimal read-only
+   public observation boundary for semantic projection and exact blob reads.
+   Merge: `02c55a6b5c34f227abfcb732a21bf6c390e22578`; exact-head CI run
+   `33269628735` passed.
+2. **T22/T23 / PR #394** — final 40-CV manifest and integrated core evidence.
+   Merge: `b225d9c36662432bc4f377d8d4f29d0f1ed763fa`; CI run `33288294125`
+   passed both required jobs.
+3. **T24 / PR #395** — fail-closed final Validator certification gate.
+   Merge: `411e5bf7c573d39d1e6ec9fc7ddfed4a3f4d6901`; CI run `33290303853`
+   passed. Canonical T24 artifact reports 40/40 Pass and no manifest gap.
+4. **T25 / PR #396** — durable final certificate publication.
+   Merge: `c443091783e5a49a0e280366bb85129af536a0bb`; CI run `33290933514`
+   again passed the full Rust, T24 40-CV, rustdoc, and PostgreSQL 18 gates.
 
-Stage 3 is the current-main reconciliation and certification sequence:
+## CV-028 / CV-029 final disposition
 
-| Stage | Task | Issue | Current state | Stable record / dependency |
-| --- | --- | ---: | --- | --- |
-| 3A | VALR-T21 — status reconciliation | [#326](https://github.com/6spot/Loom/issues/326) | `in_progress` | [`stage-3/t21-status-reconciliation.md`](stage-3/t21-status-reconciliation.md); depends on #325 / T20 |
-| 3B | VALR-T22 — certification manifest | [#327](https://github.com/6spot/Loom/issues/327) | `done` / current-main re-review in progress | T22-owned `stage-3/t22-certification-manifest.md`; PR #377 remains historical snapshot evidence; depends on #325 / T20 |
-| 3A | VALR-T23 — full core integrated gate | [#328](https://github.com/6spot/Loom/issues/328) | `backlog` | T23-owned `stage-3/t23-core-integrated-gate.md`; prior PR #376 evidence is historical; depends on #327 / T22 |
-| 3B | VALR-T24 — Validator certification gate | [#329](https://github.com/6spot/Loom/issues/329) | `backlog` | T24-owned `stage-3/t24-validator-certification-gate.md`; prior PR #378 gap result is historical; depends on #327 / T22 |
-| 3C | VALR-T25 — final current-main certificate | [#330](https://github.com/6spot/Loom/issues/330) | `backlog` | T25-owned `stage-3/t25-final-certificate.md`; depends on #326, #328 and #329 |
+The final two historical capability gaps are closed by T27 / PR #393 under
+Architecture Amendment 0004. The product expansion is limited to two read-only
+Query operations:
 
-The issue states above are the current execution graph at this baseline. T21
-remains in progress; T22's prior manifest is done but its current-main review
-is parallel; T23/T24/T25 remain backlog with no `103a75e…` current-main
-evidence. T21 does not create or pre-complete another task's record.
+- provider-neutral semantic-projection read;
+- exact immutable blob-reference read with integrity verification.
 
-## Certification boundary
+No projection mutation/admin API, blob mutation/list/browse API, Storage/SQL
+handle, provider SDK type, or alternate World authority was introduced.
+Controlled Validator fixture mutation/fault injection remains test-driver setup;
+formal capability observations use `LoomClient`.
 
-T25 is the only task that may publish the final current-main certificate after
-the T21 governance reconciliation, T22 manifest, T23 core gate and T24
-Validator gate converge on one candidate. Until then, a current-main
-certificate is pending, the Stage-3 tracker remains open, and the V0
-recertification root is not complete.
+## Historical evidence boundary
+
+Historical records are preserved and remain truthful for their own candidates.
+Nothing in this completion rewrites them into later Pass evidence.
+
+This includes:
+
+- M13 candidate `52905862f3c26a6fb4d9991da2aa9fe8cfd11bc2`, PR #283 integration
+  `19c797d3e1e8bd20a21cda419789793623c5ca1f`, and M13-T2 merge
+  `dca5463a341bcb4cde19a999eba8ef37e0ea60dd`;
+- earlier post-M13 `31 Pass / 9 Unavailable` snapshots;
+- the pre-Amendment-0004 `38 Pass / 2 Unavailable` T24 result;
+- the old `103a75e96cd9f7b9e495a39bb6608316c47b76e6` evidence snapshot;
+- historical PR #380 and cancelled T26.
+
+The owning leaf ledgers retain their detailed chronology. The final certificate
+does not reuse those older non-pass snapshots as current evidence.
+
+## Closure checklist
+
+- [x] Validator single-pass/selection/strict/fail-closed evidence semantics are
+  repaired and regression-gated.
+- [x] Trusted backend/restart/required-live identity semantics are enforced.
+- [x] V0 public-surface coverage is mapped to exactly CV-001..CV-040.
+- [x] CV-028/CV-029 have sanctioned formal public read observations.
+- [x] The final manifest records 40 ready / 0 gap.
+- [x] Integrated core evidence is green for the fixed production candidate.
+- [x] Final Validator certification records 40/40 Pass.
+- [x] Required PostgreSQL 18 evidence is real execution.
+- [x] Historical evidence remains historical.
+- [x] Final certificate is published with durable PR/merge/CI evidence.
+- [x] Full recert Task Graph governance is enforced in CI.
+
+After the final reconciliation PR containing this index completes CI and merges,
+GitHub issues #392, #330, #303, #304, #305 and #302 can be closed as completed.
+No production or certification work remains behind those issue closures.
