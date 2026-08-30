@@ -34,6 +34,8 @@ use loom_runtime::{
     PinnedRead, PinnedReadMetrics, PinnedReadSession, PinnedWorldReadStore, PlatformTime,
     ProposedEvent, ReadError, RuntimeRevisionActivation, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
+    SchedulerDiscoveryCursor, SchedulerDiscoveryError, SchedulerDiscoveryPage,
+    SchedulerDiscoveryRequest, SchedulerDiscoveryStore, SchedulerDiscoveryTarget,
     SemanticIndexMetric, SemanticIndexSource, SemanticProjectionError, SemanticProjectionHit,
     SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
     SemanticProjectionRegistration, SemanticProjectionStore, TimelineFork, TimelineForkStore,
@@ -92,6 +94,8 @@ const LIST_RUNTIME_REVISION_ACTIVATIONS_SQL: &str =
 const LOCK_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/lock_world_time.sql");
 const UPDATE_WORLD_TIME_SQL: &str = include_str!("../sql/timeline/update_world_time.sql");
 const SELECT_DUE_PENDING_SQL: &str = include_str!("../sql/work/select_due_pending.sql");
+const DISCOVER_SCHEDULER_TARGETS_SQL: &str =
+    include_str!("../sql/work/discover_scheduler_targets.sql");
 const REGISTER_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/register.sql");
 const READ_SEMANTIC_PROJECTION_SQL: &str = include_str!("../sql/projection/read.sql");
 const SEMANTIC_PROJECTION_SCOPE_EXISTS_SQL: &str =
@@ -1212,6 +1216,56 @@ impl LogicalJournalStore for PgStorage {
     }
 }
 
+impl SchedulerDiscoveryStore for PgStorage {
+    fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>> {
+        Box::pin(async move { self.discover_scheduler_targets(request).await })
+    }
+}
+
+impl PgStorage {
+    /// Reads one bounded, deterministic page of Timeline identities with at
+    /// least one logical Pending Work obligation.
+    ///
+    /// This is a single read-only SQL statement. It deliberately observes no
+    /// due time, platform availability, lease, handler or chronology state;
+    /// those decisions remain Runtime authority. One extra row is fetched so
+    /// the returned page can expose an exact continuation without a second
+    /// query or a discovery reservation.
+    async fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> Result<SchedulerDiscoveryPage, SchedulerDiscoveryError> {
+        request.validate()?;
+        let page_size = request.page_size();
+        let cursor = request.cursor();
+        let rows = sqlx::query(DISCOVER_SCHEDULER_TARGETS_SQL)
+            .bind(cursor.map(|cursor| cursor.world_id.to_string()))
+            .bind(cursor.map(|cursor| cursor.timeline_id.to_string()))
+            .bind(
+                i64::try_from(page_size + 1)
+                    .expect("the validated Scheduler discovery page bound fits in i64"),
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sql_scheduler_discovery_error)?;
+
+        let mut targets = rows
+            .iter()
+            .map(scheduler_discovery_target)
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = targets.len() > page_size;
+        targets.truncate(page_size);
+        let next_cursor = has_more
+            .then(|| targets.last().copied())
+            .flatten()
+            .map(SchedulerDiscoveryCursor::after);
+        Ok(SchedulerDiscoveryPage::new(targets, next_cursor))
+    }
+}
+
 impl WorldRuntimeBindingStore for PgStorage {
     fn read_binding(
         &self,
@@ -2215,6 +2269,30 @@ fn corrupt(message: impl Into<String>) -> ReadError {
 
 fn sql_read_error(error: sqlx::Error) -> ReadError {
     corrupt(format!("PostgreSQL authority read failed: {error}"))
+}
+
+fn sql_scheduler_discovery_error(error: sqlx::Error) -> SchedulerDiscoveryError {
+    SchedulerDiscoveryError::StorageUnavailable {
+        message: format!("PostgreSQL Scheduler discovery failed: {error}"),
+    }
+}
+
+fn scheduler_discovery_read_error(error: ReadError) -> SchedulerDiscoveryError {
+    SchedulerDiscoveryError::StorageUnavailable {
+        message: format!("PostgreSQL Scheduler discovery decode failed: {error}"),
+    }
+}
+
+fn scheduler_discovery_target(
+    row: &sqlx::postgres::PgRow,
+) -> Result<SchedulerDiscoveryTarget, SchedulerDiscoveryError> {
+    let world_value = row_string(row, "world_id").map_err(scheduler_discovery_read_error)?;
+    let world_id = parse_identity::<WorldId>(&world_value, "WorldId")
+        .map_err(scheduler_discovery_read_error)?;
+    let timeline_value = row_string(row, "timeline_id").map_err(scheduler_discovery_read_error)?;
+    let timeline_id = parse_identity::<TimelineId>(&timeline_value, "TimelineId")
+        .map_err(scheduler_discovery_read_error)?;
+    Ok(SchedulerDiscoveryTarget::new(world_id, timeline_id))
 }
 
 async fn read_event_with_associations(
