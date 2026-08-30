@@ -8,6 +8,7 @@ This directory contains the current operational procedures for developing and te
 - [`../operator-guide.md`](../operator-guide.md) — V0 operator reference: Installed vs Binding vs Assembly, World Time vs Platform Time, logical Work vs lease, head/quiescence/budget, missing implementation/terminalization, Revision/Session provenance, replay vs rerun, fork ancestry, Agent visibility/CAS resample.
 - [`../developer-guide.md`](../developer-guide.md) — V0 developer reference: Architecture Index supersession lookup, Amendment gate, task-ledger workflow, Cargo DAG and verification.
 - [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity envelope from M11 (`loom-bench`); larger-scale claims marked unproven/deferred.
+- [`task-completion.md`](task-completion.md) — canonical executable-task completion workflow: review/CI, delivery merge, post-merge Task Ledger reconciliation on the default branch, ledger governance, GitHub Issue closure and final external status.
 - [`postgres-tests.md`](postgres-tests.md) — local PostgreSQL 18 + pgvector integration-test service, environment and test commands.
 - [`loom-server.md`](loom-server.md) — supported Linux deployment for `loom-server` (compose bind-mounts, migrations, Runtime Revision, config).
 - [`runtime-worker.md`](runtime-worker.md) — v0 worker/executor topology and deterministic stress/restart evidence.
