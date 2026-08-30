@@ -1,10 +1,10 @@
 ---
 task: SCHD-T08
 issue: 410
-status: in_progress
+status: planned
 depends_on: [406, 407, 409]
 created_at: 2026-08-30
-started_at: 2026-08-30
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -35,7 +35,7 @@ dependency.
 
 ## Progress Log
 
-- 2026-08-30 — Started the Runtime-mediated parity gate. The matrix will use
+- 2026-08-30 — Prepared the Runtime-mediated parity gate. The matrix uses
   equivalent seeded InMemory/PostgreSQL 18 fixtures, compare bounded pages and
   continuation through `Runtime::discover_scheduler_targets`, and assert that
   repeated discovery leaves Work/Timeline snapshots unchanged.
@@ -61,5 +61,6 @@ dependency.
 - `bash tools/test.sh --workspace --all-features` was attempted but the host
   filesystem exhausted its remaining space while linking unrelated workspace
   test binaries (`ld: No space left on device`); no test assertion failure was
-  reported. The task remains in progress pending review/merge and the host
-  resource limitation is recorded here for the handoff.
+  reported. The task record remains planned until its canonical hard
+  dependencies are completed, as required by this ledger; the implementation
+  is delivered in PR #443 pending review/merge.
