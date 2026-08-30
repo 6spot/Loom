@@ -43,6 +43,12 @@ server boundary restart without a fixed target or persisted in-memory cursor.
 ## Verification Evidence
 
 - `bash tools/test.sh -p loom-server --test scheduler_restart -- --nocapture --test-threads=1` — PASS against controlled PostgreSQL 18; real restart evidence: distinct PIDs, both clean exits, `first_claim_fence=1`, `retry_attempt=1`, `second_claim_fence=2`, `lease_expired_before_recovery=true`, `recovery_attempt=3`, `history=2->3`, `counter=1->2`, `stale_fence_rejected=true`, `cursor_reused=false`, `scheduler_target_configured=false`.
+- Fresh rerun after D-003 reconciliation — PASS with `first_pid=294717`,
+  `second_pid=294775`, both clean exits, `first_claim_fence=1`,
+  `retry_attempt=1`, `second_claim_fence=2`,
+  `lease_expired_before_recovery=true`, `recovery_attempt=3`,
+  `history=2->3`, `counter=1->2`, `cursor_reused=false`,
+  `scheduler_target_configured=false`, and `stale_fence_rejected=true`.
 - `cargo test -p loom-storage --lib -- --test-threads=1` — PASS (65 tests) against a fresh PostgreSQL 18 validation database; the default shared local database has stale fixed parity-fixture rows and is not used as acceptance evidence.
 - `python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery
   --check --format json` — PASS after canonical T11–T15 reconciliation;
