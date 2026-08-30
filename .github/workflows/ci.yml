@@ -160,7 +160,6 @@ jobs:
                 Cargo.lock)
                   dependency=true
                   rust=true
-                  postgres=true
                   validator=true
                   ;;
                 Cargo.toml|*/Cargo.toml|deny.toml)
