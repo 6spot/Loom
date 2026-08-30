@@ -4490,6 +4490,29 @@ where
 
 impl<S> Runtime<S>
 where
+    S: SchedulerDiscoveryStore,
+{
+    /// Discovers a bounded page of Scheduler Timeline targets through the
+    /// Runtime-owned persistence port.
+    ///
+    /// Runtime deliberately forwards the request and result unchanged. The
+    /// persistence adapter owns T03 page-bound validation, deterministic
+    /// cursor semantics and the Pending-Work discovery predicate; this
+    /// façade performs no claim, commit, Work-state or World-Time operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed discovery error produced by the persistence adapter.
+    pub async fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> Result<SchedulerDiscoveryPage, SchedulerDiscoveryError> {
+        self.store.discover_scheduler_targets(request).await
+    }
+}
+
+impl<S> Runtime<S>
+where
     S: PinnedWorldReadStore,
 {
     /// Creates the Runtime-owned bounded point-read boundary for one injected
@@ -7807,6 +7830,7 @@ mod tests {
 
     use crate::{
         BaseWorldSnapshot, BaseWorldView, DeterministicEntropySource, RuntimeRevisionCapability,
+        SchedulerDiscoveryCursor, SchedulerDiscoveryTarget,
     };
 
     use super::*;
@@ -7819,6 +7843,116 @@ mod tests {
         format!("00000000-0000-0000-0000-{value:012x}")
             .parse()
             .expect("test identity should parse")
+    }
+
+    #[derive(Default)]
+    struct SchedulerDiscoveryObservation {
+        requests: Vec<SchedulerDiscoveryRequest>,
+        commit_mutations: usize,
+        work_mutations: usize,
+    }
+
+    struct SchedulerDiscoveryTestStore {
+        observation: std::sync::Arc<std::sync::Mutex<SchedulerDiscoveryObservation>>,
+        response: std::sync::Arc<
+            std::sync::Mutex<Option<Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>>>,
+        >,
+    }
+
+    impl SchedulerDiscoveryTestStore {
+        fn new(response: Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>) -> Self {
+            Self {
+                observation: std::sync::Arc::new(std::sync::Mutex::new(
+                    SchedulerDiscoveryObservation::default(),
+                )),
+                response: std::sync::Arc::new(std::sync::Mutex::new(Some(response))),
+            }
+        }
+    }
+
+    impl SchedulerDiscoveryStore for SchedulerDiscoveryTestStore {
+        fn discover_scheduler_targets(
+            &self,
+            request: SchedulerDiscoveryRequest,
+        ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>>
+        {
+            self.observation
+                .lock()
+                .expect("discovery observation should not be poisoned")
+                .requests
+                .push(request);
+            let response = self
+                .response
+                .lock()
+                .expect("discovery response should not be poisoned")
+                .take()
+                .expect("test discovery response should be consumed once");
+            Box::pin(async move { response })
+        }
+    }
+
+    fn runtime_for_scheduler_discovery(
+        store: SchedulerDiscoveryTestStore,
+    ) -> Runtime<SchedulerDiscoveryTestStore> {
+        Runtime {
+            registry: CapabilityRegistry::new(),
+            store,
+            platform_clock: std::sync::Arc::new(ManualPlatformClock::default()),
+            entropy_source: std::sync::Arc::new(UnavailableEntropySource),
+            cognitive_executor: std::sync::Arc::new(crate::UnavailableCognitiveExecutor),
+            cognitive_policy: ExecutionPolicy::default(),
+            identity_allocator: std::sync::Arc::new(UuidV7IdentityAllocator),
+            resolution_budget: ResolutionBudget::default(),
+            history_budget: HistoryBudget::default(),
+            failure_policy: FailurePolicy::default(),
+            chronology_budget: ChronologyBudgetPolicy::default(),
+            missing_implementation_observations: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::BTreeMap::new(),
+            )),
+            blob_store: None,
+        }
+    }
+
+    #[test]
+    fn runtime_scheduler_discovery_passes_request_and_page_through_unchanged() {
+        let first = SchedulerDiscoveryTarget::new(id(1), id(2));
+        let second = SchedulerDiscoveryTarget::new(id(3), id(4));
+        let request = SchedulerDiscoveryRequest::new(2)
+            .expect("test request should satisfy the T03 bound")
+            .with_cursor(SchedulerDiscoveryCursor::after(first));
+        let expected_page = SchedulerDiscoveryPage::new(
+            vec![second],
+            Some(SchedulerDiscoveryCursor::after(second)),
+        );
+        let store = SchedulerDiscoveryTestStore::new(Ok(expected_page.clone()));
+        let observation = store.observation.clone();
+        let runtime = runtime_for_scheduler_discovery(store);
+
+        let actual = block_on(runtime.discover_scheduler_targets(request))
+            .expect("Runtime should return the store page");
+
+        assert_eq!(actual, expected_page);
+        let observation = observation
+            .lock()
+            .expect("discovery observation should not be poisoned");
+        assert_eq!(observation.requests, vec![request]);
+        assert_eq!(observation.commit_mutations, 0);
+        assert_eq!(observation.work_mutations, 0);
+    }
+
+    #[test]
+    fn runtime_scheduler_discovery_preserves_typed_persistence_failure() {
+        let expected = SchedulerDiscoveryError::StorageUnavailable {
+            message: "controlled discovery failure".to_owned(),
+        };
+        let store = SchedulerDiscoveryTestStore::new(Err(expected.clone()));
+        let runtime = runtime_for_scheduler_discovery(store);
+        let request = SchedulerDiscoveryRequest::new(1).expect("test request should be bounded");
+
+        let actual = block_on(runtime.discover_scheduler_targets(request))
+            .expect_err("Runtime should return the persistence error");
+
+        assert_eq!(actual, expected);
     }
 
     struct ParentCapability {
