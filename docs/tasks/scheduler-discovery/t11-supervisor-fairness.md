@@ -1,10 +1,10 @@
 ---
 task: SCHD-T11
 issue: 413
-status: in_progress
+status: planned
 depends_on: [412]
 created_at: 2026-08-30
-started_at: 2026-08-31
+started_at:
 completed_at:
 completion_pr:
 merge_sha:
@@ -19,15 +19,15 @@ later stable Timelines cannot be permanently starved.
 
 ## Scope and acceptance
 
-- [x] Persist only an operational in-memory cursor and advance it from the T03
+- [ ] Persist only an operational in-memory cursor and advance it from the T03
       continuation; wrap at the ordered scan end.
-- [x] Tolerate target creation/removal and reset safely when the cursor has no
+- [ ] Tolerate target creation/removal and reset safely when the cursor has no
       successor; treat the cursor as a hint, never persisted authority.
-- [x] Blocked/Idle/normal outcomes for an earlier target cannot starve later
+- [ ] Blocked/Idle/normal outcomes for an earlier target cannot starve later
       targets.
-- [x] Deterministic tests cover bounded repeated visits, wrap, blocked first
+- [ ] Deterministic tests cover bounded repeated visits, wrap, blocked first
       target, deletion and later target addition.
-- [x] No reservation table, randomness, persistent cursor, weighted priority or
+- [ ] No reservation table, randomness, persistent cursor, weighted priority or
       per-target parallelism is introduced.
 
 ## Progress Log
@@ -38,6 +38,9 @@ later stable Timelines cannot be permanently starved.
 - 2026-08-31 — Added deterministic Supervisor coverage for bounded repeated
   visits, end wrapping, a permanently blocked first target, cursor-adjacent
   terminalization, empty-page cursor recovery and later target creation.
+- 2026-08-31 — Ledger governance reconciliation: the implementation candidate
+  is prepared, but prerequisite SCHD-T10 remains canonically `in_progress`;
+  task state is therefore kept `planned` until that dependency is reconciled.
 
 ## Verification Evidence
 
