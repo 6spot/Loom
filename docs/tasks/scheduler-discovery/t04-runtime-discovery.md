@@ -1,13 +1,13 @@
 ---
 task: SCHD-T04
 issue: 406
-status: planned
+status: completed
 depends_on: [405]
 created_at: 2026-08-30
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-30
+completed_at: 2026-08-30
+completion_pr: 441
+merge_sha: 491df2296d18a459caabb546aacbf701bbc22376
 ---
 
 # SCHD-T04 — Add Runtime façade for Scheduler Timeline discovery
@@ -27,9 +27,14 @@ not interpret `PgStorage` state directly.
 
 ## Acceptance
 
-- [ ] `loom-server` can discover through Runtime rather than raw Storage.
-- [ ] Runtime remains the authority for `drive_timeline` and all later
+- [x] `loom-server` can discover through Runtime rather than raw Storage.
+- [x] Runtime remains the authority for `drive_timeline` and all later
       semantic decisions.
-- [ ] Controlled-store tests prove exact argument/result pass-through,
+- [x] Controlled-store tests prove exact argument/result pass-through,
       typed persistence errors and no mutation.
-- [ ] No public API/Boundary/Client surface is added.
+- [x] No public API/Boundary/Client surface is added.
+
+## Completion evidence
+
+- Delivery PR #441 merged on 2026-08-30 as
+  `491df2296d18a459caabb546aacbf701bbc22376`.

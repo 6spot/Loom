@@ -1,13 +1,13 @@
 ---
 task: SCHD-T03
 issue: 405
-status: planned
+status: completed
 depends_on: [404]
 created_at: 2026-08-30
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-30
+completed_at: 2026-08-30
+completion_pr: 426
+merge_sha: 61651b454a29eb7bfadbebddf61b31a88a4eda7b
 ---
 
 # SCHD-T03 — Define bounded Scheduler discovery persistence port
@@ -28,9 +28,14 @@ targets that have Pending Scheduler obligations.
 
 ## Boundaries and acceptance
 
-- [ ] The contract is executor- and SQL/storage-type-neutral.
-- [ ] Discovery does not decide due-ness, claimability or logical head.
-- [ ] No Work IDs, claim tokens, Runtime orchestration or public API are
+- [x] The contract is executor- and SQL/storage-type-neutral.
+- [x] Discovery does not decide due-ness, claimability or logical head.
+- [x] No Work IDs, claim tokens, Runtime orchestration or public API are
       exposed.
-- [ ] Cursor/bound behavior is precise enough for non-starving scans.
-- [ ] Constructor/value tests and affected fmt/check/clippy/tests pass.
+- [x] Cursor/bound behavior is precise enough for non-starving scans.
+- [x] Constructor/value tests and affected fmt/check/clippy/tests pass.
+
+## Completion evidence
+
+- Delivery PR #426 merged on 2026-08-30 as
+  `61651b454a29eb7bfadbebddf61b31a88a4eda7b`.

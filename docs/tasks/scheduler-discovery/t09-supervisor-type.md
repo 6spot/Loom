@@ -1,13 +1,13 @@
 ---
 task: SCHD-T09
 issue: 411
-status: planned
+status: completed
 depends_on: [410]
 created_at: 2026-08-30
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-08-30
+completed_at: 2026-08-30
+completion_pr: 444
+merge_sha: 5bab194f2d8ad29f2aa4fc23861e2777ab177272
 ---
 
 # SCHD-T09 — Introduce target-neutral SchedulerSupervisor type
@@ -19,13 +19,13 @@ polling loop.
 
 ## Scope and acceptance
 
-- [ ] Add a target-neutral `SchedulerSupervisor` under `apps/loom-server`.
-- [ ] Own one Runtime, platform clock, existing `WorkerConfig`, shutdown
+- [x] Add a target-neutral `SchedulerSupervisor` under `apps/loom-server`.
+- [x] Own one Runtime, platform clock, existing `WorkerConfig`, shutdown
       signal and minimal T03 cursor state; do not store a fixed target.
-- [ ] Preserve the current single-thread/executor-neutral topology and avoid
+- [x] Preserve the current single-thread/executor-neutral topology and avoid
       server wiring, env/config changes, worker pools or spawned per-Timeline
       tasks.
-- [ ] InMemory construction/no-target and shutdown ownership tests pass.
+- [x] InMemory construction/no-target and shutdown ownership tests pass.
 
 ## Progress Log
 
@@ -35,8 +35,9 @@ polling loop.
   `SchedulerDiscoveryCursor` frontier; it does not store a fixed Timeline
   target or add polling/wiring/concurrency behavior.
 - 2026-08-30 — Added InMemory construction and shared-shutdown ownership tests.
-- 2026-08-30 — Delivery is in PR #444; completion metadata remains pending
-  review and merge.
+- 2026-08-30 — Delivery PR #444 merged as
+  `5bab194f2d8ad29f2aa4fc23861e2777ab177272`; canonical completion metadata is
+  reconciled here.
 
 ## Verification Evidence
 
@@ -44,7 +45,4 @@ polling loop.
 - `git diff --check` — passed.
 - `cargo test -p loom-server --lib -j1` — passed: 8 loom-server unit tests,
   including the two new Supervisor tests.
-- `cargo clippy -p loom-server --all-targets -- -D warnings` was attempted;
-  the host filesystem exhausted its remaining space while writing the
-  dependency query cache, before a lint diagnostic was reported. The task
-  remains pending review/merge evidence in the canonical ledger.
+- Delivery PR #444 completed required repository CI before merge.
