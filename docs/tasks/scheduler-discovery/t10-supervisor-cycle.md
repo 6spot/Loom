@@ -1,10 +1,10 @@
 ---
 task: SCHD-T10
 issue: 412
-status: planned
+status: in_progress
 depends_on: [411]
 created_at: 2026-08-30
-started_at:
+started_at: 2026-08-30
 completed_at:
 completion_pr:
 merge_sha:
@@ -28,3 +28,20 @@ drives each discovered target once through `Runtime::drive_timeline`.
 - [ ] Empty, bounded-N, exact-target and normal Blocked/Idle tests pass.
 - [ ] No long-running loop, cursor fairness beyond the page, parallel spawn,
       direct claim or server composition change is included.
+
+## Progress Log
+
+- 2026-08-30 — Implemented `SchedulerSupervisor::run_cycle` using the Runtime
+  discovery façade, the existing scheduler poll limit and sequential
+  `Runtime::drive_timeline` calls. Added an application-owned cycle report and
+  coverage for empty, bounded, exact-target, Blocked and stale-discovery Idle
+  outcomes.
+
+## Verification Evidence
+
+- `cargo fmt --all -- --check` — passed.
+- `git diff --check` — passed.
+- `cargo test -p loom-server --lib -j1` — attempted; the host filesystem was
+  full while Cargo wrote `hashbrown`/`sqlx-core` artifacts (`No space left on
+  device`), before the crate compiled. Focused test execution remains pending
+  available disk space.
