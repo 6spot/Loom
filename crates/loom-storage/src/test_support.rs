@@ -1,4 +1,9 @@
-//! `PostgreSQL` fixtures for integration tests in dependent workspace crates.
+//! Test-only PostgreSQL fixture support for cross-crate live tests.
+//!
+//! This module is enabled only by the `test-support` feature. It keeps
+//! PostgreSQL control connections and database lifecycle operations inside the
+//! storage adapter, while callers receive only an isolated database URL and
+//! storage-port operations.
 
 use std::{
     path::Path,
@@ -13,13 +18,19 @@ use url::Url;
 
 use crate::PgStorage;
 
+const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
+const SERVER_VERSION_SQL: &str = include_str!("../sql/health/server_version.sql");
+
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
 
-const DEFAULT_POSTGRES_CONTROL_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
-
-/// One isolated `PostgreSQL` database created for a live integration-test
-/// fixture. SQL and database lifecycle remain owned by `loom-storage`; callers
-/// receive only Loom storage-port operations and cleanup.
+/// An isolated `PostgreSQL` database for a cross-crate integration-test
+/// fixture.
+///
+/// The control connection and database lifecycle remain owned by
+/// `loom-storage`. Callers can pass [`Self::database_url`] to a real server,
+/// use the storage-port helpers for deterministic operational setup, then
+/// explicitly call [`Self::cleanup`] after the test has finished.
+#[derive(Debug)]
 pub struct TestDatabase {
     control_pool: PgPool,
     database_name: String,
@@ -27,25 +38,23 @@ pub struct TestDatabase {
 }
 
 impl TestDatabase {
-    /// Creates a unique empty database and applies the embedded Loom migrations.
+    /// Creates a unique database and applies the embedded Loom migrations.
     ///
-    /// `LOOM_TEST_POSTGRES_URL` may override the repository-local control
-    /// database. When it is unset or empty, the repository-managed
-    /// `PostgreSQL` service is started on demand.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the control database, isolated database, migrations or
-    /// repository-managed `PostgreSQL` service cannot be prepared.
+    /// `LOOM_TEST_POSTGRES_URL` overrides the repository-local control
+    /// database. When the override is absent, the repository-managed test
+    /// service is started on demand if necessary. The configured role must be
+    /// allowed to create and drop databases.
     pub async fn provision(label: &str) -> Self {
         let (control_url, uses_repository_default) = postgres_control_url();
         let control_pool = connect_control_database(&control_url, uses_repository_default).await;
+        assert_postgres_18(&control_pool).await;
+
         let database_name = unique_database_name(label);
         let create_sql = format!("CREATE DATABASE {}", quote_identifier(&database_name));
         sqlx::query(AssertSqlSafe(create_sql))
             .execute(&control_pool)
             .await
-            .expect("PostgreSQL test role should create isolated databases");
+            .expect("controlled PostgreSQL role should create an isolated test database");
 
         let database_url = child_database_url(&control_url, &database_name);
         let storage = PgStorage::connect(&database_url)
@@ -54,7 +63,7 @@ impl TestDatabase {
         if let Err(error) = storage.migrate().await {
             storage.close().await;
             drop_database(&control_pool, &database_name).await;
-            panic!("migrations should apply to a fresh isolated database: {error}");
+            panic!("isolated PostgreSQL test database migrations should succeed: {error}");
         }
         storage.close().await;
 
@@ -65,7 +74,7 @@ impl TestDatabase {
         }
     }
 
-    /// Returns the isolated database URL for a Loom server configuration.
+    /// Returns the URL of the isolated, migrated `PostgreSQL` database.
     #[must_use]
     pub fn database_url(&self) -> &str {
         &self.database_url
@@ -132,7 +141,7 @@ impl TestDatabase {
         result
     }
 
-    /// Drops the isolated database, force-closing any leaked test connections.
+    /// Drops the isolated database and closes the control connection.
     pub async fn cleanup(self) {
         drop_database(&self.control_pool, &self.database_name).await;
         self.control_pool.close().await;
@@ -159,14 +168,12 @@ async fn connect_control_database(control_url: &str, uses_repository_default: bo
             start_repository_postgres(&error);
             PgPool::connect(control_url).await.unwrap_or_else(|retry_error| {
                 panic!(
-                    "repository-managed PostgreSQL test service is still unreachable after startup: \
-                     {retry_error}"
+                    "repository-managed PostgreSQL test service is still unreachable after startup: {retry_error}"
                 )
             })
         }
         Err(error) => panic!(
-            "PostgreSQL integration test control database from LOOM_TEST_POSTGRES_URL is unavailable: \
-             {error}"
+            "PostgreSQL control database from LOOM_TEST_POSTGRES_URL is unavailable: {error}"
         ),
     }
 }
@@ -177,16 +184,25 @@ fn start_repository_postgres(initial_error: &sqlx::Error) {
     match status {
         Ok(status) if status.success() => {}
         Ok(status) => panic!(
-            "default PostgreSQL control database was unreachable ({initial_error}); \
-             `{}` exited with {status}",
+            "default PostgreSQL control database was unreachable ({initial_error}); `{}` exited with {status}",
             script.display()
         ),
         Err(error) => panic!(
-            "default PostgreSQL control database was unreachable ({initial_error}); \
-             failed to start `{}`: {error}",
+            "default PostgreSQL control database was unreachable ({initial_error}); failed to start `{}`: {error}",
             script.display()
         ),
     }
+}
+
+async fn assert_postgres_18(pool: &PgPool) {
+    let server_version: i32 = sqlx::query_scalar(SERVER_VERSION_SQL)
+        .fetch_one(pool)
+        .await
+        .expect("controlled PostgreSQL should report its server version");
+    assert!(
+        (180_000..190_000).contains(&server_version),
+        "cross-crate live tests require controlled PostgreSQL 18, got server_version_num={server_version}"
+    );
 }
 
 fn child_database_url(control_url: &str, database_name: &str) -> String {
