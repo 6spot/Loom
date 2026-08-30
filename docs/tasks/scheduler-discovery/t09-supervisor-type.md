@@ -35,6 +35,8 @@ polling loop.
   `SchedulerDiscoveryCursor` frontier; it does not store a fixed Timeline
   target or add polling/wiring/concurrency behavior.
 - 2026-08-30 — Added InMemory construction and shared-shutdown ownership tests.
+- 2026-08-30 — Delivery is in PR #444; completion metadata remains pending
+  review and merge.
 
 ## Verification Evidence
 
