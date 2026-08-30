@@ -1431,6 +1431,7 @@ dependencies = [
  "loom-client",
  "loom-core",
  "loom-neutral",
+ "loom-protocol",
  "loom-runtime",
  "loom-storage",
  "serde_json",

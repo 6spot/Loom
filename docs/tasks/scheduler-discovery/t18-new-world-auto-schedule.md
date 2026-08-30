@@ -28,3 +28,20 @@ drive.
 - [ ] Assert no restart/rebuild/env mutation and no semantic proof via direct
       SQL or unbounded sleeps.
 - [ ] The required live PG18 test actually executes and remains stable.
+
+## Progress Log
+
+- 2026-08-31 — Implementing the focused real `LoomServer`/HTTP/client gate:
+  create a World after the target-neutral server is already serving, schedule
+  a neutral reaction through the public Action API, and observe Scheduler
+  progression through public Facet, History and Admin reads.
+- 2026-08-31 — Governance reconciliation: prerequisite #417 remains
+  `planned` on the canonical task ledger, so T18 is kept `planned` and its
+  acceptance remains pending until the dependency is post-merge reconciled.
+
+## Verification Evidence
+
+- `bash tools/test.sh -p loom-server --lib application::tests::world_created_after_server_start_is_auto_scheduled_over_public_http -- --exact --nocapture --test-threads=1` — PASS against the PG18 Compose service; repeated three times.
+- `bash tools/test.sh -p loom-server --lib -- --test-threads=1` — 30 passed.
+- `cargo check --workspace --all-targets --all-features` and workspace Clippy with `-D warnings` — PASS.
+- `python3 tools/check_architecture.py` and `python3 tools/check_storage_sql_ownership.py` — PASS.

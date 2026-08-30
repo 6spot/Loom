@@ -537,6 +537,16 @@ impl LoomServer {
         let listener = TcpListener::bind(self.config.bind_addr)
             .await
             .map_err(|_| ServerError::Http)?;
+        Box::pin(self.run_with_listener(listener)).await
+    }
+
+    /// Runs the assembled server on an already-bound listener.
+    ///
+    /// The composition and lifecycle are identical to [`Self::run`]. Keeping
+    /// listener ownership injectable lets the focused integration gate reserve
+    /// an OS-assigned port before it starts the real HTTP boundary, without
+    /// adding a deployment setting or a second server path.
+    async fn run_with_listener(self, listener: TcpListener) -> Result<(), ServerError> {
         info!(address = %self.config.bind_addr, data_root = ?self.config.data_dir(), "loom-server listening");
 
         let Self {
@@ -728,20 +738,40 @@ fn installed_registry() -> Result<CapabilityRegistry, ServerError> {
 
 #[cfg(test)]
 mod tests {
+    use loom_api::{
+        ActionRequest, ActionService, AdminService, AdminWorkStatus,
+        CreateWorldFromTemplateRequest, EventQuery, FacetQuery, HistoryService, QueryService,
+        WorldService, WorldTemplateDescriptor,
+    };
     use loom_capability::CapabilityRegistry;
-    use loom_core::{SchemaRevision, TimelineId, WorkHandlerId, WorkId, WorldId, WorldInstant};
+    use loom_client::LoomClient;
+    use loom_core::{
+        ActionTypeId, EntityId, EventId, FacetOwner, FacetTypeId, SchemaRevision, TimelineId,
+        WorkHandlerId, WorkId, WorldId, WorldInstant,
+    };
+    use loom_protocol::ActionInvocation;
     use loom_runtime::{
-        ManualPlatformClock, PlatformTime, Runtime, RuntimeRevisionCapability,
-        RuntimeRevisionDescriptor, WorkRecord, WorkStatus, WorkTarget,
+        ChronologyBudgetPolicy, FailurePolicy, HistoryBudget, ManualPlatformClock, PlatformTime,
+        ResolutionBudget, Runtime, RuntimeRevisionCapability, RuntimeRevisionDescriptor,
+        WorkRecord, WorkStatus, WorkTarget,
     };
     use loom_storage::InMemoryStore;
-    use std::time::Duration;
+    use serde_json::json;
+    use std::{
+        net::SocketAddr,
+        path::{Path, PathBuf},
+        process,
+        sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, Instant},
+    };
+
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
 
     use super::{
-        ServerError, SystemClock, ensure_candidate_revision_matches_published, installed_registry,
-        run_scheduler_supervisor_until_shutdown,
+        LoomServer, ServerError, SystemClock, ensure_candidate_revision_matches_published,
+        installed_registry, run_scheduler_supervisor_until_shutdown,
     };
-    use crate::{SchedulerSupervisor, ShutdownSignal, WorkerConfig};
+    use crate::{SchedulerSupervisor, ServerConfig, ShutdownSignal, WorkerConfig};
 
     fn id<T>(value: u128) -> T
     where
@@ -807,6 +837,111 @@ mod tests {
         .expect("the test Runtime Revision descriptor should be valid")
     }
 
+    fn postgres_test_config(database_url: String, data_dir: PathBuf) -> ServerConfig {
+        ServerConfig {
+            database_url,
+            bind_addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+            data_dir,
+            revision_id: "scheduler-t18-test".to_owned(),
+            core_build_ref: "scheduler-t18-test-build".to_owned(),
+            worker_config: WorkerConfig::new(30_000, 0)
+                .expect("test worker timing should be valid")
+                .with_scheduler_poll_limit(1)
+                .expect("test scheduler poll bound should be valid"),
+            worker_poll_interval: Duration::from_secs(1),
+            ingress_queue_capacity: 16,
+            boundary_config: loom_boundary::BoundaryConfig::default(),
+            resolution_budget: ResolutionBudget::default(),
+            history_budget: HistoryBudget::default(),
+            failure_policy: FailurePolicy::new(3, 0).expect("test failure policy should be valid"),
+            chronology_budget: ChronologyBudgetPolicy::new(8),
+        }
+    }
+
+    fn unique_data_dir() -> PathBuf {
+        let fixture = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!("loom-server-t18-{}-{fixture}", process::id()))
+    }
+
+    fn scheduler_environment() -> [Option<std::ffi::OsString>; 2] {
+        ["LOOM_SCHEDULER_WORLD_ID", "LOOM_SCHEDULER_TIMELINE_ID"].map(std::env::var_os)
+    }
+
+    fn assert_no_fixed_scheduler_environment() {
+        for name in ["LOOM_SCHEDULER_WORLD_ID", "LOOM_SCHEDULER_TIMELINE_ID"] {
+            assert!(
+                std::env::var_os(name).is_none(),
+                "T18 must run without fixed Scheduler target variable {name}"
+            );
+        }
+    }
+
+    async fn wait_for_public_server(client: &LoomClient) {
+        for _ in 0..100 {
+            if let Ok(Some(_)) = client.active_runtime_revision().await {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the real LoomServer did not become reachable through its public Admin API");
+    }
+
+    async fn wait_for_scheduler_completion(
+        client: &LoomClient,
+        target: loom_api::TimelineTarget,
+        entity_id: EntityId,
+        work_id: WorkId,
+    ) -> (
+        loom_api::AdminTimelineLogicalStatus,
+        loom_api::FacetSnapshot,
+        Vec<loom_api::CommittedEvent>,
+    ) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let status = client
+                .timeline_logical_status(target)
+                .await
+                .expect("Timeline logical status should remain publicly readable");
+            let facet = client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from(loom_neutral::COUNTER_FACET),
+                ))
+                .await
+                .expect("Scheduler-updated Facet should remain publicly readable")
+                .expect("Scheduler-updated counter Facet should exist");
+            let history = client
+                .list_events(EventQuery::all(target))
+                .await
+                .expect("Scheduler-produced History should remain publicly readable");
+            let counter_value = facet.value["value"].as_i64().unwrap_or_default();
+            let increment_count = history
+                .iter()
+                .filter(|event| {
+                    event.event_type
+                        == loom_api::EventTypeId::from(loom_neutral::COUNTER_INCREMENTED_EVENT)
+                })
+                .count();
+            let completed = status
+                .works
+                .iter()
+                .any(|work| work.work_id == work_id && work.status == AdminWorkStatus::Completed);
+            if completed && counter_value >= 3 && increment_count >= 2 {
+                return (status, facet, history);
+            }
+
+            assert!(
+                Instant::now() < deadline,
+                "Scheduler did not complete the discovered Work through public surfaces: status={status:?}, facet={facet:?}, history_len={} ",
+                history.len()
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
     #[test]
     fn startup_accepts_same_build_after_restart_despite_new_publication_time() {
         let persisted_build_one = revision("build-1", None);
@@ -844,6 +979,163 @@ mod tests {
                 stage: "Runtime Revision candidate validation"
             })
         ));
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the focused live gate keeps its public workflow readable in one scenario"
+    )]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn world_created_after_server_start_is_auto_scheduled_over_public_http() {
+        assert_no_fixed_scheduler_environment();
+
+        let database = loom_storage::test_support::TestDatabase::provision("scheduler-t18").await;
+        let data_dir = unique_data_dir();
+        let config = postgres_test_config(database.database_url().to_owned(), data_dir.clone());
+        let config_before = format!("{config:?}");
+        let scheduler_environment_before = scheduler_environment();
+
+        let server = LoomServer::build(config.clone())
+            .await
+            .expect("real LoomServer should start against PostgreSQL 18");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("the test HTTP listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("the test HTTP listener should expose its address");
+        let shutdown = server.shutdown.clone();
+        let client = LoomClient::builder(format!("http://{address}"))
+            .admin_token("scheduler-t18-test-admin")
+            .expect("test Admin token should be representable")
+            .build()
+            .expect("public Loom client should build");
+
+        let workflow = async {
+            wait_for_public_server(&client).await;
+            let active_before_world = client
+                .active_runtime_revision()
+                .await
+                .expect("active Runtime Revision should be readable before World creation");
+            assert!(
+                active_before_world.is_some(),
+                "the server must be serving before the World is created"
+            );
+
+            let entity_id: EntityId = id(0x1801);
+            let seed_event_id: EventId = id(0x1802);
+            let increment_event_id: EventId = id(0x1803);
+            let created = client
+                .create_world_from_template(CreateWorldFromTemplateRequest::new(
+                    WorldTemplateDescriptor::new("scheduler-t18-world", 1, WorldInstant::default())
+                        .requires_capability(loom_neutral::COUNTER_CAPABILITY, "^0.1.0")
+                        .with_bootstrap_action(ActionInvocation::new(
+                            ActionTypeId::from(loom_neutral::COUNTER_SEED_ACTION),
+                            json!({
+                                "event_id": seed_event_id.to_string(),
+                                "entity_id": entity_id.to_string(),
+                                "value": 1,
+                            }),
+                        )),
+                ))
+                .await
+                .expect("World creation should cross the public HTTP boundary");
+            let target = created.target;
+
+            let initial_facet = client
+                .get_facet(FacetQuery::new(
+                    target,
+                    FacetOwner::entity(entity_id),
+                    FacetTypeId::from(loom_neutral::COUNTER_FACET),
+                ))
+                .await
+                .expect("the created World Facet should be publicly readable")
+                .expect("the bootstrap counter Facet should exist");
+            assert_eq!(initial_facet.value["value"], json!(1));
+
+            let direct_action = client
+                .invoke(ActionRequest::new(
+                    target,
+                    ActionInvocation::new(
+                        ActionTypeId::from(loom_neutral::COUNTER_INCREMENT_ACTION),
+                        json!({
+                            "event_id": increment_event_id.to_string(),
+                            "entity_id": entity_id.to_string(),
+                            "amount": 1,
+                        }),
+                    ),
+                ))
+                .await
+                .expect("the public Action should commit and schedule its Reaction Work");
+            assert!(
+                matches!(direct_action, loom_api::ExecutionResult::Committed { .. }),
+                "the seed follow-up Action should commit before Scheduler observation"
+            );
+
+            let pending_status = client
+                .timeline_logical_status(target)
+                .await
+                .expect("Pending Work should be observable through the public Admin surface");
+            let pending_work_id = pending_status
+                .works
+                .iter()
+                .find(|work| work.status == AdminWorkStatus::Pending)
+                .map(|work| work.work_id)
+                .expect("the public status read should observe the Reaction Pending Work");
+
+            let (final_status, final_facet, final_history) =
+                wait_for_scheduler_completion(&client, target, entity_id, pending_work_id).await;
+            let completed_work = final_status
+                .works
+                .iter()
+                .find(|work| work.work_id == pending_work_id)
+                .expect("the observed Work should remain in the public status read");
+            assert_eq!(completed_work.status, AdminWorkStatus::Completed);
+            assert!(
+                final_facet.value["value"].as_i64().unwrap_or_default() >= 3,
+                "the Scheduler Work should advance the public counter Facet"
+            );
+            assert!(
+                final_history
+                    .iter()
+                    .filter(|event| {
+                        event.event_type
+                            == loom_api::EventTypeId::from(loom_neutral::COUNTER_INCREMENTED_EVENT)
+                    })
+                    .count()
+                    >= 2,
+                "History should include both the direct increment and Scheduler Work increment"
+            );
+            assert!(
+                final_history.iter().any(|event| {
+                    event.event_type
+                        == loom_api::EventTypeId::from(loom_neutral::COUNTER_INCREMENTED_EVENT)
+                        && event.payload["value"].as_i64() == Some(3)
+                }),
+                "History should expose the Scheduler-produced increment at value 3"
+            );
+
+            shutdown.request();
+        };
+
+        let (server_result, ()) = tokio::join!(server.run_with_listener(listener), workflow);
+        assert!(
+            server_result.is_ok(),
+            "real LoomServer should stop cleanly after the public observation: {server_result:?}"
+        );
+        assert_eq!(
+            config_before,
+            format!("{config:?}"),
+            "ServerConfig must remain unchanged through World creation and Scheduler completion"
+        );
+        assert_eq!(
+            scheduler_environment_before,
+            scheduler_environment(),
+            "the test must not mutate fixed Scheduler target environment"
+        );
+
+        database.cleanup().await;
+        std::fs::remove_dir_all(&data_dir).expect("test BlobStore data should be removable");
     }
 
     #[tokio::test(flavor = "current_thread")]
