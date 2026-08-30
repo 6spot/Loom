@@ -19,12 +19,14 @@
 mod application;
 mod config;
 mod ingress;
+mod scheduler_supervisor;
 
 pub use application::{
     ApplicationApi, LoomServer, ServerError, SystemClock, SystemEntropySource, run_from_env,
 };
 pub use config::{ServerConfig, ServerConfigError};
 pub use ingress::{IngressWorker, IngressWorkerReport, IngressWorkerStopReason};
+pub use scheduler_supervisor::SchedulerSupervisor;
 
 use std::sync::{
     Arc,
