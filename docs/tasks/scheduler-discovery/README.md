@@ -35,7 +35,7 @@ stage tracker is not a hard dependency and must never be added to a leaf's
 | SCHD-T07 | #409 | completed | #405, #408 | [t07-pgstorage-discovery.md](t07-pgstorage-discovery.md) |
 | SCHD-T08 | #410 | completed | #406, #407, #409 | [t08-discovery-parity-gate.md](t08-discovery-parity-gate.md) |
 | SCHD-T09 | #411 | completed | #410 | [t09-supervisor-type.md](t09-supervisor-type.md) |
-| SCHD-T10 | #412 | planned | #411 | [t10-supervisor-cycle.md](t10-supervisor-cycle.md) |
+| SCHD-T10 | #412 | completed | #411 | [t10-supervisor-cycle.md](t10-supervisor-cycle.md) |
 | SCHD-T11 | #413 | planned | #412 | [t11-supervisor-fairness.md](t11-supervisor-fairness.md) |
 | SCHD-T12 | #414 | planned | #413 | [t12-supervisor-loop.md](t12-supervisor-loop.md) |
 | SCHD-T13 | #415 | planned | #414 | [t13-server-supervisor-wiring.md](t13-server-supervisor-wiring.md) |
