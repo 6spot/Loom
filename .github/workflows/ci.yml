@@ -27,18 +27,12 @@ on:
       - "tools/check_architecture.py"
       - "tools/check_storage_sql_ownership.py"
       - "tools/postgres-test.sh"
-      - "tools/test.sh"
       - "tools/test_validator_ready.py"
       - "tools/validator_ready.py"
-      - "tools/validator-authority-gate.sh"
-      - "tools/validator-certification-gate.py"
-      - "tools/validator-certification-gate.sh"
-      - "tools/validator-pg18-gate.sh"
       - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/validator/**"
-      - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
       - "docs/tasks/ci-governance/**"
+      - "!apps/loom-validator/**"
   pull_request:
     paths:
       - ".github/workflows/ci.yml"
@@ -62,18 +56,12 @@ on:
       - "tools/check_architecture.py"
       - "tools/check_storage_sql_ownership.py"
       - "tools/postgres-test.sh"
-      - "tools/test.sh"
       - "tools/test_validator_ready.py"
       - "tools/validator_ready.py"
-      - "tools/validator-authority-gate.sh"
-      - "tools/validator-certification-gate.py"
-      - "tools/validator-certification-gate.sh"
-      - "tools/validator-pg18-gate.sh"
       - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/validator/**"
-      - "docs/tasks/validator-recert/**"
       - "docs/tasks/scheduler-discovery/**"
       - "docs/tasks/ci-governance/**"
+      - "!apps/loom-validator/**"
 
 permissions:
   contents: read
@@ -95,7 +83,6 @@ jobs:
       dependency: ${{ steps.classify.outputs.dependency }}
       ledger: ${{ steps.classify.outputs.ledger }}
       postgres: ${{ steps.classify.outputs.postgres }}
-      validator: ${{ steps.classify.outputs.validator }}
       deployment: ${{ steps.classify.outputs.deployment }}
 
     steps:
@@ -114,7 +101,6 @@ jobs:
           dependency=false
           ledger=false
           postgres=false
-          validator=false
           deployment=false
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -122,7 +108,6 @@ jobs:
             dependency=true
             ledger=true
             postgres=true
-            validator=true
             deployment=true
           else
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -143,24 +128,21 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
 
-              # Changing CI authority itself validates every route once.
+              # Changing core CI authority itself validates every core route once.
               case "$path" in
                 .github/workflows/ci.yml|.github/CODEOWNERS)
                   rust=true
                   dependency=true
                   ledger=true
                   postgres=true
-                  validator=true
                   deployment=true
                   ;;
               esac
 
-              # Dependency policy is only relevant when dependency metadata changes.
               case "$path" in
                 Cargo.lock)
                   dependency=true
                   rust=true
-                  validator=true
                   ;;
                 Cargo.toml|*/Cargo.toml|deny.toml)
                   dependency=true
@@ -168,39 +150,29 @@ jobs:
                   ;;
               esac
 
-              # Machine-readable task records are governance inputs, not code.
               case "$path" in
-                docs/tasks/validator/*|docs/tasks/validator-recert/*|docs/tasks/scheduler-discovery/*|docs/tasks/ci-governance/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
+                docs/tasks/scheduler-discovery/*|docs/tasks/ci-governance/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
                   ledger=true
                   ;;
               esac
 
-              # Storage implementation and SQL changes need the PostgreSQL contract.
               case "$path" in
                 crates/loom-storage/*|*.sql)
                   postgres=true
                   ;;
                 compose.test-db.yaml|tools/postgres-test.sh)
                   postgres=true
-                  validator=true
                   ;;
               esac
 
-              # Validator implementation/certification changes keep the heavy gates local.
               case "$path" in
-                apps/loom-validator/*|tools/test.sh|tools/validator-authority-gate.sh|tools/validator-certification-gate.py|tools/validator-certification-gate.sh|tools/validator-pg18-gate.sh)
-                  validator=true
+                apps/loom-validator/*)
                   ;;
-              esac
-
-              # Rust source and architecture changes get the ordinary Rust lane.
-              case "$path" in
                 *.rs|capabilities/*|tests/*|rust-toolchain.toml|rustfmt.toml|tools/check_architecture.py|tools/check_storage_sql_ownership.py)
                   rust=true
                   ;;
               esac
 
-              # Deployment configuration has its own cheap validation lane.
               case "$path" in
                 compose.yaml|Dockerfile|.dockerignore|.env.example|docker/*)
                   deployment=true
@@ -214,12 +186,11 @@ jobs:
             echo "dependency=$dependency"
             echo "ledger=$ledger"
             echo "postgres=$postgres"
-            echo "validator=$validator"
             echo "deployment=$deployment"
           } >> "$GITHUB_OUTPUT"
 
-          printf 'rust=%s dependency=%s ledger=%s postgres=%s validator=%s deployment=%s\n' \
-            "$rust" "$dependency" "$ledger" "$postgres" "$validator" "$deployment"
+          printf 'rust=%s dependency=%s ledger=%s postgres=%s deployment=%s\n' \
+            "$rust" "$dependency" "$ledger" "$postgres" "$deployment"
 
   ledger:
     name: Task ledger governance
@@ -231,17 +202,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validator READY fixtures
+      - name: Task ledger READY fixtures
         run: python3 tools/test_validator_ready.py
-
-      - name: Validator task ledger
-        run: python3 tools/validator_ready.py --check
-
-      - name: Validator re-certification ledger
-        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert --check --format json
-
-      - name: Validator Stage-1 re-certification ledger
-        run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
 
       - name: Scheduler discovery task ledger
         run: python3 tools/validator_ready.py --root docs/tasks/scheduler-discovery --check --format json
@@ -313,21 +275,20 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Check
-        run: cargo check --workspace --all-targets --all-features
+        run: cargo check --workspace --exclude loom-validator --all-targets --all-features
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --exclude loom-validator --all-targets --all-features -- -D warnings
 
       - name: Core and unit tests
         run: |
-          # Database-backed loom-storage and full loom-validator integration suites
-          # run in their dedicated lanes instead of starting PostgreSQL here.
+          # Database-backed loom-storage integration runs in its dedicated lane.
+          # loom-validator is a separate staged validation workflow.
           cargo test --workspace --all-features --exclude loom-storage --exclude loom-validator
           cargo test -p loom-storage --all-features --lib
-          cargo test -p loom-validator --all-features --lib
 
       - name: Rustdoc
-        run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps
+        run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --exclude loom-validator --no-deps
 
   postgres-contract:
     name: PostgreSQL 18 persistence contract
@@ -386,46 +347,6 @@ jobs:
             cargo test -p loom-storage --test "$test_name" -- --nocapture
             echo "::endgroup::"
           done
-
-  validator-certification:
-    # Keep the historical job/check name stable so existing required-check
-    # configuration does not lose its check while the lane becomes regression-only.
-    name: Validator authority and T24 certification
-    needs: changes
-    if: needs.changes.outputs.validator == 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          # The T24 tool-contract regression check reads the merged manifest
-          # from origin/main and therefore keeps main history available.
-          fetch-depth: 0
-
-      - name: Install Rust
-        run: |
-          rustup toolchain install "$RUST_VERSION" --profile minimal
-          rustup default "$RUST_VERSION"
-          rustc --version
-          cargo --version
-
-      - name: Restore Cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: validator-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            validator-${{ runner.os }}-${{ env.RUST_VERSION }}-
-
-      - name: Validator authority regression gate
-        run: bash tools/validator-authority-gate.sh
-
-      - name: Validator T24 certification-tool regression
-        run: python3 tools/validator-certification-gate.py --regression-check
 
   deployment:
     name: Loom server Compose config
