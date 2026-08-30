@@ -81,6 +81,9 @@ mod in_memory;
 )]
 mod postgres;
 
+#[cfg(feature = "test-support")]
+pub mod test_support;
+
 pub use blob::{
     BlobStoreInitError, InMemoryBlobStore, LocalBlobStore, ObjectStorageBlobStore,
     ObjectStoreBlobStore, S3BlobStore, S3CompatibleBlobStore,

@@ -1,10 +1,9 @@
 use std::{
-    env, fs,
+    fs,
     net::TcpListener,
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
-    str::FromStr,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use futures_util::FutureExt;
@@ -19,39 +18,20 @@ use loom_neutral::{
     COUNTER_FACET, COUNTER_INCREMENT_ACTION, COUNTER_INCREMENTED_EVENT, COUNTER_SEED_ACTION,
     COUNTER_SEEDED_EVENT,
 };
+use loom_runtime::{PlatformTime, WorkError, WorkLease, WorkStatus};
+use loom_storage::test_support::TestDatabase;
 use serde_json::json;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use url::Url;
 use uuid::Uuid;
 
-const DEFAULT_POSTGRES_URL: &str = "postgresql://loom:loom@127.0.0.1:15432/loom_control";
 const SERVER_REVISION_ID: &str = "loom-server";
 const SERVER_BUILD_REF: &str = "loom-server-0.1.0";
+const WORKER_POLL_MS: u64 = 120_000;
+const INITIAL_LEASE_MS: i64 = 10_000;
+const RETRY_BACKOFF_MS: i64 = 250;
+const RECLAIM_LEASE_MS: i64 = 250;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-fn postgres_url() -> Result<String, String> {
-    if let Ok(url) = env::var("LOOM_TEST_POSTGRES_URL")
-        && !url.trim().is_empty()
-    {
-        return Ok(url);
-    }
-
-    let status = Command::new("bash")
-        .arg(repo_root().join("tools/postgres-test.sh"))
-        .arg("up")
-        .stdout(Stdio::null())
-        .status()
-        .map_err(|error| format!("failed to start the controlled PostgreSQL service: {error}"))?;
-    if !status.success() {
-        return Err(format!(
-            "controlled PostgreSQL service failed to start with status {status}"
-        ));
-    }
-
-    Ok(DEFAULT_POSTGRES_URL.to_owned())
 }
 
 fn free_port() -> Result<u16, String> {
@@ -60,65 +40,6 @@ fn free_port() -> Result<u16, String> {
         .local_addr()
         .map(|address| address.port())
         .map_err(|error| format!("failed to inspect the reserved server port: {error}"))
-}
-
-struct EphemeralDatabase {
-    admin_url: String,
-    name: String,
-    url: String,
-}
-
-impl EphemeralDatabase {
-    async fn create(base_url: &str) -> Result<Self, String> {
-        let name = format!("loom_t20_{}", Uuid::new_v4().simple());
-        // Database creation is test infrastructure isolation only. All
-        // acceptance observations below use Loom's public HTTP contracts.
-        let admin_options = PgConnectOptions::from_str(base_url)
-            .map_err(|error| format!("invalid PostgreSQL test URL: {error}"))?
-            .database("postgres");
-        let admin_pool = PgPoolOptions::new()
-            .max_connections(1)
-            .connect_with(admin_options)
-            .await
-            .map_err(|error| format!("failed to connect to PostgreSQL admin database: {error}"))?;
-        let create_database = format!("CREATE DATABASE \"{name}\"");
-        sqlx::query(sqlx::AssertSqlSafe(create_database))
-            .execute(&admin_pool)
-            .await
-            .map_err(|error| format!("failed to create isolated PostgreSQL database: {error}"))?;
-        admin_pool.close().await;
-
-        let mut application_url = Url::parse(base_url)
-            .map_err(|error| format!("invalid PostgreSQL test URL: {error}"))?;
-        application_url.set_path(&format!("/{name}"));
-
-        Ok(Self {
-            admin_url: base_url.to_owned(),
-            name,
-            url: application_url.to_string(),
-        })
-    }
-
-    async fn cleanup(&self) -> Result<(), String> {
-        let admin_options = PgConnectOptions::from_str(&self.admin_url)
-            .map_err(|error| format!("invalid PostgreSQL test URL during cleanup: {error}"))?
-            .database("postgres");
-        let admin_pool = PgPoolOptions::new()
-            .max_connections(1)
-            .connect_with(admin_options)
-            .await
-            .map_err(|error| {
-                format!("failed to reconnect to PostgreSQL for database cleanup: {error}")
-            })?;
-        let drop_database = format!("DROP DATABASE IF EXISTS \"{}\"", self.name);
-        let result = sqlx::query(sqlx::AssertSqlSafe(drop_database))
-            .execute(&admin_pool)
-            .await;
-        admin_pool.close().await;
-        result
-            .map(|_| ())
-            .map_err(|error| format!("failed to drop isolated PostgreSQL database: {error}"))
-    }
 }
 
 struct TestDataDir(PathBuf);
@@ -163,7 +84,9 @@ impl ServerProcess {
             .env("LOOM_DATA_DIR", data_dir)
             .env("LOOM_RUNTIME_REVISION_ID", revision_id)
             .env("LOOM_CORE_BUILD_REF", build_ref)
-            .env("LOOM_WORKER_POLL_MS", "120000")
+            .env("LOOM_WORKER_POLL_MS", WORKER_POLL_MS.to_string())
+            .env("LOOM_WORKER_LEASE_MS", "30000")
+            .env("LOOM_WORKER_RETRY_BACKOFF_MS", RETRY_BACKOFF_MS.to_string())
             .env("LOOM_WORKER_SCHEDULER_POLL_LIMIT", "1")
             .env("LOOM_RUNTIME_MAX_CHRONOLOGY_COMPLETIONS", "1")
             .env_remove("LOOM_SCHEDULER_WORLD_ID")
@@ -296,21 +219,44 @@ async fn wait_for_completed(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn scheduler_pending_work_is_rediscovered_after_real_server_restart() -> Result<(), String> {
-    let base_url = postgres_url()?;
-    let database = EphemeralDatabase::create(&base_url).await?;
-    let scenario_result = std::panic::AssertUnwindSafe(run_restart_scenario(&database.url))
+    let database = TestDatabase::provision("scheduler-t20").await;
+    let scenario_result = std::panic::AssertUnwindSafe(run_restart_scenario(&database))
         .catch_unwind()
         .await;
-    let cleanup_result = database.cleanup().await;
     match scenario_result {
         Ok(result) => {
             result?;
-            cleanup_result
+            database.cleanup().await;
+            Ok(())
         }
         Err(panic) => {
-            cleanup_result?;
+            database.cleanup().await;
             std::panic::resume_unwind(panic);
         }
+    }
+}
+
+fn platform_now() -> PlatformTime {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("platform clock should be after Unix epoch")
+        .as_millis();
+    PlatformTime::new(i64::try_from(millis).expect("platform time should fit i64"))
+}
+
+fn platform_after(now: PlatformTime, duration_ms: i64) -> PlatformTime {
+    PlatformTime::new(
+        now.value()
+            .checked_add(duration_ms)
+            .expect("test platform time should not overflow"),
+    )
+}
+
+async fn wait_until_platform_time(deadline: PlatformTime) {
+    while platform_now() < deadline {
+        let remaining = deadline.value() - platform_now().value();
+        let sleep_ms = u64::try_from(remaining.min(50)).unwrap_or(1).max(1);
+        tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
 }
 
@@ -318,7 +264,7 @@ async fn scheduler_pending_work_is_rediscovered_after_real_server_restart() -> R
     clippy::too_many_lines,
     reason = "the integration scenario keeps the restart evidence assertions together"
 )]
-async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
+async fn run_restart_scenario(database: &TestDatabase) -> Result<(), String> {
     let data_dir = TestDataDir::new();
     let port = free_port()?;
     let revision_id = SERVER_REVISION_ID;
@@ -327,8 +273,13 @@ async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
     let seed_event_id = loom_api::EventId::from(Uuid::new_v4());
     let increment_event_id = loom_api::EventId::from(Uuid::new_v4());
 
-    let mut first =
-        ServerProcess::start(port, database_url, data_dir.path(), revision_id, build_ref)?;
+    let mut first = ServerProcess::start(
+        port,
+        database.database_url(),
+        data_dir.path(),
+        revision_id,
+        build_ref,
+    )?;
     first.wait_until_ready().await?;
     let first_client = first.client(Duration::from_secs(5))?;
 
@@ -407,6 +358,105 @@ async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
         .ok_or_else(|| "counter facet was not persisted before restart".to_owned())?;
     assert_eq!(before_facet.value["value"].as_i64(), Some(1));
 
+    // Arrange the persisted operational states through the storage-owned Work
+    // port. The application never drives Scheduler manually: after the real
+    // process boundary below, the fresh server must reclaim and execute this
+    // same logical Work through its normal discovery cycle.
+    let first_claim_now = platform_now();
+    let first_claim = database
+        .claim_work(
+            target.timeline_id,
+            pending_work_id,
+            first_claim_now,
+            platform_after(first_claim_now, INITIAL_LEASE_MS),
+        )
+        .await
+        .map_err(|error| format!("failed to arrange claimed Work state: {error}"))?;
+    let claimed_work = database
+        .read_work(target.timeline_id, pending_work_id)
+        .await
+        .map_err(|error| format!("failed to read claimed Work state: {error}"))?
+        .ok_or_else(|| "claimed Work disappeared from storage".to_owned())?;
+    assert_eq!(claimed_work.status, WorkStatus::Pending);
+    assert_eq!(claimed_work.attempt_count, 1);
+    assert_eq!(claimed_work.claim_generation, first_claim.fence());
+    assert_eq!(
+        claimed_work.lease.map(WorkLease::fence),
+        Some(first_claim.fence())
+    );
+
+    let retry_available_at = platform_after(first_claim_now, RETRY_BACKOFF_MS);
+    let retried_work = database
+        .retry_work(
+            &first_claim,
+            platform_now(),
+            retry_available_at,
+            Some("restart-fixture technical retry".to_owned()),
+        )
+        .await
+        .map_err(|error| format!("failed to arrange retryable Work state: {error}"))?;
+    assert_eq!(retried_work.id, pending_work_id);
+    assert_eq!(retried_work.status, WorkStatus::Pending);
+    assert_eq!(retried_work.attempt_count, 1);
+    assert_eq!(retried_work.claim_generation, first_claim.fence());
+    assert!(retried_work.lease.is_none());
+    assert_eq!(
+        retried_work.last_error.as_deref(),
+        Some("restart-fixture technical retry")
+    );
+    assert_eq!(
+        retried_work.logical_schedule_order,
+        pending_work.logical_schedule_order
+    );
+
+    // Re-claim after the retry is available and leave this second lease in
+    // PostgreSQL while the first server is stopped. This makes lease expiry,
+    // monotonic fencing and recovery observable at the real restart boundary.
+    wait_until_platform_time(retry_available_at).await;
+    let second_claim_now = platform_now();
+    let second_claim = database
+        .claim_work(
+            target.timeline_id,
+            pending_work_id,
+            second_claim_now,
+            platform_after(second_claim_now, RECLAIM_LEASE_MS),
+        )
+        .await
+        .map_err(|error| format!("failed to arrange reclaimed Work lease: {error}"))?;
+    assert!(second_claim.fence() > first_claim.fence());
+    let stale_retry = database
+        .retry_work(
+            &first_claim,
+            second_claim_now,
+            platform_after(second_claim_now, 1),
+            Some("stale worker must not retry".to_owned()),
+        )
+        .await;
+    assert!(matches!(stale_retry, Err(WorkError::StaleClaim { .. })));
+    let leased_work = database
+        .read_work(target.timeline_id, pending_work_id)
+        .await
+        .map_err(|error| format!("failed to read restart lease state: {error}"))?
+        .ok_or_else(|| "reclaimed Work disappeared before restart".to_owned())?;
+    assert_eq!(leased_work.status, WorkStatus::Pending);
+    assert_eq!(leased_work.attempt_count, 2);
+    assert_eq!(leased_work.claim_generation, second_claim.fence());
+    assert_eq!(
+        leased_work.lease.map(WorkLease::fence),
+        Some(second_claim.fence())
+    );
+    let stale_worker_state = database
+        .read_work(target.timeline_id, pending_work_id)
+        .await
+        .map_err(|error| format!("failed to re-read fenced Work state: {error}"))?
+        .ok_or_else(|| "fenced Work disappeared after stale retry rejection".to_owned())?;
+    assert_eq!(stale_worker_state.attempt_count, 2);
+    assert_eq!(stale_worker_state.claim_generation, second_claim.fence());
+    assert_eq!(
+        stale_worker_state.lease.map(WorkLease::fence),
+        Some(second_claim.fence())
+    );
+
     let first_pid = first.child.id();
     let first_exit = first.stop()?;
     assert!(
@@ -415,9 +465,17 @@ async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
     );
     drop(first_client);
 
+    wait_until_platform_time(second_claim.claimed_until()).await;
+    let lease_expired_before_restart_recovery = platform_now() >= second_claim.claimed_until();
+
     // This is a fresh OS process with a fresh SchedulerSupervisor and no copied discovery cursor.
-    let mut second =
-        ServerProcess::start(port, database_url, data_dir.path(), revision_id, build_ref)?;
+    let mut second = ServerProcess::start(
+        port,
+        database.database_url(),
+        data_dir.path(),
+        revision_id,
+        build_ref,
+    )?;
     let second_pid = second.child.id();
     assert_ne!(first_pid, second_pid);
     second.wait_until_ready().await?;
@@ -445,6 +503,18 @@ async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
         .find(|work| work.work_id == pending_work_id)
         .ok_or_else(|| "the pre-restart Work disappeared from Admin status".to_owned())?;
     assert_eq!(recovered_work.status, AdminWorkStatus::Completed);
+    let persisted_recovery = database
+        .read_work(target.timeline_id, pending_work_id)
+        .await
+        .map_err(|error| format!("failed to read recovered Work state: {error}"))?
+        .ok_or_else(|| "recovered Work disappeared from storage".to_owned())?;
+    assert_eq!(persisted_recovery.status, WorkStatus::Completed);
+    assert_eq!(persisted_recovery.attempt_count, 3);
+    assert_eq!(
+        persisted_recovery.claim_generation,
+        second_claim.fence() + 1
+    );
+    assert!(persisted_recovery.lease.is_none());
     assert!(after_status.version.state_revision > before_status.version.state_revision);
     assert!(after_status.logical_commit_count > before_status.logical_commit_count);
     assert_eq!(after_status.chronology_budget.consumed, 1);
@@ -478,7 +548,10 @@ async fn run_restart_scenario(database_url: &str) -> Result<(), String> {
     );
 
     println!(
-        "T20 restart evidence: backend=controlled-postgresql-18 server_boundary_restart=true first_pid={first_pid} first_stop={first_exit} second_pid={second_pid} second_stop={second_exit} target={target:?} recovered_work={pending_work_id} history=2->{} counter=1->2 cursor_reused=false scheduler_target_configured=false",
+        "T20 restart evidence: backend=controlled-postgresql-18 server_boundary_restart=true first_pid={first_pid} first_stop={first_exit} second_pid={second_pid} second_stop={second_exit} target={target:?} recovered_work={pending_work_id} first_claim_fence={} retry_attempt=1 second_claim_fence={} lease_expired_before_recovery={lease_expired_before_restart_recovery} recovery_attempt={} history=2->{} counter=1->2 cursor_reused=false scheduler_target_configured=false stale_fence_rejected=true",
+        first_claim.fence(),
+        second_claim.fence(),
+        persisted_recovery.attempt_count,
         after_events.len(),
     );
 
