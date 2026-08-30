@@ -4509,6 +4509,258 @@ pub trait WorldRuntimeBindingStore {
     ) -> PersistenceFuture<'_, Result<(), BindingError>>;
 }
 
+/// Maximum number of Timeline identities returned by one Scheduler discovery
+/// page.
+pub const MAX_SCHEDULER_DISCOVERY_PAGE_SIZE: usize = 256;
+
+/// Storage-neutral identity of a Timeline that has a Pending Scheduler Work
+/// obligation.
+///
+/// This is an advisory discovery result, not a Timeline snapshot or a
+/// semantic execution authority token. It intentionally contains only the
+/// identities needed to construct a public [`loom_api::TimelineTarget`]. In
+/// particular, it does not expose Work identities, due times, leases, retry
+/// metadata, handler availability or claim tokens.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct SchedulerDiscoveryTarget {
+    /// World containing the discovered Timeline.
+    pub world_id: WorldId,
+    /// Timeline that has at least one Pending logical Work obligation.
+    pub timeline_id: TimelineId,
+}
+
+impl SchedulerDiscoveryTarget {
+    /// Creates one storage-neutral Scheduler discovery target.
+    #[must_use]
+    pub const fn new(world_id: WorldId, timeline_id: TimelineId) -> Self {
+        Self {
+            world_id,
+            timeline_id,
+        }
+    }
+
+    /// Converts this identity-only observation to the existing public
+    /// World/Timeline routing value.
+    #[must_use]
+    pub const fn timeline_target(self) -> loom_api::TimelineTarget {
+        loom_api::TimelineTarget::new(self.world_id, self.timeline_id)
+    }
+}
+
+/// Exclusive operational frontier for a bounded Scheduler discovery scan.
+///
+/// The frontier is ordered by `(WorldId, TimelineId)` using the stable Core
+/// identity ordering. That ordering is only an enumeration order; it is not
+/// semantic Work chronology or Timeline logical-head selection. A store must
+/// return targets strictly after this frontier, allowing an application to
+/// carry the frontier across bounded rounds and wrap to `None` after the
+/// ordered scan reaches its end.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct SchedulerDiscoveryCursor {
+    /// World component of the exclusive scan frontier.
+    pub world_id: WorldId,
+    /// Timeline component of the exclusive scan frontier.
+    pub timeline_id: TimelineId,
+}
+
+impl SchedulerDiscoveryCursor {
+    /// Creates an exclusive frontier after one World/Timeline identity.
+    #[must_use]
+    pub const fn new(world_id: WorldId, timeline_id: TimelineId) -> Self {
+        Self {
+            world_id,
+            timeline_id,
+        }
+    }
+
+    /// Creates an exclusive frontier after one discovered target.
+    #[must_use]
+    pub const fn after(target: SchedulerDiscoveryTarget) -> Self {
+        Self::new(target.world_id, target.timeline_id)
+    }
+
+    /// Returns the identity represented by this exclusive frontier.
+    #[must_use]
+    pub const fn target(self) -> SchedulerDiscoveryTarget {
+        SchedulerDiscoveryTarget::new(self.world_id, self.timeline_id)
+    }
+}
+
+impl From<SchedulerDiscoveryTarget> for SchedulerDiscoveryCursor {
+    fn from(target: SchedulerDiscoveryTarget) -> Self {
+        Self::after(target)
+    }
+}
+
+impl From<SchedulerDiscoveryCursor> for SchedulerDiscoveryTarget {
+    fn from(cursor: SchedulerDiscoveryCursor) -> Self {
+        cursor.target()
+    }
+}
+
+/// Validated bounded input for one Scheduler Timeline discovery read.
+///
+/// `cursor = None` starts at the beginning of the deterministic identity
+/// order. A returned page's `next_cursor` is the exclusive frontier for the
+/// next page; when it is `None`, the caller has reached the scan end and may
+/// wrap to a fresh request without a cursor. The cursor is operational state
+/// only and is not persisted Timeline logical state.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SchedulerDiscoveryRequest {
+    /// Maximum number of distinct Timeline targets to return.
+    pub page_size: usize,
+    /// Optional exclusive frontier from a prior bounded page.
+    pub cursor: Option<SchedulerDiscoveryCursor>,
+}
+
+impl SchedulerDiscoveryRequest {
+    /// Creates a bounded discovery request from the beginning of the scan.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SchedulerDiscoveryError::InvalidPageSize`] when `page_size`
+    /// is zero or exceeds [`MAX_SCHEDULER_DISCOVERY_PAGE_SIZE`].
+    pub fn new(page_size: usize) -> Result<Self, SchedulerDiscoveryError> {
+        let request = Self {
+            page_size,
+            cursor: None,
+        };
+        request.validate()?;
+        Ok(request)
+    }
+
+    /// Sets the exclusive frontier used to resume a bounded scan.
+    #[must_use]
+    pub const fn with_cursor(mut self, cursor: SchedulerDiscoveryCursor) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+
+    /// Revalidates the page bound at the Runtime/Storage boundary.
+    ///
+    /// Public deserialization or struct literals can bypass the fallible
+    /// constructor, so adapters must validate before issuing a read.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SchedulerDiscoveryError::InvalidPageSize`] when `page_size`
+    /// is zero or exceeds [`MAX_SCHEDULER_DISCOVERY_PAGE_SIZE`].
+    pub fn validate(&self) -> Result<(), SchedulerDiscoveryError> {
+        if self.page_size == 0 || self.page_size > MAX_SCHEDULER_DISCOVERY_PAGE_SIZE {
+            return Err(SchedulerDiscoveryError::InvalidPageSize {
+                max: MAX_SCHEDULER_DISCOVERY_PAGE_SIZE,
+                actual: self.page_size,
+            });
+        }
+        Ok(())
+    }
+
+    /// Returns the validated maximum number of targets requested.
+    #[must_use]
+    pub const fn page_size(self) -> usize {
+        self.page_size
+    }
+
+    /// Returns the optional exclusive scan frontier.
+    #[must_use]
+    pub const fn cursor(self) -> Option<SchedulerDiscoveryCursor> {
+        self.cursor
+    }
+}
+
+/// One bounded, deterministic Scheduler discovery page.
+///
+/// `targets` are distinct and ordered by `(WorldId, TimelineId)`. The store
+/// supplies `next_cursor` only when a later page exists at the read boundary;
+/// it must equal the last returned target's exclusive frontier. A missing
+/// cursor means the bounded scan reached its end, so the application may wrap
+/// to the beginning on a later round. No Work or claimability data is returned.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SchedulerDiscoveryPage {
+    /// Discovered Timeline identities in deterministic scan order.
+    pub targets: Vec<SchedulerDiscoveryTarget>,
+    /// Exclusive frontier for a later page, when one exists.
+    pub next_cursor: Option<SchedulerDiscoveryCursor>,
+}
+
+impl SchedulerDiscoveryPage {
+    /// Creates one bounded discovery result page.
+    #[must_use]
+    pub const fn new(
+        targets: Vec<SchedulerDiscoveryTarget>,
+        next_cursor: Option<SchedulerDiscoveryCursor>,
+    ) -> Self {
+        Self {
+            targets,
+            next_cursor,
+        }
+    }
+
+    /// Returns the page continuation, if the scan has a later page.
+    #[must_use]
+    pub const fn continuation(&self) -> Option<SchedulerDiscoveryCursor> {
+        self.next_cursor
+    }
+}
+
+/// Typed failures from the bounded Scheduler discovery persistence boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SchedulerDiscoveryError {
+    /// The requested page size is outside the positive Runtime bound.
+    InvalidPageSize {
+        /// Maximum page size accepted by the Runtime contract.
+        max: usize,
+        /// Page size supplied by the caller.
+        actual: usize,
+    },
+    /// The persistence authority could not complete the discovery read.
+    StorageUnavailable {
+        /// Adapter-provided diagnostic without exposing storage types.
+        message: String,
+    },
+}
+
+impl fmt::Display for SchedulerDiscoveryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidPageSize { max, actual } => write!(
+                formatter,
+                "Scheduler discovery page size must be between 1 and {max}, got {actual}"
+            ),
+            Self::StorageUnavailable { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for SchedulerDiscoveryError {}
+
+/// Runtime-owned persistence port for bounded Scheduler Timeline discovery.
+///
+/// Implementations enumerate distinct `(WorldId, TimelineId)` identities for
+/// Timelines with at least one logical `Pending` Work obligation. This
+/// predicate deliberately includes Work whose effective due World Time is in
+/// the future and Work that is temporarily unclaimable because of platform
+/// backoff, a lease, missing handler availability or another operational
+/// condition. Due-ness, logical-head interpretation, claimability, Work
+/// claiming, World-Time advancement and semantic commits remain outside this
+/// observation port.
+///
+/// The cursor is an exclusive deterministic `(WorldId, TimelineId)` frontier;
+/// carrying it across bounded rounds prevents a permanently present first page
+/// from starving later targets. A store must not expose SQL/storage rows,
+/// Work IDs or operational claim tokens through this port.
+pub trait SchedulerDiscoveryStore {
+    /// Reads one bounded page of Pending-Work Timeline identities.
+    ///
+    /// Implementations must call [`SchedulerDiscoveryRequest::validate`] at
+    /// their boundary, including when a request was deserialized or created
+    /// by a public struct literal.
+    fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>>;
+}
+
 /// Maximum number of rows materialized by one semantic projection rebuild.
 pub const MAX_SEMANTIC_PROJECTION_ROWS: usize = 16_384;
 /// Maximum vector dimensions accepted by the Runtime projection boundary.

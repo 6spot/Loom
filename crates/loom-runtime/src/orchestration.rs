@@ -77,15 +77,16 @@ use crate::{
     ReadDependency, ReadError, ReadSet, ResolutionBudget, RuntimeControlStore, RuntimeError,
     RuntimeRevisionActivation, RuntimeRevisionAssembly, RuntimeRevisionDescriptor,
     RuntimeRevisionError, RuntimeRevisionId, RuntimeRevisionSelection, RuntimeRevisionStore,
-    SchedulerCommitStore, SemanticProjectionError, SemanticProjectionFilter, SemanticProjectionHit,
-    SemanticProjectionKey, SemanticProjectionQuery, SemanticProjectionRebuild,
-    SemanticProjectionRegistration, SemanticProjectionStore, SessionError,
-    TimelineBlockedOnMissingImplementation, TimelineDriverBlock, TimelineDriverResult,
-    TimelineFork, TimelineForkStore, TimelineSnapshot, UnavailableEntropySource,
-    UuidV7IdentityAllocator, ValidatedResolution, ValidationError, WorkClaim, WorkError,
-    WorkRecord, WorkStatus, WorkStore, WorkTerminalState, WorkTerminalization, WorldLifecycleStore,
-    WorldRuntimeBinding, WorldRuntimeBindingStore, WorldStore, WorldTimeError, WorldTimeStore,
-    WorldTimeTransition, semantic_projection_hit_bytes,
+    SchedulerCommitStore, SchedulerDiscoveryError, SchedulerDiscoveryPage,
+    SchedulerDiscoveryRequest, SchedulerDiscoveryStore, SemanticProjectionError,
+    SemanticProjectionFilter, SemanticProjectionHit, SemanticProjectionKey,
+    SemanticProjectionQuery, SemanticProjectionRebuild, SemanticProjectionRegistration,
+    SemanticProjectionStore, SessionError, TimelineBlockedOnMissingImplementation,
+    TimelineDriverBlock, TimelineDriverResult, TimelineFork, TimelineForkStore, TimelineSnapshot,
+    UnavailableEntropySource, UuidV7IdentityAllocator, ValidatedResolution, ValidationError,
+    WorkClaim, WorkError, WorkRecord, WorkStatus, WorkStore, WorkTerminalState,
+    WorkTerminalization, WorldLifecycleStore, WorldRuntimeBinding, WorldRuntimeBindingStore,
+    WorldStore, WorldTimeError, WorldTimeStore, WorldTimeTransition, semantic_projection_hit_bytes,
 };
 
 use super::validation::ResolutionSegment;
@@ -3960,6 +3961,18 @@ where
         limit: usize,
     ) -> PersistenceFuture<'_, Result<crate::ChangeFeedRead, ReadError>> {
         (**self).read_change_feed(timeline_id, after, limit)
+    }
+}
+
+impl<T> SchedulerDiscoveryStore for &T
+where
+    T: SchedulerDiscoveryStore + ?Sized,
+{
+    fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>> {
+        (**self).discover_scheduler_targets(request)
     }
 }
 

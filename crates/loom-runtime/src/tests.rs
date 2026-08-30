@@ -20,9 +20,12 @@ use semver::{Version, VersionReq};
 use serde_json::json;
 
 use super::{
-    BaseWorldSnapshot, BaseWorldView, EffectEngine, ReadDependency, ResolutionBudget,
-    RuntimeRevisionCapability, RuntimeRevisionCompatibilityError, RuntimeRevisionDescriptor,
-    RuntimeRevisionId, ValidationError, ValidationOutcome, WorldRuntimeBinding,
+    BaseWorldSnapshot, BaseWorldView, EffectEngine, PersistenceFuture, ReadDependency,
+    ResolutionBudget, RuntimeRevisionCapability, RuntimeRevisionCompatibilityError,
+    RuntimeRevisionDescriptor, RuntimeRevisionId, SchedulerDiscoveryCursor,
+    SchedulerDiscoveryError, SchedulerDiscoveryPage, SchedulerDiscoveryRequest,
+    SchedulerDiscoveryStore, SchedulerDiscoveryTarget, ValidationError, ValidationOutcome,
+    WorldRuntimeBinding,
 };
 
 const OWNER: &str = "counter";
@@ -82,6 +85,94 @@ fn base_view() -> BaseWorldView {
     )
     .with_event(event(100));
     BaseWorldView::new(snapshot)
+}
+
+#[test]
+fn scheduler_discovery_request_enforces_a_positive_bounded_page_size() {
+    assert_eq!(
+        SchedulerDiscoveryRequest::new(0),
+        Err(SchedulerDiscoveryError::InvalidPageSize {
+            max: super::MAX_SCHEDULER_DISCOVERY_PAGE_SIZE,
+            actual: 0,
+        })
+    );
+    assert_eq!(
+        SchedulerDiscoveryRequest::new(super::MAX_SCHEDULER_DISCOVERY_PAGE_SIZE + 1),
+        Err(SchedulerDiscoveryError::InvalidPageSize {
+            max: super::MAX_SCHEDULER_DISCOVERY_PAGE_SIZE,
+            actual: super::MAX_SCHEDULER_DISCOVERY_PAGE_SIZE + 1,
+        })
+    );
+
+    let request = SchedulerDiscoveryRequest::new(2)
+        .expect("a positive page size within the Runtime bound should be accepted");
+    assert_eq!(request.page_size(), 2);
+    assert_eq!(request.cursor(), None);
+    assert!(request.validate().is_ok());
+
+    let invalid_literal = SchedulerDiscoveryRequest {
+        page_size: 0,
+        cursor: None,
+    };
+    assert!(matches!(
+        invalid_literal.validate(),
+        Err(SchedulerDiscoveryError::InvalidPageSize { actual: 0, .. })
+    ));
+}
+
+#[test]
+fn scheduler_discovery_cursor_is_a_deterministic_exclusive_identity_frontier() {
+    let first = SchedulerDiscoveryTarget::new(world(), timeline());
+    let later = SchedulerDiscoveryTarget::new(world(), id(3));
+    let first_cursor = SchedulerDiscoveryCursor::after(first);
+    let later_cursor = SchedulerDiscoveryCursor::after(later);
+
+    assert!(first < later);
+    assert!(first_cursor < later_cursor);
+    assert_eq!(first_cursor.target(), first);
+    assert_eq!(SchedulerDiscoveryCursor::from(first), first_cursor);
+    assert_eq!(SchedulerDiscoveryTarget::from(first_cursor), first);
+    assert_eq!(first.timeline_target().world_id, first.world_id);
+    assert_eq!(first.timeline_target().timeline_id, first.timeline_id);
+
+    let resumed = SchedulerDiscoveryRequest::new(1)
+        .expect("bounded request")
+        .with_cursor(first_cursor);
+    assert_eq!(resumed.cursor(), Some(first_cursor));
+
+    let page = SchedulerDiscoveryPage::new(vec![later], Some(later_cursor));
+    assert_eq!(page.targets, vec![later]);
+    assert_eq!(page.next_cursor, Some(later_cursor));
+    assert_eq!(page.continuation(), Some(later_cursor));
+
+    let end = SchedulerDiscoveryPage::new(vec![later], None);
+    assert_eq!(end.continuation(), None);
+}
+
+struct SchedulerDiscoveryContractStore;
+
+impl SchedulerDiscoveryStore for SchedulerDiscoveryContractStore {
+    fn discover_scheduler_targets(
+        &self,
+        request: SchedulerDiscoveryRequest,
+    ) -> PersistenceFuture<'_, Result<SchedulerDiscoveryPage, SchedulerDiscoveryError>> {
+        Box::pin(async move {
+            request.validate()?;
+            Ok(SchedulerDiscoveryPage::default())
+        })
+    }
+}
+
+#[test]
+fn scheduler_discovery_port_stays_executor_neutral_and_supports_borrowed_adapters() {
+    fn assert_store<T: SchedulerDiscoveryStore>() {}
+
+    assert_store::<SchedulerDiscoveryContractStore>();
+    assert_store::<&SchedulerDiscoveryContractStore>();
+
+    let store = SchedulerDiscoveryContractStore;
+    let request = SchedulerDiscoveryRequest::new(1).expect("bounded request");
+    let _future = SchedulerDiscoveryStore::discover_scheduler_targets(&store, request);
 }
 
 fn registry() -> CapabilityRegistry {
