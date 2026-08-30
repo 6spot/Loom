@@ -130,6 +130,10 @@ was then brought down cleanly.
   Dependency and security policy, Rust checks, PostgreSQL 18 persistence
   contract and Compose config. The prior delivery PRs are recorded above in
   T16–T20 with their merge SHAs and CI runs.
+- Evidence handoff PR #458 (head `e11d5e3f2e7d5d1973db2933808ce2efaa453d86`)
+  CI run `33336087511` passed Classify changes and Task ledger governance;
+  deployment, dependency, Rust and PostgreSQL lanes were correctly skipped
+  because this PR changes only task evidence.
 
 ## Governance reconciliation
 
