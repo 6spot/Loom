@@ -1,18 +1,19 @@
-//! Application-owned v0 Scheduler worker composition.
+//! Application-owned v0 server composition.
 //!
-//! A worker owns exactly one [`loom_runtime::Runtime`] instance and drives one
-//! Timeline at a time on the executor selected by the Linux worker process.
-//! The worker deliberately supplies polling, lease and retry platform times to
-//! Runtime's semantic [`loom_runtime::Runtime::drive_timeline`] step; it does
-//! not select a Work, claim a successor, advance World Time or perform a
-//! persistence operation itself.
+//! The target-neutral [`SchedulerSupervisor`] owns one
+//! [`loom_runtime::Runtime`] instance and drives discovered Timelines on the
+//! executor selected by the application process. It deliberately supplies
+//! polling, lease and retry platform times to Runtime's semantic
+//! [`loom_runtime::Runtime::drive_timeline`] step; it does not select a Work,
+//! claim a successor, advance World Time or perform a persistence operation
+//! itself.
 //!
-//! v0 applications should run one of these workers on a single-thread Tokio
-//! runtime per Linux worker process. Independent Timelines are made concurrent
-//! by starting independent worker processes/instances against the same
-//! `PostgreSQL` authority. A process restart constructs a fresh Runtime and
-//! worker; `PostgreSQL` lease expiry and claim fencing make an interrupted Work
-//! reclaimable without an in-process Runtime mutex.
+//! v0 applications should run the Supervisor on a single-thread Tokio runtime
+//! per application process. Independent Supervisor instances may discover and
+//! drive Timelines against the same `PostgreSQL` authority. A process restart
+//! constructs a fresh Runtime and Supervisor; `PostgreSQL` lease expiry and
+//! claim fencing make an interrupted Work reclaimable without an in-process
+//! Runtime mutex.
 
 #![forbid(unsafe_code)]
 
@@ -33,12 +34,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use loom_api::{ApiError, ApiResult, TimelineTarget};
-use loom_runtime::{
-    ExecutionSessionStore, PinnedWorldReadStore, PlatformClock, PlatformTime, Runtime,
-    RuntimeControlStore, RuntimeRevisionStore, SchedulerCommitStore, SemanticProjectionStore,
-    TimelineDriverResult, WorkStore, WorldRuntimeBindingStore, WorldStore, WorldTimeStore,
-};
+use loom_api::{ApiError, ApiResult};
+use loom_runtime::PlatformTime;
 use tokio::sync::Notify;
 
 /// Bounded operational timing supplied by the application composition root.
@@ -170,11 +167,11 @@ impl std::error::Error for WorkerConfigError {}
 
 /// External lifecycle signal owned by the application/process supervisor.
 ///
-/// Setting the signal does not revoke an active claim. The worker observes it
-/// before each Runtime step, so graceful shutdown stops new claims while the
-/// current semantic drive/claim/execute/complete operation is allowed to
-/// finish. A supervisor can discard the worker and construct a new one after a
-/// process restart; no restart state is kept in Runtime.
+/// Setting the signal does not revoke an active claim. The application loop
+/// observes it before each Runtime step, so graceful shutdown stops new claims
+/// while the current semantic drive/claim/execute/complete operation is
+/// allowed to finish. A process supervisor can discard the active loop and
+/// construct a new one after a restart; no restart state is kept in Runtime.
 #[derive(Clone, Debug)]
 pub struct ShutdownSignal {
     requested: Arc<AtomicBool>,
@@ -218,151 +215,6 @@ impl Default for ShutdownSignal {
     }
 }
 
-/// Why a bounded worker run returned.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkerStopReason {
-    /// The external process/application signal stopped new Runtime steps.
-    ShutdownRequested,
-    /// The caller's polling bound was reached.
-    PollLimitReached,
-}
-
-/// Summary of one bounded application polling run.
-#[derive(Clone, Debug)]
-pub struct WorkerReport {
-    polls: usize,
-    stop_reason: WorkerStopReason,
-    last_result: Option<TimelineDriverResult>,
-}
-
-impl WorkerReport {
-    /// Returns the number of Runtime semantic steps completed by the run.
-    #[must_use]
-    pub const fn polls(&self) -> usize {
-        self.polls
-    }
-
-    /// Returns why the bounded run stopped.
-    #[must_use]
-    pub const fn stop_reason(&self) -> WorkerStopReason {
-        self.stop_reason
-    }
-
-    /// Returns the most recent Runtime driver result, if a step ran.
-    #[must_use]
-    pub fn last_result(&self) -> Option<&TimelineDriverResult> {
-        self.last_result.as_ref()
-    }
-}
-
-/// One application-owned worker instance for one Timeline target.
-///
-/// The type intentionally has no `Send`/`Sync` bounds on Runtime, storage
-/// futures, resolver objects or Capability SPI. The application chooses a
-/// single-thread executor for the process containing this value. Independent
-/// worker instances/processes may still drive independent Timelines against
-/// shared `PostgreSQL` authority.
-pub struct SchedulerWorker<S, C> {
-    runtime: Runtime<S>,
-    target: TimelineTarget,
-    clock: C,
-    config: WorkerConfig,
-    shutdown: ShutdownSignal,
-}
-
-impl<S, C> SchedulerWorker<S, C>
-where
-    S: WorldStore
-        + WorldRuntimeBindingStore
-        + WorkStore
-        + RuntimeRevisionStore
-        + ExecutionSessionStore
-        + RuntimeControlStore
-        + SchedulerCommitStore
-        + WorldTimeStore
-        + SemanticProjectionStore
-        + PinnedWorldReadStore,
-    C: PlatformClock,
-{
-    /// Creates one worker bound to one Timeline and one application clock.
-    #[must_use]
-    pub const fn new(
-        runtime: Runtime<S>,
-        target: TimelineTarget,
-        clock: C,
-        config: WorkerConfig,
-        shutdown: ShutdownSignal,
-    ) -> Self {
-        Self {
-            runtime,
-            target,
-            clock,
-            config,
-            shutdown,
-        }
-    }
-
-    /// Returns the external shutdown signal shared with the process supervisor.
-    #[must_use]
-    pub fn shutdown_signal(&self) -> ShutdownSignal {
-        self.shutdown.clone()
-    }
-
-    /// Runs at most `poll_limit` semantic Runtime steps.
-    ///
-    /// Polling cadence, process restart and any sleep/backoff between calls are
-    /// intentionally left to the application. Each step samples platform time
-    /// once, computes only operational lease/retry deadlines, and delegates
-    /// head selection, claim/fence, semantic execution, completion/retry and
-    /// World-Time CAS to Runtime.
-    ///
-    /// A shutdown request is checked before a step, so no new claim starts
-    /// after the signal is observed. If a Runtime step returns an error, the
-    /// error is returned to the application supervisor, which decides whether
-    /// and how to rebuild the process-owned Runtime.
-    ///
-    /// # Errors
-    ///
-    /// Returns the Runtime/API error from the semantic step, including an
-    /// operational deadline overflow or an authority failure. The caller owns
-    /// the restart decision after an error.
-    pub async fn run_bounded(&mut self, poll_limit: usize) -> ApiResult<WorkerReport> {
-        let mut last_result = None;
-        for polls in 0..poll_limit {
-            if self.shutdown.is_requested() {
-                return Ok(WorkerReport {
-                    polls,
-                    stop_reason: WorkerStopReason::ShutdownRequested,
-                    last_result,
-                });
-            }
-
-            let now = self.clock.now();
-            let claimed_until = add_platform_duration(now, self.config.lease_duration())?;
-            let retry_available_at = add_platform_duration(now, self.config.retry_backoff())?;
-            last_result = Some(
-                self.runtime
-                    .drive_timeline(self.target, now, claimed_until, retry_available_at)
-                    .await?,
-            );
-        }
-
-        Ok(WorkerReport {
-            polls: poll_limit,
-            stop_reason: WorkerStopReason::PollLimitReached,
-            last_result,
-        })
-    }
-
-    /// Consumes the worker so an application supervisor can rebuild a Runtime
-    /// after a fatal process-owned error without adding restart state to
-    /// Runtime or persistence.
-    #[must_use]
-    pub fn into_runtime(self) -> Runtime<S> {
-        self.runtime
-    }
-}
-
 pub(crate) fn add_platform_duration(now: PlatformTime, duration: i64) -> ApiResult<PlatformTime> {
     now.value()
         .checked_add(duration)
@@ -372,97 +224,18 @@ pub(crate) fn add_platform_duration(now: PlatformTime, duration: i64) -> ApiResu
 
 #[cfg(test)]
 mod tests {
-    use loom_api::TimelineTarget;
-    use loom_capability::CapabilityRegistry;
-    use loom_core::{TimelineId, WorldId};
-    use loom_runtime::{ManualPlatformClock, PlatformTime, Runtime};
-    use loom_storage::InMemoryStore;
-
-    use super::{
-        ApplicationApi, SchedulerWorker, ShutdownSignal, SystemClock, SystemEntropySource,
-        WorkerConfig, WorkerStopReason,
-    };
+    use super::{ApplicationApi, ShutdownSignal, SystemClock, SystemEntropySource};
 
     fn assert_send_sync<T: Send + Sync>() {}
 
     #[test]
     fn transport_owned_state_has_the_only_cross_thread_send_sync_boundary() {
         // The HTTP/SSE composition requires Send + Sync for its shared API
-        // object. Runtime worker values intentionally remain on a
-        // current-thread executor and are not asserted here.
+        // object. Scheduler state intentionally remains on a current-thread
+        // executor and is not asserted here.
         assert_send_sync::<ApplicationApi>();
         assert_send_sync::<SystemClock>();
         assert_send_sync::<SystemEntropySource>();
         assert_send_sync::<ShutdownSignal>();
-    }
-
-    fn id<T>(value: u128) -> T
-    where
-        T: std::str::FromStr,
-        T::Err: std::fmt::Debug,
-    {
-        format!("00000000-0000-0000-0000-{value:012x}")
-            .parse()
-            .expect("test identity should parse")
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn worker_is_bounded_and_uses_single_thread_runtime_boundary() {
-        let store = InMemoryStore::new();
-        let world_id: WorldId = id(0x100);
-        let timeline_id: TimelineId = id(0x101);
-        store
-            .create_timeline(world_id, timeline_id)
-            .expect("Timeline fixture should be created");
-        let runtime =
-            Runtime::new(store, CapabilityRegistry::new()).expect("empty registry should assemble");
-        let config = WorkerConfig::new(10, 1).expect("worker timings should be valid");
-        let mut worker = SchedulerWorker::new(
-            runtime,
-            TimelineTarget::new(world_id, timeline_id),
-            ManualPlatformClock::new(PlatformTime::new(7)),
-            config,
-            ShutdownSignal::new(),
-        );
-
-        let report = worker
-            .run_bounded(2)
-            .await
-            .expect("bounded worker run should succeed");
-        assert_eq!(report.polls(), 2);
-        assert_eq!(report.stop_reason(), WorkerStopReason::PollLimitReached);
-        assert!(matches!(
-            report.last_result(),
-            Some(loom_runtime::TimelineDriverResult::Idle { .. })
-        ));
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn shutdown_stops_before_a_new_claim() {
-        let store = InMemoryStore::new();
-        let world_id: WorldId = id(0x200);
-        let timeline_id: TimelineId = id(0x201);
-        store
-            .create_timeline(world_id, timeline_id)
-            .expect("Timeline fixture should be created");
-        let runtime =
-            Runtime::new(store, CapabilityRegistry::new()).expect("empty registry should assemble");
-        let shutdown = ShutdownSignal::new();
-        shutdown.request();
-        let mut worker = SchedulerWorker::new(
-            runtime,
-            TimelineTarget::new(world_id, timeline_id),
-            ManualPlatformClock::new(PlatformTime::new(7)),
-            WorkerConfig::new(10, 1).expect("worker timings should be valid"),
-            shutdown,
-        );
-
-        let report = worker
-            .run_bounded(10)
-            .await
-            .expect("shutdown should be a normal worker result");
-        assert_eq!(report.polls(), 0);
-        assert_eq!(report.stop_reason(), WorkerStopReason::ShutdownRequested);
-        assert!(report.last_result().is_none());
     }
 }
