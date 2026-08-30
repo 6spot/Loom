@@ -2,6 +2,25 @@
 
 Read this file first. Keep it short.
 
+## Required reading
+
+Before acting on a Loom task, read the repository instructions relevant to the current work. Do not rely on memory or previous runs.
+
+Always read:
+
+- `AGENTS.md`;
+- `docs/development/README.md`;
+- `docs/tasks/README.md`;
+- the current task record under `docs/tasks/`;
+- the linked GitHub Issue;
+- the current initiative or milestone `README.md` when one exists.
+
+Before finishing an executable task with a Task Ledger record, also read and follow `docs/development/task-completion.md`.
+
+For architecture-sensitive work, additionally read `docs/architecture/README.md` and every relevant accepted Amendment.
+
+Repository canonical documents are the project authority. If a role prompt or previous-run assumption conflicts with the current repository procedure, do not silently follow the stale assumption; resolve the conflict against the canonical repository documents first.
+
 ## Before editing
 
 - Read `docs/README.md` and follow the canonical document for the task.
@@ -38,6 +57,7 @@ Architecture gaps go through the Amendment process in `docs/architecture/README.
 - Do not claim checks passed unless they actually ran successfully.
 - Record any unverified checks and the reason.
 - Update the active task record with status and verification evidence.
+- If the task has a canonical Task Ledger record under `docs/tasks/`, a merged delivery PR is not completion. Follow `docs/development/task-completion.md` and reconcile the canonical task record on the default branch with the actual PR/merge evidence before treating the task as complete.
 - Keep the GitHub Issue and task record consistent.
 
 ## Maintain this file
