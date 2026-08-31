@@ -9,7 +9,14 @@ import sys
 from pathlib import Path
 
 from chronicle_ingest import dump_json, load_yaml, validate_bundle
-from coverage_v02 import CoverageV02Extractor, object_counts
+from coverage_time_v02 import hydrate_missing_source_times
+from coverage_v02 import (
+    CoverageV02Extractor,
+    audit_summary,
+    merge_coverage_additions,
+    object_counts,
+    parse_coverage_response,
+)
 from evaluator_v2 import evaluation_report_v2
 from model_v0 import CommandModelProvider, ModelV0Error, ReplayModelProvider
 
@@ -42,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--raw-response",
         type=Path,
-        help="save the raw coverage provider response for audit/debugging",
+        help="save the raw coverage provider response before validation for audit/debugging",
     )
     parser.add_argument("--no-gold", action="store_true")
     parser.add_argument("--gold-strict", action="store_true")
@@ -70,9 +77,25 @@ def main(argv: list[str] | None = None) -> int:
             args.fixture.name,
             provider,
         )
-        final, merge_stats = extractor.review(initial)
+
+        # Capture provider output first so protocol/time validation failures remain inspectable.
+        raw_response = provider.complete(extractor.prompt(initial))
+        extractor.last_response = raw_response
         if args.raw_response is not None:
-            args.raw_response.write_text(extractor.last_response or "", encoding="utf-8")
+            args.raw_response.write_text(raw_response, encoding="utf-8")
+
+        prepared_response, hydrated_ids = hydrate_missing_source_times(
+            raw_response,
+            raw,
+            context,
+        )
+        audit_rows, additions = parse_coverage_response(
+            prepared_response,
+            raw,
+            initial,
+        )
+        final, merge_stats = merge_coverage_additions(initial, additions, config)
+        audit = audit_summary(audit_rows)
 
         schema_errors = validate_bundle(final, schema)
         expected = None if args.no_gold else load_yaml(args.fixture / "expected.yaml")
@@ -85,7 +108,6 @@ def main(argv: list[str] | None = None) -> int:
             extractor="model-v0",
             provider=provider.name,
         )
-        audit = merge_stats.pop("audit", None)
         report["coverage_pass"] = {
             "performed": True,
             "protocol": "audit+claim-coverage+additions-only",
@@ -93,6 +115,10 @@ def main(argv: list[str] | None = None) -> int:
             "final_counts": object_counts(final),
             "audit": audit,
             "merge": merge_stats,
+            "time_hydration": {
+                "performed": bool(hydrated_ids),
+                "hydrated_ids": hydrated_ids,
+            },
             "input": str(args.input),
             "raw_response": str(args.raw_response) if args.raw_response else None,
         }
@@ -133,6 +159,12 @@ def main(argv: list[str] | None = None) -> int:
                 "coverage-v0.2 claim audit: "
                 f"status_counts={audit['claim_status_counts']} "
                 f"gap_units={audit['claim_gap_units']}",
+                file=sys.stderr,
+            )
+        if hydrated_ids:
+            print(
+                "coverage-v0.2 source-time hydration: "
+                + ", ".join(hydrated_ids),
                 file=sys.stderr,
             )
         print(
