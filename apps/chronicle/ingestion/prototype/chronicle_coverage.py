@@ -39,6 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-timeout", type=int, default=180)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument(
+        "--raw-response",
+        type=Path,
+        help="save the raw coverage provider response for audit/debugging",
+    )
     parser.add_argument("--no-gold", action="store_true")
     parser.add_argument("--gold-strict", action="store_true")
     return parser
@@ -57,14 +62,18 @@ def main(argv: list[str] | None = None) -> int:
             if args.model_command
             else ReplayModelProvider(args.model_response)
         )
-        final, merge_stats = CoverageV02Extractor(
+        extractor = CoverageV02Extractor(
             raw,
             context,
             config,
             schema,
             args.fixture.name,
             provider,
-        ).review(initial)
+        )
+        final, merge_stats = extractor.review(initial)
+        if args.raw_response is not None:
+            args.raw_response.write_text(extractor.last_response or "", encoding="utf-8")
+
         schema_errors = validate_bundle(final, schema)
         expected = None if args.no_gold else load_yaml(args.fixture / "expected.yaml")
         report = evaluation_report_v2(
@@ -76,13 +85,16 @@ def main(argv: list[str] | None = None) -> int:
             extractor="model-v0",
             provider=provider.name,
         )
+        audit = merge_stats.pop("audit", None)
         report["coverage_pass"] = {
             "performed": True,
-            "protocol": "additions-only",
+            "protocol": "audit+additions-only",
             "initial_counts": object_counts(initial),
             "final_counts": object_counts(final),
+            "audit": audit,
             "merge": merge_stats,
             "input": str(args.input),
+            "raw_response": str(args.raw_response) if args.raw_response else None,
         }
         dump_json(final, args.output)
         dump_json(report, args.report)
@@ -110,6 +122,13 @@ def main(argv: list[str] | None = None) -> int:
             f"{report['coverage_pass']['final_counts']}",
             file=sys.stderr,
         )
+        if audit:
+            print(
+                "coverage-v0.2 audit: "
+                f"units={audit['units']} status_counts={audit['status_counts']} "
+                f"gap_units={audit['gap_units']}",
+                file=sys.stderr,
+            )
         print(
             "coverage-v0.2 merge: "
             f"proposed={merge_stats['proposed']} "
