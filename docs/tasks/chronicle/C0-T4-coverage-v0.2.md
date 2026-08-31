@@ -10,110 +10,60 @@ completion_pr:
 merge_sha:
 ---
 
-# Chronicle extraction coverage v0.2
+# Chronicle extraction coverage v0.2 experiment
 
 ## Goal
 
-Add a second closed-book model review that improves extraction coverage without teaching the model the human-gold answer or adding fixture-specific phrase rules.
+Evaluate whether a second closed-book model pass should be used to recover omissions from Chronicle model-v0 extraction.
 
-## Scope
+## Decision
 
-- keep model-v0 pass 1 unchanged and immutable;
-- optionally perform one coverage-v0.2 provider call after pass 1;
-- give coverage-v0.2 only source text, document context, ingestion config, JSON Schema, and the pass-1 staged bundle;
-- derive deterministic textual-order audit units from the source and require one coverage decision for every unit;
-- require `covered` audit decisions to cite an existing pass-1 Event or Claim; Entity presence alone is not sufficient evidence of action/state coverage;
-- audit Claim coverage separately from overall/Event coverage; an Event does not substitute for a Claim;
-- require a new Claim when an allowed canonical predicate can faithfully represent an uncovered source assertion;
-- prefer Claim-only additions for subordinate facts/relations; create a new Event only for a distinct occurrence or state transition that merits Event identity;
-- allow Claim `not_applicable` only when the configured predicate vocabulary cannot faithfully express the assertion;
-- derive source-calendar month hints only from explicit textual month markers and inheritance, without Gregorian conversion;
-- reject added Event/Claim records whose `chinese_lunisolar_regnal` source month conflicts with the source unit month hint;
-- require `gap` audit decisions to cite additions returned in the same response;
-- return **audit + additions only** rather than a rewritten full bundle;
-- deterministically merge additions into pass 1, assigning new temp IDs and rewriting references while preserving all existing pass-1 objects verbatim;
-- suppress obvious duplicate entities/events/claims during merge;
-- keep canonical predicate, evidence grounding, deferred resolution, and historical-time precision policies;
-- provide an exact A/B runner over an already-captured pass-1 staged bundle;
-- allow the independent coverage runner to persist the raw provider response;
-- record initial/final object counts, overall audit summary, Claim audit summary, and proposed/added/skipped-duplicate merge statistics.
+**Coverage v0.2 is not part of the production ingestion architecture.**
 
-## Non-goals
+The experiments were useful because they exposed real extraction and contract problems, but progressively tightening a second semantic audit duplicated the extraction agent's core responsibility: understanding historical source text. Production work continues in C0-T5 / #466 with contract-first single extraction, deterministic validation, and bounded validator-driven repair.
 
-- fixture-specific rules for 孙权攻合肥 or 文聘任江夏太守;
-- human-gold/reference data in either model prompt;
-- automatic canonical entity resolution;
-- verified traditional-calendar to Gregorian month/day conversion;
-- final event deduplication/publication semantics;
-- production model vendor selection;
-- Loom Core/Runtime/Storage changes.
+Coverage code and captured measurements remain in the repository as research/debugging evidence until normal delivery cleanup; they are not the recommended execution path.
 
-## Acceptance
+## Evidence
 
-- [x] Coverage-v0.2 prompt is source-grounded and includes pass-1 staged data.
-- [x] Coverage prompt has no `expected.yaml`/gold input path.
-- [x] Coverage output protocol is audit+additions-only; pass-1 records are immutable.
-- [x] Machine-derived audit units force a textual-order coverage checklist.
-- [x] A `covered` decision must reference an existing pass-1 Event/Claim; Entity-only coverage is rejected.
-- [x] Claim coverage is audited independently; Event presence cannot satisfy Claim coverage.
-- [x] Claim gaps must reference new Claim records in the same patch.
-- [x] Coverage policy prefers Claim-only for subordinate assertions and reserves new Event identity for distinct occurrences/state transitions.
-- [x] Source-month hints are derived from explicit traditional-calendar text only.
-- [x] Added Event/Claim source months that conflict with inherited source context are rejected before merge.
-- [x] A `gap` decision must reference one or more additions from the same patch.
-- [x] Deterministic merge assigns new temp IDs, rewrites references, and preserves pass-1 objects.
-- [x] Merge suppresses obvious duplicate entities/events/claims and reports merge statistics.
-- [x] `chronicle_coverage.py` can apply only the second pass to an existing Run #1 staged file for a clean A/B comparison.
-- [x] `chronicle_coverage.py` can save the raw coverage provider response.
-- [x] Evaluation report records coverage performed plus initial/final counts, audit summaries, and merge statistics.
-- [x] Claim/time grounding regression tests are committed.
-- [ ] Full prototype unittest discovery passes in a repository checkout after the latest claim/time grounding revision.
-- [x] Exact Run #1 staged bundle was re-evaluated with refined Evaluator v2.
-- [x] First Luna full-bundle coverage experiment was executed.
-- [x] First Luna additions-only experiment was executed and safely preserved Run #1 but proposed zero additions.
-- [x] First Luna audit+additions response was captured and inspected.
-- [ ] Luna claim-aware audit+additions pass is executed over the exact Run #1 bundle and compared against the refined baseline.
-- [ ] Delivery PR / CI / merge reconciliation completed.
-
-## Verification
-
-Refined Luna Run #1 baseline over the exact staged bundle:
+Refined Luna Run #1 baseline over one fixed staged bundle:
 
 - hard failures: 0;
 - entities: 14/15 gold recall (0.933);
-- events: 10/12 gold recall (0.833);
-- claims: 7/9 gold recall (0.778);
+- events: 10/12 (0.833);
+- claims: 7/9 (0.778);
 - counts: 27 entities / 13 events / 10 claims / 3 warnings.
 
-First full-bundle Coverage v0.2 experiment:
+Full-bundle coverage experiment:
 
-- hard failures: 0;
-- entities: 15/15 (1.0);
-- events: 11/12 (0.917);
-- claims: 6/9 (0.667);
-- counts grew from 27/13/10 to 33/29/26.
+- entities improved to 15/15;
+- events improved to 11/12;
+- claims regressed to 6/9;
+- counts expanded to 33/29/26.
 
-This proved the model could recover missing information, but complete-bundle rewriting damaged already-good pass-1 Claims and created unnecessary growth. Coverage therefore became additions-only with deterministic merge.
+This proved a second model pass could find omitted information, including Wen Ping's appointment and Sun Quan's Hefei attack, but rewriting the bundle damaged already-good representations and caused object explosion.
 
-The first additions-only Luna run then produced zero additions and exactly preserved the Run #1 baseline. This proved pass-1 immutability, but the provider could still claim that nothing was missing without showing its reasoning. Coverage therefore became audit+additions-only.
+Additions-only coverage preserved Run #1 exactly but proposed zero additions. Mandatory audit units then made omissions observable, but the raw audit exposed another design problem: the second pass started becoming a parallel historical parser. It proposed many new Events, omitted corresponding Claims, and assigned September to `屯襄阳` / `刘备屯樊` even though those clauses inherit August from the source.
 
-The first raw audit+additions Luna response successfully exposed real gaps instead of returning empty arrays. In particular it marked the Wen Ping appointment (`u024`) and Sun Quan's Hefei attack (`u030`) as missing and proposed Events for them. However it returned `claims: []`, demonstrating that overall/Event coverage and Claim coverage were still conflated. The same response also assigned source month 9 to the added `屯襄阳` and `刘备屯樊` Events even though those clauses inherit month 8 from the source; the next explicit month 9 begins only at `公到新野`. The response also tended to promote nearly every uncovered clause to a standalone Event, which would recreate Event-count inflation even under an immutable merge.
+A claim-aware/month-aware audit correctly rejected such errors, but the growing protocol complexity demonstrated that production responsibilities were becoming inverted.
 
-The protocol was therefore tightened again:
+## Lessons retained
 
-- every non-context audit unit now has `claim_status`, `claim_refs`, and `claim_note`;
-- allowed-predicate assertions require Claim coverage independently of Event coverage;
-- subordinate facts/relations prefer Claim-only additions; new Events are reserved for distinct occurrences/state transitions;
-- audit units carry deterministic `source_month_hint` values derived only from explicit textual month markers;
-- proposed Event/Claim records with a conflicting source-calendar month are rejected before merge.
+- Entity presence does not imply that a source assertion is represented.
+- Event and Claim are separate semantic layers.
+- Event identity should be reserved for distinct occurrences/state transitions; subordinate assertions can remain Claims.
+- traditional source-calendar context must not be silently shifted;
+- pass-2 full-bundle rewriting can regress good pass-1 data;
+- human gold belongs in evaluation, never model repair input;
+- mechanically provable validation is useful; a second semantic coverage system is not the desired production abstraction.
 
-Isolated claim/time protocol regression tests: 10/10 passed, including rejection of missing required Claims and rejection of an August source unit emitted as month 9.
+## Acceptance
 
-## Progress log
-
-- 2026-08-31 — Started after Luna Run #1 produced zero hard failures but missed explicit coverage such as the Hefei attack and Wen Ping appointment.
-- 2026-08-31 — Added an existing-staged coverage runner so pass 1 can remain fixed for A/B measurement.
-- 2026-08-31 — Full-bundle coverage improved entity/event recall but reduced Claim recall and expanded 13 events to 29; redesigned as additions-only.
-- 2026-08-31 — First additions-only run safely preserved Run #1 but returned zero additions; added mandatory textual-order audit units.
-- 2026-08-31 — Raw audit correctly identified many missing occurrences including Wen Ping's appointment and Sun Quan's Hefei attack, but proposed Events without Claims, drifted two August movement Events into September, and over-promoted subordinate clauses into standalone Events.
-- 2026-08-31 — Added independent Claim coverage decisions, Claim-only subordinate coverage preference, and deterministic source-month grounding; isolated regression suite passed 10/10.
+- [x] Multiple coverage strategies were implemented and measured against the same Run #1 staged output.
+- [x] Full-bundle rewrite regression/object growth was measured.
+- [x] Additions-only immutability behavior was measured.
+- [x] Raw audit output exposed missing Claim coverage and source-month drift.
+- [x] Experiment conclusion is recorded: do not adopt Coverage v0.2 in production.
+- [x] Production successor C0-T5 / #466 exists.
+- [ ] Full prototype unittest discovery passes in a repository checkout.
+- [ ] Delivery PR / CI / merge reconciliation completed.
