@@ -2,8 +2,8 @@
 """Contract-first Chronicle production ingestion prototype.
 
 Production path:
-source -> one model extraction -> deterministic validation -> optional one repair
--> deterministic revalidation -> staged output.
+source -> one contract-first extraction -> deterministic validation -> optional
+one bounded repair -> deterministic revalidation -> staged output.
 
 Human gold / Evaluator v2 are intentionally outside this command.
 """
@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 from chronicle_ingest import dump_json, load_yaml, validate_bundle
-from model_v0 import CommandModelProvider, ModelV0Error, ModelV0Extractor, ReplayModelProvider
+from contract_v0 import ContractV0Extractor
+from model_v0 import CommandModelProvider, ModelV0Error, ReplayModelProvider
 from repair_v0 import repair_once
 from validator_v0 import flatten_validation_errors, validation_report
 
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             provider = ReplayModelProvider(args.model_response)
 
-        bundle = ModelV0Extractor(
+        bundle = ContractV0Extractor(
             raw, context, config, schema, args.fixture.name, provider
         ).extract()
         initial_validation = _validate(bundle, raw, config, schema)
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         report = {
             "schema": "chronicle.ingestion-run",
             "version": "0.1",
-            "extractor": "model-v0",
+            "extractor": "contract-v0",
             "provider": provider.name,
             "pipeline": "contract-first-single-extraction-bounded-repair",
             "initial_validation": initial_validation,
