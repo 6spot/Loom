@@ -2,7 +2,7 @@
 
 This directory contains the first executable Chronicle ingestion harness.
 
-There are now two extractors behind one prototype workflow:
+There are two extractors behind one prototype workflow:
 
 ```text
 raw.txt + context.yaml + chronicle-v0.1.yaml
@@ -18,9 +18,9 @@ Chronicle v0.1 staged bundle
         ↓
 Draft 2020-12 JSON Schema validation
         ↓
-human-gold semantic comparison
-        ↓
-machine-readable evaluation report
+Evaluator v2
+        ├── hard failures
+        └── non-exhaustive gold recall
 ```
 
 `rules-v0` remains deliberately fixture-scoped. It is the deterministic regression baseline, not product extraction logic.
@@ -39,17 +39,6 @@ python3 -m pip install -r apps/chronicle/ingestion/prototype/requirements.txt
 
 ## Deterministic baseline
 
-The legacy baseline command is still available:
-
-```bash
-python3 apps/chronicle/ingestion/prototype/chronicle_ingest.py run \
-  --fixture apps/chronicle/ingestion/fixtures/sanguozhi-wudi-jianan-13 \
-  --schema apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json \
-  --output /tmp/chronicle-staged.json
-```
-
-The unified CLI can run the same baseline explicitly:
-
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
   --extractor rules-v0 \
@@ -59,11 +48,9 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
   --report /tmp/chronicle-rules-report.json
 ```
 
-For `rules-v0`, schema or gold mismatches fail the command.
+For `rules-v0`, schema or exact regression-gold mismatches fail the command.
 
 ## Inspect the exact model-v0 prompt
-
-Before invoking any provider, the exact closed-book prompt can be rendered:
 
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py prompt \
@@ -73,19 +60,13 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py prompt \
   > /tmp/chronicle-model-v0-prompt.txt
 ```
 
-The prompt explicitly requires:
+The prompt requires source-only extraction, exact source evidence substrings, no unverified Gregorian month/day conversion, job-local temp IDs, deferred ambiguous entity resolution, `unassessed` Claim assessment, and Event/Claim separation.
 
-- extract what the supplied source says, not what the model already knows;
-- every Claim evidence string must be an exact source substring;
-- traditional months/days must not be converted to Gregorian dates without verified conversion data;
-- only job-local temp IDs may be emitted;
-- ambiguous entity references must remain unresolved instead of being guessed;
-- Claim assessment starts as `unassessed`;
-- Event and Claim remain separate layers.
+The ingestion config also supplies a small controlled Claim predicate vocabulary. Models should emit only canonical values in `claim.predicates.allowed`; aliases exist for evaluator/backward compatibility only.
 
 ## Run model-v0 through a command provider
 
-The first provider interface is intentionally vendor-neutral:
+The provider contract is intentionally vendor-neutral:
 
 ```text
 stdin  = complete Chronicle model-v0 prompt
@@ -93,7 +74,7 @@ stdout = one JSON object (plain JSON or one ```json fenced object)
 exit   = 0 on provider success
 ```
 
-Run it with any external adapter/model CLI that follows that contract:
+Example:
 
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
@@ -106,13 +87,67 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
   --report /tmp/chronicle-model-v0-report.json
 ```
 
-The adapter command is parsed as argv and executed without `shell=True`. The default provider timeout is 180 seconds and can be changed with `--model-timeout`.
+The adapter is parsed as argv and executed without `shell=True`. The default timeout is 180 seconds and can be changed with `--model-timeout`.
 
-Model-v0 gold mismatches are reported but do not fail the command by default because the purpose of the first model pass is evaluation. Add `--gold-strict` when exact current gold matching should be a hard gate. JSON Schema failures always fail.
+## Evaluator v2
 
-## Replay a captured model response
+Model-v0 no longer treats every exact title/predicate difference as an extraction failure.
 
-A model response can be evaluated again without calling a provider:
+Evaluator v2 separates:
+
+### Hard failures
+
+These are mechanically provable violations and fail model-v0 execution:
+
+- JSON Schema validation failure;
+- Claim evidence is empty or is not an exact substring of SOURCE TEXT;
+- Entity has no source-grounded canonical name or mention;
+- dangling Entity/Event/Source references;
+- fabricated Gregorian month/day from the traditional calendar when the config forbids that conversion;
+- Claim predicate outside the configured vocabulary after alias normalization;
+- Claim assessment not starting as `unassessed`.
+
+### Semantic evaluation
+
+The committed gold fixture is explicitly **non-exhaustive**. Evaluator v2 therefore reports gold recall plus additional model output instead of pretending that every extra source-grounded item is a false positive.
+
+Event matching does not use title as identity. It scores Event compatibility from:
+
+- Event type;
+- normalized/source time fields;
+- participant entities;
+- participant roles;
+- places.
+
+This allows `表卒` and `刘表去世` to represent the same Event when their structured semantics agree.
+
+Claim matching tolerates:
+
+- different temp IDs;
+- configured predicate aliases such as `surrendered -> surrendered_to`;
+- evidence spans where one exact source substring contains the other;
+- selected representation granularity such as an `office` Entity named `丞相` versus the literal value `丞相` for `held_office`.
+
+`--gold-strict` now fails only when required gold content is missing. Additional source-grounded output does not fail merely because the current gold fixture omitted it.
+
+## Re-evaluate an existing staged model result
+
+You do **not** need to call the model again after changing evaluation logic.
+
+```bash
+python3 apps/chronicle/ingestion/prototype/chronicle_cli.py evaluate \
+  --input /tmp/chronicle-model-v0.json \
+  --fixture apps/chronicle/ingestion/fixtures/sanguozhi-wudi-jianan-13 \
+  --config apps/chronicle/ingestion/config/chronicle-v0.1.yaml \
+  --schema apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json \
+  --report /tmp/chronicle-model-v0-report-v2.json
+```
+
+This is the preferred way to compare Evaluator revisions against the exact same model extraction.
+
+## Replay a captured raw model response
+
+If the provider's raw response was captured, it can also be passed through model normalization again:
 
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
@@ -125,24 +160,22 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py run \
   --report /tmp/chronicle-model-v0-report.json
 ```
 
-This makes model experiments reproducible without putting API credentials or a permanent vendor dependency into Chronicle.
-
 ## Model output normalization
 
 `model-v0` only normalizes transport metadata:
 
 - source/entity/event/claim temp IDs are reassigned deterministically;
-- internal references are rewritten to the new temp IDs;
+- internal references are rewritten;
 - `extraction.method` is set to `model`;
 - missing Claim assessment defaults to `unassessed`;
 - missing Entity resolution defaults to `unresolved`;
 - the fixture locator is attached when the model already emitted the relevant metadata/locator object.
 
-It does **not** fill missing historical facts merely to make the schema pass. Historical content remains the model's extraction result and must survive JSON Schema validation.
+It does **not** invent historical facts merely to make the schema pass.
 
-Gold evaluation dereferences temp IDs to entity names/event titles before comparing, so a model is not penalized merely for choosing a different temp-ID spelling or ordering.
+## Validate or use the legacy exact comparison
 
-## Validate or compare an existing staged bundle
+Schema validation:
 
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py validate \
@@ -150,7 +183,7 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py validate \
   --schema apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json
 ```
 
-For model-style ID-independent comparison:
+The old ID-independent exact comparator remains available for debugging only:
 
 ```bash
 python3 apps/chronicle/ingestion/prototype/chronicle_cli.py compare \
@@ -158,6 +191,8 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py compare \
   --input /tmp/chronicle-model-v0.json \
   --expected apps/chronicle/ingestion/fixtures/sanguozhi-wudi-jianan-13/expected.yaml
 ```
+
+It is not the model quality gate anymore.
 
 ## Tests
 
@@ -168,12 +203,12 @@ python3 -m unittest discover \
   -v
 ```
 
-The original four rules-v0 tests remain. Model-v0 adds coverage for prompt isolation, command-provider invocation, plain/fenced JSON parsing, transport-ID normalization, ID-independent comparison, and evaluation reporting.
-
-The complete committed fixture remains the regression baseline for the 15-entity / 12-event / 9-claim vertical slice.
+The suite covers the deterministic baseline, model prompt/provider/normalization behavior, and Evaluator v2 hard/semantic matching behavior.
 
 ## Current limitations
 
-The model provider contract is intentionally small and vendor-neutral. Chronicle does not yet choose a permanent model vendor or implement production API-key management.
+Evaluator v2 is deterministic and intentionally simple. It does not use embeddings or an LLM judge. The Event scorer is a V0 heuristic to be pressure-tested against more fixtures before being generalized.
+
+The predicate vocabulary is likewise intentionally small and must grow from real Chronicle fixtures rather than from an up-front universal ontology design.
 
 Canonical entity resolution, event deduplication, PostgreSQL publishing, verified traditional-calendar month/day conversion, and generalized reusable ingestion remain out of scope.
