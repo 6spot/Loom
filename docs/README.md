@@ -1,6 +1,6 @@
 # Loom documentation
 
-This directory separates **architecture authority**, **Agent procedure**, **development/testing procedure**, **deployment/runbooks**, **public/operator guidance**, and **implementation audit history**. Do not duplicate one topic across those categories.
+This directory separates **architecture authority**, **application-development guidance**, **development/testing procedure**, **deployment/runbooks**, **public/operator guidance**, and **implementation audit history**. Do not duplicate one topic across those categories.
 
 ## Where to look
 
@@ -17,18 +17,19 @@ Architecture documents answer questions such as:
 
 [`vision.md`](vision.md) and [`principles.md`](principles.md) provide project intent and cross-cutting philosophy. They do not override the architecture authority map.
 
-### Agent procedure
+### Building upper-layer applications
 
-Use [`agents/README.md`](agents/README.md) for Agent-specific working procedure.
+Use [`application-development/README.md`](application-development/README.md) when building products on top of Loom.
 
-The Agent guides are intentionally split by workflow:
+These guides cover:
 
-- authority/scope lookup;
-- implementation workflow;
-- verification selection;
-- Task Ledger completion behavior.
+- application vs Loom ownership boundaries;
+- World/Timeline/Entity/Facet/Event/Action modeling;
+- when application logic is enough vs when a Capability is justified;
+- public API integration and application-owned persistence;
+- application-level testing.
 
-`AGENTS.md` remains the short repository-wide guardrail. Neither `AGENTS.md` nor `docs/agents/` is an independent architecture specification.
+Application-specific development instructions belong under the application itself, for example `apps/<name>/AGENTS.md` and `apps/<name>/docs/`.
 
 ### Public quickstart and operator reference
 
@@ -42,21 +43,13 @@ Use [`development/README.md`](development/README.md) for current developer-facin
 
 [`developer-guide.md`](developer-guide.md) is the developer reference for Architecture Index lookup, Amendment gating, Task Ledger workflow and Cargo dependency governance.
 
-Development documents answer **how to build, test or verify the current implementation**. A workflow should have one current operational guide. When a procedure is replaced, update or remove the old guide rather than leaving competing instructions.
+Development documents answer **how to build, test or verify the Loom implementation**. A workflow should have one current operational guide. When a procedure is replaced, update or remove the old guide rather than leaving competing instructions.
 
 ### Deployment and operations
 
 Use [`deployment/README.md`](deployment/README.md) for supported deployment/runbook procedures.
 
-Deployment guidance is split into focused guides for:
-
-- first installation;
-- configuration;
-- routine operations;
-- backup/recovery;
-- troubleshooting;
-- security;
-- repository/runtime data layout.
+Deployment guidance is split into focused guides for first installation, configuration, routine operations, backup/recovery, troubleshooting, security, and repository/runtime data layout.
 
 Task planning or acceptance criteria are not substitutes for these operational guides.
 
@@ -68,12 +61,12 @@ Task files are durable audit records: scope, dependencies, status, progress and 
 
 ## Document precedence
 
-For semantic or ownership conflicts, follow the precedence rules in [`architecture/README.md`](architecture/README.md). Operational guides must conform to the architecture but do not redefine it.
+For semantic or ownership conflicts, follow the precedence rules in [`architecture/README.md`](architecture/README.md). Operational/application guides must conform to the architecture but do not redefine it.
 
-For operational instructions, use the current guide in the appropriate `development/` or `deployment/` section. Agents additionally follow `AGENTS.md` and `docs/agents/` for execution procedure.
+For repository Agent behavior, root [`../AGENTS.md`](../AGENTS.md) is the repository-wide instruction entry point. Application-specific Agent rules belong under that application, not in a second global Agent documentation layer.
 
 Do not recover current commands from historical task records, closed issues, superseded documents or chat history.
 
 ## Maintenance rule
 
-Prefer deletion or replacement over accumulating compatibility notes. If two current documents tell a developer, operator or Agent to perform the same workflow differently, that is a documentation defect and should be resolved at the canonical source.
+Prefer deletion or replacement over accumulating compatibility notes. If two current documents prescribe the same workflow differently, that is a documentation defect and should be resolved at the canonical source.
