@@ -1,0 +1,17 @@
+source:
+  title: 三国志·吴书·吴主传
+  work: 三国志
+  author: 陈寿
+  language: lzh
+
+narrative:
+  primary_subject:
+    canonical_name: 孙权
+    stable_names: [孙权]
+    contextual_mentions: [权]
+
+chronology:
+  default_era: 建安
+  current_era_year: 13
+  normalized_year: 208
+  source_calendar: chinese_lunisolar_regnal
