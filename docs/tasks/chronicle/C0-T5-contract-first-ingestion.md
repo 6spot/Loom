@@ -64,8 +64,21 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - [x] `chronicle_pipeline.py` has no `expected.yaml` or semantic evaluator input.
 - [x] Offline tests for validator/repair behavior are committed.
 - [ ] Full prototype unittest discovery passes in a repository checkout.
-- [ ] Real Luna contract-v0 run is executed and compared offline with the earlier model-v0 benchmark.
+- [x] Real Luna contract-v0 production run executed successfully: initial deterministic validation found 4 errors, one bounded repair reduced final validation to 0, final pipeline status PASS.
+- [ ] Final contract-v0 staged output is benchmarked offline with Evaluator v2 against the existing non-exhaustive gold fixture.
 - [ ] Delivery PR / CI / merge reconciliation completed.
+
+## Verification
+
+Real Luna production-path run on `sanguozhi-wudi-jianan-13` using `gpt-5.6-luna` through the isolated Codex command provider:
+
+```text
+chronicle validation: initial=4 repair_attempted=True final=0 (PASS)
+```
+
+This is the first successful end-to-end verification of the intended production architecture: one contract-first extraction, deterministic validation, one bounded repair driven only by validator errors, and deterministic revalidation to PASS. The semantic Evaluator/gold fixture was not used as an input to extraction or repair.
+
+Full unittest discovery still needs checkout-level confirmation. The final staged bundle also still needs a separate development-only Evaluator v2 run so extraction quality can be measured without influencing production behavior.
 
 ## Decision from Coverage v0.2 experiments
 
