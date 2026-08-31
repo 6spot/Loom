@@ -16,6 +16,16 @@ output:
   canonical_identity: deferred
   published_id_format: uuidv7
 
+pipeline:
+  production_strategy: contract_first_single_extraction
+  extractor: contract-v0
+  validator: deterministic
+  repair:
+    enabled: true
+    max_attempts: 1
+    input: validator_errors_only
+  semantic_evaluator: development_only
+
 extract:
   objects:
     - source
@@ -112,7 +122,10 @@ claim:
       held: gained_territory
       caused_deaths: affected
 
+# Retained experiment only. Do not place this stage in the production pipeline.
 coverage:
+  lifecycle: experimental_not_production
+  superseded_by: C0-T5
   version: "0.2"
   strategy: model_second_pass
   enabled_by_default: false
