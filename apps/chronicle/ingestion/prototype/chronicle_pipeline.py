@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from chronicle_ingest import dump_json, load_yaml, validate_bundle
-from contract_v0 import ContractV0Extractor
+from contract_v0 import CONTRACT_VERSION, ContractV0Extractor
 from model_v0 import CommandModelProvider, ModelV0Error, ReplayModelProvider
 from repair_v0 import repair_once
 from validator_v0 import flatten_validation_errors, validation_report
@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repair-response", type=Path)
     parser.add_argument("--model-timeout", type=int, default=180)
     parser.add_argument("--repair-attempts", type=int, choices=[0, 1], default=1)
+    parser.add_argument(
+        "--initial-output",
+        type=Path,
+        help="save the normalized contract extraction before any bounded repair",
+    )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--raw-repair-response", type=Path)
@@ -46,6 +51,15 @@ def _validate(bundle: dict, raw: str, config: dict, schema: dict) -> dict:
         config,
         schema_errors=validate_bundle(bundle, schema),
     )
+
+
+def _counts(bundle: dict) -> dict[str, int]:
+    return {
+        "entities": len(bundle.get("entities") or []),
+        "events": len(bundle.get("events") or []),
+        "claims": len(bundle.get("claims") or []),
+        "warnings": len(bundle.get("warnings") or []),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,6 +78,10 @@ def main(argv: list[str] | None = None) -> int:
         bundle = ContractV0Extractor(
             raw, context, config, schema, args.fixture.name, provider
         ).extract()
+        initial_counts = _counts(bundle)
+        if args.initial_output:
+            dump_json(bundle, args.initial_output)
+
         initial_validation = _validate(bundle, raw, config, schema)
         final_validation = initial_validation
         repair_meta = {
@@ -103,21 +121,18 @@ def main(argv: list[str] | None = None) -> int:
                 "input_error_count": initial_validation["count"],
             }
 
+        final_counts = _counts(bundle)
         report = {
             "schema": "chronicle.ingestion-run",
-            "version": "0.1",
-            "extractor": "contract-v0",
+            "version": "0.2",
+            "extractor": f"contract-v{CONTRACT_VERSION}",
             "provider": provider.name,
             "pipeline": "contract-first-single-extraction-bounded-repair",
             "initial_validation": initial_validation,
             "repair": repair_meta,
             "final_validation": final_validation,
-            "counts": {
-                "entities": len(bundle.get("entities") or []),
-                "events": len(bundle.get("events") or []),
-                "claims": len(bundle.get("claims") or []),
-                "warnings": len(bundle.get("warnings") or []),
-            },
+            "initial_counts": initial_counts,
+            "counts": final_counts,
         }
         dump_json(bundle, args.output)
         dump_json(report, args.report)
@@ -128,6 +143,11 @@ def main(argv: list[str] | None = None) -> int:
             f"({'PASS' if final_validation['passed'] else 'FAIL'})",
             file=sys.stderr,
         )
+        if repair_meta["attempted"]:
+            print(
+                f"chronicle counts: initial={initial_counts} final={final_counts}",
+                file=sys.stderr,
+            )
         if not final_validation["passed"]:
             for error in flatten_validation_errors(final_validation):
                 print(f"validation: {error}", file=sys.stderr)
