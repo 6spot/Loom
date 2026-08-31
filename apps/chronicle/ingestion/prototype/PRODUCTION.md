@@ -5,7 +5,7 @@ Chronicle production ingestion is **contract-first**.
 ```text
 raw source + document context + Chronicle contract
                     ↓
-             contract-v0 agent
+            contract-v0.2 agent
                     ↓
               staged bundle
                     ↓
@@ -21,7 +21,14 @@ raw source + document context + Chronicle contract
 
 ### Contract / schema
 
-Chronicle defines the shape and semantics of `Source`, `Entity`, `Event`, and `Claim`, the controlled predicate vocabulary, evidence requirements, ID policy, and historical-time precision policy.
+Chronicle defines the shape and semantics of `Source`, `Entity`, `Event`, and `Claim`, the controlled predicate vocabulary, evidence requirements, ID policy, Event-boundary policy, and historical-time precision policy.
+
+Contract v0.2 makes four production expectations explicit:
+
+- distinct independent actions should normally become separate timeline Events rather than one compound Event;
+- an allowed Claim predicate must faithfully represent the source assertion; a merely related predicate must not be used as fallback;
+- if the current predicate vocabulary cannot faithfully express an assertion, retain the source-grounded Event/Entity representation where appropriate and emit an `ontology_gap` warning instead of inventing or misusing a predicate;
+- Events must retain explicit or safely inherited traditional/regnal source time when available, while normalized Gregorian month/day remain null unless verified conversion exists.
 
 ### Extraction agent
 
@@ -36,6 +43,8 @@ A missing optional field is not made mandatory by the validator. If the model de
 ### Bounded repair
 
 Repair is optional and limited to one pass. It receives the original closed-book inputs, current staged bundle, and deterministic validator errors only. It never receives `expected.yaml`, semantic gold recall, or evaluator mismatch information.
+
+Repair must make the smallest validation-driven correction. If a correction makes an existing warning false or stale, that warning must be updated or removed so warnings describe the final bundle.
 
 ### Evaluator v2
 
@@ -55,8 +64,12 @@ python3 apps/chronicle/ingestion/prototype/chronicle_pipeline.py \
   --model-command '<model command>' \
   --model-timeout 600 \
   --repair-attempts 1 \
-  --output /tmp/chronicle-contract-v0.json \
-  --report /tmp/chronicle-contract-v0-report.json
+  --initial-output /tmp/chronicle-contract-v0.2-initial.json \
+  --raw-repair-response /tmp/chronicle-contract-v0.2-repair.json \
+  --output /tmp/chronicle-contract-v0.2.json \
+  --report /tmp/chronicle-contract-v0.2-report.json
 ```
+
+`--initial-output` preserves the normalized pre-repair bundle so repair changes can be audited directly against the final output.
 
 Use `chronicle_cli.py evaluate` separately when benchmark/gold metrics are desired.
