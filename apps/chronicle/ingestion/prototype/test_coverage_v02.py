@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 
-from coverage_v02 import CoverageV02Extractor, build_coverage_prompt, object_counts
+from coverage_v02 import (
+    CoverageV02Extractor,
+    build_coverage_prompt,
+    merge_coverage_additions,
+    object_counts,
+)
 
 
 class FakeProvider:
@@ -28,13 +34,17 @@ def staged_bundle() -> dict:
             "title": "三国志·魏书·武帝纪",
             "language": "lzh",
             "metadata": {},
-            "extraction": {"method": "model"},
+            "extraction": {"method": "model", "job_id": "model-v0"},
         },
         "entities": [],
         "events": [],
         "claims": [],
         "warnings": [],
     }
+
+
+def empty_additions() -> dict:
+    return {"entities": [], "events": [], "claims": [], "warnings": []}
 
 
 class CoverageV02Tests(unittest.TestCase):
@@ -47,13 +57,15 @@ class CoverageV02Tests(unittest.TestCase):
             staged_bundle(),
         )
         self.assertIn("十二月，孙权为备攻合肥。", prompt)
-        self.assertIn("PASS-1 STAGED BUNDLE", prompt)
+        self.assertIn("PASS-1 STAGED BUNDLE (IMMUTABLE)", prompt)
+        self.assertIn("ONLY source-supported additions", prompt)
         self.assertIn("sentence-by-sentence", prompt)
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("human gold", prompt.lower())
 
-    def test_review_invokes_provider_once_and_uses_coverage_job_id(self) -> None:
-        provider = FakeProvider(staged_bundle())
+    def test_review_invokes_provider_once_and_preserves_pass1(self) -> None:
+        provider = FakeProvider(empty_additions())
+        initial = staged_bundle()
         extractor = CoverageV02Extractor(
             "十二月，孙权为备攻合肥。",
             {},
@@ -62,12 +74,164 @@ class CoverageV02Tests(unittest.TestCase):
             "fixture",
             provider,
         )
-        result = extractor.review(staged_bundle())
+        result, stats = extractor.review(initial)
         self.assertEqual(1, len(provider.prompts))
-        self.assertEqual("src_001", result["source"]["temp_id"])
-        self.assertEqual(
-            "model-v0+coverage-v0.2", result["source"]["extraction"]["job_id"]
-        )
+        self.assertEqual(initial, result)
+        self.assertEqual("src_777", result["source"]["temp_id"])
+        self.assertEqual("additions-only", stats["protocol"])
+        self.assertEqual(0, sum(stats["added"].values()))
+
+    def test_merge_maps_duplicate_entity_and_keeps_existing_objects_immutable(self) -> None:
+        initial = staged_bundle()
+        initial["entities"] = [
+            {
+                "temp_id": "ent_001",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "孙权",
+                "aliases": [],
+                "mentions": [{"text": "孙权"}],
+                "resolution": {"status": "unresolved"},
+                "extraction": {"method": "model", "job_id": "model-v0"},
+            }
+        ]
+        initial_snapshot = copy.deepcopy(initial)
+        additions = {
+            "entities": [
+                {
+                    "temp_id": "ent_900",
+                    "kind": "entity",
+                    "type": "person",
+                    "canonical_name": "孙权",
+                    "aliases": [],
+                    "mentions": [{"text": "孙权"}],
+                    "resolution": {"status": "unresolved"},
+                    "extraction": {"method": "model"},
+                },
+                {
+                    "temp_id": "ent_901",
+                    "kind": "entity",
+                    "type": "place",
+                    "canonical_name": "合肥",
+                    "aliases": [],
+                    "mentions": [{"text": "合肥"}],
+                    "resolution": {"status": "unresolved"},
+                    "extraction": {"method": "model"},
+                },
+            ],
+            "events": [
+                {
+                    "temp_id": "evt_900",
+                    "kind": "event",
+                    "type": "military",
+                    "title": "孙权攻合肥",
+                    "time": None,
+                    "participants": [{"entity_ref": "ent_900", "role": "attacker"}],
+                    "places": ["ent_901"],
+                    "extraction": {"method": "model"},
+                }
+            ],
+            "claims": [
+                {
+                    "temp_id": "clm_900",
+                    "kind": "claim",
+                    "subject": {"kind": "entity_ref", "ref": "ent_900"},
+                    "predicate": "attacked",
+                    "object": {"kind": "entity_ref", "ref": "ent_901"},
+                    "time": None,
+                    "evidence": {
+                        "text": "孙权为备攻合肥",
+                        "source_ref": "src_777",
+                        "locator": {},
+                    },
+                    "assessment": {"status": "unassessed"},
+                    "extraction": {"method": "model"},
+                }
+            ],
+            "warnings": [],
+        }
+        result, stats = merge_coverage_additions(initial, additions)
+
+        self.assertEqual(initial_snapshot["source"], result["source"])
+        self.assertEqual(initial_snapshot["entities"][0], result["entities"][0])
+        self.assertEqual(2, len(result["entities"]))
+        self.assertEqual("ent_002", result["entities"][1]["temp_id"])
+        self.assertEqual("ent_001", result["events"][0]["participants"][0]["entity_ref"])
+        self.assertEqual(["ent_002"], result["events"][0]["places"])
+        self.assertEqual("ent_001", result["claims"][0]["subject"]["ref"])
+        self.assertEqual("ent_002", result["claims"][0]["object"]["ref"])
+        self.assertEqual(1, stats["skipped_duplicates"]["entities"])
+        self.assertEqual(1, stats["added"]["entities"])
+        self.assertEqual(1, stats["added"]["events"])
+        self.assertEqual(1, stats["added"]["claims"])
+
+    def test_merge_deduplicates_claim_alias_and_contained_evidence(self) -> None:
+        initial = staged_bundle()
+        initial["entities"] = [
+            {
+                "temp_id": "ent_001",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "刘备",
+                "aliases": [],
+                "mentions": [{"text": "备"}],
+                "resolution": {"status": "unresolved"},
+                "extraction": {"method": "model"},
+            },
+            {
+                "temp_id": "ent_002",
+                "kind": "entity",
+                "type": "place",
+                "canonical_name": "荆州",
+                "aliases": [],
+                "mentions": [{"text": "荆州"}],
+                "resolution": {"status": "unresolved"},
+                "extraction": {"method": "model"},
+            },
+        ]
+        initial["claims"] = [
+            {
+                "temp_id": "clm_001",
+                "kind": "claim",
+                "subject": {"kind": "entity_ref", "ref": "ent_001"},
+                "predicate": "held",
+                "object": {"kind": "entity_ref", "ref": "ent_002"},
+                "time": None,
+                "evidence": {
+                    "text": "备遂有荆州、江南诸郡",
+                    "source_ref": "src_777",
+                    "locator": {},
+                },
+                "assessment": {"status": "unassessed"},
+                "extraction": {"method": "model"},
+            }
+        ]
+        additions = empty_additions()
+        additions["claims"] = [
+            {
+                "temp_id": "clm_900",
+                "kind": "claim",
+                "subject": {"kind": "entity_ref", "ref": "ent_001"},
+                "predicate": "gained_territory",
+                "object": {"kind": "entity_ref", "ref": "ent_002"},
+                "time": None,
+                "evidence": {
+                    "text": "备遂有荆州",
+                    "source_ref": "src_777",
+                    "locator": {},
+                },
+                "assessment": {"status": "unassessed"},
+                "extraction": {"method": "model"},
+            }
+        ]
+        config = {
+            "claim": {
+                "predicates": {"aliases": {"held": "gained_territory"}}
+            }
+        }
+        result, stats = merge_coverage_additions(initial, additions, config)
+        self.assertEqual(1, len(result["claims"]))
+        self.assertEqual(1, stats["skipped_duplicates"]["claims"])
 
     def test_object_counts_supports_ab_reporting(self) -> None:
         bundle = staged_bundle()
