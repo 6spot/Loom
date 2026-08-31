@@ -25,6 +25,10 @@ Clock / Entropy implementations
 
 That composition privilege must not leak into ordinary Application feature code. After assembly, externally consumable engine behavior is presented through the unified Loom API contract.
 
+For upper-layer application design, Loom/application data boundaries, Capability decisions and testing, see `docs/application-development/README.md`.
+
+A substantial application may keep application-specific instructions in its own `AGENTS.md` and `docs/` subtree. Those local instructions supplement root `AGENTS.md`; they do not redefine Loom architecture authority.
+
 ## UI direction
 
 The official UI direction is GPUI, with the goal of sharing Rust UI code across native targets and the emerging GPUI Web/WASM backend. The first UI crate will be added only after we pin and validate a concrete GPUI upstream revision.
