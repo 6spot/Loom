@@ -14,7 +14,7 @@ This directory contains the current operational procedures for developing and te
 
 Deployment and production runbooks are intentionally separate under [`../deployment/README.md`](../deployment/README.md). Do not add a second deployment procedure here.
 
-Agent-specific repository workflow is under [`../agents/README.md`](../agents/README.md).
+Upper-layer product development guidance is under [`../application-development/README.md`](../application-development/README.md). Repository Agent instructions remain in root `AGENTS.md`.
 
 ## Cargo build artifacts
 
@@ -25,6 +25,6 @@ Agent-specific repository workflow is under [`../agents/README.md`](../agents/RE
 
 ## Scope
 
-Development guides describe how to build, test and inspect the current implementation. They must conform to the architecture authority under `docs/architecture/` but must not duplicate architecture rules, deployment runbooks or task history.
+Development guides describe how to build, test and inspect the current implementation. They must conform to the architecture authority under `docs/architecture/` but must not duplicate architecture rules, application-development guidance, deployment runbooks or task history.
 
 Keep one current guide per workflow. If a workflow changes, update its canonical guide and remove obsolete alternatives rather than keeping multiple sets of commands.

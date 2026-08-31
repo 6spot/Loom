@@ -1,6 +1,6 @@
 # Loom V0 Developer Guide
 
-This guide is a developer-facing navigation and workflow reference. It does not duplicate the architecture specification, Agent procedure, deployment runbooks or historical task plans.
+This guide is a developer-facing navigation and workflow reference. It does not duplicate the architecture specification, repository Agent instructions, deployment runbooks or historical task plans.
 
 ## 1. Resolve architecture authority first
 
@@ -121,7 +121,7 @@ Important focused procedures include:
 
 Choose verification based on the changed contract. A documentation-only edit should not automatically require every Rust/PostgreSQL lane, while Storage/SQL changes require PostgreSQL-aware verification.
 
-Agents additionally follow `docs/agents/verification.md`; the repository CI workflow remains the current source for CI path routing.
+The repository CI workflow remains the current source for CI path routing.
 
 ## 6. Public/API consumption
 
@@ -135,6 +135,8 @@ Useful reference consumers are:
 
 For the supported public workflow, use `docs/quickstart.md`.
 
+For guidance on building upper-layer products on Loom, use `docs/application-development/README.md`.
+
 ## 7. Documentation placement
 
 Use `docs/README.md` as the documentation category index.
@@ -142,10 +144,13 @@ Use `docs/README.md` as the documentation category index.
 | Category | Canonical location | Purpose |
 | --- | --- | --- |
 | Architecture authority | `docs/architecture/` + `docs/vision.md` + `docs/principles.md` | meaning, authority, invariants, accepted changes |
-| Agent procedure | `AGENTS.md` + `docs/agents/` | how repository Agents work |
+| Repository Agent instructions | `AGENTS.md` | repository-wide Agent guardrails |
+| Application development | `docs/application-development/` | build upper-layer products on Loom without bypassing engine boundaries |
 | Development/testing | `docs/development/` | how to build, test and verify the implementation |
 | Deployment/runbooks | `docs/deployment/` | install, configure, operate, back up and troubleshoot Loom |
 | Public/operator guidance | `docs/quickstart.md`, `docs/operator-guide.md` | consume and inspect the running engine |
 | Implementation audit trail | `docs/tasks/` | task scope, dependency, status and evidence |
+
+Application-specific Agent instructions belong under that application (for example `apps/<name>/AGENTS.md`) rather than in a second repository-wide Agent guide tree.
 
 Do not duplicate one workflow across categories. When a procedure moves, update the canonical guide and remove the obsolete alternative rather than preserving competing instructions.

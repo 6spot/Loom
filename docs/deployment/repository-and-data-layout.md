@@ -30,7 +30,7 @@ Loom is one Rust workspace. The crate boundaries below are code responsibility/d
 
 ## 2. Applications
 
-`apps/` contains executable/composition roots:
+`apps/` contains executable/composition roots and user-facing Loom applications:
 
 ```text
 apps/
@@ -39,7 +39,7 @@ apps/
 └── loom-validator/   # validation/certification application
 ```
 
-`loom-server` assembles Runtime, Storage, Boundary and selected implementations into the running process.
+`loom-server` assembles Runtime, Storage, Boundary and selected implementations into the running process. Ordinary upper-layer applications should consume Loom through the public surface; see `docs/application-development/README.md`.
 
 ## 3. Core crates
 
@@ -91,16 +91,18 @@ These support development/CI and are not persistent runtime data.
 
 ```text
 docs/
-├── architecture/   # canonical architecture authority map/contracts
-├── agents/         # Agent execution procedure
-├── development/    # development and test procedures
-├── deployment/     # deployment/runbook procedures
-├── tasks/          # implementation audit ledger
+├── architecture/              # canonical architecture authority map/contracts
+├── application-development/   # build upper-layer products on Loom
+├── development/               # Loom development and test procedures
+├── deployment/                # deployment/runbook procedures
+├── tasks/                     # implementation audit ledger
 ├── quickstart.md
 ├── operator-guide.md
 ├── developer-guide.md
 └── capacity-envelope.md
 ```
+
+Root `AGENTS.md` is the repository-wide Agent instruction entry point. Application-specific Agent instructions belong under the application itself when needed.
 
 Use `docs/README.md` as the documentation index.
 
