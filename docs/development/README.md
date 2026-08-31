@@ -10,8 +10,11 @@ This directory contains the current operational procedures for developing and te
 - [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity envelope from M11 (`loom-bench`); larger-scale claims marked unproven/deferred.
 - [`task-completion.md`](task-completion.md) — canonical executable-task completion workflow: review/CI, delivery merge, post-merge Task Ledger reconciliation on the default branch, ledger governance, GitHub Issue closure and final external status.
 - [`postgres-tests.md`](postgres-tests.md) — local PostgreSQL 18 + pgvector integration-test service, environment and test commands.
-- [`loom-server.md`](loom-server.md) — supported Linux deployment for `loom-server` (compose bind-mounts, migrations, Runtime Revision, config).
 - [`runtime-worker.md`](runtime-worker.md) — v0 worker/executor topology and deterministic stress/restart evidence.
+
+Deployment and production runbooks are intentionally separate under [`../deployment/README.md`](../deployment/README.md). Do not add a second deployment procedure here.
+
+Agent-specific repository workflow is under [`../agents/README.md`](../agents/README.md).
 
 ## Cargo build artifacts
 
@@ -22,6 +25,6 @@ This directory contains the current operational procedures for developing and te
 
 ## Scope
 
-Development guides describe how to run, test and inspect the current implementation. They must conform to the architecture authority under `docs/architecture/` but must not duplicate architecture rules or task history.
+Development guides describe how to build, test and inspect the current implementation. They must conform to the architecture authority under `docs/architecture/` but must not duplicate architecture rules, deployment runbooks or task history.
 
-Keep one current guide per workflow. If a workflow changes, update its guide and remove obsolete alternatives rather than keeping multiple sets of commands.
+Keep one current guide per workflow. If a workflow changes, update its canonical guide and remove obsolete alternatives rather than keeping multiple sets of commands.
