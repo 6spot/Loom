@@ -11,7 +11,7 @@ model-v0 pass 1
         ↓
 immutable staged bundle
         ↓ optional
-coverage-v0.2 additions-only review
+coverage-v0.2 claim-aware audit + additions
         ↓
 deterministic merge
         ↓
@@ -26,7 +26,7 @@ Evaluator v2
 
 `rules-v0` remains the deterministic fixture-scoped regression baseline. It is not product extraction logic.
 
-`model-v0` is source-grounded and provider-neutral. Its prompt contains only raw source text, document context, ingestion policy, and the Chronicle JSON Schema. `expected.yaml` is loaded only after extraction and never enters the provider input.
+`model-v0` is source-grounded and provider-neutral. Its prompt contains only raw source text, document context, ingestion policy, and the Chronicle JSON Schema. `expected.yaml` is loaded only after extraction and never enters provider input.
 
 `coverage-v0.2` is also closed-book. It receives the same source/context/config/schema plus the exact pass-1 staged bundle. It never receives evaluator output or human-gold data.
 
@@ -47,7 +47,7 @@ python3 -m unittest discover \
   -v
 ```
 
-The suite covers the deterministic baseline, model prompt/provider/normalization behavior, Evaluator v2, and coverage-v0.2 prompt/merge behavior.
+The suite covers the deterministic baseline, model prompt/provider/normalization behavior, Evaluator v2, and coverage-v0.2 audit/Claim/source-time/merge behavior.
 
 ## Deterministic baseline
 
@@ -118,6 +118,8 @@ These fail model execution/evaluation:
 - Claim predicate outside the configured vocabulary after alias normalization;
 - Claim assessment not starting as `unassessed`.
 
+Coverage adds an earlier source-time protocol gate for newly proposed Event/Claim records.
+
 ### Semantic evaluation
 
 Evaluator v2 reports gold recall plus additional output instead of treating every extra source-grounded item as a false positive.
@@ -137,14 +139,32 @@ python3 apps/chronicle/ingestion/prototype/chronicle_cli.py evaluate \
 
 ## Coverage v0.2
 
-The first real model run showed that a model may extract relevant entities while still omitting an explicit Event or Claim. Coverage v0.2 performs one second source-grounded audit without adding fixture-specific rules.
+The first real model run showed that a model may extract relevant entities while still omitting explicit Event or Claim coverage. Coverage v0.2 performs one second source-grounded audit without adding fixture-specific rules.
 
-### Additions-only protocol
+### Current protocol: audit + Claim coverage + additions only
 
-Pass 1 is immutable. The coverage model does **not** return a replacement bundle. It returns only:
+Pass 1 is immutable. Chronicle first splits source text into deterministic textual-order audit units (`u001`, `u002`, ...). Each unit receives:
+
+- an overall `covered | gap | context_only` decision;
+- existing pass-1 Event/Claim refs or new addition refs;
+- an independent `claim_status: covered | gap | not_applicable` decision;
+- Claim refs and a brief Claim-specific explanation.
+
+Important invariants:
+
+- Entity presence alone never proves that an action/assertion is covered;
+- Event coverage does not substitute for Claim coverage;
+- if an allowed canonical predicate can faithfully express a source assertion, Claim coverage is required;
+- Claim `not_applicable` is reserved for assertions the current predicate vocabulary cannot faithfully represent;
+- subordinate facts/relations prefer Claim-only additions; a new Event is reserved for a distinct occurrence/state transition;
+- added Claims require exact source evidence;
+- the model never rewrites pass-1 objects.
+
+The provider returns one patch object:
 
 ```json
 {
+  "audit": [],
   "entities": [],
   "events": [],
   "claims": [],
@@ -152,29 +172,28 @@ Pass 1 is immutable. The coverage model does **not** return a replacement bundle
 }
 ```
 
-Each array contains only records that are missing from pass 1.
+Chronicle then performs deterministic merge:
 
-Chronicle then performs a deterministic merge:
-
-- existing pass-1 objects remain byte-for-byte semantically unchanged;
+- existing pass-1 objects remain unchanged;
 - duplicate Entity records with the same type/name map back to the existing Entity ID;
 - new temp IDs are assigned after existing IDs;
 - Event/Claim references are rewritten to existing/new IDs;
 - obvious duplicate Events/Claims are skipped;
 - final full-bundle JSON Schema validation and Evaluator v2 still run afterward.
 
-The report records:
+### Source-calendar month grounding
+
+Coverage audit units carry source-month hints derived only from explicit traditional source markers and textual inheritance. This is **not** Gregorian conversion.
+
+For example:
 
 ```text
-coverage_pass.protocol
-coverage_pass.initial_counts
-coverage_pass.final_counts
-coverage_pass.merge.proposed
-coverage_pass.merge.added
-coverage_pass.merge.skipped_duplicates
+八月，表卒，其子琮代，屯襄阳，刘备屯樊。九月，公到新野。
 ```
 
-This design was adopted after the first full-bundle coverage experiment improved entity/event recall but expanded 13 Events to 29 and reduced Claim recall by rewriting previously-good pass-1 Claims.
+`屯襄阳` and `刘备屯樊` inherit source month `8`; `公到新野` inherits source month `9`.
+
+Any new Event/Claim tied to a unit with a known source-month hint must preserve the same `chinese_lunisolar_regnal.source_calendar.month`. A conflicting month is rejected before merge. Normalized Gregorian month/day remain null without a verified converter.
 
 ### Clean A/B: apply coverage to an existing pass-1 file
 
@@ -188,9 +207,27 @@ python3 apps/chronicle/ingestion/prototype/chronicle_coverage.py \
   --config apps/chronicle/ingestion/config/chronicle-v0.1.yaml \
   --model-command '/path/to/model-adapter --model your-model' \
   --model-timeout 600 \
+  --raw-response /tmp/chronicle-coverage-raw.json \
   --output /tmp/chronicle-run2-coverage.json \
   --report /tmp/chronicle-run2-coverage-report.json
 ```
+
+The report records:
+
+```text
+coverage_pass.protocol
+coverage_pass.initial_counts
+coverage_pass.final_counts
+coverage_pass.audit.status_counts
+coverage_pass.audit.gap_units
+coverage_pass.audit.claim_status_counts
+coverage_pass.audit.claim_gap_units
+coverage_pass.merge.proposed
+coverage_pass.merge.added
+coverage_pass.merge.skipped_duplicates
+```
+
+`--raw-response` preserves the exact provider output so incorrect coverage/Claim/time decisions can be inspected directly.
 
 ### Run pass 1 + coverage together
 
@@ -250,6 +287,6 @@ Evaluator v2 is deterministic and intentionally simple; it does not use embeddin
 
 The predicate vocabulary is intentionally small and should grow from real Chronicle fixtures rather than from an up-front universal ontology.
 
-Coverage v0.2 adds one provider call and is opt-in while measured. It is a model audit pass, not a workflow engine.
+Coverage v0.2 adds one provider call and is opt-in while measured. The source-month hint parser currently handles explicit Chinese month markers needed by the V0 literary-Chinese source flow; it does not perform calendrical conversion.
 
 Canonical entity resolution, final event deduplication/publication semantics, PostgreSQL publishing, verified traditional-calendar month/day conversion, and generalized reusable ingestion remain out of scope.
