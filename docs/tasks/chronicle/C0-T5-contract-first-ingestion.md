@@ -27,9 +27,11 @@ Raw Source + Document Context + Data Contract
                     ↓
         deterministic validator
              ↓ pass      ↓ fail
-           staged     bounded repair (max 1)
+           staged     bounded patch repair (max 1)
                          ↓
                   deterministic revalidation
+                    ↓ pass      ↓ fail
+                  staged      no output
 ```
 
 Human gold and Evaluator v2 are development/benchmark tools and are not production inputs.
@@ -39,11 +41,13 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - use one contract-first extraction pass with no production coverage/audit stage;
 - add a deterministic production validator built from JSON Schema and mechanically provable hard checks;
 - validate declared traditional source-calendar months only when the relevant source surface can be mechanically located; absence of optional time is not a validator error;
-- add an optional one-pass repair prompt driven only by validator errors;
+- add an optional one-pass repair driven only by validator errors;
 - keep Evaluator v2 available only for offline quality measurement;
 - retain Coverage v0.2 code/results as an experiment, not as a production pipeline stage;
 - refine Contract v0.2 from the first real production run: preserve explicit/inherited source time on Events, split distinct independent actions, forbid semantically-near predicate fallback, expose ontology gaps, and keep post-repair warnings consistent with the final bundle;
 - persist pre-repair staged output for repair auditing;
+- make repair patch-only so unrelated staged records cannot be rewritten or deleted;
+- accept a repair candidate only after deterministic revalidation and write staged output only on PASS;
 - no Loom Core/Runtime/Storage changes.
 
 ## Non-goals
@@ -64,14 +68,19 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - [x] Validator reuses hard grounding/reference/predicate/time rules and adds conservative source-calendar consistency checks.
 - [x] Missing optional source time is not treated as an error solely by the validator.
 - [x] `repair_v0.py` receives only current bundle + deterministic validation errors + original closed-book inputs.
-- [x] Repair is bounded to at most one attempt and is instructed to reconcile warnings after corrective changes.
+- [x] Repair is bounded to at most one attempt.
+- [x] Repair-v0.2 is patch-only: unmentioned historical records are immutable and existing Source/Entity/Event/Claim records cannot be deleted.
+- [x] Repair patch supports targeted replacement, source-grounded additions required by validation, and exact stale-warning removal.
+- [x] Repair candidate is accepted only after deterministic revalidation.
+- [x] Failed repair candidates cannot overwrite `--output`; candidate inspection is opt-in via `--repair-candidate-output`.
 - [x] `chronicle_pipeline.py` has no `expected.yaml` or semantic evaluator input.
 - [x] `chronicle_pipeline.py --initial-output` persists normalized pre-repair output for direct auditing.
-- [x] Offline tests for contract/validator/repair behavior are committed.
-- [ ] Full prototype unittest discovery passes in a repository checkout after Contract v0.2 refinement.
+- [x] Offline tests for contract/validator/patch-repair behavior are committed.
+- [ ] Full prototype unittest discovery passes in a repository checkout after patch-repair revision.
 - [x] Real Luna contract-v0 run executed successfully with deterministic bounded repair.
 - [x] Final contract-v0 output measured offline with Evaluator v2 without feeding evaluator/gold back into production.
-- [ ] Real Luna contract-v0.2 run verifies time retention, predicate fidelity, Event boundaries, and warning consistency.
+- [x] First real Luna contract-v0.2 run exposed full-bundle repair collapse and was rejected as unsafe.
+- [ ] Real Luna contract-v0.2 patch-repair run verifies time retention, predicate fidelity, Event boundaries, warning consistency, and repair preservation.
 - [ ] Delivery PR / CI / merge reconciliation completed.
 
 ## Real Luna verification — Contract v0
@@ -110,10 +119,38 @@ The first real contract-first run showed that production completeness was much b
 - `公到新野` had been represented with `returned_to`, and `公进军江陵` with `sent_forces`; Contract v0.2 therefore forbids merely-related predicate fallback;
 - assertions such as `使统本兵` may not fit the current vocabulary faithfully; the agent should emit `ontology_gap` rather than force the assertion into `supported` or another approximate predicate;
 - a combined `曹操征刘备至巴丘并遣张憙救合肥` Event contained multiple independently meaningful timeline actions; Contract v0.2 strengthens the atomic boundary rule;
-- bounded repair added a `夏口` Entity but left a warning saying `夏口` was not materialized; repair-v0 now requires warnings to describe the corrected final bundle;
-- `--initial-output` now preserves the normalized pre-repair bundle so future repair changes can be audited directly.
+- bounded repair added a `夏口` Entity but left a warning saying `夏口` was not materialized; repair must keep warnings consistent with the corrected final bundle;
+- `--initial-output` preserves the normalized pre-repair bundle so future repair changes can be audited directly.
 
 `江南诸郡` vs broader `江南`, and `江夏太守` vs jurisdictional `江夏`, remain resolution/granularity questions rather than extraction hard failures.
+
+## Repair safety incident — first Contract v0.2 run
+
+The first real Contract v0.2 run produced a substantial initial extraction:
+
+```text
+initial counts = 31 entities / 29 events / 23 claims / 5 warnings
+initial validator errors = 4
+```
+
+The old full-bundle repair protocol then returned only:
+
+```text
+0 entities / 2 events / 2 claims / 0 warnings
+```
+
+That candidate still had 7 dangling-reference errors. This demonstrated that a model instructed to return a complete corrected bundle can accidentally interpret bounded repair as “return only corrected records,” causing catastrophic record loss.
+
+This is a repair-protocol failure, not an extraction/Contract failure. The production design was therefore tightened to `patch-only-v0.2`:
+
+- the model returns only targeted `replace`, `add`, and `remove_warning_messages` operations;
+- deterministic code applies those operations to a copy of the initial bundle;
+- no unmentioned historical record can disappear;
+- existing Source/Entity/Event/Claim identities cannot be deleted or silently replaced;
+- duplicate new temp IDs and unknown replacement targets are rejected;
+- the resulting candidate is revalidated deterministically;
+- `--output` is produced only if revalidation passes;
+- a failed candidate may be saved only through `--repair-candidate-output` for diagnostics.
 
 ## Decision from Coverage v0.2 experiments
 
