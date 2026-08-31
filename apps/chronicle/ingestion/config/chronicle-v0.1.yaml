@@ -83,6 +83,7 @@ claim:
   predicates:
     # V0 is intentionally small. Expand this vocabulary from real fixtures,
     # not by designing a universal historical ontology up front.
+    model_output: canonical_only
     allowed:
       - held_office
       - died
@@ -102,8 +103,8 @@ claim:
       - created
       - abolished
       - supported
-    # Aliases exist for evaluation/backward compatibility. The model prompt
-    # should emit canonical predicates from `allowed` rather than these forms.
+    # Aliases are evaluator/backward-compatibility inputs only. A model should
+    # emit the canonical values in `allowed`, not these aliases.
     aliases:
       appointed_as: held_office
       surrendered: surrendered_to
