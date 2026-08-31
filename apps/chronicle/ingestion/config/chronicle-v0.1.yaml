@@ -24,6 +24,11 @@ pipeline:
     enabled: true
     max_attempts: 1
     input: validator_errors_only
+    protocol: patch_only_v0.2
+    preserve_unmentioned_records: true
+    delete_existing_historical_records: false
+    accept_candidate_only_after_revalidation: true
+    write_staged_output_only_on_pass: true
   semantic_evaluator: development_only
 
 extract:
