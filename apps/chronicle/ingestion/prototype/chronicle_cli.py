@@ -17,6 +17,7 @@ from chronicle_ingest import (
     load_yaml,
     validate_bundle,
 )
+from coverage_v02 import CoverageV02Extractor, build_coverage_prompt, object_counts
 from evaluator_v2 import evaluation_report_v2
 from model_v0 import (
     CommandModelProvider,
@@ -94,6 +95,12 @@ def _print_v2(report: dict[str, Any]) -> None:
             f" ({data.get('gold_recall')})"
         )
     print("evaluator-v2 gold recall: " + ", ".join(parts), file=sys.stderr)
+    claims = semantic.get("claims") or {}
+    if claims.get("composite_matched"):
+        print(
+            f"evaluator-v2 composite claim matches: {claims['composite_matched']}",
+            file=sys.stderr,
+        )
     print(
         "evaluator-v2 additional output: "
         f"entities={len((semantic.get('entities') or {}).get('additional_output') or [])}, "
@@ -103,6 +110,16 @@ def _print_v2(report: dict[str, Any]) -> None:
     )
 
 
+def _coverage_meta(
+    initial_bundle: dict[str, Any], final_bundle: dict[str, Any], performed: bool
+) -> dict[str, Any]:
+    return {
+        "performed": performed,
+        "initial_counts": object_counts(initial_bundle),
+        "final_counts": object_counts(final_bundle),
+    }
+
+
 def _run(args: argparse.Namespace) -> int:
     needs_config = args.extractor == "model-v0"
     if needs_config and args.config is None:
@@ -110,15 +127,33 @@ def _run(args: argparse.Namespace) -> int:
     raw, context, schema, config = _load_inputs(args.fixture, args.schema, args.config)
 
     provider_name = None
+    coverage_metadata = None
     if args.extractor == "rules-v0":
+        if args.coverage_pass:
+            raise IngestionError("--coverage-pass is available only for model-v0")
         bundle = RulesV0Extractor(raw, context, args.fixture.name).extract()
     else:
         provider = _provider(args)
         provider_name = provider.name
         assert config is not None
-        bundle = ModelV0Extractor(
+        initial_bundle = ModelV0Extractor(
             raw, context, config, schema, args.fixture.name, provider
         ).extract()
+        if args.initial_output:
+            dump_json(initial_bundle, args.initial_output)
+        bundle = initial_bundle
+        if args.coverage_pass:
+            bundle = CoverageV02Extractor(
+                raw,
+                context,
+                config,
+                schema,
+                args.fixture.name,
+                provider,
+            ).review(initial_bundle)
+        coverage_metadata = _coverage_meta(
+            initial_bundle, bundle, performed=args.coverage_pass
+        )
 
     schema_errors = validate_bundle(bundle, schema)
     expected = _load_gold(args.fixture, args.no_gold)
@@ -158,9 +193,18 @@ def _run(args: argparse.Namespace) -> int:
         extractor="model-v0",
         provider=provider_name,
     )
+    assert coverage_metadata is not None
+    report["coverage_pass"] = coverage_metadata
     if args.report:
         dump_json(report, args.report)
     _print_v2(report)
+    if args.coverage_pass:
+        print(
+            "coverage-v0.2 counts: "
+            f"initial={coverage_metadata['initial_counts']} "
+            f"final={coverage_metadata['final_counts']}",
+            file=sys.stderr,
+        )
     if not report["hard_failures"]["passed"]:
         return 1
     if args.gold_strict and _semantic_missing_count(report):
@@ -199,6 +243,16 @@ def _prompt(args: argparse.Namespace) -> int:
     return 0
 
 
+def _coverage_prompt(args: argparse.Namespace) -> int:
+    raw, context, schema, config = _load_inputs(args.fixture, args.schema, args.config)
+    assert config is not None
+    initial_bundle = json.loads(args.input.read_text(encoding="utf-8"))
+    sys.stdout.write(
+        build_coverage_prompt(raw, context, config, schema, initial_bundle)
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Chronicle v0.1 ingestion prototype")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -207,7 +261,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fixture", required=True, type=Path)
     run.add_argument("--schema", required=True, type=Path)
     run.add_argument("--config", type=Path)
-    run.add_argument("--extractor", choices=["rules-v0", "model-v0"], default="rules-v0")
+    run.add_argument(
+        "--extractor", choices=["rules-v0", "model-v0"], default="rules-v0"
+    )
     providers = run.add_mutually_exclusive_group()
     providers.add_argument(
         "--model-command",
@@ -219,6 +275,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="replay a captured model response without invoking a provider",
     )
     run.add_argument("--model-timeout", type=int, default=180)
+    run.add_argument(
+        "--coverage-pass",
+        action="store_true",
+        help="run a second closed-book source coverage review after model-v0 pass 1",
+    )
+    run.add_argument(
+        "--initial-output",
+        type=Path,
+        help="save pass-1 model-v0 staged output before optional coverage review",
+    )
     run.add_argument("--output", type=Path)
     run.add_argument("--report", type=Path)
     run.add_argument("--no-gold", action="store_true")
@@ -246,6 +312,15 @@ def build_parser() -> argparse.ArgumentParser:
     prompt.add_argument("--schema", required=True, type=Path)
     prompt.add_argument("--config", required=True, type=Path)
 
+    coverage_prompt = commands.add_parser(
+        "coverage-prompt",
+        help="render the exact coverage-v0.2 prompt for an existing pass-1 bundle",
+    )
+    coverage_prompt.add_argument("--input", required=True, type=Path)
+    coverage_prompt.add_argument("--fixture", required=True, type=Path)
+    coverage_prompt.add_argument("--schema", required=True, type=Path)
+    coverage_prompt.add_argument("--config", required=True, type=Path)
+
     validate = commands.add_parser("validate", help="validate staged JSON")
     validate.add_argument("--input", required=True, type=Path)
     validate.add_argument("--schema", required=True, type=Path)
@@ -270,6 +345,8 @@ def main(argv: list[str] | None = None) -> int:
             return _evaluate(args)
         if args.command == "prompt":
             return _prompt(args)
+        if args.command == "coverage-prompt":
+            return _coverage_prompt(args)
         if args.command == "validate":
             errors = validate_bundle(
                 json.loads(args.input.read_text(encoding="utf-8")),
