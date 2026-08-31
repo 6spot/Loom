@@ -80,7 +80,7 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - [x] Real Luna contract-v0 run executed successfully with deterministic bounded repair.
 - [x] Final contract-v0 output measured offline with Evaluator v2 without feeding evaluator/gold back into production.
 - [x] First real Luna contract-v0.2 run exposed full-bundle repair collapse and was rejected as unsafe.
-- [ ] Real Luna contract-v0.2 patch-repair run verifies time retention, predicate fidelity, Event boundaries, warning consistency, and repair preservation.
+- [x] Real Luna contract-v0.2 patch-repair run verifies time retention, predicate fidelity, Event boundaries, warning consistency, and repair preservation.
 - [ ] Delivery PR / CI / merge reconciliation completed.
 
 ## Real Luna verification — Contract v0
@@ -151,6 +151,56 @@ This is a repair-protocol failure, not an extraction/Contract failure. The produ
 - the resulting candidate is revalidated deterministically;
 - `--output` is produced only if revalidation passes;
 - a failed candidate may be saved only through `--repair-candidate-output` for diagnostics.
+
+## Real Luna verification — Contract v0.2 + patch repair
+
+The exact pre-repair Contract v0.2 bundle was retained and repaired without rerunning extraction. This isolates the repair protocol from model sampling variation.
+
+Initial Contract v0.2 output:
+
+```text
+31 entities / 29 events / 23 claims / 5 warnings
+validator errors = 4
+```
+
+All 29 Events retained source-calendar time. The observed source-month sequence matched the source chronology:
+
+- month 1: return to Ye, Xuanwu Pond, and Han administrative changes;
+- month 6: Cao Cao appointed chancellor;
+- month 7: southern campaign against Liu Biao;
+- month 8: Liu Biao death, Liu Cong succession, Xiangyang/Fan stationing;
+- month 9: Xinye, surrender, Xiakou, Jiangling, Jingzhou administration, Wen Ping appointment, Liu Zhang support;
+- month 12: Hefei, Baqiu, relief force, Red Cliffs, epidemic, withdrawal, and territorial change.
+
+For every Event, the traditional source month remained in `source_calendar.month`, while normalized Gregorian output stayed year-only (`year=208`, `month=null`, `day=null`).
+
+Contract semantics also improved as intended:
+
+- `曹操到新野` and `曹操进军江陵` are represented as movement Events rather than forcing unrelated Claim predicates;
+- the formerly compound December sequence is split into separate Events such as `曹操征刘备`, `曹操至巴丘`, `曹操遣张憙救合肥`, and `张憙至合肥`;
+- source assertions without a faithful controlled predicate are surfaced as `ontology_gap`, including `下令荆州吏民，与之更始`, `侯者十五人`, and `使统本兵`.
+
+Patch-only repair over that exact bundle completed with:
+
+```text
+initial validator errors = 4
+final validator errors = 0
+result = PASS
+
+counts:
+31 / 29 / 23 / 5
+→
+31 / 29 / 23 / 5
+
+patch:
+replaced entities = 0
+replaced events = 2
+replaced claims = 2
+added records = 0
+removed warnings = 0
+```
+
+This is the intended bounded-repair behavior: only four records changed, no historical record disappeared, no unrelated record was added, and deterministic revalidation passed.
 
 ## Decision from Coverage v0.2 experiments
 
