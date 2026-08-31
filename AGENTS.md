@@ -9,7 +9,6 @@ Before acting on a Loom task, read the repository instructions relevant to the c
 Always read:
 
 - `AGENTS.md`;
-- `docs/agents/README.md`;
 - `docs/development/README.md`;
 - `docs/tasks/README.md`.
 
@@ -49,7 +48,6 @@ Do not close the GitHub Issue, mark Multica/external state done, or activate a d
 ## Before editing
 
 - Read `docs/README.md` and follow the canonical document for the task.
-- Follow `docs/agents/` for Agent-specific authority, implementation, verification and Task Ledger procedure.
 - For architecture-sensitive changes, read `docs/architecture/README.md` and every currently relevant accepted Amendment.
 - For implementation work, read the active task file under `docs/tasks/` and its linked GitHub Issue when they exist.
 - Inspect the current code and tests before deciding what to change.
