@@ -205,7 +205,7 @@
             "temp_id": {"type": "string"},
             "id": {"type": "string", "format": "uuid"},
             "kind": {"const": "event"},
-            "type": {"enum": ["political", "administrative", "military", "battle", "movement", "death", "birth", "succession", "appointment", "surrender", "diplomatic", "epidemic", "territorial_change", "economic", "cultural", "other"]},
+            "type": {"enum": ["political", "administrative", "military", "battle", "movement", "retreat", "death", "birth", "succession", "appointment", "surrender", "diplomatic", "epidemic", "territorial_change", "economic", "cultural", "other"]},
             "title": {"type": "string", "minLength": 1},
             "summary": {"type": ["string", "null"]},
             "time": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
