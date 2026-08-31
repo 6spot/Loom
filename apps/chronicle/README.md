@@ -13,7 +13,15 @@ Initial data may focus on a narrow period, but the product and data model must r
 ## Project structure
 
 - `docs/` — Chronicle product, UX, data, and implementation design documents.
+- `ingestion/` — the schema-driven historical-data ingestion prototype, machine-readable contract, and curated regression fixtures.
 - Application code will live in this directory when implementation begins.
+
+## Current design documents
+
+- [`docs/product.md`](docs/product.md) — product definition and V0 surfaces.
+- [`docs/ui.md`](docs/ui.md) — interaction and UI design.
+- [`docs/data-contract.md`](docs/data-contract.md) — Chronicle Data Contract v0.1 for Source / Entity / Event / Claim ingestion.
+- [`ingestion/README.md`](ingestion/README.md) — first ingestion vertical slice and fixture semantics.
 
 ## Initial product pillars
 

@@ -1,0 +1,29 @@
+schema: chronicle.document-context
+version: "0.1"
+
+source:
+  title: 三国志·魏书·武帝纪
+  work: 三国志
+  author: 陈寿
+  language: lzh
+
+narrative:
+  primary_subject:
+    canonical_name: 曹操
+    stable_names:
+      - 曹操
+      - 太祖
+    contextual_mentions:
+      - 公
+
+chronology:
+  default_era: 建安
+  current_era_year: 13
+  normalized_year: 208
+  source_calendar: chinese_lunisolar_regnal
+
+policies:
+  allow_document_scoped_coreference: true
+  allow_era_inheritance: true
+  allow_era_year_inheritance: true
+  do_not_infer_gregorian_month_from_lunisolar_month: true

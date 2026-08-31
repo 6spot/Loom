@@ -1,0 +1,92 @@
+schema: chronicle.ingestion
+version: "0.1"
+
+input:
+  formats:
+    - text
+    - markdown
+  language: lzh
+  chunking:
+    strategy: paragraph
+    inherit_document_context: true
+
+output:
+  bundle_schema: ../schemas/chronicle-v0.1.schema.json
+  state: staged
+  canonical_identity: deferred
+  published_id_format: uuidv7
+
+extract:
+  objects:
+    - source
+    - entity
+    - event
+    - claim
+
+source:
+  require_title: true
+  require_evidence_locator: true
+
+entity:
+  allowed_types:
+    - person
+    - place
+    - polity
+    - organization
+    - army
+    - office
+    - group
+    - other
+  preserve_mentions: true
+  contextual_coreference: document_scoped
+  canonical_resolution: deferred
+  on_ambiguity: unresolved
+
+event:
+  allowed_types:
+    - political
+    - administrative
+    - military
+    - battle
+    - movement
+    - death
+    - birth
+    - succession
+    - appointment
+    - surrender
+    - diplomatic
+    - epidemic
+    - territorial_change
+    - economic
+    - cultural
+    - other
+  boundary_policy: atomic_preferred
+  canonical_resolution: deferred
+
+time:
+  preserve_original_text: true
+  source_calendar:
+    allow_regnal_era: true
+    allow_context_inheritance: true
+  normalization:
+    target_calendar: proleptic_gregorian
+    allow_year_only: true
+    forbid_unverified_month_conversion: true
+    forbid_unverified_day_conversion: true
+  on_uncertainty: preserve_partial
+
+claim:
+  require_evidence: true
+  require_source_ref: true
+  initial_assessment: unassessed
+  extraction_confidence_is_historical_confidence: false
+
+warnings:
+  emit_contextual_coreference: true
+  emit_partial_calendar_conversion: true
+  emit_ambiguous_resolution: true
+
+resolution:
+  entities: deferred
+  events: deferred
+  deduplication: deferred
