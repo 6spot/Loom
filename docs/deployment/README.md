@@ -11,6 +11,7 @@ Use one guide per workflow rather than one large deployment manual.
 - [`operations.md`](operations.md) — start/stop/restart/update, health checks, logs and basic runtime inspection.
 - [`backup-recovery.md`](backup-recovery.md) — PostgreSQL + blob backup and recovery considerations.
 - [`troubleshooting.md`](troubleshooting.md) — deployment/runtime symptoms and first diagnostic steps.
+- [`security.md`](security.md) — network exposure, secrets and deployment-facing security guidance.
 - [`repository-and-data-layout.md`](repository-and-data-layout.md) — project directories, executable roots and persistent data layout.
 
 For public Loom workflows after the service is running, use `docs/quickstart.md`.
