@@ -58,15 +58,21 @@ Replace exact-title/exact-predicate gold mismatch counting with a useful model-i
 
 ## Verification
 
-First real Luna staged output replayed through Evaluator v0.2 before the latest matcher refinements:
+The exact first Luna staged output was replayed again after the evaluator refinements:
 
 - hard failures: `0`;
-- entities: `13/15` (`0.867`) gold recall;
-- events: `9/12` (`0.75`) gold recall;
-- claims: `5/9` (`0.556`) gold recall;
+- entities: `14/15` (`0.933`) gold recall;
+- events: `10/12` (`0.833`) gold recall;
+- claims: `7/9` (`0.778`) gold recall;
 - counts: 27 entities, 13 events, 10 claims, 3 warnings.
 
-That replay exposed remaining evaluator false negatives: the epidemic Event appeared as `于是大疫，吏士多死者`, the outcome Claim used atomic `不利`, and `江南诸郡` represented a finer source-grounded place surface than gold `江南`. Regression refinements were added for these cases.
+Remaining gold misses at this baseline are useful extraction/coverage signals rather than the earlier title/ID noise:
+
+- Entity: `江夏` (while pass 1 contains the distinct office `江夏太守`);
+- Events: `文聘被任命为江夏太守`, `孙权攻合肥`;
+- Claims: `孙权为备攻合肥`, and one of the two territorial assertions represented by `备遂有荆州、江南诸郡`.
+
+The earlier pre-refinement replay measured 13/15 entities, 9/12 events, and 5/9 claims. The refined baseline therefore confirms that the epidemic event, atomic outcome wording, and `江南诸郡` surface granularity were evaluator issues rather than extraction failures.
 
 Repository-side review confirms changes are isolated to Chronicle ingestion/config/task files; no Loom Core/Runtime/Storage files were modified.
 
@@ -76,5 +82,6 @@ Local isolated refinement tests and Python compilation passed before commit. Ful
 
 - 2026-08-31 — Started after first real `gpt-5.6-luna` Chronicle extraction completed with schema-valid output but 73 exact-comparator mismatches.
 - 2026-08-31 — Implemented deterministic Evaluator v2 hard checks, structured Event/Claim matching, non-exhaustive gold-recall reporting, canonical Claim predicate policy, and `chronicle_cli.py evaluate`.
-- 2026-08-31 — Replayed the exact first Luna staged bundle: zero hard failures and 0.867/0.75/0.556 entity/event/claim gold recall.
+- 2026-08-31 — Initial v0.2 replay measured 13/15 entities, 9/12 events, and 5/9 claims with zero hard failures.
 - 2026-08-31 — Refined Event title evidence, literal/value containment, same-type Entity surface matching, and conservative composite Claim coverage based on the replay rather than changing the model to imitate gold wording.
+- 2026-08-31 — Refined replay measured 14/15 entities, 10/12 events, and 7/9 claims with zero hard failures; these values are the current Run #1 baseline for coverage A/B.
