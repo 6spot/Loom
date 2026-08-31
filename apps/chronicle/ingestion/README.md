@@ -2,7 +2,7 @@
 
 This directory contains the first schema-driven ingestion experiment for Chronicle.
 
-No production ingestion CLI is implemented yet. The files here define the contract and regression fixture that an implementation must satisfy.
+An executable **prototype harness** now lives under [`prototype/`](prototype/). It is deliberately fixture-scoped and is not a production/general historical ingestion CLI. The files here define the stable contract and regression fixture that future extractors must satisfy.
 
 ## First question to validate
 
@@ -25,7 +25,7 @@ Raw document
    ↓
 Document context
    ↓
-Chunk extraction
+Extractor
    ↓
 Staged Source / Entity / Event / Claim
    ↓
@@ -33,7 +33,7 @@ Normalization
    ↓
 Schema validation
    ↓
-Warnings
+Human-gold comparison + warnings
    ↓
 later: entity resolution / event resolution / publication
 ```
@@ -48,12 +48,19 @@ ingestion/
 │   └── chronicle-v0.1.yaml
 ├── schemas/
 │   └── chronicle-v0.1.schema.json
-└── fixtures/
-    └── sanguozhi-wudi-jianan-13/
-        ├── raw.txt
-        ├── context.yaml
-        └── expected.yaml
+├── fixtures/
+│   └── sanguozhi-wudi-jianan-13/
+│       ├── raw.txt
+│       ├── context.yaml
+│       └── expected.yaml
+└── prototype/
+    ├── chronicle_ingest.py
+    ├── test_chronicle_ingest.py
+    ├── requirements.txt
+    └── README.md
 ```
+
+See [`prototype/README.md`](prototype/README.md) for setup, fixture execution, standalone schema validation, gold comparison, and tests.
 
 ## Fixture semantics
 
@@ -63,12 +70,25 @@ ingestion/
 
 `expected.yaml` is a curated gold reference. It is not a claim that the current event segmentation is the final historical ontology.
 
-A future evaluator should distinguish:
+Evaluation distinguishes:
 
 - **hard checks** — schema validity, evidence preservation, forbidden fake precision, required gold facts;
-- **soft checks** — exact event segmentation, optional additional claims, title wording.
+- **semantic comparison** — source/entity/event/claim structures after extractor-only diagnostics are removed;
+- **warnings** — uncertainty and intentional limitations remain visible but do not masquerade as historical facts.
 
-LLM output should not be required to match the gold file byte-for-byte.
+## Current executable baseline
+
+`rules-v0` is a deterministic extractor for the committed Jian'an 13 fixture. Its purpose is to prove the downstream harness without pretending that hand-written phrase rules are the eventual ingestion solution.
+
+For the committed fixture it is expected to produce:
+
+- 15 entities;
+- 12 events;
+- 9 claims;
+- traditional month expressions preserved in `source_calendar`;
+- only the safe 建安十三年 → 208 year normalization in `normalized`.
+
+A future model/config-driven extractor should replace `rules-v0` while keeping the staged v0.1 contract and regression harness stable.
 
 ## First implementation acceptance target
 
