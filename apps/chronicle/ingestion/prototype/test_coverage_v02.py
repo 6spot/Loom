@@ -7,9 +7,12 @@ import unittest
 from coverage_v02 import (
     CoverageV02Extractor,
     build_coverage_prompt,
+    coverage_units,
     merge_coverage_additions,
     object_counts,
+    parse_coverage_response,
 )
+from model_v0 import ModelV0Error
 
 
 class FakeProvider:
@@ -48,7 +51,16 @@ def empty_additions() -> dict:
 
 
 class CoverageV02Tests(unittest.TestCase):
-    def test_prompt_contains_source_and_pass1_but_no_reference_answer(self) -> None:
+    def test_coverage_units_are_deterministic_and_in_text_order(self) -> None:
+        self.assertEqual(
+            [
+                {"unit_id": "u001", "text": "十二月"},
+                {"unit_id": "u002", "text": "孙权为备攻合肥"},
+            ],
+            coverage_units("十二月，孙权为备攻合肥。"),
+        )
+
+    def test_prompt_contains_audit_units_and_no_reference_answer(self) -> None:
         prompt = build_coverage_prompt(
             "十二月，孙权为备攻合肥。",
             {"chronology": {"normalized_year": 208}},
@@ -58,14 +70,86 @@ class CoverageV02Tests(unittest.TestCase):
         )
         self.assertIn("十二月，孙权为备攻合肥。", prompt)
         self.assertIn("PASS-1 STAGED BUNDLE (IMMUTABLE)", prompt)
-        self.assertIn("ONLY source-supported additions", prompt)
-        self.assertIn("sentence-by-sentence", prompt)
+        self.assertIn("AUDIT UNITS (MACHINE-DERIVED, TEXTUAL ORDER)", prompt)
+        self.assertIn("Entity presence alone NEVER", prompt)
+        self.assertIn('"unit_id": "u001"', prompt)
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("human gold", prompt.lower())
 
-    def test_review_invokes_provider_once_and_preserves_pass1(self) -> None:
-        provider = FakeProvider(empty_additions())
+    def test_audit_rejects_entity_only_covered_claim(self) -> None:
         initial = staged_bundle()
+        initial["entities"] = [
+            {
+                "temp_id": "ent_001",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "孙权",
+                "aliases": [],
+                "mentions": [{"text": "孙权"}],
+                "resolution": {"status": "unresolved"},
+                "extraction": {"method": "model"},
+            }
+        ]
+        response = {
+            "audit": [
+                {
+                    "unit_id": "u001",
+                    "status": "context_only",
+                    "pass1_refs": [],
+                    "addition_refs": [],
+                    "note": "chronology",
+                },
+                {
+                    "unit_id": "u002",
+                    "status": "covered",
+                    "pass1_refs": ["ent_001"],
+                    "addition_refs": [],
+                    "note": "entity exists",
+                },
+            ],
+            **empty_additions(),
+        }
+        with self.assertRaises(ModelV0Error):
+            parse_coverage_response(
+                json.dumps(response, ensure_ascii=False),
+                "十二月，孙权为备攻合肥。",
+                initial,
+            )
+
+    def test_review_invokes_provider_once_and_preserves_pass1_when_audited_covered(self) -> None:
+        initial = staged_bundle()
+        initial["events"] = [
+            {
+                "temp_id": "evt_001",
+                "kind": "event",
+                "type": "military",
+                "title": "孙权攻合肥",
+                "time": None,
+                "participants": [],
+                "places": [],
+                "extraction": {"method": "model"},
+            }
+        ]
+        patch = {
+            "audit": [
+                {
+                    "unit_id": "u001",
+                    "status": "context_only",
+                    "pass1_refs": [],
+                    "addition_refs": [],
+                    "note": "month marker only",
+                },
+                {
+                    "unit_id": "u002",
+                    "status": "covered",
+                    "pass1_refs": ["evt_001"],
+                    "addition_refs": [],
+                    "note": "existing event represents the attack",
+                },
+            ],
+            **empty_additions(),
+        }
+        provider = FakeProvider(patch)
         extractor = CoverageV02Extractor(
             "十二月，孙权为备攻合肥。",
             {},
@@ -77,9 +161,13 @@ class CoverageV02Tests(unittest.TestCase):
         result, stats = extractor.review(initial)
         self.assertEqual(1, len(provider.prompts))
         self.assertEqual(initial, result)
-        self.assertEqual("src_777", result["source"]["temp_id"])
-        self.assertEqual("additions-only", stats["protocol"])
+        self.assertEqual("audit+additions-only", stats["protocol"])
         self.assertEqual(0, sum(stats["added"].values()))
+        self.assertEqual(
+            {"covered": 1, "gap": 0, "context_only": 1},
+            stats["audit"]["status_counts"],
+        )
+        self.assertIsNotNone(extractor.last_response)
 
     def test_merge_maps_duplicate_entity_and_keeps_existing_objects_immutable(self) -> None:
         initial = staged_bundle()
