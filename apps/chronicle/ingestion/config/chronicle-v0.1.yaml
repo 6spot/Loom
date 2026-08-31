@@ -80,6 +80,36 @@ claim:
   require_source_ref: true
   initial_assessment: unassessed
   extraction_confidence_is_historical_confidence: false
+  predicates:
+    # V0 is intentionally small. Expand this vocabulary from real fixtures,
+    # not by designing a universal historical ontology up front.
+    allowed:
+      - held_office
+      - died
+      - succeeded
+      - surrendered_to
+      - attacked
+      - fought
+      - outcome
+      - affected
+      - gained_territory
+      - moved_to
+      - returned_to
+      - stationed_at
+      - appointed
+      - sent_forces
+      - retreated
+      - created
+      - abolished
+      - supported
+    # Aliases exist for evaluation/backward compatibility. The model prompt
+    # should emit canonical predicates from `allowed` rather than these forms.
+    aliases:
+      appointed_as: held_office
+      surrendered: surrendered_to
+      fled_to: moved_to
+      held: gained_territory
+      caused_deaths: affected
 
 warnings:
   emit_contextual_coreference: true
