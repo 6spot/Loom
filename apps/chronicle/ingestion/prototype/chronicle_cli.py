@@ -111,13 +111,20 @@ def _print_v2(report: dict[str, Any]) -> None:
 
 
 def _coverage_meta(
-    initial_bundle: dict[str, Any], final_bundle: dict[str, Any], performed: bool
+    initial_bundle: dict[str, Any],
+    final_bundle: dict[str, Any],
+    performed: bool,
+    merge_stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    result = {
         "performed": performed,
+        "protocol": "additions-only" if performed else None,
         "initial_counts": object_counts(initial_bundle),
         "final_counts": object_counts(final_bundle),
     }
+    if merge_stats is not None:
+        result["merge"] = merge_stats
+    return result
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -142,8 +149,9 @@ def _run(args: argparse.Namespace) -> int:
         if args.initial_output:
             dump_json(initial_bundle, args.initial_output)
         bundle = initial_bundle
+        merge_stats = None
         if args.coverage_pass:
-            bundle = CoverageV02Extractor(
+            bundle, merge_stats = CoverageV02Extractor(
                 raw,
                 context,
                 config,
@@ -152,7 +160,10 @@ def _run(args: argparse.Namespace) -> int:
                 provider,
             ).review(initial_bundle)
         coverage_metadata = _coverage_meta(
-            initial_bundle, bundle, performed=args.coverage_pass
+            initial_bundle,
+            bundle,
+            performed=args.coverage_pass,
+            merge_stats=merge_stats,
         )
 
     schema_errors = validate_bundle(bundle, schema)
@@ -205,6 +216,15 @@ def _run(args: argparse.Namespace) -> int:
             f"final={coverage_metadata['final_counts']}",
             file=sys.stderr,
         )
+        merge_stats = coverage_metadata.get("merge")
+        if merge_stats:
+            print(
+                "coverage-v0.2 merge: "
+                f"proposed={merge_stats['proposed']} "
+                f"added={merge_stats['added']} "
+                f"skipped_duplicates={merge_stats['skipped_duplicates']}",
+                file=sys.stderr,
+            )
     if not report["hard_failures"]["passed"]:
         return 1
     if args.gold_strict and _semantic_missing_count(report):
@@ -278,7 +298,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--coverage-pass",
         action="store_true",
-        help="run a second closed-book source coverage review after model-v0 pass 1",
+        help="run a second closed-book additions-only coverage review after model-v0 pass 1",
     )
     run.add_argument(
         "--initial-output",
@@ -314,7 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     coverage_prompt = commands.add_parser(
         "coverage-prompt",
-        help="render the exact coverage-v0.2 prompt for an existing pass-1 bundle",
+        help="render the exact additions-only coverage-v0.2 prompt for an existing pass-1 bundle",
     )
     coverage_prompt.add_argument("--input", required=True, type=Path)
     coverage_prompt.add_argument("--fixture", required=True, type=Path)
