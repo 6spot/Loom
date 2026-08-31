@@ -25,6 +25,7 @@ Add a second closed-book model review that improves extraction coverage without 
 - require `covered` audit decisions to cite an existing pass-1 Event or Claim; Entity presence alone is not sufficient evidence of action/state coverage;
 - audit Claim coverage separately from overall/Event coverage; an Event does not substitute for a Claim;
 - require a new Claim when an allowed canonical predicate can faithfully represent an uncovered source assertion;
+- prefer Claim-only additions for subordinate facts/relations; create a new Event only for a distinct occurrence or state transition that merits Event identity;
 - allow Claim `not_applicable` only when the configured predicate vocabulary cannot faithfully express the assertion;
 - derive source-calendar month hints only from explicit textual month markers and inheritance, without Gregorian conversion;
 - reject added Event/Claim records whose `chinese_lunisolar_regnal` source month conflicts with the source unit month hint;
@@ -56,6 +57,7 @@ Add a second closed-book model review that improves extraction coverage without 
 - [x] A `covered` decision must reference an existing pass-1 Event/Claim; Entity-only coverage is rejected.
 - [x] Claim coverage is audited independently; Event presence cannot satisfy Claim coverage.
 - [x] Claim gaps must reference new Claim records in the same patch.
+- [x] Coverage policy prefers Claim-only for subordinate assertions and reserves new Event identity for distinct occurrences/state transitions.
 - [x] Source-month hints are derived from explicit traditional-calendar text only.
 - [x] Added Event/Claim source months that conflict with inherited source context are rejected before merge.
 - [x] A `gap` decision must reference one or more additions from the same patch.
@@ -95,12 +97,13 @@ This proved the model could recover missing information, but complete-bundle rew
 
 The first additions-only Luna run then produced zero additions and exactly preserved the Run #1 baseline. This proved pass-1 immutability, but the provider could still claim that nothing was missing without showing its reasoning. Coverage therefore became audit+additions-only.
 
-The first raw audit+additions Luna response successfully exposed real gaps instead of returning empty arrays. In particular it marked the Wen Ping appointment (`u024`) and Sun Quan's Hefei attack (`u030`) as missing and proposed Events for them. However it returned `claims: []`, demonstrating that overall/Event coverage and Claim coverage were still conflated. The same response also assigned source month 9 to the added `屯襄阳` and `刘备屯樊` Events even though those clauses inherit month 8 from the source; the next explicit month 9 begins only at `公到新野`. That revealed a second unguarded failure mode: source-calendar inheritance drift.
+The first raw audit+additions Luna response successfully exposed real gaps instead of returning empty arrays. In particular it marked the Wen Ping appointment (`u024`) and Sun Quan's Hefei attack (`u030`) as missing and proposed Events for them. However it returned `claims: []`, demonstrating that overall/Event coverage and Claim coverage were still conflated. The same response also assigned source month 9 to the added `屯襄阳` and `刘备屯樊` Events even though those clauses inherit month 8 from the source; the next explicit month 9 begins only at `公到新野`. The response also tended to promote nearly every uncovered clause to a standalone Event, which would recreate Event-count inflation even under an immutable merge.
 
 The protocol was therefore tightened again:
 
 - every non-context audit unit now has `claim_status`, `claim_refs`, and `claim_note`;
 - allowed-predicate assertions require Claim coverage independently of Event coverage;
+- subordinate facts/relations prefer Claim-only additions; new Events are reserved for distinct occurrences/state transitions;
 - audit units carry deterministic `source_month_hint` values derived only from explicit textual month markers;
 - proposed Event/Claim records with a conflicting source-calendar month are rejected before merge.
 
@@ -112,5 +115,5 @@ Isolated claim/time protocol regression tests: 10/10 passed, including rejection
 - 2026-08-31 — Added an existing-staged coverage runner so pass 1 can remain fixed for A/B measurement.
 - 2026-08-31 — Full-bundle coverage improved entity/event recall but reduced Claim recall and expanded 13 events to 29; redesigned as additions-only.
 - 2026-08-31 — First additions-only run safely preserved Run #1 but returned zero additions; added mandatory textual-order audit units.
-- 2026-08-31 — Raw audit correctly identified many missing occurrences including Wen Ping's appointment and Sun Quan's Hefei attack, but proposed Events without Claims and drifted two August movement Events into September.
-- 2026-08-31 — Added independent Claim coverage decisions plus deterministic source-month grounding; isolated regression suite passed 10/10.
+- 2026-08-31 — Raw audit correctly identified many missing occurrences including Wen Ping's appointment and Sun Quan's Hefei attack, but proposed Events without Claims, drifted two August movement Events into September, and over-promoted subordinate clauses into standalone Events.
+- 2026-08-31 — Added independent Claim coverage decisions, Claim-only subordinate coverage preference, and deterministic source-month grounding; isolated regression suite passed 10/10.
