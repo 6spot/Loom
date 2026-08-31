@@ -9,15 +9,19 @@ Before acting on a Loom task, read the repository instructions relevant to the c
 Always read:
 
 - `AGENTS.md`;
+- `docs/agents/README.md`;
 - `docs/development/README.md`;
-- `docs/tasks/README.md`;
+- `docs/tasks/README.md`.
+
+When an executable task record exists, also read:
+
 - the current task record under `docs/tasks/`;
 - the linked GitHub Issue;
 - the current initiative or milestone `README.md` when one exists.
 
 Before finishing an executable task with a Task Ledger record, also read and follow `docs/development/task-completion.md`.
 
-For architecture-sensitive work, additionally read `docs/architecture/README.md` and every relevant accepted Amendment.
+For architecture-sensitive work, additionally read `docs/architecture/README.md`, resolve the current authority through its reverse supersession table, and read every relevant accepted Amendment.
 
 Repository canonical documents are the project authority. If a role prompt or previous-run assumption conflicts with the current repository procedure, do not silently follow the stale assumption; resolve the conflict against the canonical repository documents first.
 
@@ -45,8 +49,9 @@ Do not close the GitHub Issue, mark Multica/external state done, or activate a d
 ## Before editing
 
 - Read `docs/README.md` and follow the canonical document for the task.
-- For architecture-sensitive changes, read `docs/architecture/README.md` and every relevant accepted Amendment.
-- For implementation work, read the active task file under `docs/tasks/` and its linked GitHub Issue.
+- Follow `docs/agents/` for Agent-specific authority, implementation, verification and Task Ledger procedure.
+- For architecture-sensitive changes, read `docs/architecture/README.md` and every currently relevant accepted Amendment.
+- For implementation work, read the active task file under `docs/tasks/` and its linked GitHub Issue when they exist.
 - Inspect the current code and tests before deciding what to change.
 - Use the current procedure under `docs/development/` or `docs/deployment/`; do not invent a parallel workflow.
 
@@ -74,10 +79,10 @@ Architecture gaps go through the Amendment process in `docs/architecture/README.
 
 ## Before finishing
 
-- Run the checks required by the current CI and development guides.
+- Run the focused checks required by the current CI/development/deployment guides for the changed contract.
 - Do not claim checks passed unless they actually ran successfully.
 - Record any unverified checks and the reason.
-- Update the active task record with status and verification evidence.
+- Update the active task record with status and verification evidence when one exists.
 - If the task has a canonical Task Ledger record under `docs/tasks/`, a merged delivery PR is not completion. Follow `docs/development/task-completion.md` and reconcile the canonical task record on the default branch with the actual PR/merge evidence before treating the task as complete.
 - Keep the GitHub Issue and task record consistent.
 
@@ -85,4 +90,4 @@ Architecture gaps go through the Amendment process in `docs/architecture/README.
 
 Only add repository-wide instructions that apply to most tasks.
 
-Do not add architecture summaries, runbooks, milestone status, copied documentation, or warnings about a single past mistake. Fix those at their canonical source instead.
+Do not add architecture summaries, runbooks, milestone status, copied documentation, CI matrices or warnings about a single past mistake. Fix those at their canonical source instead.
