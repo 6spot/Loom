@@ -1,0 +1,639 @@
+schema_version: '0.1'
+source:
+  temp_id: src_001
+  kind: source
+  source_type: book
+  title: 三国志·魏书·武帝纪
+  author: 陈寿
+  language: lzh
+  metadata:
+    work: 三国志
+    section: 魏书·武帝纪
+    fixture: sanguozhi-wudi-jianan-13
+  extraction:
+    method: human_gold
+entities:
+- temp_id: ent_001
+  kind: entity
+  type: person
+  canonical_name: 曹操
+  aliases: []
+  mentions:
+  - text: 公
+    contextual: true
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_002
+  kind: entity
+  type: person
+  canonical_name: 刘表
+  aliases: []
+  mentions:
+  - text: 刘表
+    contextual: false
+  - text: 表
+    contextual: true
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_003
+  kind: entity
+  type: person
+  canonical_name: 刘琮
+  aliases: []
+  mentions:
+  - text: 琮
+    contextual: true
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_004
+  kind: entity
+  type: person
+  canonical_name: 刘备
+  aliases: []
+  mentions:
+  - text: 刘备
+    contextual: false
+  - text: 备
+    contextual: true
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_005
+  kind: entity
+  type: person
+  canonical_name: 孙权
+  aliases: []
+  mentions:
+  - text: 孙权
+    contextual: false
+  - text: 权
+    contextual: true
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_006
+  kind: entity
+  type: person
+  canonical_name: 文聘
+  aliases: []
+  mentions:
+  - text: 文聘
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_007
+  kind: entity
+  type: person
+  canonical_name: 张憙
+  aliases: []
+  mentions:
+  - text: 张憙
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_008
+  kind: entity
+  type: place
+  canonical_name: 新野
+  aliases: []
+  mentions:
+  - text: 新野
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_009
+  kind: entity
+  type: place
+  canonical_name: 夏口
+  aliases: []
+  mentions:
+  - text: 夏口
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_010
+  kind: entity
+  type: place
+  canonical_name: 江陵
+  aliases: []
+  mentions:
+  - text: 江陵
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_011
+  kind: entity
+  type: place
+  canonical_name: 合肥
+  aliases: []
+  mentions:
+  - text: 合肥
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_012
+  kind: entity
+  type: place
+  canonical_name: 赤壁
+  aliases: []
+  mentions:
+  - text: 赤壁
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_013
+  kind: entity
+  type: place
+  canonical_name: 荆州
+  aliases: []
+  mentions:
+  - text: 荆州
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_014
+  kind: entity
+  type: place
+  canonical_name: 江南
+  aliases: []
+  mentions:
+  - text: 江南
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+- temp_id: ent_015
+  kind: entity
+  type: place
+  canonical_name: 江夏
+  aliases: []
+  mentions:
+  - text: 江夏
+    contextual: false
+  resolution:
+    status: unresolved
+  extraction:
+    method: human_gold
+events:
+- temp_id: evt_001
+  kind: event
+  type: appointment
+  title: 曹操被任命为丞相
+  time:
+    original_text: 夏六月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: summer
+      month: 6
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_001
+    role: appointee
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_002
+  kind: event
+  type: military
+  title: 曹操南征刘表
+  time:
+    original_text: 秋七月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 7
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_001
+    role: attacker
+  - entity_ref: ent_002
+    role: target
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_003
+  kind: event
+  type: death
+  title: 刘表去世
+  time:
+    original_text: 八月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 8
+      inherited_fields: [era, era_year, season]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_002
+    role: subject
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_004
+  kind: event
+  type: succession
+  title: 刘琮继承刘表
+  time:
+    original_text: 八月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 8
+      inherited_fields: [era, era_year, season]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_003
+    role: successor
+  - entity_ref: ent_002
+    role: predecessor
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_005
+  kind: event
+  type: surrender
+  title: 刘琮向曹操投降
+  time:
+    original_text: 九月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 9
+      inherited_fields: [era, era_year, season]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_003
+    role: surrendering_party
+  - entity_ref: ent_001
+    role: recipient
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_006
+  kind: event
+  type: movement
+  title: 刘备退往夏口
+  time:
+    original_text: 九月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 9
+      inherited_fields: [era, era_year, season]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_004
+    role: actor
+  places: [ent_009]
+  extraction:
+    method: human_gold
+- temp_id: evt_007
+  kind: event
+  type: appointment
+  title: 文聘被任命为江夏太守
+  time:
+    original_text: 九月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: autumn
+      month: 9
+      inherited_fields: [era, era_year, season, month]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_006
+    role: appointee
+  places: [ent_015]
+  extraction:
+    method: human_gold
+- temp_id: evt_008
+  kind: event
+  type: military
+  title: 孙权攻合肥
+  time:
+    original_text: 十二月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: winter
+      month: 12
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_005
+    role: attacker
+  places: [ent_011]
+  extraction:
+    method: human_gold
+- temp_id: evt_009
+  kind: event
+  type: battle
+  title: 曹操与刘备在赤壁交战失利
+  time:
+    original_text: 十二月
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      season: winter
+      month: 12
+      inherited_fields: [era, era_year, season]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_001
+    role: combatant
+  - entity_ref: ent_004
+    role: combatant
+  places: [ent_012]
+  extraction:
+    method: human_gold
+- temp_id: evt_010
+  kind: event
+  type: epidemic
+  title: 曹操军发生大疫
+  time:
+    original_text: 于是
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_001
+    role: affected_side
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_011
+  kind: event
+  type: movement
+  title: 曹操撤军
+  time:
+    original_text: 乃引军还
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_001
+    role: actor
+  places: []
+  extraction:
+    method: human_gold
+- temp_id: evt_012
+  kind: event
+  type: territorial_change
+  title: 刘备取得荆州、江南诸郡
+  time:
+    original_text: 遂
+    source_calendar:
+      system: chinese_lunisolar_regnal
+      era: 建安
+      era_year: 13
+      inherited_fields: [era, era_year]
+    normalized:
+      calendar: proleptic_gregorian
+      year: 208
+      precision: year
+      conversion_status: year_only
+  participants:
+  - entity_ref: ent_004
+    role: beneficiary
+  places: [ent_013, ent_014]
+  extraction:
+    method: human_gold
+claims:
+- temp_id: clm_001
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_001}
+  predicate: held_office
+  object: {kind: literal, value: 丞相}
+  evidence:
+    text: 夏六月，以公为丞相。
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 夏六月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: summer, month: 6, inherited_fields: [era, era_year]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_002
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_002}
+  predicate: died
+  object: null
+  evidence:
+    text: 八月，表卒
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 八月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: autumn, month: 8, inherited_fields: [era, era_year, season]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_003
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_003}
+  predicate: succeeded
+  object: {kind: entity_ref, ref: ent_002}
+  evidence:
+    text: 其子琮代
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 八月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: autumn, month: 8, inherited_fields: [era, era_year, season]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_004
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_003}
+  predicate: surrendered_to
+  object: {kind: entity_ref, ref: ent_001}
+  evidence:
+    text: 琮遂降
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 九月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: autumn, month: 9, inherited_fields: [era, era_year, season]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_005
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_005}
+  predicate: attacked
+  object: {kind: entity_ref, ref: ent_011}
+  evidence:
+    text: 十二月，孙权为备攻合肥。
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 十二月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: winter, month: 12, inherited_fields: [era, era_year]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_006
+  kind: claim
+  subject: {kind: event_ref, ref: evt_009}
+  predicate: outcome
+  object: {kind: literal, value: 曹操军不利}
+  evidence:
+    text: 公至赤壁，与备战，不利。
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 十二月
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, season: winter, month: 12, inherited_fields: [era, era_year, season]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_007
+  kind: claim
+  subject: {kind: event_ref, ref: evt_010}
+  predicate: affected
+  object: {kind: literal, value: 吏士多死}
+  evidence:
+    text: 于是大疫，吏士多死者
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 于是
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, inherited_fields: [era, era_year]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_008
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_004}
+  predicate: gained_territory
+  object: {kind: entity_ref, ref: ent_013}
+  evidence:
+    text: 备遂有荆州、江南诸郡。
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 遂
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, inherited_fields: [era, era_year]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+- temp_id: clm_009
+  kind: claim
+  subject: {kind: entity_ref, ref: ent_004}
+  predicate: gained_territory
+  object: {kind: entity_ref, ref: ent_014}
+  evidence:
+    text: 备遂有荆州、江南诸郡。
+    source_ref: src_001
+    locator: {work: 三国志, section: 魏书·武帝纪, fixture: sanguozhi-wudi-jianan-13}
+  assessment: {status: unassessed}
+  extraction: {method: human_gold}
+  time:
+    original_text: 遂
+    source_calendar: {system: chinese_lunisolar_regnal, era: 建安, era_year: 13, inherited_fields: [era, era_year]}
+    normalized: {calendar: proleptic_gregorian, year: 208, precision: year, conversion_status: year_only}
+warnings:
+- type: contextual_coreference
+  severity: info
+  message: “公” is resolved to 曹操 from document context.
+  refs: [ent_001]
+- type: calendar_conversion
+  severity: info
+  message: Traditional months are preserved; only 建安十三年 is normalized to 208.
+- type: historical_assessment
+  severity: info
+  message: Claims are unassessed; extraction confidence is not historical truth confidence.
