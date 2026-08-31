@@ -9,3 +9,4 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | Task | Issue | Status | Scope |
 | --- | ---: | --- | --- |
 | C0-T1 | #462 | in_progress | V0 ingestion prototype: deterministic fixture extraction, normalization, JSON Schema validation, and human-gold comparison |
+| C0-T2 | #463 | in_progress | model-v0: source-grounded provider-driven extraction, transport normalization, and machine-readable evaluation |
