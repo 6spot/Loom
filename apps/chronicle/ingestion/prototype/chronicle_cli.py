@@ -116,14 +116,18 @@ def _coverage_meta(
     performed: bool,
     merge_stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    result = {
+    result: dict[str, Any] = {
         "performed": performed,
-        "protocol": "additions-only" if performed else None,
+        "protocol": merge_stats.get("protocol") if performed and merge_stats else None,
         "initial_counts": object_counts(initial_bundle),
         "final_counts": object_counts(final_bundle),
     }
     if merge_stats is not None:
-        result["merge"] = merge_stats
+        if merge_stats.get("audit") is not None:
+            result["audit"] = merge_stats["audit"]
+        result["merge"] = {
+            key: value for key, value in merge_stats.items() if key != "audit"
+        }
     return result
 
 
@@ -216,6 +220,20 @@ def _run(args: argparse.Namespace) -> int:
             f"final={coverage_metadata['final_counts']}",
             file=sys.stderr,
         )
+        audit = coverage_metadata.get("audit")
+        if audit:
+            print(
+                "coverage-v0.2 audit: "
+                f"units={audit['units']} status_counts={audit['status_counts']} "
+                f"gap_units={audit['gap_units']}",
+                file=sys.stderr,
+            )
+            print(
+                "coverage-v0.2 claim audit: "
+                f"status_counts={audit['claim_status_counts']} "
+                f"gap_units={audit['claim_gap_units']}",
+                file=sys.stderr,
+            )
         merge_stats = coverage_metadata.get("merge")
         if merge_stats:
             print(
@@ -298,7 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--coverage-pass",
         action="store_true",
-        help="run a second closed-book additions-only coverage review after model-v0 pass 1",
+        help="run a second closed-book claim-aware audit+additions coverage review after model-v0 pass 1",
     )
     run.add_argument(
         "--initial-output",
@@ -334,7 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     coverage_prompt = commands.add_parser(
         "coverage-prompt",
-        help="render the exact additions-only coverage-v0.2 prompt for an existing pass-1 bundle",
+        help="render the exact claim-aware coverage-v0.2 prompt for an existing pass-1 bundle",
     )
     coverage_prompt.add_argument("--input", required=True, type=Path)
     coverage_prompt.add_argument("--fixture", required=True, type=Path)
