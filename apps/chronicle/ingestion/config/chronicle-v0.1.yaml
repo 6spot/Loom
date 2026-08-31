@@ -116,6 +116,10 @@ coverage:
   version: "0.2"
   strategy: model_second_pass
   enabled_by_default: false
+  output_protocol: additions_only
+  pass1_immutable: true
+  deterministic_merge: true
+  deduplicate_against_pass1: true
   preserve_valid_records: true
   audit_source_in_text_order: true
   audit_explicit_actions_and_state_changes: true
