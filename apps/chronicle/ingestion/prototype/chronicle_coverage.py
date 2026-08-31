@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.model_command
             else ReplayModelProvider(args.model_response)
         )
-        final = CoverageV02Extractor(
+        final, merge_stats = CoverageV02Extractor(
             raw,
             context,
             config,
@@ -78,8 +78,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         report["coverage_pass"] = {
             "performed": True,
+            "protocol": "additions-only",
             "initial_counts": object_counts(initial),
             "final_counts": object_counts(final),
+            "merge": merge_stats,
             "input": str(args.input),
         }
         dump_json(final, args.output)
@@ -106,6 +108,13 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"coverage-v0.2 counts: {report['coverage_pass']['initial_counts']} -> "
             f"{report['coverage_pass']['final_counts']}",
+            file=sys.stderr,
+        )
+        print(
+            "coverage-v0.2 merge: "
+            f"proposed={merge_stats['proposed']} "
+            f"added={merge_stats['added']} "
+            f"skipped_duplicates={merge_stats['skipped_duplicates']}",
             file=sys.stderr,
         )
         if not hard["passed"]:
