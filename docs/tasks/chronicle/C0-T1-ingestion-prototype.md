@@ -49,7 +49,16 @@ The stable boundary under test is:
 - [ ] Full committed fixture run is verified in a repository checkout with prototype dependencies installed.
 - [ ] Delivery PR / CI / merge reconciliation completed.
 
+## Verification
+
+- Local isolated prototype tests: `python3 -m unittest ...` — 4/4 passed.
+- Python syntax compilation: `python3 -m py_compile chronicle_ingest.py` — passed.
+- Full committed fixture text was re-read from GitHub and checked against the extractor anchors/order: 15 entities, 12 events, and 9 claims are represented by the baseline rules.
+- Exact end-to-end execution against files downloaded from the remote branch is not recorded yet: the current execution environment could not resolve `raw.githubusercontent.com`. Keep the full-checkout acceptance item open until it is run from a repository checkout.
+- Current repository CI does not yet have a Chronicle/Python lane; no CI result is claimed for this task.
+
 ## Progress log
 
 - 2026-08-31 — Started after Chronicle v0.1 data contract and gold fixture were committed on `chronicle/bootstrap`. Issue #462 created as the collaboration surface.
 - 2026-08-31 — Chose a deliberately fixture-scoped deterministic extractor so the downstream cleaning/validation contract can be tested without conflating this task with general historical AI extraction.
+- 2026-08-31 — Implemented CLI, Draft 2020-12 validation, semantic gold comparison, tests, and prototype documentation. Local unit tests passed; task remains `in_progress` pending a real checkout fixture run and delivery/CI/merge reconciliation.
