@@ -13,3 +13,4 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T3 | #464 | in_progress | Evaluator v2: hard grounding checks, semantic event/claim matching, and controlled predicate vocabulary |
 | C0-T4 | #465 | in_progress | Coverage v0.2 experiment: second-pass coverage research and lessons; not the production ingestion path |
 | C0-T5 | #466 | in_progress | Contract-first ingestion: single extraction, deterministic validation, bounded repair; production direction |
+| C0-T6 | #467 | in_progress | Cross-source validation: run unchanged Contract v0.2 on a second real historical source and review generalization |
