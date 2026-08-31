@@ -17,6 +17,7 @@ from chronicle_ingest import (
     load_yaml,
     validate_bundle,
 )
+from evaluator_v2 import evaluation_report_v2
 from model_v0 import (
     CommandModelProvider,
     ModelV0Error,
@@ -48,6 +49,60 @@ def _provider(args: argparse.Namespace):
     )
 
 
+def _load_gold(fixture: Path, no_gold: bool) -> dict[str, Any] | None:
+    if no_gold:
+        return None
+    return load_yaml(fixture / "expected.yaml")
+
+
+def _semantic_missing_count(report: dict[str, Any]) -> int:
+    semantic = report.get("semantic_evaluation") or {}
+    if not semantic.get("performed"):
+        return 0
+    return (
+        len((semantic.get("entities") or {}).get("missing_gold") or [])
+        + len((semantic.get("events") or {}).get("missing_gold") or [])
+        + len((semantic.get("claims") or {}).get("missing_gold_evidence") or [])
+    )
+
+
+def _print_v2(report: dict[str, Any]) -> None:
+    hard = report["hard_failures"]
+    print(
+        f"evaluator-v2 hard failures: {hard['count']} ({'PASS' if hard['passed'] else 'FAIL'})",
+        file=sys.stderr,
+    )
+    for category in (
+        "schema_validation",
+        "grounding",
+        "reference_integrity",
+        "time_precision",
+        "predicate_vocabulary",
+        "initial_assessment",
+    ):
+        for message in hard.get(category) or []:
+            print(f"hard/{category}: {message}", file=sys.stderr)
+
+    semantic = report.get("semantic_evaluation") or {}
+    if not semantic.get("performed"):
+        return
+    parts = []
+    for collection in ("entities", "events", "claims"):
+        data = semantic.get(collection) or {}
+        parts.append(
+            f"{collection}={data.get('gold_matched')}/{data.get('gold_expected')}"
+            f" ({data.get('gold_recall')})"
+        )
+    print("evaluator-v2 gold recall: " + ", ".join(parts), file=sys.stderr)
+    print(
+        "evaluator-v2 additional output: "
+        f"entities={len((semantic.get('entities') or {}).get('additional_output') or [])}, "
+        f"events={len((semantic.get('events') or {}).get('additional_output') or [])}, "
+        f"claims={len((semantic.get('claims') or {}).get('additional_output_evidence') or [])}",
+        file=sys.stderr,
+    )
+
+
 def _run(args: argparse.Namespace) -> int:
     needs_config = args.extractor == "model-v0"
     if needs_config and args.config is None:
@@ -57,7 +112,6 @@ def _run(args: argparse.Namespace) -> int:
     provider_name = None
     if args.extractor == "rules-v0":
         bundle = RulesV0Extractor(raw, context, args.fixture.name).extract()
-        compare = compare_bundle
     else:
         provider = _provider(args)
         provider_name = provider.name
@@ -65,44 +119,76 @@ def _run(args: argparse.Namespace) -> int:
         bundle = ModelV0Extractor(
             raw, context, config, schema, args.fixture.name, provider
         ).extract()
-        compare = compare_model_bundle
 
     schema_errors = validate_bundle(bundle, schema)
-    gold_mismatches = None
-    if not args.no_gold:
-        # Gold is loaded only after extraction has completed. It is never part
-        # of the model-v0 prompt/provider call path.
-        gold_mismatches = compare(bundle, load_yaml(args.fixture / "expected.yaml"))
-
+    expected = _load_gold(args.fixture, args.no_gold)
     dump_json(bundle, args.output)
-    if args.report:
-        dump_json(
-            evaluation_report(
-                bundle,
-                extractor=args.extractor,
-                provider=provider_name,
-                schema_errors=schema_errors,
-                gold_mismatches=gold_mismatches,
-            ),
-            args.report,
-        )
 
-    for message in schema_errors:
-        print(f"schema: {message}", file=sys.stderr)
-    for message in gold_mismatches or []:
-        print(f"gold: {message}", file=sys.stderr)
-
-    if schema_errors:
-        return 1
-    if gold_mismatches and (args.extractor == "rules-v0" or args.gold_strict):
-        return 1
-    if gold_mismatches:
-        print(
-            f"chronicle model evaluation completed with {len(gold_mismatches)} gold mismatch(es)",
-            file=sys.stderr,
+    if args.extractor == "rules-v0":
+        gold_mismatches = (
+            compare_bundle(bundle, expected) if expected is not None else None
         )
-    else:
+        if args.report:
+            dump_json(
+                evaluation_report(
+                    bundle,
+                    extractor=args.extractor,
+                    provider=provider_name,
+                    schema_errors=schema_errors,
+                    gold_mismatches=gold_mismatches,
+                ),
+                args.report,
+            )
+        for message in schema_errors:
+            print(f"schema: {message}", file=sys.stderr)
+        for message in gold_mismatches or []:
+            print(f"gold: {message}", file=sys.stderr)
+        if schema_errors or gold_mismatches:
+            return 1
         print("chronicle ingestion fixture passed", file=sys.stderr)
+        return 0
+
+    assert config is not None
+    report = evaluation_report_v2(
+        bundle,
+        raw,
+        config,
+        schema_errors=schema_errors,
+        expected=expected,
+        extractor="model-v0",
+        provider=provider_name,
+    )
+    if args.report:
+        dump_json(report, args.report)
+    _print_v2(report)
+    if not report["hard_failures"]["passed"]:
+        return 1
+    if args.gold_strict and _semantic_missing_count(report):
+        return 1
+    return 0
+
+
+def _evaluate(args: argparse.Namespace) -> int:
+    raw, _context, schema, config = _load_inputs(args.fixture, args.schema, args.config)
+    assert config is not None
+    bundle = json.loads(args.input.read_text(encoding="utf-8"))
+    schema_errors = validate_bundle(bundle, schema)
+    expected = _load_gold(args.fixture, args.no_gold)
+    report = evaluation_report_v2(
+        bundle,
+        raw,
+        config,
+        schema_errors=schema_errors,
+        expected=expected,
+        extractor="model-v0",
+        provider="existing-staged-output",
+    )
+    dump_json(report, args.report)
+    _print_v2(report)
+    if not report["hard_failures"]["passed"]:
+        return 1
+    if args.gold_strict and _semantic_missing_count(report):
+        return 1
     return 0
 
 
@@ -139,8 +225,19 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--gold-strict",
         action="store_true",
-        help="make model-v0 gold mismatches fail the command",
+        help="fail model-v0 when required gold content is missing; extra output is not failure",
     )
+
+    evaluate = commands.add_parser(
+        "evaluate", help="evaluate an existing staged model bundle without calling a model"
+    )
+    evaluate.add_argument("--input", required=True, type=Path)
+    evaluate.add_argument("--fixture", required=True, type=Path)
+    evaluate.add_argument("--schema", required=True, type=Path)
+    evaluate.add_argument("--config", required=True, type=Path)
+    evaluate.add_argument("--report", type=Path)
+    evaluate.add_argument("--no-gold", action="store_true")
+    evaluate.add_argument("--gold-strict", action="store_true")
 
     prompt = commands.add_parser(
         "prompt", help="render the exact closed-book model-v0 prompt"
@@ -159,7 +256,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument(
         "--model-semantics",
         action="store_true",
-        help="dereference temp IDs before comparison",
+        help="use the legacy v0.1 ID-independent exact semantic comparison",
     )
     return parser
 
@@ -169,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "run":
             return _run(args)
+        if args.command == "evaluate":
+            return _evaluate(args)
         if args.command == "prompt":
             return _prompt(args)
         if args.command == "validate":
