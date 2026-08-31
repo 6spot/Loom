@@ -84,6 +84,7 @@ No gold/evaluator output may be fed into extraction or repair.
 - [x] Event boundaries and predicate choices were manually reviewed for source fidelity;
 - [x] ontology gaps are surfaced rather than hidden behind nearby predicates;
 - [x] the only ontology expansion from this run (`retreat` Event type) is supported independently by both fixtures;
+- [x] the exact saved second-source initial bundle validates directly with zero hard failures after adding `retreat` to the shared Event vocabulary;
 - [x] optional human-gold evaluation remains development-only and was not used for the production run;
 - [ ] full prototype unittest discovery remains green after the cross-source ontology update;
 - [ ] delivery PR / CI / merge reconciliation completed.
@@ -157,7 +158,13 @@ The original Event enum omitted `retreat`, which forced validator-driven repair 
 
 This follows Chronicle's ontology-growth rule: expand from repeated real-source evidence rather than designing a universal ontology up front or tuning to one gold fixture.
 
-After this ontology update, the exact saved second-source initial bundle should validate directly with zero errors and no model repair, because its only prior violation was the missing `retreat` Event type.
+After the shared vocabulary update, the exact saved second-source initial bundle was evaluated again with `--no-gold` and reported zero hard failures without rerunning extraction or repair. This confirms that the prior repair was solely compensating for the missing shared Event category rather than correcting a source-extraction error.
+
+## Unittest follow-up
+
+A full prototype discovery after the ontology update ran 43 tests. Forty-two passed; one Contract prompt test failed because it asserted that the literal phrase `coverage audit` must not appear anywhere, while the production prompt intentionally contains the prohibition `do not perform a second-pass coverage audit`. The prompt behavior is correct and already cross-source validated; the test assertion was over-broad.
+
+The test has been corrected to require the explicit prohibition rather than forbid the phrase itself. A fresh full discovery is still required before marking the suite green.
 
 ## What this run pressure-tested
 
