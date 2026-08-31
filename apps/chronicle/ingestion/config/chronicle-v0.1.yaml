@@ -64,6 +64,7 @@ event:
     - military
     - battle
     - movement
+    - retreat
     - death
     - birth
     - succession
@@ -75,6 +76,8 @@ event:
     - economic
     - cultural
     - other
+  # `retreat` was promoted from observed model output after the same semantic
+  # gap appeared independently in both the 魏书·武帝纪 and 吴书·吴主传 fixtures.
   boundary_policy: distinct_occurrence_atomic_preferred
   split_independent_actions: true
   subordinate_assertion_prefer_claim: true
