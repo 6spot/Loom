@@ -64,21 +64,47 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - [x] `chronicle_pipeline.py` has no `expected.yaml` or semantic evaluator input.
 - [x] Offline tests for validator/repair behavior are committed.
 - [ ] Full prototype unittest discovery passes in a repository checkout.
-- [x] Real Luna contract-v0 production run executed successfully: initial deterministic validation found 4 errors, one bounded repair reduced final validation to 0, final pipeline status PASS.
-- [ ] Final contract-v0 staged output is benchmarked offline with Evaluator v2 against the existing non-exhaustive gold fixture.
+- [x] Real Luna contract-v0 run executed successfully with deterministic bounded repair.
+- [x] Final contract-v0 output measured offline with Evaluator v2 without feeding evaluator/gold back into production.
 - [ ] Delivery PR / CI / merge reconciliation completed.
 
-## Verification
+## Real Luna verification
 
-Real Luna production-path run on `sanguozhi-wudi-jianan-13` using `gpt-5.6-luna` through the isolated Codex command provider:
+A real `gpt-5.6-luna` run through the production `chronicle_pipeline.py` completed with:
 
 ```text
-chronicle validation: initial=4 repair_attempted=True final=0 (PASS)
+initial validator errors = 4
+repair attempts = 1
+final validator errors = 0
+result = PASS
 ```
 
-This is the first successful end-to-end verification of the intended production architecture: one contract-first extraction, deterministic validation, one bounded repair driven only by validator errors, and deterministic revalidation to PASS. The semantic Evaluator/gold fixture was not used as an input to extraction or repair.
+The four initial errors were all mechanically provable and therefore appropriate repair inputs:
 
-Full unittest discovery still needs checkout-level confirmation. The final staged bundle also still needs a separate development-only Evaluator v2 run so extraction quality can be measured without influencing production behavior.
+- Event 17 missing required `type`;
+- Event 17 had invalid `kind` instead of `event`;
+- Event 19 used invalid Event type `retreat` rather than the controlled Event type vocabulary;
+- one Event referenced `夏口` as a place without an Entity reference.
+
+The one bounded repair pass corrected those violations. Final production counts were 29 Entities / 23 Events / 29 Claims / 3 warnings, with zero schema, grounding, reference-integrity, time-precision, predicate-vocabulary, assessment, or source-calendar-consistency violations.
+
+Offline Evaluator v2 measurement of the final staged bundle, performed only after production finished, reported:
+
+- Entity gold recall: 13/15 (0.867);
+- Event gold recall: 12/12 (1.0);
+- Claim gold recall: 9/9 (1.0);
+- hard failures: 0.
+
+The evaluator result is a development quality signal, not a production acceptance criterion. The gold fixture is intentionally non-exhaustive, so 100% Event/Claim recall does not imply semantic perfection or precision.
+
+## Remaining quality observations
+
+Inspection of the real final bundle shows the next work belongs in the Contract/schema semantics rather than a second extraction system:
+
+- a stale warning still states that `夏口` was not materialized as an Entity even though the repaired final bundle contains a `夏口` Entity and uses it in the Event; this is a mechanically detectable internal-consistency issue;
+- several valid-schema predicates are semantically coarse for the exact source wording, so controlled predicate guidance may need to become clearer without expanding into a universal ontology;
+- some Event boundaries remain broader than the preferred atomic policy (for example a combined movement/relief sequence), which should be addressed through extraction-contract guidance rather than deterministic historical inference;
+- `江南诸郡` vs normalized broader `江南`, and `江夏太守` vs jurisdictional `江夏`, remain resolution/granularity questions rather than extraction hard failures.
 
 ## Decision from Coverage v0.2 experiments
 
