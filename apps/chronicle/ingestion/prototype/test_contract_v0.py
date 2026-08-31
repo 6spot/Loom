@@ -44,7 +44,7 @@ class ContractV0Tests(unittest.TestCase):
         self.assertIn("Warnings must describe the final bundle", prompt)
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("human gold", prompt.lower())
-        self.assertNotIn("coverage audit", prompt.lower())
+        self.assertIn("do not perform a second-pass coverage audit", prompt.lower())
 
     def test_prompt_forbids_semantically_near_predicate_fallback(self) -> None:
         prompt = build_contract_prompt("九月，公到新野。", {}, {}, {})
