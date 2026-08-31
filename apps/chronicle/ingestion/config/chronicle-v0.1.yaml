@@ -18,7 +18,7 @@ output:
 
 pipeline:
   production_strategy: contract_first_single_extraction
-  extractor: contract-v0
+  extractor: contract-v0.2
   validator: deterministic
   repair:
     enabled: true
@@ -70,7 +70,9 @@ event:
     - economic
     - cultural
     - other
-  boundary_policy: atomic_preferred
+  boundary_policy: distinct_occurrence_atomic_preferred
+  split_independent_actions: true
+  subordinate_assertion_prefer_claim: true
   canonical_resolution: deferred
 
 time:
@@ -78,6 +80,8 @@ time:
   source_calendar:
     allow_regnal_era: true
     allow_context_inheritance: true
+    require_on_event_when_explicit_or_safely_inherited: true
+    record_inherited_fields: true
   normalization:
     target_calendar: proleptic_gregorian
     allow_year_only: true
@@ -90,6 +94,10 @@ claim:
   require_source_ref: true
   initial_assessment: unassessed
   extraction_confidence_is_historical_confidence: false
+  predicate_semantics:
+    require_faithful_fit: true
+    forbid_nearby_fallback: true
+    on_ontology_gap: warning_without_forced_claim
   predicates:
     # V0 is intentionally small. Expand this vocabulary from real fixtures,
     # not by designing a universal historical ontology up front.
@@ -149,6 +157,8 @@ warnings:
   emit_contextual_coreference: true
   emit_partial_calendar_conversion: true
   emit_ambiguous_resolution: true
+  emit_ontology_gap: true
+  must_describe_final_bundle: true
 
 resolution:
   entities: deferred
