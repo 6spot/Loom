@@ -11,10 +11,12 @@ raw source + document context + Chronicle contract
                     ↓
         deterministic validator
              ↓ pass      ↓ fail
-           staged      bounded repair
+           staged      bounded patch repair
                          (max 1)
                            ↓
                   deterministic revalidation
+                    ↓ pass      ↓ fail
+                  staged      no output
 ```
 
 ## Responsibilities
@@ -44,7 +46,15 @@ A missing optional field is not made mandatory by the validator. If the model de
 
 Repair is optional and limited to one pass. It receives the original closed-book inputs, current staged bundle, and deterministic validator errors only. It never receives `expected.yaml`, semantic gold recall, or evaluator mismatch information.
 
-Repair must make the smallest validation-driven correction. If a correction makes an existing warning false or stale, that warning must be updated or removed so warnings describe the final bundle.
+Repair-v0.2 is **patch-only**. The model cannot return or replace the whole bundle. It may only:
+
+- replace a specifically named existing Source/Entity/Event/Claim record while preserving its identity;
+- add a genuinely missing source-grounded record required by a listed validation error;
+- remove an exact stale warning message and optionally add a corrected warning.
+
+Unmentioned historical records are immutable. Existing Source/Entity/Event/Claim records cannot be deleted by repair.
+
+The deterministic program applies the patch and validates the resulting candidate. A repair candidate is accepted only if revalidation passes. `--output` is written only for a passing bundle; a failed repair candidate can be inspected separately with `--repair-candidate-output` and can never overwrite staged output.
 
 ### Evaluator v2
 
@@ -65,11 +75,12 @@ python3 apps/chronicle/ingestion/prototype/chronicle_pipeline.py \
   --model-timeout 600 \
   --repair-attempts 1 \
   --initial-output /tmp/chronicle-contract-v0.2-initial.json \
-  --raw-repair-response /tmp/chronicle-contract-v0.2-repair.json \
+  --raw-repair-response /tmp/chronicle-contract-v0.2-repair-patch.json \
+  --repair-candidate-output /tmp/chronicle-contract-v0.2-repair-candidate.json \
   --output /tmp/chronicle-contract-v0.2.json \
   --report /tmp/chronicle-contract-v0.2-report.json
 ```
 
-`--initial-output` preserves the normalized pre-repair bundle so repair changes can be audited directly against the final output.
+`--initial-output` preserves the normalized pre-repair bundle. `--raw-repair-response` preserves the model patch. `--repair-candidate-output` preserves the deterministic patched candidate even when revalidation fails.
 
 Use `chronicle_cli.py evaluate` separately when benchmark/gold metrics are desired.
