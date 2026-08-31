@@ -1,20 +1,19 @@
 """Evaluator v2 for Chronicle model-backed ingestion.
 
-The evaluator intentionally separates provable contract/grounding failures from
-semantic differences against a non-exhaustive human gold fixture.
+Hard checks cover provable contract/grounding failures. Semantic evaluation is
+lenient about transport IDs, titles, evidence-span length, and configured
+representation aliases because the current human gold fixture is non-exhaustive.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 
 def _items(bundle: dict[str, Any], name: str) -> list[dict[str, Any]]:
     value = bundle.get(name)
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
 
 
 def _identity(item: dict[str, Any]) -> str | None:
@@ -22,19 +21,25 @@ def _identity(item: dict[str, Any]) -> str | None:
     return str(value) if value is not None else None
 
 
-def _label_maps(bundle: dict[str, Any]) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
-    entity_labels: dict[str, str] = {}
-    event_items: dict[str, dict[str, Any]] = {}
-    for entity in _items(bundle, "entities"):
-        identity = _identity(entity)
-        name = entity.get("canonical_name")
+def _entity_maps(bundle: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    labels: dict[str, str] = {}
+    types: dict[str, str] = {}
+    for item in _items(bundle, "entities"):
+        identity = _identity(item)
+        name = item.get("canonical_name")
         if identity and isinstance(name, str):
-            entity_labels[identity] = name
-    for event in _items(bundle, "events"):
-        identity = _identity(event)
+            labels[identity] = name
+            types[identity] = str(item.get("type") or "")
+    return labels, types
+
+
+def _event_map(bundle: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for item in _items(bundle, "events"):
+        identity = _identity(item)
         if identity:
-            event_items[identity] = event
-    return entity_labels, event_items
+            result[identity] = item
+    return result
 
 
 def _time_signature(event: dict[str, Any]) -> tuple[Any, ...]:
@@ -52,35 +57,31 @@ def _time_signature(event: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _overlap(left: set[Any], right: set[Any]) -> float:
+    """Jaccard evidence score; absence of evidence is worth zero, not one."""
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
 def _event_features(event: dict[str, Any], entity_labels: dict[str, str]) -> dict[str, Any]:
-    participants: set[tuple[str, str]] = set()
     participant_names: set[str] = set()
+    participant_roles: set[tuple[str, str]] = set()
     for participant in event.get("participants") or []:
         if not isinstance(participant, dict):
             continue
         ref = str(participant.get("entity_ref"))
         name = entity_labels.get(ref, ref)
-        role = str(participant.get("role") or "")
-        participants.add((name, role))
         participant_names.add(name)
-    places = {
-        entity_labels.get(str(ref), str(ref)) for ref in (event.get("places") or [])
-    }
+        participant_roles.add((name, str(participant.get("role") or "")))
+    places = {entity_labels.get(str(ref), str(ref)) for ref in event.get("places") or []}
     return {
         "type": event.get("type"),
         "time": _time_signature(event),
-        "participants": participants,
         "participant_names": participant_names,
+        "participant_roles": participant_roles,
         "places": places,
-        "title": event.get("title"),
     }
-
-
-def _jaccard(left: set[Any], right: set[Any]) -> float:
-    if not left and not right:
-        return 1.0
-    union = left | right
-    return len(left & right) / len(union) if union else 1.0
 
 
 def _event_similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
@@ -95,10 +96,9 @@ def _event_similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
         score += 0.05
     if left_time[4] is not None and left_time[4] == right_time[4]:
         score += 0.10
-    score += 0.25 * _jaccard(left["participant_names"], right["participant_names"])
-    score += 0.10 * _jaccard(left["places"], right["places"])
-    if left["participants"] and right["participants"]:
-        score += 0.05 * _jaccard(left["participants"], right["participants"])
+    score += 0.25 * _overlap(left["participant_names"], right["participant_names"])
+    score += 0.10 * _overlap(left["places"], right["places"])
+    score += 0.05 * _overlap(left["participant_roles"], right["participant_roles"])
     return min(score, 1.0)
 
 
@@ -112,21 +112,17 @@ class EventMatch:
 def match_events(
     actual: dict[str, Any], expected: dict[str, Any], threshold: float = 0.60
 ) -> tuple[list[EventMatch], list[str], list[str]]:
-    actual_labels, _ = _label_maps(actual)
-    expected_labels, _ = _label_maps(expected)
-    actual_events = [event for event in _items(actual, "events") if _identity(event)]
-    expected_events = [event for event in _items(expected, "events") if _identity(event)]
+    actual_labels, _ = _entity_maps(actual)
+    expected_labels, _ = _entity_maps(expected)
+    actual_events = _event_map(actual)
+    expected_events = _event_map(expected)
     candidates: list[tuple[float, str, str]] = []
-    for left in actual_events:
-        left_id = _identity(left)
-        assert left_id is not None
+    for actual_id, left in actual_events.items():
         left_features = _event_features(left, actual_labels)
-        for right in expected_events:
-            right_id = _identity(right)
-            assert right_id is not None
+        for expected_id, right in expected_events.items():
             score = _event_similarity(left_features, _event_features(right, expected_labels))
             if score >= threshold:
-                candidates.append((score, left_id, right_id))
+                candidates.append((score, actual_id, expected_id))
     candidates.sort(reverse=True)
     used_actual: set[str] = set()
     used_expected: set[str] = set()
@@ -138,14 +134,10 @@ def match_events(
         used_expected.add(expected_id)
         matches.append(EventMatch(actual_id, expected_id, round(score, 3)))
     missing = [
-        str(event.get("title"))
-        for event in expected_events
-        if _identity(event) not in used_expected
+        str(item.get("title")) for identity, item in expected_events.items() if identity not in used_expected
     ]
     additional = [
-        str(event.get("title"))
-        for event in actual_events
-        if _identity(event) not in used_actual
+        str(item.get("title")) for identity, item in actual_events.items() if identity not in used_actual
     ]
     return matches, missing, additional
 
@@ -154,10 +146,7 @@ def _predicate_policy(config: dict[str, Any]) -> tuple[set[str], dict[str, str]]
     claim = config.get("claim") if isinstance(config.get("claim"), dict) else {}
     predicates = claim.get("predicates") if isinstance(claim.get("predicates"), dict) else {}
     allowed = {str(value) for value in predicates.get("allowed", [])}
-    aliases = {
-        str(key): str(value)
-        for key, value in (predicates.get("aliases") or {}).items()
-    }
+    aliases = {str(key): str(value) for key, value in (predicates.get("aliases") or {}).items()}
     return allowed, aliases
 
 
@@ -166,9 +155,18 @@ def _canonical_predicate(value: Any, aliases: dict[str, str]) -> str:
     return aliases.get(text, text)
 
 
-def _ref_label(
+def _event_titles(bundle: dict[str, Any]) -> dict[str, str]:
+    return {
+        identity: str(item.get("title"))
+        for identity, item in _event_map(bundle).items()
+    }
+
+
+def _semantic_ref(
     ref: Any,
+    predicate: str,
     entity_labels: dict[str, str],
+    entity_types: dict[str, str],
     event_labels: dict[str, str],
     event_remap: dict[str, str] | None = None,
 ) -> tuple[str, str] | None:
@@ -177,12 +175,21 @@ def _ref_label(
     kind = ref.get("kind")
     identity = str(ref.get("ref"))
     if kind == "entity_ref":
-        return ("entity", entity_labels.get(identity, identity))
+        name = entity_labels.get(identity, identity)
+        entity_type = entity_types.get(identity, "")
+        if predicate == "held_office" and entity_type == "office":
+            return ("value", name)
+        if predicate == "gained_territory" and entity_type in {"place", "polity"}:
+            return ("value", name)
+        return ("entity", name)
     if kind == "event_ref":
         mapped = event_remap.get(identity, identity) if event_remap else identity
         return ("event", event_labels.get(mapped, mapped))
     if kind == "literal":
-        return ("literal", str(ref.get("value")))
+        value = str(ref.get("value"))
+        if predicate in {"held_office", "gained_territory"}:
+            return ("value", value)
+        return ("literal", value)
     return None
 
 
@@ -191,23 +198,27 @@ def _evidence_overlap(left: str, right: str) -> float:
         return 0.0
     if left in right or right in left:
         return min(len(left), len(right)) / max(len(left), len(right))
-    left_chars = set(left)
-    right_chars = set(right)
-    return _jaccard(left_chars, right_chars)
+    return _overlap(set(left), set(right))
 
 
 def _claim_features(
     claim: dict[str, Any],
     entity_labels: dict[str, str],
+    entity_types: dict[str, str],
     event_labels: dict[str, str],
     aliases: dict[str, str],
     event_remap: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    predicate = _canonical_predicate(claim.get("predicate"), aliases)
     evidence = claim.get("evidence") if isinstance(claim.get("evidence"), dict) else {}
     return {
-        "subject": _ref_label(claim.get("subject"), entity_labels, event_labels, event_remap),
-        "predicate": _canonical_predicate(claim.get("predicate"), aliases),
-        "object": _ref_label(claim.get("object"), entity_labels, event_labels, event_remap)
+        "subject": _semantic_ref(
+            claim.get("subject"), predicate, entity_labels, entity_types, event_labels, event_remap
+        ),
+        "predicate": predicate,
+        "object": _semantic_ref(
+            claim.get("object"), predicate, entity_labels, entity_types, event_labels, event_remap
+        )
         if claim.get("object") is not None
         else None,
         "evidence": str(evidence.get("text") or ""),
@@ -233,32 +244,29 @@ def match_claims(
     event_matches: list[EventMatch],
     threshold: float = 0.70,
 ) -> tuple[int, list[str], list[str]]:
-    actual_entities, actual_events = _label_maps(actual)
-    expected_entities, expected_events = _label_maps(expected)
-    expected_event_titles = {
-        identity: str(item.get("title")) for identity, item in expected_events.items()
-    }
-    actual_event_remap = {
-        match.actual_id: match.expected_id for match in event_matches
-    }
-    allowed, aliases = _predicate_policy(config)
-    _ = allowed
+    actual_labels, actual_types = _entity_maps(actual)
+    expected_labels, expected_types = _entity_maps(expected)
+    expected_event_labels = _event_titles(expected)
+    event_remap = {match.actual_id: match.expected_id for match in event_matches}
+    _allowed, aliases = _predicate_policy(config)
     actual_claims = _items(actual, "claims")
     expected_claims = _items(expected, "claims")
     candidates: list[tuple[float, int, int]] = []
     for left_index, left in enumerate(actual_claims):
         left_features = _claim_features(
             left,
-            actual_entities,
-            expected_event_titles,
+            actual_labels,
+            actual_types,
+            expected_event_labels,
             aliases,
-            actual_event_remap,
+            event_remap,
         )
         for right_index, right in enumerate(expected_claims):
             right_features = _claim_features(
                 right,
-                expected_entities,
-                expected_event_titles,
+                expected_labels,
+                expected_types,
+                expected_event_labels,
                 aliases,
             )
             score = _claim_similarity(left_features, right_features)
@@ -267,7 +275,7 @@ def match_claims(
     candidates.sort(reverse=True)
     used_actual: set[int] = set()
     used_expected: set[int] = set()
-    for score, left_index, right_index in candidates:
+    for _score, left_index, right_index in candidates:
         if left_index in used_actual or right_index in used_expected:
             continue
         used_actual.add(left_index)
@@ -285,9 +293,7 @@ def match_claims(
     return len(used_expected), missing, additional
 
 
-def hard_checks(
-    bundle: dict[str, Any], raw: str, config: dict[str, Any]
-) -> dict[str, list[str]]:
+def hard_checks(bundle: dict[str, Any], raw: str, config: dict[str, Any]) -> dict[str, list[str]]:
     entity_ids = {identity for item in _items(bundle, "entities") if (identity := _identity(item))}
     event_ids = {identity for item in _items(bundle, "events") if (identity := _identity(item))}
     source = bundle.get("source") if isinstance(bundle.get("source"), dict) else {}
@@ -297,7 +303,7 @@ def hard_checks(
     grounding: list[str] = []
     references: list[str] = []
     time_precision: list[str] = []
-    predicate: list[str] = []
+    predicate_errors: list[str] = []
     assessment: list[str] = []
 
     for index, entity in enumerate(_items(bundle, "entities"), 1):
@@ -311,14 +317,15 @@ def hard_checks(
         if canonical not in raw and not any(text in raw for text in mention_texts):
             grounding.append(f"entity[{index}] {canonical!r} has no source-grounded mention")
 
-    def check_time(owner: str, time: Any) -> None:
-        if not isinstance(time, dict):
+    def check_time(owner: str, value: Any) -> None:
+        if not isinstance(value, dict):
             return
-        source_calendar = time.get("source_calendar") if isinstance(time.get("source_calendar"), dict) else {}
-        normalized = time.get("normalized") if isinstance(time.get("normalized"), dict) else None
+        source_calendar = value.get("source_calendar") if isinstance(value.get("source_calendar"), dict) else {}
+        normalized = value.get("normalized") if isinstance(value.get("normalized"), dict) else None
         if source_calendar.get("system") != "chinese_lunisolar_regnal" or normalized is None:
             return
-        normalization = ((config.get("time") or {}).get("normalization") or {})
+        time_config = config.get("time") if isinstance(config.get("time"), dict) else {}
+        normalization = time_config.get("normalization") if isinstance(time_config.get("normalization"), dict) else {}
         if normalization.get("forbid_unverified_month_conversion") and normalized.get("month") is not None:
             time_precision.append(f"{owner} fabricates Gregorian month from traditional calendar")
         if normalization.get("forbid_unverified_day_conversion") and normalized.get("day") is not None:
@@ -342,9 +349,11 @@ def hard_checks(
     for index, claim in enumerate(_items(bundle, "claims"), 1):
         claim_id = _identity(claim) or f"claim[{index}]"
         evidence = claim.get("evidence") if isinstance(claim.get("evidence"), dict) else {}
-        text = str(evidence.get("text") or "")
-        if text not in raw:
-            grounding.append(f"{claim_id} evidence is not an exact SOURCE TEXT substring: {text!r}")
+        evidence_text = str(evidence.get("text") or "")
+        if not evidence_text or evidence_text not in raw:
+            grounding.append(
+                f"{claim_id} evidence is not an exact SOURCE TEXT substring: {evidence_text!r}"
+            )
         if source_id is not None and str(evidence.get("source_ref")) != source_id:
             references.append(f"{claim_id} references unknown source {evidence.get('source_ref')}")
         for field in ("subject", "object"):
@@ -359,8 +368,14 @@ def hard_checks(
                 references.append(f"{claim_id}.{field} references missing event {identity}")
         canonical = _canonical_predicate(claim.get("predicate"), aliases)
         if allowed_predicates and canonical not in allowed_predicates:
-            predicate.append(f"{claim_id} uses predicate outside configured vocabulary: {claim.get('predicate')}")
-        status = (claim.get("assessment") or {}).get("status") if isinstance(claim.get("assessment"), dict) else None
+            predicate_errors.append(
+                f"{claim_id} uses predicate outside configured vocabulary: {claim.get('predicate')}"
+            )
+        status = (
+            (claim.get("assessment") or {}).get("status")
+            if isinstance(claim.get("assessment"), dict)
+            else None
+        )
         if status != "unassessed":
             assessment.append(f"{claim_id} assessment must start unassessed, got {status!r}")
         check_time(claim_id, claim.get("time"))
@@ -369,7 +384,7 @@ def hard_checks(
         "grounding": grounding,
         "reference_integrity": references,
         "time_precision": time_precision,
-        "predicate_vocabulary": predicate,
+        "predicate_vocabulary": predicate_errors,
         "initial_assessment": assessment,
     }
 
@@ -398,6 +413,8 @@ def evaluation_report_v2(
         matched_claims, missing_claims, additional_claims = match_claims(
             bundle, expected, config, event_matches
         )
+        expected_events = _items(expected, "events")
+        expected_claims = _items(expected, "claims")
         semantic = {
             "performed": True,
             "gold_is_exhaustive": False,
@@ -411,20 +428,20 @@ def evaluation_report_v2(
                 "additional_output": sorted(actual_entity_names - expected_entity_names),
             },
             "events": {
-                "gold_expected": len(_items(expected, "events")),
+                "gold_expected": len(expected_events),
                 "gold_matched": len(event_matches),
-                "gold_recall": round(len(event_matches) / len(_items(expected, "events")), 3)
-                if _items(expected, "events")
+                "gold_recall": round(len(event_matches) / len(expected_events), 3)
+                if expected_events
                 else None,
                 "missing_gold": missing_events,
                 "additional_output": additional_events,
-                "matches": [match.__dict__ for match in event_matches],
+                "matches": [asdict(match) for match in event_matches],
             },
             "claims": {
-                "gold_expected": len(_items(expected, "claims")),
+                "gold_expected": len(expected_claims),
                 "gold_matched": matched_claims,
-                "gold_recall": round(matched_claims / len(_items(expected, "claims")), 3)
-                if _items(expected, "claims")
+                "gold_recall": round(matched_claims / len(expected_claims), 3)
+                if expected_claims
                 else None,
                 "missing_gold_evidence": missing_claims,
                 "additional_output_evidence": additional_claims,
@@ -443,7 +460,9 @@ def evaluation_report_v2(
         },
         "semantic_evaluation": semantic,
         "counts": {
-            name: len(_items(bundle, name)) if name != "warnings" else len(bundle.get("warnings") or [])
-            for name in ("entities", "events", "claims", "warnings")
+            "entities": len(_items(bundle, "entities")),
+            "events": len(_items(bundle, "events")),
+            "claims": len(_items(bundle, "claims")),
+            "warnings": len(bundle.get("warnings") or []) if isinstance(bundle.get("warnings"), list) else 0,
         },
     }
