@@ -29,7 +29,7 @@ def base_bundle() -> dict:
             "title": "test",
             "language": "lzh",
             "metadata": {},
-            "extraction": {"method": "model", "job_id": "model-v0"},
+            "extraction": {"method": "model", "job_id": "contract-v0.2"},
         },
         "entities": [],
         "events": [],
@@ -73,7 +73,7 @@ class ContractPipelineTests(unittest.TestCase):
                 "time": traditional_time(9),
                 "participants": [],
                 "places": [],
-                "extraction": {"method": "model", "job_id": "model-v0"},
+                "extraction": {"method": "model", "job_id": "contract-v0.2"},
             }
         ]
         errors = source_calendar_consistency(
@@ -93,7 +93,7 @@ class ContractPipelineTests(unittest.TestCase):
                 "time": None,
                 "participants": [],
                 "places": [],
-                "extraction": {"method": "model", "job_id": "model-v0"},
+                "extraction": {"method": "model", "job_id": "contract-v0.2"},
             }
         ]
         self.assertEqual(
@@ -121,6 +121,8 @@ class ContractPipelineTests(unittest.TestCase):
         self.assertIn("Correct ONLY", prompt)
         self.assertIn("VALIDATION ERRORS", prompt)
         self.assertIn("expected 8, got 9", prompt)
+        self.assertIn("smallest changes", prompt)
+        self.assertIn("Warnings in the returned bundle must describe the corrected final bundle", prompt)
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("semantic_evaluation", prompt)
 
@@ -140,7 +142,7 @@ class ContractPipelineTests(unittest.TestCase):
         )
         self.assertEqual(1, len(provider.prompts))
         self.assertEqual("src_001", repaired["source"]["temp_id"])
-        self.assertEqual("model-v0+repair-v0", repaired["source"]["extraction"]["job_id"])
+        self.assertEqual("contract-v0.2+repair-v0", repaired["source"]["extraction"]["job_id"])
 
 
 if __name__ == "__main__":
