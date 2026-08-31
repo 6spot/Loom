@@ -10,6 +10,18 @@ from typing import Any
 from model_v0 import ModelProvider, ModelV0Error, parse_model_response
 
 
+def coverage_units(raw: str) -> list[dict[str, str]]:
+    """Build a deterministic textual-order checklist from source clauses."""
+    parts = re.split(r"[，。；！？\n]+", raw)
+    units: list[dict[str, str]] = []
+    for part in parts:
+        text = part.strip()
+        if not text:
+            continue
+        units.append({"unit_id": f"u{len(units) + 1:03d}", "text": text})
+    return units
+
+
 def build_coverage_prompt(
     raw: str,
     context: dict[str, Any],
@@ -21,46 +33,61 @@ def build_coverage_prompt(
     config_text = json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True)
     schema_text = json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True)
     initial_text = json.dumps(initial_bundle, ensure_ascii=False, indent=2, sort_keys=True)
+    units_text = json.dumps(coverage_units(raw), ensure_ascii=False, indent=2)
     return f"""You are Chronicle coverage-v0.2, a closed-book coverage reviewer.
 
 Your task is NOT to reinterpret history and NOT to rewrite PASS-1 data.
-Audit SOURCE TEXT sentence-by-sentence against PASS-1 STAGED BUNDLE and return
-ONLY source-supported additions that are missing from pass 1.
+Audit every AUDIT UNIT against PASS-1 STAGED BUNDLE and return only
+source-supported additions that are genuinely missing from pass 1.
 
 NON-NEGOTIABLE RULES
 1. Use only SOURCE TEXT plus explicit DOCUMENT CONTEXT. Never add background historical knowledge.
 2. Do not optimize toward any external reference answer. None is provided.
 3. PASS-1 records are immutable. Never repeat, delete, rename, merge, rephrase, or replace an existing record.
-4. For every explicit action, state transition, appointment, death, succession, surrender, attack,
-   movement, battle/outcome, epidemic/effect, territorial change, or other historically meaningful
-   assertion in SOURCE TEXT, check whether pass 1 already contains adequate Entity/Event/Claim coverage.
-5. Return an addition only when pass 1 lacks that information.
-6. Every added Claim.evidence.text must be an exact SOURCE TEXT substring.
-7. Use only canonical Claim predicates allowed by INGESTION POLICY. Do not emit configured aliases.
-8. Preserve traditional/regnal time expressions and never fabricate Gregorian month/day precision.
-9. Keep entity/event resolution deferred; do not invent canonical UUIDs.
-10. Existing temp IDs may be referenced exactly as they appear in PASS-1 STAGED BUNDLE.
-11. New records must use job-local provisional temp IDs with the normal ent_/evt_/clm_ prefixes.
-12. Return one JSON object only with exactly these four arrays: entities, events, claims, warnings.
+4. Entity presence alone NEVER proves that an action/state transition is covered.
+5. For an explicit action/state transition to be `covered`, cite at least one existing PASS-1 Event or Claim
+   that semantically represents that action/state transition. Entity-only refs are insufficient.
+6. If an AUDIT UNIT contains an explicit historically meaningful action/state transition that lacks adequate
+   Event/Claim coverage, mark it `gap` and add the minimum missing records needed.
+7. `context_only` is only for a unit that carries chronology/topic/context and contains no historical action,
+   state transition, relationship assertion, appointment, death, succession, surrender, attack, movement,
+   battle/outcome, epidemic/effect, territorial change, or comparable assertion.
+8. Every added Claim.evidence.text must be an exact SOURCE TEXT substring.
+9. Use only canonical Claim predicates allowed by INGESTION POLICY. Do not emit configured aliases.
+10. Preserve traditional/regnal time expressions and never fabricate Gregorian month/day precision.
+11. Keep entity/event resolution deferred; do not invent canonical UUIDs.
+12. Existing temp IDs may be referenced exactly as they appear in PASS-1 STAGED BUNDLE.
+13. New records must use job-local provisional temp IDs with the normal ent_/evt_/clm_ prefixes.
+14. Return one JSON object only with exactly five arrays: audit, entities, events, claims, warnings.
+15. Zero additions is valid only when every non-context audit unit is `covered` by specific PASS-1 Event/Claim refs.
 
 OUTPUT PATCH SHAPE
 {{
+  "audit": [
+    {{
+      "unit_id": "u001",
+      "status": "covered | gap | context_only",
+      "pass1_refs": ["evt_...", "clm_..."],
+      "addition_refs": ["evt_...", "clm_..."],
+      "note": "brief source-grounded coverage reason"
+    }}
+  ],
   "entities": [/* only missing Entity records */],
   "events": [/* only missing Event records */],
   "claims": [/* only missing Claim records */],
   "warnings": [/* only new warnings caused by additions */]
 }}
 
+AUDIT REQUIREMENTS
+- Return exactly one audit row for every AUDIT UNIT, in the same order.
+- `covered`: pass1_refs must contain at least one existing evt_ or clm_ ID.
+- `gap`: addition_refs must contain at least one new ent_/evt_/clm_ ID returned in this same patch.
+- `context_only`: both ref arrays must be empty.
+- Do not cite an Entity alone as proof that an action is covered.
+- One source unit may need multiple additions, and one addition may cover multiple closely related units.
+
 The individual Entity/Event/Claim/Warning objects must conform to the corresponding
 object definitions in OUTPUT JSON SCHEMA. Do not return source or schema_version.
-
-COVERAGE AUDIT METHOD
-- Walk the source in textual order.
-- Identify each explicit historically meaningful action or state change.
-- First ask whether pass 1 already covers it semantically, even if titles/evidence spans differ.
-- Only when it is genuinely missing, add the minimum Entity/Event/Claim records needed.
-- Prefer atomic claims.
-- Extra source-grounded detail is acceptable only when it fills an actual pass-1 gap.
 
 DOCUMENT CONTEXT
 {context_text}
@@ -70,6 +97,9 @@ INGESTION POLICY
 
 OUTPUT JSON SCHEMA
 {schema_text}
+
+AUDIT UNITS (MACHINE-DERIVED, TEXTUAL ORDER)
+{units_text}
 
 PASS-1 STAGED BUNDLE (IMMUTABLE)
 {initial_text}
@@ -81,13 +111,122 @@ SOURCE TEXT
 """
 
 
+def _identity(item: dict[str, Any]) -> str | None:
+    value = item.get("temp_id") or item.get("id")
+    return str(value) if value is not None else None
+
+
+def _all_ids(items: list[dict[str, Any]]) -> set[str]:
+    return {
+        identity
+        for item in items
+        if isinstance(item, dict) and (identity := _identity(item))
+    }
+
+
+def parse_coverage_response(
+    text: str,
+    raw: str,
+    initial_bundle: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    value = parse_model_response(text)
+    allowed = {"audit", "entities", "events", "claims", "warnings"}
+    unexpected = sorted(set(value) - allowed)
+    if unexpected:
+        raise ModelV0Error(
+            "coverage response must use the audit+additions protocol; unexpected key(s): "
+            + ", ".join(unexpected)
+        )
+
+    audit = value.get("audit")
+    if not isinstance(audit, list) or any(not isinstance(item, dict) for item in audit):
+        raise ModelV0Error("coverage response field 'audit' must be an array of objects")
+
+    additions: dict[str, list[dict[str, Any]]] = {}
+    for name in ("entities", "events", "claims", "warnings"):
+        items = value.get(name, [])
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise ModelV0Error(f"coverage response field {name!r} must be an array of objects")
+        additions[name] = items
+
+    expected_units = coverage_units(raw)
+    expected_ids = [item["unit_id"] for item in expected_units]
+    actual_ids = [str(item.get("unit_id") or "") for item in audit]
+    if actual_ids != expected_ids:
+        raise ModelV0Error(
+            "coverage audit must contain every machine-derived unit exactly once and in order"
+        )
+
+    pass1_event_ids = _all_ids(
+        [item for item in initial_bundle.get("events", []) if isinstance(item, dict)]
+    )
+    pass1_claim_ids = _all_ids(
+        [item for item in initial_bundle.get("claims", []) if isinstance(item, dict)]
+    )
+    valid_coverage_refs = pass1_event_ids | pass1_claim_ids
+
+    added_ids = (
+        _all_ids(additions["entities"])
+        | _all_ids(additions["events"])
+        | _all_ids(additions["claims"])
+    )
+
+    for row in audit:
+        unit_id = str(row.get("unit_id"))
+        status = row.get("status")
+        pass1_refs = row.get("pass1_refs", [])
+        addition_refs = row.get("addition_refs", [])
+        note = row.get("note")
+        if status not in {"covered", "gap", "context_only"}:
+            raise ModelV0Error(f"{unit_id} has invalid coverage status: {status!r}")
+        if not isinstance(pass1_refs, list) or any(not isinstance(ref, str) for ref in pass1_refs):
+            raise ModelV0Error(f"{unit_id}.pass1_refs must be an array of strings")
+        if not isinstance(addition_refs, list) or any(
+            not isinstance(ref, str) for ref in addition_refs
+        ):
+            raise ModelV0Error(f"{unit_id}.addition_refs must be an array of strings")
+        if not isinstance(note, str) or not note.strip():
+            raise ModelV0Error(f"{unit_id}.note must be a non-empty string")
+
+        if status == "covered":
+            if not pass1_refs:
+                raise ModelV0Error(
+                    f"{unit_id} is covered but cites no PASS-1 Event/Claim"
+                )
+            invalid = sorted(set(pass1_refs) - valid_coverage_refs)
+            if invalid:
+                raise ModelV0Error(
+                    f"{unit_id} covered refs must be existing PASS-1 Event/Claim IDs: "
+                    + ", ".join(invalid)
+                )
+            if addition_refs:
+                raise ModelV0Error(f"{unit_id} is covered but also cites additions")
+        elif status == "gap":
+            if not addition_refs:
+                raise ModelV0Error(f"{unit_id} is gap but cites no addition")
+            invalid = sorted(set(addition_refs) - added_ids)
+            if invalid:
+                raise ModelV0Error(
+                    f"{unit_id} gap refs must point to additions returned in the same patch: "
+                    + ", ".join(invalid)
+                )
+        else:
+            if pass1_refs or addition_refs:
+                raise ModelV0Error(
+                    f"{unit_id} is context_only and must not cite coverage/addition refs"
+                )
+
+    return audit, additions
+
+
 def parse_coverage_additions(text: str) -> dict[str, list[dict[str, Any]]]:
+    """Legacy parser retained only for tests/debugging of raw patch shape."""
     value = parse_model_response(text)
     allowed = {"entities", "events", "claims", "warnings"}
     unexpected = sorted(set(value) - allowed)
     if unexpected:
         raise ModelV0Error(
-            "coverage response must be additions-only; unexpected key(s): "
+            "legacy coverage additions parser received unexpected key(s): "
             + ", ".join(unexpected)
         )
     result: dict[str, list[dict[str, Any]]] = {}
@@ -97,11 +236,6 @@ def parse_coverage_additions(text: str) -> dict[str, list[dict[str, Any]]]:
             raise ModelV0Error(f"coverage response field {name!r} must be an array of objects")
         result[name] = items
     return result
-
-
-def _identity(item: dict[str, Any]) -> str | None:
-    value = item.get("temp_id") or item.get("id")
-    return str(value) if value is not None else None
 
 
 def _id_generator(items: list[dict[str, Any]], prefix: str):
@@ -232,7 +366,7 @@ def merge_coverage_additions(
     event_map: dict[str, str] = {}
     predicate_aliases = _predicate_aliases(config)
     stats = {
-        "protocol": "additions-only",
+        "protocol": "audit+additions-only",
         "proposed": {
             name: len(additions.get(name, []))
             for name in ("entities", "events", "claims", "warnings")
@@ -356,8 +490,24 @@ def merge_coverage_additions(
     return result, stats
 
 
+def audit_summary(audit: list[dict[str, Any]]) -> dict[str, Any]:
+    counts = {"covered": 0, "gap": 0, "context_only": 0}
+    gap_units: list[str] = []
+    for row in audit:
+        status = str(row.get("status"))
+        if status in counts:
+            counts[status] += 1
+        if status == "gap":
+            gap_units.append(str(row.get("unit_id")))
+    return {
+        "units": len(audit),
+        "status_counts": counts,
+        "gap_units": gap_units,
+    }
+
+
 class CoverageV02Extractor:
-    """Run one provider-backed additions-only review over an existing staged bundle."""
+    """Run one provider-backed audit+additions review over an existing staged bundle."""
 
     def __init__(
         self,
@@ -374,6 +524,8 @@ class CoverageV02Extractor:
         self.schema = schema
         self.fixture_name = fixture_name
         self.provider = provider
+        self.last_response: str | None = None
+        self.last_audit: list[dict[str, Any]] = []
 
     def prompt(self, initial_bundle: dict[str, Any]) -> str:
         return build_coverage_prompt(
@@ -384,8 +536,12 @@ class CoverageV02Extractor:
         self, initial_bundle: dict[str, Any]
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         response = self.provider.complete(self.prompt(initial_bundle))
-        additions = parse_coverage_additions(response)
-        return merge_coverage_additions(initial_bundle, additions, self.config)
+        self.last_response = response
+        audit, additions = parse_coverage_response(response, self.raw, initial_bundle)
+        self.last_audit = audit
+        result, stats = merge_coverage_additions(initial_bundle, additions, self.config)
+        stats["audit"] = audit_summary(audit)
+        return result, stats
 
 
 def object_counts(bundle: dict[str, Any]) -> dict[str, int | None]:
