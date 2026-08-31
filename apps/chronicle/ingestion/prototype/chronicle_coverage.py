@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         audit = merge_stats.pop("audit", None)
         report["coverage_pass"] = {
             "performed": True,
-            "protocol": "audit+additions-only",
+            "protocol": "audit+claim-coverage+additions-only",
             "initial_counts": object_counts(initial),
             "final_counts": object_counts(final),
             "audit": audit,
@@ -127,6 +127,12 @@ def main(argv: list[str] | None = None) -> int:
                 "coverage-v0.2 audit: "
                 f"units={audit['units']} status_counts={audit['status_counts']} "
                 f"gap_units={audit['gap_units']}",
+                file=sys.stderr,
+            )
+            print(
+                "coverage-v0.2 claim audit: "
+                f"status_counts={audit['claim_status_counts']} "
+                f"gap_units={audit['claim_gap_units']}",
                 file=sys.stderr,
             )
         print(
