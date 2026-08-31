@@ -112,6 +112,16 @@ claim:
       held: gained_territory
       caused_deaths: affected
 
+coverage:
+  version: "0.2"
+  strategy: model_second_pass
+  enabled_by_default: false
+  preserve_valid_records: true
+  audit_source_in_text_order: true
+  audit_explicit_actions_and_state_changes: true
+  source_grounded_only: true
+  external_reference_answer: forbidden
+
 warnings:
   emit_contextual_coreference: true
   emit_partial_calendar_conversion: true
