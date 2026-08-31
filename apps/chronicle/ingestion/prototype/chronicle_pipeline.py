@@ -3,7 +3,7 @@
 
 Production path:
 source -> one contract-first extraction -> deterministic validation -> optional
-one bounded repair -> deterministic revalidation -> staged output.
+one bounded patch repair -> deterministic revalidation -> staged output.
 
 Human gold / Evaluator v2 are intentionally outside this command.
 """
@@ -38,9 +38,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="save the normalized contract extraction before any bounded repair",
     )
+    parser.add_argument(
+        "--repair-candidate-output",
+        type=Path,
+        help="save the complete deterministic repair candidate even when it fails revalidation",
+    )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
-    parser.add_argument("--raw-repair-response", type=Path)
+    parser.add_argument(
+        "--raw-repair-response",
+        type=Path,
+        help="save the raw model repair patch response",
+    )
     return parser
 
 
@@ -65,6 +74,10 @@ def _counts(bundle: dict) -> dict[str, int]:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        # Never leave a stale prior success at the requested output path when this run fails.
+        if args.output.exists():
+            args.output.unlink()
+
         raw = (args.fixture / "raw.txt").read_text(encoding="utf-8")
         context = load_yaml(args.fixture / "context.yaml")
         config = load_yaml(args.config)
@@ -75,19 +88,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             provider = ReplayModelProvider(args.model_response)
 
-        bundle = ContractV0Extractor(
+        initial_bundle = ContractV0Extractor(
             raw, context, config, schema, args.fixture.name, provider
         ).extract()
-        initial_counts = _counts(bundle)
+        initial_counts = _counts(initial_bundle)
         if args.initial_output:
-            dump_json(bundle, args.initial_output)
+            dump_json(initial_bundle, args.initial_output)
 
-        initial_validation = _validate(bundle, raw, config, schema)
+        initial_validation = _validate(initial_bundle, raw, config, schema)
+        final_bundle = initial_bundle
         final_validation = initial_validation
         repair_meta = {
             "attempted": False,
             "attempts": 0,
             "provider": None,
+            "accepted": False,
+            "protocol": None,
         }
 
         if not initial_validation["passed"] and args.repair_attempts == 1:
@@ -101,56 +117,84 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
             errors = flatten_validation_errors(initial_validation)
-            bundle, raw_repair = repair_once(
+            candidate_bundle, raw_repair, patch_stats = repair_once(
                 repair_provider,
                 raw,
                 context,
                 config,
                 schema,
-                bundle,
+                initial_bundle,
                 errors,
                 args.fixture.name,
             )
             if args.raw_repair_response:
                 args.raw_repair_response.write_text(raw_repair, encoding="utf-8")
-            final_validation = _validate(bundle, raw, config, schema)
+            if args.repair_candidate_output:
+                dump_json(candidate_bundle, args.repair_candidate_output)
+
+            candidate_validation = _validate(candidate_bundle, raw, config, schema)
+            final_validation = candidate_validation
             repair_meta = {
                 "attempted": True,
                 "attempts": 1,
                 "provider": repair_provider.name,
                 "input_error_count": initial_validation["count"],
+                "accepted": candidate_validation["passed"],
+                "protocol": patch_stats["protocol"],
+                "patch": patch_stats,
+                "candidate_counts": _counts(candidate_bundle),
             }
+            if candidate_validation["passed"]:
+                final_bundle = candidate_bundle
 
-        final_counts = _counts(bundle)
+        output_written = final_validation["passed"]
+        if output_written:
+            dump_json(final_bundle, args.output)
+
         report = {
             "schema": "chronicle.ingestion-run",
-            "version": "0.2",
+            "version": "0.3",
             "extractor": f"contract-v{CONTRACT_VERSION}",
             "provider": provider.name,
-            "pipeline": "contract-first-single-extraction-bounded-repair",
+            "pipeline": "contract-first-single-extraction-bounded-patch-repair",
             "initial_validation": initial_validation,
             "repair": repair_meta,
             "final_validation": final_validation,
             "initial_counts": initial_counts,
-            "counts": final_counts,
+            "counts": _counts(final_bundle) if output_written else None,
+            "output_written": output_written,
         }
-        dump_json(bundle, args.output)
         dump_json(report, args.report)
 
         print(
             f"chronicle validation: initial={initial_validation['count']} "
-            f"repair_attempted={repair_meta['attempted']} final={final_validation['count']} "
+            f"repair_attempted={repair_meta['attempted']} "
+            f"repair_accepted={repair_meta['accepted']} "
+            f"final={final_validation['count']} "
             f"({'PASS' if final_validation['passed'] else 'FAIL'})",
             file=sys.stderr,
         )
         if repair_meta["attempted"]:
             print(
-                f"chronicle counts: initial={initial_counts} final={final_counts}",
+                f"chronicle counts: initial={initial_counts} "
+                f"candidate={repair_meta['candidate_counts']} "
+                f"output={_counts(final_bundle) if output_written else None}",
+                file=sys.stderr,
+            )
+            print(
+                "chronicle repair patch: "
+                f"replaced={repair_meta['patch']['replaced']} "
+                f"added={repair_meta['patch']['added']} "
+                f"removed_warnings={repair_meta['patch']['removed_warnings']}",
                 file=sys.stderr,
             )
         if not final_validation["passed"]:
             for error in flatten_validation_errors(final_validation):
                 print(f"validation: {error}", file=sys.stderr)
+            print(
+                "chronicle output not written because final validation failed",
+                file=sys.stderr,
+            )
             return 1
         return 0
     except (OSError, json.JSONDecodeError, ModelV0Error) as exc:
