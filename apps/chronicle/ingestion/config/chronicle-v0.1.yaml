@@ -123,6 +123,8 @@ coverage:
   require_unit_audit: true
   require_claim_coverage_decision: true
   event_does_not_substitute_for_claim: true
+  distinct_occurrence_required_for_new_event: true
+  subordinate_assertion_prefer_claim_only: true
   source_month_grounding: true
   preserve_valid_records: true
   audit_source_in_text_order: true
