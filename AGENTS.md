@@ -12,6 +12,8 @@ Always read:
 - `docs/development/README.md`;
 - `docs/tasks/README.md`.
 
+When working inside a subtree that contains a more specific `AGENTS.md`, read that file as well. Subtree instructions may add application/module-specific rules but do not override repository architecture authority.
+
 When an executable task record exists, also read:
 
 - the current task record under `docs/tasks/`;
