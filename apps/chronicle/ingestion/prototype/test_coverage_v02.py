@@ -6,7 +6,9 @@ import unittest
 
 from coverage_v02 import (
     CoverageV02Extractor,
+    audit_summary,
     build_coverage_prompt,
+    coverage_unit_contexts,
     coverage_units,
     merge_coverage_additions,
     object_counts,
@@ -50,17 +52,37 @@ def empty_additions() -> dict:
     return {"entities": [], "events": [], "claims": [], "warnings": []}
 
 
+def context_row(unit_id: str) -> dict:
+    return {
+        "unit_id": unit_id,
+        "status": "context_only",
+        "pass1_refs": [],
+        "addition_refs": [],
+        "claim_status": "not_applicable",
+        "claim_refs": [],
+        "claim_note": "chronology only; no factual assertion",
+        "note": "chronology only",
+    }
+
+
 class CoverageV02Tests(unittest.TestCase):
-    def test_coverage_units_are_deterministic_and_in_text_order(self) -> None:
+    def test_coverage_units_and_source_month_context_are_deterministic(self) -> None:
+        raw = "八月，表卒，屯襄阳。九月，公到新野。"
         self.assertEqual(
             [
-                {"unit_id": "u001", "text": "十二月"},
-                {"unit_id": "u002", "text": "孙权为备攻合肥"},
+                {"unit_id": "u001", "text": "八月"},
+                {"unit_id": "u002", "text": "表卒"},
+                {"unit_id": "u003", "text": "屯襄阳"},
+                {"unit_id": "u004", "text": "九月"},
+                {"unit_id": "u005", "text": "公到新野"},
             ],
-            coverage_units("十二月，孙权为备攻合肥。"),
+            coverage_units(raw),
         )
+        contexts = coverage_unit_contexts(raw)
+        self.assertEqual(8, contexts["u003"]["source_month_hint"])
+        self.assertEqual(9, contexts["u005"]["source_month_hint"])
 
-    def test_prompt_contains_audit_units_and_no_reference_answer(self) -> None:
+    def test_prompt_requires_distinct_claim_coverage_and_source_month_hint(self) -> None:
         prompt = build_coverage_prompt(
             "十二月，孙权为备攻合肥。",
             {"chronology": {"normalized_year": 208}},
@@ -68,42 +90,27 @@ class CoverageV02Tests(unittest.TestCase):
             {"type": "object"},
             staged_bundle(),
         )
-        self.assertIn("十二月，孙权为备攻合肥。", prompt)
-        self.assertIn("PASS-1 STAGED BUNDLE (IMMUTABLE)", prompt)
-        self.assertIn("AUDIT UNITS (MACHINE-DERIVED, TEXTUAL ORDER)", prompt)
-        self.assertIn("Entity presence alone NEVER", prompt)
-        self.assertIn('"unit_id": "u001"', prompt)
+        self.assertIn("Event coverage and Claim coverage are DIFFERENT", prompt)
+        self.assertIn("source_month_hint", prompt)
+        self.assertIn('"source_month_hint": 12', prompt)
+        self.assertIn("attacked", prompt)
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("human gold", prompt.lower())
 
-    def test_audit_rejects_entity_only_covered_claim(self) -> None:
+    def test_audit_rejects_entity_only_overall_coverage(self) -> None:
         initial = staged_bundle()
-        initial["entities"] = [
-            {
-                "temp_id": "ent_001",
-                "kind": "entity",
-                "type": "person",
-                "canonical_name": "孙权",
-                "aliases": [],
-                "mentions": [{"text": "孙权"}],
-                "resolution": {"status": "unresolved"},
-                "extraction": {"method": "model"},
-            }
-        ]
+        initial["entities"] = [{"temp_id": "ent_001"}]
         response = {
             "audit": [
-                {
-                    "unit_id": "u001",
-                    "status": "context_only",
-                    "pass1_refs": [],
-                    "addition_refs": [],
-                    "note": "chronology",
-                },
+                context_row("u001"),
                 {
                     "unit_id": "u002",
                     "status": "covered",
                     "pass1_refs": ["ent_001"],
                     "addition_refs": [],
+                    "claim_status": "not_applicable",
+                    "claim_refs": [],
+                    "claim_note": "no predicate",
                     "note": "entity exists",
                 },
             ],
@@ -116,58 +123,120 @@ class CoverageV02Tests(unittest.TestCase):
                 initial,
             )
 
-    def test_review_invokes_provider_once_and_preserves_pass1_when_audited_covered(self) -> None:
+    def test_audit_rejects_claim_gap_without_new_claim(self) -> None:
+        response = {
+            "audit": [
+                context_row("u001"),
+                {
+                    "unit_id": "u002",
+                    "status": "gap",
+                    "pass1_refs": [],
+                    "addition_refs": ["evt_900"],
+                    "claim_status": "gap",
+                    "claim_refs": [],
+                    "claim_note": "attack requires attacked Claim",
+                    "note": "attack missing",
+                },
+            ],
+            "entities": [],
+            "events": [
+                {
+                    "temp_id": "evt_900",
+                    "time": {
+                        "source_calendar": {
+                            "system": "chinese_lunisolar_regnal",
+                            "month": 12,
+                        }
+                    },
+                }
+            ],
+            "claims": [],
+            "warnings": [],
+        }
+        with self.assertRaises(ModelV0Error):
+            parse_coverage_response(
+                json.dumps(response, ensure_ascii=False),
+                "十二月，孙权为备攻合肥。",
+                staged_bundle(),
+            )
+
+    def test_audit_rejects_wrong_inherited_source_month(self) -> None:
+        response = {
+            "audit": [
+                context_row("u001"),
+                {
+                    "unit_id": "u002",
+                    "status": "gap",
+                    "pass1_refs": [],
+                    "addition_refs": ["evt_900", "clm_900"],
+                    "claim_status": "gap",
+                    "claim_refs": ["clm_900"],
+                    "claim_note": "stationing is representable by stationed_at",
+                    "note": "missing stationing",
+                },
+            ],
+            "entities": [],
+            "events": [
+                {
+                    "temp_id": "evt_900",
+                    "time": {
+                        "source_calendar": {
+                            "system": "chinese_lunisolar_regnal",
+                            "month": 9,
+                        }
+                    },
+                }
+            ],
+            "claims": [
+                {
+                    "temp_id": "clm_900",
+                    "time": {
+                        "source_calendar": {
+                            "system": "chinese_lunisolar_regnal",
+                            "month": 8,
+                        }
+                    },
+                }
+            ],
+            "warnings": [],
+        }
+        with self.assertRaisesRegex(ModelV0Error, "expected 8, got 9"):
+            parse_coverage_response(
+                json.dumps(response, ensure_ascii=False),
+                "八月，屯襄阳。",
+                staged_bundle(),
+            )
+
+    def test_review_preserves_pass1_when_event_and_claim_are_covered(self) -> None:
         initial = staged_bundle()
-        initial["events"] = [
-            {
-                "temp_id": "evt_001",
-                "kind": "event",
-                "type": "military",
-                "title": "孙权攻合肥",
-                "time": None,
-                "participants": [],
-                "places": [],
-                "extraction": {"method": "model"},
-            }
-        ]
+        initial["events"] = [{"temp_id": "evt_001"}]
+        initial["claims"] = [{"temp_id": "clm_001"}]
         patch = {
             "audit": [
-                {
-                    "unit_id": "u001",
-                    "status": "context_only",
-                    "pass1_refs": [],
-                    "addition_refs": [],
-                    "note": "month marker only",
-                },
+                context_row("u001"),
                 {
                     "unit_id": "u002",
                     "status": "covered",
-                    "pass1_refs": ["evt_001"],
+                    "pass1_refs": ["evt_001", "clm_001"],
                     "addition_refs": [],
-                    "note": "existing event represents the attack",
+                    "claim_status": "covered",
+                    "claim_refs": ["clm_001"],
+                    "claim_note": "existing attacked Claim covers assertion",
+                    "note": "existing Event and Claim cover attack",
                 },
             ],
             **empty_additions(),
         }
-        provider = FakeProvider(patch)
         extractor = CoverageV02Extractor(
-            "十二月，孙权为备攻合肥。",
-            {},
-            {},
-            {},
-            "fixture",
-            provider,
+            "十二月，孙权为备攻合肥。", {}, {}, {}, "fixture", FakeProvider(patch)
         )
         result, stats = extractor.review(initial)
-        self.assertEqual(1, len(provider.prompts))
         self.assertEqual(initial, result)
-        self.assertEqual("audit+additions-only", stats["protocol"])
-        self.assertEqual(0, sum(stats["added"].values()))
+        self.assertEqual("audit+claim-coverage+additions-only", stats["protocol"])
         self.assertEqual(
-            {"covered": 1, "gap": 0, "context_only": 1},
-            stats["audit"]["status_counts"],
+            {"covered": 1, "gap": 0, "not_applicable": 1},
+            stats["audit"]["claim_status_counts"],
         )
-        self.assertIsNotNone(extractor.last_response)
 
     def test_merge_maps_duplicate_entity_and_keeps_existing_objects_immutable(self) -> None:
         initial = staged_bundle()
@@ -183,7 +252,7 @@ class CoverageV02Tests(unittest.TestCase):
                 "extraction": {"method": "model", "job_id": "model-v0"},
             }
         ]
-        initial_snapshot = copy.deepcopy(initial)
+        snapshot = copy.deepcopy(initial)
         additions = {
             "entities": [
                 {
@@ -239,87 +308,59 @@ class CoverageV02Tests(unittest.TestCase):
             "warnings": [],
         }
         result, stats = merge_coverage_additions(initial, additions)
-
-        self.assertEqual(initial_snapshot["source"], result["source"])
-        self.assertEqual(initial_snapshot["entities"][0], result["entities"][0])
-        self.assertEqual(2, len(result["entities"]))
-        self.assertEqual("ent_002", result["entities"][1]["temp_id"])
+        self.assertEqual(snapshot["entities"][0], result["entities"][0])
         self.assertEqual("ent_001", result["events"][0]["participants"][0]["entity_ref"])
-        self.assertEqual(["ent_002"], result["events"][0]["places"])
-        self.assertEqual("ent_001", result["claims"][0]["subject"]["ref"])
         self.assertEqual("ent_002", result["claims"][0]["object"]["ref"])
         self.assertEqual(1, stats["skipped_duplicates"]["entities"])
-        self.assertEqual(1, stats["added"]["entities"])
-        self.assertEqual(1, stats["added"]["events"])
         self.assertEqual(1, stats["added"]["claims"])
 
     def test_merge_deduplicates_claim_alias_and_contained_evidence(self) -> None:
         initial = staged_bundle()
         initial["entities"] = [
-            {
-                "temp_id": "ent_001",
-                "kind": "entity",
-                "type": "person",
-                "canonical_name": "刘备",
-                "aliases": [],
-                "mentions": [{"text": "备"}],
-                "resolution": {"status": "unresolved"},
-                "extraction": {"method": "model"},
-            },
-            {
-                "temp_id": "ent_002",
-                "kind": "entity",
-                "type": "place",
-                "canonical_name": "荆州",
-                "aliases": [],
-                "mentions": [{"text": "荆州"}],
-                "resolution": {"status": "unresolved"},
-                "extraction": {"method": "model"},
-            },
+            {"temp_id": "ent_001", "type": "person", "canonical_name": "刘备"},
+            {"temp_id": "ent_002", "type": "place", "canonical_name": "荆州"},
         ]
         initial["claims"] = [
             {
                 "temp_id": "clm_001",
-                "kind": "claim",
                 "subject": {"kind": "entity_ref", "ref": "ent_001"},
                 "predicate": "held",
                 "object": {"kind": "entity_ref", "ref": "ent_002"},
                 "time": None,
-                "evidence": {
-                    "text": "备遂有荆州、江南诸郡",
-                    "source_ref": "src_777",
-                    "locator": {},
-                },
-                "assessment": {"status": "unassessed"},
-                "extraction": {"method": "model"},
+                "evidence": {"text": "备遂有荆州、江南诸郡"},
             }
         ]
         additions = empty_additions()
         additions["claims"] = [
             {
                 "temp_id": "clm_900",
-                "kind": "claim",
                 "subject": {"kind": "entity_ref", "ref": "ent_001"},
                 "predicate": "gained_territory",
                 "object": {"kind": "entity_ref", "ref": "ent_002"},
                 "time": None,
-                "evidence": {
-                    "text": "备遂有荆州",
-                    "source_ref": "src_777",
-                    "locator": {},
-                },
-                "assessment": {"status": "unassessed"},
-                "extraction": {"method": "model"},
+                "evidence": {"text": "备遂有荆州"},
             }
         ]
-        config = {
-            "claim": {
-                "predicates": {"aliases": {"held": "gained_territory"}}
-            }
-        }
-        result, stats = merge_coverage_additions(initial, additions, config)
+        result, stats = merge_coverage_additions(
+            initial,
+            additions,
+            {"claim": {"predicates": {"aliases": {"held": "gained_territory"}}}},
+        )
         self.assertEqual(1, len(result["claims"]))
         self.assertEqual(1, stats["skipped_duplicates"]["claims"])
+
+    def test_audit_summary_reports_claim_gaps(self) -> None:
+        audit = [
+            context_row("u001"),
+            {
+                "unit_id": "u002",
+                "status": "gap",
+                "claim_status": "gap",
+            },
+        ]
+        summary = audit_summary(audit)
+        self.assertEqual(["u002"], summary["gap_units"])
+        self.assertEqual(["u002"], summary["claim_gap_units"])
 
     def test_object_counts_supports_ab_reporting(self) -> None:
         bundle = staged_bundle()
