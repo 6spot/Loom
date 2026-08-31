@@ -116,14 +116,16 @@ coverage:
   version: "0.2"
   strategy: model_second_pass
   enabled_by_default: false
-  output_protocol: audit_additions_only
+  output_protocol: audit_claim_coverage_additions_only
   pass1_immutable: true
   deterministic_merge: true
   deduplicate_against_pass1: true
+  require_unit_audit: true
+  require_claim_coverage_decision: true
+  event_does_not_substitute_for_claim: true
+  source_month_grounding: true
   preserve_valid_records: true
   audit_source_in_text_order: true
-  audit_machine_derived_units: true
-  covered_requires_event_or_claim_ref: true
   audit_explicit_actions_and_state_changes: true
   source_grounded_only: true
   external_reference_answer: forbidden
