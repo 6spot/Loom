@@ -86,7 +86,7 @@ No gold/evaluator output may be fed into extraction or repair.
 - [x] the only ontology expansion from this run (`retreat` Event type) is supported independently by both fixtures;
 - [x] the exact saved second-source initial bundle validates directly with zero hard failures after adding `retreat` to the shared Event vocabulary;
 - [x] optional human-gold evaluation remains development-only and was not used for the production run;
-- [ ] full prototype unittest discovery remains green after the cross-source ontology update;
+- [x] full prototype unittest discovery remains green after the cross-source ontology update;
 - [ ] delivery PR / CI / merge reconciliation completed.
 
 ## Real Luna verification — second source
@@ -162,9 +162,25 @@ After the shared vocabulary update, the exact saved second-source initial bundle
 
 ## Unittest follow-up
 
-A full prototype discovery after the ontology update ran 43 tests. Forty-two passed; one Contract prompt test failed because it asserted that the literal phrase `coverage audit` must not appear anywhere, while the production prompt intentionally contains the prohibition `do not perform a second-pass coverage audit`. The prompt behavior is correct and already cross-source validated; the test assertion was over-broad.
+The first full prototype discovery after the ontology update ran 43 tests. Forty-two passed; one Contract prompt test failed because it asserted that the literal phrase `coverage audit` must not appear anywhere, while the production prompt intentionally contains the prohibition `do not perform a second-pass coverage audit`. The prompt behavior was correct and already cross-source validated; the test assertion was over-broad.
 
-The test has been corrected to require the explicit prohibition rather than forbid the phrase itself. A fresh full discovery is still required before marking the suite green.
+The test was corrected to require the explicit prohibition rather than forbid the phrase itself. After the C0-T7 resolution tests and Event-blocking regressions were added, a fresh complete discovery was run again:
+
+```text
+python3 -m unittest discover \
+  -s apps/chronicle/ingestion/prototype \
+  -p 'test_*.py' \
+  -v
+```
+
+Result:
+
+```text
+Ran 50 tests in 0.024s
+OK
+```
+
+This closes the C0-T6 full-suite follow-up: the cross-source ontology update and its prompt-test correction remain green in the complete current Chronicle prototype suite.
 
 ## What this run pressure-tested
 
@@ -178,4 +194,4 @@ The test has been corrected to require the explicit prohibition rather than forb
 
 Contract v0.2 has now passed a meaningful cross-source production test without fixture-specific extraction code and without a Coverage pass. Do not continue tuning the prompt around either single fixture.
 
-The next useful work should move upward in the data lifecycle: validate the updated vocabulary with unit tests, then begin source-independent resolution/linking of overlapping Entity/Event representations across the two independently ingested bundles. Human gold may still be added later for benchmark purposes, but it is no longer required to justify the production architecture.
+The next useful work should move upward in the data lifecycle: begin source-independent resolution/linking of overlapping Entity/Event representations across the two independently ingested bundles. Human gold may still be added later for benchmark purposes, but it is no longer required to justify the production architecture.
