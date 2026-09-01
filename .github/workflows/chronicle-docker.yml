@@ -1,0 +1,135 @@
+name: Chronicle Docker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/chronicle-docker.yml"
+      - "compose.chronicle.yaml"
+      - ".env.chronicle.example"
+      - "apps/chronicle/Dockerfile"
+      - "apps/chronicle/persistence/**"
+      - "apps/chronicle/read_api/**"
+      - "apps/chronicle/web/**"
+      - "apps/chronicle/.artifacts/**"
+      - "apps/chronicle/ingestion/schemas/**"
+  pull_request:
+    paths:
+      - ".github/workflows/chronicle-docker.yml"
+      - "compose.chronicle.yaml"
+      - ".env.chronicle.example"
+      - "apps/chronicle/Dockerfile"
+      - "apps/chronicle/persistence/**"
+      - "apps/chronicle/read_api/**"
+      - "apps/chronicle/web/**"
+      - "apps/chronicle/.artifacts/**"
+      - "apps/chronicle/ingestion/schemas/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chronicle-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: Chronicle Docker deployment contract
+    runs-on: ubuntu-latest
+    env:
+      CHRONICLE_POSTGRES_USER: chronicle
+      CHRONICLE_POSTGRES_PASSWORD: chroniclecipassword0123456789abcdef
+      CHRONICLE_POSTGRES_DB: chronicle
+      CHRONICLE_DATA_DIR: /tmp/loom-chronicle-ci
+      CHRONICLE_BIND_IP: 127.0.0.1
+      CHRONICLE_PORT: "18080"
+      CHRONICLE_IMAGE_TAG: ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Compose model
+        run: |
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            config >/tmp/chronicle-compose.yaml
+
+      - name: Start Chronicle stack
+        run: |
+          set -euo pipefail
+          mkdir -p "$CHRONICLE_DATA_DIR/postgres"
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            up -d --build
+
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/healthz" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            docker compose \
+              --env-file .env.chronicle.example \
+              -f compose.chronicle.yaml \
+              ps -a
+            docker compose \
+              --env-file .env.chronicle.example \
+              -f compose.chronicle.yaml \
+              logs
+            exit 1
+          fi
+
+      - name: Verify imported world through HTTP
+        run: |
+          set -euo pipefail
+
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            logs chronicle-init | tee /tmp/chronicle-init.log
+
+          grep -q "entities=66 events=45 relations=2" /tmp/chronicle-init.log
+
+          curl -fsSG \
+            --data-urlencode 'q=曹操' \
+            "http://127.0.0.1:${CHRONICLE_PORT}/v0/search" \
+            >/tmp/chronicle-search.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/chronicle-search.json').read_text())
+          matches = [
+              item for item in payload['items']
+              if item['kind'] == 'entity' and item['display'].get('name') == '曹操'
+          ]
+          assert len(matches) == 1, matches
+          assert matches[0]['source_count'] == 2, matches[0]
+          print('chronicle docker smoke: PASS')
+          PY
+
+      - name: Show final container state
+        run: |
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            ps -a
+
+      - name: Stop Chronicle stack
+        if: always()
+        run: |
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            down --remove-orphans || true
+          rm -rf "$CHRONICLE_DATA_DIR" || true
