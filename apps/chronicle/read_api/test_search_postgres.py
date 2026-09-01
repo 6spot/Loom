@@ -54,9 +54,12 @@ class ChronicleSearchRealDataTests(unittest.TestCase):
             conn.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(cls.database_name)))
 
     def _search(self, q: str, *, kind: str = "all", limit: int = 20) -> dict:
-        with psycopg.connect(self.database_url) as conn:
+        conn = psycopg.connect(self.database_url, autocommit=True)
+        try:
             conn.execute("BEGIN READ ONLY")
             return search_catalog(conn, q=q, kind=kind, limit=limit)
+        finally:
+            conn.close()
 
     def test_cao_cao_returns_one_canonical_entity_backed_by_both_sources(self) -> None:
         result = self._search("曹操", kind="entity")
