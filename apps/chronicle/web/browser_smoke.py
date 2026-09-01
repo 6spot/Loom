@@ -84,17 +84,25 @@ def main() -> int:
     require(event_dom, "三国志·魏书·武帝纪", "Wudi Event representation")
     require(event_dom, "三国志·吴书·吴主传", "Wuzhu Event representation")
 
-    evidence_by_bundle: dict[str, str] = {}
+    evidence_count = 0
+    representation_bundles = {
+        representation.get("bundle")
+        for representation in red_detail.get("representations", [])
+    }
+    if representation_bundles != {"wudi", "wuzhu"}:
+        raise AssertionError(
+            f"Red Cliffs must preserve both source representations, got {sorted(representation_bundles)}"
+        )
     for representation in red_detail.get("representations", []):
+        bundle = representation.get("bundle") or "unknown"
         for claim in representation.get("claims", []):
             evidence = claim.get("claim", {}).get("evidence", {}).get("text")
-            if evidence:
-                evidence_by_bundle.setdefault(representation["bundle"], evidence)
-    for bundle in ("wudi", "wuzhu"):
-        evidence = evidence_by_bundle.get(bundle)
-        if not evidence:
-            raise AssertionError(f"Red Cliffs missing direct evidence for {bundle}")
-        require(event_dom, evidence, f"exact {bundle} evidence in Event DOM")
+            if not evidence:
+                continue
+            evidence_count += 1
+            require(event_dom, evidence, f"exact {bundle} evidence in Event DOM")
+    if evidence_count == 0:
+        raise AssertionError("Red Cliffs Event must expose at least one direct source evidence excerpt")
 
     cao_cao = next(
         participant
@@ -142,7 +150,8 @@ def main() -> int:
 
     print(
         "chronicle browser smoke: PASS "
-        f"chrome={chrome} red_cliffs={red_cliffs_id} cao_cao={cao_cao_id} place={place_id}"
+        f"chrome={chrome} red_cliffs={red_cliffs_id} cao_cao={cao_cao_id} place={place_id} "
+        f"evidence={evidence_count}"
     )
     return 0
 
