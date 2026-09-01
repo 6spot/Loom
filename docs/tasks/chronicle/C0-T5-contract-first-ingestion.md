@@ -1,13 +1,13 @@
 ---
 task: C0-T5
 issue: 466
-status: in_progress
+status: completed
 depends_on: [C0-T2, C0-T3]
 created_at: 2026-08-31
 started_at: 2026-08-31
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle contract-first ingestion
@@ -76,12 +76,12 @@ Human gold and Evaluator v2 are development/benchmark tools and are not producti
 - [x] `chronicle_pipeline.py` has no `expected.yaml` or semantic evaluator input.
 - [x] `chronicle_pipeline.py --initial-output` persists normalized pre-repair output for direct auditing.
 - [x] Offline tests for contract/validator/patch-repair behavior are committed.
-- [ ] Full prototype unittest discovery passes in a repository checkout after patch-repair revision.
+- [x] Full prototype unittest discovery passes in a repository checkout after patch-repair revision.
 - [x] Real Luna contract-v0 run executed successfully with deterministic bounded repair.
 - [x] Final contract-v0 output measured offline with Evaluator v2 without feeding evaluator/gold back into production.
 - [x] First real Luna contract-v0.2 run exposed full-bundle repair collapse and was rejected as unsafe.
 - [x] Real Luna contract-v0.2 patch-repair run verifies time retention, predicate fidelity, Event boundaries, warning consistency, and repair preservation.
-- [ ] Delivery PR / CI / merge reconciliation completed.
+- [x] Delivery PR / CI / merge reconciliation completed.
 
 ## Real Luna verification — Contract v0
 
@@ -207,3 +207,9 @@ This is the intended bounded-repair behavior: only four records changed, no hist
 Coverage v0.2 was useful as an experiment because it exposed real failure modes: omitted source actions, Event/Claim granularity problems, pass-2 regressions, object explosion, and traditional source-month mistakes. It also demonstrated that turning coverage into an increasingly detailed semantic audit duplicates the extraction agent's historical-understanding responsibility.
 
 Therefore Coverage v0.2 is not part of the production ingestion architecture. Its code and measurements remain available as research evidence; C0-T5 is the production direction.
+
+## Completion verification
+
+The full Chronicle prototype suite was rerun on 2026-09-01 after patch-repair, cross-source validation, and resolution work were all present: `Ran 50 tests` / `OK`. Delivery PR #459 merged to `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`.
+
+The repository's current GitHub Actions path filters do not include Chronicle/Python, so no Chronicle GitHub CI pass is claimed; the 50-test repository checkout run is the applicable verification evidence.
