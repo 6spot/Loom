@@ -177,7 +177,7 @@ def persist_catalog(conn, catalog: dict[str, Any]) -> tuple[str, dict[str, int]]
                 parse_uuid7(left, "relation left canonical event id"),
                 parse_uuid7(right, "relation right canonical event id"),
                 catalog_sha,
-                Jsonb(relation),
+                Jsonb(identity_payload),
             ),
         )
         if result.rowcount == 0:
@@ -185,7 +185,7 @@ def persist_catalog(conn, catalog: dict[str, Any]) -> tuple[str, dict[str, int]]
                 "SELECT payload FROM chronicle.canonical_event_relations WHERE relation_sha256 = %s",
                 (relation_sha,),
             ).fetchone()
-            if row is None or row[0] != relation:
+            if row is None or row[0] != identity_payload:
                 raise PersistenceConflict(f"canonical event relation {relation_sha} conflicts")
         inserted["relations"] += int(result.rowcount == 1)
         conn.execute(
