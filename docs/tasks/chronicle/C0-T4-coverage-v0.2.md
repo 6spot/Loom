@@ -1,13 +1,13 @@
 ---
 task: C0-T4
 issue: 465
-status: in_progress
+status: completed
 depends_on: [C0-T2, C0-T3]
 created_at: 2026-08-31
 started_at: 2026-08-31
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle extraction coverage v0.2 experiment
@@ -65,5 +65,11 @@ A claim-aware/month-aware audit correctly rejected such errors, but the growing 
 - [x] Raw audit output exposed missing Claim coverage and source-month drift.
 - [x] Experiment conclusion is recorded: do not adopt Coverage v0.2 in production.
 - [x] Production successor C0-T5 / #466 exists.
-- [ ] Full prototype unittest discovery passes in a repository checkout.
-- [ ] Delivery PR / CI / merge reconciliation completed.
+- [x] Full prototype unittest discovery passes in a repository checkout.
+- [x] Delivery PR / CI / merge reconciliation completed.
+
+## Completion verification
+
+The experiment remains intentionally non-production, but its retained development code continues to pass inside the complete Chronicle prototype suite. On 2026-09-01 the repository checkout ran 50 Chronicle prototype tests and finished `OK`.
+
+Delivery PR #459 merged the experiment evidence and its production successor into `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`. The current GitHub Actions path filters do not include Chronicle/Python, so no Chronicle GitHub CI pass is claimed.
