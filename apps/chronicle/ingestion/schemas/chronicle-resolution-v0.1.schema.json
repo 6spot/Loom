@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-resolution-v0.1.schema.json",
+  "title": "Chronicle Cross-Source Resolution Links v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "left_bundle", "right_bundle", "entity_links", "event_links", "warnings"],
+  "properties": {
+    "schema": {"const": "chronicle.resolution-links"},
+    "version": {"const": "0.1"},
+    "left_bundle": {"$ref": "#/$defs/bundle_ref"},
+    "right_bundle": {"$ref": "#/$defs/bundle_ref"},
+    "entity_links": {"type": "array", "items": {"$ref": "#/$defs/entity_link"}},
+    "event_links": {"type": "array", "items": {"$ref": "#/$defs/event_link"}},
+    "warnings": {"type": "array", "items": {"$ref": "#/$defs/warning"}}
+  },
+  "$defs": {
+    "bundle_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "source_ref", "source_title"],
+      "properties": {
+        "label": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "source_title": {"type": "string", "minLength": 1}
+      }
+    },
+    "record_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle", "ref"],
+      "properties": {
+        "bundle": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "entity_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "left", "right", "decision", "confidence", "rationale", "signals"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^ec_[0-9]{3,}$"},
+        "left": {"$ref": "#/$defs/record_ref"},
+        "right": {"$ref": "#/$defs/record_ref"},
+        "decision": {"enum": ["same_entity", "not_same", "uncertain"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "signals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "event_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "left", "right", "decision", "confidence", "rationale", "signals"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^vc_[0-9]{3,}$"},
+        "left": {"$ref": "#/$defs/record_ref"},
+        "right": {"$ref": "#/$defs/record_ref"},
+        "decision": {"enum": ["same_occurrence", "related_occurrence", "not_same", "uncertain"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "rationale": {"type": "string", "minLength": 1},
+        "signals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "refs": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

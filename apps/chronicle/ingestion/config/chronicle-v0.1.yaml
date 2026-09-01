@@ -1,0 +1,174 @@
+schema: chronicle.ingestion
+version: "0.1"
+
+input:
+  formats:
+    - text
+    - markdown
+  language: lzh
+  chunking:
+    strategy: paragraph
+    inherit_document_context: true
+
+output:
+  bundle_schema: ../schemas/chronicle-v0.1.schema.json
+  state: staged
+  canonical_identity: deferred
+  published_id_format: uuidv7
+
+pipeline:
+  production_strategy: contract_first_single_extraction
+  extractor: contract-v0.2
+  validator: deterministic
+  repair:
+    enabled: true
+    max_attempts: 1
+    input: validator_errors_only
+    protocol: patch_only_v0.2
+    preserve_unmentioned_records: true
+    delete_existing_historical_records: false
+    accept_candidate_only_after_revalidation: true
+    write_staged_output_only_on_pass: true
+  semantic_evaluator: development_only
+
+extract:
+  objects:
+    - source
+    - entity
+    - event
+    - claim
+
+source:
+  require_title: true
+  require_evidence_locator: true
+
+entity:
+  allowed_types:
+    - person
+    - place
+    - polity
+    - organization
+    - army
+    - office
+    - group
+    - other
+  preserve_mentions: true
+  contextual_coreference: document_scoped
+  canonical_resolution: deferred
+  on_ambiguity: unresolved
+
+event:
+  allowed_types:
+    - political
+    - administrative
+    - military
+    - battle
+    - movement
+    - retreat
+    - death
+    - birth
+    - succession
+    - appointment
+    - surrender
+    - diplomatic
+    - epidemic
+    - territorial_change
+    - economic
+    - cultural
+    - other
+  # `retreat` was promoted from observed model output after the same semantic
+  # gap appeared independently in both the 魏书·武帝纪 and 吴书·吴主传 fixtures.
+  boundary_policy: distinct_occurrence_atomic_preferred
+  split_independent_actions: true
+  subordinate_assertion_prefer_claim: true
+  canonical_resolution: deferred
+
+time:
+  preserve_original_text: true
+  source_calendar:
+    allow_regnal_era: true
+    allow_context_inheritance: true
+    require_on_event_when_explicit_or_safely_inherited: true
+    record_inherited_fields: true
+  normalization:
+    target_calendar: proleptic_gregorian
+    allow_year_only: true
+    forbid_unverified_month_conversion: true
+    forbid_unverified_day_conversion: true
+  on_uncertainty: preserve_partial
+
+claim:
+  require_evidence: true
+  require_source_ref: true
+  initial_assessment: unassessed
+  extraction_confidence_is_historical_confidence: false
+  predicate_semantics:
+    require_faithful_fit: true
+    forbid_nearby_fallback: true
+    on_ontology_gap: warning_without_forced_claim
+  predicates:
+    # V0 is intentionally small. Expand this vocabulary from real fixtures,
+    # not by designing a universal historical ontology up front.
+    model_output: canonical_only
+    allowed:
+      - held_office
+      - died
+      - succeeded
+      - surrendered_to
+      - attacked
+      - fought
+      - outcome
+      - affected
+      - gained_territory
+      - moved_to
+      - returned_to
+      - stationed_at
+      - appointed
+      - sent_forces
+      - retreated
+      - created
+      - abolished
+      - supported
+    # Aliases are evaluator/backward-compatibility inputs only. A model should
+    # emit the canonical values in `allowed`, not these aliases.
+    aliases:
+      appointed_as: held_office
+      surrendered: surrendered_to
+      fled_to: moved_to
+      held: gained_territory
+      caused_deaths: affected
+
+# Retained experiment only. Do not place this stage in the production pipeline.
+coverage:
+  lifecycle: experimental_not_production
+  superseded_by: C0-T5
+  version: "0.2"
+  strategy: model_second_pass
+  enabled_by_default: false
+  output_protocol: audit_claim_coverage_additions_only
+  pass1_immutable: true
+  deterministic_merge: true
+  deduplicate_against_pass1: true
+  require_unit_audit: true
+  require_claim_coverage_decision: true
+  event_does_not_substitute_for_claim: true
+  distinct_occurrence_required_for_new_event: true
+  subordinate_assertion_prefer_claim_only: true
+  source_month_grounding: true
+  preserve_valid_records: true
+  audit_source_in_text_order: true
+  audit_explicit_actions_and_state_changes: true
+  source_grounded_only: true
+  external_reference_answer: forbidden
+
+warnings:
+  emit_contextual_coreference: true
+  emit_partial_calendar_conversion: true
+  emit_ambiguous_resolution: true
+  emit_ontology_gap: true
+  must_describe_final_bundle: true
+
+resolution:
+  entities: deferred
+  events: deferred
+  deduplication: deferred
