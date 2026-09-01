@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-canonical-v0.1.schema.json",
+  "title": "Chronicle Canonical Catalog v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "canonical_entities",
+    "canonical_events",
+    "event_relations",
+    "warnings"
+  ],
+  "properties": {
+    "schema": {"const": "chronicle.canonical-catalog"},
+    "version": {"const": "0.1"},
+    "canonical_entities": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/canonical_record"}
+    },
+    "canonical_events": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/canonical_record"}
+    },
+    "event_relations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/event_relation"}
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/warning"}
+    }
+  },
+  "$defs": {
+    "uuidv7": {
+      "type": "string",
+      "format": "uuid",
+      "x-chronicle-id-version": "uuidv7"
+    },
+    "representation_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle", "ref"],
+      "properties": {
+        "bundle": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "canonical_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_id", "representations"],
+      "properties": {
+        "canonical_id": {"$ref": "#/$defs/uuidv7"},
+        "representations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/representation_ref"}
+        }
+      }
+    },
+    "resolution_link_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "left", "right"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^vc_[0-9]{3,}$"},
+        "left": {"$ref": "#/$defs/representation_ref"},
+        "right": {"$ref": "#/$defs/representation_ref"}
+      }
+    },
+    "event_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "left_canonical_event_id",
+        "right_canonical_event_id",
+        "resolution_links"
+      ],
+      "properties": {
+        "type": {"const": "related_occurrence"},
+        "left_canonical_event_id": {"$ref": "#/$defs/uuidv7"},
+        "right_canonical_event_id": {"$ref": "#/$defs/uuidv7"},
+        "resolution_links": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/resolution_link_ref"}
+        }
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1},
+        "refs": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
