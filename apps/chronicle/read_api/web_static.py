@@ -10,14 +10,17 @@ WEB_ROOT = Path(__file__).resolve().parents[1] / "web"
 
 _STATIC_FILES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/search.css": ("search.css", "text/css; charset=utf-8"),
     "/app.mjs": ("app.mjs", "text/javascript; charset=utf-8"),
     "/ui.mjs": ("ui.mjs", "text/javascript; charset=utf-8"),
+    "/search_ui.mjs": ("search_ui.mjs", "text/javascript; charset=utf-8"),
     "/route_safe.mjs": ("route_safe.mjs", "text/javascript; charset=utf-8"),
 }
 
 _SPA_PATHS = (
     re.compile(r"^/$"),
     re.compile(r"^/timeline/?$"),
+    re.compile(r"^/search/?$"),
     re.compile(r"^/events/[^/]+/?$"),
     re.compile(r"^/entities/[^/]+/?$"),
 )

@@ -13,8 +13,10 @@ class ChronicleWebStaticTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / "index.html").write_text("<main>Chronicle</main>", encoding="utf-8")
         (self.root / "styles.css").write_text("body{}", encoding="utf-8")
+        (self.root / "search.css").write_text(".search{}", encoding="utf-8")
         (self.root / "app.mjs").write_text("export const app = true;", encoding="utf-8")
         (self.root / "ui.mjs").write_text("export const ui = true;", encoding="utf-8")
+        (self.root / "search_ui.mjs").write_text("export const searchUI = true;", encoding="utf-8")
         (self.root / "route_safe.mjs").write_text("export const routeSafe = true;", encoding="utf-8")
 
     def tearDown(self) -> None:
@@ -25,6 +27,8 @@ class ChronicleWebStaticTests(unittest.TestCase):
             "/",
             "/timeline",
             "/timeline/",
+            "/search",
+            "/search/",
             "/events/01a05cd7-439d-7071-bf00-86c664886b06",
             "/entities/01a05cd7-439d-7071-bf00-86c664886b06",
         ):
@@ -35,14 +39,16 @@ class ChronicleWebStaticTests(unittest.TestCase):
                 self.assertIn(b"Chronicle", body)
 
     def test_assets_are_allowlisted(self) -> None:
-        for asset, marker in (
-            ("/ui.mjs", b"ui = true"),
-            ("/route_safe.mjs", b"routeSafe = true"),
+        for asset, marker, expected_type in (
+            ("/ui.mjs", b"ui = true", "text/javascript; charset=utf-8"),
+            ("/search_ui.mjs", b"searchUI = true", "text/javascript; charset=utf-8"),
+            ("/route_safe.mjs", b"routeSafe = true", "text/javascript; charset=utf-8"),
+            ("/search.css", b".search", "text/css; charset=utf-8"),
         ):
             with self.subTest(asset=asset):
                 status, content_type, body = web_response("GET", asset, root=self.root)
                 self.assertEqual(status, 200)
-                self.assertEqual(content_type, "text/javascript; charset=utf-8")
+                self.assertEqual(content_type, expected_type)
                 self.assertIn(marker, body)
 
     def test_unknown_and_traversal_paths_are_not_filesystem_paths(self) -> None:
@@ -51,6 +57,7 @@ class ChronicleWebStaticTests(unittest.TestCase):
             "/../persistence/migrations/0001_chronicle_v0.sql",
             "/%2e%2e/persistence/migrations/0001_chronicle_v0.sql",
             "/events/id/extra",
+            "/search/extra",
         ):
             with self.subTest(path=path):
                 status, _, _ = web_response("GET", path, root=self.root)
@@ -73,8 +80,10 @@ class ChronicleWebStaticTests(unittest.TestCase):
         production_files = [
             WEB_ROOT / "index.html",
             WEB_ROOT / "styles.css",
+            WEB_ROOT / "search.css",
             WEB_ROOT / "app.mjs",
             WEB_ROOT / "ui.mjs",
+            WEB_ROOT / "search_ui.mjs",
             WEB_ROOT / "route_safe.mjs",
         ]
         for path in production_files:
