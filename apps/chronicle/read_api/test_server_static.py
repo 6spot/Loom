@@ -36,8 +36,10 @@ class ChronicleServerStaticBoundaryTests(unittest.TestCase):
     def test_spa_and_module_requests_succeed_with_unusable_database_url(self) -> None:
         for path, expected_type, marker in (
             ("/timeline", "text/html", b"Chronicle"),
+            ("/search", "text/html", b"Chronicle"),
             ("/events/01a05cd7-439d-7071-bf00-86c664886b06", "text/html", b"Chronicle"),
             ("/route_safe.mjs", "text/javascript", b"safeRouteFor"),
+            ("/search_ui.mjs", "text/javascript", b"renderSearch"),
         ):
             with self.subTest(path=path):
                 with self._get(path) as response:
@@ -53,13 +55,15 @@ class ChronicleServerStaticBoundaryTests(unittest.TestCase):
             self.assertEqual(payload, {"status": "ok"})
 
     def test_v0_routes_remain_database_backed(self) -> None:
-        with self.assertRaises(HTTPError) as caught:
-            self._get("/v0/timeline")
-        error = caught.exception
-        self.assertEqual(error.code, 503)
-        payload = json.loads(error.read().decode("utf-8"))
-        self.assertEqual(payload["schema"], "chronicle.error")
-        self.assertEqual(payload["error"]["code"], "database_unavailable")
+        for path in ("/v0/timeline", "/v0/search?q=%E6%9B%B9%E6%93%8D"):
+            with self.subTest(path=path):
+                with self.assertRaises(HTTPError) as caught:
+                    self._get(path)
+                error = caught.exception
+                self.assertEqual(error.code, 503)
+                payload = json.loads(error.read().decode("utf-8"))
+                self.assertEqual(payload["schema"], "chronicle.error")
+                self.assertEqual(payload["error"]["code"], "database_unavailable")
 
 
 if __name__ == "__main__":
