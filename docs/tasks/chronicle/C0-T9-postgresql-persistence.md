@@ -68,31 +68,34 @@ Artifact SHA-256 values are computed over canonical JSON serialization for repla
 - `apps/chronicle/persistence/postgres_v0.py`;
 - `apps/chronicle/persistence/chronicle_persist.py`;
 - `apps/chronicle/persistence/test_postgres_v0.py`;
-- `apps/chronicle/docs/persistence.md`.
+- `apps/chronicle/persistence/test_real_dataset_postgres.py`;
+- `apps/chronicle/docs/persistence.md`;
+- `.github/workflows/chronicle.yml`.
 
 The CLI validates staged, resolution, and canonical artifacts against the accepted JSON Schemas before opening the database write path. The adapter itself preserves those accepted semantics and uses PostgreSQL constraints/referential integrity only to reject corruption or contradictory persistence.
 
 ## PostgreSQL 18 verification
 
-The persistence integration suite was executed on GitHub-hosted Ubuntu against the exact repository database image `pgvector/pgvector:0.8.6-pg18`. The service log identified PostgreSQL `18.6` and reached healthy state before the tests ran.
+The persistence suite is now routed through the dedicated `Chronicle` GitHub Actions workflow. It runs only for Chronicle persistence, Chronicle schema, retained acceptance-artifact, or workflow changes and uses the exact repository database image `pgvector/pgvector:0.8.6-pg18`.
 
-GitHub Actions run `33511422006`, job `99867742169` executed:
+The first synthetic PG18 evidence run (`33511422006`, job `99867742169`) identified PostgreSQL `18.6` and passed all four synthetic persistence tests (`Ran 4 tests in 0.524s`, `OK`). After the real C0-T7 acceptance artifacts were retained in Git, permanent Chronicle workflow run `33512350772`, job `99870875184` passed the synthetic suite plus the real-data round trip:
 
 ```text
 test_canonical_membership_reassignment_rolls_back ... ok
 test_conflicting_bundle_rewrite_rolls_back ... ok
 test_import_is_idempotent_and_restart_safe ... ok
 test_migration_checksum_drift_fails ... ok
+test_real_wudi_wuzhu_dataset_round_trip ... ok
 
-Ran 4 tests in 0.524s
+Ran 5 tests in 1.058s
 OK
 ```
 
-This verifies the implemented transaction/idempotency behavior, explicit immutable-content conflicts, reconnect-safe canonical membership, exact Claim evidence retrieval, `related_occurrence` separation/provenance, and migration checksum drift rejection against PostgreSQL 18. The one-off feature-branch workflow used to obtain this evidence was removed immediately afterward and is not part of the delivery diff.
+This verifies transaction/idempotency behavior, explicit immutable-content conflicts, reconnect-safe canonical membership, exact Claim JSON/evidence retrieval, `related_occurrence` separation/provenance, migration checksum drift rejection, and the accepted real two-source catalog against PostgreSQL 18.
 
 ## First real validation
 
-Use the already accepted artifacts:
+The accepted C0-T7/C0-T8 artifacts are retained in Git as a Chronicle golden integration dataset:
 
 ```text
 apps/chronicle/.artifacts/c0-t7/wudi/final.json
@@ -101,17 +104,21 @@ apps/chronicle/.artifacts/c0-t7/resolution/links.json
 apps/chronicle/.artifacts/c0-t7/publication/catalog.json
 ```
 
-Verify:
+The real PG18 round-trip test verifies all of the following after a fresh import, identical second import, and database reconnect:
 
-- import succeeds against PostgreSQL 18;
-- rerunning the same import is idempotent;
-- reconnect/reopen returns the same canonical UUIDs;
-- both source representations remain independently queryable;
-- Claims retain exact source evidence/provenance in their stored payload;
-- the two `related_occurrence` pairs remain distinct canonical Events with relations;
-- the five uncertain same-name place pairs remain unresolved/unmerged in persisted data.
-
-The accepted real artifacts are local generated outputs under `.artifacts/` and are intentionally not committed to the repository. Real two-source persistence inspection therefore remains a separate acceptance item from the reproducible PG18 integration suite above.
+- `source_bundles = 2`;
+- `canonical_entities = 66`;
+- `canonical_events = 45`;
+- `canonical_event_relations = 2`;
+- Resolution rows remain `10 Entity links + 10 Event links`;
+- the second identical import is a no-op (`import_created = false`) and only one import-set row exists;
+- every persisted Entity/Event representation maps to exactly the UUID from the accepted canonical catalog;
+- the two 曹操 representations share one CanonicalEntity;
+- the two 赤壁之战 representations share one CanonicalEvent;
+- each of 襄阳、夏口、江陵、赤壁、合肥 remains two distinct CanonicalEntities across the two source bundles;
+- 曹操进军江陵 and 曹操北还并留军守江陵、襄阳 remain distinct CanonicalEvents connected by `related_occurrence`;
+- all staged Claim JSON payloads round-trip exactly, preserving source evidence/provenance;
+- both accepted `related_occurrence` relations retain Resolution Link provenance.
 
 ## Non-goals
 
@@ -131,7 +138,7 @@ The accepted real artifacts are local generated outputs under `.artifacts/` and 
 - [x] conflicting rewrites fail explicitly;
 - [x] canonical UUID stability survives reconnect/reimport;
 - [x] PostgreSQL 18 integration tests pass;
-- [ ] real 武帝纪 + 吴主传 dataset is durably imported and inspected;
+- [x] real 武帝纪 + 吴主传 dataset is durably imported and inspected;
 - [x] documentation records backup/replay ownership and the application-vs-Loom boundary;
 - [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
 
@@ -139,4 +146,6 @@ The accepted real artifacts are local generated outputs under `.artifacts/` and 
 
 - 2026-09-01 — C0-T8 dependency became canonical-complete after delivery PR #476 and post-merge reconciliation PR #477. C0-T9 started with a Chronicle-owned Python/PostgreSQL adapter design and isolated application database boundary.
 - 2026-09-01 — Implemented Chronicle-owned migration/checksum tracking, staged/Resolution/canonical stores, single-transaction import orchestration, `CHRONICLE_DATABASE_URL` CLI, and PG18 integration tests. All new Python files pass local `py_compile`.
-- 2026-09-01 — GitHub Actions run `33511422006` started `pgvector/pgvector:0.8.6-pg18` / PostgreSQL 18.6 and completed all four Chronicle persistence integration tests successfully (`Ran 4 tests in 0.524s`, `OK`). The temporary feature-only workflow was then removed so it is not delivered to `main`.
+- 2026-09-01 — GitHub Actions run `33511422006` started `pgvector/pgvector:0.8.6-pg18` / PostgreSQL 18.6 and completed all four synthetic Chronicle persistence integration tests successfully (`Ran 4 tests in 0.524s`, `OK`).
+- 2026-09-01 — Retained the real C0-T7/C0-T8 artifacts as a versioned Chronicle golden integration dataset and added a dedicated Chronicle CI workflow plus real-data PostgreSQL test.
+- 2026-09-01 — Chronicle workflow run `33512350772`, job `99870875184` completed all five PG18 tests successfully (`Ran 5 tests in 1.058s`, `OK`), including full real 武帝纪 + 吴主传 persistence/reconnect/semantic inspection. Implementation acceptance is complete; only delivery merge and post-merge Task Ledger reconciliation remain.
