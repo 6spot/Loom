@@ -16,7 +16,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T6 | #467 | completed | Cross-source validation: run unchanged Contract v0.2 on a second real historical source and review generalization |
 | C0-T7 | #468 | completed | Cross-source resolution/linking: conservative candidate blocking plus non-destructive Entity/Event link decisions |
 | C0-T8 | #470 | completed | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
-| C0-T9 | #471 | planned | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
+| C0-T9 | #471 | in_progress | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
 | C0-T10 | #472 | planned | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
 | C0-T11 | #473 | planned | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
 
@@ -24,18 +24,18 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 
 C0-T1 through C0-T7 were delivered by PR #459 and merged to `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791` on 2026-09-01.
 
-C0-T8 was delivered by PR #476 and merged to `main` as `481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca` on 2026-09-01. PR #476 superseded closed Draft PR #475 after the connector failed to transition its Draft state. Acceptance evidence includes a 61-test Chronicle discovery run, real 武帝纪 + 吴主传 publication, full resolution-boundary audit, byte-stable existing-catalog rerun, and human-readable semantic inspection. The accepted real publication produced 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations.
+C0-T8 was delivered by PR #476 and merged to `main` as `481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca` on 2026-09-01. PR #476 superseded closed Draft PR #475 after the connector failed to transition its Draft state. Acceptance evidence includes a 61-test Chronicle discovery run, real 武帝纪 + 吴主传 publication, full resolution-boundary audit, byte-stable existing-catalog rerun, and human-readable semantic inspection. The accepted real publication produced 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations. Post-merge Task Ledger reconciliation was merged by PR #477 before C0-T9 started.
 
-The repository's current GitHub Actions path filters do not include Chronicle/Python, so the ledger does not claim a Chronicle GitHub CI pass for these application-level prototype tests.
+C0-T9 is now the active Chronicle task. It owns only Chronicle application persistence and must keep staged, Resolution, and canonical layers separately auditable. It may reuse the repository PostgreSQL 18 service operationally but must not use Loom Runtime/Storage tables as an application API.
 
-The production direction after C0-T8 is contract-first ingestion, non-destructive cross-source resolution, deterministic canonical publication, then persistence of all three layers without collapsing provenance. Coverage v0.2 remains development/research evidence only.
+The repository's current GitHub Actions path filters do not include Chronicle/Python, so the ledger does not claim a Chronicle GitHub CI pass for these application-level tests unless the CI routing changes.
 
 ## Planned vertical slice
 
 The remaining implementation sequence is intentionally linear so later layers are built only after the authority below them is stable:
 
 ```text
-C0-T9  PostgreSQL persistence
+C0-T9  PostgreSQL persistence     ← active
    ↓
 C0-T10 Chronicle read model / API
    ↓
@@ -48,7 +48,7 @@ Completed. Accepted cross-source Resolution Links are converted into stable Cano
 
 ### C0-T9 — PostgreSQL persistence / #471
 
-Persist three auditable layers separately: source-owned staged records, Resolution Links, and canonical publication output. Preserve canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events. The first persistence target is the existing PostgreSQL 18 deployment; pgvector is not required merely for persistence. Chronicle-owned application persistence must not silently redefine Loom Core/Runtime/Storage authority.
+In progress. Persist three auditable layers separately: source-owned staged records, Resolution Links, and canonical publication output. Preserve canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events. The first persistence target is PostgreSQL 18; pgvector is not required merely for persistence. Chronicle-owned application persistence must not silently redefine Loom Core/Runtime/Storage authority.
 
 ### C0-T10 — Chronicle read model / API / #472
 
@@ -60,4 +60,4 @@ Build the first genuinely usable historical exploration surface over the C0-T10 
 
 ## Continuation rule
 
-A new conversation can safely resume by reading issues #471, #472, and #473 in order. Start with #471 unless it is already completed; do not skip ahead to API/UI while the preceding persistence/read-model authority contract is still unsettled.
+A new conversation can safely resume by reading issues #471, #472, and #473 in order. Continue #471 while it is `in_progress`; do not start #472 until C0-T9 is canonically completed and reconciled on `main`.
