@@ -14,7 +14,7 @@ on:
       - "Cargo.lock"
       - "**/Cargo.toml"
       - "**/*.rs"
-      - "**/*.sql"
+      - "crates/loom-storage/**"
       - "capabilities/**"
       - "tests/**"
       - "compose.test-db.yaml"
@@ -46,7 +46,7 @@ on:
       - "Cargo.lock"
       - "**/Cargo.toml"
       - "**/*.rs"
-      - "**/*.sql"
+      - "crates/loom-storage/**"
       - "capabilities/**"
       - "tests/**"
       - "compose.test-db.yaml"
@@ -166,7 +166,7 @@ jobs:
               esac
 
               case "$path" in
-                crates/loom-storage/*|*.sql)
+                crates/loom-storage/*)
                   postgres=true
                   ;;
                 compose.test-db.yaml|tools/postgres-test.sh)
