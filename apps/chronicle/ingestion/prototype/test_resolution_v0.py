@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
+from chronicle_ingest import validate_bundle
 from resolution_v0 import (
     ResolutionV0Error,
     apply_resolution_decisions,
@@ -111,7 +114,7 @@ class ResolutionV0Tests(unittest.TestCase):
         self.assertNotIn("expected.yaml", prompt)
         self.assertNotIn("human gold", prompt.lower())
 
-    def test_apply_decisions_preserves_candidate_refs(self) -> None:
+    def test_apply_decisions_preserves_candidate_refs_and_schema(self) -> None:
         left = _bundle("left", [_entity("ent_001", "person", "刘表")], [])
         right = _bundle("right", [_entity("ent_010", "person", "刘表")], [])
         candidates = build_candidate_set(left, "left", right, "right")
@@ -133,6 +136,10 @@ class ResolutionV0Tests(unittest.TestCase):
         self.assertEqual({"bundle": "left", "ref": "ent_001"}, link["left"])
         self.assertEqual({"bundle": "right", "ref": "ent_010"}, link["right"])
         self.assertEqual("same_entity", link["decision"])
+
+        schema_path = Path(__file__).parent.parent / "schemas" / "chronicle-resolution-v0.1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual([], validate_bundle(output, schema))
 
     def test_missing_candidate_decision_is_rejected(self) -> None:
         left = _bundle("left", [_entity("ent_001", "person", "刘表")], [])
