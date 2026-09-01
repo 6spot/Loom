@@ -15,6 +15,7 @@ class ChronicleWebStaticTests(unittest.TestCase):
         (self.root / "styles.css").write_text("body{}", encoding="utf-8")
         (self.root / "app.mjs").write_text("export const app = true;", encoding="utf-8")
         (self.root / "ui.mjs").write_text("export const ui = true;", encoding="utf-8")
+        (self.root / "route_safe.mjs").write_text("export const routeSafe = true;", encoding="utf-8")
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -34,10 +35,15 @@ class ChronicleWebStaticTests(unittest.TestCase):
                 self.assertIn(b"Chronicle", body)
 
     def test_assets_are_allowlisted(self) -> None:
-        status, content_type, body = web_response("GET", "/ui.mjs", root=self.root)
-        self.assertEqual(status, 200)
-        self.assertEqual(content_type, "text/javascript; charset=utf-8")
-        self.assertIn(b"ui = true", body)
+        for asset, marker in (
+            ("/ui.mjs", b"ui = true"),
+            ("/route_safe.mjs", b"routeSafe = true"),
+        ):
+            with self.subTest(asset=asset):
+                status, content_type, body = web_response("GET", asset, root=self.root)
+                self.assertEqual(status, 200)
+                self.assertEqual(content_type, "text/javascript; charset=utf-8")
+                self.assertIn(marker, body)
 
     def test_unknown_and_traversal_paths_are_not_filesystem_paths(self) -> None:
         for path in (
@@ -69,6 +75,7 @@ class ChronicleWebStaticTests(unittest.TestCase):
             WEB_ROOT / "styles.css",
             WEB_ROOT / "app.mjs",
             WEB_ROOT / "ui.mjs",
+            WEB_ROOT / "route_safe.mjs",
         ]
         for path in production_files:
             text = path.read_text(encoding="utf-8")
