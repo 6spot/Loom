@@ -30,19 +30,19 @@ Production/application connection authority is `CHRONICLE_DATABASE_URL`. Postgre
 
 The stored rows preserve accepted staged/resolution/publication semantics. SQL constraints may reject contradictions or corruption, but persistence does not re-resolve entities/events, synthesize truth, rewrite Claims, or choose new canonical identity.
 
-## Planned data model
+## Implemented data model
 
 The first schema covers:
 
-- applied Chronicle migrations;
+- Chronicle migration filename/checksum history;
 - idempotent artifact/import metadata;
 - source bundle identity and immutable source payload;
 - staged Entity/Event/Claim rows with their exact JSON payloads;
-- Resolution run payload, Entity links, Event links, and warnings;
+- Resolution artifact payload, Entity links, Event links, and warnings;
 - canonical catalog payload;
-- CanonicalEntity / CanonicalEvent identities;
+- CanonicalEntity / CanonicalEvent identities with PostgreSQL 18 UUIDv7 checks;
 - canonical representation membership;
-- canonical `related_occurrence` relations and resolution provenance.
+- canonical `related_occurrence` relations and provenance to concrete Resolution artifact SHA + candidate rows.
 
 Stable natural references remain `(bundle_label, record_ref)`. Canonical IDs remain the UUIDv7 values produced by C0-T8.
 
@@ -55,7 +55,22 @@ For a stable persisted key:
 - existing canonical membership is never silently reassigned;
 - a transaction either imports all staged + resolution + canonical data or commits none of it.
 
-Artifact SHA-256 values are used for replay/audit identity; they are not historical semantic authority.
+Artifact SHA-256 values are computed over canonical JSON serialization for replay/audit identity; they are not historical semantic authority.
+
+## Implementation artifacts
+
+- `apps/chronicle/persistence/migrations/0001_chronicle_v0.sql`;
+- `apps/chronicle/persistence/common.py`;
+- `apps/chronicle/persistence/migrations.py`;
+- `apps/chronicle/persistence/staged_store.py`;
+- `apps/chronicle/persistence/resolution_store.py`;
+- `apps/chronicle/persistence/canonical_store.py`;
+- `apps/chronicle/persistence/postgres_v0.py`;
+- `apps/chronicle/persistence/chronicle_persist.py`;
+- `apps/chronicle/persistence/test_postgres_v0.py`;
+- `apps/chronicle/docs/persistence.md`.
+
+The CLI validates staged, resolution, and canonical artifacts against the accepted JSON Schemas before opening the database write path. The adapter itself preserves those accepted semantics and uses PostgreSQL constraints/referential integrity only to reject corruption or contradictory persistence.
 
 ## First real validation
 
@@ -90,16 +105,17 @@ Verify:
 
 ## Acceptance
 
-- [ ] Chronicle-owned PostgreSQL migrations exist;
-- [ ] staged, Resolution, and canonical layers persist separately;
+- [x] Chronicle-owned PostgreSQL migrations exist;
+- [x] staged, Resolution, and canonical layers have separate persisted tables/artifact records;
 - [ ] import is transaction-safe and idempotent;
 - [ ] conflicting rewrites fail explicitly;
 - [ ] canonical UUID stability survives reconnect/reimport;
 - [ ] PostgreSQL 18 integration tests pass;
 - [ ] real 武帝纪 + 吴主传 dataset is durably imported and inspected;
-- [ ] documentation records backup/replay ownership and the application-vs-Loom boundary;
+- [x] documentation records backup/replay ownership and the application-vs-Loom boundary;
 - [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
 
 ## Progress Log
 
 - 2026-09-01 — C0-T8 dependency became canonical-complete after delivery PR #476 and post-merge reconciliation PR #477. C0-T9 started with a Chronicle-owned Python/PostgreSQL adapter design and isolated application database boundary.
+- 2026-09-01 — Implemented Chronicle-owned migration/checksum tracking, staged/Resolution/canonical stores, single-transaction import orchestration, `CHRONICLE_DATABASE_URL` CLI, and PG18 integration tests. All new Python files pass local `py_compile`; PostgreSQL-dependent tests and the real two-source import remain intentionally unclaimed until executed against PG18.
