@@ -56,13 +56,18 @@ This is only a candidate signal. Same name does not prove same identity.
 
 ### Event candidates
 
-V0 blocks Events only when source time is compatible and the records share meaningful structural signals such as:
+V0 requires compatible source time and then uses conservative structural evidence.
 
-- compatible Event type + shared participant;
-- multiple shared participants;
-- shared participant + shared place.
+Broad Event families such as `military` / `battle` / `movement` require both:
 
-`movement` / `retreat` and `military` / `battle` are candidate-blocking compatibility groups only; they do not imply occurrence identity.
+- at least one shared participant; and
+- at least one shared place.
+
+Narrow Event types such as `death`, `birth`, `surrender`, `retreat`, and `epidemic` may qualify with the same exact type plus a shared participant even when one source omits place detail.
+
+Two or more shared participants also qualify a pair for semantic adjudication. Explicitly conflicting season/month values reject a pair when both sources provide them.
+
+Candidate blocking is deliberately recall-oriented but should not admit pairs merely because a high-frequency actor appears in both records in the same year.
 
 ## Resolver decisions
 
@@ -137,16 +142,63 @@ The model must return every candidate exactly once, may not invent candidate IDs
 - [x] final protocol distinguishes same occurrence from related occurrence.
 - [x] offline tests are committed.
 - [ ] full prototype unittest discovery is green with resolution tests.
-- [ ] real 武帝纪 ↔ 吴主传 candidate set is inspected.
-- [ ] real resolver run links overlapping Entities/Events without modifying either input bundle.
-- [ ] resolution output passes the resolution-link JSON Schema.
+- [x] real 武帝纪 ↔ 吴主传 candidate set is inspected.
+- [x] real resolver run links overlapping Entities/Events without modifying either input bundle.
+- [x] resolution output passes the resolution-link JSON Schema.
 - [ ] delivery PR / CI / merge reconciliation completed.
+
+## First real validation
+
+The first independently extracted 武帝纪 ↔ 吴主传 run initially produced 10 Entity candidates and 42 Event candidates. Inspection showed that the Event blocking was too permissive: same year + one high-frequency actor + a broad compatible type admitted unrelated actions.
+
+After tightening the generic blocking rule, without source-specific exceptions, the same two bundles produced:
+
+```text
+Entity candidates: 10
+Event candidates: 10
+```
+
+The retained Event candidate set covered:
+
+- 赤壁之战 ↔ 赤壁之战;
+- 刘琮降 ↔ 刘琮率众向曹操投降;
+- 刘备走夏口 ↔ 刘备进驻夏口;
+- 曹操进军江陵 ↔ 曹操北还并留军守江陵、襄阳;
+- 孙权攻合肥 ↔ 孙权围攻合肥;
+- 孙权攻合肥 ↔ 曹军未至合肥孙权退兵;
+- 遣张憙救合肥 ↔ 曹操遣张喜率骑兵赴合肥;
+- 刘表卒 ↔ 刘表去世;
+- 孙权退走 ↔ 孙权攻合肥逾月不下而退;
+- 曹操引军还 ↔ 曹操焚余船引退.
+
+The first real closed-world resolver run passed the resolution JSON Schema and returned:
+
+```text
+Entities:
+  same_entity: 5
+  uncertain:   5
+
+Events:
+  same_occurrence:    8
+  related_occurrence: 2
+```
+
+The five person links (曹操、刘表、刘琮、刘备、孙权) were `same_entity`. The five place links (襄阳、夏口、江陵、赤壁、合肥) remained `uncertain` because the supplied candidate evidence contained only same type + same stable surface and no stronger identity signal. This is preferred to treating same-name places as proven identity.
+
+The two `related_occurrence` Event decisions were:
+
+- 曹操进军江陵 ↔ 曹操北还并留军守江陵、襄阳;
+- 孙权攻合肥 ↔ 曹军未至合肥孙权退兵.
+
+All other retained Event pairs were resolved as `same_occurrence`.
+
+A useful emergent signal appeared in `遣张憙救合肥 ↔ 曹操遣张喜率骑兵赴合肥`: Event resolution judged the pair `same_occurrence` even though `张憙` and `张喜` did not pass conservative Entity blocking. This suggests a later task can use accepted same-occurrence links to propose additional Entity-resolution candidates without weakening first-pass fuzzy-name blocking.
 
 ## First real validation targets
 
 The resolver should have enough source-bounded evidence to propose links for some of the overlapping records already extracted independently, for example:
 
-- Entities: 曹操、孙权、刘备、刘表、刘琮、周瑜、程普、鲁肃、合肥、赤壁;
+- Entities: 曹操、孙权、刘备、刘表、刘琮、合肥、赤壁;
 - Events: 刘表死、刘琮降曹、赤壁相关战事、曹操退却/北还、孙权合肥行动.
 
 Not every overlapping-looking pair must become `same_occurrence`. In particular, coarse source Event boundaries may cause one record to be related to several records in the other source. V0 should preserve that ambiguity instead of forcing a one-to-one merge.
