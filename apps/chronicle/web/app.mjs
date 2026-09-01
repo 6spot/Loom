@@ -5,9 +5,9 @@ import {
   renderLoading,
   renderNotFound,
   renderTimeline,
-  routeFor,
   timelineApiPath,
 } from "/ui.mjs";
+import { safeRouteFor } from "/route_safe.mjs";
 
 const app = document.querySelector("#app");
 
@@ -38,7 +38,7 @@ function titleFor(route, payload) {
 }
 
 async function load() {
-  const route = routeFor(window.location.pathname);
+  const route = safeRouteFor(window.location.pathname);
   if (route.view === "not_found") {
     app.innerHTML = renderNotFound();
     document.title = "页面不存在 · Chronicle";
