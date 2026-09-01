@@ -1,13 +1,13 @@
 ---
 task: C0-T3
 issue: 464
-status: in_progress
+status: completed
 depends_on: [C0-T2]
 created_at: 2026-08-31
 started_at: 2026-08-31
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle evaluator v2
@@ -53,8 +53,8 @@ Replace exact-title/exact-predicate gold mismatch counting with a useful model-i
 - [x] Unified model-v0 CLI emits v0.2 evaluation reports.
 - [x] Existing staged output can be re-evaluated without invoking a model.
 - [x] First Luna extraction was replayed through evaluator v2 and recorded.
-- [ ] Full prototype unittest discovery passes in a repository checkout after the latest refinements.
-- [ ] Delivery PR / CI / merge reconciliation completed.
+- [x] Full prototype unittest discovery passes in a repository checkout after the latest refinements.
+- [x] Delivery PR / CI / merge reconciliation completed.
 
 ## Verification
 
@@ -76,7 +76,7 @@ The earlier pre-refinement replay measured 13/15 entities, 9/12 events, and 5/9 
 
 Repository-side review confirms changes are isolated to Chronicle ingestion/config/task files; no Loom Core/Runtime/Storage files were modified.
 
-Local isolated refinement tests and Python compilation passed before commit. Full committed unittest discovery remains pending in a real repository checkout.
+Full current Chronicle prototype discovery on 2026-09-01 ran 50 tests and finished `OK`. Repository CI still has no Chronicle/Python lane, so no Chronicle GitHub CI pass is claimed. Delivery PR #459 merged to `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`.
 
 ## Progress log
 
@@ -85,3 +85,4 @@ Local isolated refinement tests and Python compilation passed before commit. Ful
 - 2026-08-31 — Initial v0.2 replay measured 13/15 entities, 9/12 events, and 5/9 claims with zero hard failures.
 - 2026-08-31 — Refined Event title evidence, literal/value containment, same-type Entity surface matching, and conservative composite Claim coverage based on the replay rather than changing the model to imitate gold wording.
 - 2026-08-31 — Refined replay measured 14/15 entities, 10/12 events, and 7/9 claims with zero hard failures; these values are the current Run #1 baseline for coverage A/B.
+- 2026-09-01 — Reconciled as completed after the complete 50-test suite passed and PR #459 merged.
