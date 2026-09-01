@@ -1,14 +1,14 @@
 ---
 task: C0-T2
 issue: 463
-status: in_progress
+status: completed
 depends_on:
   - C0-T1
 created_at: 2026-08-31
 started_at: 2026-08-31
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle model-v0 extractor
@@ -59,18 +59,24 @@ The boundary under test is:
 - [x] Model gold comparison ignores temporary ID spelling/order by dereferencing entity/event/source references.
 - [x] Machine-readable evaluation report includes counts, schema result, and gold mismatches.
 - [x] Offline unit tests cover prompt isolation, provider invocation, response parsing, normalization, comparison, and evaluation reporting.
-- [ ] Full repository `unittest discover` run is verified after these commits are pulled into a checkout.
-- [ ] A real model provider has been invoked against the committed `sanguozhi-wudi-jianan-13` fixture and its evaluation report recorded.
-- [ ] Delivery PR / CI / merge reconciliation completed.
+- [x] Full repository `unittest discover` run is verified after these commits are pulled into a checkout.
+- [x] A real model provider has been invoked against the committed `sanguozhi-wudi-jianan-13` fixture and its evaluation report recorded.
+- [x] Delivery PR / CI / merge reconciliation completed.
 
 ## Verification
 
 - Local isolated `model_v0.py` tests: 6/6 passed on 2026-08-31.
 - `python3 -m py_compile model_v0.py chronicle_cli.py` passed before repository write.
 - No external model/API call was used for the unit tests.
-- Repository CI currently has no Chronicle/Python lane, so no CI result is claimed for this task.
+- Real `gpt-5.6-luna` extraction against the committed fixture completed; its first exact comparator produced 73 mismatches and directly motivated Evaluator v2 rather than prompt tuning to gold wording.
+- The same captured model output was later replayed through Evaluator v2 with zero hard failures.
+- Full current Chronicle prototype suite on 2026-09-01: `Ran 50 tests` / `OK`.
+- Repository CI has no Chronicle/Python lane; no Chronicle GitHub CI pass is claimed.
+- Delivery PR #459 merged to `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`.
 
 ## Progress log
 
 - 2026-08-31 — Issue #463 created after C0-T1 rules-v0 passed in the user's repository checkout.
 - 2026-08-31 — Implemented provider-neutral model-v0 core, closed-book prompt, response parsing, transport normalization, ID-independent semantic evaluation, unified CLI, evaluation report, and six offline tests.
+- 2026-08-31 — Invoked the real Luna provider against the committed fixture; the output was schema-valid and became the fixed Run #1 input for Evaluator v2 work.
+- 2026-09-01 — Reconciled as completed after the complete 50-test suite passed and PR #459 merged.

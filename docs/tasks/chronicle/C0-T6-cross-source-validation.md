@@ -1,13 +1,13 @@
 ---
 task: C0-T6
 issue: 467
-status: in_progress
+status: completed
 depends_on: [C0-T5]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle cross-source validation
@@ -87,7 +87,7 @@ No gold/evaluator output may be fed into extraction or repair.
 - [x] the exact saved second-source initial bundle validates directly with zero hard failures after adding `retreat` to the shared Event vocabulary;
 - [x] optional human-gold evaluation remains development-only and was not used for the production run;
 - [x] full prototype unittest discovery remains green after the cross-source ontology update;
-- [ ] delivery PR / CI / merge reconciliation completed.
+- [x] delivery PR / CI / merge reconciliation completed.
 
 ## Real Luna verification — second source
 
@@ -195,3 +195,7 @@ This closes the C0-T6 full-suite follow-up: the cross-source ontology update and
 Contract v0.2 has now passed a meaningful cross-source production test without fixture-specific extraction code and without a Coverage pass. Do not continue tuning the prompt around either single fixture.
 
 The next useful work should move upward in the data lifecycle: begin source-independent resolution/linking of overlapping Entity/Event representations across the two independently ingested bundles. Human gold may still be added later for benchmark purposes, but it is no longer required to justify the production architecture.
+
+## Completion verification
+
+Delivery PR #459 merged to `main` on 2026-09-01 as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`. The repository's current GitHub Actions path filters do not include Chronicle/Python, so no Chronicle GitHub CI pass is claimed; the full 50-test repository checkout run is the applicable suite evidence.
