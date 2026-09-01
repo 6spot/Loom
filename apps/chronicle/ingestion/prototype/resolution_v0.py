@@ -154,7 +154,13 @@ def _event_places(event: dict[str, Any], names: dict[str, str]) -> set[str]:
 def _event_time(event: dict[str, Any]) -> dict[str, Any]:
     time = event.get("time")
     if not isinstance(time, dict):
-        return {"normalized_year": None, "era": None, "era_year": None, "season": None, "month": None}
+        return {
+            "normalized_year": None,
+            "era": None,
+            "era_year": None,
+            "season": None,
+            "month": None,
+        }
     source = time.get("source_calendar") or {}
     normalized = time.get("normalized") or {}
     return {
@@ -177,6 +183,11 @@ def _time_compatible(left: dict[str, Any], right: dict[str, Any]) -> bool:
     if lt["era_year"] is not None and rt["era_year"] is not None:
         if lt["era_year"] != rt["era_year"]:
             return False
+    if lt["season"] and rt["season"] and lt["season"] != rt["season"]:
+        return False
+    if lt["month"] is not None and rt["month"] is not None:
+        if lt["month"] != rt["month"]:
+            return False
     return True
 
 
@@ -184,6 +195,18 @@ _EVENT_TYPE_GROUPS = (
     {"movement", "retreat"},
     {"military", "battle"},
 )
+
+# These event types are semantically narrow enough that same-type + same
+# participant + compatible time is worth semantic adjudication even when one
+# source omits a place. The set is deliberately small and should grow only
+# from repeated real-source evidence.
+_LOW_AMBIGUITY_EVENT_TYPES = {
+    "birth",
+    "death",
+    "epidemic",
+    "retreat",
+    "surrender",
+}
 
 
 def _event_type_compatible(left_type: Any, right_type: Any) -> bool:
@@ -210,7 +233,14 @@ def event_candidates(
     right_label: str,
     max_candidates: int = 64,
 ) -> list[dict[str, Any]]:
-    """Generate plausible Event overlap candidates without deciding identity."""
+    """Generate conservative Event candidates without deciding occurrence identity.
+
+    Broad event types such as military, battle, and movement are not allowed to
+    qualify on a single shared high-frequency participant alone. They need a
+    shared place as an additional anchor. Narrow event types may qualify on the
+    same type, a shared participant, and compatible time even when a source
+    omits the place.
+    """
 
     left_names = _entity_name_map(left_bundle)
     right_names = _entity_name_map(right_bundle)
@@ -228,26 +258,37 @@ def event_candidates(
             rplaces = _event_places(right, right_names)
             participant_overlap = sorted(lp & rp)
             place_overlap = sorted(lplaces & rplaces)
-            type_compatible = _event_type_compatible(left.get("type"), right.get("type"))
+            left_type = left.get("type")
+            right_type = right.get("type")
+            same_type = left_type == right_type and isinstance(left_type, str)
+            type_compatible = _event_type_compatible(left_type, right_type)
 
-            qualifies = (
-                (type_compatible and bool(participant_overlap))
-                or len(participant_overlap) >= 2
-                or (bool(participant_overlap) and bool(place_overlap))
+            narrow_same_type = (
+                same_type
+                and left_type in _LOW_AMBIGUITY_EVENT_TYPES
+                and bool(participant_overlap)
             )
-            if not qualifies:
+            anchored_broad_match = (
+                type_compatible
+                and bool(participant_overlap)
+                and bool(place_overlap)
+            )
+            if not (narrow_same_type or anchored_broad_match):
                 continue
 
             score = 0
             signals: list[str] = []
             if type_compatible:
                 score += 3
-                signals.append(f"compatible event types: {left.get('type')} / {right.get('type')}")
+                signals.append(f"compatible event types: {left_type} / {right_type}")
+            if narrow_same_type:
+                score += 2
+                signals.append(f"low-ambiguity same event type: {left_type}")
             if participant_overlap:
                 score += 2 * len(participant_overlap)
                 signals.append("shared participants: " + ", ".join(participant_overlap))
             if place_overlap:
-                score += 2 * len(place_overlap)
+                score += 3 * len(place_overlap)
                 signals.append("shared places: " + ", ".join(place_overlap))
             lt = _event_time(left)
             rt = _event_time(right)
@@ -268,7 +309,13 @@ def event_candidates(
                 )
             )
 
-    ranked.sort(key=lambda item: (-item[0], item[1]["left"]["ref"], item[1]["right"]["ref"]))
+    ranked.sort(
+        key=lambda item: (
+            -item[0],
+            item[1]["left"]["ref"],
+            item[1]["right"]["ref"],
+        )
+    )
     candidates = [item[1] for item in ranked[:max_candidates]]
     for index, candidate in enumerate(candidates, 1):
         candidate["candidate_id"] = f"vc_{index:03d}"
@@ -288,8 +335,12 @@ def build_candidate_set(
         "version": RESOLUTION_VERSION,
         "left_bundle": _bundle_ref(left_bundle, left_label),
         "right_bundle": _bundle_ref(right_bundle, right_label),
-        "entity_candidates": entity_candidates(left_bundle, left_label, right_bundle, right_label),
-        "event_candidates": event_candidates(left_bundle, left_label, right_bundle, right_label),
+        "entity_candidates": entity_candidates(
+            left_bundle, left_label, right_bundle, right_label
+        ),
+        "event_candidates": event_candidates(
+            left_bundle, left_label, right_bundle, right_label
+        ),
     }
 
 
@@ -340,21 +391,37 @@ def _decisions_by_id(
     result: dict[str, dict[str, Any]] = {}
     for item in raw:
         if not isinstance(item, dict):
-            raise ResolutionV0Error(f"resolver response {field} contains a non-object")
+            raise ResolutionV0Error(
+                f"resolver response {field} contains a non-object"
+            )
         candidate_id = item.get("candidate_id")
         if candidate_id not in expected:
-            raise ResolutionV0Error(f"resolver returned unknown {field} candidate_id {candidate_id!r}")
+            raise ResolutionV0Error(
+                f"resolver returned unknown {field} candidate_id {candidate_id!r}"
+            )
         if candidate_id in result:
-            raise ResolutionV0Error(f"resolver returned duplicate candidate_id {candidate_id}")
+            raise ResolutionV0Error(
+                f"resolver returned duplicate candidate_id {candidate_id}"
+            )
         decision = item.get("decision")
         confidence = item.get("confidence")
         rationale = item.get("rationale")
         if decision not in allowed:
-            raise ResolutionV0Error(f"resolver returned invalid decision {decision!r} for {candidate_id}")
-        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= confidence <= 1:
-            raise ResolutionV0Error(f"resolver returned invalid confidence for {candidate_id}")
+            raise ResolutionV0Error(
+                f"resolver returned invalid decision {decision!r} for {candidate_id}"
+            )
+        if (
+            not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not 0 <= confidence <= 1
+        ):
+            raise ResolutionV0Error(
+                f"resolver returned invalid confidence for {candidate_id}"
+            )
         if not isinstance(rationale, str) or not rationale.strip():
-            raise ResolutionV0Error(f"resolver returned empty rationale for {candidate_id}")
+            raise ResolutionV0Error(
+                f"resolver returned empty rationale for {candidate_id}"
+            )
         result[candidate_id] = {
             "decision": decision,
             "confidence": float(confidence),
@@ -362,7 +429,9 @@ def _decisions_by_id(
         }
     missing = sorted(expected - result.keys())
     if missing:
-        raise ResolutionV0Error("resolver omitted candidate_ids: " + ", ".join(missing))
+        raise ResolutionV0Error(
+            "resolver omitted candidate_ids: " + ", ".join(missing)
+        )
     return result
 
 
@@ -384,7 +453,9 @@ def apply_resolution_decisions(
         {"same_occurrence", "related_occurrence", "not_same", "uncertain"},
     )
 
-    def links(items: list[dict[str, Any]], decisions: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    def links(
+        items: list[dict[str, Any]], decisions: dict[str, dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         for candidate in items:
             candidate_id = candidate["candidate_id"]
@@ -429,7 +500,9 @@ def apply_resolution_decisions(
 def resolve_with_provider(
     candidates: dict[str, Any], provider: ModelProvider
 ) -> tuple[dict[str, Any], str]:
-    if not (candidates.get("entity_candidates") or candidates.get("event_candidates")):
+    if not (
+        candidates.get("entity_candidates") or candidates.get("event_candidates")
+    ):
         empty = {
             "entity_decisions": [],
             "event_decisions": [],
