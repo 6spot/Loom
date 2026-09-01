@@ -1,0 +1,2822 @@
+{
+  "schema_version": "0.1",
+  "source": {
+    "temp_id": "src_001",
+    "kind": "source",
+    "source_type": "book",
+    "title": "三国志·魏书·武帝纪",
+    "language": "lzh",
+    "author": "陈寿",
+    "citation": "三国志",
+    "edition": null,
+    "url": null,
+    "metadata": {
+      "work": "三国志",
+      "fixture": "sanguozhi-wudi-jianan-13"
+    },
+    "extraction": {
+      "method": "model",
+      "job_id": "contract-v0.2",
+      "confidence": 1
+    }
+  },
+  "entities": [
+    {
+      "temp_id": "ent_001",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "曹操",
+      "aliases": [
+        "太祖"
+      ],
+      "mentions": [
+        {
+          "text": "公",
+          "contextual": true
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_002",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘表",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "刘表"
+        },
+        {
+          "text": "表"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_003",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘琮",
+      "aliases": [
+        "琮"
+      ],
+      "mentions": [
+        {
+          "text": "其子琮"
+        },
+        {
+          "text": "琮"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "ent_004",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘备",
+      "aliases": [
+        "备"
+      ],
+      "mentions": [
+        {
+          "text": "刘备"
+        },
+        {
+          "text": "备"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_005",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "孙权",
+      "aliases": [
+        "权"
+      ],
+      "mentions": [
+        {
+          "text": "孙权"
+        },
+        {
+          "text": "权"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_006",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "张憙",
+      "aliases": [
+        "憙"
+      ],
+      "mentions": [
+        {
+          "text": "张憙"
+        },
+        {
+          "text": "憙"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_007",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "文聘",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "文聘"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_008",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "韩嵩",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "韩嵩"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_009",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "邓义",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "邓义"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_010",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘璋",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "刘璋"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_011",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "邺",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "邺"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_012",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "玄武池",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "玄武池"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_013",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "襄阳",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "襄阳"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_014",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "樊",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "樊"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_015",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "新野",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "新野"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_016",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "夏口",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "夏口"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_017",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "江陵",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "江陵"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_018",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "巴丘",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "巴丘"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_019",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "赤壁",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "赤壁"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_020",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "合肥",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "合肥"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_021",
+      "kind": "entity",
+      "type": "polity",
+      "canonical_name": "汉",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "汉"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_022",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "荆州",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "荆州"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_023",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "益州",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "益州"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_024",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "江南诸郡",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "江南诸郡"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "ent_025",
+      "kind": "entity",
+      "type": "office",
+      "canonical_name": "三公官",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "三公官"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_026",
+      "kind": "entity",
+      "type": "office",
+      "canonical_name": "丞相",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "丞相"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_027",
+      "kind": "entity",
+      "type": "office",
+      "canonical_name": "御史大夫",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "御史大夫"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_028",
+      "kind": "entity",
+      "type": "office",
+      "canonical_name": "江夏太守",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "江夏太守"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_029",
+      "kind": "entity",
+      "type": "group",
+      "canonical_name": "荆州吏民",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "荆州吏民"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_030",
+      "kind": "entity",
+      "type": "army",
+      "canonical_name": "曹操军",
+      "aliases": [
+        "军"
+      ],
+      "mentions": [
+        {
+          "text": "军"
+        },
+        {
+          "text": "本兵"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.95
+      }
+    },
+    {
+      "temp_id": "ent_031",
+      "kind": "entity",
+      "type": "group",
+      "canonical_name": "吏士",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "吏士"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    }
+  ],
+  "events": [
+    {
+      "temp_id": "evt_001",
+      "kind": "event",
+      "type": "movement",
+      "title": "曹操还邺",
+      "summary": "公还邺",
+      "time": {
+        "original_text": "十三年春正月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": 1,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "subject"
+        }
+      ],
+      "places": [
+        "ent_011"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_002",
+      "kind": "event",
+      "type": "cultural",
+      "title": "作玄武池以肄舟师",
+      "summary": "曹操作玄武池以训练舟师",
+      "time": {
+        "original_text": "十三年春正月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": 1,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "subject"
+        }
+      ],
+      "places": [
+        "ent_012"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_003",
+      "kind": "event",
+      "type": "administrative",
+      "title": "汉罢三公官",
+      "summary": "汉罢三公官",
+      "time": {
+        "original_text": "十三年春正月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": 1,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_021",
+          "role": "subject"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_004",
+      "kind": "event",
+      "type": "administrative",
+      "title": "置丞相、御史大夫",
+      "summary": "置丞相、御史大夫",
+      "time": {
+        "original_text": "十三年春正月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": 1,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_021",
+          "role": "subject"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_005",
+      "kind": "event",
+      "type": "appointment",
+      "title": "曹操为丞相",
+      "summary": "以公为丞相",
+      "time": {
+        "original_text": "十三年春正月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": 1,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "appointee"
+        },
+        {
+          "entity_ref": "ent_026",
+          "role": "office"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_006",
+      "kind": "event",
+      "type": "military",
+      "title": "曹操南征刘表",
+      "summary": "公南征刘表",
+      "time": {
+        "original_text": "十三年秋七月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "autumn",
+          "month": 7,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "attacker"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "target"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_007",
+      "kind": "event",
+      "type": "death",
+      "title": "刘表卒",
+      "summary": "表卒",
+      "time": {
+        "original_text": "十三年八月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 8,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_002",
+          "role": "deceased"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_008",
+      "kind": "event",
+      "type": "succession",
+      "title": "刘琮代刘表",
+      "summary": "其子琮代",
+      "time": {
+        "original_text": "十三年八月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 8,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_003",
+          "role": "successor"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "predecessor"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_009",
+      "kind": "event",
+      "type": "military",
+      "title": "刘琮屯襄阳",
+      "summary": "屯襄阳",
+      "time": {
+        "original_text": "十三年八月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 8,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_003",
+          "role": "stationed_force"
+        }
+      ],
+      "places": [
+        "ent_013"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_010",
+      "kind": "event",
+      "type": "military",
+      "title": "刘备屯樊",
+      "summary": "刘备屯樊",
+      "time": {
+        "original_text": "十三年八月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 8,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_004",
+          "role": "stationed_force"
+        }
+      ],
+      "places": [
+        "ent_014"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_011",
+      "kind": "event",
+      "type": "movement",
+      "title": "曹操到新野",
+      "summary": "公到新野",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "subject"
+        }
+      ],
+      "places": [
+        "ent_015"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_012",
+      "kind": "event",
+      "type": "surrender",
+      "title": "刘琮降",
+      "summary": "琮遂降",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_003",
+          "role": "surrendering"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "recipient"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.97
+      }
+    },
+    {
+      "temp_id": "evt_013",
+      "kind": "event",
+      "type": "movement",
+      "title": "刘备走夏口",
+      "summary": "备走夏口",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_004",
+          "role": "subject"
+        }
+      ],
+      "places": [
+        "ent_016"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_014",
+      "kind": "event",
+      "type": "movement",
+      "title": "曹操进军江陵",
+      "summary": "公进军江陵",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "subject"
+        }
+      ],
+      "places": [
+        "ent_017"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_015",
+      "kind": "event",
+      "type": "political",
+      "title": "荆州吏民更始",
+      "summary": "下令荆州吏民，与之更始",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "issuer"
+        },
+        {
+          "entity_ref": "ent_029",
+          "role": "recipient"
+        }
+      ],
+      "places": [
+        "ent_022"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_016",
+      "kind": "event",
+      "type": "appointment",
+      "title": "文聘为江夏太守",
+      "summary": "以刘表大将文聘为江夏太守",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_007",
+          "role": "appointee"
+        },
+        {
+          "entity_ref": "ent_028",
+          "role": "office"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_017",
+      "kind": "event",
+      "type": "military",
+      "title": "刘璋遣兵给军",
+      "summary": "益州牧刘璋始受征役，遣兵给军",
+      "time": {
+        "original_text": "十三年九月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 9,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_010",
+          "role": "sender"
+        },
+        {
+          "entity_ref": "ent_030",
+          "role": "recipient"
+        }
+      ],
+      "places": [
+        "ent_023"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_018",
+      "kind": "event",
+      "type": "battle",
+      "title": "孙权攻合肥",
+      "summary": "孙权为备攻合肥",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_005",
+          "role": "attacker"
+        },
+        {
+          "entity_ref": "ent_004",
+          "role": "ally"
+        },
+        {
+          "entity_ref": "ent_020",
+          "role": "target"
+        }
+      ],
+      "places": [
+        "ent_020"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_019",
+      "kind": "event",
+      "type": "military",
+      "title": "曹操征刘备至巴丘",
+      "summary": "公自江陵征备，至巴丘",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "attacker"
+        },
+        {
+          "entity_ref": "ent_004",
+          "role": "target"
+        }
+      ],
+      "places": [
+        "ent_017",
+        "ent_018"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_020",
+      "kind": "event",
+      "type": "military",
+      "title": "遣张憙救合肥",
+      "summary": "遣张憙救合肥",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "sender"
+        },
+        {
+          "entity_ref": "ent_006",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_020"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_021",
+      "kind": "event",
+      "type": "retreat",
+      "title": "孙权退走",
+      "summary": "权闻憙至，乃走",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_005",
+          "role": "retreating"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_022",
+      "kind": "event",
+      "type": "battle",
+      "title": "赤壁之战",
+      "summary": "公至赤壁，与备战，不利",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "combatant"
+        },
+        {
+          "entity_ref": "ent_004",
+          "role": "combatant"
+        }
+      ],
+      "places": [
+        "ent_019"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_023",
+      "kind": "event",
+      "type": "epidemic",
+      "title": "大疫",
+      "summary": "于是大疫",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_030",
+          "role": "affected"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_024",
+      "kind": "event",
+      "type": "death",
+      "title": "吏士多死",
+      "summary": "吏士多死者",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_031",
+          "role": "deceased"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_025",
+      "kind": "event",
+      "type": "retreat",
+      "title": "曹操引军还",
+      "summary": "乃引军还",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_030",
+          "role": "army"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_026",
+      "kind": "event",
+      "type": "territorial_change",
+      "title": "刘备有荆州、江南诸郡",
+      "summary": "备遂有荆州、江南诸郡",
+      "time": {
+        "original_text": "十三年十二月",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "month": 12,
+          "inherited_fields": [
+            "era",
+            "era_year"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "month": null,
+          "day": null,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_004",
+          "role": "holder"
+        }
+      ],
+      "places": [
+        "ent_022",
+        "ent_024"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    }
+  ],
+  "claims": [
+    {
+      "temp_id": "clm_001",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "moved_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_011"
+      },
+      "evidence": {
+        "text": "公还邺",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_002",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_012"
+      },
+      "evidence": {
+        "text": "作玄武池",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_003",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "predicate": "abolished",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_025"
+      },
+      "evidence": {
+        "text": "汉罢三公官",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_004",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_026"
+      },
+      "evidence": {
+        "text": "置丞相、御史大夫",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_005",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_027"
+      },
+      "evidence": {
+        "text": "置丞相、御史大夫",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_006",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "appointed",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_026"
+      },
+      "evidence": {
+        "text": "以公为丞相",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_007",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "attacked",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_002"
+      },
+      "evidence": {
+        "text": "公南征刘表",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_008",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_002"
+      },
+      "predicate": "died",
+      "object": null,
+      "evidence": {
+        "text": "表卒",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_009",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_003"
+      },
+      "predicate": "succeeded",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_002"
+      },
+      "evidence": {
+        "text": "其子琮代",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_010",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_003"
+      },
+      "predicate": "stationed_at",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_013"
+      },
+      "evidence": {
+        "text": "屯襄阳",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_011",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "predicate": "stationed_at",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_014"
+      },
+      "evidence": {
+        "text": "刘备屯樊",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_012",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "moved_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_015"
+      },
+      "evidence": {
+        "text": "公到新野",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_013",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_003"
+      },
+      "predicate": "surrendered_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "evidence": {
+        "text": "琮遂降",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.97
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_014",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "predicate": "moved_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_016"
+      },
+      "evidence": {
+        "text": "备走夏口",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_015",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "moved_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "evidence": {
+        "text": "公进军江陵",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_016",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_007"
+      },
+      "predicate": "appointed",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_028"
+      },
+      "evidence": {
+        "text": "以刘表大将文聘为江夏太守",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_017",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_010"
+      },
+      "predicate": "sent_forces",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_030"
+      },
+      "evidence": {
+        "text": "刘璋始受征役，遣兵给军",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.97
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_018",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_005"
+      },
+      "predicate": "attacked",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_020"
+      },
+      "evidence": {
+        "text": "孙权为备攻合肥",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_019",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "attacked",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "evidence": {
+        "text": "公自江陵征备",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_020",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "moved_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_018"
+      },
+      "evidence": {
+        "text": "至巴丘",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_021",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "sent_forces",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_006"
+      },
+      "evidence": {
+        "text": "遣张憙救合肥",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_022",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_005"
+      },
+      "predicate": "retreated",
+      "object": null,
+      "evidence": {
+        "text": "权闻憙至，乃走",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_023",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "fought",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "evidence": {
+        "text": "与备战",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_024",
+      "kind": "claim",
+      "subject": {
+        "kind": "event_ref",
+        "ref": "evt_022"
+      },
+      "predicate": "outcome",
+      "object": {
+        "kind": "literal",
+        "value": "不利"
+      },
+      "evidence": {
+        "text": "不利",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_025",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_023"
+      },
+      "predicate": "affected",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_031"
+      },
+      "evidence": {
+        "text": "于是大疫，吏士多死者",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.86
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_026",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "retreated",
+      "object": null,
+      "evidence": {
+        "text": "乃引军还",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_027",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "predicate": "gained_territory",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_022"
+      },
+      "evidence": {
+        "text": "备遂有荆州",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    },
+    {
+      "temp_id": "clm_028",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "predicate": "gained_territory",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_024"
+      },
+      "evidence": {
+        "text": "江南诸郡",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "chapter": "魏书·武帝纪",
+          "volume": null,
+          "section": null,
+          "paragraph": "2",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      },
+      "time": null
+    }
+  ],
+  "warnings": [
+    {
+      "type": "contextual_coreference",
+      "severity": "info",
+      "message": "“公”以及“表”“琮”“备”“权”“憙”等简称按文档上下文解析；“公”解析为文档主叙事主体曹操。",
+      "refs": [
+        "ent_001",
+        "ent_002",
+        "ent_003",
+        "ent_004",
+        "ent_005",
+        "ent_006"
+      ]
+    },
+    {
+      "type": "ontology_gap",
+      "severity": "warning",
+      "message": "“与之更始”所述命令荆州吏民与曹操重新开始，以及“侯者十五人”“使统本兵”“引用荆州名士”等明确断言没有语义足够精确的允许谓词，已保留相关事件或实体信息但未强行生成不忠实Claim。",
+      "refs": [
+        "evt_015",
+        "evt_016",
+        "ent_007",
+        "ent_008",
+        "ent_009",
+        "ent_029"
+      ]
+    },
+    {
+      "type": "partial_calendar_conversion",
+      "severity": "warning",
+      "message": "所有事件保留建安十三年及源文月份；仅使用文档提供的公元208年年度转换，未推断公历月日。",
+      "refs": [
+        "evt_001",
+        "evt_026"
+      ]
+    },
+    {
+      "type": "coverage_claim_coverage_decision",
+      "severity": "info",
+      "message": "已按源文顺序为可由允许谓词忠实表达的显式行动和状态变化生成Claim；无法忠实表达者以ontology_gap警告保留。",
+      "refs": [
+        "src_001"
+      ]
+    }
+  ]
+}

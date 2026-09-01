@@ -1,0 +1,57 @@
+{
+  "schema": "chronicle.ingestion-run",
+  "version": "0.3",
+  "extractor": "contract-v0.2",
+  "provider": "command:codex",
+  "pipeline": "contract-first-single-extraction-bounded-patch-repair",
+  "initial_validation": {
+    "schema": "chronicle.ingestion-validation",
+    "version": "0.1",
+    "passed": true,
+    "count": 0,
+    "errors": {
+      "schema_validation": [],
+      "grounding": [],
+      "reference_integrity": [],
+      "time_precision": [],
+      "predicate_vocabulary": [],
+      "initial_assessment": [],
+      "source_calendar_consistency": []
+    }
+  },
+  "repair": {
+    "attempted": false,
+    "attempts": 0,
+    "provider": null,
+    "accepted": false,
+    "protocol": null
+  },
+  "final_validation": {
+    "schema": "chronicle.ingestion-validation",
+    "version": "0.1",
+    "passed": true,
+    "count": 0,
+    "errors": {
+      "schema_validation": [],
+      "grounding": [],
+      "reference_integrity": [],
+      "time_precision": [],
+      "predicate_vocabulary": [],
+      "initial_assessment": [],
+      "source_calendar_consistency": []
+    }
+  },
+  "initial_counts": {
+    "entities": 40,
+    "events": 27,
+    "claims": 22,
+    "warnings": 6
+  },
+  "counts": {
+    "entities": 40,
+    "events": 27,
+    "claims": 22,
+    "warnings": 6
+  },
+  "output_written": true
+}

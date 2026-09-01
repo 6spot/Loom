@@ -1,0 +1,435 @@
+{
+  "schema": "chronicle.resolution-links",
+  "version": "0.1",
+  "left_bundle": {
+    "label": "wudi",
+    "source_ref": "src_001",
+    "source_title": "三国志·魏书·武帝纪"
+  },
+  "right_bundle": {
+    "label": "wuzhu",
+    "source_ref": "src_001",
+    "source_title": "三国志·吴书·吴主传"
+  },
+  "entity_links": [
+    {
+      "candidate_id": "ec_001",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_001"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_017"
+      },
+      "decision": "same_entity",
+      "confidence": 0.99,
+      "rationale": "Both are person records with exact canonical name 曹操; aliases and mentions are compatible.",
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 曹操"
+      ]
+    },
+    {
+      "candidate_id": "ec_002",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_002"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_015"
+      },
+      "decision": "same_entity",
+      "confidence": 0.99,
+      "rationale": "Both are person records with exact canonical name 刘表 and matching mentions.",
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘表"
+      ]
+    },
+    {
+      "candidate_id": "ec_003",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_003"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_018"
+      },
+      "decision": "same_entity",
+      "confidence": 0.99,
+      "rationale": "Both are person records with exact canonical name 刘琮 and compatible alias/mention evidence.",
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘琮"
+      ]
+    },
+    {
+      "candidate_id": "ec_004",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_004"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_019"
+      },
+      "decision": "same_entity",
+      "confidence": 0.99,
+      "rationale": "Both are person records with exact canonical name 刘备 and matching aliases/mentions.",
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘备"
+      ]
+    },
+    {
+      "candidate_id": "ec_005",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_005"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_001"
+      },
+      "decision": "same_entity",
+      "confidence": 0.99,
+      "rationale": "Both are person records with exact canonical name 孙权 and compatible aliases/mentions.",
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 孙权"
+      ]
+    },
+    {
+      "candidate_id": "ec_006",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_013"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_030"
+      },
+      "decision": "uncertain",
+      "confidence": 0.62,
+      "rationale": "Both are places named 襄阳, but the supplied evidence provides no distinguishing identity beyond name and type.",
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 襄阳"
+      ]
+    },
+    {
+      "candidate_id": "ec_007",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_016"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_023"
+      },
+      "decision": "uncertain",
+      "confidence": 0.62,
+      "rationale": "Both are places named 夏口, but the supplied evidence provides no distinguishing identity beyond name and type.",
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 夏口"
+      ]
+    },
+    {
+      "candidate_id": "ec_008",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_017"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_029"
+      },
+      "decision": "uncertain",
+      "confidence": 0.62,
+      "rationale": "Both are places named 江陵, but the supplied evidence provides no distinguishing identity beyond name and type.",
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 江陵"
+      ]
+    },
+    {
+      "candidate_id": "ec_009",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_019"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_024"
+      },
+      "decision": "uncertain",
+      "confidence": 0.62,
+      "rationale": "Both are places named 赤壁, but the supplied evidence provides no distinguishing identity beyond name and type.",
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 赤壁"
+      ]
+    },
+    {
+      "candidate_id": "ec_010",
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_020"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_033"
+      },
+      "decision": "uncertain",
+      "confidence": 0.62,
+      "rationale": "Both are places named 合肥, but the supplied evidence provides no distinguishing identity beyond name and type.",
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 合肥"
+      ]
+    }
+  ],
+  "event_links": [
+    {
+      "candidate_id": "vc_001",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_022"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_016"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.96,
+      "rationale": "Matching battle title, place, core participants, and normalized year indicate the same occurrence despite differing temporal granularity.",
+      "signals": [
+        "compatible event types: battle / battle",
+        "shared participants: 刘备, 曹操",
+        "shared places: 赤壁",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_002",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_012"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_011"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.99,
+      "rationale": "Both describe 刘琮 surrendering to曹操, with matching participants, event type, and normalized year.",
+      "signals": [
+        "compatible event types: surrender / surrender",
+        "low-ambiguity same event type: surrender",
+        "shared participants: 刘琮, 曹操",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_003",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_013"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_013"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.98,
+      "rationale": "Both describe 刘备 moving to 夏口, with matching participant, place, event type, and normalized year.",
+      "signals": [
+        "compatible event types: movement / movement",
+        "shared participants: 刘备",
+        "shared places: 夏口",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_004",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_014"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_019"
+      },
+      "decision": "related_occurrence",
+      "confidence": 0.92,
+      "rationale": "Both concern曹操 and江陵 in the same year, but one is an advance and the other a later return and garrisoning action.",
+      "signals": [
+        "compatible event types: movement / movement",
+        "shared participants: 曹操",
+        "shared places: 江陵",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_005",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_018"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_023"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.86,
+      "rationale": "Both describe孙权 attacking or besieging合肥 in 208; wording and event-type granularity differ but the core occurrence aligns.",
+      "signals": [
+        "compatible event types: battle / military",
+        "shared participants: 孙权",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_006",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_018"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_027"
+      },
+      "decision": "related_occurrence",
+      "confidence": 0.9,
+      "rationale": "The attack on合肥 and the later withdrawal when曹军 had not arrived are connected actions, not the same occurrence.",
+      "signals": [
+        "compatible event types: battle / military",
+        "shared participants: 孙权",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_007",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_020"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_026"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.9,
+      "rationale": "Both describe曹操 dispatching张憙/张喜 with forces to合肥 in 208; the name form and wording vary slightly.",
+      "signals": [
+        "compatible event types: military / military",
+        "shared participants: 曹操",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_008",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_007"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_008"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.99,
+      "rationale": "Both are death records for刘表 with matching participant, event type, and normalized year.",
+      "signals": [
+        "compatible event types: death / death",
+        "low-ambiguity same event type: death",
+        "shared participants: 刘表",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_009",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_021"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_025"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.95,
+      "rationale": "Both describe孙权's retreat in 208; the right record supplies the more specific合肥 siege context.",
+      "signals": [
+        "compatible event types: retreat / retreat",
+        "low-ambiguity same event type: retreat",
+        "shared participants: 孙权",
+        "same normalized year: 208"
+      ]
+    },
+    {
+      "candidate_id": "vc_010",
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_025"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_017"
+      },
+      "decision": "same_occurrence",
+      "confidence": 0.95,
+      "rationale": "Both describe曹操 and his army withdrawing in 208; the right record adds the detail that remaining ships were burned.",
+      "signals": [
+        "compatible event types: retreat / retreat",
+        "low-ambiguity same event type: retreat",
+        "shared participants: 曹操",
+        "same normalized year: 208"
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "type": "unresolved_resolution",
+      "message": "Resolution candidate ec_006 remains uncertain.",
+      "refs": [
+        "ec_006"
+      ]
+    },
+    {
+      "type": "unresolved_resolution",
+      "message": "Resolution candidate ec_007 remains uncertain.",
+      "refs": [
+        "ec_007"
+      ]
+    },
+    {
+      "type": "unresolved_resolution",
+      "message": "Resolution candidate ec_008 remains uncertain.",
+      "refs": [
+        "ec_008"
+      ]
+    },
+    {
+      "type": "unresolved_resolution",
+      "message": "Resolution candidate ec_009 remains uncertain.",
+      "refs": [
+        "ec_009"
+      ]
+    },
+    {
+      "type": "unresolved_resolution",
+      "message": "Resolution candidate ec_010 remains uncertain.",
+      "refs": [
+        "ec_010"
+      ]
+    }
+  ]
+}
