@@ -1,0 +1,133 @@
+.global-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  min-width: min(28rem, 46vw);
+}
+
+.global-search label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.global-search input,
+.search-page-form input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0.72rem 0.85rem;
+  font: inherit;
+}
+
+.global-search button {
+  white-space: nowrap;
+}
+
+.search-page-form {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--paper-soft);
+}
+
+.search-page-form > label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.search-results {
+  display: grid;
+  gap: 1rem;
+}
+
+.search-card {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--paper);
+  padding: 1rem 1.1rem;
+}
+
+.search-card h2 {
+  margin: 0.55rem 0 0.45rem;
+}
+
+.search-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-card-topline .count {
+  margin-left: auto;
+}
+
+.search-time {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+}
+
+.search-match {
+  margin-top: 0.85rem;
+}
+
+.search-match summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.search-match ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.search-match li {
+  margin: 0.45rem 0;
+}
+
+.match-source,
+.match-field,
+.match-kind {
+  display: inline-block;
+  margin-right: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.match-kind {
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    flex-wrap: wrap;
+  }
+
+  .global-search {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .search-row {
+    flex-direction: column;
+  }
+}
