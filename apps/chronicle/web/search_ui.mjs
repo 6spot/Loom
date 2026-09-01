@@ -1,4 +1,4 @@
-import { escapeHTML, formatTime } from "/ui.mjs";
+import { escapeHTML, formatTime } from "./ui.mjs";
 
 function searchHref(query) {
   return `/search?q=${encodeURIComponent(query ?? "")}`;
