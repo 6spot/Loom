@@ -131,7 +131,7 @@ A separate server-level regression intentionally uses an unusable PostgreSQL end
 - [x] dedicated Chronicle CI runs UI contracts and real browser smoke in addition to PG18 read contracts;
 - [x] product/UI documentation records implemented behavior and local run path;
 - [x] first two-source vertical slice is executable end to end through PostgreSQL -> API -> HTTP -> ES modules -> headless Chrome;
-- [ ] delivery PR #483 is merged and post-merge Task Ledger reconciliation is merged to `main`.
+- [x] delivery PR #483 is merged and post-merge Task Ledger reconciliation is recorded by PR #484.
 
 ## Progress Log
 
@@ -140,7 +140,7 @@ A separate server-level regression intentionally uses an unusable PostgreSQL end
 - 2026-09-01 — Added Python HTTP/static boundary regressions and native Node UI contracts. The server boundary proves UI/static GETs do not require PostgreSQL while `/v0/*` remains database-backed.
 - 2026-09-01 — Strengthened the final gate to persist the retained 武帝纪 + 吴主传 golden world, start the real Chronicle server, and inspect real rendered DOM through headless Chrome. Intermediate failures corrected test assumptions without weakening source semantics: `/healthz` retained its existing payload and source representations were not forced to fabricate missing Claims.
 - 2026-09-01 — Exact-current-head Chronicle run `33524009993` / job `99910092736` passed 5 persistence tests, 15 read/static tests, 7 Node UI tests, and the real browser vertical slice. Delivery PR #483 squash-merged as `2e0d6df818d20151615da63c47b2a82ee2c41686`.
-- 2026-09-01 — Post-merge Task Ledger reconciliation opened to make C0-T11 completion canonical on `main`.
+- 2026-09-01 — Post-merge Task Ledger reconciliation PR #484 records completion on `main`.
 
 ## Non-goals
 
