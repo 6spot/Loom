@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import urllib.request
 from typing import Any
+from urllib.parse import urlencode
 
 
 def fetch_json(base_url: str, path: str) -> dict[str, Any]:
@@ -55,6 +56,14 @@ def find_item(items: list[dict[str, Any]], *, title: str) -> dict[str, Any]:
         if item.get("display", {}).get("title") == title:
             return item
     raise AssertionError(f"Timeline missing canonical Event {title!r}")
+
+
+def search_path(query: str, *, kind: str = "all", limit: int = 20) -> str:
+    return "/v0/search?" + urlencode({"q": query, "kind": kind, "limit": limit})
+
+
+def browser_search_url(base_url: str, query: str) -> str:
+    return f"{base_url}/search?{urlencode({'q': query})}"
 
 
 def main() -> int:
@@ -116,6 +125,67 @@ def main() -> int:
     require(cao_dom, "事件轨迹", "Cao Cao event trajectory")
     require(cao_dom, "赤壁之战", "Red Cliffs on Cao Cao trajectory")
 
+    # C0-T12: exercise the real search API and the browser search view.
+    cao_search = fetch_json(base_url, search_path("曹操", kind="entity"))
+    cao_results = [
+        item
+        for item in cao_search.get("items", [])
+        if item.get("display", {}).get("name") == "曹操"
+    ]
+    if len(cao_results) != 1:
+        raise AssertionError(f"Cao Cao search must return one canonical Entity, got {len(cao_results)}")
+    cao_result = cao_results[0]
+    if cao_result.get("canonical_id") != cao_cao_id:
+        raise AssertionError("Cao Cao search result must navigate to the existing canonical Entity")
+    if cao_result.get("source_count") != 2:
+        raise AssertionError("Cao Cao search result must preserve both sources")
+    matched_bundles = {
+        surface.get("bundle")
+        for surface in cao_result.get("match", {}).get("matched_surfaces", [])
+        if surface.get("bundle")
+    }
+    if matched_bundles != {"wudi", "wuzhu"}:
+        raise AssertionError(f"Cao Cao search provenance must include both sources, got {matched_bundles}")
+
+    cao_search_dom = dump_dom(chrome, browser_search_url(base_url, "曹操"))
+    require(cao_search_dom, "曹操", "Cao Cao search result")
+    require(cao_search_dom, f"/entities/{cao_cao_id}", "Cao Cao canonical search navigation")
+    require(cao_search_dom, "为什么命中", "search match explanation")
+    require(cao_search_dom, "三国志·魏书·武帝纪", "Wudi search provenance")
+    require(cao_search_dom, "三国志·吴书·吴主传", "Wuzhu search provenance")
+
+    chibi_search = fetch_json(base_url, search_path("赤壁"))
+    chibi_event = next(
+        (
+            item
+            for item in chibi_search.get("items", [])
+            if item.get("kind") == "event"
+            and item.get("display", {}).get("title") == "赤壁之战"
+        ),
+        None,
+    )
+    if chibi_event is None or chibi_event.get("canonical_id") != red_cliffs_id:
+        raise AssertionError("Chibi search must surface the existing canonical Red Cliffs Event")
+    chibi_places = [
+        item
+        for item in chibi_search.get("items", [])
+        if item.get("kind") == "entity" and item.get("display", {}).get("name") == "赤壁"
+    ]
+    if len(chibi_places) != 2 or len({item.get("canonical_id") for item in chibi_places}) != 2:
+        raise AssertionError("Chibi search must keep the two uncertain place identities distinct")
+    if not all(item.get("identity_uncertain") is True for item in chibi_places):
+        raise AssertionError("Both same-name Chibi place search results must remain visibly uncertain")
+
+    chibi_search_dom = dump_dom(chrome, browser_search_url(base_url, "赤壁"))
+    require(chibi_search_dom, f"/events/{red_cliffs_id}", "Red Cliffs Event search navigation")
+    require(chibi_search_dom, "身份不确定", "uncertain place marker in search")
+    for item in chibi_places:
+        require(
+            chibi_search_dom,
+            f"/entities/{item['canonical_id']}",
+            "distinct uncertain Chibi place search navigation",
+        )
+
     red_cliffs_place = next(
         place
         for place in red_detail.get("places", [])
@@ -141,17 +211,39 @@ def main() -> int:
         raise AssertionError("No related-but-distinct Jiangling Event found")
     jiangling_dom = dump_dom(chrome, f"{base_url}/events/{related_item['canonical_event_id']}")
     require(jiangling_dom, "相关事件", "related Event section")
+    related_ids = set()
     for related in related_detail["related_events"]:
+        related_ids.add(related["event"]["canonical_event_id"])
         require(
             jiangling_dom,
             related["event"]["display"]["title"],
             "related-but-distinct Jiangling Event link",
         )
 
+    jiangling_search = fetch_json(base_url, search_path("江陵", kind="event", limit=50))
+    jiangling_results = [
+        item
+        for item in jiangling_search.get("items", [])
+        if item.get("kind") == "event" and "江陵" in (item.get("display", {}).get("title") or "")
+    ]
+    jiangling_ids = {item.get("canonical_id") for item in jiangling_results}
+    expected_jiangling_ids = {related_item["canonical_event_id"], *related_ids}
+    if not expected_jiangling_ids.issubset(jiangling_ids):
+        raise AssertionError(
+            "Jiangling search must surface related-but-distinct canonical Events separately"
+        )
+    jiangling_search_dom = dump_dom(chrome, browser_search_url(base_url, "江陵"))
+    for canonical_id in expected_jiangling_ids:
+        require(
+            jiangling_search_dom,
+            f"/events/{canonical_id}",
+            "related-but-distinct Jiangling search navigation",
+        )
+
     print(
         "chronicle browser smoke: PASS "
         f"chrome={chrome} red_cliffs={red_cliffs_id} cao_cao={cao_cao_id} place={place_id} "
-        f"evidence={evidence_count}"
+        f"evidence={evidence_count} search=PASS"
     )
     return 0
 
