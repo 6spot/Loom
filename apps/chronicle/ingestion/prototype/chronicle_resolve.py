@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from chronicle_ingest import dump_json, validate_bundle
-from model_v0 import CommandModelProvider, ReplayModelProvider
+from model_v0 import CommandModelProvider, ModelV0Error, ReplayModelProvider
 from resolution_v0 import ResolutionV0Error, build_candidate_set, resolve_with_provider
 
 
@@ -108,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 0
-    except (OSError, json.JSONDecodeError, ResolutionV0Error) as exc:
+    except (OSError, json.JSONDecodeError, ModelV0Error, ResolutionV0Error) as exc:
         print(f"chronicle resolution error: {exc}", file=sys.stderr)
         return 2
 
