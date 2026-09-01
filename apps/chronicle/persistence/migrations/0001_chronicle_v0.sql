@@ -1,5 +1,11 @@
 CREATE SCHEMA IF NOT EXISTS chronicle;
 
+CREATE TABLE IF NOT EXISTS chronicle.schema_migrations (
+    version text PRIMARY KEY,
+    checksum text NOT NULL CHECK (checksum ~ '^[0-9a-f]{64}$'),
+    applied_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS chronicle.source_bundles (
     bundle_label text PRIMARY KEY,
     schema_version text NOT NULL,
@@ -49,7 +55,8 @@ CREATE TABLE IF NOT EXISTS chronicle.resolution_artifacts (
     left_bundle_label text NOT NULL REFERENCES chronicle.source_bundles(bundle_label) ON DELETE RESTRICT,
     right_bundle_label text NOT NULL REFERENCES chronicle.source_bundles(bundle_label) ON DELETE RESTRICT,
     payload jsonb NOT NULL,
-    imported_at timestamptz NOT NULL DEFAULT now()
+    imported_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (left_bundle_label <> right_bundle_label)
 );
 
 CREATE TABLE IF NOT EXISTS chronicle.resolution_entity_links (
@@ -97,6 +104,11 @@ CREATE TABLE IF NOT EXISTS chronicle.resolution_warnings (
     PRIMARY KEY (resolution_sha256, warning_index)
 );
 
+CREATE INDEX IF NOT EXISTS resolution_entity_links_decision_idx
+    ON chronicle.resolution_entity_links(decision);
+CREATE INDEX IF NOT EXISTS resolution_event_links_decision_idx
+    ON chronicle.resolution_event_links(decision);
+
 CREATE TABLE IF NOT EXISTS chronicle.canonical_catalogs (
     artifact_sha256 text PRIMARY KEY CHECK (artifact_sha256 ~ '^[0-9a-f]{64}$'),
     schema_name text NOT NULL,
@@ -106,12 +118,12 @@ CREATE TABLE IF NOT EXISTS chronicle.canonical_catalogs (
 );
 
 CREATE TABLE IF NOT EXISTS chronicle.canonical_entities (
-    canonical_id uuid PRIMARY KEY,
+    canonical_id uuid PRIMARY KEY CHECK (uuid_extract_version(canonical_id) = 7),
     first_catalog_sha256 text NOT NULL REFERENCES chronicle.canonical_catalogs(artifact_sha256) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS chronicle.canonical_events (
-    canonical_id uuid PRIMARY KEY,
+    canonical_id uuid PRIMARY KEY CHECK (uuid_extract_version(canonical_id) = 7),
     first_catalog_sha256 text NOT NULL REFERENCES chronicle.canonical_catalogs(artifact_sha256) ON DELETE RESTRICT
 );
 
@@ -176,6 +188,7 @@ CREATE TABLE IF NOT EXISTS chronicle.canonical_catalog_relations (
 
 CREATE TABLE IF NOT EXISTS chronicle.canonical_event_relation_links (
     relation_sha256 text NOT NULL REFERENCES chronicle.canonical_event_relations(relation_sha256) ON DELETE RESTRICT,
+    resolution_sha256 text NOT NULL,
     candidate_id text NOT NULL,
     left_bundle_label text NOT NULL,
     left_record_ref text NOT NULL,
@@ -183,17 +196,23 @@ CREATE TABLE IF NOT EXISTS chronicle.canonical_event_relation_links (
     right_record_ref text NOT NULL,
     PRIMARY KEY (
         relation_sha256,
+        resolution_sha256,
         candidate_id,
         left_bundle_label,
         left_record_ref,
         right_bundle_label,
         right_record_ref
     ),
+    FOREIGN KEY (resolution_sha256, candidate_id)
+        REFERENCES chronicle.resolution_event_links(resolution_sha256, candidate_id) ON DELETE RESTRICT,
     FOREIGN KEY (left_bundle_label, left_record_ref)
         REFERENCES chronicle.staged_events(bundle_label, record_ref) ON DELETE RESTRICT,
     FOREIGN KEY (right_bundle_label, right_record_ref)
         REFERENCES chronicle.staged_events(bundle_label, record_ref) ON DELETE RESTRICT
 );
+
+CREATE INDEX IF NOT EXISTS canonical_event_relation_links_resolution_idx
+    ON chronicle.canonical_event_relation_links(resolution_sha256, candidate_id);
 
 CREATE TABLE IF NOT EXISTS chronicle.canonical_warnings (
     catalog_sha256 text NOT NULL REFERENCES chronicle.canonical_catalogs(artifact_sha256) ON DELETE RESTRICT,
@@ -209,8 +228,3 @@ CREATE TABLE IF NOT EXISTS chronicle.import_sets (
     catalog_sha256 text NOT NULL REFERENCES chronicle.canonical_catalogs(artifact_sha256) ON DELETE RESTRICT,
     imported_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS resolution_entity_links_decision_idx
-    ON chronicle.resolution_entity_links(decision);
-CREATE INDEX IF NOT EXISTS resolution_event_links_decision_idx
-    ON chronicle.resolution_event_links(decision);
