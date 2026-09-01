@@ -6,6 +6,8 @@ depends_on: [C0-T7]
 created_at: 2026-09-01
 started_at: 2026-09-01
 completed_at: 2026-09-01
+completion_pr: 476
+merge_sha: 481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca
 ---
 
 # Chronicle Canonical Publication v0
@@ -126,8 +128,13 @@ Synthetic CLI verification and the standalone publication test module were also 
 - [x] full Chronicle prototype unittest discovery passes on the implementation branch;
 - [x] first real 武帝纪 ↔ 吴主传 publication run is inspected;
 - [x] real rerun proves canonical UUID stability;
-- [x] delivery PR #476 records the implementation and verification for merge to `main` (superseding Draft PR #475 after a connector ready-state error).
+- [x] delivery PR #476 merged to `main` as `481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca` (superseding closed Draft PR #475 after a connector ready-state error).
+
+## Progress Log
+
+- 2026-09-01 — Implementation, offline verification, real two-source publication, boundary audit, identity-stability rerun, and semantic inspection completed.
+- 2026-09-01 — Delivery PR #476 squash-merged to `main` as `481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca`; post-merge reconciliation records the actual delivery evidence required by the Task Ledger completion invariant.
 
 ## Boundary to C0-T9
 
-C0-T9 may now persist the accepted canonical catalog. PostgreSQL must store staged data, Resolution Links, and canonical publication as separate auditable layers rather than reinterpreting publication semantics in SQL.
+C0-T9 may persist the accepted canonical catalog only after this reconciliation is merged to the default branch. PostgreSQL must store staged data, Resolution Links, and canonical publication as separate auditable layers rather than reinterpreting publication semantics in SQL.
