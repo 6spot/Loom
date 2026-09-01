@@ -578,14 +578,21 @@ class ChronicleReadRepository:
             JOIN chronicle.canonical_event_representations r
               ON r.bundle_label = e.bundle_label AND r.record_ref = e.record_ref
             WHERE e.bundle_label = %s
-              AND EXISTS (
-                SELECT 1
-                FROM jsonb_array_elements(COALESCE(e.payload->'participants', '[]'::jsonb)) participant
-                WHERE participant->>'entity_ref' = %s
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(COALESCE(e.payload->'participants', '[]'::jsonb)) participant
+                    WHERE participant->>'entity_ref' = %s
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements_text(COALESCE(e.payload->'places', '[]'::jsonb)) place_ref
+                    WHERE place_ref = %s
+                )
               )
             ORDER BY r.canonical_id, e.record_ref
             """,
-            (bundle, entity_ref),
+            (bundle, entity_ref, entity_ref),
         ).fetchall()
         return [
             {"canonical_event_id": row[0], "event_ref": row[1], "payload": row[2]}
@@ -617,25 +624,35 @@ class ChronicleReadRepository:
                 }
             )
             for event in self._events_for_entity_rep(row["bundle"], row["ref"]):
-                roles = [
-                    participant.get("role")
-                    for participant in event["payload"].get("participants") or []
-                    if isinstance(participant, dict)
-                    and participant.get("entity_ref") == row["ref"]
-                ]
+                participant_roles = sorted(
+                    {
+                        participant.get("role")
+                        for participant in event["payload"].get("participants") or []
+                        if isinstance(participant, dict)
+                        and participant.get("entity_ref") == row["ref"]
+                        and isinstance(participant.get("role"), str)
+                        and participant.get("role")
+                    }
+                )
+                as_place = row["ref"] in {
+                    place_ref
+                    for place_ref in event["payload"].get("places") or []
+                    if isinstance(place_ref, str)
+                }
                 event_occurrences[event["canonical_event_id"]].append(
                     {
                         "bundle": row["bundle"],
                         "entity_ref": row["ref"],
                         "event_ref": event["event_ref"],
-                        "roles": roles,
+                        "participant_roles": participant_roles,
+                        "as_place": as_place,
                     }
                 )
 
         events = []
         for event_id in sorted(event_occurrences):
             event = self._event_summary(event_id)
-            event["source_roles"] = sorted(
+            event["source_involvements"] = sorted(
                 event_occurrences[event_id],
                 key=lambda item: (item["bundle"], item["event_ref"], item["entity_ref"]),
             )
