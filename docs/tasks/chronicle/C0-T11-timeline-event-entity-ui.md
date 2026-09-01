@@ -112,7 +112,7 @@ Use the retained 武帝纪 + 吴主传 persisted world and prove:
 
 ### Delivery evidence in progress
 
-PR #483 has already passed the PostgreSQL 18 persistence suite, the C0-T10 read/static suite, and native Node UI rendering/navigation contracts on its merge ref. The final delivery gate is now stronger than those unit/contract checks: Chronicle CI persists the retained two-source golden world, starts the real Chronicle HTTP server, and runs `apps/chronicle/web/browser_smoke.py` through the runner's headless Chrome. The acceptance checkboxes remain open until that browser gate is green on the current delivery head and the post-merge ledger reconciliation is complete.
+PR #483 has already passed the PostgreSQL 18 persistence suite, the C0-T10 read/static suite, and native Node UI rendering/navigation contracts on earlier merge refs. The final delivery gate is stronger: Chronicle CI persists the retained two-source golden world, starts the real Chronicle HTTP server, and runs `apps/chronicle/web/browser_smoke.py` through the runner's headless Chrome. A first rerun exposed only an incorrect test expectation for the pre-existing `/healthz -> {"status":"ok"}` contract; that test has been corrected without changing production API behavior. The acceptance checkboxes remain open until the current browser gate is green and the post-merge ledger reconciliation is complete.
 
 ## Acceptance
 
