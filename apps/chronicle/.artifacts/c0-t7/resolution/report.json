@@ -1,0 +1,21 @@
+{
+  "schema": "chronicle.resolution-run",
+  "version": "0.1",
+  "provider": "command:codex",
+  "candidate_counts": {
+    "entities": 10,
+    "events": 10
+  },
+  "decision_counts": {
+    "entities": {
+      "same_entity": 5,
+      "uncertain": 5
+    },
+    "events": {
+      "same_occurrence": 8,
+      "related_occurrence": 2
+    }
+  },
+  "schema_errors": [],
+  "passed": true
+}

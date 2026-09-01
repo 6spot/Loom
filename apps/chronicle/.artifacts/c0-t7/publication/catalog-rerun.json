@@ -1,0 +1,1098 @@
+{
+  "schema": "chronicle.canonical-catalog",
+  "version": "0.1",
+  "canonical_entities": [
+    {
+      "canonical_id": "01a05cd7-439d-7000-933c-d13d77a9dc37",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_033"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-70b8-ad1f-6e94af9a9221",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_006"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-70bd-ba1f-dc7767e29936",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_038"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-715a-a3ac-3975f377a45d",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_028"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7172-b459-8d0c0747f5f2",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_001"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_017"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7195-bc23-e114425cb4cd",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_002"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-71a9-9657-b6554e41eb08",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_011"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7209-94b2-22a7f1573904",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_008"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7244-a67c-f73e1d0a9006",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_025"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7250-bf58-14e063569726",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_030"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-728a-9582-a1e22e6f13ef",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_006"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-72e9-a5f9-fe026c7fa9ab",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_010"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-735d-979a-bdd073d824cc",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_012"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7399-b741-2d75ed9fa72e",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_005"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-73c7-a2c6-30dc7e4372d9",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_022"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-743f-b2ca-3c524f89ac0d",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_040"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-74ce-8654-370ac9d57370",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_029"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-74e5-bc85-8bc2ca40fb40",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_037"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-757f-a7d6-9165121cdd07",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_020"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7594-9bc8-2f32480b97a4",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_013"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-75b4-a91c-f593feccdf29",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_009"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7606-b619-24ee5ceb009f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_024"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7636-acb6-0b6f25698e0f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_003"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-764e-923f-9b9f9e8c3add",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_031"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-766f-bc24-577035c9bb30",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_021"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7674-b9ca-41a684421b9f",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_008"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-768d-af69-9c5dc59927a0",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_027"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-769a-b956-d0b4957825fd",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_004"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_019"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7761-b858-ae54bcabb1d1",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_011"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-778a-a957-e99e7368a13a",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_017"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7824-b8b4-ad34ddb68a2d",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_039"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-782d-8ed4-2d7012ff0935",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_003"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_018"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7890-bb40-575f2a0f753c",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_002"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_015"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-78bf-9cf7-28f2f7f5ab83",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_035"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7982-9677-97dd49d6a2bf",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_031"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7994-bbb9-797dbdaca0b5",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_026"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ad7-9d93-37123940244d",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_025"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7b25-b7b9-7570f0df0337",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_032"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7b50-92d5-cbdf414973cf",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_004"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7b50-9cc6-a688f5377c14",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_034"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7b8c-9e49-d18f09b5358a",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_019"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7bc9-8dc9-d8640614140f",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_022"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7bce-8c9d-077782a9fab6",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_028"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7bd8-af03-35b7a2d3c48f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_036"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c22-846a-83df61d881ab",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_024"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c39-b088-89e7d6d7ed5f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_013"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c3c-a7ba-2faad43e3f9f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_014"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c44-bd74-4c175382a968",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_018"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c7f-9b79-d75177718c39",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_023"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c8b-9c2c-91dbb6b5ad3b",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_023"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ca4-96bb-5a059ecb60f0",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_014"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ca8-a263-11ec915ee0a2",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_005"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_001"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7cec-ae6d-99f115f0e77b",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_030"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7d1e-94f2-31d9442c5c6b",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_016"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7d44-84a0-64c656c7812c",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_012"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ddc-89fb-13704c08038a",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_020"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e06-8d84-2df5a4c42162",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_021"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e8d-b3ab-d0bdbfc7645a",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_015"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e93-aa4e-bd1bb5248577",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_026"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7eaf-a623-18ecea97904e",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_027"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7eb4-a89e-4da3e0cf5f16",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_010"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ee4-9977-bfa73ce8589f",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_007"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7f4b-910a-6996d4852732",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_016"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7f7a-b57e-d07f2ebd48f8",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_007"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7f9e-bbce-48759e8a2323",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "ent_009"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ff6-867e-6fc0ce32e4f4",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "ent_029"
+        }
+      ]
+    }
+  ],
+  "canonical_events": [
+    {
+      "canonical_id": "01a05cd7-439d-7007-a97f-e70ab11859b1",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_009"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7021-b1b7-a6f341cd682a",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_019"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7036-b79c-c4966cf54d0d",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_016"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7071-bf00-86c664886b06",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_022"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_016"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-70d6-bafb-80dabda8b781",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_009"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-712c-914c-637fd0fbe345",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_004"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7159-8b64-aa0e9e2ada94",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_022"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7216-9cb4-cac616ff2f18",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_025"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_017"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7256-85a9-454e9d8342c6",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_020"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-726f-9d8c-cd7139c311ee",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_002"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7286-9478-a4d18dbf0cb6",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_017"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-72a1-ac68-3245a7ebf226",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_006"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-74c0-ab6b-7470c804c033",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_018"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-74dd-a62e-1775e030819a",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_005"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-74fe-8bca-11b45d93fa59",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_015"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7521-8a04-d21c6a243348",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_014"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7578-b10a-1d3d32694637",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_001"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-75c5-9d55-03af88150d51",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_023"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-75fe-930a-70a155f0bd7f",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_007"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_008"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7648-893f-836a50afae00",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_012"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_011"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-76c1-aa4f-0ad5b40d1b0e",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_012"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7746-917c-8510367d75bd",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_021"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-77e9-be6b-8296b9520043",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_026"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7825-baa4-5a142e79c4a4",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_011"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7954-b1c2-29b4b8d5d842",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_010"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7977-b38a-ce78bc67c520",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_015"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7a1e-8fd5-e40a04130981",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_010"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7af5-ae0c-ce97c223aa5c",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_024"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7b86-a9aa-0174943e957c",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_018"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_023"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ba9-a58f-42320736576f",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_003"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c2d-b7d5-6c04a97ee8e7",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_005"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c54-a9f4-02602f90464b",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_021"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_025"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c82-8bff-bd566468bf24",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_019"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7c9d-9fc5-e1f1a2709667",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_004"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7d03-a731-61d4f8c799f5",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_027"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7d4a-ae06-a72de2d99801",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_007"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7d81-b5b8-82e676e4c30e",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_008"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e1c-84bd-ecab87c8c1d1",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_014"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e61-b8ca-4415ef9a1a9c",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_013"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_013"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e74-a812-3d9481320e24",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_006"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e76-be23-99ada9ed9ca1",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_002"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7e87-a800-3b784ca0c23a",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_020"
+        },
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_026"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ec6-bada-8887b637a1f6",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_003"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7ede-b275-e8df44f850a6",
+      "representations": [
+        {
+          "bundle": "wudi",
+          "ref": "evt_001"
+        }
+      ]
+    },
+    {
+      "canonical_id": "01a05cd7-439d-7fa7-b15b-5260e611633c",
+      "representations": [
+        {
+          "bundle": "wuzhu",
+          "ref": "evt_024"
+        }
+      ]
+    }
+  ],
+  "event_relations": [
+    {
+      "type": "related_occurrence",
+      "left_canonical_event_id": "01a05cd7-439d-7021-b1b7-a6f341cd682a",
+      "right_canonical_event_id": "01a05cd7-439d-7521-8a04-d21c6a243348",
+      "resolution_links": [
+        {
+          "candidate_id": "vc_004",
+          "left": {
+            "bundle": "wudi",
+            "ref": "evt_014"
+          },
+          "right": {
+            "bundle": "wuzhu",
+            "ref": "evt_019"
+          }
+        }
+      ]
+    },
+    {
+      "type": "related_occurrence",
+      "left_canonical_event_id": "01a05cd7-439d-7b86-a9aa-0174943e957c",
+      "right_canonical_event_id": "01a05cd7-439d-7d03-a731-61d4f8c799f5",
+      "resolution_links": [
+        {
+          "candidate_id": "vc_006",
+          "left": {
+            "bundle": "wudi",
+            "ref": "evt_018"
+          },
+          "right": {
+            "bundle": "wuzhu",
+            "ref": "evt_027"
+          }
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

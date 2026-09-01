@@ -1,0 +1,910 @@
+{
+  "schema": "chronicle.resolution-candidates",
+  "version": "0.1",
+  "left_bundle": {
+    "label": "wudi",
+    "source_ref": "src_001",
+    "source_title": "三国志·魏书·武帝纪"
+  },
+  "right_bundle": {
+    "label": "wuzhu",
+    "source_ref": "src_001",
+    "source_title": "三国志·吴书·吴主传"
+  },
+  "entity_candidates": [
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_001"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_017"
+      },
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 曹操"
+      ],
+      "left_record": {
+        "ref": "ent_001",
+        "type": "person",
+        "canonical_name": "曹操",
+        "aliases": [
+          "太祖"
+        ],
+        "stable_mentions": []
+      },
+      "right_record": {
+        "ref": "ent_017",
+        "type": "person",
+        "canonical_name": "曹操",
+        "aliases": [
+          "曹公",
+          "公"
+        ],
+        "stable_mentions": [
+          "曹公",
+          "公",
+          "曹公"
+        ]
+      },
+      "candidate_id": "ec_001"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_002"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_015"
+      },
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘表"
+      ],
+      "left_record": {
+        "ref": "ent_002",
+        "type": "person",
+        "canonical_name": "刘表",
+        "aliases": [],
+        "stable_mentions": [
+          "刘表",
+          "表"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_015",
+        "type": "person",
+        "canonical_name": "刘表",
+        "aliases": [],
+        "stable_mentions": [
+          "刘表",
+          "表"
+        ]
+      },
+      "candidate_id": "ec_002"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_003"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_018"
+      },
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘琮"
+      ],
+      "left_record": {
+        "ref": "ent_003",
+        "type": "person",
+        "canonical_name": "刘琮",
+        "aliases": [
+          "琮"
+        ],
+        "stable_mentions": [
+          "其子琮",
+          "琮"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_018",
+        "type": "person",
+        "canonical_name": "刘琮",
+        "aliases": [
+          "琮"
+        ],
+        "stable_mentions": [
+          "表子琮",
+          "琮"
+        ]
+      },
+      "candidate_id": "ec_003"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_004"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_019"
+      },
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 刘备"
+      ],
+      "left_record": {
+        "ref": "ent_004",
+        "type": "person",
+        "canonical_name": "刘备",
+        "aliases": [
+          "备"
+        ],
+        "stable_mentions": [
+          "刘备",
+          "备"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_019",
+        "type": "person",
+        "canonical_name": "刘备",
+        "aliases": [
+          "备"
+        ],
+        "stable_mentions": [
+          "刘备",
+          "备",
+          "备"
+        ]
+      },
+      "candidate_id": "ec_004"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_005"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_001"
+      },
+      "signals": [
+        "same entity type: person",
+        "exact canonical surface: 孙权"
+      ],
+      "left_record": {
+        "ref": "ent_005",
+        "type": "person",
+        "canonical_name": "孙权",
+        "aliases": [
+          "权"
+        ],
+        "stable_mentions": [
+          "孙权",
+          "权"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_001",
+        "type": "person",
+        "canonical_name": "孙权",
+        "aliases": [
+          "权"
+        ],
+        "stable_mentions": [
+          "权"
+        ]
+      },
+      "candidate_id": "ec_005"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_013"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_030"
+      },
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 襄阳"
+      ],
+      "left_record": {
+        "ref": "ent_013",
+        "type": "place",
+        "canonical_name": "襄阳",
+        "aliases": [],
+        "stable_mentions": [
+          "襄阳"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_030",
+        "type": "place",
+        "canonical_name": "襄阳",
+        "aliases": [],
+        "stable_mentions": [
+          "襄阳"
+        ]
+      },
+      "candidate_id": "ec_006"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_016"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_023"
+      },
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 夏口"
+      ],
+      "left_record": {
+        "ref": "ent_016",
+        "type": "place",
+        "canonical_name": "夏口",
+        "aliases": [],
+        "stable_mentions": [
+          "夏口"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_023",
+        "type": "place",
+        "canonical_name": "夏口",
+        "aliases": [],
+        "stable_mentions": [
+          "夏口"
+        ]
+      },
+      "candidate_id": "ec_007"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_017"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_029"
+      },
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 江陵"
+      ],
+      "left_record": {
+        "ref": "ent_017",
+        "type": "place",
+        "canonical_name": "江陵",
+        "aliases": [],
+        "stable_mentions": [
+          "江陵"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_029",
+        "type": "place",
+        "canonical_name": "江陵",
+        "aliases": [],
+        "stable_mentions": [
+          "江陵"
+        ]
+      },
+      "candidate_id": "ec_008"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_019"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_024"
+      },
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 赤壁"
+      ],
+      "left_record": {
+        "ref": "ent_019",
+        "type": "place",
+        "canonical_name": "赤壁",
+        "aliases": [],
+        "stable_mentions": [
+          "赤壁"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_024",
+        "type": "place",
+        "canonical_name": "赤壁",
+        "aliases": [],
+        "stable_mentions": [
+          "赤壁"
+        ]
+      },
+      "candidate_id": "ec_009"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "ent_020"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "ent_033"
+      },
+      "signals": [
+        "same entity type: place",
+        "exact canonical surface: 合肥"
+      ],
+      "left_record": {
+        "ref": "ent_020",
+        "type": "place",
+        "canonical_name": "合肥",
+        "aliases": [],
+        "stable_mentions": [
+          "合肥"
+        ]
+      },
+      "right_record": {
+        "ref": "ent_033",
+        "type": "place",
+        "canonical_name": "合肥",
+        "aliases": [],
+        "stable_mentions": [
+          "合肥"
+        ]
+      },
+      "candidate_id": "ec_010"
+    }
+  ],
+  "event_candidates": [
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_022"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_016"
+      },
+      "signals": [
+        "compatible event types: battle / battle",
+        "shared participants: 刘备, 曹操",
+        "shared places: 赤壁",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_022",
+        "type": "battle",
+        "title": "赤壁之战",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "刘备",
+          "曹操"
+        ],
+        "places": [
+          "赤壁"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_016",
+        "type": "battle",
+        "title": "赤壁之战",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "刘备",
+          "周瑜",
+          "曹公军",
+          "曹操",
+          "程普"
+        ],
+        "places": [
+          "赤壁"
+        ]
+      },
+      "candidate_id": "vc_001"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_012"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_011"
+      },
+      "signals": [
+        "compatible event types: surrender / surrender",
+        "low-ambiguity same event type: surrender",
+        "shared participants: 刘琮, 曹操",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_012",
+        "type": "surrender",
+        "title": "刘琮降",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 9
+        },
+        "participants": [
+          "刘琮",
+          "曹操"
+        ],
+        "places": []
+      },
+      "right_record": {
+        "ref": "evt_011",
+        "type": "surrender",
+        "title": "刘琮率众向曹操投降",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "刘琮",
+          "曹操"
+        ],
+        "places": []
+      },
+      "candidate_id": "vc_002"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_013"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_013"
+      },
+      "signals": [
+        "compatible event types: movement / movement",
+        "shared participants: 刘备",
+        "shared places: 夏口",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_013",
+        "type": "movement",
+        "title": "刘备走夏口",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 9
+        },
+        "participants": [
+          "刘备"
+        ],
+        "places": [
+          "夏口"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_013",
+        "type": "movement",
+        "title": "刘备进驻夏口",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "刘备"
+        ],
+        "places": [
+          "夏口"
+        ]
+      },
+      "candidate_id": "vc_003"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_014"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_019"
+      },
+      "signals": [
+        "compatible event types: movement / movement",
+        "shared participants: 曹操",
+        "shared places: 江陵",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_014",
+        "type": "movement",
+        "title": "曹操进军江陵",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 9
+        },
+        "participants": [
+          "曹操"
+        ],
+        "places": [
+          "江陵"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_019",
+        "type": "movement",
+        "title": "曹操北还并留军守江陵、襄阳",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "乐进",
+          "徐晃",
+          "曹仁",
+          "曹操"
+        ],
+        "places": [
+          "江陵",
+          "襄阳"
+        ]
+      },
+      "candidate_id": "vc_004"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_018"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_023"
+      },
+      "signals": [
+        "compatible event types: battle / military",
+        "shared participants: 孙权",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_018",
+        "type": "battle",
+        "title": "孙权攻合肥",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "刘备",
+          "合肥",
+          "孙权"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_023",
+        "type": "military",
+        "title": "孙权围攻合肥",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "孙权"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "candidate_id": "vc_005"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_018"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_027"
+      },
+      "signals": [
+        "compatible event types: battle / military",
+        "shared participants: 孙权",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_018",
+        "type": "battle",
+        "title": "孙权攻合肥",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "刘备",
+          "合肥",
+          "孙权"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_027",
+        "type": "military",
+        "title": "曹军未至合肥孙权退兵",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "孙权",
+          "张喜"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "candidate_id": "vc_006"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_020"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_026"
+      },
+      "signals": [
+        "compatible event types: military / military",
+        "shared participants: 曹操",
+        "shared places: 合肥",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_020",
+        "type": "military",
+        "title": "遣张憙救合肥",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "张憙",
+          "曹操"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "right_record": {
+        "ref": "evt_026",
+        "type": "military",
+        "title": "曹操遣张喜率骑兵赴合肥",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "张喜",
+          "曹公骑军",
+          "曹操"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "candidate_id": "vc_007"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_007"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_008"
+      },
+      "signals": [
+        "compatible event types: death / death",
+        "low-ambiguity same event type: death",
+        "shared participants: 刘表",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_007",
+        "type": "death",
+        "title": "刘表卒",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 8
+        },
+        "participants": [
+          "刘表"
+        ],
+        "places": []
+      },
+      "right_record": {
+        "ref": "evt_008",
+        "type": "death",
+        "title": "刘表去世",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "刘表"
+        ],
+        "places": []
+      },
+      "candidate_id": "vc_008"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_021"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_025"
+      },
+      "signals": [
+        "compatible event types: retreat / retreat",
+        "low-ambiguity same event type: retreat",
+        "shared participants: 孙权",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_021",
+        "type": "retreat",
+        "title": "孙权退走",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "孙权"
+        ],
+        "places": []
+      },
+      "right_record": {
+        "ref": "evt_025",
+        "type": "retreat",
+        "title": "孙权攻合肥逾月不下而退",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "孙权"
+        ],
+        "places": [
+          "合肥"
+        ]
+      },
+      "candidate_id": "vc_009"
+    },
+    {
+      "left": {
+        "bundle": "wudi",
+        "ref": "evt_025"
+      },
+      "right": {
+        "bundle": "wuzhu",
+        "ref": "evt_017"
+      },
+      "signals": [
+        "compatible event types: retreat / retreat",
+        "low-ambiguity same event type: retreat",
+        "shared participants: 曹操",
+        "same normalized year: 208"
+      ],
+      "left_record": {
+        "ref": "evt_025",
+        "type": "retreat",
+        "title": "曹操引军还",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": 12
+        },
+        "participants": [
+          "曹操",
+          "曹操军"
+        ],
+        "places": []
+      },
+      "right_record": {
+        "ref": "evt_017",
+        "type": "retreat",
+        "title": "曹操焚余船引退",
+        "time": {
+          "normalized_year": 208,
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "month": null
+        },
+        "participants": [
+          "曹公军",
+          "曹操"
+        ],
+        "places": []
+      },
+      "candidate_id": "vc_010"
+    }
+  ]
+}

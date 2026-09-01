@@ -1,0 +1,27 @@
+{
+  "schema": "chronicle.publication-run",
+  "version": "0.1",
+  "bundles": [
+    "wudi",
+    "wuzhu"
+  ],
+  "resolution_count": 1,
+  "existing_catalog": true,
+  "canonical_counts": {
+    "entities": 66,
+    "events": 45,
+    "event_relations": 2
+  },
+  "representation_counts": {
+    "entities": 71,
+    "events": 53
+  },
+  "identity_counts": {
+    "reused_entities": 66,
+    "new_entities": 0,
+    "reused_events": 45,
+    "new_events": 0
+  },
+  "schema_errors": [],
+  "passed": true
+}

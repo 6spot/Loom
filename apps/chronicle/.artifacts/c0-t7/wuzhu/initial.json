@@ -1,0 +1,2890 @@
+{
+  "schema_version": "0.1",
+  "source": {
+    "temp_id": "src_001",
+    "kind": "source",
+    "source_type": "book",
+    "title": "三国志·吴书·吴主传",
+    "language": "lzh",
+    "author": "陈寿",
+    "citation": null,
+    "edition": null,
+    "url": null,
+    "metadata": {
+      "work": "三国志",
+      "fixture": "sanguozhi-wushu-wuzhu-jianan-13"
+    },
+    "extraction": {
+      "method": "model",
+      "job_id": "contract-v0.2",
+      "confidence": 0.99
+    }
+  },
+  "entities": [
+    {
+      "temp_id": "ent_001",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "孙权",
+      "aliases": [
+        "权"
+      ],
+      "mentions": [
+        {
+          "text": "权"
+        },
+        {
+          "text": "权",
+          "contextual": true
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_002",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "黄祖",
+      "aliases": [
+        "祖"
+      ],
+      "mentions": [
+        {
+          "text": "黄祖"
+        },
+        {
+          "text": "祖"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_003",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "吕蒙",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "吕蒙"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_004",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "凌统",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "凌统"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_005",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "董袭",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "董袭"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_006",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "冯则",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "冯则"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_007",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "贺齐",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "贺齐"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_008",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "黟",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "黟"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_009",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "歙",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "歙"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_010",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "始新",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "始新"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_011",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "新定",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "新定"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_012",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "犁阳",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "犁阳"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_013",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "休阳",
+      "aliases": [
+        "休阳县"
+      ],
+      "mentions": [
+        {
+          "text": "休阳县"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_014",
+      "kind": "entity",
+      "type": "polity",
+      "canonical_name": "新都郡",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "新都郡"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_015",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘表",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "刘表"
+        },
+        {
+          "text": "表"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_016",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "鲁肃",
+      "aliases": [
+        "肃"
+      ],
+      "mentions": [
+        {
+          "text": "鲁肃"
+        },
+        {
+          "text": "肃"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_017",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "曹操",
+      "aliases": [
+        "曹公",
+        "公"
+      ],
+      "mentions": [
+        {
+          "text": "曹公"
+        },
+        {
+          "text": "公"
+        },
+        {
+          "text": "曹公"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_018",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘琮",
+      "aliases": [
+        "琮"
+      ],
+      "mentions": [
+        {
+          "text": "表子琮"
+        },
+        {
+          "text": "琮"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "ent_019",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "刘备",
+      "aliases": [
+        "备"
+      ],
+      "mentions": [
+        {
+          "text": "刘备"
+        },
+        {
+          "text": "备"
+        },
+        {
+          "text": "备"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_020",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "诸葛亮",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "诸葛亮"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_021",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "周瑜",
+      "aliases": [
+        "瑜"
+      ],
+      "mentions": [
+        {
+          "text": "周瑜"
+        },
+        {
+          "text": "瑜"
+        },
+        {
+          "text": "瑜"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_022",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "程普",
+      "aliases": [
+        "普"
+      ],
+      "mentions": [
+        {
+          "text": "程普"
+        },
+        {
+          "text": "普"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_023",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "夏口",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "夏口"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_024",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "赤壁",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "赤壁"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_025",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "南郡",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "南郡"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_026",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "曹仁",
+      "aliases": [
+        "仁"
+      ],
+      "mentions": [
+        {
+          "text": "曹仁"
+        },
+        {
+          "text": "仁"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_027",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "徐晃",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "徐晃"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_028",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "乐进",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "乐进"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_029",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "江陵",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "江陵"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_030",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "襄阳",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "襄阳"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_031",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "甘宁",
+      "aliases": [
+        "宁"
+      ],
+      "mentions": [
+        {
+          "text": "甘宁"
+        },
+        {
+          "text": "宁"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_032",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "夷陵",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "夷陵"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_033",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "合肥",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "合肥"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_034",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "张昭",
+      "aliases": [
+        "昭"
+      ],
+      "mentions": [
+        {
+          "text": "张昭"
+        },
+        {
+          "text": "昭"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_035",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "九江",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "九江"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_036",
+      "kind": "entity",
+      "type": "place",
+      "canonical_name": "当涂",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "当涂"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_037",
+      "kind": "entity",
+      "type": "person",
+      "canonical_name": "张喜",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "张喜"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_038",
+      "kind": "entity",
+      "type": "group",
+      "canonical_name": "诸议者",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "诸议者"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.95
+      }
+    },
+    {
+      "temp_id": "ent_039",
+      "kind": "entity",
+      "type": "army",
+      "canonical_name": "曹公军",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "曹公军"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "ent_040",
+      "kind": "entity",
+      "type": "army",
+      "canonical_name": "曹公骑军",
+      "aliases": [],
+      "mentions": [
+        {
+          "text": "骑"
+        },
+        {
+          "text": "骑"
+        }
+      ],
+      "resolution": {
+        "status": "unresolved"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.9
+      }
+    }
+  ],
+  "events": [
+    {
+      "temp_id": "evt_001",
+      "kind": "event",
+      "type": "military",
+      "title": "孙权征黄祖",
+      "time": {
+        "original_text": "十三年春",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "target"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_002",
+      "kind": "event",
+      "type": "battle",
+      "title": "吕蒙击破黄祖前锋",
+      "time": {
+        "original_text": "十三年春",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_003",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "opposing_commander"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_003",
+      "kind": "event",
+      "type": "military",
+      "title": "凌统、董袭攻城并屠城",
+      "time": {
+        "original_text": "十三年春",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_004",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_005",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "defender"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_004",
+      "kind": "event",
+      "type": "movement",
+      "title": "黄祖亡走",
+      "time": {
+        "original_text": "十三年春",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_002",
+          "role": "fleeing"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_005",
+      "kind": "event",
+      "type": "death",
+      "title": "黄祖被冯则追杀并枭首",
+      "time": {
+        "original_text": "十三年春",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_006",
+          "role": "pursuer"
+        },
+        {
+          "entity_ref": "ent_002",
+          "role": "victim"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_006",
+      "kind": "event",
+      "type": "military",
+      "title": "孙权派贺齐讨黟、歙",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_007",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "sender"
+        }
+      ],
+      "places": [
+        "ent_008",
+        "ent_009"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_007",
+      "kind": "event",
+      "type": "administrative",
+      "title": "分歙置始新、新定、犁阳、休阳四县并设新都郡",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "authority"
+        }
+      ],
+      "places": [
+        "ent_009",
+        "ent_010",
+        "ent_011",
+        "ent_012",
+        "ent_013",
+        "ent_014"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_008",
+      "kind": "event",
+      "type": "death",
+      "title": "刘表去世",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_015",
+          "role": "deceased"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_009",
+      "kind": "event",
+      "type": "diplomatic",
+      "title": "鲁肃请求出使吊唁刘表诸子并观察局势",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_016",
+          "role": "envoy"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "authority"
+        },
+        {
+          "entity_ref": "ent_015",
+          "role": "deceased"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.97
+      }
+    },
+    {
+      "temp_id": "evt_010",
+      "kind": "event",
+      "type": "movement",
+      "title": "曹操抵达刘表境内",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_017",
+          "role": "commander"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_011",
+      "kind": "event",
+      "type": "surrender",
+      "title": "刘琮率众向曹操投降",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_018",
+          "role": "surrendering"
+        },
+        {
+          "entity_ref": "ent_017",
+          "role": "recipient"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_012",
+      "kind": "event",
+      "type": "diplomatic",
+      "title": "刘备与鲁肃相见并接受孙权旨意",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_019",
+          "role": "participant"
+        },
+        {
+          "entity_ref": "ent_016",
+          "role": "envoy"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "principal"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_013",
+      "kind": "event",
+      "type": "movement",
+      "title": "刘备进驻夏口",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_019",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_023"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_014",
+      "kind": "event",
+      "type": "diplomatic",
+      "title": "诸葛亮出使孙权",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_020",
+          "role": "envoy"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "recipient"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_015",
+      "kind": "event",
+      "type": "military",
+      "title": "孙权遣周瑜、程普等出军",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "sender"
+        },
+        {
+          "entity_ref": "ent_021",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_022",
+          "role": "commander"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_016",
+      "kind": "event",
+      "type": "battle",
+      "title": "赤壁之战",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_021",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_022",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_019",
+          "role": "ally"
+        },
+        {
+          "entity_ref": "ent_017",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_039",
+          "role": "defeated_army"
+        }
+      ],
+      "places": [
+        "ent_024"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_017",
+      "kind": "event",
+      "type": "retreat",
+      "title": "曹操焚余船引退",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_017",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_039",
+          "role": "retreating_army"
+        }
+      ],
+      "places": [],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_018",
+      "kind": "event",
+      "type": "military",
+      "title": "刘备、周瑜等追击至南郡",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_019",
+          "role": "pursuer"
+        },
+        {
+          "entity_ref": "ent_021",
+          "role": "pursuer"
+        },
+        {
+          "entity_ref": "ent_017",
+          "role": "pursued"
+        }
+      ],
+      "places": [
+        "ent_025"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_019",
+      "kind": "event",
+      "type": "movement",
+      "title": "曹操北还并留军守江陵、襄阳",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_017",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_026",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_027",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_028",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_029",
+        "ent_030"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_020",
+      "kind": "event",
+      "type": "military",
+      "title": "甘宁在夷陵被曹仁部党围困",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_031",
+          "role": "besieged"
+        },
+        {
+          "entity_ref": "ent_026",
+          "role": "opposing_commander"
+        }
+      ],
+      "places": [
+        "ent_032"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_021",
+      "kind": "event",
+      "type": "military",
+      "title": "吕蒙提出救援甘宁之计",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_003",
+          "role": "strategist"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_032"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "evt_022",
+      "kind": "event",
+      "type": "military",
+      "title": "凌统留守拒曹仁，孙权分兵救甘宁并获胜",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_004",
+          "role": "defender"
+        },
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_031",
+          "role": "rescued"
+        },
+        {
+          "entity_ref": "ent_026",
+          "role": "opponent"
+        }
+      ],
+      "places": [
+        "ent_032"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_023",
+      "kind": "event",
+      "type": "military",
+      "title": "孙权围攻合肥",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_033"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_024",
+      "kind": "event",
+      "type": "military",
+      "title": "张昭攻九江当涂而不利",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_034",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_035",
+        "ent_036"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_025",
+      "kind": "event",
+      "type": "retreat",
+      "title": "孙权攻合肥逾月不下而退",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "commander"
+        }
+      ],
+      "places": [
+        "ent_033"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_026",
+      "kind": "event",
+      "type": "military",
+      "title": "曹操遣张喜率骑兵赴合肥",
+      "time": {
+        "original_text": "是岁",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_017",
+          "role": "sender"
+        },
+        {
+          "entity_ref": "ent_037",
+          "role": "commander"
+        },
+        {
+          "entity_ref": "ent_040",
+          "role": "army"
+        }
+      ],
+      "places": [
+        "ent_033"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "evt_027",
+      "kind": "event",
+      "type": "military",
+      "title": "曹军未至合肥孙权退兵",
+      "time": {
+        "original_text": "未至",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": "spring",
+          "inherited_fields": [
+            "era",
+            "era_year",
+            "season"
+          ]
+        },
+        "normalized": {
+          "calendar": "proleptic_gregorian",
+          "year": 208,
+          "precision": "year",
+          "conversion_status": "year_only",
+          "approximate": true
+        }
+      },
+      "participants": [
+        {
+          "entity_ref": "ent_001",
+          "role": "retreating_commander"
+        },
+        {
+          "entity_ref": "ent_037",
+          "role": "approaching_commander"
+        }
+      ],
+      "places": [
+        "ent_033"
+      ],
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    }
+  ],
+  "claims": [
+    {
+      "temp_id": "clm_001",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_002"
+      },
+      "predicate": "moved_to",
+      "object": null,
+      "evidence": {
+        "text": "祖挺身亡走",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "clm_002",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_014"
+      },
+      "evidence": {
+        "text": "以六县为新都郡",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_003",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_010"
+      },
+      "evidence": {
+        "text": "分歙为始新、新定、犁阳、休阳县",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_004",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_011"
+      },
+      "evidence": {
+        "text": "分歙为始新、新定、犁阳、休阳县",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_005",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_012"
+      },
+      "evidence": {
+        "text": "分歙为始新、新定、犁阳、休阳县",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_006",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "created",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_013"
+      },
+      "evidence": {
+        "text": "分歙为始新、新定、犁阳、休阳县",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_007",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_018"
+      },
+      "predicate": "surrendered_to",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "evidence": {
+        "text": "表子琮举众以降",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_008",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "sent_forces",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "evidence": {
+        "text": "权遣周瑜、程普等行",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_009",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "predicate": "fought",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "evidence": {
+        "text": "遇於赤壁，大破曹公军",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_010",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_021"
+      },
+      "predicate": "outcome",
+      "object": {
+        "kind": "literal",
+        "value": "大破曹公军"
+      },
+      "evidence": {
+        "text": "大破曹公军",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_011",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "predicate": "retreated",
+      "object": null,
+      "evidence": {
+        "text": "公烧其馀船引退",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_012",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_039"
+      },
+      "predicate": "affected",
+      "object": {
+        "kind": "literal",
+        "value": "士卒饥疫，死者大半"
+      },
+      "evidence": {
+        "text": "士卒饥疫，死者大半",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "clm_013",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "predicate": "retreated",
+      "object": null,
+      "evidence": {
+        "text": "曹公遂北还",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_014",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "predicate": "stationed_at",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_029"
+      },
+      "evidence": {
+        "text": "留曹仁、徐晃於江陵",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_015",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "predicate": "stationed_at",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_030"
+      },
+      "evidence": {
+        "text": "使乐进守襄阳",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_016",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "sent_forces",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_004"
+      },
+      "evidence": {
+        "text": "留凌统以拒仁",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.98
+      }
+    },
+    {
+      "temp_id": "clm_017",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "attacked",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_033"
+      },
+      "evidence": {
+        "text": "权自率众围合肥",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_018",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_034"
+      },
+      "predicate": "attacked",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_036"
+      },
+      "evidence": {
+        "text": "使张昭攻九江之当涂",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_019",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_034"
+      },
+      "predicate": "outcome",
+      "object": {
+        "kind": "literal",
+        "value": "兵不利"
+      },
+      "evidence": {
+        "text": "昭兵不利",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_020",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "outcome",
+      "object": {
+        "kind": "literal",
+        "value": "攻城逾月不能下"
+      },
+      "evidence": {
+        "text": "权攻城逾月不能下",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_021",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_017"
+      },
+      "predicate": "sent_forces",
+      "object": {
+        "kind": "entity_ref",
+        "ref": "ent_037"
+      },
+      "evidence": {
+        "text": "遣张喜将骑赴合肥",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    },
+    {
+      "temp_id": "clm_022",
+      "kind": "claim",
+      "subject": {
+        "kind": "entity_ref",
+        "ref": "ent_001"
+      },
+      "predicate": "retreated",
+      "object": null,
+      "evidence": {
+        "text": "未至，权退",
+        "source_ref": "src_001",
+        "locator": {
+          "work": "三国志",
+          "volume": "吴书",
+          "chapter": "吴主传",
+          "section": null,
+          "paragraph": "1",
+          "fixture": null
+        }
+      },
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "model",
+        "job_id": "contract-v0.2",
+        "confidence": 0.99
+      }
+    }
+  ],
+  "warnings": [
+    {
+      "type": "ontology_gap",
+      "severity": "warning",
+      "message": "Source explicitly states that Feng Ze pursued Huang Zu and beheaded him, but the allowed predicates contain no faithful predicate for beheading or causing a specific death; the event is preserved without a forced claim.",
+      "refs": [
+        "evt_005",
+        "ent_006",
+        "ent_002"
+      ]
+    },
+    {
+      "type": "ontology_gap",
+      "severity": "warning",
+      "message": "Source explicitly states that Huang Zu's men captured tens of thousands of men and women, but the allowed predicates contain no faithful predicate for capture of persons; the assertion is preserved in the source text without a forced claim.",
+      "refs": [
+        "ent_002"
+      ]
+    },
+    {
+      "type": "ontology_gap",
+      "severity": "warning",
+      "message": "Source explicitly states that Lu Su requested authorization to mourn Liu Biao's sons and observe the changing situation, but no allowed predicate faithfully represents requesting authorization or an observational mission.",
+      "refs": [
+        "evt_009",
+        "ent_016"
+      ]
+    },
+    {
+      "type": "ontology_gap",
+      "severity": "warning",
+      "message": "Source explicitly states that advisers urged Sun Quan to receive Cao Cao and that Zhou Yu and Lu Su advocated resistance, but the allowed predicates do not faithfully represent advice, advocacy, or strategic opposition in these assertions.",
+      "refs": [
+        "ent_038",
+        "ent_021",
+        "ent_016"
+      ]
+    },
+    {
+      "type": "contextual_coreference",
+      "severity": "info",
+      "message": "Several source mentions are context-dependent abbreviations or titles, including 权, 祖, 肃, 公, 琮, 备, 瑜, 普, 仁, 宁, 昭 and 曹公; they are preserved as mentions and linked document-locally without canonical resolution.",
+      "refs": [
+        "ent_001",
+        "ent_002",
+        "ent_016",
+        "ent_017",
+        "ent_018",
+        "ent_019",
+        "ent_021",
+        "ent_022",
+        "ent_026",
+        "ent_031",
+        "ent_034"
+      ]
+    },
+    {
+      "type": "partial_calendar_conversion",
+      "severity": "info",
+      "message": "Events are dated to 建安十三年 / 208 with spring or inherited year context; no verified Gregorian month or day conversion is supplied, so normalized precision remains year_only.",
+      "refs": [
+        "evt_001",
+        "evt_027"
+      ]
+    }
+  ]
+}
