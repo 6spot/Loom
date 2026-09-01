@@ -18,7 +18,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T8 | #470 | completed | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
 | C0-T9 | #471 | completed | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
 | C0-T10 | #472 | completed | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
-| C0-T11 | #473 | planned | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
+| C0-T11 | #473 | in_progress | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
 
 ## Current baseline
 
@@ -30,20 +30,18 @@ C0-T9 was delivered by PR #478 and squash-merged to `main` as `c408757f56f8c3e1d
 
 Architecture Amendment 0006 was accepted by PR #481 and merged as `44764edc57d9b899afa4c0353de7530756e5dc68`. It distinguishes Loom engine persistence from explicitly registered Application-owned product persistence. Chronicle remains isolated behind `CHRONICLE_DATABASE_URL`; no Loom Runtime/World/Timeline/Work/Binding persistence authority moved into the application.
 
-C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01. Before delivery, exact merge-candidate Chronicle workflow run `33518070773` and core CI run `33518070753` both passed against the accepted Amendment 0006 boundary. The final read model provides deterministic Timeline, Event Detail, and Entity Detail contracts; preserves canonical/source/evidence/Resolution separation; supports participant and place Entity navigation; and keeps all reads inside Chronicle-owned PostgreSQL read-only transactions.
+C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01. Reconciliation PR #482 squash-merged as `de6887bba46dd9010a3bfb0a4aa799b9ec1eeaed`. Before delivery, exact merge-candidate Chronicle workflow run `33518070773` and core CI run `33518070753` both passed against the accepted Amendment 0006 boundary. The final read model provides deterministic Timeline, Event Detail, and Entity Detail contracts; preserves canonical/source/evidence/Resolution separation; supports participant and place Entity navigation; and keeps all reads inside Chronicle-owned PostgreSQL read-only transactions.
 
-Post-merge reconciliation PR #482 records C0-T10 completion on the Task Ledger. C0-T11 / #473 becomes the next executable Chronicle task only after PR #482 is merged to `main`.
+C0-T11 / #473 is now the active Chronicle task. It adds the first browser exploration surface while consuming only the C0-T10 HTTP contracts; no UI code may read staged artifacts or Chronicle PostgreSQL directly.
 
 ## Planned vertical slice
-
-The remaining implementation sequence is intentionally linear so later layers are built only after the authority below them is stable:
 
 ```text
 C0-T9  PostgreSQL persistence      ✓ completed
    ↓
 C0-T10 Chronicle read model / API ✓ completed
    ↓
-C0-T11 Timeline + Event Detail + Entity Detail UI ← next
+C0-T11 Timeline + Event Detail + Entity Detail UI ← active
 ```
 
 ### C0-T8 — Canonical Publication v0 / #470
@@ -60,8 +58,8 @@ Completed. Persisted Chronicle data is exposed through stable application contra
 
 ### C0-T11 — Timeline + Event Detail + Entity Detail UI / #473
 
-Next. Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. World map, relationship graph, semantic Q&A, learning paths, counterfactual simulation, and ingestion/admin UI remain later work selected from real product usage rather than pre-built now.
+In progress. Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. The initial implementation deliberately uses a zero-build browser layer over the existing Python read server so product validation is not blocked on frontend framework adoption.
 
 ## Continuation rule
 
-Merge reconciliation PR #482 before starting #473. After that merge, C0-T11 is unblocked and becomes the only active Chronicle implementation task.
+Continue #473 until C0-T11 is delivered, manually validated against the retained two-source world, merged, and reconciled on `main`. Do not start map/search/graph/learning/counterfactual surfaces before this first exploration slice proves usable.
