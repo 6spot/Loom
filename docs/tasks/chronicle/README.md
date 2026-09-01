@@ -17,7 +17,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T7 | #468 | completed | Cross-source resolution/linking: conservative candidate blocking plus non-destructive Entity/Event link decisions |
 | C0-T8 | #470 | completed | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
 | C0-T9 | #471 | completed | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
-| C0-T10 | #472 | in_progress | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
+| C0-T10 | #472 | completed | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
 | C0-T11 | #473 | planned | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
 
 ## Current baseline
@@ -28,18 +28,22 @@ C0-T8 was delivered by PR #476 and merged to `main` as `481a91ab1c42403f8baa43cf
 
 C0-T9 was delivered by PR #478 and squash-merged to `main` as `c408757f56f8c3e1da76eb575e973d296024b9b4` on 2026-09-01. Reconciliation PR #479 merged as `2b08babe6778a7b3d5df8d3612e442a515772ce8` before C0-T10 started. The retained real C0-T7/C0-T8 artifacts form a versioned Chronicle golden integration dataset. Dedicated Chronicle PG18 CI passed five persistence tests against `pgvector/pgvector:0.8.6-pg18` / PostgreSQL 18.6, including a full 武帝纪 + 吴主传 real-data round trip. The persisted result preserves 66 CanonicalEntities, 45 CanonicalEvents, 2 `related_occurrence` relations, exact catalog membership, uncertain-place separation, and staged Claim payloads.
 
-C0-T10 is now the active Chronicle task. It reads only C0-T9 persistence and owns presentation/read contracts for Timeline, Event Detail, and Entity Detail. No model call, ingestion replay, canonical-ID regeneration, or Loom Storage table access belongs in this layer.
+Architecture Amendment 0006 was accepted by PR #481 and merged as `44764edc57d9b899afa4c0353de7530756e5dc68`. It distinguishes Loom engine persistence from explicitly registered Application-owned product persistence. Chronicle remains isolated behind `CHRONICLE_DATABASE_URL`; no Loom Runtime/World/Timeline/Work/Binding persistence authority moved into the application.
+
+C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01. Before delivery, exact merge-candidate Chronicle workflow run `33518070773` and core CI run `33518070753` both passed against the accepted Amendment 0006 boundary. The final read model provides deterministic Timeline, Event Detail, and Entity Detail contracts; preserves canonical/source/evidence/Resolution separation; supports participant and place Entity navigation; and keeps all reads inside Chronicle-owned PostgreSQL read-only transactions.
+
+This reconciliation change records C0-T10 completion. C0-T11 / #473 becomes the next executable Chronicle task only after this reconciliation is merged to `main`.
 
 ## Planned vertical slice
 
 The remaining implementation sequence is intentionally linear so later layers are built only after the authority below them is stable:
 
 ```text
-C0-T9  PostgreSQL persistence     ✓ completed
+C0-T9  PostgreSQL persistence      ✓ completed
    ↓
-C0-T10 Chronicle read model / API ← active
+C0-T10 Chronicle read model / API ✓ completed
    ↓
-C0-T11 Timeline + Event Detail + Entity Detail UI
+C0-T11 Timeline + Event Detail + Entity Detail UI ← next
 ```
 
 ### C0-T8 — Canonical Publication v0 / #470
@@ -48,16 +52,16 @@ Completed. Accepted cross-source Resolution Links are converted into stable Cano
 
 ### C0-T9 — PostgreSQL persistence / #471
 
-Completed. Chronicle-owned PostgreSQL migrations, transaction-safe/idempotent stores, real-data persistence verification, versioned golden artifacts, and dedicated PG18 CI are delivered. Staged records, Resolution Links, and canonical publication output remain separate auditable layers. Canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events are preserved. pgvector is not required merely for persistence, and Chronicle-owned application persistence does not redefine Loom Core/Runtime/Storage authority.
+Completed. Chronicle-owned PostgreSQL migrations, transaction-safe/idempotent stores, real-data persistence verification, versioned golden artifacts, and dedicated PG18 CI are delivered. Staged records, Resolution Links, and canonical publication output remain separate auditable layers. Canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events are preserved. pgvector is not required merely for persistence. Under Architecture Amendment 0006, Chronicle's registered product persistence remains distinct from Loom engine persistence and does not redefine Loom Core/Runtime/Storage authority.
 
 ### C0-T10 — Chronicle read model / API / #472
 
-In progress. Expose persisted Chronicle data through the smallest stable application API needed by Timeline, Event Detail, and Entity Detail. Timeline returns canonical Events once rather than once per source representation. Detail reads expose canonical identity plus source-specific representations, Claims, exact evidence/provenance, related Events, and explicit uncertainty. Presentation labels may be simpler than source text, but must not replace source evidence or convert disagreement into asserted truth.
+Completed. Persisted Chronicle data is exposed through stable application contracts for Timeline, Event Detail, and Entity Detail. Timeline returns canonical Events once rather than once per source representation. Detail reads expose canonical identity plus source-specific representations, Claims, exact evidence/provenance, related Events, participant/place involvement, and explicit uncertainty. Presentation labels are deterministic but never replace source evidence or convert disagreement into asserted truth.
 
 ### C0-T11 — Timeline + Event Detail + Entity Detail UI / #473
 
-Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. World map, relationship graph, semantic Q&A, learning paths, counterfactual simulation, and ingestion/admin UI remain later work selected from real product usage rather than pre-built now.
+Next. Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. World map, relationship graph, semantic Q&A, learning paths, counterfactual simulation, and ingestion/admin UI remain later work selected from real product usage rather than pre-built now.
 
 ## Continuation rule
 
-Continue #472 while C0-T10 is `in_progress`; do not start #473 until C0-T10 is canonically completed and reconciled on `main`.
+Merge the C0-T10 reconciliation before starting #473. After that merge, C0-T11 is unblocked and becomes the only active Chronicle implementation task.
