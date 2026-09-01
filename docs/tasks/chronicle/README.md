@@ -28,14 +28,14 @@ C0-T8 was delivered by PR #476 and merged to `main` as `481a91ab1c42403f8baa43cf
 
 C0-T9 is now the active Chronicle task. It owns only Chronicle application persistence and must keep staged, Resolution, and canonical layers separately auditable. It may reuse the repository PostgreSQL 18 service operationally but must not use Loom Runtime/Storage tables as an application API.
 
-The repository's current GitHub Actions path filters do not include Chronicle/Python, so the ledger does not claim a Chronicle GitHub CI pass for these application-level tests unless the CI routing changes.
+C0-T9 implementation acceptance is complete on PR #478 pending delivery merge/reconciliation. The retained real C0-T7/C0-T8 artifacts now form a versioned golden integration dataset. Dedicated Chronicle workflow run `33512350772` used `pgvector/pgvector:0.8.6-pg18` / PostgreSQL 18.6 and passed five persistence tests, including a full 武帝纪 + 吴主传 real-data round trip. The persisted result preserves the accepted 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations, exact catalog membership, uncertain-place separation, and staged Claim payloads.
 
 ## Planned vertical slice
 
 The remaining implementation sequence is intentionally linear so later layers are built only after the authority below them is stable:
 
 ```text
-C0-T9  PostgreSQL persistence     ← active
+C0-T9  PostgreSQL persistence     ← active; delivery pending
    ↓
 C0-T10 Chronicle read model / API
    ↓
@@ -48,7 +48,7 @@ Completed. Accepted cross-source Resolution Links are converted into stable Cano
 
 ### C0-T9 — PostgreSQL persistence / #471
 
-In progress. Persist three auditable layers separately: source-owned staged records, Resolution Links, and canonical publication output. Preserve canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events. The first persistence target is PostgreSQL 18; pgvector is not required merely for persistence. Chronicle-owned application persistence must not silently redefine Loom Core/Runtime/Storage authority.
+In progress only for delivery/reconciliation. Chronicle-owned PostgreSQL migrations, transaction-safe/idempotent stores, real-data persistence verification, and dedicated PG18 CI are implemented and accepted on the feature branch. Staged records, Resolution Links, and canonical publication output remain separate auditable layers. Canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events are preserved. pgvector is not required merely for persistence, and Chronicle-owned application persistence does not redefine Loom Core/Runtime/Storage authority.
 
 ### C0-T10 — Chronicle read model / API / #472
 
