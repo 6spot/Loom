@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Chronicle · 历史时间线</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/timeline" aria-label="Chronicle 时间线首页">
+      <span class="brand-mark" aria-hidden="true">纪</span>
+      <span>
+        <strong>Chronicle</strong>
+        <small>source-grounded history</small>
+      </span>
+    </a>
+    <nav class="site-nav" aria-label="主要导航">
+      <a href="/timeline">时间线</a>
+    </nav>
+  </header>
+
+  <main id="app" class="app-shell" aria-live="polite">
+    <section class="state-card">
+      <p class="eyebrow">Chronicle</p>
+      <h1>正在进入历史世界…</h1>
+      <p class="muted">读取已持久化的 Chronicle 历史数据。</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Canonical identity 用于导航；史料原文、Claim、证据与不确定性保持独立可见。</p>
+  </footer>
+
+  <script type="module" src="/app.mjs"></script>
+</body>
+</html>
