@@ -38,7 +38,7 @@
   padding: 1rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
-  background: var(--paper-soft);
+  background: var(--paper-strong);
 }
 
 .search-page-form > label {
