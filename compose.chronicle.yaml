@@ -1,3 +1,5 @@
+name: loom-chronicle
+
 x-chronicle-image: &chronicle-image
   image: loom-chronicle:${CHRONICLE_IMAGE_TAG:-local}
   build:
