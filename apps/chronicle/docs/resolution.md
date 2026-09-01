@@ -39,13 +39,31 @@ This distinction matters because source boundaries differ. One biography may des
 
 ## Candidate blocking vs semantic resolution
 
-Deterministic code is allowed to narrow the pair search space using mechanically available structure such as:
+Deterministic code is allowed to narrow the pair search space using mechanically available structure, but blocking must not turn weak shared context into an identity decision.
 
-- Entity type + exact stable surface overlap;
-- compatible historical time;
-- shared Event participants;
-- shared places;
-- compatible Event types.
+### Entity blocking
+
+V0 Entity candidates require:
+
+- the same Entity type; and
+- at least one exact stable surface shared across canonical name, aliases, or non-contextual mentions.
+
+This intentionally avoids fuzzy-name identity matching in the first pass.
+
+### Event blocking
+
+All Event candidates require compatible historical time. When both sources provide season or month and those values conflict, the pair is rejected.
+
+Broad Event families such as `military`, `battle`, and `movement` require stronger structural overlap:
+
+- at least one shared participant; and
+- at least one shared place.
+
+Narrow types such as `death`, `birth`, `surrender`, `retreat`, and `epidemic` may qualify when the exact Event type and at least one participant match even if one source omits place detail.
+
+Two or more shared participants are also sufficient to send a pair to semantic adjudication.
+
+This prevents high-frequency actors such as a ruler or commander, combined only with a broad year and broad Event type, from generating large numbers of meaningless candidate pairs.
 
 Candidate blocking never creates a canonical merge by itself.
 
