@@ -132,4 +132,4 @@ jobs:
             --env-file .env.chronicle.example \
             -f compose.chronicle.yaml \
             down --remove-orphans || true
-          rm -rf "$CHRONICLE_DATA_DIR" || true
+          sudo rm -rf "$CHRONICLE_DATA_DIR" || true
