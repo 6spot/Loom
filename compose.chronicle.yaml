@@ -1,0 +1,82 @@
+x-chronicle-image: &chronicle-image
+  image: loom-chronicle:${CHRONICLE_IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: apps/chronicle/Dockerfile
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18
+    environment:
+      POSTGRES_USER: ${CHRONICLE_POSTGRES_USER:-chronicle}
+      POSTGRES_PASSWORD: ${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${CHRONICLE_POSTGRES_DB:-chronicle}
+    volumes:
+      - type: bind
+        source: ${CHRONICLE_DATA_DIR:-./chronicle}/postgres
+        target: /var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  chronicle-init:
+    <<: *chronicle-image
+    environment:
+      CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - python3
+      - apps/chronicle/persistence/chronicle_persist.py
+      - --bundle
+      - wudi=apps/chronicle/.artifacts/c0-t7/wudi/final.json
+      - --bundle
+      - wuzhu=apps/chronicle/.artifacts/c0-t7/wuzhu/final.json
+      - --resolution
+      - apps/chronicle/.artifacts/c0-t7/resolution/links.json
+      - --catalog
+      - apps/chronicle/.artifacts/c0-t7/publication/catalog.json
+      - --report
+      - /tmp/chronicle-persistence-report.json
+    restart: "no"
+
+  chronicle-web:
+    <<: *chronicle-image
+    environment:
+      CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chronicle-init:
+        condition: service_completed_successfully
+    command:
+      - python3
+      - apps/chronicle/read_api/server.py
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    ports:
+      - "${CHRONICLE_BIND_IP:-127.0.0.1}:${CHRONICLE_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
