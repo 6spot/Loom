@@ -49,6 +49,7 @@ Accepted amendments are part of the current baseline from their merge point onwa
 - `amendments/0003-agency-execution-and-pinned-read-boundary.md` — autonomous Agent-wake execution closure, target-specific Scheduler admission for Agency Wake, AgentWorldView production authority, scalable pinned-read semantics, explicit Timeline-wide commit serialization and scale-related deferred decisions.
 - `amendments/0004-derived-resource-public-read-boundary.md` — narrow Runtime-mediated `QueryService` reads for semantic projections and exact blob references; no projection/blob mutation surface or Storage authority is exposed.
 - `amendments/0005-automatic-bounded-timeline-discovery.md` — bounded operational discovery of Scheduler Timeline targets after startup; Runtime retains logical-head, Work-claim, World-Time and semantic-commit authority.
+- `amendments/0006-application-owned-product-persistence.md` — separates Loom engine PostgreSQL authority from explicitly registered Application-owned product persistence; Chronicle is the first narrow registration and remains isolated from Loom Runtime/World/Timeline storage authority.
 
 A frozen document does not mean “never change.” It means changes are explicit, reviewable Amendments rather than silent edits that make history impossible to audit.
 
@@ -78,7 +79,9 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `runtime-contracts.md` | §17.2 | Amendment 0001 §6.2 + Amendment 0004 §3–§5 — public API includes Ingress plus provider-neutral semantic-projection and exact blob-reference reads mediated by Runtime |
 | `runtime-contracts.md` | §20.2 | Amendment 0001 §7 — Runtime owns Template validation / ValidatedWorldBirthPlan authority |
 | `runtime-contracts.md` | §22 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, not an independent specification layer |
-| `governance.md` | public exposure rules | Amendment 0004 §5 — derived-resource public DTOs remain provider/storage-neutral; Runtime/Storage/SQL/BlobStore authority is not exposed to external consumers |
+| `governance.md` | public exposure rules | Amendment 0004 §5 + Amendment 0006 §5 — Loom engine semantics remain behind Loom API/Runtime; a product API may expose only independently Application-owned product data and cannot become a hidden Loom engine path |
+| `governance.md` | §5.3, §6 | Amendment 0006 §3–§4 — `loom-storage` remains exclusive for Loom engine/Runtime PostgreSQL authority; explicitly registered Application product persistence may own an isolated product database/schema, migrations and adapter |
+| `governance.md` | §7, §9, §10 | Amendment 0006 §3–§5 — Application-owned product persistence/API is allowed only for Application authority; Loom semantic operations still use Loom API and Applications never gain engine storage authority |
 | `governance.md` | §15 | Amendment 0002 §7 — status changed: normative-rule summary is a navigation/checklist aid, subordinate to accepted Amendments and detailed governance sections |
 | `governance.md` | §4.3, §10 | Amendment 0005 §3.5 — Application composition roots may host bounded dynamic target discovery without acquiring semantic Scheduler/World-Time authority |
 | `implementation.md` | §3 | Amendment 0001 §7 — Template/Birth technical placement |
@@ -94,6 +97,7 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `implementation.md` | §6.7, §12.6 | Amendment 0005 §3.2–§3.5 — discovery is bounded application plumbing, not World-Time policy or a deployment target-ID contract |
 | `implementation.md` | §13.3 | Amendment 0001 §4 + Amendment 0005 §3.1–§3.4 — discovery precedes Runtime claim semantics and cannot add a reservation/skip path |
 | `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
+| `crates/loom-storage/sql/README.md` + storage SQL ownership enforcement | PostgreSQL ownership | Amendment 0006 §3–§6 — engine SQL remains `loom-storage`-exclusive; non-engine SQL is legal only inside explicitly registered Application product persistence roots, initially Chronicle |
 
 Each accepted Amendment contains its own exact affected-clause index. If a row appears here, the frozen text is historical context, **not current executable acceptance criteria by itself**.
 

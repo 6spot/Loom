@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Enforce Loom's PostgreSQL/SQL ownership boundary.
+"""Enforce Loom engine and registered Application PostgreSQL ownership boundaries.
 
-`loom-storage` is the only crate allowed to own SQLx/PostgreSQL implementation
-concerns. Runtime and higher layers consume persistence ports instead of SQL,
-connection pools, transactions, or table-level authority.
+`loom-storage` remains the exclusive owner of Loom engine PostgreSQL/SQLx
+implementation concerns. Architecture Amendment 0006 additionally permits a
+closed set of explicitly registered Application-owned product persistence
+roots whose records are outside Loom Runtime/World/Timeline authority.
 """
 
 from __future__ import annotations
@@ -16,7 +17,23 @@ ROOT = Path(__file__).resolve().parents[1]
 STORAGE = ROOT / "crates" / "loom-storage"
 BENCH = ROOT / "crates" / "loom-bench"
 VALIDATOR = ROOT / "apps" / "loom-validator"
-ALLOWED_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
+ENGINE_SQL_ROOTS = (STORAGE / "migrations", STORAGE / "sql")
+
+# Closed architecture registry. Adding another Application product SQL root is
+# an architecture change, not a generic apps/** exemption.
+APPLICATION_PRODUCT_PERSISTENCE = {
+    ROOT / "apps" / "chronicle" / "persistence": {
+        "sql_roots": (ROOT / "apps" / "chronicle" / "persistence" / "migrations",),
+        "boundary_doc": ROOT / "apps" / "chronicle" / "docs" / "persistence.md",
+        "connection_contract": "CHRONICLE_DATABASE_URL",
+    },
+}
+APPLICATION_SQL_ROOTS = tuple(
+    sql_root
+    for registration in APPLICATION_PRODUCT_PERSISTENCE.values()
+    for sql_root in registration["sql_roots"]
+)
+ALLOWED_SQL_ROOTS = ENGINE_SQL_ROOTS + APPLICATION_SQL_ROOTS
 
 FORBIDDEN_RUST_PATTERNS = {
     "sqlx path": re.compile(r"\bsqlx::"),
@@ -93,12 +110,58 @@ def checked_roots() -> list[Path]:
     return roots
 
 
+def check_application_product_registrations(errors: list[str]) -> None:
+    for persistence_root, registration in APPLICATION_PRODUCT_PERSISTENCE.items():
+        if not persistence_root.is_dir():
+            errors.append(
+                f"registered Application persistence root missing: {persistence_root.relative_to(ROOT)}"
+            )
+            continue
+
+        boundary_doc = registration["boundary_doc"]
+        if not boundary_doc.is_file():
+            errors.append(
+                f"registered Application persistence boundary doc missing: {boundary_doc.relative_to(ROOT)}"
+            )
+        else:
+            text = boundary_doc.read_text(encoding="utf-8")
+            connection_contract = registration["connection_contract"]
+            if connection_contract not in text:
+                errors.append(
+                    "registered Application persistence boundary doc does not declare "
+                    f"{connection_contract}: {boundary_doc.relative_to(ROOT)}"
+                )
+
+        for sql_root in registration["sql_roots"]:
+            if not sql_root.is_dir():
+                errors.append(
+                    f"registered Application SQL root missing: {sql_root.relative_to(ROOT)}"
+                )
+            elif not is_under(sql_root, persistence_root):
+                errors.append(
+                    "registered Application SQL root escapes persistence boundary: "
+                    f"{sql_root.relative_to(ROOT)}"
+                )
+
+        # A product store must never claim the Loom engine production connection.
+        for path in persistence_root.rglob("*.py"):
+            if path.name.startswith("test_"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            if "LOOM_DATABASE_URL" in text:
+                errors.append(
+                    "Loom engine database authority leaked into registered Application persistence: "
+                    f"{path.relative_to(ROOT)}"
+                )
+
+
 def check_sql_file_locations(errors: list[str]) -> None:
     for path in ROOT.rglob("*.sql"):
         if any(is_under(path, allowed) for allowed in ALLOWED_SQL_ROOTS):
             continue
         errors.append(
-            f"SQL file outside loom-storage ownership: {path.relative_to(ROOT)}"
+            f"SQL file outside Loom Storage or registered Application product ownership: "
+            f"{path.relative_to(ROOT)}"
         )
 
 
@@ -199,6 +262,7 @@ def check_validator_boundary(errors: list[str]) -> None:
 
 def main() -> int:
     errors: list[str] = []
+    check_application_product_registrations(errors)
     check_sql_file_locations(errors)
     check_non_storage_rust(errors)
     check_non_storage_cargo(errors)
