@@ -110,6 +110,10 @@ Use the retained 武帝纪 + 吴主传 persisted world and prove:
 - place Entity navigation reaches Events through `as_place`;
 - UI modules do not reference `.artifacts`, migration SQL, or database connection variables.
 
+### Delivery evidence in progress
+
+PR #483 has already passed the PostgreSQL 18 persistence suite, the C0-T10 read/static suite, and native Node UI rendering/navigation contracts on its merge ref. The final delivery gate is now stronger than those unit/contract checks: Chronicle CI persists the retained two-source golden world, starts the real Chronicle HTTP server, and runs `apps/chronicle/web/browser_smoke.py` through the runner's headless Chrome. The acceptance checkboxes remain open until that browser gate is green on the current delivery head and the post-merge ledger reconciliation is complete.
+
 ## Acceptance
 
 - [ ] Timeline UI works against C0-T10 API contracts;
