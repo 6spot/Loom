@@ -26,3 +26,4 @@ Thumbs.db
 *.log
 /data/
 /loom/
+/apps/chronicle/.artifacts/
