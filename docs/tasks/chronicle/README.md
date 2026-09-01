@@ -24,7 +24,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 
 C0-T1 through C0-T7 were delivered by PR #459 and merged to `main` as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791` on 2026-09-01.
 
-C0-T8 was delivered by PR #476 (superseding closed Draft PR #475 after a connector ready-state error) after a 61-test Chronicle discovery run, real 武帝纪 + 吴主传 publication, full resolution-boundary audit, byte-stable existing-catalog rerun, and human-readable semantic inspection. The accepted real publication produced 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations.
+C0-T8 was delivered by PR #476 and merged to `main` as `481a91ab1c42403f8baa43cfed3aa9ef3f0e4bca` on 2026-09-01. PR #476 superseded closed Draft PR #475 after the connector failed to transition its Draft state. Acceptance evidence includes a 61-test Chronicle discovery run, real 武帝纪 + 吴主传 publication, full resolution-boundary audit, byte-stable existing-catalog rerun, and human-readable semantic inspection. The accepted real publication produced 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations.
 
 The repository's current GitHub Actions path filters do not include Chronicle/Python, so the ledger does not claim a Chronicle GitHub CI pass for these application-level prototype tests.
 
