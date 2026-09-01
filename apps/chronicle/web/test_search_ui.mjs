@@ -101,5 +101,5 @@ test("empty search state is explicit and remains source-grounded", () => {
   const html = renderSearchEmpty();
   assert.match(html, /搜索历史世界/);
   assert.match(html, /词面检索/);
-  assert.doesNotMatch(html, /生成.*权威.*答案/u);
+  assert.match(html, /不会用模型生成一个看似权威的历史答案/);
 });
