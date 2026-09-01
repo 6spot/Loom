@@ -141,11 +141,31 @@ The model must return every candidate exactly once, may not invent candidate IDs
 - [x] final left/right refs are reconstructed deterministically rather than trusted from model output.
 - [x] final protocol distinguishes same occurrence from related occurrence.
 - [x] offline tests are committed.
-- [ ] full prototype unittest discovery is green with resolution tests.
+- [x] full prototype unittest discovery is green with resolution tests.
 - [x] real 武帝纪 ↔ 吴主传 candidate set is inspected.
 - [x] real resolver run links overlapping Entities/Events without modifying either input bundle.
 - [x] resolution output passes the resolution-link JSON Schema.
 - [ ] delivery PR / CI / merge reconciliation completed.
+
+## Full prototype unittest verification
+
+After the conservative Event-blocking refinement and resolver integration, the complete Chronicle prototype suite was rerun from the repository root:
+
+```text
+python3 -m unittest discover \
+  -s apps/chronicle/ingestion/prototype \
+  -p 'test_*.py' \
+  -v
+```
+
+Result:
+
+```text
+Ran 50 tests in 0.024s
+OK
+```
+
+This includes the Contract, validator/repair, model-v0, evaluator/coverage development tooling, and resolution-v0 tests. GitHub Actions did not create a workflow run for the Chronicle PR head because the repository's current CI path filters do not include this Chronicle/Python path; therefore the local 50-test run is recorded as the applicable verification and no claim of a Chronicle GitHub CI pass is made.
 
 ## First real validation
 
