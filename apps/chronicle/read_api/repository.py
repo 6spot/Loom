@@ -6,7 +6,7 @@ import uuid
 from collections import defaultdict
 from typing import Any, Iterable
 
-from common import (
+from read_common import (
     READ_SCHEMA_VERSION,
     ReadModelError,
     ReadModelNotFound,
