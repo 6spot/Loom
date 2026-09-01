@@ -1,13 +1,13 @@
 ---
 task: C0-T12
 issue: 485
-status: in_progress
+status: completed
 depends_on: [C0-T11]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 486
+merge_sha: 0f3c4674b04e4fee8cf39d3419ea39916992f41e
 ---
 
 # Chronicle Search and Historical Entry
@@ -117,21 +117,41 @@ Use the retained 武帝纪 + 吴主传 persisted world and prove:
 - `/search` remains a static browser route independent from database connectivity while `/v0/search` remains database-backed;
 - clicking search results uses existing C0-T11 canonical routes.
 
+## Delivery evidence
+
+Delivery PR #486 squash-merged as `0f3c4674b04e4fee8cf39d3419ea39916992f41e` after exact-current-head Chronicle workflow run `33526827184`, job `99919697325`, passed against feature head `15bb3b23e4b92673bce82b845a027b6c4dabcc12` and its PR merge ref.
+
+The accepted gate passed:
+
+- 5 Chronicle PostgreSQL persistence regressions;
+- 21 read/search/static Python regressions, including six real PostgreSQL Search v0 tests;
+- 12 native Node UI routing/rendering/escaping contracts;
+- the real two-source headless Chrome vertical slice after importing 66 CanonicalEntities, 45 CanonicalEvents, and 2 `related_occurrence` relations.
+
+The Chrome run ended with `search=PASS`. It exercised real `/search` pages for 曹操、赤壁、江陵 and verified one canonical 曹操 Entity backed by both sources with explicit match provenance, one canonical 赤壁之战 Event, two separate visibly uncertain 赤壁 place Entity results, and separately navigable related-but-distinct 江陵 Events.
+
 ## Acceptance
 
-- [ ] deterministic lexical search read model exists;
-- [ ] `/v0/search` validates query/kind/limit and returns canonical de-duplicated results;
-- [ ] exact/prefix/substring/secondary ranking is deterministic and explainable;
-- [ ] matched source surfaces remain visible in the response;
-- [ ] uncertain same-name Entity identities remain distinct and visibly uncertain;
-- [ ] browser search is reachable from all existing Chronicle pages;
-- [ ] mixed search results navigate to existing Event/Entity Detail routes;
-- [ ] empty/no-result/error states are explicit;
-- [ ] PostgreSQL 18 real-data tests cover 曹操、赤壁之战、赤壁、江陵 and alias/mention lookup;
-- [ ] Node/static/server tests cover the search browser boundary and escaping;
-- [ ] Chronicle CI passes the full persistence/read/search/UI suite;
-- [ ] search product/API documentation is updated;
-- [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
+- [x] deterministic lexical search read model exists;
+- [x] `/v0/search` validates query/kind/limit and returns canonical de-duplicated results;
+- [x] exact/prefix/substring/secondary ranking is deterministic and explainable;
+- [x] matched source surfaces remain visible in the response;
+- [x] uncertain same-name Entity identities remain distinct and visibly uncertain;
+- [x] browser search is reachable from all existing Chronicle pages;
+- [x] mixed search results navigate to existing Event/Entity Detail routes;
+- [x] empty/no-result/error states are explicit;
+- [x] PostgreSQL 18 real-data tests cover 曹操、赤壁之战、赤壁、江陵 and alias/mention lookup;
+- [x] Node/static/server tests cover the search browser boundary and escaping;
+- [x] Chronicle CI passes the full persistence/read/search/UI suite;
+- [x] search product/API documentation is updated;
+- [x] delivery PR #486 is merged and reconciliation PR #487 records post-merge completion on `main`.
+
+## Progress Log
+
+- 2026-09-01 — Started C0-T12 from the reconciled C0-T11 baseline without new migrations, pgvector, or model ranking.
+- 2026-09-01 — Implemented deterministic canonical Entity/Event search, match provenance, `/v0/search`, global browser search, mixed results, uncertainty presentation, and real two-source PG18 tests.
+- 2026-09-01 — Exact-head run `33526827184` / job `99919697325` passed 5 persistence, 21 read/search/static, 12 Node UI contracts, and real Chrome search smoke with `search=PASS`.
+- 2026-09-01 — Delivery PR #486 squash-merged as `0f3c4674b04e4fee8cf39d3419ea39916992f41e`; reconciliation PR #487 records the canonical completion before closing #485.
 
 ## Non-goals
 
