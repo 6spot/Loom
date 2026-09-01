@@ -1,13 +1,13 @@
 ---
 task: C0-T9
 issue: 471
-status: in_progress
+status: completed
 depends_on: [C0-T8]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 478
+merge_sha: c408757f56f8c3e1da76eb575e973d296024b9b4
 ---
 
 # Chronicle PostgreSQL persistence
@@ -76,7 +76,7 @@ The CLI validates staged, resolution, and canonical artifacts against the accept
 
 ## PostgreSQL 18 verification
 
-The persistence suite is now routed through the dedicated `Chronicle` GitHub Actions workflow. It runs only for Chronicle persistence, Chronicle schema, retained acceptance-artifact, or workflow changes and uses the exact repository database image `pgvector/pgvector:0.8.6-pg18`.
+The persistence suite is routed through the dedicated `Chronicle` GitHub Actions workflow. It runs only for Chronicle persistence, Chronicle schema, retained acceptance-artifact, or workflow changes and uses the exact repository database image `pgvector/pgvector:0.8.6-pg18`.
 
 The first synthetic PG18 evidence run (`33511422006`, job `99867742169`) identified PostgreSQL `18.6` and passed all four synthetic persistence tests (`Ran 4 tests in 0.524s`, `OK`). After the real C0-T7 acceptance artifacts were retained in Git, permanent Chronicle workflow run `33512350772`, job `99870875184` passed the synthetic suite plus the real-data round trip:
 
@@ -91,7 +91,7 @@ Ran 5 tests in 1.058s
 OK
 ```
 
-This verifies transaction/idempotency behavior, explicit immutable-content conflicts, reconnect-safe canonical membership, exact Claim JSON/evidence retrieval, `related_occurrence` separation/provenance, migration checksum drift rejection, and the accepted real two-source catalog against PostgreSQL 18.
+The Chronicle workflow also passed again on the final delivery head before merge. This verifies transaction/idempotency behavior, explicit immutable-content conflicts, reconnect-safe canonical membership, exact Claim JSON/evidence retrieval, `related_occurrence` separation/provenance, migration checksum drift rejection, and the accepted real two-source catalog against PostgreSQL 18.
 
 ## First real validation
 
@@ -140,7 +140,7 @@ The real PG18 round-trip test verifies all of the following after a fresh import
 - [x] PostgreSQL 18 integration tests pass;
 - [x] real 武帝纪 + 吴主传 dataset is durably imported and inspected;
 - [x] documentation records backup/replay ownership and the application-vs-Loom boundary;
-- [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
+- [x] delivery PR #478 merged to `main` as `c408757f56f8c3e1da76eb575e973d296024b9b4`; this post-merge reconciliation records the canonical completion evidence.
 
 ## Progress Log
 
@@ -148,4 +148,5 @@ The real PG18 round-trip test verifies all of the following after a fresh import
 - 2026-09-01 — Implemented Chronicle-owned migration/checksum tracking, staged/Resolution/canonical stores, single-transaction import orchestration, `CHRONICLE_DATABASE_URL` CLI, and PG18 integration tests. All new Python files pass local `py_compile`.
 - 2026-09-01 — GitHub Actions run `33511422006` started `pgvector/pgvector:0.8.6-pg18` / PostgreSQL 18.6 and completed all four synthetic Chronicle persistence integration tests successfully (`Ran 4 tests in 0.524s`, `OK`).
 - 2026-09-01 — Retained the real C0-T7/C0-T8 artifacts as a versioned Chronicle golden integration dataset and added a dedicated Chronicle CI workflow plus real-data PostgreSQL test.
-- 2026-09-01 — Chronicle workflow run `33512350772`, job `99870875184` completed all five PG18 tests successfully (`Ran 5 tests in 1.058s`, `OK`), including full real 武帝纪 + 吴主传 persistence/reconnect/semantic inspection. Implementation acceptance is complete; only delivery merge and post-merge Task Ledger reconciliation remain.
+- 2026-09-01 — Chronicle workflow run `33512350772`, job `99870875184` completed all five PG18 tests successfully (`Ran 5 tests in 1.058s`, `OK`), including full real 武帝纪 + 吴主传 persistence/reconnect/semantic inspection.
+- 2026-09-01 — Delivery PR #478 squash-merged to `main` as `c408757f56f8c3e1da76eb575e973d296024b9b4`; post-merge reconciliation records the actual delivery evidence required by the Task Ledger completion invariant.
