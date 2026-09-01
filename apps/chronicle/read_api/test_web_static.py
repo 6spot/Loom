@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from web_static import web_response
+from web_static import WEB_ROOT, web_response
 
 
 class ChronicleWebStaticTests(unittest.TestCase):
@@ -55,6 +55,26 @@ class ChronicleWebStaticTests(unittest.TestCase):
         self.assertEqual(status, 405)
         self.assertEqual(content_type, "text/plain; charset=utf-8")
         self.assertEqual(body, b"method not allowed\n")
+
+    def test_production_ui_has_no_artifact_or_database_escape_hatch(self) -> None:
+        forbidden = (
+            ".artifacts",
+            "CHRONICLE_DATABASE_URL",
+            "LOOM_DATABASE_URL",
+            "postgresql://",
+            "persistence/migrations",
+        )
+        production_files = [
+            WEB_ROOT / "index.html",
+            WEB_ROOT / "styles.css",
+            WEB_ROOT / "app.mjs",
+            WEB_ROOT / "ui.mjs",
+        ]
+        for path in production_files:
+            text = path.read_text(encoding="utf-8")
+            for token in forbidden:
+                with self.subTest(path=path.name, token=token):
+                    self.assertNotIn(token, text)
 
 
 if __name__ == "__main__":
