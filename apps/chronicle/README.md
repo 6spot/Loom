@@ -12,16 +12,33 @@ Initial data may focus on a narrow period, but the product and data model must r
 
 ## Project structure
 
-- `docs/` — Chronicle product, UX, data, and implementation design documents.
-- `ingestion/` — the schema-driven historical-data ingestion prototype, machine-readable contract, and curated regression fixtures.
-- Application code will live in this directory when implementation begins.
+- `docs/` — Chronicle product, UX, data, read API, and browser UI documents.
+- `ingestion/` — schema-driven historical-data ingestion, resolution, and canonical publication prototypes/contracts.
+- `persistence/` — Chronicle-owned PostgreSQL persistence for staged, Resolution, and canonical layers.
+- `read_api/` — deterministic Timeline/Event/Entity read contracts plus the same-origin HTTP host.
+- `web/` — zero-build Chronicle browser UI that consumes only the C0-T10 HTTP API.
 
-## Current design documents
+## Current design and implementation documents
 
 - [`docs/product.md`](docs/product.md) — product definition and V0 surfaces.
-- [`docs/ui.md`](docs/ui.md) — interaction and UI design.
+- [`docs/ui.md`](docs/ui.md) — broader interaction and UI design direction.
+- [`docs/browser-ui.md`](docs/browser-ui.md) — implemented C0-T11 Timeline/Event/Entity browser slice.
+- [`docs/read-api.md`](docs/read-api.md) — C0-T10 read-model and HTTP contracts.
 - [`docs/data-contract.md`](docs/data-contract.md) — Chronicle Data Contract v0.1 for Source / Entity / Event / Claim ingestion.
-- [`ingestion/README.md`](ingestion/README.md) — first ingestion vertical slice and fixture semantics.
+- [`ingestion/README.md`](ingestion/README.md) — ingestion vertical slice and fixture semantics.
+
+## Run the current browser slice
+
+Against an already imported Chronicle PostgreSQL database:
+
+```bash
+export CHRONICLE_DATABASE_URL='postgresql://.../chronicle'
+python3 apps/chronicle/read_api/server.py --host 127.0.0.1 --port 8080
+```
+
+Open `http://127.0.0.1:8080/timeline`.
+
+The browser UI calls only `/v0/timeline`, `/v0/events/{id}`, and `/v0/entities/{id}`. It does not read local ingestion artifacts or PostgreSQL directly.
 
 ## Initial product pillars
 
