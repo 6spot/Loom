@@ -26,6 +26,8 @@ The read layer presents canonical identities for navigation while preserving sou
 
 C0-T9 is canonically complete on `main`: delivery PR #478 merged as `c408757f56f8c3e1da76eb575e973d296024b9b4` and reconciliation PR #479 merged as `2b08babe6778a7b3d5df8d3612e442a515772ce8`.
 
+Architecture Amendment 0006 was accepted by PR #481 and merged to `main` as `44764edc57d9b899afa4c0353de7530756e5dc68`. It explicitly distinguishes Loom engine persistence from registered Application-owned product persistence. Chronicle's historical source/resolution/canonical corpus is the first registered product persistence root and remains isolated behind `CHRONICLE_DATABASE_URL`; Loom Runtime/World/Timeline/Work/Binding authority remains exclusively behind Loom API/Runtime and `loom-storage`.
+
 C0-T10 reads only Chronicle-owned persisted tables. It does not re-run ingestion, resolution, publication, migrations, or model calls.
 
 ## API/runtime choice
@@ -139,7 +141,7 @@ This proves:
 
 `apps/chronicle/docs/read-api.md` records the HTTP routes, presentation/authority boundary, time-window semantics, Entity involvement semantics, errors, run command, and concrete real-data response examples.
 
-The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL routing is narrowed to `crates/loom-storage/**`, so Chronicle-owned SQL no longer causes Loom Storage PostgreSQL tests merely because it has a `.sql` extension.
+The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL routing is narrowed to `crates/loom-storage/**`, so Chronicle-owned SQL no longer causes Loom Storage PostgreSQL tests merely because it has a `.sql` extension. Amendment 0006 keeps that routing decision aligned with the explicit product-persistence ownership registry rather than a broad application exemption.
 
 ## Non-goals
 
@@ -166,4 +168,5 @@ The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL
 - 2026-09-01 — C0-T9 became canonically complete after delivery PR #478 and reconciliation PR #479. C0-T10 started as a framework-free read repository + thin HTTP adapter over Chronicle-owned PostgreSQL data.
 - 2026-09-01 — Implemented Timeline, Event Detail, Entity Detail, router/server, deterministic display/time helpers, and real two-source read-model tests.
 - 2026-09-01 — Self-review expanded Entity-to-Event navigation from participant-only to participant-or-place involvement, added explicit `participant_roles` / `as_place`, fixed `limit=0` validation coverage, removed duplicate transaction warnings, documented the API, and narrowed Loom core CI SQL routing to Loom Storage ownership.
-- 2026-09-01 — Chronicle workflow run `33516308248`, job `99884088269`, passed all five persistence regressions and all seven C0-T10 read-model tests against PostgreSQL 18.6. Implementation acceptance is complete; delivery merge/reconciliation remain.
+- 2026-09-01 — Chronicle workflow run `33516308248`, job `99884088269`, passed all five persistence regressions and all seven C0-T10 read-model tests against PostgreSQL 18.6.
+- 2026-09-01 — Core CI exposed that C0-T9's Application SQL conflicted with the pre-existing all-repository SQL ownership checker. Delivery paused. Architecture Amendment 0006 was reviewed independently, all architecture/Rust/Storage-PG gates passed on PR #481, and it merged as `44764edc57d9b899afa4c0353de7530756e5dc68`. C0-T10 is now being revalidated against the accepted boundary before delivery.
