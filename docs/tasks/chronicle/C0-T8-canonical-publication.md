@@ -1,10 +1,11 @@
 ---
 task: C0-T8
 issue: 470
-status: in_progress
+status: completed
 depends_on: [C0-T7]
 created_at: 2026-09-01
 started_at: 2026-09-01
+completed_at: 2026-09-01
 ---
 
 # Chronicle Canonical Publication v0
@@ -70,46 +71,45 @@ The publication core uses deterministic ordering and a DSU/union-find grouping a
 
 The CLI accepts repeatable `--bundle LABEL=PATH` and `--resolution PATH` arguments so the publication layer is not limited to the first two-source experiment.
 
-## Offline verification
+## Verification
 
-A standalone run of the new publication test module currently passes 11 tests:
+The completed C0-T8 implementation passed the full Chronicle prototype discovery:
 
 ```text
-Ran 11 tests
+Ran 61 tests
 OK
 ```
 
-Coverage includes:
+The accepted C0-T7 real Resolution Links used for publication contained:
 
-- generated UUID version/variant;
-- same Entity/Event merge behavior;
-- uncertain/related non-merge behavior;
-- singleton preservation;
-- transitive grouping across three sources;
-- reuse/attachment through an existing catalog;
-- byte-stable rerun with the first output supplied as the existing catalog;
-- conflicting existing canonical IDs;
-- transitive `not_same` conflict detection;
-- transitive `related_occurrence` conflict detection;
-- preservation of existing Event relations;
-- input immutability;
-- canonical JSON Schema validation;
-- mismatched resolution/bundle metadata rejection.
+```text
+entities: 5 same_entity + 5 uncertain
+events:   8 same_occurrence + 2 related_occurrence
+```
 
-A synthetic CLI publication also completed successfully and a second run with `--existing-catalog` produced byte-identical catalog output.
+The first real 武帝纪 + 吴主传 publication completed with:
 
-## First real validation
+```text
+chronicle publication: PASS entities=66 events=45 relations=2
+```
 
-Before completion, run publication against the final independently ingested 武帝纪 and 吴主传 bundles plus the accepted C0-T7 resolution output.
+A full resolution-boundary audit confirmed every `same_entity` / `same_occurrence` pair shared canonical identity and every `uncertain`, `not_same`, and `related_occurrence` pair remained distinct as required.
 
-The run must demonstrate:
+A rerun using the first catalog as `--existing-catalog` again returned:
 
-- the two 曹操 source representations share one CanonicalEntity UUID;
-- the two 赤壁 source Event representations share one CanonicalEvent UUID;
-- the Jiangling `related_occurrence` pair remains two CanonicalEvents connected by a relation;
-- the five uncertain same-name place links remain separate canonical identities;
-- source bundle/Claim content remains unchanged;
-- rerun with the first catalog supplied as `--existing-catalog` preserves all canonical UUIDs.
+```text
+chronicle publication: PASS entities=66 events=45 relations=2
+PASS: canonical catalog byte-stable
+```
+
+The final human-readable semantic inspection confirmed:
+
+- the 武帝纪 and 吴主传 曹操 representations share one CanonicalEntity UUID;
+- both 赤壁之战 representations share one CanonicalEvent UUID;
+- `曹操进军江陵` and `曹操北还并留军守江陵、襄阳` remain distinct CanonicalEvents under `related_occurrence`;
+- all five uncertain same-name place pairs — 襄阳、夏口、江陵、赤壁、合肥 — remain separate canonical identities.
+
+Synthetic CLI verification and the standalone publication test module were also completed before the real-data run.
 
 ## Acceptance
 
@@ -123,11 +123,11 @@ The run must demonstrate:
 - [x] existing canonical UUIDs are reused;
 - [x] conflicting existing canonical IDs fail explicitly;
 - [x] offline tests cover identity stability and merge boundaries;
-- [ ] full Chronicle prototype unittest discovery passes on the implementation branch;
-- [ ] first real 武帝纪 ↔ 吴主传 publication run is inspected;
-- [ ] real rerun proves canonical UUID stability;
-- [ ] delivery PR / merge reconciliation completed.
+- [x] full Chronicle prototype unittest discovery passes on the implementation branch;
+- [x] first real 武帝纪 ↔ 吴主传 publication run is inspected;
+- [x] real rerun proves canonical UUID stability;
+- [x] delivery PR #475 records the implementation and verification for merge to `main`.
 
 ## Boundary to C0-T9
 
-C0-T9 may persist the canonical catalog only after this task is accepted. PostgreSQL must store staged data, Resolution Links, and canonical publication as separate auditable layers rather than reinterpreting publication semantics in SQL.
+C0-T9 may now persist the accepted canonical catalog. PostgreSQL must store staged data, Resolution Links, and canonical publication as separate auditable layers rather than reinterpreting publication semantics in SQL.
