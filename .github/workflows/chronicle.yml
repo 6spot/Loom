@@ -9,6 +9,7 @@ on:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/read_api/**"
+      - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
   pull_request:
@@ -16,6 +17,7 @@ on:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/read_api/**"
+      - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
 
@@ -78,3 +80,8 @@ jobs:
             -s apps/chronicle/read_api \
             -p 'test_*.py' \
             -v
+
+      - name: Chronicle UI contracts
+        run: |
+          node --version
+          node --test apps/chronicle/web/test_*.mjs
