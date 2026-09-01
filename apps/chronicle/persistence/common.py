@@ -68,12 +68,11 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def stable_relation_payload(relation: dict[str, Any]) -> dict[str, Any]:
-    """Return the identity payload for one published canonical event relation."""
+    """Return semantic identity fields for one canonical event relation."""
     return {
         "type": relation.get("type"),
         "left_canonical_event_id": relation.get("left_canonical_event_id"),
         "right_canonical_event_id": relation.get("right_canonical_event_id"),
-        "resolution_links": relation.get("resolution_links") or [],
     }
 
 
