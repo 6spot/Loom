@@ -8,12 +8,14 @@ on:
     paths:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/read_api/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
   pull_request:
     paths:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/read_api/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
 
@@ -26,7 +28,7 @@ concurrency:
 
 jobs:
   postgres:
-    name: Chronicle PostgreSQL 18 persistence
+    name: Chronicle PostgreSQL 18 contracts
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -54,14 +56,25 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: apps/chronicle/persistence/requirements.txt
+          cache-dependency-path: |
+            apps/chronicle/persistence/requirements.txt
+            apps/chronicle/read_api/requirements.txt
 
-      - name: Install Chronicle persistence dependencies
-        run: python -m pip install -r apps/chronicle/persistence/requirements.txt
+      - name: Install Chronicle dependencies
+        run: |
+          python -m pip install -r apps/chronicle/persistence/requirements.txt
+          python -m pip install -r apps/chronicle/read_api/requirements.txt
 
-      - name: Chronicle PostgreSQL integration tests
+      - name: Chronicle persistence contracts
         run: |
           python -m unittest discover \
             -s apps/chronicle/persistence \
+            -p 'test_*.py' \
+            -v
+
+      - name: Chronicle read-model contracts
+        run: |
+          python -m unittest discover \
+            -s apps/chronicle/read_api \
             -p 'test_*.py' \
             -v
