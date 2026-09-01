@@ -126,7 +126,7 @@ Synthetic CLI verification and the standalone publication test module were also 
 - [x] full Chronicle prototype unittest discovery passes on the implementation branch;
 - [x] first real 武帝纪 ↔ 吴主传 publication run is inspected;
 - [x] real rerun proves canonical UUID stability;
-- [x] delivery PR #475 records the implementation and verification for merge to `main`.
+- [x] delivery PR #476 records the implementation and verification for merge to `main` (superseding Draft PR #475 after a connector ready-state error).
 
 ## Boundary to C0-T9
 
