@@ -24,7 +24,14 @@ def _entity(ref: str, entity_type: str, name: str) -> dict:
     }
 
 
-def _event(ref: str, event_type: str, title: str, participant_ref: str, year: int) -> dict:
+def _event(
+    ref: str,
+    event_type: str,
+    title: str,
+    participant_ref: str,
+    year: int,
+    place_ref: str | None = None,
+) -> dict:
     return {
         "temp_id": ref,
         "kind": "event",
@@ -47,7 +54,7 @@ def _event(ref: str, event_type: str, title: str, participant_ref: str, year: in
             },
         },
         "participants": [{"entity_ref": participant_ref, "role": "subject"}],
-        "places": [],
+        "places": [place_ref] if place_ref else [],
     }
 
 
@@ -80,7 +87,7 @@ class ResolutionV0Tests(unittest.TestCase):
         self.assertEqual("ent_001", candidate["left"]["ref"])
         self.assertEqual("ent_010", candidate["right"]["ref"])
 
-    def test_event_blocking_uses_time_type_and_participant_overlap(self) -> None:
+    def test_event_blocking_allows_low_ambiguity_same_type_and_participant(self) -> None:
         left = _bundle(
             "left",
             [_entity("ent_001", "person", "刘表")],
@@ -97,6 +104,41 @@ class ResolutionV0Tests(unittest.TestCase):
         candidates = build_candidate_set(left, "left", right, "right")
         self.assertEqual(1, len(candidates["event_candidates"]))
         self.assertEqual("evt_010", candidates["event_candidates"][0]["right"]["ref"])
+
+    def test_broad_event_does_not_block_on_one_shared_participant_alone(self) -> None:
+        left = _bundle(
+            "left",
+            [_entity("ent_001", "person", "曹操")],
+            [_event("evt_001", "military", "曹操南征", "ent_001", 208)],
+        )
+        right = _bundle(
+            "right",
+            [_entity("ent_010", "person", "曹操")],
+            [_event("evt_010", "battle", "赤壁之战", "ent_010", 208)],
+        )
+        candidates = build_candidate_set(left, "left", right, "right")
+        self.assertEqual([], candidates["event_candidates"])
+
+    def test_broad_event_requires_shared_participant_and_place_anchor(self) -> None:
+        left = _bundle(
+            "left",
+            [
+                _entity("ent_001", "person", "孙权"),
+                _entity("ent_002", "place", "合肥"),
+            ],
+            [_event("evt_001", "battle", "孙权攻合肥", "ent_001", 208, "ent_002")],
+        )
+        right = _bundle(
+            "right",
+            [
+                _entity("ent_010", "person", "孙权"),
+                _entity("ent_011", "place", "合肥"),
+            ],
+            [_event("evt_010", "military", "孙权围合肥", "ent_010", 208, "ent_011")],
+        )
+        candidates = build_candidate_set(left, "left", right, "right")
+        self.assertEqual(1, len(candidates["event_candidates"]))
+        self.assertIn("shared places: 合肥", candidates["event_candidates"][0]["signals"])
 
     def test_prompt_is_closed_world_and_non_destructive(self) -> None:
         candidates = {
