@@ -15,6 +15,10 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T5 | #466 | completed | Contract-first ingestion: single extraction, deterministic validation, bounded repair; production direction |
 | C0-T6 | #467 | completed | Cross-source validation: run unchanged Contract v0.2 on a second real historical source and review generalization |
 | C0-T7 | #468 | completed | Cross-source resolution/linking: conservative candidate blocking plus non-destructive Entity/Event link decisions |
+| C0-T8 | #470 | planned | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
+| C0-T9 | #471 | planned | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
+| C0-T10 | #472 | planned | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
+| C0-T11 | #473 | planned | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
 
 ## Current baseline
 
@@ -22,4 +26,38 @@ C0-T1 through C0-T7 were delivered by PR #459 and merged to `main` as `2e6dec768
 
 The final pre-merge Chronicle prototype discovery ran 50 tests and finished `OK`. The repository's current GitHub Actions path filters do not include Chronicle/Python, so the ledger does not claim a Chronicle GitHub CI pass.
 
-The production direction after C0 is contract-first ingestion followed by non-destructive cross-source resolution. Coverage v0.2 remains development/research evidence only.
+The production direction after C0-T7 is contract-first ingestion followed by non-destructive cross-source resolution and deterministic canonical publication. Coverage v0.2 remains development/research evidence only.
+
+## Planned vertical slice
+
+The next implementation sequence is intentionally linear so later layers are built only after the authority below them is stable:
+
+```text
+C0-T8  Canonical Publication v0
+   ↓
+C0-T9  PostgreSQL persistence
+   ↓
+C0-T10 Chronicle read model / API
+   ↓
+C0-T11 Timeline + Event Detail + Entity Detail UI
+```
+
+### C0-T8 — Canonical Publication v0 / #470
+
+Convert accepted cross-source Resolution Links into stable CanonicalEntity and CanonicalEvent identities while keeping staged Source/Entity/Event/Claim records immutable. UUIDv7 is generated deterministically by application code at publication time and must remain stable across reruns when an existing catalog is supplied. `same_entity` and `same_occurrence` may group representations; `related_occurrence`, `uncertain`, and `not_same` must not merge identities. Canonical publication does not synthesize historical truth or rewrite Claims.
+
+### C0-T9 — PostgreSQL persistence / #471
+
+Persist three auditable layers separately: source-owned staged records, Resolution Links, and canonical publication output. Preserve canonical UUID stability, provenance/evidence, unresolved decisions, and related-but-distinct Events. The first persistence target is the existing PostgreSQL 18 deployment; pgvector is not required merely for persistence. Chronicle-owned application persistence must not silently redefine Loom Core/Runtime/Storage authority.
+
+### C0-T10 — Chronicle read model / API / #472
+
+Expose persisted Chronicle data through the smallest stable application API needed by Timeline, Event Detail, and Entity Detail. Timeline returns canonical Events once rather than once per source representation. Detail reads must expose canonical identity plus source-specific representations, Claims, exact evidence/provenance, related Events, and explicit uncertainty. Presentation labels may be simpler than source text, but must not replace source evidence or convert disagreement into asserted truth.
+
+### C0-T11 — Timeline + Event Detail + Entity Detail UI / #473
+
+Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. World map, relationship graph, semantic Q&A, learning paths, counterfactual simulation, and ingestion/admin UI remain later work selected from real product usage rather than pre-built now.
+
+## Continuation rule
+
+A new conversation can safely resume by reading issues #470, #471, #472, and #473 in order. Start with #470 unless it is already completed; do not skip ahead to persistence/API/UI while the preceding layer's identity/authority contract is still unsettled.
