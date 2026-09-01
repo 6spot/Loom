@@ -1,13 +1,13 @@
 ---
 task: C0-T7
 issue: 468
-status: in_progress
+status: completed
 depends_on: [C0-T6]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 459
+merge_sha: 2e6dec7689bccfd4fc409a4a0486824d4bcb5791
 ---
 
 # Chronicle cross-source resolution / linking
@@ -145,7 +145,7 @@ The model must return every candidate exactly once, may not invent candidate IDs
 - [x] real 武帝纪 ↔ 吴主传 candidate set is inspected.
 - [x] real resolver run links overlapping Entities/Events without modifying either input bundle.
 - [x] resolution output passes the resolution-link JSON Schema.
-- [ ] delivery PR / CI / merge reconciliation completed.
+- [x] delivery PR / CI / merge reconciliation completed.
 
 ## Full prototype unittest verification
 
@@ -222,3 +222,9 @@ The resolver should have enough source-bounded evidence to propose links for som
 - Events: 刘表死、刘琮降曹、赤壁相关战事、曹操退却/北还、孙权合肥行动.
 
 Not every overlapping-looking pair must become `same_occurrence`. In particular, coarse source Event boundaries may cause one record to be related to several records in the other source. V0 should preserve that ambiguity instead of forcing a one-to-one merge.
+
+## Completion verification
+
+Delivery PR #459 merged to `main` on 2026-09-01 as `2e6dec7689bccfd4fc409a4a0486824d4bcb5791`. The first real resolver run and resolution-link schema validation passed before merge, and the current full Chronicle prototype suite is `Ran 50 tests` / `OK`.
+
+The repository's current GitHub Actions path filters do not include Chronicle/Python, so no Chronicle GitHub CI pass is claimed.
