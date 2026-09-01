@@ -146,7 +146,7 @@ The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL
 
 C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01.
 
-This post-merge reconciliation records the accepted delivery SHA and final exact-candidate CI evidence. C0-T10 is canonically complete when this reconciliation PR is merged to `main`; only then may C0-T11 / #473 begin implementation.
+Post-merge Task Ledger reconciliation is PR #482. It records the accepted delivery SHA and final exact-candidate CI evidence. C0-T10 becomes canonically complete when PR #482 is merged to `main`; only then may C0-T11 / #473 begin implementation.
 
 ## Non-goals
 
@@ -166,7 +166,7 @@ This post-merge reconciliation records the accepted delivery SHA and final exact
 - [x] related vs same occurrence and uncertain identity semantics are preserved;
 - [x] deterministic PostgreSQL 18 integration tests cover the retained two-source world;
 - [x] API documentation includes concrete real-data response examples;
-- [x] delivery PR #480 is merged and post-merge Task Ledger reconciliation is recorded by this change.
+- [x] delivery PR #480 is merged and post-merge Task Ledger reconciliation is recorded by PR #482.
 
 ## Progress Log
 
@@ -176,4 +176,4 @@ This post-merge reconciliation records the accepted delivery SHA and final exact
 - 2026-09-01 — Chronicle workflow run `33516308248`, job `99884088269`, passed all five persistence regressions and all seven C0-T10 read-model tests against PostgreSQL 18.6.
 - 2026-09-01 — Core CI exposed that C0-T9's Application SQL conflicted with the pre-existing all-repository SQL ownership checker. Delivery paused. Architecture Amendment 0006 was reviewed independently, all architecture/Rust/Storage-PG gates passed on PR #481, and it merged as `44764edc57d9b899afa4c0353de7530756e5dc68`.
 - 2026-09-01 — PR #480 was revalidated against accepted Amendment 0006: Chronicle run `33518070773` and core CI run `33518070753` both passed completely, including Architecture policy and PostgreSQL 18 contracts.
-- 2026-09-01 — Delivery PR #480 squash-merged as `5786681ae4053d7b169d112caee82c74f26a6894`; post-merge Task Ledger reconciliation started.
+- 2026-09-01 — Delivery PR #480 squash-merged as `5786681ae4053d7b169d112caee82c74f26a6894`; reconciliation PR #482 opened to make completion canonical on `main`.
