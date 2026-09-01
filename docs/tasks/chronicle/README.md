@@ -15,7 +15,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T5 | #466 | completed | Contract-first ingestion: single extraction, deterministic validation, bounded repair; production direction |
 | C0-T6 | #467 | completed | Cross-source validation: run unchanged Contract v0.2 on a second real historical source and review generalization |
 | C0-T7 | #468 | completed | Cross-source resolution/linking: conservative candidate blocking plus non-destructive Entity/Event link decisions |
-| C0-T8 | #470 | planned | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
+| C0-T8 | #470 | in progress | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
 | C0-T9 | #471 | planned | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
 | C0-T10 | #472 | planned | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
 | C0-T11 | #473 | planned | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
