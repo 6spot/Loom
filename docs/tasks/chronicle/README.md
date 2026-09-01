@@ -18,7 +18,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T8 | #470 | completed | Canonical Publication v0: stable UUIDv7 Entity/Event identity over source-owned representations and accepted Resolution Links |
 | C0-T9 | #471 | completed | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
 | C0-T10 | #472 | completed | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
-| C0-T11 | #473 | in_progress | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
+| C0-T11 | #473 | completed | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
 
 ## Current baseline
 
@@ -32,16 +32,16 @@ Architecture Amendment 0006 was accepted by PR #481 and merged as `44764edc57d9b
 
 C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01. Reconciliation PR #482 squash-merged as `de6887bba46dd9010a3bfb0a4aa799b9ec1eeaed`. Before delivery, exact merge-candidate Chronicle workflow run `33518070773` and core CI run `33518070753` both passed against the accepted Amendment 0006 boundary. The final read model provides deterministic Timeline, Event Detail, and Entity Detail contracts; preserves canonical/source/evidence/Resolution separation; supports participant and place Entity navigation; and keeps all reads inside Chronicle-owned PostgreSQL read-only transactions.
 
-C0-T11 / #473 is now the active Chronicle task. It adds the first browser exploration surface while consuming only the C0-T10 HTTP contracts; no UI code may read staged artifacts or Chronicle PostgreSQL directly.
+C0-T11 was delivered by PR #483 and squash-merged to `main` as `2e0d6df818d20151615da63c47b2a82ee2c41686` on 2026-09-01. Exact-current-head Chronicle workflow run `33524009993` / job `99910092736` passed five PostgreSQL persistence regressions, fifteen read/static HTTP regressions, seven native Node UI contracts, and a real headless Chrome two-source vertical slice. The browser gate persisted 66 CanonicalEntities, 45 CanonicalEvents, and 2 related-occurrence relations, then exercised Timeline → 赤壁之战 Event Detail → 曹操 Entity Detail / 赤壁 place identity → related 江陵 Event through the real HTTP server. UI code remains downstream of the C0-T10 API and has no direct artifact or PostgreSQL authority. Reconciliation PR #484 records C0-T11 as canonical completion on `main`.
 
-## Planned vertical slice
+## Completed vertical slice
 
 ```text
 C0-T9  PostgreSQL persistence      ✓ completed
    ↓
 C0-T10 Chronicle read model / API ✓ completed
    ↓
-C0-T11 Timeline + Event Detail + Entity Detail UI ← active
+C0-T11 Timeline + Event Detail + Entity Detail UI ✓ completed
 ```
 
 ### C0-T8 — Canonical Publication v0 / #470
@@ -58,8 +58,8 @@ Completed. Persisted Chronicle data is exposed through stable application contra
 
 ### C0-T11 — Timeline + Event Detail + Entity Detail UI / #473
 
-In progress. Build the first genuinely usable historical exploration surface over the C0-T10 API. The primary path is Timeline → Event Detail → source representations/evidence → Entity Detail / related Events. The UI must preserve the distinction between canonical occurrence, source perspective, Claims, and uncertainty. The initial implementation deliberately uses a zero-build browser layer over the existing Python read server so product validation is not blocked on frontend framework adoption.
+Completed. Chronicle now has a usable browser exploration surface over the C0-T10 API. Timeline, Event Detail, and Entity Detail preserve the distinction between canonical occurrence, source perspective, Claims/evidence, related-but-distinct Events, and uncertainty. The zero-build same-origin browser layer is replaceable and owns no historical authority. The final gate executes the retained two-source world through PostgreSQL 18, the real read API/server, ES modules, and headless Chrome.
 
 ## Continuation rule
 
-Continue #473 until C0-T11 is delivered, manually validated against the retained two-source world, merged, and reconciled on `main`. Do not start map/search/graph/learning/counterfactual surfaces before this first exploration slice proves usable.
+C0-T1 through C0-T11 are complete. Any next Chronicle surface—map, search/Q&A, relationship graph, learning paths, corpus coverage, or counterfactual simulation—should begin as an explicitly planned task with its product value, authority boundary, dependency, and acceptance evidence defined before implementation.

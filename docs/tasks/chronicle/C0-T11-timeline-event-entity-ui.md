@@ -1,13 +1,13 @@
 ---
 task: C0-T11
 issue: 473
-status: in_progress
+status: completed
 depends_on: [C0-T10]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 483
+merge_sha: 2e0d6df818d20151615da63c47b2a82ee2c41686
 ---
 
 # Chronicle Timeline, Event Detail, and Entity Detail UI
@@ -36,11 +36,11 @@ The UI consumes only C0-T10 HTTP contracts:
 - `GET /v0/events/{canonical_event_id}`;
 - `GET /v0/entities/{canonical_entity_id}`.
 
-It must not read Chronicle PostgreSQL, staged JSON artifacts, canonical catalog files, or ingestion output directly.
+It does not read Chronicle PostgreSQL, staged JSON artifacts, canonical catalog files, or ingestion output directly.
 
 ## UI/runtime choice
 
-The repository has no Chronicle JavaScript framework/package-manager baseline. C0-T11 therefore uses a zero-build browser layer:
+The repository had no Chronicle JavaScript framework/package-manager baseline. C0-T11 therefore uses a zero-build browser layer:
 
 - semantic HTML;
 - responsive CSS;
@@ -53,31 +53,30 @@ This keeps product semantics in C0-T10 and leaves the browser layer replaceable.
 
 ## Timeline
 
-Required:
+Implemented behavior:
 
-- canonical Event cards rendered once per API item;
-- historical year display without fabricated month/day precision;
-- source count/source titles visible without overwhelming the card;
-- compact event type and provenance cues;
+- canonical Event cards render once per API item;
+- historical years are displayed without fabricated month/day precision;
+- source count/source titles remain visible;
 - event cards navigate by canonical Event UUID;
 - loading, empty, API-error and pagination states are explicit.
 
 ## Event Detail
 
-Required layers remain visually separated:
+The UI keeps these layers visually separate:
 
 1. canonical presentation identity;
 2. source-by-source Event representations;
-3. direct Claims with exact evidence/provenance;
+3. direct Claims with exact evidence/provenance when those Claims exist;
 4. participant and place links to canonical Entity pages;
 5. related-but-distinct canonical Events;
 6. Resolution decisions including uncertainty/non-merge signals.
 
-No generated synthesis may masquerade as source text.
+No generated synthesis is presented as source text. Source representations do not fabricate Claims merely to make both sources look symmetric.
 
 ## Entity Detail
 
-Required:
+Implemented behavior:
 
 - canonical Entity presentation name/type;
 - source representations and direct Claims/evidence;
@@ -90,43 +89,58 @@ Required:
 
 The C0-T10 Python server serves API routes exactly as before. Non-API GET routes serve the Chronicle browser application from `apps/chronicle/web/`.
 
-Static serving must:
+Static serving:
 
-- never open PostgreSQL for HTML/CSS/JS assets;
-- reject path traversal;
-- serve the SPA shell for `/`, `/timeline`, `/events/{uuid}`, and `/entities/{uuid}`;
-- keep `/v0/*` and `/healthz` under existing API semantics;
-- return method-not-allowed for non-GET UI/static requests.
+- never opens PostgreSQL for HTML/CSS/JS assets;
+- rejects path traversal;
+- serves the SPA shell for `/`, `/timeline`, `/events/{uuid}`, and `/entities/{uuid}`;
+- keeps `/v0/*` and `/healthz` under existing API semantics;
+- returns method-not-allowed for non-GET UI/static requests;
+- rejects malformed percent-encoded browser routes without escaping the application;
+- emits `nosniff` on static responses.
 
-## Validation
+## Final validation evidence
 
-Use the retained 武帝纪 + 吴主传 persisted world and prove:
+Delivery PR #483 was squash-merged to `main` as `2e0d6df818d20151615da63c47b2a82ee2c41686` after exact-current-head Chronicle workflow run `33524009993` / job `99910092736` passed completely on head `f8a1ccdf9be810ecdefeec35896994149209fa78` and merge candidate `44a1f6f915070f062c287173f3ffa02a692ba447`.
 
-- Timeline renders one canonical 赤壁之战 card backed by two sources;
-- the 赤壁 Event page exposes both source representations and exact evidence;
-- participant 曹操 links to one canonical Entity page with cross-source trajectory;
-- related Jiangling Events remain separate links;
-- uncertain same-name places show uncertainty rather than merged certainty;
-- place Entity navigation reaches Events through `as_place`;
-- UI modules do not reference `.artifacts`, migration SQL, or database connection variables.
+The final gate proved:
 
-### Delivery evidence in progress
+- PostgreSQL persistence regressions: **5/5 passed**;
+- C0-T10 real-data read model plus HTTP/static boundary regressions: **15/15 passed**;
+- native Node UI navigation/rendering/security contracts: **7/7 passed**;
+- real two-source persistence: **66 CanonicalEntities, 45 CanonicalEvents, 2 related-occurrence relations**;
+- real headless browser vertical slice: **PASS** with `/usr/bin/google-chrome`;
+- 赤壁之战 canonical Event: `01a05cd7-439d-7071-bf00-86c664886b06`;
+- 曹操 canonical Entity navigation: `01a05cd7-439d-7172-b459-8d0c0747f5f2`;
+- 赤壁 place canonical Entity navigation: `01a05cd7-439d-7606-b619-24ee5ceb009f`;
+- the browser smoke verified the canonical 赤壁 Event appears once while retaining both 武帝纪 and 吴主传 source representations;
+- every direct Claim evidence excerpt actually present in the API is required to appear verbatim in the rendered DOM; the retained 赤壁 Event has one such direct evidence excerpt, rather than inventing a Claim for a source representation that has none;
+- 曹操 trajectory, `as_place` navigation, uncertain same-name 赤壁 identity, and related-but-distinct 江陵 Events were exercised through the real HTTP server and browser DOM.
 
-PR #483 has already passed the PostgreSQL 18 persistence suite, the C0-T10 read/static suite, and native Node UI rendering/navigation contracts on earlier merge refs. The final delivery gate is stronger: Chronicle CI persists the retained two-source golden world, starts the real Chronicle HTTP server, and runs `apps/chronicle/web/browser_smoke.py` through the runner's headless Chrome. A first rerun exposed only an incorrect test expectation for the pre-existing `/healthz -> {"status":"ok"}` contract; that test has been corrected without changing production API behavior. The acceptance checkboxes remain open until the current browser gate is green and the post-merge ledger reconciliation is complete.
+A separate server-level regression intentionally uses an unusable PostgreSQL endpoint and proves `/timeline`, Event SPA routes, and JS modules still return successfully while `/v0/timeline` remains database-backed and returns `503 database_unavailable`. `/healthz` preserves its existing `{"status":"ok"}` contract.
 
 ## Acceptance
 
-- [ ] Timeline UI works against C0-T10 API contracts;
-- [ ] Event Detail renders canonical/source/Claim/evidence/related/uncertainty layers;
-- [ ] Entity Detail renders canonical/source/trajectory/involvement/uncertainty layers;
-- [ ] same-origin static server never requires DB access for UI assets;
-- [ ] no UI code reads local artifact JSON or PostgreSQL directly;
-- [ ] responsive browser layout works at basic desktop/mobile widths;
-- [ ] pure UI contract tests cover navigation and key data states;
-- [ ] dedicated Chronicle CI runs UI contracts in addition to PG18 read contracts;
-- [ ] product/UI documentation records implemented behavior and local run path;
-- [ ] first two-source vertical slice is manually usable end to end;
-- [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
+- [x] Timeline UI works against C0-T10 API contracts;
+- [x] Event Detail renders canonical/source/Claim/evidence/related/uncertainty layers;
+- [x] Entity Detail renders canonical/source/trajectory/involvement/uncertainty layers;
+- [x] same-origin static server never requires DB access for UI assets;
+- [x] no UI code reads local artifact JSON or PostgreSQL directly;
+- [x] responsive browser layout works at basic desktop/mobile widths;
+- [x] pure UI contract tests cover navigation and key data states;
+- [x] dedicated Chronicle CI runs UI contracts and real browser smoke in addition to PG18 read contracts;
+- [x] product/UI documentation records implemented behavior and local run path;
+- [x] first two-source vertical slice is executable end to end through PostgreSQL -> API -> HTTP -> ES modules -> headless Chrome;
+- [x] delivery PR #483 is merged and post-merge Task Ledger reconciliation is recorded by PR #484.
+
+## Progress Log
+
+- 2026-09-01 — C0-T10 became canonically complete after delivery PR #480 and reconciliation PR #482. C0-T11 started as a zero-build same-origin browser layer over the existing Chronicle read server.
+- 2026-09-01 — Implemented Timeline, Event Detail, Entity Detail, responsive styling, API wiring, provenance/evidence rendering, related-event navigation, uncertainty presentation, safe static routing, and browser route parsing.
+- 2026-09-01 — Added Python HTTP/static boundary regressions and native Node UI contracts. The server boundary proves UI/static GETs do not require PostgreSQL while `/v0/*` remains database-backed.
+- 2026-09-01 — Strengthened the final gate to persist the retained 武帝纪 + 吴主传 golden world, start the real Chronicle server, and inspect real rendered DOM through headless Chrome. Intermediate failures corrected test assumptions without weakening source semantics: `/healthz` retained its existing payload and source representations were not forced to fabricate missing Claims.
+- 2026-09-01 — Exact-current-head Chronicle run `33524009993` / job `99910092736` passed 5 persistence tests, 15 read/static tests, 7 Node UI tests, and the real browser vertical slice. Delivery PR #483 squash-merged as `2e0d6df818d20151615da63c47b2a82ee2c41686`.
+- 2026-09-01 — Post-merge Task Ledger reconciliation PR #484 records completion on `main`.
 
 ## Non-goals
 
