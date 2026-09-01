@@ -144,14 +144,14 @@ The Chrome run ended with `search=PASS`. It exercised real `/search` pages for �
 - [x] Node/static/server tests cover the search browser boundary and escaping;
 - [x] Chronicle CI passes the full persistence/read/search/UI suite;
 - [x] search product/API documentation is updated;
-- [ ] delivery PR #486 is merged and post-merge Task Ledger reconciliation is complete.
+- [x] delivery PR #486 is merged and reconciliation PR #487 records post-merge completion on `main`.
 
 ## Progress Log
 
 - 2026-09-01 — Started C0-T12 from the reconciled C0-T11 baseline without new migrations, pgvector, or model ranking.
 - 2026-09-01 — Implemented deterministic canonical Entity/Event search, match provenance, `/v0/search`, global browser search, mixed results, uncertainty presentation, and real two-source PG18 tests.
 - 2026-09-01 — Exact-head run `33526827184` / job `99919697325` passed 5 persistence, 21 read/search/static, 12 Node UI contracts, and real Chrome search smoke with `search=PASS`.
-- 2026-09-01 — Delivery PR #486 squash-merged as `0f3c4674b04e4fee8cf39d3419ea39916992f41e`; post-merge Task Ledger reconciliation opened before closing #485.
+- 2026-09-01 — Delivery PR #486 squash-merged as `0f3c4674b04e4fee8cf39d3419ea39916992f41e`; reconciliation PR #487 records the canonical completion before closing #485.
 
 ## Non-goals
 
