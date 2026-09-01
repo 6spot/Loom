@@ -1,13 +1,13 @@
 ---
 task: C0-T10
 issue: 472
-status: in_progress
+status: completed
 depends_on: [C0-T9]
 created_at: 2026-09-01
 started_at: 2026-09-01
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-01
+completion_pr: 480
+merge_sha: 5786681ae4053d7b169d112caee82c74f26a6894
 ---
 
 # Chronicle read model and API
@@ -99,30 +99,29 @@ Returns:
 
 This is how same-name uncertain places remain visibly distinct rather than silently collapsed while still supporting place -> Event navigation.
 
-## First real validation
+## Final validation evidence
 
-The retained C0-T7/C0-T8 golden dataset is imported into an isolated PostgreSQL 18 database by the dedicated Chronicle workflow. GitHub Actions run `33516308248`, job `99884088269`, used `pgvector/pgvector:0.8.6-pg18`; the service reported PostgreSQL 18.6.
+The retained C0-T7/C0-T8 golden dataset was imported into isolated PostgreSQL 18 by the dedicated Chronicle workflow. During implementation, workflow run `33516308248`, job `99884088269`, used `pgvector/pgvector:0.8.6-pg18`; the service reported PostgreSQL 18.6. It passed all five C0-T9 persistence regressions and all seven C0-T10 read-model tests.
 
-The C0-T9 persistence regression suite remained green:
+After Architecture Amendment 0006 merged, the exact PR #480 merge candidate was revalidated before delivery:
+
+- Chronicle workflow run `33518070773`, job `99890041129`: success;
+- core CI run `33518070753`: success;
+- core `Architecture policy`: success;
+- core format/check/clippy/unit/rustdoc gates: success;
+- Loom Storage PostgreSQL 18 contract: success;
+- Task Ledger governance: success.
+
+The C0-T10 read-model suite covers:
 
 ```text
-Ran 5 tests in 1.064s
-OK
-```
-
-The C0-T10 read-model suite passed:
-
-```text
-test_cao_cao_entity_aggregates_sources_and_claims ... ok
-test_jiangling_events_remain_distinct_and_related ... ok
-test_place_entity_lists_events_where_it_is_a_place ... ok
-test_red_cliffs_detail_preserves_both_sources_and_exact_claims ... ok
-test_router_contracts ... ok
-test_timeline_returns_canonical_red_cliffs_once ... ok
-test_uncertain_places_remain_distinct_and_visible ... ok
-
-Ran 7 tests in 0.445s
-OK
+test_cao_cao_entity_aggregates_sources_and_claims
+test_jiangling_events_remain_distinct_and_related
+test_place_entity_lists_events_where_it_is_a_place
+test_red_cliffs_detail_preserves_both_sources_and_exact_claims
+test_router_contracts
+test_timeline_returns_canonical_red_cliffs_once
+test_uncertain_places_remain_distinct_and_visible
 ```
 
 This proves:
@@ -143,6 +142,12 @@ This proves:
 
 The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL routing is narrowed to `crates/loom-storage/**`, so Chronicle-owned SQL no longer causes Loom Storage PostgreSQL tests merely because it has a `.sql` extension. Amendment 0006 keeps that routing decision aligned with the explicit product-persistence ownership registry rather than a broad application exemption.
 
+## Delivery
+
+C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01.
+
+Post-merge Task Ledger reconciliation is PR #482. It records the accepted delivery SHA and final exact-candidate CI evidence. C0-T10 becomes canonically complete when PR #482 is merged to `main`; only then may C0-T11 / #473 begin implementation.
+
 ## Non-goals
 
 - browser UI;
@@ -161,7 +166,7 @@ The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL
 - [x] related vs same occurrence and uncertain identity semantics are preserved;
 - [x] deterministic PostgreSQL 18 integration tests cover the retained two-source world;
 - [x] API documentation includes concrete real-data response examples;
-- [ ] delivery PR is merged and post-merge Task Ledger reconciliation is complete.
+- [x] delivery PR #480 is merged and post-merge Task Ledger reconciliation is recorded by PR #482.
 
 ## Progress Log
 
@@ -169,4 +174,6 @@ The Chronicle workflow owns Chronicle PostgreSQL contract testing. Core `CI` SQL
 - 2026-09-01 — Implemented Timeline, Event Detail, Entity Detail, router/server, deterministic display/time helpers, and real two-source read-model tests.
 - 2026-09-01 — Self-review expanded Entity-to-Event navigation from participant-only to participant-or-place involvement, added explicit `participant_roles` / `as_place`, fixed `limit=0` validation coverage, removed duplicate transaction warnings, documented the API, and narrowed Loom core CI SQL routing to Loom Storage ownership.
 - 2026-09-01 — Chronicle workflow run `33516308248`, job `99884088269`, passed all five persistence regressions and all seven C0-T10 read-model tests against PostgreSQL 18.6.
-- 2026-09-01 — Core CI exposed that C0-T9's Application SQL conflicted with the pre-existing all-repository SQL ownership checker. Delivery paused. Architecture Amendment 0006 was reviewed independently, all architecture/Rust/Storage-PG gates passed on PR #481, and it merged as `44764edc57d9b899afa4c0353de7530756e5dc68`. C0-T10 is now being revalidated against the accepted boundary before delivery.
+- 2026-09-01 — Core CI exposed that C0-T9's Application SQL conflicted with the pre-existing all-repository SQL ownership checker. Delivery paused. Architecture Amendment 0006 was reviewed independently, all architecture/Rust/Storage-PG gates passed on PR #481, and it merged as `44764edc57d9b899afa4c0353de7530756e5dc68`.
+- 2026-09-01 — PR #480 was revalidated against accepted Amendment 0006: Chronicle run `33518070773` and core CI run `33518070753` both passed completely, including Architecture policy and PostgreSQL 18 contracts.
+- 2026-09-01 — Delivery PR #480 squash-merged as `5786681ae4053d7b169d112caee82c74f26a6894`; reconciliation PR #482 opened to make completion canonical on `main`.
