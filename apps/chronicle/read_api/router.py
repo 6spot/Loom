@@ -49,11 +49,13 @@ def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, di
             unknown = sorted(set(query) - allowed)
             if unknown:
                 raise ReadModelError(f"unknown query parameter(s): {', '.join(unknown)}")
+            limit = _optional_int(query, "limit")
+            offset = _optional_int(query, "offset")
             return 200, repo.timeline(
                 from_year=_optional_int(query, "from_year"),
                 to_year=_optional_int(query, "to_year"),
-                limit=_optional_int(query, "limit") or 50,
-                offset=_optional_int(query, "offset") or 0,
+                limit=50 if limit is None else limit,
+                offset=0 if offset is None else offset,
             )
 
         event_prefix = "/v0/events/"
