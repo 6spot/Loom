@@ -32,7 +32,7 @@ Architecture Amendment 0006 was accepted by PR #481 and merged as `44764edc57d9b
 
 C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b169d112caee82c74f26a6894` on 2026-09-01. Before delivery, exact merge-candidate Chronicle workflow run `33518070773` and core CI run `33518070753` both passed against the accepted Amendment 0006 boundary. The final read model provides deterministic Timeline, Event Detail, and Entity Detail contracts; preserves canonical/source/evidence/Resolution separation; supports participant and place Entity navigation; and keeps all reads inside Chronicle-owned PostgreSQL read-only transactions.
 
-This reconciliation change records C0-T10 completion. C0-T11 / #473 becomes the next executable Chronicle task only after this reconciliation is merged to `main`.
+Post-merge reconciliation PR #482 records C0-T10 completion on the Task Ledger. C0-T11 / #473 becomes the next executable Chronicle task only after PR #482 is merged to `main`.
 
 ## Planned vertical slice
 
@@ -64,4 +64,4 @@ Next. Build the first genuinely usable historical exploration surface over the C
 
 ## Continuation rule
 
-Merge the C0-T10 reconciliation before starting #473. After that merge, C0-T11 is unblocked and becomes the only active Chronicle implementation task.
+Merge reconciliation PR #482 before starting #473. After that merge, C0-T11 is unblocked and becomes the only active Chronicle implementation task.
