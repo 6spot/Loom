@@ -16,7 +16,7 @@ class ChronicleServerStaticBoundaryTests(unittest.TestCase):
         # Port 1 is intentionally unusable. Static/UI requests must still work
         # because the server must not connect to PostgreSQL for those paths.
         handler = handler_class(
-            "postgresql://invalid:invalid@127.0.0.1:1/invalid?connect_timeout=1"
+            "host=127.0.0.1 port=1 dbname=invalid user=invalid connect_timeout=1"
         )
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -50,7 +50,7 @@ class ChronicleServerStaticBoundaryTests(unittest.TestCase):
         with self._get("/healthz") as response:
             payload = json.load(response)
             self.assertEqual(response.status, 200)
-            self.assertEqual(payload["schema"], "chronicle.health")
+            self.assertEqual(payload, {"status": "ok"})
 
     def test_v0_routes_remain_database_backed(self) -> None:
         with self.assertRaises(HTTPError) as caught:
