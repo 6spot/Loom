@@ -96,7 +96,7 @@ class ChronicleReadModelRealDataTests(unittest.TestCase):
             )
 
     def _repo(self):
-        conn = psycopg.connect(self.database_url)
+        conn = psycopg.connect(self.database_url, autocommit=True)
         conn.execute("BEGIN READ ONLY")
         return conn, ChronicleReadRepository(conn)
 
@@ -197,11 +197,49 @@ class ChronicleReadModelRealDataTests(unittest.TestCase):
             self.assertEqual(detail["representation_count"], 2)
             self.assertEqual({item["bundle"] for item in detail["representations"]}, {"wudi", "wuzhu"})
             self.assertGreater(len(detail["events"]), 0)
+            self.assertTrue(any(
+                involvement["participant_roles"]
+                for event in detail["events"]
+                for involvement in event["source_involvements"]
+            ))
             for representation in detail["representations"]:
                 label = representation["bundle"]
                 expected = _direct_claim_payloads(self.bundles[label], "entity_ref", refs[label])
                 self.assertEqual([item["claim"] for item in representation["claims"]], expected)
             self.assertTrue(any(link["decision"] == "same_entity" for link in detail["resolution_links"]))
+        finally:
+            conn.close()
+
+    def test_place_entity_lists_events_where_it_is_a_place(self) -> None:
+        wudi_place_ref = _find_ref(self.bundles["wudi"], "entities", "canonical_name", "赤壁")
+        wuzhu_place_ref = _find_ref(self.bundles["wuzhu"], "entities", "canonical_name", "赤壁")
+        wudi_place_id = self.entity_membership[("wudi", wudi_place_ref)]
+        wuzhu_place_id = self.entity_membership[("wuzhu", wuzhu_place_ref)]
+        self.assertNotEqual(wudi_place_id, wuzhu_place_id)
+
+        wudi_event_ref = _find_ref(self.bundles["wudi"], "events", "title", "赤壁之战")
+        red_cliffs_id = self.event_membership[("wudi", wudi_event_ref)]
+
+        conn, repo = self._repo()
+        try:
+            detail = repo.entity_detail(wudi_place_id)
+            red_cliffs = next(
+                event for event in detail["events"]
+                if event["canonical_event_id"] == red_cliffs_id
+            )
+            self.assertTrue(any(
+                involvement["bundle"] == "wudi" and involvement["as_place"]
+                for involvement in red_cliffs["source_involvements"]
+            ))
+            uncertain = [link for link in detail["resolution_links"] if link["decision"] == "uncertain"]
+            self.assertEqual(len(uncertain), 1)
+            self.assertEqual(
+                {
+                    uncertain[0]["left"]["canonical_entity_id"],
+                    uncertain[0]["right"]["canonical_entity_id"],
+                },
+                {wudi_place_id, wuzhu_place_id},
+            )
         finally:
             conn.close()
 
@@ -237,6 +275,10 @@ class ChronicleReadModelRealDataTests(unittest.TestCase):
             status, timeline = dispatch(repo, "GET", "/v0/timeline", "from_year=208&to_year=208&limit=200")
             self.assertEqual(status, 200)
             self.assertEqual(timeline["schema"], "chronicle.timeline")
+
+            status, payload = dispatch(repo, "GET", "/v0/timeline", "limit=0")
+            self.assertEqual(status, 400)
+            self.assertEqual(payload["error"]["code"], "bad_request")
 
             status, payload = dispatch(repo, "GET", "/v0/events/not-a-uuid")
             self.assertEqual(status, 400)
