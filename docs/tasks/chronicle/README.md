@@ -19,7 +19,7 @@ Chronicle is an application-level consumer of Loom. Tasks here must not silently
 | C0-T9 | #471 | completed | PostgreSQL persistence: durably store staged, resolution, and canonical layers without collapsing provenance |
 | C0-T10 | #472 | completed | Chronicle read model/API: Timeline, Event Detail, and Entity Detail application contracts over persisted data |
 | C0-T11 | #473 | completed | First usable UI: Timeline + Event Detail + Entity Detail with canonical navigation and source/evidence traceability |
-| C0-T12 | #485 | in_progress | Deterministic Search / Historical Entry over canonical Entity/Event results with source-match explainability |
+| C0-T12 | #485 | completed | Deterministic Search / Historical Entry over canonical Entity/Event results with source-match explainability |
 
 ## Current baseline
 
@@ -35,7 +35,7 @@ C0-T10 was delivered by PR #480 and squash-merged to `main` as `5786681ae4053d7b
 
 C0-T11 was delivered by PR #483 and squash-merged to `main` as `2e0d6df818d20151615da63c47b2a82ee2c41686` on 2026-09-01. Exact-current-head Chronicle workflow run `33524009993` / job `99910092736` passed five PostgreSQL persistence regressions, fifteen read/static HTTP regressions, seven native Node UI contracts, and a real headless Chrome two-source vertical slice. The browser gate persisted 66 CanonicalEntities, 45 CanonicalEvents, and 2 related-occurrence relations, then exercised Timeline → 赤壁之战 Event Detail → 曹操 Entity Detail / 赤壁 place identity → related 江陵 Event through the real HTTP server. UI code remains downstream of the C0-T10 API and has no direct artifact or PostgreSQL authority. Reconciliation PR #484 records C0-T11 as canonical completion on `main`.
 
-C0-T12 / #485 is now active. It adds a deterministic lexical Search / Historical Entry read model and browser surface without adding new identity authority, pgvector, model-generated relevance, or a second data path. Search reads the same Chronicle-owned PostgreSQL world, groups source matches under canonical Entity/Event IDs, and returns explicit match provenance so ranking remains explainable.
+C0-T12 was delivered by PR #486 and squash-merged to `main` as `0f3c4674b04e4fee8cf39d3419ea39916992f41e` on 2026-09-01. Exact-current-head Chronicle workflow run `33526827184` / job `99919697325` passed five persistence regressions, twenty-one read/search/static Python regressions, twelve native Node UI contracts, and a real headless Chrome search vertical slice. The browser gate imported the retained 66 CanonicalEntities, 45 CanonicalEvents, and 2 related-occurrence relations, then verified `/search?q=曹操`, `/search?q=赤壁`, and `/search?q=江陵` through the real HTTP server. Search v0 returns canonical results once, exposes source match provenance, keeps uncertain same-name places distinct, and does not require pgvector or model-generated relevance. This reconciliation branch makes that completion canonical on `main` before #485 closes.
 
 ## Product vertical slice
 
@@ -46,7 +46,7 @@ C0-T10 Chronicle read model / API ✓ completed
    ↓
 C0-T11 Timeline + Event Detail + Entity Detail UI ✓ completed
    ↓
-C0-T12 Search / Historical Entry  ← active
+C0-T12 Search / Historical Entry  ✓ completed
 ```
 
 ### C0-T8 — Canonical Publication v0 / #470
@@ -67,8 +67,8 @@ Completed. Chronicle now has a usable browser exploration surface over the C0-T1
 
 ### C0-T12 — Search and Historical Entry / #485
 
-In progress. Add `GET /v0/search` plus a same-origin `/search` browser surface. Search v0 is lexical and deterministic: canonical display surfaces rank first, source names/titles/aliases next, then prefix/substring and secondary mention/summary/time surfaces. Results remain canonical and de-duplicated across sources, while `matched_surfaces` exposes why each result appeared. Uncertain same-name identities remain distinct and explicitly marked.
+Completed. `GET /v0/search` and the same-origin `/search` browser surface provide deterministic lexical discovery over canonical Entity/Event identities. Canonical display surfaces rank first, source names/titles/aliases next, then prefix/substring and secondary mention/summary/time surfaces. Results are de-duplicated across source representations while `matched_surfaces` explains why each item appeared. Uncertain same-name identities remain separate and visibly uncertain. No search-specific migration, pgvector dependency, embeddings, or model-generated answer/relevance layer was introduced.
 
 ## Continuation rule
 
-Continue #485 until lexical search is validated against the retained two-source world, usable from the browser, green in Chronicle CI, merged, and reconciled on `main`. Do not add semantic/vector search, Q&A synthesis, map, graph, or learning surfaces merely because search exists; choose the next product capability from observed use and search failures.
+C0-T1 through C0-T12 now form a complete source-grounded vertical slice from ingestion to canonical publication, persistence, read API, browser exploration, and direct historical search. Do not automatically add semantic/vector search, Q&A synthesis, map, graph, or learning flows next. Choose the next Chronicle capability from observed product usage and concrete search/exploration failures.
