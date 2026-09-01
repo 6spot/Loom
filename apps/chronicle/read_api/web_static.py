@@ -12,6 +12,7 @@ _STATIC_FILES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/app.mjs": ("app.mjs", "text/javascript; charset=utf-8"),
     "/ui.mjs": ("ui.mjs", "text/javascript; charset=utf-8"),
+    "/route_safe.mjs": ("route_safe.mjs", "text/javascript; charset=utf-8"),
 }
 
 _SPA_PATHS = (
