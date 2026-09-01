@@ -85,3 +85,43 @@ jobs:
         run: |
           node --version
           node --test apps/chronicle/web/test_*.mjs
+
+      - name: Chronicle two-source browser smoke
+        run: |
+          set -euo pipefail
+
+          python apps/chronicle/persistence/chronicle_persist.py \
+            --database-url "$LOOM_TEST_POSTGRES_URL" \
+            --bundle wudi=apps/chronicle/.artifacts/c0-t7/wudi/final.json \
+            --bundle wuzhu=apps/chronicle/.artifacts/c0-t7/wuzhu/final.json \
+            --resolution apps/chronicle/.artifacts/c0-t7/resolution/links.json \
+            --catalog apps/chronicle/.artifacts/c0-t7/publication/catalog.json \
+            --report /tmp/chronicle-browser-persistence.json
+
+          python apps/chronicle/read_api/server.py \
+            --database-url "$LOOM_TEST_POSTGRES_URL" \
+            --host 127.0.0.1 \
+            --port 8080 \
+            >/tmp/chronicle-browser-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chronicle-browser-server.log
+            exit 1
+          fi
+
+          python apps/chronicle/web/browser_smoke.py \
+            --base-url http://127.0.0.1:8080
