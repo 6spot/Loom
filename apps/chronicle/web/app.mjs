@@ -7,9 +7,11 @@ import {
   renderTimeline,
   timelineApiPath,
 } from "/ui.mjs";
+import { renderSearch, renderSearchEmpty, searchApiPath } from "/search_ui.mjs";
 import { safeRouteFor } from "/route_safe.mjs";
 
 const app = document.querySelector("#app");
+const globalSearch = document.querySelector("#global-search-q");
 
 async function fetchJSON(path) {
   const response = await fetch(path, {
@@ -34,6 +36,10 @@ async function fetchJSON(path) {
 function titleFor(route, payload) {
   if (route.view === "event") return `${payload?.display?.title ?? "事件"} · Chronicle`;
   if (route.view === "entity") return `${payload?.display?.name ?? "实体"} · Chronicle`;
+  if (route.view === "search") {
+    const q = payload?.query?.q ?? new URLSearchParams(window.location.search).get("q") ?? "";
+    return q ? `${q} · 搜索 · Chronicle` : "搜索 · Chronicle";
+  }
   return "Chronicle · 历史时间线";
 }
 
@@ -45,8 +51,18 @@ async function load() {
     return;
   }
 
+  const searchParams = new URLSearchParams(window.location.search);
+  const searchQuery = (searchParams.get("q") ?? "").trim();
+  if (globalSearch && route.view === "search") globalSearch.value = searchQuery;
+
+  if (route.view === "search" && !searchQuery) {
+    app.innerHTML = renderSearchEmpty();
+    document.title = titleFor(route, null);
+    return;
+  }
+
   app.innerHTML = renderLoading(
-    route.view === "timeline" ? "时间线" : route.view === "event" ? "事件" : "实体"
+    route.view === "timeline" ? "时间线" : route.view === "event" ? "事件" : route.view === "entity" ? "实体" : "搜索结果"
   );
 
   try {
@@ -57,9 +73,12 @@ async function load() {
     } else if (route.view === "event") {
       payload = await fetchJSON(`/v0/events/${encodeURIComponent(route.id)}`);
       app.innerHTML = renderEvent(payload);
-    } else {
+    } else if (route.view === "entity") {
       payload = await fetchJSON(`/v0/entities/${encodeURIComponent(route.id)}`);
       app.innerHTML = renderEntity(payload);
+    } else {
+      payload = await fetchJSON(searchApiPath(window.location.search));
+      app.innerHTML = renderSearch(payload);
     }
     document.title = titleFor(route, payload);
   } catch (error) {
