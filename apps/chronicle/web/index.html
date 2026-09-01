@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>Chronicle · 历史时间线</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/search.css">
 </head>
 <body>
   <header class="site-header">
@@ -18,7 +19,13 @@
     </a>
     <nav class="site-nav" aria-label="主要导航">
       <a href="/timeline">时间线</a>
+      <a href="/search">搜索</a>
     </nav>
+    <form class="global-search" action="/search" method="get" role="search">
+      <label for="global-search-q">搜索人物、地点或事件</label>
+      <input id="global-search-q" name="q" autocomplete="off" placeholder="曹操、赤壁之战、江陵…">
+      <button class="primary-button" type="submit">搜索</button>
+    </form>
   </header>
 
   <main id="app" class="app-shell" aria-live="polite">
