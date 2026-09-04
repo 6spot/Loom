@@ -43,6 +43,8 @@ GET /api/v1/public/events/{id}      -> upstream /v0/events/{id}
 GET /api/v1/public/entities/{id}    -> upstream /v0/entities/{id}
 GET /v0/...                         legacy C0 compat, same upstream mapping
 GET /api/v1/studio/status           privileged, admin auth required
+GET+POST /api/v1/studio/documents   privileged, admin auth required
+GET+POST /api/v1/studio/documents/* privileged, admin auth required
 /api/v1/studio/* (other)            privileged, admin auth required, 404 when authed
 / , /timeline, /search,             same-origin React/Vite web UI (C1-T9)
 /events/{id}, /entities/{id},       (embedded at compile time, one build)
@@ -54,8 +56,40 @@ GET /api/v1/studio/status           privileged, admin auth required
 ```
 
 Only `GET` is served on read routes (C0 parity: other methods get typed
-`405 method_not_allowed`). API-shaped unknowns return typed JSON errors;
+`405 method_not_allowed`). Studio document routes accept `GET` and `POST`
+only (other methods get typed `405`); request bodies up to the proxy
+ceiling are forwarded to the sidecar, which enforces the real per-file
+upload limit. API-shaped unknowns return typed JSON errors;
 unknown Studio paths require authentication before revealing existence.
+
+## Studio document operations (C1-T3)
+
+Document upload/revision storage is implemented in the internal Python
+sidecar (`apps/chronicle/read_api/studio_documents.py` on the
+`apps/chronicle/persistence/documents.py` store); this server authenticates
+and forwards. The full upload contract is `documents.md`.
+
+```text
+POST   /api/v1/studio/documents                              {"title": "..."}
+GET    /api/v1/studio/documents                              list with active tips
+GET    /api/v1/studio/documents/{document_id}                document + active revision
+POST   /api/v1/studio/documents/{document_id}/revisions?filename=...[&language=][&source_label=]
+                                                             raw .txt/.md bytes
+GET    /api/v1/studio/documents/{document_id}/revisions      history (active/superseded)
+GET    /api/v1/studio/documents/{document_id}/revisions/{no_or_uuid}
+                                                             metadata + source locator
+GET    /api/v1/studio/documents/{document_id}/revisions/{no_or_uuid}/content
+                                                             exact stored bytes
+```
+
+Proxy behavior: method, path, query, `Content-Type`, and body pass through
+unchanged; upstream status/body pass through unchanged (201 for a new
+revision, 200 for an idempotent duplicate). Bodies over the proxy ceiling
+(`MAX_PROXY_BODY_BYTES`, 12 MiB) are rejected locally with typed `413
+payload_too_large` before touching the upstream; oversized-but-under-ceiling
+uploads get the sidecar's typed `413`. Upstream outage maps to typed `503
+upstream_unavailable` like public reads. The server never opens the
+Chronicle database (governance: no DB driver, no SQL in this crate).
 
 ## Studio authentication
 

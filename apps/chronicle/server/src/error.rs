@@ -70,6 +70,24 @@ impl TypedError {
         )
     }
 
+    /// 405 for unsupported methods on Studio document routes.
+    pub fn studio_method_not_allowed() -> Self {
+        Self::new(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "method_not_allowed",
+            "only GET and POST are supported",
+        )
+    }
+
+    /// 413 for Studio upload bodies over the proxy ceiling.
+    pub fn payload_too_large() -> Self {
+        Self::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "payload_too_large",
+            "Studio upload exceeds the proxy body limit",
+        )
+    }
+
     /// 502 when the upstream answered with an unusable response.
     pub fn upstream_bad_response() -> Self {
         Self::new(

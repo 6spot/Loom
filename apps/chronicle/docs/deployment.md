@@ -79,10 +79,13 @@ Choose a persistent host directory, for example:
 CHRONICLE_DATA_DIR=/srv/loom-data/chronicle
 ```
 
-Create it before the first start:
+Create it before the first start. The sources directory holds uploaded
+C1-T3 revision files and must be writable by the image's `chronicle` user
+(uid 10001); PostgreSQL manages its own subdirectory ownership:
 
 ```bash
-sudo mkdir -p /srv/loom-data/chronicle/postgres
+sudo mkdir -p /srv/loom-data/chronicle/postgres /srv/loom-data/chronicle/sources
+sudo chown 10001:10001 /srv/loom-data/chronicle/sources
 ```
 
 Then start the complete stack:
