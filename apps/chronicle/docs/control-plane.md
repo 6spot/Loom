@@ -88,6 +88,16 @@ restart) are accepted as idempotent. Review items resolve exactly once
   error) stay mutable.
 - Output retries are idempotent: repeating an identical `record_output` call
   returns the already-persisted row's ID, so callers never hold a phantom ID.
+- C1-T4 worker lifecycle operations (`cancel_job`, `retry_job`,
+  `resume_job`, `list_jobs`, `get_job_detail`) run the same transition
+  tables as every other store path: cancel preserves completed
+  checkpoints, retry is bounded by `max_attempts` and resets only `failed`
+  stages/chunks, resume requires zero open reviews and resets only
+  `needs_review` stages/chunks, and both retry/resume clear the stale
+  lease so the next live worker can claim the `running` job. Claiming
+  prefers `queued` work and otherwise takes over expired or missing
+  leases with `FOR UPDATE SKIP LOCKED`, so concurrent workers split
+  independent jobs without duplicate execution.
 
 ## Ownership boundaries
 
@@ -133,4 +143,8 @@ cargo fmt --check
 
 # PostgreSQL 18 control-plane + C0 persistence contracts
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*.py' -v
+
+# C1-T4 durable worker + Studio job contracts (PostgreSQL 18)
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
+python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs*.py' -v
 ```

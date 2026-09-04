@@ -34,7 +34,7 @@ import psycopg
 import psycopg.errors
 from psycopg.types.json import Jsonb
 
-from common import PersistenceConflict, PersistenceError
+from common import LeaseLost, PersistenceConflict, PersistenceError
 
 JOB_STATUSES = ("queued", "running", "needs_review", "failed", "cancelled", "completed")
 
@@ -282,7 +282,10 @@ def claim_job(
     """Claim a queued job (or one specific job) under a worker lease.
 
     Returns the claimed job_id, or None when no queued job is claimable.
-    Restart-safe: an expired lease may be re-claimed by another worker.
+    Restart-safe: an expired lease may be re-claimed by another worker, as
+    may a `running` job left without any lease (e.g. freshly retried or
+    resumed through the Studio operations, which clear the stale lease so
+    the next live worker can pick the job up).
     """
     if not isinstance(worker, str) or not worker:
         raise PersistenceError("worker must be a non-empty string")
@@ -296,8 +299,8 @@ def claim_job(
                 """
                 SELECT job_id FROM chronicle.ingestion_jobs
                 WHERE status = 'queued'
-                   OR (status = 'running' AND lease_expires_at IS NOT NULL
-                       AND lease_expires_at <= %s)
+                   OR (status = 'running'
+                       AND (lease_expires_at IS NULL OR lease_expires_at <= %s))
                 ORDER BY created_at
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
@@ -316,8 +319,11 @@ def claim_job(
         status, lease_expires_at = current[0], current[1]
         if status == "queued":
             nxt = "running"
-        elif status == "running" and lease_expires_at is not None and lease_expires_at <= now:
-            nxt = "running"  # lease takeover after worker loss; stays running
+        elif status == "running" and (
+            lease_expires_at is None or lease_expires_at <= now
+        ):
+            nxt = "running"  # lease takeover after worker loss, or pickup of
+            # a retried/resumed job waiting without a lease; stays running
         else:
             raise PersistenceConflict(f"job {job_id} is not claimable from status {status!r}")
         _check_transition(status, nxt, JOB_TRANSITIONS, "job")
@@ -808,3 +814,480 @@ def trace_provenance(conn, *, output_id: uuid.UUID) -> dict[str, Any]:
             for row in reviews
         ],
     }
+
+
+def cancel_job(conn, *, job_id: uuid.UUID) -> None:
+    """Cancel a non-terminal job, preserving completed checkpoints.
+
+    Legal from `queued`, `running`, and `needs_review`; terminal states
+    (`failed`, `cancelled`, `completed`) are rejected. The worker lease is
+    cleared so no worker keeps a live claim on cancelled work, while
+    completed stage/chunk rows are left untouched for audit.
+    """
+    with conn.transaction():
+        row = conn.execute(
+            "SELECT status FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown job {job_id}")
+        _check_transition(row[0], "cancelled", JOB_TRANSITIONS, "job")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_jobs
+            SET status = 'cancelled',
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                updated_at = %s
+            WHERE job_id = %s
+            """,
+            (_utcnow(), job_id),
+        )
+
+
+def retry_job(conn, *, job_id: uuid.UUID) -> None:
+    """Retry a failed job: `failed` -> `running` with a fresh worker claim.
+
+    Failed stages/chunks return to `running` so the next worker re-executes
+    exactly the unfinished work; completed stages/chunks are never reset, so
+    resume skips already-succeeded checkpoints. Retries are bounded: when the
+    job already consumed `max_attempts` claim attempts, the retry is refused
+    with `PersistenceConflict` instead of looping forever. The stale lease is
+    cleared so any live worker can claim the retried job.
+    """
+    with conn.transaction():
+        row = conn.execute(
+            """
+            SELECT status, attempt, max_attempts
+            FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE
+            """,
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown job {job_id}")
+        status, attempt, max_attempts = row[0], int(row[1]), int(row[2])
+        if status != "failed":
+            raise PersistenceConflict(
+                f"job {job_id} with status {status!r} is not retryable (must be 'failed')"
+            )
+        if attempt >= max_attempts:
+            raise PersistenceConflict(
+                f"job {job_id} exhausted its bounded retries "
+                f"(attempt {attempt} >= max_attempts {max_attempts})"
+            )
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_jobs
+            SET status = 'running', error = NULL,
+                lease_owner = NULL, lease_expires_at = NULL,
+                updated_at = %s
+            WHERE job_id = %s
+            """,
+            (_utcnow(), job_id),
+        )
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_job_stages
+            SET status = 'running', error = NULL, updated_at = %s
+            WHERE job_id = %s AND status = 'failed'
+            """,
+            (_utcnow(), job_id),
+        )
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_chunks
+            SET status = 'running', updated_at = %s
+            WHERE job_id = %s AND status = 'failed'
+            """,
+            (_utcnow(), job_id),
+        )
+
+
+def resume_job(conn, *, job_id: uuid.UUID) -> None:
+    """Resume a `needs_review` job after every open review item is resolved.
+
+    Refuses with `PersistenceConflict` while any review item is still `open`,
+    so a blocked job can only continue through the legal server-side path.
+    `needs_review` stages/chunks return to `running`; completed checkpoints
+    are preserved. The stale lease is cleared for the next worker claim.
+    """
+    with conn.transaction():
+        row = conn.execute(
+            "SELECT status FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown job {job_id}")
+        if row[0] != "needs_review":
+            raise PersistenceConflict(
+                f"job {job_id} with status {row[0]!r} is not resumable "
+                "(must be 'needs_review')"
+            )
+        open_items = conn.execute(
+            "SELECT count(*) FROM chronicle.review_items WHERE job_id = %s AND status = 'open'",
+            (job_id,),
+        ).fetchone()[0]
+        if int(open_items) > 0:
+            raise PersistenceConflict(
+                f"job {job_id} has {int(open_items)} open review item(s); "
+                "resolve every review before resuming"
+            )
+        _check_transition(row[0], "running", JOB_TRANSITIONS, "job")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_jobs
+            SET status = 'running',
+                lease_owner = NULL, lease_expires_at = NULL,
+                updated_at = %s
+            WHERE job_id = %s
+            """,
+            (_utcnow(), job_id),
+        )
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_job_stages
+            SET status = 'running', updated_at = %s
+            WHERE job_id = %s AND status = 'needs_review'
+            """,
+            (_utcnow(), job_id),
+        )
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_chunks
+            SET status = 'running', updated_at = %s
+            WHERE job_id = %s AND status = 'needs_review'
+            """,
+            (_utcnow(), job_id),
+        )
+
+
+def list_jobs(
+    conn,
+    *,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """List ingestion jobs, newest first, with per-job stage/chunk counters."""
+    if status is not None:
+        _require_status(status, JOB_STATUSES, "job status")
+    if not isinstance(limit, int) or limit < 1 or limit > 1000:
+        raise PersistenceError("limit must be an integer between 1 and 1000")
+    if not isinstance(offset, int) or offset < 0:
+        raise PersistenceError("offset must be a non-negative integer")
+    if status is None:
+        rows = conn.execute(
+            """
+            SELECT j.job_id, j.revision_id, j.status, j.attempt, j.max_attempts,
+                   j.lease_owner, j.lease_expires_at, j.error,
+                   j.created_at, j.updated_at,
+                   (SELECT count(*) FROM chronicle.ingestion_job_stages s
+                    WHERE s.job_id = j.job_id AND s.status = 'completed'),
+                   (SELECT count(*) FROM chronicle.ingestion_chunks c
+                    WHERE c.job_id = j.job_id)
+            FROM chronicle.ingestion_jobs j
+            ORDER BY j.created_at DESC, j.job_id
+            LIMIT %s OFFSET %s
+            """,
+            (limit, offset),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT j.job_id, j.revision_id, j.status, j.attempt, j.max_attempts,
+                   j.lease_owner, j.lease_expires_at, j.error,
+                   j.created_at, j.updated_at,
+                   (SELECT count(*) FROM chronicle.ingestion_job_stages s
+                    WHERE s.job_id = j.job_id AND s.status = 'completed'),
+                   (SELECT count(*) FROM chronicle.ingestion_chunks c
+                    WHERE c.job_id = j.job_id)
+            FROM chronicle.ingestion_jobs j
+            WHERE j.status = %s
+            ORDER BY j.created_at DESC, j.job_id
+            LIMIT %s OFFSET %s
+            """,
+            (status, limit, offset),
+        ).fetchall()
+    return [
+        {
+            "job_id": str(row[0]),
+            "revision_id": str(row[1]),
+            "status": row[2],
+            "attempt": int(row[3]),
+            "max_attempts": int(row[4]),
+            "lease_owner": row[5],
+            "lease_expires_at": row[6].isoformat() if row[6] is not None else None,
+            "error": row[7],
+            "created_at": row[8].isoformat() if row[8] is not None else None,
+            "updated_at": row[9].isoformat() if row[9] is not None else None,
+            "completed_stages": int(row[10]),
+            "chunk_count": int(row[11]),
+        }
+        for row in rows
+    ]
+
+
+def get_job_detail(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
+    """Return one job with its stages, chunks (+ run history), reviews, and outputs."""
+    job = conn.execute(
+        """
+        SELECT job_id, revision_id, status, attempt, max_attempts,
+               lease_owner, lease_expires_at, checkpoint, error,
+               created_at, updated_at
+        FROM chronicle.ingestion_jobs WHERE job_id = %s
+        """,
+        (job_id,),
+    ).fetchone()
+    if job is None:
+        raise PersistenceError(f"unknown job {job_id}")
+    stage_rows = conn.execute(
+        """
+        SELECT stage, status, attempt, checkpoint, error, started_at, finished_at
+        FROM chronicle.ingestion_job_stages WHERE job_id = %s
+        """,
+        (job_id,),
+    ).fetchall()
+    order = {name: index for index, name in enumerate(STAGE_NAMES)}
+    stages = sorted(
+        (
+            {
+                "stage": row[0],
+                "status": row[1],
+                "attempt": int(row[2]),
+                "checkpoint": row[3] if row[3] is not None else {},
+                "error": row[4],
+                "started_at": row[5].isoformat() if row[5] is not None else None,
+                "finished_at": row[6].isoformat() if row[6] is not None else None,
+            }
+            for row in stage_rows
+        ),
+        key=lambda item: order.get(item["stage"], len(order)),
+    )
+    chunk_rows = conn.execute(
+        """
+        SELECT chunk_id, section_id, chunk_index, status, attempt, max_attempts,
+               source_start, source_end, source_sha256, content_sha256
+        FROM chronicle.ingestion_chunks WHERE job_id = %s ORDER BY chunk_index
+        """,
+        (job_id,),
+    ).fetchall()
+    chunks: list[dict[str, Any]] = []
+    for chunk in chunk_rows:
+        runs = conn.execute(
+            """
+            SELECT run_id, attempt, status, worker, checkpoint, error,
+                   started_at, finished_at
+            FROM chronicle.ingestion_chunk_runs
+            WHERE chunk_id = %s ORDER BY attempt
+            """,
+            (chunk[0],),
+        ).fetchall()
+        chunks.append(
+            {
+                "chunk_id": str(chunk[0]),
+                "section_id": str(chunk[1]) if chunk[1] is not None else None,
+                "chunk_index": int(chunk[2]),
+                "status": chunk[3],
+                "attempt": int(chunk[4]),
+                "max_attempts": int(chunk[5]),
+                "source_start": int(chunk[6]),
+                "source_end": int(chunk[7]),
+                "source_sha256": chunk[8],
+                "content_sha256": chunk[9],
+                "runs": [
+                    {
+                        "run_id": str(run[0]),
+                        "attempt": int(run[1]),
+                        "status": run[2],
+                        "worker": run[3],
+                        "checkpoint": run[4] if run[4] is not None else {},
+                        "error": run[5],
+                        "started_at": run[6].isoformat() if run[6] is not None else None,
+                        "finished_at": run[7].isoformat() if run[7] is not None else None,
+                    }
+                    for run in runs
+                ],
+            }
+        )
+    review_rows = conn.execute(
+        """
+        SELECT review_id, kind, status, chunk_id, payload, created_at, resolved_at
+        FROM chronicle.review_items WHERE job_id = %s ORDER BY created_at
+        """,
+        (job_id,),
+    ).fetchall()
+    output_rows = conn.execute(
+        """
+        SELECT output_id, artifact_type, artifact_sha256, created_at
+        FROM chronicle.ingestion_outputs WHERE job_id = %s ORDER BY created_at
+        """,
+        (job_id,),
+    ).fetchall()
+    return {
+        "job_id": str(job[0]),
+        "revision_id": str(job[1]),
+        "status": job[2],
+        "attempt": int(job[3]),
+        "max_attempts": int(job[4]),
+        "lease_owner": job[5],
+        "lease_expires_at": job[6].isoformat() if job[6] is not None else None,
+        "checkpoint": job[7] if job[7] is not None else {},
+        "error": job[8],
+        "created_at": job[9].isoformat() if job[9] is not None else None,
+        "updated_at": job[10].isoformat() if job[10] is not None else None,
+        "open_reviews": sum(1 for row in review_rows if row[2] == "open"),
+        "stages": stages,
+        "chunks": chunks,
+        "reviews": [
+            {
+                "review_id": str(row[0]),
+                "kind": row[1],
+                "status": row[2],
+                "chunk_id": str(row[3]) if row[3] is not None else None,
+                "payload": row[4] if row[4] is not None else {},
+                "created_at": row[5].isoformat() if row[5] is not None else None,
+                "resolved_at": row[6].isoformat() if row[6] is not None else None,
+            }
+            for row in review_rows
+        ],
+        "outputs": [
+            {
+                "output_id": str(row[0]),
+                "artifact_type": row[1],
+                "artifact_sha256": row[2],
+                "created_at": row[3].isoformat() if row[3] is not None else None,
+            }
+            for row in output_rows
+        ],
+    }
+
+
+def require_job_lease(conn, *, job_id: uuid.UUID, worker: str) -> None:
+    """Assert `worker` still holds the lease for `job_id`; else raise `LeaseLost`.
+
+    Must be called inside the mutating transaction (it takes `FOR UPDATE`
+    on the job row, so the ownership check and the guarded write commit
+    atomically). Ownership — not expiry — is the fence: a worker whose
+    lease expired but was never taken over may still renew and proceed,
+    while a worker that lost the lease to a takeover (or to cancellation,
+    which clears the lease) is rejected. Callers must halt execution on
+    `LeaseLost` instead of writing further state.
+    """
+    if not isinstance(worker, str) or not worker:
+        raise PersistenceError("worker must be a non-empty string")
+    row = conn.execute(
+        "SELECT lease_owner FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE",
+        (job_id,),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(f"unknown job {job_id}")
+    if row[0] != worker:
+        raise LeaseLost(
+            f"worker {worker!r} no longer holds the lease for job {job_id} "
+            f"(held by {row[0]!r}); halting stale execution"
+        )
+
+
+def advance_stage_fenced(
+    conn, *, job_id: uuid.UUID, stage: str, status: str,
+    worker: str, error: str | None = None,
+) -> None:
+    """Lease-fenced `advance_stage`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        advance_stage(conn, job_id=job_id, stage=stage, status=status, error=error)
+
+
+def set_chunk_status_fenced(
+    conn, *, job_id: uuid.UUID, chunk_id: uuid.UUID, status: str, worker: str
+) -> None:
+    """Lease-fenced `set_chunk_status`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        set_chunk_status(conn, chunk_id=chunk_id, status=status)
+
+
+def record_chunk_run_fenced(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    chunk_id: uuid.UUID,
+    status: str,
+    worker: str,
+    checkpoint: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> tuple[uuid.UUID, int]:
+    """Lease-fenced `record_chunk_run`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        return record_chunk_run(
+            conn, chunk_id=chunk_id, status=status, worker=worker,
+            checkpoint=checkpoint, error=error,
+        )
+
+
+def set_job_status_fenced(
+    conn, *, job_id: uuid.UUID, status: str, worker: str, error: str | None = None
+) -> None:
+    """Lease-fenced `set_job_status`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        set_job_status(conn, job_id=job_id, status=status, error=error)
+
+
+def write_stage_checkpoint_fenced(
+    conn, *, job_id: uuid.UUID, stage: str, worker: str, checkpoint: dict[str, Any]
+) -> None:
+    """Lease-fenced stage checkpoint write: the holding worker only."""
+    if not isinstance(checkpoint, dict):
+        raise PersistenceError("stage checkpoint must be a JSON object")
+    _require_status(stage, STAGE_NAMES, "stage")
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        row = conn.execute(
+            "SELECT 1 FROM chronicle.ingestion_job_stages WHERE job_id = %s AND stage = %s",
+            (job_id, stage),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown stage {stage!r} for job {job_id}")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_job_stages
+            SET checkpoint = %s, updated_at = %s
+            WHERE job_id = %s AND stage = %s
+            """,
+            (Jsonb(checkpoint), _utcnow(), job_id, stage),
+        )
+
+
+def record_output_fenced(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    worker: str,
+    artifact_type: str,
+    artifact_sha256: str,
+    payload: dict[str, Any],
+) -> uuid.UUID:
+    """Lease-fenced `record_output`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        return record_output(
+            conn, job_id=job_id, revision_id=revision_id,
+            artifact_type=artifact_type, artifact_sha256=artifact_sha256,
+            payload=payload,
+        )
+
+
+def heartbeat_job_strict(conn, *, job_id: uuid.UUID, worker: str, lease_seconds: int = 300) -> None:
+    """Renew a worker lease; raise `LeaseLost` when the lease moved on.
+
+    Unlike `heartbeat_job` (which reports takeover as a plain conflict for
+    any caller), the strict variant tells the worker loop exactly what
+    happened: keep going after renewal, halt on `LeaseLost`.
+    """
+    try:
+        heartbeat_job(conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds)
+    except PersistenceConflict as exc:
+        raise LeaseLost(str(exc)) from exc

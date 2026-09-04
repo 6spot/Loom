@@ -45,6 +45,8 @@ GET /v0/...                         legacy C0 compat, same upstream mapping
 GET /api/v1/studio/status           privileged, admin auth required
 GET+POST /api/v1/studio/documents   privileged, admin auth required
 GET+POST /api/v1/studio/documents/* privileged, admin auth required
+GET+POST /api/v1/studio/jobs        privileged, admin auth required (C1-T4)
+GET+POST /api/v1/studio/jobs/*      privileged, admin auth required (C1-T4)
 /api/v1/studio/* (other)            privileged, admin auth required, 404 when authed
 / , /timeline, /search,             same-origin React/Vite web UI (C1-T9)
 /events/{id}, /entities/{id},       (embedded at compile time, one build)
@@ -56,11 +58,40 @@ GET+POST /api/v1/studio/documents/* privileged, admin auth required
 ```
 
 Only `GET` is served on read routes (C0 parity: other methods get typed
-`405 method_not_allowed`). Studio document routes accept `GET` and `POST`
-only (other methods get typed `405`); request bodies up to the proxy
+`405 method_not_allowed`). Studio document and job routes accept `GET` and
+`POST` only (other methods get typed `405`); request bodies up to the proxy
 ceiling are forwarded to the sidecar, which enforces the real per-file
-upload limit. API-shaped unknowns return typed JSON errors;
+upload limit (documents) and a 64 KiB job-request cap (jobs). API-shaped
+unknowns return typed JSON errors;
 unknown Studio paths require authentication before revealing existence.
+
+## Studio ingestion-job operations (C1-T4)
+
+Job queue/inspect/retry/resume/cancel is implemented in the internal
+Python sidecar (`apps/chronicle/read_api/studio_jobs.py` on the
+`apps/chronicle/persistence/control_plane.py` store); this server
+authenticates and forwards, exactly like Studio documents. Lifecycle
+authority stays in this authenticated namespace plus the control-plane
+state machine (`apps/chronicle/control_plane`, mirrored by the store):
+the sidecar can never invent a transition the contract forbids.
+
+```text
+POST   /api/v1/studio/jobs                        {"revision_id": "..."}
+GET    /api/v1/studio/jobs[?status=&limit=&offset=]
+GET    /api/v1/studio/jobs/{job_id}
+POST   /api/v1/studio/jobs/{job_id}/retry          failed -> running (bounded)
+POST   /api/v1/studio/jobs/{job_id}/resume         needs_review -> running (gated)
+POST   /api/v1/studio/jobs/{job_id}/cancel         -> cancelled (checkpoints kept)
+```
+
+Proxy behavior matches documents: method, path, query, and JSON body pass
+through unchanged; upstream status/body pass through unchanged (201 for a
+queued job, 200 for lifecycle reads and transitions). Illegal transitions
+surface as typed `409 conflict`; unknown jobs/revisions as typed `404`;
+upstream outage as typed `503 upstream_unavailable`. The durable worker
+that drains these jobs is `worker.md`; no external queue service is
+involved. The server never opens the Chronicle database (governance: no
+DB driver, no SQL in this crate).
 
 ## Studio document operations (C1-T3)
 

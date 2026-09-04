@@ -17,6 +17,16 @@ class PersistenceConflict(PersistenceError):
     """Raised when an immutable persisted key is presented with new content."""
 
 
+class LeaseLost(PersistenceConflict):
+    """Raised when a worker attempts a mutation without holding the job lease.
+
+    A subclass of `PersistenceConflict` so HTTP/API layers keep mapping it
+    to a 409-style conflict, while workers treat it as an explicit halt:
+    the lease moved to another worker (or was cleared by cancellation) and
+    the stale worker must stop writing immediately.
+    """
+
+
 def canonical_json_bytes(value: Any) -> bytes:
     return json.dumps(
         value,

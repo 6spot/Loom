@@ -26,6 +26,7 @@ from read_common import ReadModelError
 from repository import ChronicleReadRepository
 from router import dispatch
 from studio_documents import STUDIO_PREFIX, dispatch_studio
+from studio_jobs import STUDIO_JOBS_PREFIX, dispatch_jobs
 from web_static import web_response
 
 
@@ -99,11 +100,32 @@ def handler_class(
                 }
             self._send_json(status, payload)
 
+        def _method_not_allowed(self) -> None:
+            payload = (
+                json.dumps(
+                    {
+                        "schema": "chronicle.error",
+                        "version": "0.1",
+                        "error": {
+                            "code": "method_not_allowed",
+                            "message": "only GET and POST are supported",
+                        },
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+            self._send_bytes(405, "application/json; charset=utf-8", payload)
+
         def _handle_studio_documents(self, path: str, query: str) -> None:
             # Studio document writes run in a read-write transaction (unlike
             # the read-only /v0/* path). Authentication is enforced upstream
             # by the Rust chronicle-server Studio namespace; this sidecar is
             # never published outside the deployment network.
+            if self.command not in ("GET", "POST"):
+                self._method_not_allowed()
+                return
             if self.command == "POST":
                 try:
                     declared = int(self.headers.get("Content-Length") or 0)
@@ -159,6 +181,66 @@ def handler_class(
                 )
             self._send_bytes(status, content_type, payload)
 
+        def _handle_studio_jobs(self, path: str, query: str) -> None:
+            # Studio job lifecycle operations (C1-T4) run in a read-write
+            # transaction. Authentication is enforced upstream by the Rust
+            # chronicle-server Studio namespace; this sidecar is never
+            # published outside the deployment network.
+            if self.command == "POST":
+                try:
+                    declared = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    declared = 0
+                if declared > 65536:
+                    # Job operations carry tiny JSON bodies; refuse to
+                    # buffer anything larger at all.
+                    payload = (
+                        json.dumps(
+                            {
+                                "schema": "chronicle.error",
+                                "version": "0.1",
+                                "error": {
+                                    "code": "payload_too_large",
+                                    "message": "job request body exceeds 64 KiB",
+                                },
+                            },
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        )
+                        + "\n"
+                    ).encode("utf-8")
+                    self._send_bytes(413, "application/json; charset=utf-8", payload)
+                    return
+                body = self.rfile.read(declared) if declared > 0 else b""
+            elif self.command == "GET":
+                body = b""
+            else:
+                self._method_not_allowed()
+                return
+            try:
+                import control_plane
+
+                with psycopg.connect(database_url) as conn:
+                    status, content_type, payload = dispatch_jobs(
+                        conn,
+                        control_plane,
+                        method=self.command,
+                        path=path,
+                        raw_query=query,
+                        body=body,
+                    )
+            except psycopg.Error:
+                status, content_type, payload = (
+                    503,
+                    "application/json; charset=utf-8",
+                    (
+                        '{"schema":"chronicle.error","version":"0.1",'
+                        '"error":{"code":"database_unavailable",'
+                        '"message":"Chronicle PostgreSQL write failed"}}\n'
+                    ).encode("utf-8"),
+                )
+            self._send_bytes(status, content_type, payload)
+
         def _handle(self) -> None:
             split = urlsplit(self.path)
             if split.path == "/healthz" or split.path.startswith("/v0/"):
@@ -166,6 +248,11 @@ def handler_class(
                 return
             if split.path == STUDIO_PREFIX or split.path.startswith(STUDIO_PREFIX + "/"):
                 self._handle_studio_documents(split.path, split.query)
+                return
+            if split.path == STUDIO_JOBS_PREFIX or split.path.startswith(
+                STUDIO_JOBS_PREFIX + "/"
+            ):
+                self._handle_studio_jobs(split.path, split.query)
                 return
 
             status, content_type, body = web_response(self.command, split.path)
@@ -175,6 +262,15 @@ def handler_class(
             self._handle()
 
         def do_POST(self) -> None:  # noqa: N802
+            self._handle()
+
+        def do_PUT(self) -> None:  # noqa: N802
+            self._handle()
+
+        def do_DELETE(self) -> None:  # noqa: N802
+            self._handle()
+
+        def do_PATCH(self) -> None:  # noqa: N802
             self._handle()
 
         def log_message(self, fmt: str, *args) -> None:
