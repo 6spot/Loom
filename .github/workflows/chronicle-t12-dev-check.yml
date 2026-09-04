@@ -35,139 +35,94 @@ jobs:
         with:
           ref: feat/chronicle-c1-t12-reader-presentation
           fetch-depth: 0
-      - name: Apply small T12 source patches
+      - name: Wire Reader Presentation into JobRunner
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          from textwrap import dedent
 
-          test_path = Path("apps/chronicle/persistence/test_control_plane_postgres.py")
-          text = test_path.read_text()
-          needle = '                    "0004_chronicle_c1_segmentation.sql",\n                ],'
-          replacement = '                    "0004_chronicle_c1_segmentation.sql",\n                    "0005_chronicle_c1_reader_presentations.sql",\n                ],'
-          if needle in text:
-              test_path.write_text(text.replace(needle, replacement, 1))
-          elif '"0005_chronicle_c1_reader_presentations.sql"' not in text:
-              raise SystemExit("migration expectation patch target not found")
+          path = Path("apps/chronicle/worker/ingestion_worker.py")
+          text = path.read_text()
 
-          css_path = Path("apps/chronicle/webapp/src/styles/chronicle.css")
-          css = css_path.read_text()
-          if ".reader-presentation {" not in css:
-              css += dedent("""
+          def once(old: str, new: str, label: str) -> None:
+              global text
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"patch target not found: {label}")
+              text = text.replace(old, new, 1)
 
-              /* C1-T12 derived Reader Presentation: readable first, evidence always available. */
-              .reader-presentation {
-                margin: 0 0 1.4rem;
-                padding: 1.4rem;
-                border: 1px solid var(--line);
-                border-radius: var(--radius);
-                background: var(--paper-strong);
-                box-shadow: var(--shadow);
-              }
-              .reader-presentation-heading {
-                display: flex;
-                align-items: flex-start;
-                justify-content: space-between;
-                gap: 1rem;
-              }
-              .reader-presentation-heading h2 { margin-bottom: .35rem; }
-              .reader-version {
-                white-space: nowrap;
-                padding: .3rem .58rem;
-                border: 1px solid var(--line);
-                border-radius: 999px;
-                color: var(--muted);
-                font-size: .72rem;
-                font-weight: 750;
-              }
-              .reader-provenance-note {
-                max-width: 780px;
-                margin-bottom: 1rem;
-                color: var(--muted);
-                font-size: .82rem;
-                line-height: 1.65;
-              }
-              .reader-blocks { display: grid; gap: .8rem; }
-              .reader-block {
-                padding: 1rem 1.05rem;
-                border-left: 3px solid var(--gold);
-                border-radius: 0 12px 12px 0;
-                background: var(--paper);
-              }
-              .reader-block-uncertainty {
-                border-left-color: var(--uncertain);
-                background: var(--uncertain-soft);
-              }
-              .reader-block-label {
-                margin-bottom: .35rem;
-                color: var(--gold);
-                font-size: .72rem;
-                font-weight: 800;
-                letter-spacing: .08em;
-              }
-              .reader-block-uncertainty .reader-block-label { color: var(--uncertain); }
-              .reader-block > p { margin-bottom: .75rem; font-size: 1.04rem; line-height: 1.8; }
-              .reader-evidence-group > summary,
-              .reader-support > summary,
-              .reader-generation-meta > summary {
-                cursor: pointer;
-                color: var(--muted);
-                font-size: .76rem;
-                font-weight: 700;
-              }
-              .reader-support-list { display: grid; gap: .55rem; margin-top: .65rem; }
-              .reader-support {
-                padding: .7rem .8rem;
-                border: 1px solid var(--line);
-                border-radius: 10px;
-                background: var(--paper-strong);
-              }
-              .reader-support-body { margin-top: .65rem; }
-              .reader-support-body code { color: var(--muted); font-size: .7rem; }
-              .reader-support-body blockquote {
-                margin: .55rem 0;
-                padding-left: .8rem;
-                border-left: 2px solid var(--line);
-                font-family: ui-serif, Georgia, "Songti SC", serif;
-                line-height: 1.75;
-              }
-              .reader-support-body pre {
-                overflow-x: auto;
-                margin: .5rem 0 0;
-                font-size: .7rem;
-                white-space: pre-wrap;
-              }
-              .reader-generation-meta { margin-top: 1rem; }
-              .reader-generation-meta dl { display: grid; gap: .4rem; margin-bottom: 0; }
-              .reader-generation-meta dl > div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .7rem; }
-              .reader-generation-meta dt { color: var(--muted); font-size: .72rem; }
-              .reader-generation-meta dd { margin: 0; overflow-wrap: anywhere; font-size: .76rem; }
+          once(
+              "import extraction  # noqa: E402\nimport resolution_store  # noqa: E402\n",
+              "import extraction  # noqa: E402\nimport presentation_stage  # noqa: E402\nimport resolution_store  # noqa: E402\n",
+              "presentation_stage import",
+          )
+          once(
+              '#: The ``present`` stage stays on the fake executor (Reader\n#: Presentation is C1-T12 scope).\nREAL_RESOLVE_STAGE = "resolve"\nREAL_PUBLISH_STAGE = "publish"\n',
+              '#: C1-T12 owns ``present`` only when a distinct presentation_model\n#: is explicitly supplied. Without it, the C1-T4 fake stage remains intact.\nREAL_RESOLVE_STAGE = "resolve"\nREAL_PUBLISH_STAGE = "publish"\nREAL_PRESENT_STAGE = "present"\n',
+              "present constant",
+          )
 
-              @media (max-width: 540px) {
-                .reader-presentation-heading { display: block; }
-                .reader-version { display: inline-flex; margin-bottom: .8rem; }
-                .reader-generation-meta dl > div { grid-template-columns: 1fr; gap: .15rem; }
-              }
-              """)
-              css_path.write_text(css)
+          signature_old = "        chunk_model: Any | None = None,\n        extraction_config: extraction.ExtractionConfig | None = None,"
+          signature_new = "        chunk_model: Any | None = None,\n        presentation_model: Any | None = None,\n        extraction_config: extraction.ExtractionConfig | None = None,"
+          count = text.count(signature_old)
+          if count:
+              text = text.replace(signature_old, signature_new)
+          elif text.count(signature_new) < 3:
+              raise SystemExit("presentation_model signature targets not found")
+
+          once(
+              '            raise PersistenceError(\n                "chunk_model must expose complete(prompt)->str and a string name"\n            )\n        self.database_url = database_url\n',
+              '            raise PersistenceError(\n                "chunk_model must expose complete(prompt)->str and a string name"\n            )\n        if presentation_model is not None and (\n            not callable(getattr(presentation_model, "complete", None))\n            or not isinstance(getattr(presentation_model, "name", None), str)\n            or not getattr(presentation_model, "name", "")\n        ):\n            raise PersistenceError(\n                "presentation_model must expose complete(prompt)->str and a non-empty string name"\n            )\n        self.database_url = database_url\n',
+              "presentation model validation",
+          )
+          once(
+              "        self.chunk_model = chunk_model\n        self.extraction_config = extraction_config or extraction.ExtractionConfig()\n",
+              "        self.chunk_model = chunk_model\n        self.presentation_model = presentation_model\n        self.extraction_config = extraction_config or extraction.ExtractionConfig()\n",
+              "presentation model assignment",
+          )
+          once(
+              "    normalized year) over the database title.\n    \"\"\"\n",
+              "    normalized year) over the database title. ``presentation_model`` is a\n    separate opt-in provider for the C1-T12 derived ``present`` stage; it is\n    never reused as the extraction model and never changes historical authority.\n    \"\"\"\n",
+              "JobRunner docstring",
+          )
+
+          generic = '''            else:\n                # No connection is open across this call.\n                try:\n                    checkpoint = self.executor.execute_stage(stage, job_id)\n'''
+          wired = '''            else:\n                if (\n                    stage == REAL_PRESENT_STAGE\n                    and self.presentation_model is not None\n                    and self._real_publication_active(job_id)\n                ):\n                    try:\n                        report = presentation_stage.execute_present_stage(\n                            self.database_url,\n                            job_id=job_id,\n                            worker=self.worker,\n                            model=self.presentation_model,\n                        )\n                    except LeaseLost:\n                        raise\n                    except Exception as exc:\n                        with psycopg.connect(self.database_url) as conn:\n                            control_plane.advance_stage_fenced(\n                                conn, job_id=job_id, stage=stage,\n                                status="failed", worker=self.worker,\n                                error=f"real present failed: {exc}",\n                            )\n                            control_plane.set_job_status_fenced(\n                                conn, job_id=job_id, status="failed",\n                                worker=self.worker,\n                                error=f"real present failed: {exc}",\n                            )\n                        self._emit("stage_failed", {"stage": stage, "error": str(exc)})\n                        return "failed"\n                    halt = self.check_halt(job_id)\n                    if halt is not None:\n                        return halt\n                    with psycopg.connect(self.database_url) as conn:\n                        control_plane.write_stage_checkpoint_fenced(\n                            conn, job_id=job_id, stage=stage,\n                            worker=self.worker, checkpoint=report,\n                        )\n                        control_plane.advance_stage_fenced(\n                            conn, job_id=job_id, stage=stage,\n                            status="completed", worker=self.worker,\n                        )\n                    self._emit(\n                        "stage_completed",\n                        {"stage": stage, "presentations": len(report["presentations"])},\n                    )\n                    continue\n                # No connection is open across this call.\n                try:\n                    checkpoint = self.executor.execute_stage(stage, job_id)\n'''
+          once(generic, wired, "present stage dispatch")
+
+          pass_old = "        chunk_model=chunk_model,\n        extraction_config=extraction_config,"
+          pass_new = "        chunk_model=chunk_model,\n        presentation_model=presentation_model,\n        extraction_config=extraction_config,"
+          pass_count = text.count(pass_old)
+          if pass_count:
+              text = text.replace(pass_old, pass_new)
+          elif text.count(pass_new) < 2:
+              raise SystemExit("presentation_model propagation targets not found")
+
+          doc_old = "    ``chunk_model`` additionally enables the C1-T6 real extract path;\n    without it the extract stage keeps the fake chunk executor.\n"
+          doc_new = "    ``chunk_model`` additionally enables the C1-T6 real extract path;\n    without it the extract stage keeps the fake chunk executor. A distinct\n    ``presentation_model`` enables the C1-T12 offline derived present stage.\n"
+          if doc_old in text:
+              text = text.replace(doc_old, doc_new, 1)
+
+          path.write_text(text)
           PY
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Python contracts
+      - name: Full Chronicle Python contracts
         run: |
           set -euo pipefail
           python -m pip install -r apps/chronicle/persistence/requirements.txt
           python -m pip install -r apps/chronicle/read_api/requirements.txt
           python -m unittest discover -s apps/chronicle/persistence -p 'test_*.py' -v
+          python -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
           python -m unittest discover -s apps/chronicle/read_api -p 'test_*.py' -v
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/chronicle/webapp/package-lock.json
-      - name: Webapp contracts
+      - name: Webapp contracts and real dist
         working-directory: apps/chronicle/webapp
         run: |
           set -euo pipefail
@@ -175,18 +130,15 @@ jobs:
           npm test
           npm run build
           npm run smoke:dist
-      - name: Commit validated source patches and real dist
+      - name: Commit validated worker wiring and real dist
         run: |
           set -euo pipefail
-          git add -A \
-            apps/chronicle/persistence/test_control_plane_postgres.py \
-            apps/chronicle/webapp/src/styles/chronicle.css \
-            apps/chronicle/web/dist
+          git add -A apps/chronicle/worker/ingestion_worker.py apps/chronicle/web/dist
           if git diff --cached --quiet; then
-            echo "T12 patches/dist already current"
+            echo "T12 worker/dist already current"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "build(chronicle): validate T12 reader surface and dist"
+          git commit -m "feat(chronicle): wire T12 presentation stage into worker"
           git push origin HEAD:feat/chronicle-c1-t12-reader-presentation
