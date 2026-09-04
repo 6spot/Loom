@@ -102,6 +102,11 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/studio-api.js"
     ),
     asset!(
+        "/assets/useMutation.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/useMutation.js"
+    ),
+    asset!(
         "/assets/input.js",
         "text/javascript; charset=utf-8",
         "dist/assets/input.js"
@@ -241,6 +246,7 @@ mod tests {
             "/assets/StudioReviewDetailPage.js",
             "/assets/StudioSourcesPage.js",
             "/assets/studio-api.js",
+            "/assets/useMutation.js",
             "/assets/input.js",
         ] {
             assert!(resolve_web_path(path).is_some(), "{path}");
