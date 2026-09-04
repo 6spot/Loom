@@ -1,0 +1,32 @@
+{
+  "schema": "chronicle.c1t6-inherited-jianan",
+  "version": 1,
+  "description": "Inherited-context fixture for C1-T6 chunk extraction. The explicit regnal year 建安十三年 appears in the opening chunk only; later chunks must inherit it verbatim (scope inherited, inherited_fields set) with the document-verified normalized year 208 and no invented month/day precision. Pronouns 其/公 in later chunks refer to surfaces (曹操/劉琮/周瑜) introduced earlier. Every Claim evidence must be an exact substring of its own chunk.",
+  "source_file": "raw.txt",
+  "segmentation_config": {
+    "max_chunk_chars": 60,
+    "overlap_chars": 0,
+    "boundary_context_chars": 60,
+    "max_input_chars": 8000,
+    "reserved_prompt_chars": 1500,
+    "reserved_context_chars": 1000,
+    "reserved_output_chars": 1500,
+    "max_entities": 16,
+    "max_places": 16,
+    "max_events": 8,
+    "max_time_exprs": 8
+  },
+  "document": {
+    "title": "三國志·魏書·武帝紀（節選）",
+    "work": "三國志",
+    "verified_normalized_year": 208
+  },
+  "section_label": "全文",
+  "expect": {
+    "min_chunks": 3,
+    "explicit_time": "建安十三年",
+    "verified_year": 208,
+    "continuity_entities": ["曹操", "劉琮", "張遼", "周瑜"],
+    "pronouns": ["其", "公"]
+  }
+}

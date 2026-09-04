@@ -65,6 +65,7 @@ import control_plane  # noqa: E402
 from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
 import documents  # noqa: E402
+import extraction  # noqa: E402
 import segmentation  # noqa: E402
 from segmentation import SegmentationConfig  # noqa: E402
 
@@ -277,6 +278,20 @@ class JobRunner:
     segmentation (sections, chunks, context checkpoints) instead of fake
     executor checkpoints; every other stage is untouched, and jobs without
     a source behave exactly as in C1-T4.
+
+    ``chunk_model`` is the C1-T6 opt-in hook: an object with
+    ``complete(prompt) -> str`` and ``name`` (the
+    :mod:`extraction` provider protocol). When set *and* ``revision_source``
+    supplies the revision text, the ``extract`` stage runs real
+    context-aware contract-first extraction per chunk (bounded repair,
+    fail closed, append-only ``ingestion_chunk_runs`` history) instead of
+    the fake chunk executor. When unset, ``extract`` keeps the C1-T4 fake
+    behavior. ``extraction_schema`` pins validation to the canonical
+    Chronicle staged-bundle schema: ``None`` binds it automatically and
+    a supplied dict must equal it exactly (anything else fails closed);
+    ``allowed_predicates`` tightens validation when supplied; ``document_meta``
+    supplies document-level extraction metadata (e.g. a verified
+    normalized year) over the database title.
     """
 
     def __init__(
@@ -290,11 +305,23 @@ class JobRunner:
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
         revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
         segmentation_config: SegmentationConfig | None = None,
+        chunk_model: Any | None = None,
+        extraction_config: extraction.ExtractionConfig | None = None,
+        extraction_schema: dict[str, Any] | None = None,
+        allowed_predicates: list[str] | None = None,
+        document_meta: dict[str, Any] | None = None,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
         if lease_seconds < 1:
             raise PersistenceError("lease_seconds must be a positive integer")
+        if chunk_model is not None and (
+            not callable(getattr(chunk_model, "complete", None))
+            or not isinstance(getattr(chunk_model, "name", None), str)
+        ):
+            raise PersistenceError(
+                "chunk_model must expose complete(prompt)->str and a string name"
+            )
         self.database_url = database_url
         self.worker = worker
         self.executor = executor or StageExecutor()
@@ -303,6 +330,11 @@ class JobRunner:
         self.on_event = on_event
         self.revision_source = revision_source
         self.segmentation_config = segmentation_config or SegmentationConfig()
+        self.chunk_model = chunk_model
+        self.extraction_config = extraction_config or extraction.ExtractionConfig()
+        self.extraction_schema = extraction_schema
+        self.allowed_predicates = allowed_predicates
+        self.document_meta = dict(document_meta or {})
 
     # -- single-transaction steps --------------------------------------
 
@@ -660,6 +692,356 @@ class JobRunner:
             ).fetchall()
             return {int(row[0]): row[1] for row in rows}
 
+    def _read_section_meta(self, job_id: uuid.UUID) -> dict[int, dict[str, Any]]:
+        """Return persisted section metadata keyed by section index."""
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT section_index, label, kind
+                FROM chronicle.ingestion_sections
+                WHERE job_id = %s ORDER BY section_index
+                """,
+                (job_id,),
+            ).fetchall()
+            return {
+                int(row[0]): {"label": row[1], "kind": row[2], "section_index": int(row[0])}
+                for row in rows
+            }
+
+    def _read_document_meta(self, job_id: uuid.UUID) -> dict[str, Any]:
+        """Return document-level extraction metadata for a job's revision."""
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT d.title, r.revision_id, r.revision_no
+                FROM chronicle.ingestion_jobs j
+                JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
+                JOIN chronicle.documents d ON d.document_id = r.document_id
+                WHERE j.job_id = %s
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown job {job_id}")
+            meta: dict[str, Any] = {"title": row[0]}
+            meta.update(self.document_meta)
+            return {
+                "document": meta,
+                "revision_id": row[1],
+                "revision_no": int(row[2]),
+            }
+
+    def _read_extract_chunks(
+        self, job_id: uuid.UUID
+    ) -> list[tuple[uuid.UUID, int, str, dict[str, Any]]]:
+        """Return ``(chunk_id, chunk_index, status, checkpoint)`` in plan order."""
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT chunk_id, chunk_index, status, checkpoint
+                FROM chronicle.ingestion_chunks
+                WHERE job_id = %s ORDER BY chunk_index
+                """,
+                (job_id,),
+            ).fetchall()
+            return [
+                (row[0], int(row[1]), row[2], row[3] if row[3] is not None else {})
+                for row in rows
+            ]
+
+    # -- C1-T6 real context-aware extraction path ------------------------
+
+    def _adopt_accepted_run(
+        self,
+        job_id: uuid.UUID,
+        chunk_id: uuid.UUID,
+        *,
+        locator: dict[str, Any],
+        context_output: dict[str, Any] | None,
+    ) -> bool:
+        """Adopt an already-accepted run without calling the model.
+
+        Closes the crash window between the accepted ``ingestion_chunk_runs``
+        commit and the accepted-layer/status commit: when a previous
+        execution recorded an accepted run but the chunk never reached
+        ``completed`` (worker exit between those commits), resume adopts
+        the newest accepted run instead of invoking the model again, so a
+        successful chunk is never duplicated on ordinary resume. The
+        adoption (checkpoint merge + ``completed``) commits atomically
+        under the lease. Returns True when a run was adopted.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT attempt, status, checkpoint
+                FROM chronicle.ingestion_chunk_runs
+                WHERE chunk_id = %s ORDER BY attempt
+                """,
+                (chunk_id,),
+            ).fetchall()
+        adopted: tuple[int, dict[str, Any]] | None = None
+        for attempt, status, checkpoint in rows:
+            checkpoint = checkpoint if isinstance(checkpoint, dict) else {}
+            if status == "completed" and checkpoint.get("accepted") is True:
+                candidate = checkpoint.get("candidate")
+                if isinstance(candidate, dict):
+                    adopted = (int(attempt), candidate)
+        if adopted is None:
+            return False
+        run_attempt, candidate = adopted
+        accepted = extraction.build_accepted_checkpoint(
+            candidate=candidate,
+            run_attempt=run_attempt,
+            locator=locator,
+            context_output=context_output,
+        )
+        with psycopg.connect(self.database_url) as conn:
+            with conn.transaction():
+                control_plane.require_job_lease(
+                    conn, job_id=job_id, worker=self.worker
+                )
+                current = conn.execute(
+                    """
+                    SELECT checkpoint FROM chronicle.ingestion_chunks
+                    WHERE chunk_id = %s
+                    """,
+                    (chunk_id,),
+                ).fetchone()
+                if current is None:
+                    raise PersistenceError(f"unknown chunk {chunk_id}")
+                merged = dict(current[0] or {})
+                merged["extraction"] = accepted
+                control_plane.write_chunk_checkpoint(
+                    conn, chunk_id=chunk_id, checkpoint=merged
+                )
+                control_plane.set_chunk_status(
+                    conn, chunk_id=chunk_id, status="completed"
+                )
+        self._emit(
+            "chunk_reconciled",
+            {"chunk_id": str(chunk_id), "run_attempt": run_attempt},
+        )
+        return True
+
+    def _execute_real_extract(self, job_id: uuid.UUID) -> str:
+        """Execute the ``extract`` stage with real chunk extraction.
+
+        Returns 'ok'/'failed'/'needs_review'/'cancelled'/'stopped'.
+        Raises :class:`LeaseLost` when this worker no longer holds the
+        lease. Every model attempt appends an ``ingestion_chunk_runs``
+        row (never overwrites); completed chunks are never re-run, and a
+        chunk with an already-accepted run is adopted without a new
+        model call, so ordinary resume (including a crash between the
+        accepted-run commit and the status commit) never duplicates a
+        successful chunk. A chunk whose model output cannot be grounded
+        fails closed (bounded Studio retry, then ``needs_review``);
+        nothing is silently coerced into a valid-looking candidate.
+        """
+        if self.revision_source is None:
+            raise PersistenceError(
+                "real extraction requires revision_source (refusing to run "
+                "the model against unknown bytes)"
+            )
+        # Canonical contract binding (fail closed): None binds the
+        # canonical staged-bundle schema; any non-canonical dict is
+        # rejected so permissive schemas cannot accept malformed
+        # candidates.
+        schema = extraction.require_canonical_schema(self.extraction_schema)
+        loaded = self._load_real_plan(job_id)
+        if loaded is None:
+            raise PersistenceError(
+                "real extraction requires revision_source (refusing to run "
+                "the model against unknown bytes)"
+            )
+        text, source_sha256, plan = loaded
+        self._heartbeat(job_id)
+        pairs = segmentation.context_chain(plan, text, self.segmentation_config)
+        by_index = {c.chunk_index: c for c in plan.chunks}
+        section_meta = self._read_section_meta(job_id)
+        doc_info = self._read_document_meta(job_id)
+        document = doc_info["document"]
+        rows = self._read_extract_chunks(job_id)
+        if [index for _, index, _, _ in rows] != [c.chunk_index for c in plan.chunks]:
+            raise PersistenceError(
+                f"job {job_id} persists chunks "
+                f"{[index for _, index, _, _ in rows]} but the plan needs "
+                f"{[c.chunk_index for c in plan.chunks]}; refusing to extract "
+                "on a stale chunk set (run the segment stage first)"
+            )
+        section_lookup = self._read_section_lookup(job_id)
+        for chunk_id, chunk_index, status, _checkpoint in rows:
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            if status == "completed":
+                continue  # checkpoint skip: never re-run succeeded work
+            if status not in ("pending", "running", "failed", "needs_review"):
+                raise PersistenceError(
+                    f"chunk {chunk_id} has unexpected status {status!r}"
+                )
+            chunk = by_index[chunk_index]
+            pair = pairs[chunk_index] if chunk_index < len(pairs) else pairs[-1]
+            locator = segmentation.chunk_locator(
+                job_id=job_id,
+                revision_id=doc_info["revision_id"],
+                revision_no=doc_info["revision_no"],
+                source_sha256=source_sha256,
+                chunk=chunk,
+                section_id=section_lookup.get(chunk.section_index),
+            )
+            # Crash-window reconciliation first: an accepted run whose
+            # status commit never landed is adopted with zero model
+            # calls instead of being extracted again.
+            if self._adopt_accepted_run(
+                job_id, chunk_id,
+                locator=locator, context_output=pair["output"],
+            ):
+                continue
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_chunk_status_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="running", worker=self.worker,
+                )
+            self._heartbeat(job_id)
+            # No connection is open across model calls: a slow model
+            # holds no row lock and hides no lease expiry.
+            chunk_text = text[chunk.source_start : chunk.source_end]
+            section = section_meta.get(
+                chunk.section_index,
+                {"label": f"section-{chunk.section_index}",
+                 "kind": "unknown", "section_index": chunk.section_index},
+            )
+            try:
+                request = extraction.build_chunk_request(
+                    chunk_text=chunk_text,
+                    section=section,
+                    document=document,
+                    context_input=pair["input"],
+                    boundary_head=chunk.boundary_head,
+                    boundary_tail=chunk.boundary_tail,
+                    locator=locator,
+                    config=self.extraction_config,
+                )
+                result = extraction.extract_chunk(
+                    self.chunk_model,
+                    request,
+                    chunk_text=chunk_text,
+                    context_input=pair["input"],
+                    section_label=section["label"],
+                    document=document,
+                    schema=schema,
+                    allowed_predicates=self.allowed_predicates,
+                    config=self.extraction_config,
+                )
+                run_checkpoint = extraction.build_chunk_run(
+                    request=request,
+                    provider_name=self.chunk_model.name,
+                    result=result,
+                    context_output=pair["output"],
+                )
+            except Exception as exc:
+                with psycopg.connect(self.database_url) as conn:
+                    control_plane.record_chunk_run_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id,
+                        status="failed", worker=self.worker,
+                        checkpoint={
+                            "extraction_version": extraction.EXTRACTION_VERSION,
+                            "contract_version": extraction.CONTRACT_VERSION,
+                            "accepted": False,
+                            "attempts": [],
+                            "attempt_count": 0,
+                            "authoritative": False,
+                            "authority_note": extraction.NON_AUTHORITATIVE_NOTE,
+                        },
+                        error=f"extraction harness failed: {exc}",
+                    )
+                    control_plane.set_chunk_status_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id,
+                        status="failed", worker=self.worker,
+                    )
+                self._emit("chunk_failed", {"chunk_id": str(chunk_id), "error": str(exc)})
+                return self._failed_extract_outcome(job_id, chunk_id)
+            # One run row per model attempt: history is append-only, so a
+            # correction never overwrites the attempt it repairs.
+            attempts = result["attempts"]
+            for position, attempt in enumerate(attempts):
+                last = position == len(attempts) - 1
+                row_status = (
+                    "completed" if (last and result["accepted"]) else "failed"
+                )
+                with psycopg.connect(self.database_url) as conn:
+                    _, run_attempt = control_plane.record_chunk_run_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id,
+                        status=row_status, worker=self.worker,
+                        checkpoint={
+                            **run_checkpoint,
+                            "attempts": attempts[: position + 1],
+                            "attempt_count": position + 1,
+                        },
+                        error=None if row_status == "completed" else (
+                            result.get("error")
+                            if last
+                            else "superseded by bounded correction re-ask"
+                        ),
+                    )
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            if result["accepted"]:
+                accepted = extraction.build_accepted_checkpoint(
+                    candidate=result["candidate"],
+                    run_attempt=run_attempt,
+                    locator=locator,
+                    context_output=pair["output"],
+                )
+                with psycopg.connect(self.database_url) as conn:
+                    with conn.transaction():
+                        control_plane.require_job_lease(
+                            conn, job_id=job_id, worker=self.worker
+                        )
+                        current = conn.execute(
+                            """
+                            SELECT checkpoint FROM chronicle.ingestion_chunks
+                            WHERE chunk_id = %s
+                            """,
+                            (chunk_id,),
+                        ).fetchone()
+                        merged = dict(current[0] or {})
+                        merged["extraction"] = accepted
+                        control_plane.write_chunk_checkpoint(
+                            conn, chunk_id=chunk_id, checkpoint=merged
+                        )
+                        control_plane.set_chunk_status(
+                            conn, chunk_id=chunk_id, status="completed"
+                        )
+                self._emit("chunk_completed", {"chunk_id": str(chunk_id)})
+                continue
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_chunk_status_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="failed", worker=self.worker,
+                )
+            self._emit(
+                "chunk_failed",
+                {"chunk_id": str(chunk_id), "error": result.get("error")},
+            )
+            return self._failed_extract_outcome(job_id, chunk_id)
+        return "ok"
+
+    def _failed_extract_outcome(self, job_id: uuid.UUID, chunk_id: uuid.UUID) -> str:
+        """Map a failed chunk to 'failed' (bounded retry) or 'needs_review'."""
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT attempt, max_attempts
+                FROM chronicle.ingestion_chunks WHERE chunk_id = %s
+                """,
+                (chunk_id,),
+            ).fetchone()
+        if int(row[0]) >= int(row[1]):
+            return "needs_review"
+        return "failed"
+
     # -- chunk + stage execution ----------------------------------------
 
     def execute_chunks(self, job_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> str:
@@ -808,6 +1190,64 @@ class JobRunner:
                         return outcome
                     continue
             if stage == CHUNK_BEARING_STAGE:
+                if self.chunk_model is not None:
+                    try:
+                        outcome = self._execute_real_extract(job_id)
+                    except LeaseLost:
+                        raise
+                    except Exception as exc:
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="failed", worker=self.worker,
+                                error=f"real extraction failed: {exc}",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="failed",
+                                worker=self.worker,
+                                error=f"real extraction failed: {exc}",
+                            )
+                        self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                        return "failed"
+                    if outcome == "ok":
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="completed", worker=self.worker,
+                            )
+                        self._emit("stage_completed", {"stage": stage})
+                        continue
+                    if outcome == "failed":
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage, status="failed",
+                                worker=self.worker,
+                                error="chunk extraction failed closed (bounded retry via Studio)",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="failed",
+                                worker=self.worker,
+                                error="chunk extraction failed closed (bounded retry via Studio)",
+                            )
+                        return "failed"
+                    if outcome == "needs_review":
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="needs_review", worker=self.worker,
+                                error="chunk attempts exhausted; awaiting review",
+                            )
+                            control_plane.open_review_item(
+                                conn, job_id=job_id, kind="chunk_failure",
+                                payload={"stage": stage, "worker": self.worker},
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="needs_review",
+                                worker=self.worker,
+                                error="chunk attempts exhausted; awaiting review",
+                            )
+                        return "needs_review"
+                    return outcome  # cancelled / stopped: checkpoints stay as written
                 chunk_ids = self._read_chunk_ids(job_id)
                 if not chunk_ids:
                     _, chunk_ids = self.ensure_fake_topology(job_id)
@@ -940,6 +1380,11 @@ def run_once(
     job_id: uuid.UUID | None = None,
     revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
     segmentation_config: SegmentationConfig | None = None,
+    chunk_model: Any | None = None,
+    extraction_config: extraction.ExtractionConfig | None = None,
+    extraction_schema: dict[str, Any] | None = None,
+    allowed_predicates: list[str] | None = None,
+    document_meta: dict[str, Any] | None = None,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
@@ -948,6 +1393,8 @@ def run_once(
     when no job is claimable. ``revision_source`` enables the C1-T5 real
     structure/segment path for jobs whose revision text it can supply;
     without it every stage uses the deterministic fake executor.
+    ``chunk_model`` additionally enables the C1-T6 real extract path;
+    without it the extract stage keeps the fake chunk executor.
     """
     stop = stop or threading.Event()
     with psycopg.connect(database_url) as conn:
@@ -961,6 +1408,11 @@ def run_once(
         lease_seconds=lease_seconds, stop=stop, on_event=on_event,
         revision_source=revision_source,
         segmentation_config=segmentation_config,
+        chunk_model=chunk_model,
+        extraction_config=extraction_config,
+        extraction_schema=extraction_schema,
+        allowed_predicates=allowed_predicates,
+        document_meta=document_meta,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -977,6 +1429,11 @@ def run_forever(
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
     revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
     segmentation_config: SegmentationConfig | None = None,
+    chunk_model: Any | None = None,
+    extraction_config: extraction.ExtractionConfig | None = None,
+    extraction_schema: dict[str, Any] | None = None,
+    allowed_predicates: list[str] | None = None,
+    document_meta: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -990,6 +1447,11 @@ def run_forever(
                 lease_seconds=lease_seconds, stop=stop, on_event=on_event,
                 revision_source=revision_source,
                 segmentation_config=segmentation_config,
+                chunk_model=chunk_model,
+                extraction_config=extraction_config,
+                extraction_schema=extraction_schema,
+                allowed_predicates=allowed_predicates,
+                document_meta=document_meta,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.

@@ -20,6 +20,39 @@ for path in (str(HERE), str(PERSISTENCE)):
         sys.path.insert(0, path)
 
 import ingestion_worker as worker  # noqa: E402
+from common import PersistenceError  # noqa: E402
+
+
+class ScriptedModel:
+    name = "unit-scripted-v1"
+
+    def complete(self, prompt: str) -> str:
+        raise AssertionError("must not be called")
+
+
+class ChunkModelHookTests(unittest.TestCase):
+    def test_extract_defaults_to_fake_path(self) -> None:
+        runner = worker.JobRunner("postgresql://localhost/x", worker="w1")
+        self.assertIsNone(runner.chunk_model)
+        self.assertIsNone(runner.extraction_schema)
+        self.assertIsNone(runner.allowed_predicates)
+        self.assertEqual({}, runner.document_meta)
+
+    def test_chunk_model_hook_is_accepted(self) -> None:
+        runner = worker.JobRunner(
+            "postgresql://localhost/x", worker="w1", chunk_model=ScriptedModel()
+        )
+        self.assertIsInstance(runner.chunk_model, ScriptedModel)
+
+    def test_chunk_model_must_expose_protocol(self) -> None:
+        with self.assertRaises(PersistenceError):
+            worker.JobRunner("postgresql://localhost/x", worker="w1", chunk_model=object())
+        incomplete = ScriptedModel()
+        incomplete.name = None  # type: ignore[assignment]
+        with self.assertRaises(PersistenceError):
+            worker.JobRunner(
+                "postgresql://localhost/x", worker="w1", chunk_model=incomplete
+            )
 
 
 class SourceDirTests(unittest.TestCase):

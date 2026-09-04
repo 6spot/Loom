@@ -43,6 +43,15 @@ docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
    (`prepare → structure → segment → extract → assemble → resolve →
    publish → present`). Stages/chunks already `completed` (or `skipped`)
    are never re-run: resume skips succeeded checkpoints by construction.
+   The `extract` stage keeps the deterministic fake chunk executor
+   unless a `chunk_model` provider is supplied with the C1-T5 revision
+   source; the real C1-T6 path then runs context-aware contract-first
+   extraction per chunk (bounded repair, fail closed, append-only run
+   history — see `extraction.md`). The real path binds the canonical
+   staged-bundle schema (`None` binds it; any non-canonical dict fails
+   closed) and adopts
+   an already-accepted run with zero new model calls when resume finds
+   one whose status commit never landed.
 3. **Short transactions, never across executor work.** Every database
    step runs in its own connection and commits exactly one transaction
    before the worker proceeds. Executor code runs with no transaction
@@ -107,6 +116,8 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
 | Chunk retries | `max_attempts` (default 3) per chunk | `ingestion_chunks` |
 | Fake topology | 1 section, 2 chunks per job | `FAKE_CHUNKS_PER_JOB` |
 | Real segmentation | versioned sections/chunks/context (C1-T5) | `segmentation.md` |
+| Real extraction | versioned chunk candidates/history (C1-T6) | `extraction.md` |
+| Chunk repair bound | `1 + max_repair_attempts` model calls per execution | `ExtractionConfig` |
 | Job bodies | 64 KiB cap on Studio job requests | sidecar |
 
 Scale guidance for the first envelope: run **one worker per 1–2 CPU** up
