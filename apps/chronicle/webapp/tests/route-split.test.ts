@@ -5,17 +5,22 @@ import { describe, expect, it } from "vitest";
 // surface. Studio routes load through React.lazy in App.tsx so ordinary
 // public navigation never needs the admin component surface.
 describe("studio code is route-split from public navigation", () => {
-  it("App.tsx lazy-loads every studio route", () => {
+  it("App.tsx lazy-loads every functional Studio route", () => {
     const root = new URL("..", import.meta.url).pathname;
     const app = readFileSync(`${root}src/App.tsx`, "utf-8");
     for (const module of [
       "./pages/studio/StudioLayout",
       "./pages/studio/StudioHomePage",
       "./pages/studio/StudioLoginPage",
-      "./pages/studio/placeholders",
+      "./pages/studio/StudioImportsPage",
+      "./pages/studio/StudioImportDetailPage",
+      "./pages/studio/StudioReviewPage",
+      "./pages/studio/StudioReviewDetailPage",
+      "./pages/studio/StudioSourcesPage",
     ]) {
       expect(app).toContain(`lazy(() => import("${module}")`);
     }
+    expect(app).not.toContain('import("./pages/studio/placeholders")');
     expect(app.includes("lazy(")).toBe(true);
   });
 
