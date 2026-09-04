@@ -1,0 +1,21 @@
+[package]
+name = "chronicle-control-plane"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Chronicle C1 document-ingestion control-plane domain: frozen status vocabularies, legal lifecycle transitions, and a deterministic in-memory fake for orchestration tests."
+
+# Detached from the Loom Cargo workspace on purpose. This crate is
+# Chronicle application-owned product logic (Amendment 0006): it must not
+# acquire Loom engine dependencies (loom-*, sqlx, tokio-postgres) and must
+# not be classified as a Loom framework crate by tools/check_architecture.py,
+# which only inspects workspace members. It has zero dependencies and uses
+# only the Rust standard library.
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"

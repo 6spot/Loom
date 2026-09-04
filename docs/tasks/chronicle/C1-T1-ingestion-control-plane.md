@@ -1,10 +1,10 @@
 ---
 task: C1-T1
 issue: 490
-status: planned
+status: in_progress
 depends_on: [C0-T12]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -38,3 +38,11 @@ Application-owned persistence only. Existing C0 staged, Resolution and canonical
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation started (ME-348): Chronicle-owned control-plane
+  contract — migration `0002_chronicle_c1_control_plane.sql` (additive over
+  frozen C0 tables), `control_plane_store.py` with lease/checkpoint/transition
+  guards, standalone Rust domain crate `apps/chronicle/control_plane`
+  (frozen vocabularies, transition graph, deterministic fake lifecycle),
+  design record `apps/chronicle/docs/ingestion-control-plane.md`, and PG18
+  integration tests `test_control_plane_postgres.py`. No Loom
+  Core/Runtime/Storage authority touched; Amendment 0006 boundary preserved.
