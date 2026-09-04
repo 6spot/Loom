@@ -1,6 +1,6 @@
-// Chronicle public read-model shapes (subset used by the C1-T9 web UI).
-// Field names mirror the C0-T10/C0-T12 contracts; the UI never invents
-// historical authority beyond these payloads.
+// Chronicle public read-model shapes (subset used by the C1 web UI).
+// Field names mirror the source-grounded contracts; Reader Presentation is a
+// derived projection and never replaces the Claim/evidence fields below.
 
 export interface TimelineItem {
   canonical_event_id: string;
@@ -24,8 +24,41 @@ export interface ClaimWrapper {
   ref?: string;
   claim?: {
     predicate?: string;
-    evidence?: { text?: string; locator?: Record<string, unknown> };
+    evidence?: { text?: string; source_ref?: string; locator?: Record<string, unknown> };
   };
+}
+
+export interface ReaderSupport extends ClaimWrapper {
+  source?: { title?: string; ref?: string };
+}
+
+export interface ReaderPresentationBlock {
+  block_id: string;
+  block_kind: "overview" | "sequence" | "outcome" | "source_notes" | "uncertainty";
+  epistemic_mode: "fact_summary" | "source_report" | "uncertainty";
+  text: string;
+  supports?: ReaderSupport[];
+}
+
+export interface ReaderPresentation {
+  presentation_id: string;
+  target_kind: "entity" | "event";
+  canonical_id: string;
+  language: "zh-CN";
+  contract_version: string;
+  presentation_version: number;
+  status: "published";
+  generator?: {
+    generator_version?: string;
+    model_version?: string;
+    prompt_version?: string;
+  };
+  input_fingerprint?: string;
+  content_sha256?: string;
+  origin_job_id?: string | null;
+  supersedes_presentation_id?: string | null;
+  generated_at?: string | null;
+  blocks?: ReaderPresentationBlock[];
 }
 
 export interface Representation {
@@ -63,6 +96,7 @@ export interface EventDetail {
   display?: { title?: string; type?: string };
   time?: { start_year?: number | null; end_year?: number | null };
   source_count?: number;
+  reader_presentation?: ReaderPresentation | null;
   representations?: Representation[];
   participants?: Participant[];
   places?: Participant[];
@@ -83,6 +117,7 @@ export interface EntityDetail {
   display?: { name?: string; type?: string };
   source_count?: number;
   representation_count?: number;
+  reader_presentation?: ReaderPresentation | null;
   representations?: Representation[];
   events?: TrajectoryEvent[];
   claims?: ClaimWrapper[];
