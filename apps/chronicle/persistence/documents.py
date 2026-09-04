@@ -379,9 +379,12 @@ def upload_revision(
     try:
         os.replace(tmp, dest)
     except OSError as exc:
-        # The row committed but the file is not yet at its final path. The
-        # next identical upload repairs this via the duplicate path, and
-        # storage_status reports "missing" until then.
+        # The row committed but the file is not yet at its final path.
+        # Remove the staged temp bytes so failed publishes cannot
+        # accumulate orphan full-size copies; the row stays committed with
+        # storage_status "missing", and the next identical upload repairs
+        # the final file via the duplicate path.
+        remove_path_safely(tmp)
         raise PersistenceError(
             f"revision {revision_id} recorded but source file publish failed: {exc}"
         ) from exc

@@ -21,6 +21,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 import psycopg
 from psycopg import sql
@@ -267,6 +268,50 @@ class DocumentUploadPostgresTests(unittest.TestCase):
             self.assertEqual(
                 documents.read_revision_bytes(self.storage_dir, retry["storage_key"]), body
             )
+
+    def test_failed_final_publish_leaves_no_orphan_and_stays_repairable(self) -> None:
+        """D-4: a post-commit rename failure removes staged bytes.
+
+        The revision row stays committed (storage_status "missing") while
+        the orphaned `.tmp-*` file must not accumulate; retrying the
+        identical upload still repairs the final file.
+        """
+        body = "發佈失敗測試\n".encode("utf-8")
+        with self._connect_ready() as conn:
+            document_id = self._document(conn)
+            with mock.patch("os.replace", side_effect=OSError("injected rename failure")):
+                with self.assertRaises(PersistenceError):
+                    documents.upload_revision(
+                        conn,
+                        storage_dir=self.storage_dir,
+                        document_id=document_id,
+                        filename="wudi.txt",
+                        data=body,
+                    )
+            # The committed row reports missing; no temp or final file lingers.
+            history = documents.revision_history(
+                conn, document_id=document_id, storage_dir=self.storage_dir
+            )
+            self.assertEqual(len(history), 1)
+            self.assertEqual(history[0]["storage_status"], "missing")
+            leftovers = list(self.storage_dir.rglob(".tmp-*"))
+            self.assertEqual(leftovers, [])
+            final_path = Path(self.storage_dir, *history[0]["storage_key"].split("/"))
+            self.assertFalse(final_path.exists())
+            # Retry repairs the final file without duplicating the row.
+            retry = documents.upload_revision(
+                conn,
+                storage_dir=self.storage_dir,
+                document_id=document_id,
+                filename="wudi.txt",
+                data=body,
+            )
+            self.assertTrue(retry["duplicate"])
+            self.assertEqual(retry["storage_status"], "present")
+            self.assertEqual(
+                documents.read_revision_bytes(self.storage_dir, retry["storage_key"]), body
+            )
+            self.assertEqual(list(self.storage_dir.rglob(".tmp-*")), [])
 
     def test_invalid_encoding_fails_without_side_effects(self) -> None:
         with self._connect_ready() as conn:

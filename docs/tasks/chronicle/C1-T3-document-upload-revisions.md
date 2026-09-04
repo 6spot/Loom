@@ -56,3 +56,9 @@ Make uploaded UTF-8 historical texts durable first-class Documents/Revisions wit
 - 2026-09-04 — Reviewer FAIL D-3: prior-head CI failure isolated to the
   Chrome `--dump-dom` smoke step (all contract steps green); no causal
   link to this diff found. Fix push re-runs the workflow to green.
+- 2026-09-04 — Reviewer FAIL D-4 addressed: the post-commit final-publish
+  path now removes the staged `.tmp-*` bytes when `os.replace` fails, so
+  failed publishes cannot accumulate orphan copies; the committed row
+  keeps `storage_status: missing` and the next identical upload still
+  repairs it. New PG regression test injects the rename failure and
+  proves cleanup + missing status + repair.
