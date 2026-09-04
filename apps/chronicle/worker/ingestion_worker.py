@@ -64,6 +64,7 @@ if str(_PERSISTENCE_DIR) not in sys.path:
 import control_plane  # noqa: E402
 from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
+import documents  # noqa: E402
 import segmentation  # noqa: E402
 from segmentation import SegmentationConfig  # noqa: E402
 
@@ -117,6 +118,84 @@ def database_url_from_env(explicit: str | None = None) -> str:
             "via --database-url or CHRONICLE_DATABASE_URL"
         )
     return url
+
+
+def source_dir_from_env(explicit: str | None = None) -> Path | None:
+    """Resolve the Chronicle source directory for real segmentation.
+
+    An explicit ``--source-dir`` wins; otherwise a non-empty
+    ``CHRONICLE_SOURCE_DIR`` enables the production revision loader.
+    Returns ``None`` when neither is set: the worker keeps the
+    deterministic fake path (C1-T4 behavior) instead of guessing where
+    sources live.
+    """
+    if explicit:
+        return Path(explicit).expanduser()
+    raw = (os.environ.get("CHRONICLE_SOURCE_DIR") or "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser()
+
+
+def build_revision_source(
+    database_url: str, storage_dir: Path | str
+) -> Callable[[uuid.UUID], tuple[str, str]]:
+    """Build the production revision loader for real segmentation.
+
+    The returned closure maps ``job_id`` to ``(normalized_text,
+    source_sha256)`` by reading the job's immutable revision row, loading
+    its exact stored bytes via ``documents.read_revision_bytes``, verifying
+    the byte hash against the revision row, and normalizing with
+    ``documents.decode_source`` (the same normalization segmentation
+    offsets are defined in). Every failure mode fails closed with
+    :class:`PersistenceError` — unknown job/revision, missing source file,
+    hash mismatch, undecodable bytes, or empty text — so the worker parks
+    the job in ``failed`` (bounded Studio retry) instead of silently
+    falling back to fake checkpoints.
+    """
+    base = Path(storage_dir).expanduser()
+
+    def source(job_id: uuid.UUID) -> tuple[str, str]:
+        with psycopg.connect(database_url) as conn:
+            job = conn.execute(
+                """
+                SELECT revision_id FROM chronicle.ingestion_jobs
+                WHERE job_id = %s
+                """,
+                (job_id,),
+            ).fetchone()
+            if job is None:
+                raise PersistenceError(f"unknown job {job_id}")
+            revision = conn.execute(
+                """
+                SELECT source_sha256, storage_key
+                FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (job[0],),
+            ).fetchone()
+            if revision is None:
+                raise PersistenceError(
+                    f"unknown revision {job[0]} for job {job_id}"
+                )
+            expected_sha, storage_key = revision[0], revision[1]
+        data = documents.read_revision_bytes(base, storage_key)
+        actual_sha = hashlib.sha256(data).hexdigest()
+        if actual_sha != expected_sha:
+            raise PersistenceError(
+                f"source file for revision {job[0]} failed verification: "
+                "stored bytes do not match the immutable revision hash "
+                "(refusing to segment bytes the revision does not own)"
+            )
+        text = documents.decode_source(data)
+        if text == "":
+            raise PersistenceError(
+                f"revision {job[0]} normalizes to empty text; "
+                "nothing to segment"
+            )
+        return text, expected_sha
+
+    return source
 
 
 class StageExecutor:
@@ -377,8 +456,12 @@ class JobRunner:
         """Resolve the deterministic segmentation plan for a job, if any.
 
         Returns ``(text, source_sha256, plan)`` when ``revision_source``
-        supplies the revision text, else ``None`` (fake path). Pure compute:
-        no database connection is open across this call.
+        supplies the revision text, else ``None`` (fake path). The
+        callback's hash is verified against the job's immutable revision
+        row before the plan is accepted: a mismatched source fails closed
+        instead of segmenting bytes the revision does not own. Pure
+        compute apart from short verification reads: no transaction is
+        held open across the source callback.
         """
         if self.revision_source is None:
             return None
@@ -388,6 +471,23 @@ class JobRunner:
         if loaded is None:
             return None
         text, source_sha256 = loaded
+        _, _, _, revision_id = self._read_job(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT source_sha256 FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (revision_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown revision {revision_id}")
+            if row[0] != source_sha256:
+                raise PersistenceError(
+                    f"revision source for job {job_id} failed verification: "
+                    "callback hash does not match the immutable revision row "
+                    "(refusing to segment bytes the revision does not own)"
+                )
         plan = segmentation.segment_revision(
             text, source_sha256, self.segmentation_config
         )
@@ -484,7 +584,9 @@ class JobRunner:
                     conn, job_id=job_id, plan=plan
                 )
                 chunk_ids = segmentation.ensure_chunks(
-                    conn, job_id=job_id, plan=plan, section_ids=section_ids,
+                    conn, job_id=job_id, plan=plan,
+                    source_sha256=source_sha256,
+                    section_ids=section_ids,
                 )
         halt = self.check_halt(job_id)
         if halt is not None:
@@ -873,6 +975,8 @@ def run_forever(
     max_jobs: int | None = None,
     stop: threading.Event | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
+    segmentation_config: SegmentationConfig | None = None,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -884,6 +988,8 @@ def run_forever(
             result = run_once(
                 database_url, worker=worker, executor=executor,
                 lease_seconds=lease_seconds, stop=stop, on_event=on_event,
+                revision_source=revision_source,
+                segmentation_config=segmentation_config,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.
@@ -927,6 +1033,13 @@ def build_parser() -> argparse.ArgumentParser:
         "(PostgreSQL-claimed, restart-safe, no external queue)"
     )
     parser.add_argument("--database-url", default=os.environ.get("CHRONICLE_DATABASE_URL"))
+    parser.add_argument(
+        "--source-dir", default=None,
+        help="Chronicle-owned source directory (else CHRONICLE_SOURCE_DIR). "
+        "When set, structure/segment stages run the real versioned "
+        "segmentation over stored revision bytes; when unset, every stage "
+        "uses the deterministic fake executor.",
+    )
     parser.add_argument(
         "--worker-id", default=None,
         help="lease owner identity (default: worker-<host>-<pid>-<rand>)",
@@ -974,18 +1087,34 @@ def main(argv: list[str] | None = None) -> int:
     database_url = database_url_from_env(args.database_url)
     worker = args.worker_id or default_worker_id()
     fail_plan = parse_fail_plan(args.fail_stage)
+    source_dir = source_dir_from_env(args.source_dir)
+    revision_source = (
+        build_revision_source(database_url, source_dir)
+        if source_dir is not None
+        else None
+    )
     stop = threading.Event()
     install_shutdown_handlers(stop)
-    print(
-        f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
-        f"(lease {args.lease_seconds}s)",
-        flush=True,
-    )
+    if source_dir is not None:
+        print(
+            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
+            f"(lease {args.lease_seconds}s) with real C1-T5 segmentation "
+            f"from {source_dir}",
+            flush=True,
+        )
+    else:
+        print(
+            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
+            f"(lease {args.lease_seconds}s) with the deterministic fake "
+            "executor (no --source-dir/CHRONICLE_SOURCE_DIR)",
+            flush=True,
+        )
     tally = run_forever(
         database_url, worker=worker,
         executor_factory=lambda: StageExecutor(fail_plan=dict(fail_plan)),
         lease_seconds=args.lease_seconds, poll_interval=args.poll_interval,
         max_jobs=args.max_jobs, stop=stop,
+        revision_source=revision_source,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

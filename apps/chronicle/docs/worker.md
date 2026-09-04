@@ -17,8 +17,12 @@ python3 apps/chronicle/worker/ingestion_worker.py \
 Flags: `--database-url` (else `CHRONICLE_DATABASE_URL`), `--worker-id`
 (default `worker-<host>-<pid>-<rand>`), `--lease-seconds` (default 300),
 `--poll-interval` (default 5s), `--max-jobs` (stop after N jobs; default
-runs until SIGTERM/SIGINT), `--fail-stage STAGE[:COUNT]` (fault-injection
-demos only; never set in production).
+runs until SIGTERM/SIGINT), `--source-dir` (else `CHRONICLE_SOURCE_DIR`;
+when set, `structure`/`segment` run the real C1-T5 segmentation over
+stored revision bytes — see `segmentation.md` — and every source failure
+fails the job instead of falling back to fake checkpoints),
+`--fail-stage STAGE[:COUNT]` (fault-injection demos only; never set in
+production).
 
 Compose ships an opt-in worker service (profile `worker`, not started by
 the default stack):

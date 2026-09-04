@@ -431,8 +431,20 @@ def create_section(
     label: str,
     source_start: int,
     source_end: int,
+    kind: str = "unknown",
+    depth: int = 0,
+    parent_section_index: int | None = None,
 ) -> uuid.UUID:
-    """Record one ordered processing section scope for a job."""
+    """Record one ordered processing section scope for a job.
+
+    ``kind``/``depth``/``parent_section_index`` persist the detected
+    document hierarchy (C1-T5): kind names the structural unit
+    (volume/chapter/biography/treatise/heading/preamble/document),
+    depth is its nesting level, and the parent is the nearest preceding
+    section with a strictly smaller depth (NULL at the top level).
+    Callers that predate structure detection keep the honest ``unknown``
+    kind so old rows are never mistaken for detected structure.
+    """
     if not isinstance(section_index, int) or section_index < 0:
         raise PersistenceError("section_index must be a non-negative integer")
     if not isinstance(label, str) or not label:
@@ -441,16 +453,30 @@ def create_section(
         raise PersistenceError("source_start must be a non-negative integer")
     if not isinstance(source_end, int) or source_end < source_start:
         raise PersistenceError("source_end must be >= source_start")
+    if not isinstance(kind, str) or not kind:
+        raise PersistenceError("section kind must be a non-empty string")
+    if not isinstance(depth, int) or depth < 0:
+        raise PersistenceError("section depth must be a non-negative integer")
+    if parent_section_index is not None and (
+        not isinstance(parent_section_index, int)
+        or parent_section_index < 0
+        or parent_section_index >= section_index
+    ):
+        raise PersistenceError(
+            "parent_section_index must be None or an earlier section index"
+        )
     section_id = _new_id()
     with conn.transaction():
         try:
             conn.execute(
                 """
                 INSERT INTO chronicle.ingestion_sections(
-                    section_id, job_id, section_index, label, source_start, source_end
-                ) VALUES (%s, %s, %s, %s, %s, %s)
+                    section_id, job_id, section_index, label, source_start, source_end,
+                    kind, depth, parent_section_index
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (section_id, job_id, section_index, label, source_start, source_end),
+                (section_id, job_id, section_index, label, source_start, source_end,
+                 kind, depth, parent_section_index),
             )
         except psycopg.errors.UniqueViolation as exc:
             raise PersistenceConflict(

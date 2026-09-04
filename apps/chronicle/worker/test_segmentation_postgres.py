@@ -128,7 +128,8 @@ class SegmentationPostgresTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             sections = conn.execute(
                 """
-                SELECT section_index, label, source_start, source_end
+                SELECT section_index, label, source_start, source_end,
+                       kind, depth, parent_section_index
                 FROM chronicle.ingestion_sections
                 WHERE job_id = %s ORDER BY section_index
                 """,
@@ -137,6 +138,19 @@ class SegmentationPostgresTests(unittest.TestCase):
             self.assertGreaterEqual(len(sections), 3)
             kinds = {row[1] for row in sections}
             self.assertTrue({"卷一", "武帝紀", "列傳"} <= kinds)
+            # The persisted rows recover the detected hierarchy without
+            # worker memory: volumes at depth 0, chapters/biographies
+            # nested under the preceding volume.
+            by_label = {row[1]: row for row in sections}
+            self.assertEqual(by_label["卷一"][4], "volume")
+            self.assertEqual(by_label["卷一"][5], 0)
+            self.assertIsNone(by_label["卷一"][6])
+            for label in ("武帝紀", "列傳"):
+                self.assertIn(by_label[label][4], ("treatise", "biography"))
+                self.assertEqual(by_label[label][5], 1)
+                self.assertEqual(
+                    by_label[label][6], by_label["卷一"][0]
+                )
             chunks = conn.execute(
                 """
                 SELECT chunk_index, section_id, source_start, source_end,
@@ -147,14 +161,17 @@ class SegmentationPostgresTests(unittest.TestCase):
                 (job_id,),
             ).fetchall()
             self.assertGreaterEqual(len(chunks), 2)
-            # Exact locators: every slice reconstructs and rehashes.
+            # Exact locators: every slice reconstructs and rehashes; the
+            # row's source_sha256 is the whole-revision identity, distinct
+            # from the slice hash.
             for row in chunks:
                 sliver = text[row[2] : row[3]]
                 self.assertTrue(sliver.strip())
                 self.assertEqual(
                     hashlib.sha256(sliver.encode("utf-8")).hexdigest(), row[5]
                 )
-                self.assertEqual(row[4], row[5])
+                self.assertEqual(row[4], sha)
+                self.assertNotEqual(row[4], row[5])
             # Sections tile the revision; chunks tile their sections.
             self.assertEqual(sections[0][2], 0)
             self.assertEqual(sections[-1][3], len(text))
@@ -257,7 +274,7 @@ class SegmentationPostgresTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             job_id, _ = _queue_job(conn, sha)
             plan = S.segment_revision(text, sha, config)
-            S.ensure_sections_chunks(conn, job_id=job_id, plan=plan)
+            S.ensure_sections_chunks(conn, job_id=job_id, plan=plan, source_sha256=sha)
             drifted_text = text + "後人補記一筆。"
             drifted = S.segment_revision(
                 drifted_text,
@@ -265,7 +282,89 @@ class SegmentationPostgresTests(unittest.TestCase):
                 config,
             )
             with self.assertRaises(PersistenceConflict):
-                S.ensure_sections_chunks(conn, job_id=job_id, plan=drifted)
+                S.ensure_sections_chunks(
+                    conn, job_id=job_id, plan=drifted,
+                    source_sha256=hashlib.sha256(b"other").hexdigest(),
+                )
+
+    def test_stale_extra_rows_fail_closed(self) -> None:
+        # D-5: re-entry with a smaller plan must not leave old extra rows
+        # for a later extract to execute.
+        text, sha, config = _fixture()
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn, sha)
+            plan = S.segment_revision(text, sha, config)
+            section_ids, _ = S.ensure_sections_chunks(
+                conn, job_id=job_id, plan=plan, source_sha256=sha
+            )
+            stray_section = control_plane.create_section(
+                conn, job_id=job_id, section_index=99, label="stray",
+                source_start=0, source_end=1, kind="unknown",
+            )
+            control_plane.record_chunk(
+                conn, job_id=job_id, section_id=stray_section,
+                chunk_index=99, source_start=0, source_end=1,
+                source_sha256=sha, content_sha256=hashlib.sha256(b"x").hexdigest(),
+            )
+            with self.assertRaises(PersistenceConflict):
+                S.ensure_sections_chunks(
+                    conn, job_id=job_id, plan=plan, source_sha256=sha
+                )
+
+    def test_source_mismatch_fails_the_job(self) -> None:
+        # D-6: a callback hash that does not match the immutable revision
+        # row fails the job instead of segmenting foreign bytes.
+        text, sha, config = _fixture()
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn, sha)
+        result = worker.run_once(
+            self.database_url, worker="worker-c1t5",
+            revision_source=lambda jid: (text, "0" * 64),
+            segmentation_config=config,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[1], "failed")
+        with psycopg.connect(self.database_url) as conn:
+            status = conn.execute(
+                "SELECT status FROM chronicle.ingestion_jobs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()[0]
+            self.assertEqual(status, "failed")
+            stage = conn.execute(
+                """
+                SELECT status FROM chronicle.ingestion_job_stages
+                WHERE job_id = %s AND stage = 'structure'
+                """,
+                (job_id,),
+            ).fetchone()[0]
+            self.assertEqual(stage, "failed")
+            count = conn.execute(
+                "SELECT count(*) FROM chronicle.ingestion_chunks WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()[0]
+            self.assertEqual(int(count), 0)
+
+    def test_section_hierarchy_validation(self) -> None:
+        # D-3: structural fields are validated, not just stored.
+        text, sha, _ = _fixture()
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn, sha)
+            with self.assertRaises(Exception):
+                control_plane.create_section(
+                    conn, job_id=job_id, section_index=0, label="x",
+                    source_start=0, source_end=1, kind="",
+                )
+            with self.assertRaises(Exception):
+                control_plane.create_section(
+                    conn, job_id=job_id, section_index=0, label="x",
+                    source_start=0, source_end=1, depth=-1,
+                )
+            with self.assertRaises(Exception):
+                control_plane.create_section(
+                    conn, job_id=job_id, section_index=0, label="x",
+                    source_start=0, source_end=1,
+                    parent_section_index=0,  # must precede self
+                )
 
     def test_jobs_without_source_keep_fake_topology(self) -> None:
         text, sha, _ = _fixture()
@@ -280,6 +379,107 @@ class SegmentationPostgresTests(unittest.TestCase):
                 (job_id,),
             ).fetchone()[0]
             self.assertEqual(int(count), worker.FAKE_CHUNKS_PER_JOB)
+
+    def _store_fixture_bytes(self, storage_dir, data: bytes) -> tuple[uuid.UUID, uuid.UUID, str]:
+        """Store revision bytes on disk + rows; returns (doc, revision, sha)."""
+        import documents
+
+        sha = hashlib.sha256(data).hexdigest()
+        with psycopg.connect(self.database_url) as conn:
+            document_id = control_plane.create_document(conn, title="卷一")
+            revision_id = uuid.uuid4()
+            storage_key = f"documents/{document_id}/{revision_id}.txt"
+            documents.write_source_file(storage_dir, storage_key, data)
+            with conn.transaction():
+                conn.execute(
+                    """
+                    INSERT INTO chronicle.document_revisions(
+                        revision_id, document_id, revision_no,
+                        source_sha256, source_bytes, source_media_type,
+                        filename, storage_key, content_chars
+                    ) VALUES (%s, %s, 1, %s, %s, 'text/plain', 'juan1.txt', %s, %s)
+                    """,
+                    (revision_id, document_id, sha, len(data), storage_key, len(data)),
+                )
+            job_id = control_plane.queue_job(conn, revision_id=revision_id)
+        return job_id, revision_id, sha
+
+    def test_production_loader_runs_real_path(self) -> None:
+        # D-4: the deployed loader (stored bytes + decode + hash verify)
+        # drives real segmentation end to end.
+        import tempfile
+
+        text, _, config = _fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            job_id, _, sha = self._store_fixture_bytes(
+                tmp, text.encode("utf-8")
+            )
+            loader = worker.build_revision_source(self.database_url, tmp)
+            result = worker.run_once(
+                self.database_url, worker="worker-c1t5",
+                revision_source=loader, segmentation_config=config,
+            )
+            self.assertIsNotNone(result)
+            self.assertEqual(result[1], "completed")
+            with psycopg.connect(self.database_url) as conn:
+                sections = conn.execute(
+                    "SELECT count(*) FROM chronicle.ingestion_sections WHERE job_id = %s",
+                    (job_id,),
+                ).fetchone()[0]
+                self.assertGreaterEqual(int(sections), 3)
+
+    def test_production_loader_missing_file_fails_closed(self) -> None:
+        # D-4: a revision row whose bytes are gone fails the job; the
+        # worker must not silently complete it through fake checkpoints.
+        import tempfile
+
+        text, _, config = _fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            job_id, _, _ = self._store_fixture_bytes(tmp, text.encode("utf-8"))
+            with psycopg.connect(self.database_url) as conn:
+                key = conn.execute(
+                    """
+                    SELECT r.storage_key
+                    FROM chronicle.document_revisions r
+                    JOIN chronicle.ingestion_jobs j ON j.revision_id = r.revision_id
+                    WHERE j.job_id = %s
+                    """,
+                    (job_id,),
+                ).fetchone()[0]
+            Path(tmp, *key.split("/")).unlink()
+            loader = worker.build_revision_source(self.database_url, tmp)
+            result = worker.run_once(
+                self.database_url, worker="worker-c1t5",
+                revision_source=loader, segmentation_config=config,
+            )
+            self.assertIsNotNone(result)
+            self.assertEqual(result[1], "failed")
+
+    def test_production_loader_tampered_file_fails_closed(self) -> None:
+        # D-4: bytes that no longer match the immutable revision hash fail.
+        import tempfile
+
+        text, _, config = _fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            job_id, _, _ = self._store_fixture_bytes(tmp, text.encode("utf-8"))
+            with psycopg.connect(self.database_url) as conn:
+                key = conn.execute(
+                    """
+                    SELECT r.storage_key
+                    FROM chronicle.document_revisions r
+                    JOIN chronicle.ingestion_jobs j ON j.revision_id = r.revision_id
+                    WHERE j.job_id = %s
+                    """,
+                    (job_id,),
+                ).fetchone()[0]
+            Path(tmp, *key.split("/")).write_bytes("後人竄改。".encode("utf-8"))
+            loader = worker.build_revision_source(self.database_url, tmp)
+            result = worker.run_once(
+                self.database_url, worker="worker-c1t5",
+                revision_source=loader, segmentation_config=config,
+            )
+            self.assertIsNotNone(result)
+            self.assertEqual(result[1], "failed")
 
 
 if __name__ == "__main__":

@@ -64,6 +64,29 @@ class StructureTests(unittest.TestCase):
         section = next(s for s in plan.sections if s.kind == "biography")
         self.assertEqual(section.source_start, offset)
 
+    def test_hierarchy_depth_and_parent_are_deterministic(self) -> None:
+        _, _, plan = _fixture_plan()
+        by_kind = {s.kind: s for s in plan.sections}
+        volume = by_kind["volume"]
+        self.assertEqual((volume.depth, volume.parent_section_index), (0, None))
+        for kind in ("treatise", "biography"):
+            child = by_kind[kind]
+            self.assertEqual(child.depth, 1)
+            self.assertEqual(child.parent_section_index, volume.section_index)
+
+    def test_markdown_levels_nest(self) -> None:
+        text = "# 史記\n\n## 本紀\n\n文字甲。\n\n## 列傳\n\n文字乙。\n"
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"m").hexdigest(), SegmentationConfig()
+        )
+        kinds = [(s.kind, s.depth, s.parent_section_index) for s in plan.sections]
+        self.assertEqual(kinds[0][0], "heading")
+        self.assertEqual(kinds[0][1], 0)
+        self.assertIsNone(kinds[0][2])
+        # `## 本紀` classifies as biography at depth 1 under the title.
+        self.assertEqual(plan.sections[1].parent_section_index, 0)
+        self.assertEqual(plan.sections[2].parent_section_index, 0)
+
     def test_prose_lines_are_not_headings(self) -> None:
         for line in (
             "建安十三年，曹操率大軍至荊州。",
@@ -204,6 +227,24 @@ class BudgetTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):
             S.ensure_budgets(7000, 1000, config)
 
+    def test_context_reserve_counts_alongside_actual_context(self) -> None:
+        # D-1 boundary: every reserve plus the actuals must fit. With
+        # max=300, prompt=50, context reserve=100, output=50, chunk=100 and
+        # serialized context=100, the accounted total is 400 > 300.
+        config = SegmentationConfig(
+            max_chunk_chars=100,
+            max_input_chars=300,
+            reserved_prompt_chars=50,
+            reserved_context_chars=100,
+            reserved_output_chars=50,
+        )
+        report = S.check_budgets(100, 100, config)
+        self.assertEqual(report["total_chars"], 400)
+        self.assertEqual(report["headroom_chars"], -100)
+        self.assertFalse(report["fits"])
+        with self.assertRaises(PersistenceError):
+            S.ensure_budgets(100, 100, config)
+
     def test_chain_contexts_fit_their_reserve(self) -> None:
         text, config, plan = _fixture_plan()
         pairs = S.context_chain(plan, text, config)
@@ -295,8 +336,7 @@ class ContextContinuityTests(unittest.TestCase):
                 self.assertEqual(out["next_head"], "")
             self.assertFalse(out["authoritative"])
 
-    def test_pronoun_links_to_prior_chunk_mention(self) -> None:
-        # Minimal forced boundary: the second chunk opens with a pronoun
+    def test_pronoun_links_to_prior_chunk_mention(self) -> None:        # Minimal forced boundary: the second chunk opens with a pronoun
         # whose only available antecedent lives in the first chunk.
         text = "曹操率軍至荊州，劉表卒。\n\n其後大敗而還，舉軍而降。"
         config = SegmentationConfig(max_chunk_chars=24, boundary_context_chars=20)
@@ -313,6 +353,30 @@ class ContextContinuityTests(unittest.TestCase):
         # first chunk, so the cross-boundary pronoun resolves to it.
         self.assertEqual(first_hint["antecedent_hint"], "劉表")
         self.assertTrue(first_hint["uncertain"])
+
+    def test_repeated_entity_does_not_mutate_prior_output(self) -> None:
+        # D-2 regression: 曹操 appears in both chunks, so advancing the
+        # second chunk increments a count. The first chunk's already
+        # produced output must stay byte-identical (persisted chain stays
+        # replayable): pairs[1].input == pairs[0].output exactly.
+        text = "曹操率軍至荊州。\n\n曹操敗走，舉軍而降。"
+        config = SegmentationConfig(max_chunk_chars=16, boundary_context_chars=10)
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"r").hexdigest(), config
+        )
+        self.assertGreater(len(plan.chunks), 1)
+        pairs = S.context_chain(plan, text, config)
+        self.assertEqual(pairs[1]["input"], pairs[0]["output"])
+        first_entities = {
+            e["text"]: e["count"]
+            for e in pairs[0]["output"]["active_entities"]
+        }
+        self.assertEqual(first_entities.get("曹操"), 1)
+        second_entities = {
+            e["text"]: e["count"]
+            for e in pairs[1]["output"]["active_entities"]
+        }
+        self.assertEqual(second_entities.get("曹操"), 2)
 
     def test_no_time_anywhere_preserves_uncertainty(self) -> None:
         text = "曹操率軍至荊州。\n\n其後大敗而還。"

@@ -53,6 +53,8 @@ from typing import Any
 
 from common import PersistenceConflict, PersistenceError
 
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
 #: Version of the segmentation algorithm itself (sections + chunk plans).
 SEGMENTATION_VERSION = "c1t5-v1"
 
@@ -163,13 +165,21 @@ def check_budgets(
 ) -> dict[str, Any]:
     """Account prompt/context/chunk/output space against the input budget.
 
+    The accounted total holds every reserve plus the actuals: prompt
+    reserve + context reserve + serialized context + chunk + output
+    reserve. Counting the context reserve alongside the serialized context
+    is deliberately conservative (fail closed): the reserve is space the
+    caller promised to keep free for context growth across the chain, not
+    space the current serialization has already consumed.
+
     Returns a report dict; ``fits`` is False (fail closed downstream) when
-    the chunk plus serialized context plus reserves exceed ``max_input``.
+    the accounted total exceeds ``max_input``.
     """
     if chunk_chars < 0 or context_chars < 0:
         raise PersistenceError("budget inputs must be non-negative integers")
     total = (
         config.reserved_prompt_chars
+        + config.reserved_context_chars
         + context_chars
         + chunk_chars
         + config.reserved_output_chars
@@ -177,6 +187,7 @@ def check_budgets(
     return {
         "max_input_chars": config.max_input_chars,
         "reserved_prompt_chars": config.reserved_prompt_chars,
+        "reserved_context_chars": config.reserved_context_chars,
         "context_chars": context_chars,
         "chunk_chars": chunk_chars,
         "reserved_output_chars": config.reserved_output_chars,
@@ -196,6 +207,7 @@ def ensure_budgets(
             "chunk plus context exceeds the configured model input budget: "
             f"total {report['total_chars']} > max {config.max_input_chars} "
             f"(prompt reserve {config.reserved_prompt_chars}, context "
+            f"reserve {config.reserved_context_chars}, context "
             f"{context_chars}, chunk {chunk_chars}, output reserve "
             f"{config.reserved_output_chars})"
         )
@@ -236,6 +248,22 @@ class Section:
     label: str
     source_start: int
     source_end: int
+    depth: int = 0
+    parent_section_index: int | None = None
+
+
+#: Hierarchy rank per section kind. Lower ranks contain higher ranks: a
+#: section's parent is the nearest preceding section with a strictly
+#: smaller depth. Markdown headings map to their `#` level (top level 0).
+_KIND_DEPTH: dict[str, int] = {
+    "document": 0,
+    "preamble": 0,
+    "volume": 0,
+    "chapter": 1,
+    "biography": 1,
+    "treatise": 1,
+    "heading": 1,
+}
 
 
 def _line_spans(text: str) -> list[tuple[int, int, str]]:
@@ -248,7 +276,8 @@ def _line_spans(text: str) -> list[tuple[int, int, str]]:
     return spans
 
 
-def _classify_heading(line: str) -> tuple[str, str] | None:
+def _classify_heading(line: str) -> tuple[str, str, int] | None:
+    """Classify a heading line as ``(kind, label, depth)``."""
     stripped = line.strip()
     if not stripped:
         return None
@@ -259,7 +288,14 @@ def _classify_heading(line: str) -> tuple[str, str] | None:
             label = " ".join(label.strip().split())
             if not label:
                 label = stripped
-            return kind, label[:120]
+            depth = _KIND_DEPTH[kind]
+            if kind == "heading":
+                # Markdown `#` level maps to hierarchy depth: a top-level
+                # title contains its `##` subsections. Deeper than 3 is
+                # clamped so pathological nesting cannot fake depth.
+                level = len(stripped) - len(stripped.lstrip("#"))
+                depth = max(0, min(level - 1, 3))
+            return kind, label[:120], depth
     return None
 
 
@@ -270,7 +306,10 @@ def detect_structure(text: str) -> tuple[list[Section], dict[str, Any]]:
     version, the per-kind counts, and whether the deterministic single-
     section fallback was used. Heading lines open the section they head;
     leading text before the first heading forms a ``preamble`` section only
-    when it holds non-whitespace content.
+    when it holds non-whitespace content. Depth/parent form the persisted
+    hierarchy: a section's parent is the nearest preceding section with a
+    strictly smaller depth (volumes contain chapters/biographies; `#`
+    contains `##`), or ``None`` at the top level.
     """
     if not isinstance(text, str):
         raise PersistenceError("revision text must be a string")
@@ -282,12 +321,12 @@ def detect_structure(text: str) -> tuple[list[Section], dict[str, Any]]:
             "kinds": {"document": 1},
             "fallback": "single-section",
         }
-    boundaries: list[tuple[int, str, str]] = []  # (offset, kind, label)
+    boundaries: list[tuple[int, str, str, int]] = []  # (offset, kind, label, depth)
     for start, end, line in _line_spans(text):
         hit = _classify_heading(line)
         if hit is not None:
-            kind, label = hit
-            boundaries.append((start, kind, label))
+            kind, label, depth = hit
+            boundaries.append((start, kind, label, depth))
     if not boundaries:
         section = Section(0, "document", "全文", 0, len(text))
         return [section], {
@@ -296,20 +335,28 @@ def detect_structure(text: str) -> tuple[list[Section], dict[str, Any]]:
             "kinds": {"document": 1},
             "fallback": "single-section",
         }
-    sections: list[Section] = []
-    kinds: dict[str, int] = {}
+    raw: list[tuple[int, str, str, int, int]] = []  # + end offset
     if boundaries[0][0] > 0 and text[: boundaries[0][0]].strip():
-        sections.append(Section(0, "preamble", "序文", 0, boundaries[0][0]))
-        kinds["preamble"] = 1
-    for position, (start, kind, label) in enumerate(boundaries):
+        raw.append((0, "preamble", "序文", 0, boundaries[0][0]))
+    for position, (start, kind, label, depth) in enumerate(boundaries):
         end = (
             boundaries[position + 1][0]
             if position + 1 < len(boundaries)
             else len(text)
         )
+        raw.append((start, kind, label, depth, end))
+    sections: list[Section] = []
+    kinds: dict[str, int] = {}
+    stack: list[tuple[int, int]] = []  # (section_index, depth)
+    for start, kind, label, depth, end in raw:
+        while stack and stack[-1][1] >= depth:
+            stack.pop()
+        parent = stack[-1][0] if stack else None
+        index = len(sections)
         sections.append(
-            Section(len(sections), kind, label, start, end)
+            Section(index, kind, label, start, end, depth, parent)
         )
+        stack.append((index, depth))
         kinds[kind] = kinds.get(kind, 0) + 1
     return sections, {
         "structure_version": STRUCTURE_VERSION,
@@ -575,6 +622,15 @@ _MENTION_BEFORE_VERB = re.compile(
 #: rather than the whole governing phrase.
 _MENTION_LEAD_STRIP = frozenset(list("其之子將母父兄弟子妹臣兵眾軍將"))
 
+#: Trailing verb characters stripped from a raw mention span while it stays
+#: longer than two characters. The greedy match otherwise swallows the very
+#: verb that introduced the mention ("曹操敗" instead of "曹操"), splitting
+#: one person across two surfaces and defeating cross-chunk counting.
+_MENTION_TRAIL_STRIP = frozenset(
+    list("曰字謂為乃即率領攻破斬殺降迎拜封使遣召見與及戰圍守屯征伐救討平定"
+         "克取盟朝詔赦築渡還歸走奔擒獲獻舉反叛遷立廢崩薨卒敗勝葬襲拒據代")
+)
+
 _COURTESY_NAME = re.compile(
     r"([\u4e00-\u9fff]{2})\s*字\s*([\u4e00-\u9fff]{1,2})"
 )
@@ -604,9 +660,11 @@ def extract_time_expressions(text: str, limit: int = 8) -> list[str]:
 
 
 def _clean_mention(span: str) -> str:
-    """Strip leading function/kinship characters from a mention span."""
+    """Strip leading particles and trailing verbs from a mention span."""
     while len(span) > 2 and span[0] in _MENTION_LEAD_STRIP:
         span = span[1:]
+    while len(span) > 2 and span[-1] in _MENTION_TRAIL_STRIP:
+        span = span[:-1]
     return span
 
 
@@ -738,7 +796,11 @@ def _merge_surfaces(
     chunk_index: int,
     limit: int,
 ) -> list[dict[str, Any]]:
-    merged = list(previous)
+    # Deep copy: the merged list must never share item dicts with the
+    # previous output, or advancing chunk N+1 would mutate the already
+    # produced (and possibly persisted) chunk N state and break the
+    # input==previous-output replay invariant.
+    merged = copy.deepcopy(previous)
     known = [item["text"] for item in merged]
     for span in fresh:
         if span in known:
@@ -959,9 +1021,12 @@ def ensure_sections(
 ) -> list[uuid.UUID]:
     """Persist a plan's sections idempotently; returns section ids in order.
 
-    Existing ``(job, index)`` rows are reused; a stored row whose label or
-    offsets disagree with the deterministic plan fails closed with
-    ``PersistenceConflict`` instead of forking the locator history.
+    Existing ``(job, index)`` rows are reused; a stored row whose label,
+    offsets, kind, depth, or parent disagree with the deterministic plan
+    fails closed with ``PersistenceConflict`` instead of forking the
+    locator history. After writing, the complete persisted section set
+    must equal the plan set: stale extra rows from an older, larger plan
+    fail closed rather than lingering as phantom structure.
     """
     # Local import: the pure core above stays importable without psycopg.
     import control_plane
@@ -979,12 +1044,16 @@ def ensure_sections(
                     label=section.label,
                     source_start=section.source_start,
                     source_end=section.source_end,
+                    kind=section.kind,
+                    depth=section.depth,
+                    parent_section_index=section.parent_section_index,
                 )
             )
         except PersistenceConflict:
             row = conn.execute(
                 """
-                SELECT section_id, label, source_start, source_end
+                SELECT section_id, label, source_start, source_end,
+                       kind, depth, parent_section_index
                 FROM chronicle.ingestion_sections
                 WHERE job_id = %s AND section_index = %s
                 """,
@@ -994,18 +1063,44 @@ def ensure_sections(
                 raise PersistenceError(
                     f"section {section.section_index} vanished for job {job_id}"
                 )
+            db_parent = None if row[6] is None else int(row[6])
             if (
                 row[1] != section.label
                 or int(row[2]) != section.source_start
                 or int(row[3]) != section.source_end
+                or row[4] != section.kind
+                or int(row[5]) != section.depth
+                or db_parent != section.parent_section_index
             ):
                 raise PersistenceConflict(
                     f"section {section.section_index} of job {job_id} already "
-                    "persisted with different locators; refusing to fork "
-                    "segmentation history (input or version drift)"
+                    "persisted with different locators or structure; refusing "
+                    "to fork segmentation history (input or version drift)"
                 )
             section_ids.append(row[0])
+    _require_exact_section_set(conn, job_id=job_id, plan=plan)
     return section_ids
+
+
+def _require_exact_section_set(
+    conn, *, job_id: uuid.UUID, plan: SegmentationResult
+) -> None:
+    """Fail closed when the persisted section set differs from the plan set."""
+    rows = conn.execute(
+        """
+        SELECT section_index FROM chronicle.ingestion_sections
+        WHERE job_id = %s
+        """,
+        (job_id,),
+    ).fetchall()
+    persisted = sorted(int(row[0]) for row in rows)
+    expected = sorted(s.section_index for s in plan.sections)
+    if persisted != expected:
+        raise PersistenceConflict(
+            f"job {job_id} persists sections {persisted} but the plan "
+            f"needs exactly {expected}; refusing to run on a stale set "
+            "(re-segmentation must invalidate explicitly, never silently)"
+        )
 
 
 def ensure_chunks(
@@ -1013,18 +1108,27 @@ def ensure_chunks(
     *,
     job_id: uuid.UUID,
     plan: SegmentationResult,
+    source_sha256: str,
     section_ids: list[uuid.UUID] | None = None,
 ) -> list[uuid.UUID]:
     """Persist a plan's chunks idempotently; returns chunk ids in plan order.
 
-    ``section_ids`` may be supplied from :func:`ensure_sections`; when
-    omitted they are re-read from the database so a resumed ``segment``
-    stage never depends on worker memory. Offset/hash drift fails closed.
+    ``source_sha256`` is the whole-revision identity the plan was segmented
+    from; it is stored on every chunk row (the revision source) separately
+    from ``content_sha256`` (the slice hash), and a reused row carrying a
+    different revision hash fails closed. ``section_ids`` may be supplied
+    from :func:`ensure_sections`; when omitted they are re-read from the
+    database so a resumed ``segment`` stage never depends on worker
+    memory. After writing, the complete persisted chunk set must equal the
+    plan set: stale extra rows from an older, larger plan fail closed
+    rather than lingering for a later extract to execute.
     """
     import control_plane
 
     if not isinstance(plan, SegmentationResult):
         raise PersistenceError("plan must be a SegmentationResult")
+    if not isinstance(source_sha256, str) or not _SHA256_RE.match(source_sha256):
+        raise PersistenceError("source_sha256 must be a lowercase hex SHA-256 string")
     if section_ids is None:
         rows = conn.execute(
             """
@@ -1053,10 +1157,7 @@ def ensure_chunks(
                     chunk_index=chunk.chunk_index,
                     source_start=chunk.source_start,
                     source_end=chunk.source_end,
-                    # Whole-revision identity travels in the manifest and the
-                    # locator; the chunk row's own source_sha256 pins the
-                    # exact slice bytes it was segmented from.
-                    source_sha256=chunk.content_sha256,
+                    source_sha256=source_sha256,
                     content_sha256=chunk.content_sha256,
                 )
             )
@@ -1077,16 +1178,38 @@ def ensure_chunks(
             if (
                 int(row[1]) != chunk.source_start
                 or int(row[2]) != chunk.source_end
-                or row[3] != chunk.content_sha256
+                or row[3] != source_sha256
                 or row[4] != chunk.content_sha256
             ):
                 raise PersistenceConflict(
                     f"chunk {chunk.chunk_index} of job {job_id} already "
-                    "persisted with different locators; refusing to fork "
-                    "segmentation history (input or version drift)"
+                    "persisted with different locators or source; refusing "
+                    "to fork segmentation history (input or version drift)"
                 )
             chunk_ids.append(row[0])
+    _require_exact_chunk_set(conn, job_id=job_id, plan=plan)
     return chunk_ids
+
+
+def _require_exact_chunk_set(
+    conn, *, job_id: uuid.UUID, plan: SegmentationResult
+) -> None:
+    """Fail closed when the persisted chunk set differs from the plan set."""
+    rows = conn.execute(
+        """
+        SELECT chunk_index FROM chronicle.ingestion_chunks
+        WHERE job_id = %s
+        """,
+        (job_id,),
+    ).fetchall()
+    persisted = sorted(int(row[0]) for row in rows)
+    expected = sorted(c.chunk_index for c in plan.chunks)
+    if persisted != expected:
+        raise PersistenceConflict(
+            f"job {job_id} persists chunks {persisted} but the plan "
+            f"needs exactly {expected}; refusing to run on a stale set "
+            "(re-segmentation must invalidate explicitly, never silently)"
+        )
 
 
 def ensure_sections_chunks(
@@ -1094,12 +1217,17 @@ def ensure_sections_chunks(
     *,
     job_id: uuid.UUID,
     plan: SegmentationResult,
+    source_sha256: str,
 ) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
     """Persist a whole segmentation plan idempotently; resume-safe on re-entry.
 
     Convenience wrapper over :func:`ensure_sections` + :func:`ensure_chunks`
     for callers (and tests) that apply the plan in one step.
+    ``source_sha256`` is the whole-revision identity stored on every chunk
+    row separately from the slice hash.
     """
     section_ids = ensure_sections(conn, job_id=job_id, plan=plan)
-    return section_ids, ensure_chunks(conn, job_id=job_id, plan=plan,
-                                      section_ids=section_ids)
+    return section_ids, ensure_chunks(
+        conn, job_id=job_id, plan=plan, source_sha256=source_sha256,
+        section_ids=section_ids,
+    )
