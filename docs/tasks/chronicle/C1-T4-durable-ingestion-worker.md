@@ -1,13 +1,13 @@
 ---
 task: C1-T4
 issue: 493
-status: in_progress
+status: completed
 depends_on: [C1-T1, C1-T2]
 created_at: 2026-09-04
 started_at: 2026-09-04
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-04
+completion_pr: 513
+merge_sha: d774b662d9cc538501ab780902cd39e5eef0c818
 ---
 
 # Chronicle Durable Ingestion Worker
@@ -22,15 +22,15 @@ Add a restart-safe PostgreSQL-backed ingestion worker with leases, checkpoints, 
 
 ## Acceptance
 
-- [ ] queued jobs have one active lease winner.
-- [ ] independent jobs can run concurrently without duplicate work.
-- [ ] crash/restart safely reclaims expired work.
-- [ ] succeeded stages/chunks are skipped on resume.
-- [ ] retries append ChunkRun attempts rather than overwrite evidence.
-- [ ] cancellation preserves completed checkpoints.
-- [ ] authenticated Studio APIs expose lifecycle controls.
-- [ ] no Redis/Celery/RabbitMQ is required.
-- [ ] PostgreSQL 18 restart/concurrency checks pass.
+- [x] queued jobs have one active lease winner.
+- [x] independent jobs can run concurrently without duplicate work.
+- [x] crash/restart safely reclaims expired work.
+- [x] succeeded stages/chunks are skipped on resume.
+- [x] retries append ChunkRun attempts rather than overwrite evidence.
+- [x] cancellation preserves completed checkpoints.
+- [x] authenticated Studio APIs expose lifecycle controls.
+- [x] no Redis/Celery/RabbitMQ is required.
+- [x] PostgreSQL 18 restart/concurrency checks pass.
 
 ## Progress Log
 
@@ -63,3 +63,10 @@ Add a restart-safe PostgreSQL-backed ingestion worker with leases, checkpoints, 
   (cancel-during-execution, mid-run checkpoint visibility,
   takeover-halts-stale, store-level fencing). Full local verification
   re-run green.
+- 2026-09-04 — Reviewer PASS on re-review (no remaining D-*); delivery
+  PR 513 merged as d774b662d9cc538501ab780902cd39e5eef0c818. Post-merge
+  reconciliation: status completed with actual PR/merge evidence, all
+  acceptance boxes checked. Verification evidence: worker 17, Studio
+  sidecar 7, persistence 39, read_api 36 PG tests; Rust server 20 +
+  control-plane 10 tests; clippy/fmt, storage-ownership check, Compose
+  config, and GitHub Chronicle PostgreSQL 18 + Docker checks green.
