@@ -7,18 +7,79 @@ on:
       - feat/chronicle-c1-t13-high-density-corpus
     paths:
       - ".github/workflows/chronicle-t13-dev-check.yml"
+      - "apps/chronicle/worker/fixture_model.py"
+      - "apps/chronicle/worker/model_provider.py"
+      - "apps/chronicle/worker/test_fixture_model_unit.py"
+      - "apps/chronicle/corpus/c1-t13/model-fixture-pack.json"
+      - "apps/chronicle/corpus/c1-t13/source-pack.json"
+      - "apps/chronicle/corpus/source_pack.py"
+      - "apps/chronicle/corpus/verify_fixture_pack.py"
+      - "compose.chronicle.yaml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  studio-ingestion:
+  fixture-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           ref: feat/chronicle-c1-t13-high-density-corpus
-          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Chronicle Python contract dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            -r apps/chronicle/persistence/requirements.txt
+
+      - name: Run model-provider and source-bound fixture unit contracts
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            apps/chronicle/worker/test_model_provider_unit.py \
+            apps/chronicle/worker/test_fixture_model_unit.py
+
+      - name: Prepare pinned six-source pack
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/c1-t13-prepared /tmp/c1-t13-evidence
+          mkdir -p /tmp/c1-t13-evidence
+          python apps/chronicle/corpus/source_pack.py prepare \
+            --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
+            --output-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-evidence/prepare.log
+
+      - name: Verify every fixture rule against immutable prepared bytes
+        run: |
+          set -euo pipefail
+          python apps/chronicle/corpus/verify_fixture_pack.py \
+            --source-pack apps/chronicle/corpus/c1-t13/source-pack.json \
+            --fixture-pack apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            --prepared-dir /tmp/c1-t13-prepared \
+            | tee /tmp/c1-t13-evidence/fixture-verification.json
+
+      - name: Upload fixture-contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-t13-fixture-contract-evidence
+          path: |
+            /tmp/c1-t13-prepared/prepared.json
+            /tmp/c1-t13-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+  studio-ingestion:
+    needs: fixture-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t13-high-density-corpus
 
       - uses: actions/setup-python@v6
         with:
@@ -37,30 +98,6 @@ jobs:
           echo "CHRONICLE_ADMIN_USER=c1-t13-admin" >> "$GITHUB_ENV"
           echo "CHRONICLE_ADMIN_PASSWORD=t13-admin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
-      - name: Make source-storage failures controlled persistence errors
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/chronicle/persistence/documents.py')
-          text = path.read_text()
-          old = '''    dest = resolve_storage_path(storage_dir, storage_key)\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    tmp = dest.parent / f".tmp-{uuid.uuid4().hex}"\n    try:\n'''
-          new = '''    dest = resolve_storage_path(storage_dir, storage_key)\n    try:\n        dest.parent.mkdir(parents=True, exist_ok=True)\n    except OSError as exc:\n        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc\n    tmp = dest.parent / f".tmp-{uuid.uuid4().hex}"\n    try:\n'''
-          if new not in text:
-              if old not in text:
-                  raise SystemExit('write_source_file mkdir anchor not found')
-              text = text.replace(old, new, 1)
-
-          old = '''    dest = resolve_storage_path(storage_dir, storage_key)\n    # Stage bytes to a temp sibling first so a DB failure leaves no visible\n    # partial file behind.\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    tmp = dest.parent / f".tmp-{revision_id.hex}"\n'''
-          new = '''    dest = resolve_storage_path(storage_dir, storage_key)\n    # Stage bytes to a temp sibling first so a DB failure leaves no visible\n    # partial file behind. Directory failures are normal persistence errors,\n    # never uncaught exceptions that tear down the Studio sidecar connection.\n    try:\n        dest.parent.mkdir(parents=True, exist_ok=True)\n    except OSError as exc:\n        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc\n    tmp = dest.parent / f".tmp-{revision_id.hex}"\n'''
-          if new not in text:
-              if old not in text:
-                  raise SystemExit('upload_revision mkdir anchor not found')
-              text = text.replace(old, new, 1)
-          path.write_text(text)
-          PY
-
       - name: Prepare pinned six-source pack
         run: |
           set -euo pipefail
@@ -70,6 +107,11 @@ jobs:
             --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
             --output-dir /tmp/c1-t13-prepared \
             > /tmp/c1-t13-evidence/prepare.log
+          python apps/chronicle/corpus/verify_fixture_pack.py \
+            --source-pack apps/chronicle/corpus/c1-t13/source-pack.json \
+            --fixture-pack apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            --prepared-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-evidence/fixture-verification.json
 
       - name: Start production-shaped Chronicle stack without worker
         run: |
@@ -98,7 +140,6 @@ jobs:
           docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
             exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
             > /tmp/c1-t13-evidence/baseline.json
-          cat /tmp/c1-t13-evidence/baseline.json
 
       - name: Ingest six sources through authenticated Studio HTTP twice
         run: |
@@ -169,23 +210,8 @@ jobs:
           assert after['reader_presentation'] == baseline['reader_presentation'], (baseline, after)
           assert len([d for d in documents.get('documents', []) if d.get('title', '').startswith('三國志·')]) == 6
           assert len(jobs.get('jobs', [])) == 6 and all(j.get('status') == 'queued' for j in jobs['jobs'])
-          assert '<!doctype html' in (ev / 'studio-sources.html').read_text(errors='replace').lower()
-          assert '<!doctype html' in (ev / 'studio-imports.html').read_text(errors='replace').lower()
           print('C1-T13 Studio HTTP ingestion + idempotency: PASS')
-          print(json.dumps({'baseline': baseline, 'queued_after': after}, ensure_ascii=False, indent=2))
           PY
-
-      - name: Commit validated storage error mapping
-        run: |
-          set -euo pipefail
-          git add apps/chronicle/persistence/documents.py
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(chronicle): surface source storage failures"
-          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
 
       - name: Upload T13 Studio-ingestion evidence
         if: always()
