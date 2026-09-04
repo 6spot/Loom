@@ -9,7 +9,7 @@ on:
       - ".github/workflows/chronicle-t13-dev-check.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   studio-ingestion:
@@ -29,15 +29,65 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: feat/chronicle-c1-t13-high-density-corpus
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
+      - name: Apply source-volume ownership and storage error fix
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              text = path.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"patch target not found for {label}: {path}")
+              path.write_text(text.replace(old, new, 1))
+
+          compose = Path('compose.chronicle.yaml')
+          replace_once(
+              compose,
+              '''    restart: unless-stopped\n\n  chronicle-init:\n''',
+              '''    restart: unless-stopped\n\n  # Prepare the application-owned source bind mount for the non-root\n  # Chronicle runtime user (UID/GID 10001). Fresh Debian/CI bind paths are\n  # otherwise root-owned and the first immutable revision upload cannot\n  # create its document directory. This one-shot service is the only root\n  # process touching the source volume; long-lived services remain non-root.\n  chronicle-source-init:\n    <<: *chronicle-image\n    user: "0:0"\n    environment:\n      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}\n    volumes:\n      - type: bind\n        source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources\n        target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}\n    command:\n      - sh\n      - -ec\n      - |\n        mkdir -p "$CHRONICLE_SOURCE_DIR"\n        chown -R 10001:10001 "$CHRONICLE_SOURCE_DIR"\n    restart: "no"\n\n  chronicle-init:\n''',
+              'source init service',
+          )
+          replace_once(
+              compose,
+              '''    depends_on:\n      postgres:\n        condition: service_healthy\n      chronicle-init:\n        condition: service_completed_successfully\n    command:\n      - python3\n      - apps/chronicle/read_api/server.py\n''',
+              '''    depends_on:\n      postgres:\n        condition: service_healthy\n      chronicle-init:\n        condition: service_completed_successfully\n      chronicle-source-init:\n        condition: service_completed_successfully\n    command:\n      - python3\n      - apps/chronicle/read_api/server.py\n''',
+              'read source-init dependency',
+          )
+          replace_once(
+              compose,
+              '''    depends_on:\n      postgres:\n        condition: service_healthy\n      chronicle-init:\n        condition: service_completed_successfully\n    command:\n      - python3\n      - apps/chronicle/worker/ingestion_worker.py\n''',
+              '''    depends_on:\n      postgres:\n        condition: service_healthy\n      chronicle-init:\n        condition: service_completed_successfully\n      chronicle-source-init:\n        condition: service_completed_successfully\n    command:\n      - python3\n      - apps/chronicle/worker/ingestion_worker.py\n''',
+              'worker source-init dependency',
+          )
+
+          documents = Path('apps/chronicle/persistence/documents.py')
+          replace_once(
+              documents,
+              '''    dest = resolve_storage_path(storage_dir, storage_key)\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    tmp = dest.parent / f".tmp-{uuid.uuid4().hex}"\n    try:\n''',
+              '''    dest = resolve_storage_path(storage_dir, storage_key)\n    try:\n        dest.parent.mkdir(parents=True, exist_ok=True)\n    except OSError as exc:\n        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc\n    tmp = dest.parent / f".tmp-{uuid.uuid4().hex}"\n    try:\n''',
+              'write_source_file mkdir error mapping',
+          )
+          replace_once(
+              documents,
+              '''    dest = resolve_storage_path(storage_dir, storage_key)\n    # Stage bytes to a temp sibling first so a DB failure leaves no visible\n    # partial file behind.\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    tmp = dest.parent / f".tmp-{revision_id.hex}"\n''',
+              '''    dest = resolve_storage_path(storage_dir, storage_key)\n    # Stage bytes to a temp sibling first so a DB failure leaves no visible\n    # partial file behind. Directory failures are normal persistence errors,\n    # never uncaught exceptions that tear down the Studio sidecar connection.\n    try:\n        dest.parent.mkdir(parents=True, exist_ok=True)\n    except OSError as exc:\n        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc\n    tmp = dest.parent / f".tmp-{revision_id.hex}"\n''',
+              'upload_revision mkdir error mapping',
+          )
+          PY
+
       - name: Prepare pinned six-source pack
         run: |
           set -euo pipefail
-          rm -rf /tmp/c1-t13-prepared /tmp/c1-t13-evidence
+          rm -rf /tmp/c1-t13-prepared /tmp/c1-t13-evidence "$CHRONICLE_DATA_DIR"
           mkdir -p /tmp/c1-t13-evidence "$CHRONICLE_DATA_DIR/postgres" "$CHRONICLE_DATA_DIR/sources"
           python apps/chronicle/corpus/source_pack.py prepare \
             --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
@@ -74,24 +124,29 @@ jobs:
         run: |
           set -euo pipefail
           docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
-            exec -T chronicle-read \
-            python3 apps/chronicle/corpus/metrics.py \
+            exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
             > /tmp/c1-t13-evidence/baseline.json
           cat /tmp/c1-t13-evidence/baseline.json
 
       - name: Ingest six sources through authenticated Studio HTTP
         run: |
-          set -euo pipefail
+          set -uo pipefail
           python apps/chronicle/corpus/source_pack.py ingest \
             --source-dir /tmp/c1-t13-prepared \
             --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
             --admin-user "$CHRONICLE_ADMIN_USER" \
             --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
             --report /tmp/c1-t13-evidence/ingest-first.json \
-            > /tmp/c1-t13-evidence/ingest-first.log
+            > /tmp/c1-t13-evidence/ingest-first.log 2>&1
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            cat /tmp/c1-t13-evidence/ingest-first.log
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+              logs chronicle-read chronicle-web | tee /tmp/c1-t13-evidence/upload-failure-containers.log
+            exit "$rc"
+          fi
+          set -e
 
-          # Repeat the exact operator action: immutable revisions/jobs must be reused,
-          # not duplicated.
           python apps/chronicle/corpus/source_pack.py ingest \
             --source-dir /tmp/c1-t13-prepared \
             --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
@@ -117,14 +172,12 @@ jobs:
             >/tmp/c1-t13-evidence/jobs.json
 
           docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
-            exec -T chronicle-read \
-            python3 apps/chronicle/corpus/metrics.py \
+            exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
             > /tmp/c1-t13-evidence/queued-after.json
 
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           ev = Path('/tmp/c1-t13-evidence')
           baseline = json.loads((ev / 'baseline.json').read_text())
           after = json.loads((ev / 'queued-after.json').read_text())
@@ -138,7 +191,6 @@ jobs:
           assert baseline['historical_knowledge']['canonical_events'] == 45, baseline
           assert len(prepared['sources']) == 6, prepared
           assert len(first['sources']) == 6 and len(second['sources']) == 6
-
           by_key_1 = {row['key']: row for row in first['sources']}
           by_key_2 = {row['key']: row for row in second['sources']}
           assert set(by_key_1) == set(by_key_2) == {row['key'] for row in prepared['sources']}
@@ -146,39 +198,41 @@ jobs:
               one = by_key_1[src['key']]
               two = by_key_2[src['key']]
               assert one['source_sha256'] == two['source_sha256'] == src['sha256']
-              assert one['document_created'] is True, one
-              assert one['job_created'] is True, one
+              assert one['document_created'] is True and one['job_created'] is True, one
               assert one['job_status'] == 'queued', one
-              assert two['document_created'] is False, two
-              assert two['revision_duplicate'] is True, two
+              assert two['document_created'] is False and two['revision_duplicate'] is True, two
               assert two['job_created'] is False, two
-              assert two['document_id'] == one['document_id'], (one, two)
-              assert two['revision_id'] == one['revision_id'], (one, two)
-              assert two['job_id'] == one['job_id'], (one, two)
+              assert (two['document_id'], two['revision_id'], two['job_id']) == (
+                  one['document_id'], one['revision_id'], one['job_id']
+              )
 
-          assert after['control_plane']['documents'] - baseline['control_plane']['documents'] == 6, (baseline, after)
-          assert after['control_plane']['document_revisions'] - baseline['control_plane']['document_revisions'] == 6, (baseline, after)
-          assert after['control_plane']['ingestion_jobs'] - baseline['control_plane']['ingestion_jobs'] == 6, (baseline, after)
+          assert after['control_plane']['documents'] - baseline['control_plane']['documents'] == 6
+          assert after['control_plane']['document_revisions'] - baseline['control_plane']['document_revisions'] == 6
+          assert after['control_plane']['ingestion_jobs'] - baseline['control_plane']['ingestion_jobs'] == 6
           assert after['control_plane']['ingestion_jobs_by_status'].get('queued') == 6, after
-
-          # No worker was started: Studio upload may expand the control plane but must
-          # not mutate historical knowledge by itself.
           assert after['historical_knowledge'] == baseline['historical_knowledge'], (baseline, after)
           assert after['reader_presentation'] == baseline['reader_presentation'], (baseline, after)
-
-          doc_rows = documents.get('documents', [])
-          job_rows = jobs.get('jobs', [])
-          assert len([d for d in doc_rows if d.get('title', '').startswith('三國志·')]) == 6, doc_rows
-          assert len(job_rows) == 6, job_rows
-          assert all(j.get('status') == 'queued' for j in job_rows), job_rows
-
-          sources_html = (ev / 'studio-sources.html').read_text(errors='replace')
-          imports_html = (ev / 'studio-imports.html').read_text(errors='replace')
-          assert '<!doctype html' in sources_html.lower(), sources_html[:200]
-          assert '<!doctype html' in imports_html.lower(), imports_html[:200]
+          assert len([d for d in documents.get('documents', []) if d.get('title', '').startswith('三國志·')]) == 6
+          assert len(jobs.get('jobs', [])) == 6
+          assert all(j.get('status') == 'queued' for j in jobs['jobs'])
+          assert '<!doctype html' in (ev / 'studio-sources.html').read_text(errors='replace').lower()
+          assert '<!doctype html' in (ev / 'studio-imports.html').read_text(errors='replace').lower()
           print('C1-T13 Studio HTTP ingestion + idempotency: PASS')
           print(json.dumps({'baseline': baseline, 'queued_after': after}, ensure_ascii=False, indent=2))
           PY
+
+      - name: Commit validated source-volume fix
+        run: |
+          set -euo pipefail
+          git add compose.chronicle.yaml apps/chronicle/persistence/documents.py
+          if git diff --cached --quiet; then
+            echo "source-volume ownership fix already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(chronicle): initialize writable source volume"
+          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
 
       - name: Upload T13 Studio-ingestion evidence
         if: always()
