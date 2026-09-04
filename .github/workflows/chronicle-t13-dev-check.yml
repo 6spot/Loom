@@ -9,189 +9,196 @@ on:
       - ".github/workflows/chronicle-t13-dev-check.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  check:
+  studio-ingestion:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:0.8.6-pg18
-        env:
-          POSTGRES_USER: loom
-          POSTGRES_PASSWORD: loom
-          POSTGRES_DB: loom_control
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U loom -d loom_control"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
     env:
-      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
+      CHRONICLE_POSTGRES_USER: chronicle
+      CHRONICLE_POSTGRES_PASSWORD: chronicle-t13-ci-postgres-0123456789abcdef
+      CHRONICLE_POSTGRES_DB: chronicle
+      CHRONICLE_DATA_DIR: /tmp/loom-chronicle-t13
+      CHRONICLE_BIND_IP: 127.0.0.1
+      CHRONICLE_PORT: "18080"
+      CHRONICLE_IMAGE_TAG: c1-t13-dev
+      CHRONICLE_ADMIN_USER: c1-t13-admin
+      CHRONICLE_ADMIN_PASSWORD: c1-t13-admin-password-0123456789abcdef
 
     steps:
       - uses: actions/checkout@v7
         with:
           ref: feat/chronicle-c1-t13-high-density-corpus
-          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
-      - name: Apply secure real-source mode
+      - name: Prepare pinned six-source pack
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: Path, old: str, new: str, label: str) -> None:
-              text = path.read_text()
-              if new in text:
-                  return
-              if old not in text:
-                  raise SystemExit(f"patch target not found for {label}: {path}")
-              path.write_text(text.replace(old, new, 1))
-
-          worker = Path("apps/chronicle/worker/ingestion_worker.py")
-          replace_once(
-              worker,
-              "        document_meta: dict[str, Any] | None = None,\n    ) -> None:\n",
-              "        document_meta: dict[str, Any] | None = None,\n        allow_fake_after_real_source: bool = False,\n    ) -> None:\n",
-              "JobRunner secure-mode parameter",
-          )
-          replace_once(
-              worker,
-              "        if presentation_model is not None and (\n",
-              "        if not isinstance(allow_fake_after_real_source, bool):\n            raise PersistenceError(\n                \"allow_fake_after_real_source must be a boolean\"\n            )\n        if presentation_model is not None and (\n",
-              "JobRunner secure-mode validation",
-          )
-          replace_once(
-              worker,
-              "        self.document_meta = dict(document_meta or {})\n",
-              "        self.document_meta = dict(document_meta or {})\n        self.allow_fake_after_real_source = allow_fake_after_real_source\n",
-              "JobRunner secure-mode assignment",
-          )
-          replace_once(
-              worker,
-              "            if stage == CHUNK_BEARING_STAGE:\n                if self.chunk_model is not None:\n",
-              "            if stage == CHUNK_BEARING_STAGE:\n                if (\n                    self.chunk_model is None\n                    and real is not real_unset\n                    and real is not None\n                    and not self.allow_fake_after_real_source\n                ):\n                    error = (\n                        \"real immutable source requires an extraction model; \"\n                        \"refusing deterministic fake extraction\"\n                    )\n                    with psycopg.connect(self.database_url) as conn:\n                        control_plane.advance_stage_fenced(\n                            conn, job_id=job_id, stage=stage,\n                            status=\"failed\", worker=self.worker, error=error,\n                        )\n                        control_plane.set_job_status_fenced(\n                            conn, job_id=job_id, status=\"failed\",\n                            worker=self.worker, error=error,\n                        )\n                    self._emit(\"stage_failed\", {\"stage\": stage, \"error\": error})\n                    return \"failed\"\n                if self.chunk_model is not None:\n",
-              "extract fail-closed guard",
-          )
-          replace_once(
-              worker,
-              "    document_meta: dict[str, Any] | None = None,\n) -> tuple[uuid.UUID, str] | None:\n",
-              "    document_meta: dict[str, Any] | None = None,\n    allow_fake_after_real_source: bool = False,\n) -> tuple[uuid.UUID, str] | None:\n",
-              "run_once secure-mode parameter",
-          )
-          replace_once(
-              worker,
-              "        document_meta=document_meta,\n    )\n    return claimed, runner.execute_job(claimed)\n",
-              "        document_meta=document_meta,\n        allow_fake_after_real_source=allow_fake_after_real_source,\n    )\n    return claimed, runner.execute_job(claimed)\n",
-              "run_once propagation",
-          )
-          replace_once(
-              worker,
-              "    document_meta: dict[str, Any] | None = None,\n) -> dict[str, int]:\n",
-              "    document_meta: dict[str, Any] | None = None,\n    allow_fake_after_real_source: bool = False,\n) -> dict[str, int]:\n",
-              "run_forever secure-mode parameter",
-          )
-          replace_once(
-              worker,
-              "                document_meta=document_meta,\n            )\n",
-              "                document_meta=document_meta,\n                allow_fake_after_real_source=allow_fake_after_real_source,\n            )\n",
-              "run_forever propagation",
-          )
-
-          segtest = Path("apps/chronicle/worker/test_segmentation_postgres.py")
-          replace_once(
-              segtest,
-              "            revision_source=source, segmentation_config=config,\n        )\n",
-              "            revision_source=source, segmentation_config=config,\n            allow_fake_after_real_source=True,\n        )\n",
-              "segmentation stage-test helper",
-          )
-          replace_once(
-              segtest,
-              "                revision_source=loader, segmentation_config=config,\n            )\n            self.assertIsNotNone(result)\n            self.assertEqual(result[1], \"completed\")\n",
-              "                revision_source=loader, segmentation_config=config,\n                allow_fake_after_real_source=True,\n            )\n            self.assertIsNotNone(result)\n            self.assertEqual(result[1], \"completed\")\n",
-              "production loader segmentation-only test",
-          )
-
-          prodtest = Path("apps/chronicle/worker/test_production_source_fail_closed_postgres.py")
-          text = prodtest.read_text()
-          text = text.replace(
-              '"SELECT status, last_error FROM chronicle.ingestion_jobs WHERE job_id = %s",',
-              '"SELECT status, error FROM chronicle.ingestion_jobs WHERE job_id = %s",',
-          )
-          text = text.replace(
-              '"SELECT stage_name, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",',
-              '"SELECT stage, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",',
-          )
-          prodtest.write_text(text)
-          PY
-
-      - name: Full Chronicle worker contracts
-        run: |
-          set -euo pipefail
-          python -m pip install -r apps/chronicle/persistence/requirements.txt
-          python -m pip install -r apps/chronicle/read_api/requirements.txt
-          python -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
-
-      - name: Source-pack operator contracts
-        run: |
-          set -euo pipefail
-          python -m unittest discover -s apps/chronicle/corpus -p 'test_*.py' -v
-
-      - name: Chronicle Compose model contract
-        env:
-          CHRONICLE_POSTGRES_PASSWORD: ci-only-postgres-password
-          CHRONICLE_ADMIN_USER: admin
-          CHRONICLE_ADMIN_PASSWORD: ci-only-admin-password-0123456789abcdef
-          CHRONICLE_MODEL_ENDPOINT: https://api.example.invalid/v1/responses
-          CHRONICLE_MODEL_API_KEY: ci-placeholder-not-called
-          CHRONICLE_EXTRACTION_MODEL: extract-ci
-          CHRONICLE_PRESENTATION_MODEL: present-ci
-        run: |
-          set -euo pipefail
-          docker compose -f compose.chronicle.yaml --profile worker config --quiet
-          docker compose -f compose.chronicle.yaml --profile worker config > /tmp/chronicle-compose.txt
-          grep -Fq 'CHRONICLE_MODEL_ENDPOINT: https://api.example.invalid/v1/responses' /tmp/chronicle-compose.txt
-          grep -Fq 'CHRONICLE_EXTRACTION_MODEL: extract-ci' /tmp/chronicle-compose.txt
-          grep -Fq 'CHRONICLE_PRESENTATION_MODEL: present-ci' /tmp/chronicle-compose.txt
-
-      - name: Prepare pinned C1-T13 Wikisource pack
-        run: |
-          set -euo pipefail
+          rm -rf /tmp/c1-t13-prepared /tmp/c1-t13-evidence
+          mkdir -p /tmp/c1-t13-evidence "$CHRONICLE_DATA_DIR/postgres" "$CHRONICLE_DATA_DIR/sources"
           python apps/chronicle/corpus/source_pack.py prepare \
             --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
-            --output-dir /tmp/c1-t13-prepared > /tmp/c1-t13-prepare.log
-          python3 - <<'PY'
-          import hashlib, json
-          from pathlib import Path
-          root = Path('/tmp/c1-t13-prepared')
-          report = json.loads((root / 'prepared.json').read_text())
-          assert len(report['sources']) == 6, report
-          for item in report['sources']:
-              raw = (root / item['filename']).read_bytes()
-              assert len(raw) == item['bytes'] and len(raw) >= 1000, item
-              assert hashlib.sha256(raw).hexdigest() == item['sha256'], item
-          print('C1-T13 pinned acquisition: PASS')
-          PY
+            --output-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-evidence/prepare.log
 
-      - name: Commit validated secure real-source mode
+      - name: Start production-shaped Chronicle stack without worker
         run: |
           set -euo pipefail
-          git add \
-            apps/chronicle/worker/ingestion_worker.py \
-            apps/chronicle/worker/test_segmentation_postgres.py \
-            apps/chronicle/worker/test_production_source_fail_closed_postgres.py
-          if git diff --cached --quiet; then
-            echo "secure real-source mode already current"
-            exit 0
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            up -d --build
+
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/healthz" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml logs
+            exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(chronicle): forbid fake extraction for real sources"
-          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
+
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            logs chronicle-init | tee /tmp/c1-t13-evidence/chronicle-init.log
+          grep -q "entities=66 events=45 relations=2" /tmp/c1-t13-evidence/chronicle-init.log
+
+      - name: Capture C0 baseline density
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read \
+            python3 apps/chronicle/corpus/metrics.py \
+            > /tmp/c1-t13-evidence/baseline.json
+          cat /tmp/c1-t13-evidence/baseline.json
+
+      - name: Ingest six sources through authenticated Studio HTTP
+        run: |
+          set -euo pipefail
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t13-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/ingest-first.json \
+            > /tmp/c1-t13-evidence/ingest-first.log
+
+          # Repeat the exact operator action: immutable revisions/jobs must be reused,
+          # not duplicated.
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t13-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/ingest-second.json \
+            > /tmp/c1-t13-evidence/ingest-second.log
+
+      - name: Verify Studio routes and queued control-plane state
+        run: |
+          set -euo pipefail
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/studio/sources" \
+            >/tmp/c1-t13-evidence/studio-sources.html
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/studio/imports" \
+            >/tmp/c1-t13-evidence/studio-imports.html
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/documents" \
+            >/tmp/c1-t13-evidence/documents.json
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/jobs?limit=100&offset=0" \
+            >/tmp/c1-t13-evidence/jobs.json
+
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read \
+            python3 apps/chronicle/corpus/metrics.py \
+            > /tmp/c1-t13-evidence/queued-after.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          ev = Path('/tmp/c1-t13-evidence')
+          baseline = json.loads((ev / 'baseline.json').read_text())
+          after = json.loads((ev / 'queued-after.json').read_text())
+          first = json.loads((ev / 'ingest-first.json').read_text())
+          second = json.loads((ev / 'ingest-second.json').read_text())
+          documents = json.loads((ev / 'documents.json').read_text())
+          jobs = json.loads((ev / 'jobs.json').read_text())
+          prepared = json.loads(Path('/tmp/c1-t13-prepared/prepared.json').read_text())
+
+          assert baseline['historical_knowledge']['canonical_entities'] == 66, baseline
+          assert baseline['historical_knowledge']['canonical_events'] == 45, baseline
+          assert len(prepared['sources']) == 6, prepared
+          assert len(first['sources']) == 6 and len(second['sources']) == 6
+
+          by_key_1 = {row['key']: row for row in first['sources']}
+          by_key_2 = {row['key']: row for row in second['sources']}
+          assert set(by_key_1) == set(by_key_2) == {row['key'] for row in prepared['sources']}
+          for src in prepared['sources']:
+              one = by_key_1[src['key']]
+              two = by_key_2[src['key']]
+              assert one['source_sha256'] == two['source_sha256'] == src['sha256']
+              assert one['document_created'] is True, one
+              assert one['job_created'] is True, one
+              assert one['job_status'] == 'queued', one
+              assert two['document_created'] is False, two
+              assert two['revision_duplicate'] is True, two
+              assert two['job_created'] is False, two
+              assert two['document_id'] == one['document_id'], (one, two)
+              assert two['revision_id'] == one['revision_id'], (one, two)
+              assert two['job_id'] == one['job_id'], (one, two)
+
+          assert after['control_plane']['documents'] - baseline['control_plane']['documents'] == 6, (baseline, after)
+          assert after['control_plane']['document_revisions'] - baseline['control_plane']['document_revisions'] == 6, (baseline, after)
+          assert after['control_plane']['ingestion_jobs'] - baseline['control_plane']['ingestion_jobs'] == 6, (baseline, after)
+          assert after['control_plane']['ingestion_jobs_by_status'].get('queued') == 6, after
+
+          # No worker was started: Studio upload may expand the control plane but must
+          # not mutate historical knowledge by itself.
+          assert after['historical_knowledge'] == baseline['historical_knowledge'], (baseline, after)
+          assert after['reader_presentation'] == baseline['reader_presentation'], (baseline, after)
+
+          doc_rows = documents.get('documents', [])
+          job_rows = jobs.get('jobs', [])
+          assert len([d for d in doc_rows if d.get('title', '').startswith('三國志·')]) == 6, doc_rows
+          assert len(job_rows) == 6, job_rows
+          assert all(j.get('status') == 'queued' for j in job_rows), job_rows
+
+          sources_html = (ev / 'studio-sources.html').read_text(errors='replace')
+          imports_html = (ev / 'studio-imports.html').read_text(errors='replace')
+          assert '<!doctype html' in sources_html.lower(), sources_html[:200]
+          assert '<!doctype html' in imports_html.lower(), imports_html[:200]
+          print('C1-T13 Studio HTTP ingestion + idempotency: PASS')
+          print(json.dumps({'baseline': baseline, 'queued_after': after}, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload T13 Studio-ingestion evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-t13-studio-ingestion-evidence
+          path: |
+            /tmp/c1-t13-prepared/prepared.json
+            /tmp/c1-t13-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Show final container state
+        if: always()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a || true
+
+      - name: Stop Chronicle stack
+        if: always()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            down --remove-orphans || true
+          sudo rm -rf "$CHRONICLE_DATA_DIR" || true
