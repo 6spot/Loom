@@ -35,4 +35,5 @@ Produce reproducible document sections and semantic chunks within model budgets 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: versioned structure/segmentation/context module (`persistence/segmentation.py`), worker real `structure`/`segment` path (opt-in, fake path default), per-chunk checkpoint setter, continuity fixture, unit + PostgreSQL resume suites. Delivery PR pending.
+- 2026-09-04 — Implementation started: versioned structure/segmentation/context module (`persistence/segmentation.py`), worker real `structure`/`segment` path (opt-in, fake path default), per-chunk checkpoint setter, continuity fixture, unit + PostgreSQL resume suites.
+- 2026-09-04 — Delivery PR #515 opened (unmerged). Local evidence: 67 persistence tests OK (28 new), 21 worker tests OK (17 C1-T4 unchanged + 4 new). Post-merge reconciliation (completed/completion_pr/merge_sha) pending.
