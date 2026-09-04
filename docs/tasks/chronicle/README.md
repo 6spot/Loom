@@ -72,3 +72,22 @@ Completed. `GET /v0/search` and the same-origin `/search` browser surface provid
 ## Continuation rule
 
 C0-T1 through C0-T12 now form a complete source-grounded vertical slice from ingestion to canonical publication, persistence, read API, browser exploration, and direct historical search. Do not automatically add semantic/vector search, Q&A synthesis, map, graph, or learning flows next. Choose the next Chronicle capability from observed product usage and concrete search/exploration failures.
+
+## C1 — Historical World / Book-to-Chronicle
+
+C1 is now planned under coordination Root #489. The canonical C1 dependency graph and executable task index are in [`C1-README.md`](C1-README.md).
+
+C1 is intentionally structured as Root -> executable leaves -> serial final gate for Multica/agent coordination. The Root itself is not executable. Every C1 leaf has its own Task Ledger record and GitHub Issue #490–#506. READY eligibility comes from canonical `depends_on` state on the default branch, not GitHub Issue open/closed state.
+
+C1 focuses on:
+
+- complete-document upload and immutable revision provenance;
+- durable restart-safe ingestion jobs;
+- semantic segmentation with forward context;
+- contract-first model extraction and conservative resolution;
+- engineering-oriented shadcn Studio operations/review;
+- one `zh-CN` Reader Presentation layer with Claim/source traceability;
+- a denser bounded late-Han / early-Three-Kingdoms corpus;
+- Coverage, Historical Moment, and the first World/time-context public experience.
+
+World-history expansion, persisted multilingual presentation, semantic Q&A, map/territorial state, multi-admin RBAC, and a forced all-Rust rewrite are outside C1.
