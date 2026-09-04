@@ -11,6 +11,14 @@ machine mirrors the normative Rust ``apps/chronicle/control_plane``
 contract), so queue/inspect/retry/resume/cancel can never invent a
 transition the contract forbids.
 
+C1-T10 deliberately exposes a *safe Studio projection* of job detail. The
+underlying C1-T6 ChunkRun checkpoint is a replay/audit record and may contain
+verbatim prompts, raw model responses, candidates and context. Those bytes
+remain durable in PostgreSQL but are not a browser API. Studio receives
+version/hash/validation/error metadata sufficient to debug progress without
+turning the browser into a second model-artifact store or leaking configured
+provider secrets.
+
 All responses are JSON under a ``chronicle.*`` schema:
 
 ```text
@@ -25,6 +33,7 @@ POST   /api/v1/studio/jobs/{job_id}/cancel
 
 from __future__ import annotations
 
+import copy
 import json
 import uuid
 from typing import Any
@@ -74,6 +83,165 @@ def _require_uuid(value: str, description: str) -> uuid.UUID:
         raise _NotFound(f"{description} {value!r} is not a valid UUID") from exc
 
 
+def _safe_validation(value: Any) -> Any:
+    """Copy deterministic validation metadata, excluding unknown rich values.
+
+    Validator reports are expected to be JSON objects/lists/scalars and do
+    not contain credentials. Keeping the shape is useful in Studio because a
+    failed extraction should explain *why* it failed without returning the
+    model prompt/response that produced the report.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_safe_validation(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _safe_validation(item) for key, item in value.items()}
+    return str(value)
+
+
+def _safe_run_checkpoint(checkpoint: Any) -> dict[str, Any]:
+    """Project a replay checkpoint into browser-safe debugging metadata.
+
+    Explicitly omitted, even when present:
+    ``prompt``, ``raw_response``, ``candidate``, full request/context payloads,
+    and any unrecognized keys. Hashes and deterministic validation reports are
+    enough to correlate a Studio failure with the durable server-side run.
+    """
+    if not isinstance(checkpoint, dict):
+        return {}
+    projected: dict[str, Any] = {}
+    for key in (
+        "extraction_version",
+        "contract_version",
+        "prompt_version",
+        "model_version",
+        "attempt_count",
+        "accepted",
+        "error",
+        "authoritative",
+        "authority_note",
+    ):
+        value = checkpoint.get(key)
+        if value is None or isinstance(value, (str, int, float, bool)):
+            if value is not None:
+                projected[key] = value
+
+    attempts = checkpoint.get("attempts")
+    if isinstance(attempts, list):
+        safe_attempts: list[dict[str, Any]] = []
+        for attempt in attempts:
+            if not isinstance(attempt, dict):
+                continue
+            safe_attempt: dict[str, Any] = {}
+            for key in (
+                "kind",
+                "prompt_sha256",
+                "raw_response_sha256",
+                "parse_error",
+            ):
+                value = attempt.get(key)
+                if value is None or isinstance(value, (str, int, float, bool)):
+                    if value is not None:
+                        safe_attempt[key] = value
+            if "validation" in attempt:
+                safe_attempt["validation"] = _safe_validation(attempt.get("validation"))
+            safe_attempts.append(safe_attempt)
+        projected["attempts"] = safe_attempts
+    return projected
+
+
+def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
+    """Return the C1-T10 browser contract from the internal control-plane view."""
+    result = {
+        key: copy.deepcopy(detail.get(key))
+        for key in (
+            "job_id",
+            "revision_id",
+            "status",
+            "attempt",
+            "max_attempts",
+            "lease_owner",
+            "lease_expires_at",
+            "error",
+            "created_at",
+            "updated_at",
+            "open_reviews",
+        )
+    }
+    result["stages"] = [
+        {
+            "stage": stage.get("stage"),
+            "status": stage.get("status"),
+            "attempt": stage.get("attempt"),
+            "error": stage.get("error"),
+            "started_at": stage.get("started_at"),
+            "finished_at": stage.get("finished_at"),
+        }
+        for stage in detail.get("stages", [])
+        if isinstance(stage, dict)
+    ]
+    result["chunks"] = []
+    for chunk in detail.get("chunks", []):
+        if not isinstance(chunk, dict):
+            continue
+        projected_chunk = {
+            key: copy.deepcopy(chunk.get(key))
+            for key in (
+                "chunk_id",
+                "section_id",
+                "chunk_index",
+                "status",
+                "attempt",
+                "max_attempts",
+                "source_start",
+                "source_end",
+                "source_sha256",
+                "content_sha256",
+            )
+        }
+        projected_chunk["runs"] = [
+            {
+                "run_id": run.get("run_id"),
+                "attempt": run.get("attempt"),
+                "status": run.get("status"),
+                "worker": run.get("worker"),
+                "error": run.get("error"),
+                "started_at": run.get("started_at"),
+                "finished_at": run.get("finished_at"),
+                "meta": _safe_run_checkpoint(run.get("checkpoint")),
+            }
+            for run in chunk.get("runs", [])
+            if isinstance(run, dict)
+        ]
+        result["chunks"].append(projected_chunk)
+    # T10 needs review debt/progress visibility but does not own the review
+    # decision payload; C1-T11 will expose its own purpose-built review API.
+    result["reviews"] = [
+        {
+            "review_id": review.get("review_id"),
+            "kind": review.get("kind"),
+            "status": review.get("status"),
+            "chunk_id": review.get("chunk_id"),
+            "created_at": review.get("created_at"),
+            "resolved_at": review.get("resolved_at"),
+        }
+        for review in detail.get("reviews", [])
+        if isinstance(review, dict)
+    ]
+    result["outputs"] = [
+        {
+            "output_id": output.get("output_id"),
+            "artifact_type": output.get("artifact_type"),
+            "artifact_sha256": output.get("artifact_sha256"),
+            "created_at": output.get("created_at"),
+        }
+        for output in detail.get("outputs", [])
+        if isinstance(output, dict)
+    ]
+    return result
+
+
 def dispatch_jobs(
     conn,
     control_plane,
@@ -86,8 +254,8 @@ def dispatch_jobs(
     """Serve one Studio ingestion-job request.
 
     ``control_plane`` is the ``apps/chronicle/persistence/control_plane.py``
-    module (passed in so this router stays importable without persistence
-    on sys.path). Returns ``(status, content_type, body_bytes)``.
+    module (passed in so this router stays importable without persistence on
+    sys.path). Returns ``(status, content_type, body_bytes)``.
     """
     from common import PersistenceConflict, PersistenceError
 
@@ -181,5 +349,9 @@ def _job_response(
 ) -> tuple[int, str, bytes]:
     detail = control_plane.get_job_detail(conn, job_id=job_id)
     return status, "application/json; charset=utf-8", _json_bytes(
-        {"schema": "chronicle.job", "version": "0.1", "job": detail}
+        {
+            "schema": "chronicle.job",
+            "version": "0.2",
+            "job": _studio_job_projection(detail),
+        }
     )

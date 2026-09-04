@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { useStudioAuth } from "../../lib/studio-auth";
@@ -29,7 +30,7 @@ export default function StudioHomePage() {
       <Card>
         <CardHeader>
           <CardTitle>Studio 总览</CardTitle>
-          <CardDescription>工程操作面占位：导入、评审与语料管理在后续 C1 任务中实现。</CardDescription>
+          <CardDescription>内部工程操作面；历史数据生产状态来自 Chronicle 自己的 durable control plane。</CardDescription>
         </CardHeader>
         <CardContent>
           {error ? (
@@ -61,18 +62,18 @@ export default function StudioHomePage() {
       <Card>
         <CardHeader>
           <CardTitle>工程入口</CardTitle>
-          <CardDescription>后续任务（C1-T10 导入、C1-T11 评审、C1-T13 语料）的挂载点。</CardDescription>
+          <CardDescription>Imports 已可操作；Review 与更丰富的 Corpus 面板按 C1 依赖继续推进。</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="studio-links">
             <li>
-              <a href="/studio/imports">Imports — 文档导入与任务进度（占位）</a>
+              <Link to="/studio/imports">Imports — 上传文献、Revision 历史、Ingestion Job 与运行进度</Link>
             </li>
             <li>
-              <a href="/studio/review">Review — 跨来源评审队列（占位）</a>
+              <Link to="/studio/review">Review — 跨来源评审队列（C1-T11）</Link>
             </li>
             <li>
-              <a href="/studio/sources">Sources / Corpus — 来源与语料（占位）</a>
+              <Link to="/studio/sources">Sources / Corpus — 来源与语料（后续任务）</Link>
             </li>
           </ul>
         </CardContent>

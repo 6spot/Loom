@@ -1,0 +1,1 @@
+import{j as r,r as e}from"./index.js";import{c as a}from"./cn.js";const p=e.forwardRef(function({className:t,...n},o){return r.jsx("input",{ref:o,className:a("studio-input",t),...n})});function c({className:s,...t}){return r.jsx("label",{className:a("studio-label",s),...t})}export{p as I,c as L};
