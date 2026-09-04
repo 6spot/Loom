@@ -164,3 +164,10 @@ python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs*.py
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*.py'
 cd apps/chronicle/server && cargo test --offline
 ```
+
+The C1-T8 resolve/publish path is covered by
+`persistence/test_resolve_publish_unit.py` (deterministic C0-reusing
+core: candidates, decisions, publication boundaries) and
+`worker/test_resolve_publish_postgres.py` (durable review-gated
+resume plus unattended disjoint publication); see
+`review-publication.md` for the contract.

@@ -62,13 +62,22 @@ if str(_PERSISTENCE_DIR) not in sys.path:
     sys.path.insert(0, str(_PERSISTENCE_DIR))
 
 import control_plane  # noqa: E402
-from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
+from common import (  # noqa: E402
+    LeaseLost,
+    PersistenceConflict,
+    PersistenceError,
+    sha256_json,
+)
 
 import assembly  # noqa: E402
+import canonical_store  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
+import resolution_store  # noqa: E402
+import resolve_publish as resolve_publish  # noqa: E402
 import segmentation  # noqa: E402
 from segmentation import SegmentationConfig  # noqa: E402
+import staged_store  # noqa: E402
 
 try:
     import psycopg  # noqa: E402
@@ -103,6 +112,17 @@ REAL_SEGMENT_STAGES = ("structure", "segment")
 #: extraction checkpoints and records one revision-scoped source bundle
 #: artifact; without real extraction the stage keeps the fake executor.
 REAL_ASSEMBLE_STAGE = "assemble"
+
+#: Stages that the C1-T8 real cross-source resolution + canonical
+#: publication path owns once a real assembled source bundle exists for
+#: the job (an ``assembled-source-bundle`` ingestion output). The gate
+#: is the artifact itself, not a flag: fake jobs without assembly keep
+#: the deterministic fake executor, and resume after review re-enters
+#: the same real path without re-running accepted extraction work.
+#: The ``present`` stage stays on the fake executor (Reader
+#: Presentation is C1-T12 scope).
+REAL_RESOLVE_STAGE = "resolve"
+REAL_PUBLISH_STAGE = "publish"
 
 #: Fake completion artifact recorded once a job finishes every stage.
 FAKE_OUTPUT_TYPE = "fake-pipeline-result"
@@ -1209,6 +1229,416 @@ class JobRunner:
         self._emit("stage_completed", {"stage": REAL_ASSEMBLE_STAGE})
         return "ok"
 
+    # -- C1-T8 real cross-source resolution / publication path -----------
+
+    def _real_publication_active(self, job_id: uuid.UUID) -> bool:
+        """Whether the C1-T8 real resolve/publish path owns this job.
+
+        True exactly when a real assembled source bundle output exists:
+        fake jobs without C1-T7 assembly keep the deterministic fake
+        executor for ``resolve``/``publish``. One committed read.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT 1 FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                """,
+                (job_id, assembly.ARTIFACT_TYPE),
+            ).fetchone()
+            return row is not None
+
+    def _read_assembled_artifact(
+        self, job_id: uuid.UUID
+    ) -> tuple[dict[str, Any], uuid.UUID]:
+        """Return ``(assembly artifact, revision_id)`` for a job.
+
+        Fails closed when the job has no assembled-source-bundle
+        output instead of resolving an unknown bundle.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT o.payload, j.revision_id
+                FROM chronicle.ingestion_outputs o
+                JOIN chronicle.ingestion_jobs j ON j.job_id = o.job_id
+                WHERE o.job_id = %s AND o.artifact_type = %s
+                ORDER BY o.created_at DESC LIMIT 1
+                """,
+                (job_id, assembly.ARTIFACT_TYPE),
+            ).fetchone()
+        if row is None or not isinstance(row[0], dict):
+            raise PersistenceError(
+                f"job {job_id} has no assembled source bundle; refusing to "
+                "resolve an unknown bundle"
+            )
+        return row[0], row[1]
+
+    def _read_job_outputs(
+        self, job_id: uuid.UUID, artifact_type: str
+    ) -> list[dict[str, Any]]:
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                ORDER BY created_at
+                """,
+                (job_id, artifact_type),
+            ).fetchall()
+            return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def _execute_real_resolve(self, job_id: uuid.UUID) -> str:
+        """Execute the ``resolve`` stage against the persisted corpus.
+
+        Returns 'ok'/'needs_review'/'cancelled'/'stopped'. Raises
+        :class:`LeaseLost` when this worker no longer holds the lease.
+        First run persists the new source bundle plus one initial
+        (all-``uncertain``) resolution artifact per corpus bundle with
+        candidates, opens one ``stage_gate`` review item per candidate,
+        and parks the job in ``needs_review`` when any candidate is
+        still open. Resume after human review finalizes the same
+        artifacts from the recorded decisions (never re-running
+        extraction/assembly) and completes the stage. A job with zero
+        candidates proceeds unattended: ``uncertain`` needs no gate
+        because publication keeps such records distinct by contract.
+        """
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        self._heartbeat(job_id)
+        artifact, revision_id = self._read_assembled_artifact(job_id)
+        bundle = artifact.get("bundle")
+        if not isinstance(bundle, dict):
+            raise PersistenceError(
+                f"job {job_id} assembled artifact carries no source bundle"
+            )
+        new_label = resolve_publish.new_bundle_label(revision_id)
+        # No connection is open across resolution: pure compute only.
+        with psycopg.connect(self.database_url) as conn:
+            corpus = resolve_publish.read_corpus_bundles(conn)
+        try:
+            initial = resolve_publish.build_initial_resolutions(
+                new_bundle=bundle, new_label=new_label, corpus=corpus
+            )
+        except PersistenceError as exc:
+            raise PersistenceError(f"real resolution failed closed: {exc}") from exc
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        bundle_sha = sha256_json(bundle)
+        # Persist the new bundle and the initial artifacts. Every store
+        # is idempotent (same label/content re-persists as a no-op and
+        # conflicting content fails closed), so resume after a crash
+        # between these steps simply continues.
+        with psycopg.connect(self.database_url) as conn:
+            staged_store.persist_bundle(conn, new_label, bundle)
+            conn.commit()
+        for resolution in initial:
+            with psycopg.connect(self.database_url) as conn:
+                resolution_store.persist_resolution(conn, resolution)
+                conn.commit()
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output_fenced(
+                conn, job_id=job_id, revision_id=revision_id,
+                worker=self.worker,
+                artifact_type=resolve_publish.BUNDLE_ARTIFACT_TYPE,
+                artifact_sha256=bundle_sha,
+                payload={
+                    "bundle_label": new_label,
+                    "artifact_sha256": bundle_sha,
+                    "source_title": bundle.get("source", {}).get("title")
+                    if isinstance(bundle.get("source"), dict)
+                    else None,
+                },
+            )
+            for resolution in initial:
+                control_plane.record_output_fenced(
+                    conn, job_id=job_id, revision_id=revision_id,
+                    worker=self.worker,
+                    artifact_type=resolve_publish.RESOLUTION_ARTIFACT_TYPE,
+                    artifact_sha256=sha256_json(resolution),
+                    payload={
+                        "resolution_sha256": sha256_json(resolution),
+                        "role": "initial",
+                        "left_bundle": (resolution.get("left_bundle") or {}).get("label"),
+                        "right_bundle": (resolution.get("right_bundle") or {}).get("label"),
+                        "counts": resolve_publish.count_candidates([resolution]),
+                    },
+                )
+        # Adopt-or-open review items (never duplicated on resume), then
+        # decide: park while any candidate is still open, else finalize.
+        with psycopg.connect(self.database_url) as conn:
+            resolve_publish.open_resolution_reviews(
+                conn, job_id=job_id, resolutions=initial
+            )
+            conn.commit()
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        with psycopg.connect(self.database_url) as conn:
+            open_count = resolve_publish.open_resolution_review_count(
+                conn, job_id=job_id
+            )
+        if open_count > 0:
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.write_stage_checkpoint_fenced(
+                    conn, job_id=job_id, stage=REAL_RESOLVE_STAGE,
+                    worker=self.worker,
+                    checkpoint={
+                        "resolve_publish_version":
+                            resolve_publish.RESOLVE_PUBLISH_VERSION,
+                        "new_bundle_label": new_label,
+                        "initial_resolutions": sorted(
+                            resolve_publish.initial_artifact_sha(item)
+                            for item in initial
+                        ),
+                        "counts": resolve_publish.count_candidates(initial),
+                        "open_reviews": open_count,
+                        "authoritative": False,
+                    },
+                )
+            self._emit(
+                "stage_needs_review",
+                {"stage": REAL_RESOLVE_STAGE, "open_reviews": open_count},
+            )
+            return "needs_review"
+        # Every candidate reviewed (or none existed): apply the recorded
+        # decisions deterministically and complete the stage.
+        with psycopg.connect(self.database_url) as conn:
+            decisions = resolve_publish.collect_review_decisions(
+                conn, job_id=job_id
+            )
+        final = resolve_publish.build_final_resolutions(
+            initial, decisions, require_complete=True
+        )
+        for resolution in final:
+            with psycopg.connect(self.database_url) as conn:
+                resolution_store.persist_resolution(conn, resolution)
+                conn.commit()
+        with psycopg.connect(self.database_url) as conn:
+            for resolution in final:
+                if sha256_json(resolution) in {
+                    sha256_json(item) for item in initial
+                }:
+                    continue
+                control_plane.record_output_fenced(
+                    conn, job_id=job_id, revision_id=revision_id,
+                    worker=self.worker,
+                    artifact_type=resolve_publish.RESOLUTION_ARTIFACT_TYPE,
+                    artifact_sha256=sha256_json(resolution),
+                    payload={
+                        "resolution_sha256":
+                            sha256_json(resolution),
+                        "role": "final",
+                        "left_bundle": (resolution.get("left_bundle") or {}).get("label"),
+                        "right_bundle":
+                            (resolution.get("right_bundle") or {}).get("label"),
+                        "counts": resolve_publish.count_candidates([resolution]),
+                    },
+                )
+            control_plane.write_stage_checkpoint_fenced(
+                conn, job_id=job_id, stage=REAL_RESOLVE_STAGE,
+                worker=self.worker,
+                checkpoint={
+                    "resolve_publish_version":
+                        resolve_publish.RESOLVE_PUBLISH_VERSION,
+                    "new_bundle_label": new_label,
+                    "initial_resolutions": sorted(
+                        resolve_publish.initial_artifact_sha(item)
+                        for item in initial
+                    ),
+                    "final_resolutions": sorted(
+                        sha256_json(item) for item in final
+                    ),
+                    "counts": resolve_publish.count_candidates(final),
+                    "open_reviews": 0,
+                    "authoritative": False,
+                },
+            )
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage=REAL_RESOLVE_STAGE,
+                status="completed", worker=self.worker,
+            )
+        self._emit("stage_completed", {"stage": REAL_RESOLVE_STAGE})
+        return "ok"
+
+    def _execute_real_publish(self, job_id: uuid.UUID) -> str:
+        """Execute the ``publish`` stage over accepted review decisions.
+
+        Returns 'ok'/'cancelled'/'stopped'. Raises :class:`LeaseLost`
+        when this worker no longer holds the lease, and
+        :class:`PersistenceError` (mapped by the caller to a failed
+        job) when publication fails closed — including
+        ``PublicationConflict``: conflicting accepted links never
+        silently choose an identity. A recorded catalog output is
+        adopted on re-entry so a crash between persisting and
+        completing never regenerates fresh UUIDs for the same
+        identities.
+        """
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        self._heartbeat(job_id)
+        existing_outputs = self._read_job_outputs(
+            job_id, resolve_publish.CATALOG_ARTIFACT_TYPE
+        )
+        if existing_outputs:
+            # Crash-window adoption: the catalog was already published
+            # and recorded; re-persisting the identical payload is a
+            # no-op and the stage completes without new UUIDs.
+            stored = existing_outputs[0]
+            catalog = stored.get("catalog")
+            if not isinstance(catalog, dict):
+                raise PersistenceError(
+                    f"job {job_id} catalog output carries no catalog"
+                )
+            with psycopg.connect(self.database_url) as conn:
+                canonical_store.persist_catalog(conn, catalog)
+                conn.commit()
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.write_stage_checkpoint_fenced(
+                    conn, job_id=job_id, stage=REAL_PUBLISH_STAGE,
+                    worker=self.worker,
+                    checkpoint={
+                        "resolve_publish_version":
+                            resolve_publish.RESOLVE_PUBLISH_VERSION,
+                        "catalog_sha256": stored.get("catalog_sha256"),
+                        "counts": stored.get("counts"),
+                        "adopted": True,
+                        "authoritative": False,
+                    },
+                )
+                control_plane.advance_stage_fenced(
+                    conn, job_id=job_id, stage=REAL_PUBLISH_STAGE,
+                    status="completed", worker=self.worker,
+                )
+            self._emit("stage_completed", {"stage": REAL_PUBLISH_STAGE})
+            return "ok"
+        artifact, revision_id = self._read_assembled_artifact(job_id)
+        bundle = artifact.get("bundle")
+        if not isinstance(bundle, dict):
+            raise PersistenceError(
+                f"job {job_id} assembled artifact carries no source bundle"
+            )
+        new_label = resolve_publish.new_bundle_label(revision_id)
+        # No connection is open across publication: pure compute only.
+        with psycopg.connect(self.database_url) as conn:
+            corpus = resolve_publish.read_corpus_bundles(conn)
+            prior = resolve_publish.read_corpus_resolutions(conn)
+            existing_catalog = resolve_publish.read_latest_catalog(conn)
+        if new_label not in corpus:
+            raise PersistenceError(
+                f"job {job_id} bundle {new_label!r} is not persisted; "
+                "refusing to publish an unpersisted bundle (run resolve first)"
+            )
+        initial = resolve_publish.build_initial_resolutions(
+            new_bundle=bundle, new_label=new_label, corpus=corpus
+        )
+        with psycopg.connect(self.database_url) as conn:
+            decisions = resolve_publish.collect_review_decisions(
+                conn, job_id=job_id
+            )
+            open_count = resolve_publish.open_resolution_review_count(
+                conn, job_id=job_id
+            )
+        if open_count > 0:
+            raise PersistenceError(
+                f"job {job_id} has {open_count} open resolution review(s); "
+                "refusing to publish a partially reviewed graph"
+            )
+        final = resolve_publish.build_final_resolutions(
+            initial, decisions, require_complete=True
+        )
+        bundles = dict(corpus)
+        bundles[new_label] = bundle
+        # Prior corpus artifacts plus this job's final artifacts. Two
+        # exclusions keep each pair publishing exactly once: final
+        # artifacts already persisted at resolve-finalize are deduped
+        # by content hash, and this job's superseded initial artifacts
+        # (still persisted and output-linked for audit) never publish
+        # alongside the finals that replace them.
+        superseded = {
+            str(output.get("resolution_sha256"))
+            for output in self._read_job_outputs(
+                job_id, resolve_publish.RESOLUTION_ARTIFACT_TYPE
+            )
+            if output.get("role") == "initial"
+        }
+        prior_shas = {sha256_json(item) for item in prior}
+        resolutions = [
+            item for item in prior if sha256_json(item) not in superseded
+        ]
+        resolutions.extend(
+            item for item in final if sha256_json(item) not in prior_shas
+        )
+        try:
+            catalog, report = resolve_publish.publish_with_decisions(
+                bundles=bundles, resolutions=resolutions,
+                existing_catalog=existing_catalog,
+            )
+        except (
+            publication_v0.PublicationConflict,
+            publication_v0.PublicationV0Error,
+        ) as exc:
+            raise PersistenceError(
+                f"real publication failed closed: {exc}"
+            ) from exc
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        catalog_sha = sha256_json(catalog)
+        with psycopg.connect(self.database_url) as conn:
+            staged_store.persist_bundle(conn, new_label, bundle)
+            conn.commit()
+        for resolution in final:
+            with psycopg.connect(self.database_url) as conn:
+                resolution_store.persist_resolution(conn, resolution)
+                conn.commit()
+        with psycopg.connect(self.database_url) as conn:
+            canonical_store.persist_catalog(conn, catalog)
+            conn.commit()
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output_fenced(
+                conn, job_id=job_id, revision_id=revision_id,
+                worker=self.worker,
+                artifact_type=resolve_publish.CATALOG_ARTIFACT_TYPE,
+                artifact_sha256=catalog_sha,
+                payload={
+                    "catalog_sha256": catalog_sha,
+                    "report": report,
+                    "catalog": catalog,
+                    "counts": report["counts"],
+                },
+            )
+            control_plane.write_stage_checkpoint_fenced(
+                conn, job_id=job_id, stage=REAL_PUBLISH_STAGE,
+                worker=self.worker,
+                checkpoint={
+                    "resolve_publish_version":
+                        resolve_publish.RESOLVE_PUBLISH_VERSION,
+                    "catalog_sha256": catalog_sha,
+                    "counts": report["counts"],
+                    "adopted": False,
+                    "authoritative": False,
+                },
+            )
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage=REAL_PUBLISH_STAGE,
+                status="completed", worker=self.worker,
+            )
+        self._emit("stage_completed", {"stage": REAL_PUBLISH_STAGE})
+        return "ok"
+
     # -- chunk + stage execution ----------------------------------------
 
     def execute_chunks(self, job_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> str:
@@ -1482,6 +1912,62 @@ class JobRunner:
                 if outcome != "ok":
                     return outcome
                 continue
+            if stage in (REAL_RESOLVE_STAGE, REAL_PUBLISH_STAGE) and (
+                self._real_publication_active(job_id)
+            ):
+                try:
+                    if stage == REAL_RESOLVE_STAGE:
+                        outcome = self._execute_real_resolve(job_id)
+                    else:
+                        outcome = self._execute_real_publish(job_id)
+                except LeaseLost:
+                    raise
+                except Exception as exc:
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker,
+                            error=f"real {stage} failed: {exc}",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker,
+                            error=f"real {stage} failed: {exc}",
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                    return "failed"
+                if outcome == "ok":
+                    with psycopg.connect(self.database_url) as conn:
+                        if stage == REAL_RESOLVE_STAGE:
+                            # Resolve finalizes and completes its own
+                            # stage inside the executor (finalization
+                            # may have completed it already); the fenced
+                            # advance below is a no-op then.
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="completed", worker=self.worker,
+                            )
+                        # Publish always completes its own stage inside
+                        # the executor (including crash-window adoption).
+                    self._emit("stage_completed", {"stage": stage})
+                    continue
+                if outcome == "needs_review":
+                    # Review items were already opened durably inside
+                    # the executor; parking the stage and job here is
+                    # the only remaining step.
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="needs_review", worker=self.worker,
+                            error="resolution review pending; awaiting human decisions",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="needs_review",
+                            worker=self.worker,
+                            error="resolution review pending; awaiting human decisions",
+                        )
+                    return "needs_review"
+                return outcome  # cancelled / stopped: checkpoints stay as written
             else:
                 # No connection is open across this call.
                 try:
@@ -1516,19 +2002,28 @@ class JobRunner:
             return halt
         self._heartbeat(job_id)
         _, _, _, revision_id = self._read_job(job_id)
-        with psycopg.connect(self.database_url) as conn:
-            control_plane.record_output_fenced(
-                conn, job_id=job_id, revision_id=revision_id,
-                worker=self.worker, artifact_type=FAKE_OUTPUT_TYPE,
-                artifact_sha256=_fake_sha(str(job_id), FAKE_OUTPUT_TYPE),
-                payload={
-                    "worker_version": WORKER_VERSION,
-                    "stages": list(control_plane.STAGE_NAMES),
-                },
-            )
-            control_plane.set_job_status_fenced(
-                conn, job_id=job_id, status="completed", worker=self.worker,
-            )
+        if not self._real_publication_active(job_id):
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.record_output_fenced(
+                    conn, job_id=job_id, revision_id=revision_id,
+                    worker=self.worker, artifact_type=FAKE_OUTPUT_TYPE,
+                    artifact_sha256=_fake_sha(str(job_id), FAKE_OUTPUT_TYPE),
+                    payload={
+                        "worker_version": WORKER_VERSION,
+                        "stages": list(control_plane.STAGE_NAMES),
+                    },
+                )
+                control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="completed", worker=self.worker,
+                )
+        else:
+            # Real pipeline jobs link exact bundle/resolution/catalog
+            # artifacts as their outputs (recorded by the resolve and
+            # publish stages); no fake completion artifact is added.
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="completed", worker=self.worker,
+                )
         self._emit("job_completed", {"job_id": str(job_id)})
         return "completed"
 
