@@ -481,6 +481,37 @@ class ExtractionFlowTests(unittest.TestCase):
         self.assertEqual(2, len(result["attempts"]))
         self.assertIn("not valid JSON", result["error"])
 
+    def test_schema_none_skips_schema_but_keeps_grounding(self) -> None:
+        bundle = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")
+        del bundle["entities"][0]["type"]  # schema violation only
+        provider = FakeProvider([json.dumps(bundle, ensure_ascii=False)])
+        result = X.extract_chunk(
+            provider,
+            make_request(),
+            chunk_text=CHUNK_0,
+            context_input=context_input(),
+            section_label="全文",
+            document=document(),
+            schema=None,
+            allowed_predicates=ALLOWED_PREDICATES,
+        )
+        # Structural/grounding checks pass without the schema layer;
+        # production binds the schema (worker fails closed without it).
+        self.assertTrue(result["accepted"])
+        provider2 = FakeProvider([json.dumps(bundle, ensure_ascii=False)] * 2)
+        result2 = X.extract_chunk(
+            provider2,
+            make_request(),
+            chunk_text=CHUNK_0,
+            context_input=context_input(),
+            section_label="全文",
+            document=document(),
+            schema=SCHEMA,
+            allowed_predicates=ALLOWED_PREDICATES,
+            config=X.ExtractionConfig(max_repair_attempts=1),
+        )
+        self.assertFalse(result2["accepted"])
+
 
 class HistoryTests(unittest.TestCase):
     def test_run_round_trip_replays_cleanly(self) -> None:

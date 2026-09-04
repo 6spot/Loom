@@ -426,6 +426,88 @@ class ExtractionPostgresTests(unittest.TestCase):
             self.assertEqual("failed", row[0])
             self.assertIn("revision_source", row[1])
 
+    def test_real_extract_requires_schema_and_fails_closed(self) -> None:
+        job_id, _ = self._queue_job()
+        model = ScriptedChunkModel([])
+        result = worker.run_once(
+            self.database_url,
+            worker="worker-c1t6",
+            revision_source=lambda jid: (self.text, self.source_sha),
+            segmentation_config=self.segmentation_config,
+            chunk_model=model,
+            extraction_config=ExtractionConfig(),
+            extraction_schema=None,
+            document_meta=self.doc,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result[1], "failed")
+        self.assertEqual(0, model.calls)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                "SELECT status, error FROM chronicle.ingestion_jobs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()
+            self.assertEqual("failed", row[0])
+            self.assertIn("extraction_schema", row[1])
+
+    def test_crash_window_resume_adopts_accepted_run(self) -> None:
+        job_id, _ = self._queue_job()
+        model = ScriptedChunkModel(
+            [json.dumps(canned_bundle(i, "全文"), ensure_ascii=False) for i in range(4)]
+        )
+        result = self._run(model)
+        self.assertEqual(result[1], "completed")
+
+        chunks = self._chunks(job_id)
+        victim = chunks[1][0]
+        self.assertEqual(1, len(self._runs(victim)))
+
+        # Simulate a worker exit between the accepted run-row commit and
+        # the accepted-layer/status commit for chunk 1: the run history
+        # holds an accepted run, but the chunk checkpoint and status do
+        # not. Direct SQL stands in for the crash (it bypasses the state
+        # machine exactly as a torn commit would).
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute(
+                """
+                UPDATE chronicle.ingestion_chunks
+                SET status = 'running', checkpoint = checkpoint - 'extraction'
+                WHERE chunk_id = %s
+                """,
+                (victim,),
+            )
+            conn.execute(
+                """
+                UPDATE chronicle.ingestion_jobs
+                SET status = 'running', lease_owner = NULL,
+                    lease_expires_at = NULL, error = NULL
+                WHERE job_id = %s
+                """,
+                (job_id,),
+            )
+            conn.execute(
+                """
+                UPDATE chronicle.ingestion_job_stages
+                SET status = 'running'
+                WHERE job_id = %s AND stage = 'extract'
+                """,
+                (job_id,),
+            )
+
+        strict = ScriptedChunkModel([])
+        resumed = self._run(strict)
+        self.assertEqual(resumed[1], "completed")
+        # Zero model calls: the accepted run was adopted, not re-extracted.
+        self.assertEqual(0, strict.calls)
+        self.assertEqual(1, len(self._runs(victim)))
+        chunks = self._chunks(job_id)
+        self.assertEqual("completed", chunks[1][2])
+        accepted = chunks[1][4]["extraction"]
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual(1, accepted["produced_by_run_attempt"])
+        evidence = accepted["candidate"]["claims"][0]["evidence"]["text"]
+        self.assertIn(evidence, self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

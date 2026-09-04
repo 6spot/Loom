@@ -749,18 +749,103 @@ class JobRunner:
 
     # -- C1-T6 real context-aware extraction path ------------------------
 
+    def _adopt_accepted_run(
+        self,
+        job_id: uuid.UUID,
+        chunk_id: uuid.UUID,
+        *,
+        locator: dict[str, Any],
+        context_output: dict[str, Any] | None,
+    ) -> bool:
+        """Adopt an already-accepted run without calling the model.
+
+        Closes the crash window between the accepted ``ingestion_chunk_runs``
+        commit and the accepted-layer/status commit: when a previous
+        execution recorded an accepted run but the chunk never reached
+        ``completed`` (worker exit between those commits), resume adopts
+        the newest accepted run instead of invoking the model again, so a
+        successful chunk is never duplicated on ordinary resume. The
+        adoption (checkpoint merge + ``completed``) commits atomically
+        under the lease. Returns True when a run was adopted.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT attempt, status, checkpoint
+                FROM chronicle.ingestion_chunk_runs
+                WHERE chunk_id = %s ORDER BY attempt
+                """,
+                (chunk_id,),
+            ).fetchall()
+        adopted: tuple[int, dict[str, Any]] | None = None
+        for attempt, status, checkpoint in rows:
+            checkpoint = checkpoint if isinstance(checkpoint, dict) else {}
+            if status == "completed" and checkpoint.get("accepted") is True:
+                candidate = checkpoint.get("candidate")
+                if isinstance(candidate, dict):
+                    adopted = (int(attempt), candidate)
+        if adopted is None:
+            return False
+        run_attempt, candidate = adopted
+        accepted = extraction.build_accepted_checkpoint(
+            candidate=candidate,
+            run_attempt=run_attempt,
+            locator=locator,
+            context_output=context_output,
+        )
+        with psycopg.connect(self.database_url) as conn:
+            with conn.transaction():
+                control_plane.require_job_lease(
+                    conn, job_id=job_id, worker=self.worker
+                )
+                current = conn.execute(
+                    """
+                    SELECT checkpoint FROM chronicle.ingestion_chunks
+                    WHERE chunk_id = %s
+                    """,
+                    (chunk_id,),
+                ).fetchone()
+                if current is None:
+                    raise PersistenceError(f"unknown chunk {chunk_id}")
+                merged = dict(current[0] or {})
+                merged["extraction"] = accepted
+                control_plane.write_chunk_checkpoint(
+                    conn, chunk_id=chunk_id, checkpoint=merged
+                )
+                control_plane.set_chunk_status(
+                    conn, chunk_id=chunk_id, status="completed"
+                )
+        self._emit(
+            "chunk_reconciled",
+            {"chunk_id": str(chunk_id), "run_attempt": run_attempt},
+        )
+        return True
+
     def _execute_real_extract(self, job_id: uuid.UUID) -> str:
         """Execute the ``extract`` stage with real chunk extraction.
 
         Returns 'ok'/'failed'/'needs_review'/'cancelled'/'stopped'.
         Raises :class:`LeaseLost` when this worker no longer holds the
         lease. Every model attempt appends an ``ingestion_chunk_runs``
-        row (never overwrites); completed chunks are never re-run, so
-        ordinary resume never duplicates a successful chunk. A chunk
-        whose model output cannot be grounded fails closed (bounded
-        Studio retry, then ``needs_review``); nothing is silently
-        coerced into a valid-looking candidate.
+        row (never overwrites); completed chunks are never re-run, and a
+        chunk with an already-accepted run is adopted without a new
+        model call, so ordinary resume (including a crash between the
+        accepted-run commit and the status commit) never duplicates a
+        successful chunk. A chunk whose model output cannot be grounded
+        fails closed (bounded Studio retry, then ``needs_review``);
+        nothing is silently coerced into a valid-looking candidate.
         """
+        if self.revision_source is None:
+            raise PersistenceError(
+                "real extraction requires revision_source (refusing to run "
+                "the model against unknown bytes)"
+            )
+        if not isinstance(self.extraction_schema, dict):
+            raise PersistenceError(
+                "real extraction requires extraction_schema (the Chronicle "
+                "staged-bundle JSON Schema dict); refusing to accept "
+                "candidates without schema validation (fail closed)"
+            )
         loaded = self._load_real_plan(job_id)
         if loaded is None:
             raise PersistenceError(
@@ -793,16 +878,7 @@ class JobRunner:
                 raise PersistenceError(
                     f"chunk {chunk_id} has unexpected status {status!r}"
                 )
-            with psycopg.connect(self.database_url) as conn:
-                control_plane.set_chunk_status_fenced(
-                    conn, job_id=job_id, chunk_id=chunk_id,
-                    status="running", worker=self.worker,
-                )
-            self._heartbeat(job_id)
-            # No connection is open across model calls: a slow model
-            # holds no row lock and hides no lease expiry.
             chunk = by_index[chunk_index]
-            chunk_text = text[chunk.source_start : chunk.source_end]
             pair = pairs[chunk_index] if chunk_index < len(pairs) else pairs[-1]
             locator = segmentation.chunk_locator(
                 job_id=job_id,
@@ -812,6 +888,23 @@ class JobRunner:
                 chunk=chunk,
                 section_id=section_lookup.get(chunk.section_index),
             )
+            # Crash-window reconciliation first: an accepted run whose
+            # status commit never landed is adopted with zero model
+            # calls instead of being extracted again.
+            if self._adopt_accepted_run(
+                job_id, chunk_id,
+                locator=locator, context_output=pair["output"],
+            ):
+                continue
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_chunk_status_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="running", worker=self.worker,
+                )
+            self._heartbeat(job_id)
+            # No connection is open across model calls: a slow model
+            # holds no row lock and hides no lease expiry.
+            chunk_text = text[chunk.source_start : chunk.source_end]
             section = section_meta.get(
                 chunk.section_index,
                 {"label": f"section-{chunk.section_index}",

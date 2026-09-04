@@ -57,11 +57,18 @@ ingestion_chunk_runs rows (one per model attempt, append-only)
   confidence (`extraction.confidence`) stays separate from historical
   assessment (claims start `unassessed`).
 - **Restart-safe.** Completed chunks are never re-run, so ordinary
-  resume never duplicates a successful chunk. Retries append new
-  `ingestion_chunk_runs` rows; earlier attempts are never overwritten.
+  resume never duplicates a successful chunk. A chunk whose accepted
+  run row committed but whose accepted layer/status did not (worker
+  exit between those commits) is adopted from history with zero new
+  model calls. Retries append new `ingestion_chunk_runs` rows; earlier
+  attempts are never overwritten.
   The accepted-output layer records the producing run attempt, and the
   C1-T5 segmentation checkpoint is preserved alongside (merged, not
   replaced).
+- **Schema bound by default.** The worker real-extract path requires
+  the Chronicle staged-bundle JSON Schema dict and fails closed
+  without it; `schema=None` in the pure function skips only the schema
+  layer for focused unit tests, never for production extraction.
 
 ## Production model hook
 

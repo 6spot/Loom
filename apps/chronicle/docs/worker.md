@@ -47,7 +47,10 @@ docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
    unless a `chunk_model` provider is supplied with the C1-T5 revision
    source; the real C1-T6 path then runs context-aware contract-first
    extraction per chunk (bounded repair, fail closed, append-only run
-   history — see `extraction.md`).
+   history — see `extraction.md`). The real path additionally requires
+   the staged-bundle JSON Schema (fail closed without it) and adopts
+   an already-accepted run with zero new model calls when resume finds
+   one whose status commit never landed.
 3. **Short transactions, never across executor work.** Every database
    step runs in its own connection and commits exactly one transaction
    before the worker proceeds. Executor code runs with no transaction

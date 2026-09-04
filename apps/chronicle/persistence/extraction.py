@@ -763,6 +763,13 @@ def extract_chunk(
     report, candidate or parse error); at most
     ``1 + max_repair_attempts`` calls are ever made. A failed extraction
     records the failure instead of manufacturing a valid-looking result.
+
+    ``schema`` selects the validation depth: with the Chronicle staged
+    JSON Schema dict, candidates must be fully schema-valid; with
+    ``schema=None`` only the structural/mechanical checks run. The
+    production worker path always binds the schema and fails closed
+    without it — ``schema=None`` exists for focused unit tests, never
+    for production extraction.
     """
     config = config or ExtractionConfig()
     if not isinstance(request, dict) or not isinstance(request.get("prompt"), str):
