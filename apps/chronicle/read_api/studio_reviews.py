@@ -5,11 +5,15 @@ only the review operations required by C1-T11 and reuses the existing C1-T8
 ``resolve_publish.resolve_resolution_review`` authority. It does not invent a
 second decision vocabulary or derive identity authority from confidence.
 
+Review items are job-scoped, so T11 deliberately reuses the already-authenticated
+Rust `/api/v1/studio/jobs/{*rest}` proxy instead of adding a second privileged
+server namespace.
+
 Routes:
 
-GET  /api/v1/studio/reviews[?status=open|resolved|dismissed|all&limit=&offset=]
-GET  /api/v1/studio/reviews/{review_id}
-POST /api/v1/studio/reviews/{review_id}/decision
+GET  /api/v1/studio/jobs/reviews[?status=open|resolved|dismissed|all&limit=&offset=]
+GET  /api/v1/studio/jobs/reviews/{review_id}
+POST /api/v1/studio/jobs/reviews/{review_id}/decision
      {"decision":"...","rationale":"...","confidence":0.0..1.0}
 """
 
@@ -21,7 +25,7 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs
 
-STUDIO_REVIEWS_PREFIX = "/api/v1/studio/reviews"
+STUDIO_REVIEWS_PREFIX = "/api/v1/studio/jobs/reviews"
 _ALLOWED_STATUSES = ("open", "resolved", "dismissed", "all")
 
 
