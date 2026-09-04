@@ -173,6 +173,26 @@ jobs:
             >/tmp/chronicle-front-upstream.log 2>&1 &
           upstream_pid=$!
 
+          # Deterministic upstream readiness: the Python /healthz is
+          # database-independent, so it proves the read sidecar accepts
+          # connections before any proxied request is issued. Waiting only
+          # for the Rust front is not enough (its health check is
+          # intentionally upstream-independent).
+          upstream_ready=0
+          for _ in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:8081/healthz >/dev/null; then
+              upstream_ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$upstream_ready" -ne 1 ]; then
+            cat /tmp/chronicle-front-upstream.log
+            kill "$upstream_pid" 2>/dev/null || true
+            wait "$upstream_pid" 2>/dev/null || true
+            exit 1
+          fi
+
           CHRONICLE_PORT=8080 \
           CHRONICLE_UPSTREAM_URL=http://127.0.0.1:8081 \
           CHRONICLE_ADMIN_USER=ci-studio-admin \
@@ -200,6 +220,15 @@ jobs:
             cat /tmp/chronicle-front-upstream.log
             exit 1
           fi
+
+          # First contact through the front is a proxied read: fail loudly
+          # here (with both logs) instead of inside later assertions.
+          curl -fsS 'http://127.0.0.1:8080/api/v1/public/timeline?limit=1' \
+            >/tmp/chronicle-front-first.json || {
+            cat /tmp/chronicle-front-server.log
+            cat /tmp/chronicle-front-upstream.log
+            exit 1
+          }
 
           # Public namespace serves real C0 reads through the Rust front.
           curl -fsSG \

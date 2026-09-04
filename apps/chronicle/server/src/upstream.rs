@@ -59,9 +59,11 @@ impl UpstreamTarget {
             if host.contains(':') && port_raw.parse::<u16>().is_err() {
                 return Err("IPv6 upstream literals are not supported".to_string());
             }
+            // The raw port text is never echoed: error text can reach logs and
+            // a misplaced secret must not be reflected back.
             let port: u16 = port_raw
                 .parse()
-                .map_err(|_| format!("upstream port is not 1-65535: {port_raw:?}"))?;
+                .map_err(|_| "upstream port is not 1-65535".to_string())?;
             if port == 0 {
                 return Err("upstream port is not 1-65535".to_string());
             }

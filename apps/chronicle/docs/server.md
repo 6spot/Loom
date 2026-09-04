@@ -88,7 +88,10 @@ CHRONICLE_ADMIN_PASSWORD=<at least 8 characters, no control characters>
 | `CHRONICLE_ADMIN_PASSWORD` | _(absent)_ | Studio administrator password (min 8 chars) |
 
 Invalid bind/port/upstream values fail startup with a plain-text reason on
-stderr and a non-zero exit. Startup prints one JSON line with bind, port,
+stderr and a non-zero exit. Rejected values are never echoed back: the raw
+`CHRONICLE_UPSTREAM_URL` (which may embed userinfo) and the raw
+`CHRONICLE_PORT` never appear in errors or logs, so a misplaced secret is
+not reflected into log storage. Startup prints one JSON line with bind, port,
 upstream host/port, and `studio_auth: enabled|disabled` — never
 credentials, connection strings, or password material. Per-request access
 logs carry method, path without query, and status only.

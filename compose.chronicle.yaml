@@ -54,6 +54,7 @@ services:
   chronicle-web:
     <<: *chronicle-image
     environment:
+      CHRONICLE_BIND: 0.0.0.0
       CHRONICLE_PORT: "8080"
       CHRONICLE_UPSTREAM_URL: http://chronicle-read:8081
       CHRONICLE_ADMIN_USER: ${CHRONICLE_ADMIN_USER:-}

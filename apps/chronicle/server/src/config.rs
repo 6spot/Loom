@@ -75,12 +75,13 @@ impl ChronicleConfig {
             })?,
         };
 
+        // The raw value is never echoed: error text reaches stderr and a
+        // misplaced secret must not be reflected back into logs.
         let port: u16 = match get("CHRONICLE_PORT") {
             None => 8080,
             Some(raw) => raw.parse().map_err(|_| {
-                ConfigError(format!(
-                    "CHRONICLE_PORT is not a TCP port (1-65535): {raw:?}"
-                ))
+                let _ = raw;
+                ConfigError("CHRONICLE_PORT is not a TCP port (1-65535)".to_string())
             })?,
         };
         if port == 0 {
@@ -91,11 +92,11 @@ impl ChronicleConfig {
 
         let upstream_raw =
             get("CHRONICLE_UPSTREAM_URL").unwrap_or_else(|| "http://127.0.0.1:8081".to_string());
-        let upstream = UpstreamTarget::parse(&upstream_raw).map_err(|detail| {
-            ConfigError(format!(
-                "CHRONICLE_UPSTREAM_URL invalid ({upstream_raw:?}): {detail}"
-            ))
-        })?;
+        // The raw URL is never echoed: it may embed userinfo credentials, and
+        // this error is printed to stderr at startup. `UpstreamTarget::parse`
+        // reasons never include the input for the same reason.
+        let upstream = UpstreamTarget::parse(&upstream_raw)
+            .map_err(|detail| ConfigError(format!("CHRONICLE_UPSTREAM_URL invalid: {detail}")))?;
 
         let admin_user = get("CHRONICLE_ADMIN_USER");
         let admin_password = get("CHRONICLE_ADMIN_PASSWORD");
@@ -237,5 +238,44 @@ mod tests {
         let rendered = config.describe().to_string();
         assert!(!rendered.contains("super-secret-password"));
         assert!(!rendered.contains("admin"));
+    }
+
+    #[test]
+    fn invalid_upstream_url_never_echoes_input() {
+        // Regression test: this ConfigError is printed to stderr at startup,
+        // so even a URL with embedded userinfo must not round-trip into it.
+        for raw in [
+            "http://ci-user:ci-secret-password@upstream:8081",
+            "https://anything.example/x",
+            "http://upstream:not-a-port",
+            "not-a-url",
+        ] {
+            let error = ChronicleConfig::from_map(&vars(&[("CHRONICLE_UPSTREAM_URL", raw)]))
+                .expect_err("invalid upstream URL is rejected");
+            let rendered = error.to_string();
+            assert!(
+                !rendered.contains(raw),
+                "config error echoes input for {raw:?}: {rendered:?}"
+            );
+            assert!(
+                !rendered.contains("ci-secret-password"),
+                "config error leaks password: {rendered:?}"
+            );
+            assert!(
+                !rendered.contains("ci-user"),
+                "config error leaks username: {rendered:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_port_never_echoes_input() {
+        let error = ChronicleConfig::from_map(&vars(&[("CHRONICLE_PORT", "sup3r-s3cret")]))
+            .expect_err("invalid port is rejected");
+        let rendered = error.to_string();
+        assert!(
+            !rendered.contains("sup3r-s3cret"),
+            "config error echoes input: {rendered:?}"
+        );
     }
 }
