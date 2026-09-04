@@ -1,0 +1,58 @@
+name: Chronicle T12 dev check
+
+on:
+  push:
+    branches:
+      - feat/chronicle-c1-t12-reader-presentation
+    paths:
+      - ".github/workflows/chronicle-t12-dev-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t12-reader-presentation
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Python contracts
+        run: |
+          set -euo pipefail
+          python -m pip install -r apps/chronicle/persistence/requirements.txt
+          python -m pip install -r apps/chronicle/read_api/requirements.txt
+          python -m unittest discover -s apps/chronicle/persistence -p 'test_*.py' -v
+          python -m unittest discover -s apps/chronicle/read_api -p 'test_*.py' -v
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+      - name: Webapp contracts
+        working-directory: apps/chronicle/webapp
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          npm run build
+          npm run smoke:dist
