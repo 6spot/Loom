@@ -73,6 +73,7 @@ import assembly  # noqa: E402
 import canonical_store  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
+import model_provider  # noqa: E402
 import presentation_stage  # noqa: E402
 import resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
@@ -2305,6 +2306,7 @@ def main(argv: list[str] | None = None) -> int:
         if source_dir is not None
         else None
     )
+    extraction_model, presentation_model = model_provider.models_from_env()
     stop = threading.Event()
     install_shutdown_handlers(stop)
     if source_dir is not None:
@@ -2321,12 +2323,21 @@ def main(argv: list[str] | None = None) -> int:
             "executor (no --source-dir/CHRONICLE_SOURCE_DIR)",
             flush=True,
         )
+    if extraction_model is not None or presentation_model is not None:
+        print(
+            "chronicle-worker: production model providers enabled "
+            f"(extraction={getattr(extraction_model, 'name', 'off')}, "
+            f"presentation={getattr(presentation_model, 'name', 'off')})",
+            flush=True,
+        )
     tally = run_forever(
         database_url, worker=worker,
         executor_factory=lambda: StageExecutor(fail_plan=dict(fail_plan)),
         lease_seconds=args.lease_seconds, poll_interval=args.poll_interval,
         max_jobs=args.max_jobs, stop=stop,
         revision_source=revision_source,
+        chunk_model=extraction_model,
+        presentation_model=presentation_model,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

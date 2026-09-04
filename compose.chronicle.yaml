@@ -146,6 +146,14 @@ services:
       # Chronicle-owned source volume the upload sidecar writes). Without
       # this mount every stage runs the deterministic fake executor.
       CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+      # C1-T13: real extraction / Reader Presentation are independently
+      # enabled only when their model names are set. The endpoint may be
+      # OpenAI Responses or a compatible Luna/local gateway.
+      CHRONICLE_MODEL_ENDPOINT: ${CHRONICLE_MODEL_ENDPOINT:-}
+      CHRONICLE_MODEL_API_KEY: ${CHRONICLE_MODEL_API_KEY:-}
+      CHRONICLE_MODEL_TIMEOUT_SECONDS: ${CHRONICLE_MODEL_TIMEOUT_SECONDS:-120}
+      CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
+      CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
     volumes:
       - type: bind
         source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
