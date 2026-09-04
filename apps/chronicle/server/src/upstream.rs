@@ -27,6 +27,14 @@ pub const MAX_HEAD_BYTES: usize = 32 * 1024;
 /// Maximum upstream response body accepted for proxying.
 pub const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
+/// Maximum proxied request body accepted from Studio clients.
+///
+/// The Python sidecar enforces the real per-file upload ceiling
+/// (`CHRONICLE_MAX_UPLOAD_BYTES`, default 10 MiB); this bound only keeps a
+/// malicious client from exhausting proxy memory, so it sits above that
+/// ceiling plus JSON framing overhead.
+pub const MAX_PROXY_BODY_BYTES: usize = 12 * 1024 * 1024;
+
 /// Parsed `http://host[:port]` upstream target. HTTPS and embedded userinfo
 /// are rejected so credentials can never leak into logs or proxied requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -288,6 +296,86 @@ pub async fn probe_upstream(target: &UpstreamTarget) -> bool {
     timeout(CONNECT_TIMEOUT, TcpStream::connect(target.dial()))
         .await
         .is_ok_and(|result| result.is_ok())
+}
+
+/// Forward one Studio request (method + body) to the upstream.
+///
+/// The Rust server owns auth and routing but never touches the Chronicle
+/// database itself (governance: no SQLx/PostgreSQL driver outside
+/// `loom-storage`, no inline SQL). Authenticated Studio document
+/// operations are forwarded byte-for-byte to the internal Python sidecar,
+/// which owns the application persistence behind `CHRONICLE_DATABASE_URL`.
+pub async fn forward_upstream(
+    target: &UpstreamTarget,
+    method: &str,
+    path_and_query: &str,
+    content_type: Option<&str>,
+    body: &[u8],
+) -> Result<UpstreamResponse, UpstreamError> {
+    if method.is_empty()
+        || !method
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err(UpstreamError::BadResponse(
+            "forwarded method is not a valid token".to_string(),
+        ));
+    }
+    if !path_and_query.starts_with('/') {
+        return Err(UpstreamError::BadResponse(
+            "forwarded path must start with '/'".to_string(),
+        ));
+    }
+    if path_and_query.contains(['\r', '\n']) {
+        return Err(UpstreamError::BadResponse(
+            "forwarded path must not contain CR/LF".to_string(),
+        ));
+    }
+    let content_type_valid = content_type.is_none_or(|value: &str| {
+        !value.contains(['\r', '\n'])
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+    });
+    if !content_type_valid {
+        return Err(UpstreamError::BadResponse(
+            "forwarded content type is not a valid header value".to_string(),
+        ));
+    }
+    if body.len() > MAX_PROXY_BODY_BYTES {
+        return Err(UpstreamError::BadResponse(
+            "proxied body exceeds size limit".to_string(),
+        ));
+    }
+
+    let mut request = format!(
+        "{method} {path_and_query} HTTP/1.0\r\nHost: {}\r\nConnection: close\r\n",
+        target.host
+    );
+    if let Some(content_type) = content_type {
+        request.push_str(&format!("Content-Type: {content_type}\r\n"));
+    }
+    request.push_str(&format!("Content-Length: {}\r\n\r\n", body.len()));
+    let owned_body = body.to_vec();
+    let work = async {
+        let mut stream = TcpStream::connect(target.dial())
+            .await
+            .map_err(|err| UpstreamError::Unreachable(err.to_string()))?;
+        stream
+            .write_all(request.as_bytes())
+            .await
+            .map_err(|err| UpstreamError::Unreachable(err.to_string()))?;
+        if !owned_body.is_empty() {
+            stream
+                .write_all(&owned_body)
+                .await
+                .map_err(|err| UpstreamError::Unreachable(err.to_string()))?;
+        }
+        read_response(&mut stream).await
+    };
+    timeout(RESPONSE_TIMEOUT, work)
+        .await
+        .map_err(|_| UpstreamError::TimedOut)?
 }
 
 #[cfg(test)]

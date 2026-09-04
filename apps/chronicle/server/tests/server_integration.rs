@@ -57,11 +57,40 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                         }
                     }
                 }
-                let text = String::from_utf8_lossy(&head).to_string();
-                let request_line = text.lines().next().unwrap_or("").to_string();
+                let head_end = head
+                    .windows(4)
+                    .position(|w| w == b"\r\n\r\n")
+                    .map(|i| i + 4)
+                    .unwrap_or(head.len());
+                let text = String::from_utf8_lossy(&head[..head_end]).to_string();
+                let mut lines = text.lines();
+                let request_line = lines.next().unwrap_or("").to_string();
                 let mut parts = request_line.split_whitespace();
-                let _method = parts.next().unwrap_or("");
+                let method = parts.next().unwrap_or("").to_string();
                 let path = parts.next().unwrap_or("/").to_string();
+                let mut content_type = String::new();
+                let mut content_length = 0_usize;
+                for line in lines {
+                    if let Some((name, value)) = line.split_once(':') {
+                        match name.trim().to_ascii_lowercase().as_str() {
+                            "content-type" => content_type = value.trim().to_string(),
+                            "content-length" => {
+                                content_length = value.trim().parse().unwrap_or(0);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                // Drain the request body (capped) so proxied uploads are
+                // fully consumed before the mock answers.
+                let mut body = head[head_end..].to_vec();
+                while body.len() < content_length && body.len() < 64 * 1024 * 1024 {
+                    match socket.read(&mut buffer).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => body.extend_from_slice(&buffer[..read]),
+                    }
+                }
+                body.truncate(content_length);
                 let (status, body) = if path.starts_with("/v0/") {
                     (
                         200,
@@ -69,6 +98,18 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                     )
                 } else if path == "/healthz" {
                     (200, "{\"status\":\"ok\"}".to_string())
+                } else if path.starts_with("/api/v1/studio/documents") {
+                    // Echo the Studio request for proxy assertions.
+                    let escaped_type = content_type.replace('\\', "\\\\").replace('"', "\\\"");
+                    (
+                        if method == "POST" { 201 } else { 200 },
+                        format!(
+                            "{{\"schema\":\"chronicle.mock-studio\",\"method\":{method:?},\
+                             \"proxied_path\":{path:?},\"body_len\":{},\
+                             \"content_type\":{escaped_type:?}}}",
+                            body.len(),
+                        ),
+                    )
                 } else {
                     (404, "{\"error\":\"mock only serves /v0/*\"}".to_string())
                 };
@@ -166,6 +207,59 @@ async fn get(port: u16, path: &str, auth: Option<&str>) -> (u16, String, Vec<u8>
     raw_request(port, "GET", path, auth)
         .await
         .expect("live server answers")
+}
+
+/// Raw HTTP/1.0 client with a body: returns (status, headers, body).
+async fn raw_request_with_body(
+    port: u16,
+    method: &str,
+    path: &str,
+    auth: Option<&str>,
+    content_type: Option<&str>,
+    body: &[u8],
+) -> Result<(u16, String, Vec<u8>), String> {
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))
+        .await
+        .map_err(|err| err.to_string())?;
+    let mut request =
+        format!("{method} {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n");
+    if let Some(value) = auth {
+        request.push_str(&format!("Authorization: {value}\r\n"));
+    }
+    if let Some(value) = content_type {
+        request.push_str(&format!("Content-Type: {value}\r\n"));
+    }
+    request.push_str(&format!("Content-Length: {}\r\n\r\n", body.len()));
+    stream.write_all(request.as_bytes()).await.expect("head");
+    // The server may answer 401/413/503 without consuming the body and
+    // then close; a huge-body write can therefore hit a reset. The status
+    // line below is the assertion surface, so write errors are tolerated.
+    let _ = stream.write_all(body).await;
+    // Tolerant drain: keep bytes that arrived before any reset instead of
+    // discarding them like `read_to_end` would on error.
+    let mut raw = Vec::new();
+    let mut chunk = vec![0_u8; 8192];
+    loop {
+        match stream.read(&mut chunk).await {
+            Ok(0) | Err(_) => break,
+            Ok(read) => raw.extend_from_slice(&chunk[..read]),
+        }
+    }
+    let head_end = raw
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|i| i + 4)
+        .ok_or_else(|| "response head".to_string())?;
+    let head = String::from_utf8_lossy(&raw[..head_end]).to_string();
+    let status: u16 = head
+        .lines()
+        .next()
+        .unwrap_or("")
+        .split_whitespace()
+        .nth(1)
+        .and_then(|code| code.parse().ok())
+        .ok_or_else(|| "status".to_string())?;
+    Ok((status, head, raw[head_end..].to_vec()))
 }
 
 #[tokio::test]
@@ -307,5 +401,177 @@ async fn web_front_serves_shell_and_assets() {
     assert_eq!(api_missing, 404);
     let payload: serde_json::Value = serde_json::from_slice(&api_body).expect("json");
     assert_eq!(payload["schema"], "chronicle.error");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_documents_require_admin_credentials() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+
+    // Anonymous reads and writes are challenged, never proxied.
+    let (missing, head, body) = get(server.port, "/api/v1/studio/documents", None).await;
+    assert_eq!(missing, 401);
+    assert!(head.to_ascii_lowercase().contains("www-authenticate"));
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "unauthorized");
+
+    let (denied, _, _) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/documents",
+        None,
+        Some("application/json"),
+        br#"{"title":"x"}"#,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(denied, 401);
+
+    // Unknown document sub-paths also need auth before revealing existence.
+    let (hidden, _, _) = get(
+        server.port,
+        "/api/v1/studio/documents/some-id/revisions",
+        None,
+    )
+    .await;
+    assert_eq!(hidden, 401);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_documents_proxy_method_path_query_and_body() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+
+    // Create-document POST: JSON body passes through with its content type.
+    let create_body = br#"{"title":"\u6b66\u5e1d\u7d00"}"#;
+    let (created, _, echo) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/documents",
+        Some(ADMIN_AUTH),
+        Some("application/json"),
+        create_body,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(created, 201);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(payload["schema"], "chronicle.mock-studio");
+    assert_eq!(payload["method"], "POST");
+    assert_eq!(payload["proxied_path"], "/api/v1/studio/documents");
+    assert_eq!(payload["body_len"], create_body.len());
+    assert_eq!(payload["content_type"], "application/json");
+
+    // Upload POST: raw bytes plus query parameters pass through intact.
+    let upload_body = "武帝紀第一\n".as_bytes();
+    let (stored, _, echo) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/documents/doc-1/revisions?filename=wudi.txt&language=zh-CN",
+        Some(ADMIN_AUTH),
+        Some("text/plain; charset=utf-8"),
+        upload_body,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(stored, 201);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(
+        payload["proxied_path"],
+        "/api/v1/studio/documents/doc-1/revisions?filename=wudi.txt&language=zh-CN"
+    );
+    assert_eq!(payload["body_len"], upload_body.len());
+
+    // History GET passes through with upstream status preserved.
+    let (listed, _, echo) = get(
+        server.port,
+        "/api/v1/studio/documents/doc-1/revisions",
+        Some(ADMIN_AUTH),
+    )
+    .await;
+    assert_eq!(listed, 200);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(payload["method"], "GET");
+    assert_eq!(payload["body_len"], 0);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_documents_reject_other_methods() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    let (status, _, body) = raw_request_with_body(
+        server.port,
+        "PUT",
+        "/api/v1/studio/documents/doc-1",
+        Some(ADMIN_AUTH),
+        None,
+        b"",
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(status, 405);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "method_not_allowed");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_upload_over_proxy_limit_is_typed_413() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    let big = vec![b'x'; chronicle_server::MAX_PROXY_BODY_BYTES + 1];
+    let (status, _, body) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/documents/doc-1/revisions?filename=big.txt",
+        Some(ADMIN_AUTH),
+        Some("text/plain"),
+        &big,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(status, 413);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["schema"], "chronicle.error");
+    assert_eq!(payload["error"]["code"], "payload_too_large");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_documents_are_fail_closed_without_configuration() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, false)).await;
+    let (status, _, body) = get(server.port, "/api/v1/studio/documents", Some(ADMIN_AUTH)).await;
+    assert_eq!(status, 503);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "studio_auth_unconfigured");
+    let (posted, _, _) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/documents",
+        Some(ADMIN_AUTH),
+        Some("application/json"),
+        br#"{"title":"x"}"#,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(posted, 503);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_documents_upstream_outage_maps_to_typed_503() {
+    let down = UpstreamTarget {
+        host: "127.0.0.1".to_string(),
+        port: 1,
+    };
+    let server = spawn_server(test_state(down, true)).await;
+    let (status, _, body) = get(server.port, "/api/v1/studio/documents", Some(ADMIN_AUTH)).await;
+    assert_eq!(status, 503);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "upstream_unavailable");
     server.stop().await;
 }

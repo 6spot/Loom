@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{OriginalUri, Path, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::extract::{DefaultBodyLimit, OriginalUri, Path, State};
+use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::any;
 use axum::{Json, Router};
@@ -14,7 +14,10 @@ use crate::auth::{credentials_match, parse_basic_credentials};
 use crate::config::AdminCredentials;
 use crate::error::TypedError;
 use crate::static_assets::resolve_web_path;
-use crate::upstream::{fetch_upstream, probe_upstream, UpstreamError, UpstreamTarget};
+use crate::upstream::{
+    fetch_upstream, forward_upstream, probe_upstream, UpstreamError, UpstreamResponse,
+    UpstreamTarget, MAX_PROXY_BODY_BYTES,
+};
 
 /// Shared server state (configuration minus bind address).
 #[derive(Debug, Clone)]
@@ -29,6 +32,8 @@ pub struct AppState {
 pub fn build_router(state: Arc<AppState>) -> Router {
     let studio = Router::new()
         .route("/status", any(studio_status))
+        .route("/documents", any(studio_documents))
+        .route("/documents/{*rest}", any(studio_documents))
         .fallback(studio_not_found);
     Router::new()
         .route("/healthz", any(health))
@@ -42,6 +47,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/v0/entities/{id}", any(legacy_proxy))
         .nest("/api/v1/studio", studio)
         .fallback(fallback)
+        // The 2 MiB default body cap is lifted so Studio uploads can reach
+        // the proxy's own explicit limit (typed 413); every other route
+        // either ignores bodies or enforces its own bound.
+        .layer(DefaultBodyLimit::disable())
         .with_state(state)
 }
 
@@ -170,28 +179,39 @@ async fn proxy_public(
         target.push_str(query);
     }
     match fetch_upstream(&state.upstream, &target).await {
-        Ok(upstream) => {
-            let status = StatusCode::from_u16(upstream.status).unwrap_or(StatusCode::BAD_GATEWAY);
-            let content_type = upstream
-                .content_type
-                .unwrap_or_else(|| "application/json; charset=utf-8".to_string());
-            log_request("GET", &upstream_path, status.as_u16());
-            let content_type_value: HeaderValue = content_type
-                .parse()
-                .unwrap_or_else(|_| HeaderValue::from_static("application/json; charset=utf-8"));
-            Response::builder()
-                .status(status)
-                .header(header::CONTENT_TYPE, content_type_value)
-                .header("x-content-type-options", "nosniff")
-                .body(Body::from(upstream.body))
-                .expect("proxied response uses validated headers")
-        }
-        Err(UpstreamError::BadResponse(_)) => {
-            log_request("GET", &upstream_path, 502);
+        Ok(upstream) => render_proxied(upstream, "GET", &upstream_path),
+        Err(err) => render_upstream_error(err, "GET", &upstream_path),
+    }
+}
+
+/// Render a proxied upstream response byte-for-byte (status, content type,
+/// body), preserving C0 read semantics and Studio document payloads.
+fn render_proxied(upstream: UpstreamResponse, log_method: &str, log_path: &str) -> Response {
+    let status = StatusCode::from_u16(upstream.status).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = upstream
+        .content_type
+        .unwrap_or_else(|| "application/json; charset=utf-8".to_string());
+    log_request(log_method, log_path, status.as_u16());
+    let content_type_value: HeaderValue = content_type
+        .parse()
+        .unwrap_or_else(|_| HeaderValue::from_static("application/json; charset=utf-8"));
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, content_type_value)
+        .header("x-content-type-options", "nosniff")
+        .body(Body::from(upstream.body))
+        .expect("proxied response uses validated headers")
+}
+
+/// Map an upstream failure onto the typed error contract.
+fn render_upstream_error(err: UpstreamError, log_method: &str, log_path: &str) -> Response {
+    match err {
+        UpstreamError::BadResponse(_) => {
+            log_request(log_method, log_path, 502);
             TypedError::upstream_bad_response().into_response()
         }
-        Err(UpstreamError::Unreachable(_) | UpstreamError::TimedOut) => {
-            log_request("GET", &upstream_path, 503);
+        UpstreamError::Unreachable(_) | UpstreamError::TimedOut => {
+            log_request(log_method, log_path, 503);
             TypedError::upstream_unavailable().into_response()
         }
     }
@@ -239,6 +259,82 @@ fn auth_denied(decision: AuthDecision) -> Response {
             response
         }
         AuthDecision::Unconfigured => TypedError::studio_auth_unconfigured().into_response(),
+    }
+}
+
+/// Studio document operations (C1-T3): create logical Documents and upload
+/// immutable revisions. Authenticated here; persistence lives in the
+/// internal Python sidecar, which this handler forwards to byte-for-byte.
+async fn studio_documents(
+    State(state): State<Arc<AppState>>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    // Authorization first: the Studio namespace never reveals method routing
+    // or document existence to unauthenticated callers.
+    match require_admin(&state, &request) {
+        AuthDecision::Authorized(_) => {}
+        denial => return auth_denied(denial),
+    }
+    let path = request.uri().path().to_string();
+    // `nest("/api/v1/studio", ...)` strips the mount prefix before the
+    // inner router runs, so this handler sees `/documents...` while the
+    // sidecar expects the full Studio path. Re-attach the prefix for the
+    // proxied request; anything else here is unreachable routing.
+    if path != "/documents" && !path.starts_with("/documents/") {
+        log_request("STUDIO", &path, 404);
+        return TypedError::not_found("route not found").into_response();
+    }
+    let upstream_path = format!("/api/v1/studio{path}");
+    proxy_studio(&state, request, &upstream_path).await
+}
+
+/// Forward one authenticated Studio document request to the sidecar.
+async fn proxy_studio(
+    state: &AppState,
+    request: axum::http::Request<Body>,
+    upstream_path: &str,
+) -> Response {
+    let method = request.method().clone();
+    if method != Method::GET && method != Method::POST {
+        return TypedError::studio_method_not_allowed().into_response();
+    }
+    let query = request.uri().query().map(str::to_string);
+    let content_type = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let content_type_valid = content_type.as_deref().is_none_or(|value| {
+        !value.contains(['\r', '\n'])
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+    });
+    if !content_type_valid {
+        return TypedError::bad_request("invalid Content-Type").into_response();
+    }
+    let (_, body) = request.into_parts();
+    let body_bytes = match axum::body::to_bytes(body, MAX_PROXY_BODY_BYTES).await {
+        Ok(bytes) => bytes.to_vec(),
+        Err(_) => return TypedError::payload_too_large().into_response(),
+    };
+    let mut target = upstream_path.to_string();
+    if let Some(query) = query.as_deref() {
+        target.push('?');
+        target.push_str(query);
+    }
+    let log_method = method.as_str().to_string();
+    match forward_upstream(
+        &state.upstream,
+        method.as_str(),
+        &target,
+        content_type.as_deref(),
+        &body_bytes,
+    )
+    .await
+    {
+        Ok(upstream) => render_proxied(upstream, &log_method, upstream_path),
+        Err(err) => render_upstream_error(err, &log_method, upstream_path),
     }
 }
 

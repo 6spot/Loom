@@ -146,18 +146,50 @@ def create_revision(
     source_sha256: str,
     source_bytes: int,
     source_media_type: str,
+    filename: str = "upload.txt",
+    storage_key: str | None = None,
+    content_chars: int | None = None,
+    language: str | None = None,
+    source_label: str | None = None,
 ) -> tuple[uuid.UUID, int]:
     """Append an immutable revision. Never mutates earlier revisions.
 
     Returns (revision_id, revision_no). The new revision supersedes the
     previous tip when one exists; replacement is non-destructive by
     construction because old rows are append-only (DB trigger enforced).
+
+    C1-T3 upload metadata (filename, storage key, character count,
+    language/source labels) rides on the same row so later
+    sections/chunks/evidence can trace to exact source bytes. Callers that
+    predate C1-T3 may omit them: the filename falls back to a neutral
+    default and the storage key is derived deterministically from the new
+    revision identity.
     """
     _require_sha256(source_sha256, "source_sha256")
     if not isinstance(source_bytes, int) or source_bytes < 0:
         raise PersistenceError("source_bytes must be a non-negative integer")
     if not isinstance(source_media_type, str) or not source_media_type:
         raise PersistenceError("source_media_type must be a non-empty string")
+    if not isinstance(filename, str) or not filename or "/" in filename or "\\" in filename:
+        raise PersistenceError("filename must be a non-empty plain basename")
+    if storage_key is not None and (
+        not isinstance(storage_key, str)
+        or not storage_key
+        or storage_key.startswith("/")
+        or ".." in storage_key
+        or "\\" in storage_key
+    ):
+        raise PersistenceError("storage_key must be a relative key without '..'")
+    if content_chars is not None and (
+        not isinstance(content_chars, int) or content_chars < 0
+    ):
+        raise PersistenceError("content_chars must be a non-negative integer")
+    if language is not None and (not isinstance(language, str) or not language):
+        raise PersistenceError("language must be a non-empty string when given")
+    if source_label is not None and (
+        not isinstance(source_label, str) or not source_label
+    ):
+        raise PersistenceError("source_label must be a non-empty string when given")
     revision_id = _new_id()
     with conn.transaction():
         tip = conn.execute(
@@ -181,13 +213,16 @@ def create_revision(
             revision_no, supersedes = 1, None
         else:
             revision_no, supersedes = int(tip[1]) + 1, tip[0]
+        if storage_key is None:
+            storage_key = f"documents/{document_id}/{revision_id}.txt"
         conn.execute(
             """
             INSERT INTO chronicle.document_revisions(
                 revision_id, document_id, revision_no,
                 source_sha256, source_bytes, source_media_type,
-                supersedes_revision_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                supersedes_revision_id,
+                filename, storage_key, content_chars, language, source_label
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 revision_id,
@@ -197,6 +232,11 @@ def create_revision(
                 source_bytes,
                 source_media_type,
                 supersedes,
+                filename,
+                storage_key,
+                0 if content_chars is None else content_chars,
+                language,
+                source_label,
             ),
         )
     return revision_id, revision_no
