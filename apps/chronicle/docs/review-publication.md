@@ -52,9 +52,12 @@ ingestion_outputs: source-bundle + cross-source-resolution(s)
 - **Reviews are durable and deterministic.** Items carry full
   left/right bundle/ref provenance, signals, and the allowed
   decision vocabulary. Opening is adopt-or-create (crash-safe, no
-  duplicates). Dismissed items finalize as `uncertain`: giving up
-  on a review never merges. Resume reuses completed stages and
-  never re-runs accepted extraction work.
+  duplicates). Dismissed items are collected as explicit `uncertain`
+  decisions (a terminal reviewed state, distinct from never
+  reviewed): giving up on a review never merges, while a candidate
+  with no review item at all still fails finalization closed.
+  Resume reuses completed stages and never re-runs accepted
+  extraction work.
 - **No new state machine.** Review items reuse the frozen
   `stage_gate` kind; `resume_job` still refuses while any item is
   open. No migration was needed.

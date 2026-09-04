@@ -507,6 +507,87 @@ class ResolvePublishPostgresTests(unittest.TestCase):
                 sorted(sha256_json(item) for item in final), recorded_final
             )
 
+    # -- the dismiss-all path (D-1) ---------------------------------------
+
+    def test_dismissed_reviews_finalize_as_explicit_uncertain(self) -> None:
+        """Dismissing every review still resumes to a completed publish.
+
+        Regression test for D-1: dismissed items are durable terminal
+        reviews, so finalization records them as explicit ``uncertain``
+        (kept distinct, still reviewable) instead of failing on a
+        missing decision. Genuinely unreviewed candidates remain a
+        fail-closed error (covered by the unit suite).
+        """
+        with psycopg.connect(self.database_url) as conn:
+            corpus = self._seed_corpus(conn)
+            seed_ids = {
+                record["canonical_id"]
+                for record in corpus["catalog"]["canonical_entities"]
+            }
+            job_id, revision_id, _artifact = self._seed_job_with_bundle(
+                conn,
+                chunks=self._new_book_chunks("rev-placeholder", "0" * 64),
+            )
+
+        runner = worker.JobRunner(self.database_url, worker=WORKER)
+        self.assertEqual(runner.execute_job(job_id), "needs_review")
+
+        with psycopg.connect(self.database_url) as conn:
+            rows = self._reviews(conn, job_id)
+            self.assertEqual(len(rows), 3)
+            self.assertTrue(all(row[2] == "open" for row in rows))
+            for review_id, _kind, _status, _payload in rows:
+                control_plane.resolve_review_item(
+                    conn, review_id=review_id, status="dismissed"
+                )
+            control_plane.resume_job(conn, job_id=job_id)
+            control_plane.claim_job(conn, worker=WORKER, job_id=job_id)
+
+        self.assertEqual(runner.execute_job(job_id), "completed")
+
+        with psycopg.connect(self.database_url) as conn:
+            detail = control_plane.get_job_detail(conn, job_id=job_id)
+            self.assertEqual(detail["status"], "completed")
+            catalogs = conn.execute(
+                """
+                SELECT payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                """,
+                (job_id, R.CATALOG_ARTIFACT_TYPE),
+            ).fetchall()
+            self.assertEqual(len(catalogs), 1)
+            catalog = catalogs[0][0]["catalog"]
+            report = catalogs[0][0]["report"]
+            # Nothing merged: every representation is a singleton, and
+            # every pre-existing canonical UUID survives unchanged.
+            for record in catalog["canonical_entities"]:
+                self.assertEqual(len(record["representations"]), 1)
+            surviving = {
+                record["canonical_id"]
+                for record in catalog["canonical_entities"]
+            }
+            self.assertTrue(seed_ids <= surviving)
+            self.assertEqual(len(catalog["canonical_events"]), 2)
+            self.assertEqual(
+                report["decisions"]["entities"].get("uncertain"), 2
+            )
+            self.assertEqual(report["decisions"]["events"].get("uncertain"), 1)
+            # The dismissal rationale is recorded on the final links.
+            finals = conn.execute(
+                """
+                SELECT payload FROM chronicle.resolution_artifacts
+                """
+            ).fetchall()
+            rationales = [
+                link.get("rationale")
+                for (artifact,) in finals
+                for link in (artifact.get("entity_links") or [])
+                + (artifact.get("event_links") or [])
+                if link.get("decision") == "uncertain"
+                and "dismissed" in str(link.get("rationale") or "")
+            ]
+            self.assertTrue(rationales)
+
     # -- the unattended path ----------------------------------------------
 
     def test_disjoint_bundle_publishes_without_review(self) -> None:

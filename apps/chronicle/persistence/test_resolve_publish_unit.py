@@ -358,6 +358,28 @@ class FinalResolutionTests(unittest.TestCase):
                 ),
             )
 
+    def test_dismissed_style_entry_finalizes_as_uncertain(self) -> None:
+        """A collected dismissal (explicit uncertain) satisfies completeness."""
+        initial = self._initial()
+        sha = R.initial_artifact_sha(initial[0])
+        decisions = {
+            f"{sha}:ec_001": {
+                "decision": "uncertain",
+                "confidence": 0.5,
+                "rationale": "review dismissed; kept distinct",
+                "dismissed": True,
+            },
+            f"{sha}:vc_001": {
+                "decision": "uncertain",
+                "confidence": 0.5,
+                "rationale": "review dismissed; kept distinct",
+                "dismissed": True,
+            },
+        }
+        final = R.build_final_resolutions(initial, decisions)
+        self.assertEqual(final[0]["entity_links"][0]["decision"], "uncertain")
+        self.assertIn("dismissed", final[0]["entity_links"][0]["rationale"])
+
     def test_final_rerun_is_byte_identical(self) -> None:
         initial = self._initial()
         sha = R.initial_artifact_sha(initial[0])

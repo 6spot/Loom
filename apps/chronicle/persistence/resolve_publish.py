@@ -447,30 +447,48 @@ def collect_review_decisions(
 ) -> dict[str, dict[str, Any]]:
     """Collect recorded decisions keyed by ``resolution_sha:candidate_id``.
 
-    Only resolution-scoped items in ``resolved`` status contribute;
-    ``dismissed`` items are intentionally absent so finalization treats
-    them as ``uncertain`` (giving up on a review never merges).
+    Resolution-scoped items in ``resolved`` status contribute their
+    recorded human decision. Items in ``dismissed`` status contribute
+    an explicit ``uncertain`` decision: dismissal is a durable,
+    auditable terminal state of the review (the row stays with its
+    ``resolved_at`` stamp), so finalization can distinguish "reviewed
+    and set aside, keep distinct" from "never reviewed". Candidates
+    with no item at all — genuinely unreviewed, or bound to a changed
+    initial artifact — stay absent, and finalization with
+    ``require_complete=True`` still fails closed on those.
     """
     rows = conn.execute(
         """
-        SELECT payload FROM chronicle.review_items
-        WHERE job_id = %s AND status = 'resolved'
+        SELECT status, payload FROM chronicle.review_items
+        WHERE job_id = %s AND status IN ('resolved', 'dismissed')
         ORDER BY created_at, review_id
         """,
         (job_id,),
     ).fetchall()
     decisions: dict[str, dict[str, Any]] = {}
-    for (payload,) in rows:
+    for status, payload in rows:
         payload = payload if isinstance(payload, dict) else {}
         if payload.get("scope") != REVIEW_SCOPE:
-            continue
-        decision = payload.get("decision")
-        if not isinstance(decision, dict):
             continue
         key = _candidate_key(
             str(payload.get("resolution_sha256") or ""),
             str(payload.get("candidate_id") or ""),
         )
+        if status == "dismissed":
+            decisions[key] = {
+                "decision": "uncertain",
+                "confidence": CONFIDENCE_INITIAL_UNCERTAIN,
+                "rationale": (
+                    "Resolution review dismissed without a same/not-same "
+                    "decision; the candidate is kept distinct as explicit "
+                    "uncertain and remains reviewable."
+                ),
+                "dismissed": True,
+            }
+            continue
+        decision = payload.get("decision")
+        if not isinstance(decision, dict):
+            continue
         _require_decision(str(payload.get("link_kind")), decision.get("decision"))
         decisions[key] = {
             "decision": decision["decision"],
@@ -506,14 +524,13 @@ def build_final_resolutions(
     """Apply recorded human decisions over initial uncertain artifacts.
 
     Every candidate keeps its ID, refs, and signals; only
-    decision/confidence/rationale change. Candidates without a
-    recorded decision (including dismissed reviews) stay ``uncertain``,
-    so an incomplete or abandoned review can never merge identities.
-    With ``require_complete`` (the worker default), any candidate that
-    is neither resolved nor dismissable fails closed instead of
-    publishing a partially reviewed graph — the caller must distinguish
-    "reviewed uncertain" from "never reviewed", which it does through
-    the review-item table, not here.
+    decision/confidence/rationale change. Dismissed reviews arrive
+    here as explicit ``uncertain`` decisions (see
+    :func:`collect_review_decisions`), so giving up on a review never
+    merges identities. With ``require_complete`` (the worker
+    default), any candidate with no recorded decision at all —
+    genuinely unreviewed, or bound to a changed initial artifact —
+    fails closed instead of publishing a partially reviewed graph.
     """
     final: list[dict[str, Any]] = []
     for pristine in initial:
