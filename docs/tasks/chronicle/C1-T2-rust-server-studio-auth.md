@@ -47,4 +47,10 @@ Establish the long-lived Rust Chronicle server, public/Studio API separation, an
   control-plane tables are untouched, so this leaf builds in parallel
   without consuming C1-T1 outputs. Migration boundary documented in
   `apps/chronicle/docs/server.md`; Compose runs Rust `chronicle-web`
-  fronting internal C0 `chronicle-read` sidecar.
+  fronting internal C0   `chronicle-read` sidecar.
+- 2026-09-04 — Reviewer FAIL addressed: D-1 `CHRONICLE_BIND=0.0.0.0` in the
+  Compose web service (full Docker stack rerun: web healthy and reachable);
+  D-2 raw `CHRONICLE_UPSTREAM_URL`/`CHRONICLE_PORT` redacted from config
+  errors plus regression tests; D-3 deterministic Python upstream readiness
+  and first-contact proxied check in the front smoke (PG18 contracts and
+  full Docker assertions rerun green locally).
