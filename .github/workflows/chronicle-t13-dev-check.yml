@@ -166,11 +166,12 @@ jobs:
             --profile worker run --rm --no-deps \
             -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
             chronicle-worker \
-            python3 apps/chronicle/worker/ingestion_worker.py \
+            python3 apps/chronicle/corpus/c1-t13/fixture_worker.py \
               --worker-id c1-t13-fixture-pass1 \
               --lease-seconds 300 \
               --poll-interval 0.1 \
               --max-jobs 6 \
+              --max-input-chars 32000 \
             | tee /tmp/c1-t13-evidence/worker-pass1.log
 
       - name: Resolve conservative fixture reviews through Studio and resume jobs
@@ -199,11 +200,12 @@ jobs:
               --profile worker run --rm --no-deps \
               -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
               chronicle-worker \
-              python3 apps/chronicle/worker/ingestion_worker.py \
+              python3 apps/chronicle/corpus/c1-t13/fixture_worker.py \
                 --worker-id c1-t13-fixture-pass2 \
                 --lease-seconds 300 \
                 --poll-interval 0.1 \
                 --max-jobs "$resumed" \
+                --max-input-chars 32000 \
               | tee /tmp/c1-t13-evidence/worker-pass2.log
           else
             echo "No review-gated jobs required a second worker pass." | tee /tmp/c1-t13-evidence/worker-pass2.log
