@@ -48,8 +48,26 @@ These checks establish provenance scope; they do not pretend that a mechanical v
 
 The current public projection is the greatest published `presentation_version` for a canonical target. Regeneration never mutates canonical UUIDs, staged records, Claims or evidence.
 
+## Offline pipeline
+
+The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
+
+Targets with no direct evidenced Claims are omitted rather than filled from model knowledge. Exact-input crash/retry adoption reuses the already-published projection without another model call. The resulting presentation and its job output remain explicitly `authoritative: false`.
+
 ## Reader API / UI
 
 Event and Entity detail responses may include a `reader_presentation` object. Public pages render it before source-heavy research material. Every block exposes its support Claim refs and resolved Claim/evidence payloads so readers can drill directly from modern prose to the source-grounded layer.
 
 When no validated presentation exists, the API returns no presentation and the page falls back to the existing source-grounded detail rather than generating prose during the request.
+
+## T12 manual grounding/readability inspection
+
+The initial inspection uses retained C0 historical artifacts rather than invented prose fixtures. The criterion is deliberately strict: a modern-Chinese sentence is acceptable only to the extent that the bound Claim/evidence can support it.
+
+| Target | Supporting Claim / exact evidence | Accepted reader wording | Boundary checked |
+| --- | --- | --- | --- |
+| 赤壁之战 Event (`wudi/clm_024`) | `outcome = 不利`; evidence `不利` in 《三国志·魏书·武帝纪》 | `《武帝纪》对这场赤壁交战的结果记为“不利”。` | Does **not** add fire attack, casualty scale, strategic significance, or a stronger “惨败” characterization. |
+| 刘表 Entity (`wudi/clm_008`) | `died`; evidence `表卒` in 《三国志·魏书·武帝纪》 | `《武帝纪》记载刘表去世。` | Modernizes `卒` without inventing cause, place, exact day, or consequence. |
+| 孙权 Entity (`wuzhu/clm_008`) | `sent_forces`; evidence `权遣周瑜、程普等行` in 《三国志·吴书·吴主传》 | `《吴主传》记载，孙权派周瑜、程普等出兵。` | Preserves the explicit dispatch action; does not infer the later battle result into this block. |
+
+A tempting sentence such as `曹操在赤壁遭火攻击败，这成为三国格局的决定性转折` is intentionally outside T12 support for the inspected Event context: those causal/significance details are not licensed merely because they are familiar historical knowledge. Such prose must wait for supporting Chronicle Claims (and later causal interpretation semantics), not be smuggled in by the reader layer.
