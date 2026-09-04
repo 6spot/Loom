@@ -1,0 +1,50 @@
+name: Chronicle T11 dist capture
+
+on:
+  push:
+    branches:
+      - feat/chronicle-c1-t11-studio-review
+    paths:
+      - ".github/workflows/chronicle-t11-dist-capture.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout delivery branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t11-studio-review
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+
+      - name: Test and build Chronicle webapp
+        working-directory: apps/chronicle/webapp
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          npm run build
+          npm run smoke:dist
+
+      - name: Commit generated dist
+        run: |
+          set -euo pipefail
+          git add -A apps/chronicle/web/dist
+          if git diff --cached --quiet; then
+            echo "dist already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build(chronicle): refresh T11 web dist"
+          git push origin HEAD:feat/chronicle-c1-t11-studio-review
