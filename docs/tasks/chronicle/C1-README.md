@@ -1,7 +1,7 @@
 # Chronicle C1 — Historical World
 
 Root Issue: #489
-Status: planned
+Status: in_progress
 
 C1 turns the completed C0 source-grounded vertical slice into a repeatable Book-to-Chronicle production system and then uses that system to build the first high-density late-Han / early-Three-Kingdoms Historical World experience.
 
@@ -11,15 +11,15 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 
 | Task | Issue | Status | Depends on | Scope |
 | --- | ---: | --- | --- | --- |
-| C1-T1 | #490 | planned | C0-T12 | ingestion control-plane contract + persistence |
-| C1-T2 | #491 | in_progress | C1-T1 | Rust Chronicle server + API namespaces + single-admin auth |
-| C1-T3 | #492 | planned | C1-T2 | Document upload + immutable revisions/source storage |
+| C1-T1 | #490 | completed | C0-T12 | ingestion control-plane contract + persistence |
+| C1-T2 | #491 | completed | C1-T1 | Rust Chronicle server + API namespaces + single-admin auth |
+| C1-T3 | #492 | completed | C1-T2 | Document upload + immutable revisions/source storage |
 | C1-T4 | #493 | completed | C1-T1, C1-T2 | durable PostgreSQL-backed ingestion worker/resume |
-| C1-T5 | #494 | in_progress | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
-| C1-T6 | #495 | in_progress | C1-T5 | context-aware contract-first chunk extraction |
-| C1-T7 | #496 | in_progress | C1-T6 | source assembly + within-book resolution |
-| C1-T8 | #497 | in_progress | C1-T7 | cross-source review + canonical publication |
-| C1-T9 | #498 | planned | C1-T2 | React/Vite web foundation + shadcn Studio shell |
+| C1-T5 | #494 | completed | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
+| C1-T6 | #495 | completed | C1-T5 | context-aware contract-first chunk extraction |
+| C1-T7 | #496 | completed | C1-T6 | source assembly + within-book resolution |
+| C1-T8 | #497 | completed | C1-T7 | cross-source review + canonical publication |
+| C1-T9 | #498 | completed | C1-T2 | React/Vite web foundation + shadcn Studio shell |
 | C1-T10 | #499 | planned | C1-T3, C1-T4, C1-T9 | Studio document/import operations + progress |
 | C1-T11 | #500 | planned | C1-T8, C1-T9 | Studio resolution review queue |
 | C1-T12 | #501 | planned | C1-T8, C1-T9 | zh-CN Reader Presentation projection |
@@ -71,7 +71,11 @@ Transitive dependencies mean C1-T17 is the serial final gate over the complete C
 
 GitHub Issue state is collaboration state, not READY authority. Multica/agents must read this index plus the child task record and calculate readiness from the canonical default-branch Task Ledger. A delivery PR merge alone does not complete a task; `docs/development/task-completion.md` post-merge reconciliation remains mandatory.
 
-The first C1 executable leaf is **C1-T1 / #490**, but it becomes READY only after this planning ledger reaches the default branch.
+After the catch-up reconciliation for already-merged C1-T1/T2/T3/T5/T6/T7/T8/T9 reaches the default branch, the current READY leaves are **C1-T10 / #499**, **C1-T11 / #500**, and **C1-T12 / #501**. They may proceed independently because their hard dependencies are completed.
+
+## Governance repair note
+
+C1-T1/T2/T3/T5/T6/T7/T8/T9 delivery PRs were merged and their GitHub Issues were advanced/closed before the required default-branch Task Ledger reconciliation. The catch-up reconciliation does not retroactively make that sequencing compliant; it restores the canonical ledger to the factual delivered state using the actual delivery PR, merge SHA, and exact-head CI evidence. Future leaves must follow `docs/development/task-completion.md` in order.
 
 ## Final completion
 
