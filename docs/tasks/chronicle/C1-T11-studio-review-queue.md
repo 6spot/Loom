@@ -1,10 +1,10 @@
 ---
 task: C1-T11
 issue: 500
-status: planned
+status: in_progress
 depends_on: [C1-T8, C1-T9]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -33,3 +33,4 @@ Expose durable uncertain Entity/Event resolution decisions to the single adminis
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Started from canonical `main` after C1-T10 reconciliation. T11 reuses the C1-T8 durable `review_items` + `resolve_resolution_review()` authority and the existing control-plane `resume_job()` gate. Scope is a purpose-built authenticated Review list/detail/decision projection plus Studio UI; no new resolution vocabulary, confidence auto-accept, or generic review framework is introduced.
