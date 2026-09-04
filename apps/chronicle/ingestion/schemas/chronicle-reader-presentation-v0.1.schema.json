@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle-reader-presentation-v0.1.schema.json",
+  "title": "Chronicle Reader Presentation Candidate v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "target_kind", "canonical_id", "language", "blocks"],
+  "properties": {
+    "schema": {"const": "chronicle.reader-presentation"},
+    "version": {"const": "0.1"},
+    "target_kind": {"enum": ["entity", "event"]},
+    "canonical_id": {"type": "string", "format": "uuid"},
+    "language": {"const": "zh-CN"},
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["block_kind", "epistemic_mode", "text", "claim_refs"],
+        "properties": {
+          "block_kind": {
+            "enum": ["overview", "sequence", "outcome", "source_notes", "uncertainty"]
+          },
+          "epistemic_mode": {
+            "enum": ["fact_summary", "source_report", "uncertainty"]
+          },
+          "text": {"type": "string", "minLength": 1, "maxLength": 600},
+          "claim_refs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["bundle", "ref"],
+              "properties": {
+                "bundle": {"type": "string", "minLength": 1},
+                "ref": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

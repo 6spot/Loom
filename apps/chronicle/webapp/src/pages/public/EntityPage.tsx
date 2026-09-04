@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import ReaderPresentation from "../../components/ReaderPresentation";
 import { useEntity } from "../../lib/queries";
 import { formatTime } from "../../lib/routes";
 import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
@@ -59,6 +60,7 @@ export default function EntityPage() {
   const reps = data.representations ?? [];
   const events = data.events ?? [];
   const claims = data.claims ?? [];
+  const readerPresentation = data.reader_presentation ?? null;
 
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
@@ -75,8 +77,14 @@ export default function EntityPage() {
           <span className="chip">{data.source_count ?? reps.length} 个来源</span>
           <span className="chip">{data.representation_count ?? reps.length} 条记录</span>
         </div>
-        <p className="lede">Canonical UUID 只负责跨来源导航。相同名称但身份不确定的地点保持不同页面，并通过 Resolution 明确显示“不确定”。</p>
+        <p className="lede">
+          {readerPresentation
+            ? "先显示经过 grounding 校验的现代中文 Reader Presentation；人物轨迹、Source representation、直接 Claim 与 Resolution 仍保持可核对。"
+            : "此实体暂未生成经过 grounding 校验的现代中文 Reader Presentation；页面不会从常识补写传记，以下直接显示现有事件轨迹与 source-grounded 材料。"}
+        </p>
       </header>
+
+      <ReaderPresentation presentation={readerPresentation} />
 
       <div className="detail-grid">
         <div className="detail-main">

@@ -73,6 +73,7 @@ import assembly  # noqa: E402
 import canonical_store  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
+import presentation_stage  # noqa: E402
 import resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
 import segmentation  # noqa: E402
@@ -119,10 +120,11 @@ REAL_ASSEMBLE_STAGE = "assemble"
 #: is the artifact itself, not a flag: fake jobs without assembly keep
 #: the deterministic fake executor, and resume after review re-enters
 #: the same real path without re-running accepted extraction work.
-#: The ``present`` stage stays on the fake executor (Reader
-#: Presentation is C1-T12 scope).
+#: C1-T12 owns ``present`` only when a distinct presentation_model
+#: is explicitly supplied. Without it, the C1-T4 fake stage remains intact.
 REAL_RESOLVE_STAGE = "resolve"
 REAL_PUBLISH_STAGE = "publish"
+REAL_PRESENT_STAGE = "present"
 
 #: Fake completion artifact recorded once a job finishes every stage.
 FAKE_OUTPUT_TYPE = "fake-pipeline-result"
@@ -318,7 +320,9 @@ class JobRunner:
     a supplied dict must equal it exactly (anything else fails closed);
     ``allowed_predicates`` tightens validation when supplied; ``document_meta``
     supplies document-level extraction metadata (e.g. a verified
-    normalized year) over the database title.
+    normalized year) over the database title. ``presentation_model`` is a
+    separate opt-in provider for the C1-T12 derived ``present`` stage; it is
+    never reused as the extraction model and never changes historical authority.
     """
 
     def __init__(
@@ -333,6 +337,7 @@ class JobRunner:
         revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
         segmentation_config: SegmentationConfig | None = None,
         chunk_model: Any | None = None,
+        presentation_model: Any | None = None,
         extraction_config: extraction.ExtractionConfig | None = None,
         extraction_schema: dict[str, Any] | None = None,
         allowed_predicates: list[str] | None = None,
@@ -349,6 +354,14 @@ class JobRunner:
             raise PersistenceError(
                 "chunk_model must expose complete(prompt)->str and a string name"
             )
+        if presentation_model is not None and (
+            not callable(getattr(presentation_model, "complete", None))
+            or not isinstance(getattr(presentation_model, "name", None), str)
+            or not getattr(presentation_model, "name", "")
+        ):
+            raise PersistenceError(
+                "presentation_model must expose complete(prompt)->str and a non-empty string name"
+            )
         self.database_url = database_url
         self.worker = worker
         self.executor = executor or StageExecutor()
@@ -358,6 +371,7 @@ class JobRunner:
         self.revision_source = revision_source
         self.segmentation_config = segmentation_config or SegmentationConfig()
         self.chunk_model = chunk_model
+        self.presentation_model = presentation_model
         self.extraction_config = extraction_config or extraction.ExtractionConfig()
         self.extraction_schema = extraction_schema
         self.allowed_predicates = allowed_predicates
@@ -1969,6 +1983,51 @@ class JobRunner:
                     return "needs_review"
                 return outcome  # cancelled / stopped: checkpoints stay as written
             else:
+                if (
+                    stage == REAL_PRESENT_STAGE
+                    and self.presentation_model is not None
+                    and self._real_publication_active(job_id)
+                ):
+                    try:
+                        report = presentation_stage.execute_present_stage(
+                            self.database_url,
+                            job_id=job_id,
+                            worker=self.worker,
+                            model=self.presentation_model,
+                        )
+                    except LeaseLost:
+                        raise
+                    except Exception as exc:
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="failed", worker=self.worker,
+                                error=f"real present failed: {exc}",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="failed",
+                                worker=self.worker,
+                                error=f"real present failed: {exc}",
+                            )
+                        self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                        return "failed"
+                    halt = self.check_halt(job_id)
+                    if halt is not None:
+                        return halt
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.write_stage_checkpoint_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            worker=self.worker, checkpoint=report,
+                        )
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="completed", worker=self.worker,
+                        )
+                    self._emit(
+                        "stage_completed",
+                        {"stage": stage, "presentations": len(report["presentations"])},
+                    )
+                    continue
                 # No connection is open across this call.
                 try:
                     checkpoint = self.executor.execute_stage(stage, job_id)
@@ -2067,6 +2126,7 @@ def run_once(
     revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
     segmentation_config: SegmentationConfig | None = None,
     chunk_model: Any | None = None,
+    presentation_model: Any | None = None,
     extraction_config: extraction.ExtractionConfig | None = None,
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
@@ -2080,7 +2140,8 @@ def run_once(
     structure/segment path for jobs whose revision text it can supply;
     without it every stage uses the deterministic fake executor.
     ``chunk_model`` additionally enables the C1-T6 real extract path;
-    without it the extract stage keeps the fake chunk executor.
+    without it the extract stage keeps the fake chunk executor. A distinct
+    ``presentation_model`` enables the C1-T12 offline derived present stage.
     """
     stop = stop or threading.Event()
     with psycopg.connect(database_url) as conn:
@@ -2095,6 +2156,7 @@ def run_once(
         revision_source=revision_source,
         segmentation_config=segmentation_config,
         chunk_model=chunk_model,
+        presentation_model=presentation_model,
         extraction_config=extraction_config,
         extraction_schema=extraction_schema,
         allowed_predicates=allowed_predicates,
@@ -2116,6 +2178,7 @@ def run_forever(
     revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
     segmentation_config: SegmentationConfig | None = None,
     chunk_model: Any | None = None,
+    presentation_model: Any | None = None,
     extraction_config: extraction.ExtractionConfig | None = None,
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
@@ -2134,6 +2197,7 @@ def run_forever(
                 revision_source=revision_source,
                 segmentation_config=segmentation_config,
                 chunk_model=chunk_model,
+                presentation_model=presentation_model,
                 extraction_config=extraction_config,
                 extraction_schema=extraction_schema,
                 allowed_predicates=allowed_predicates,

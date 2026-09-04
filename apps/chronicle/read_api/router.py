@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from read_common import ReadModelError, ReadModelNotFound
+from reader_presentation import latest_reader_presentation
 from search import search_catalog
 
 
@@ -34,6 +35,15 @@ def _error(status: int, code: str, message: str) -> tuple[int, dict[str, Any]]:
         "version": "0.1",
         "error": {"code": code, "message": message},
     }
+
+
+def _with_reader_presentation(repo, *, target_kind: str, canonical_id: str, detail: dict[str, Any]) -> dict[str, Any]:
+    """Overlay the latest derived reader projection without changing authority."""
+    enriched = dict(detail)
+    enriched["reader_presentation"] = latest_reader_presentation(
+        repo.conn, target_kind=target_kind, canonical_id=canonical_id
+    )
+    return enriched
 
 
 def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, dict[str, Any]]:
@@ -82,14 +92,26 @@ def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, di
             canonical_id = path[len(event_prefix):]
             if "/" in canonical_id:
                 return _error(404, "not_found", "route not found")
-            return 200, repo.event_detail(canonical_id)
+            detail = repo.event_detail(canonical_id)
+            return 200, _with_reader_presentation(
+                repo,
+                target_kind="event",
+                canonical_id=canonical_id,
+                detail=detail,
+            )
 
         entity_prefix = "/v0/entities/"
         if path.startswith(entity_prefix) and len(path) > len(entity_prefix):
             canonical_id = path[len(entity_prefix):]
             if "/" in canonical_id:
                 return _error(404, "not_found", "route not found")
-            return 200, repo.entity_detail(canonical_id)
+            detail = repo.entity_detail(canonical_id)
+            return 200, _with_reader_presentation(
+                repo,
+                target_kind="entity",
+                canonical_id=canonical_id,
+                detail=detail,
+            )
 
         return _error(404, "not_found", "route not found")
     except ReadModelNotFound as exc:

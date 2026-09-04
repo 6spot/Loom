@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import ReaderPresentation from "../../components/ReaderPresentation";
 import { useEvent } from "../../lib/queries";
 import { formatTime } from "../../lib/routes";
 import { ClaimsBlock, DECISION_LABEL, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
@@ -60,6 +61,7 @@ export default function EventPage() {
   const places = data.places ?? [];
   const related = data.related_events ?? [];
   const reps = data.representations ?? [];
+  const readerPresentation = data.reader_presentation ?? null;
 
   return (
     <section data-view="event" data-canonical-id={data.canonical_event_id}>
@@ -77,9 +79,13 @@ export default function EventPage() {
           <span className="chip">{data.source_count ?? reps.length} 个来源</span>
         </div>
         <p className="lede">
-          这里的标题是导航用 presentation label。史料记录、Claim、原始 evidence 和 Resolution 决策在下面保持分层，不会被合成为一段“权威叙事”。
+          {readerPresentation
+            ? "先显示经过 grounding 校验的现代中文 Reader Presentation；下方仍完整保留 Source representation、Claim、原始 evidence 与 Resolution。"
+            : "此事件暂未生成经过 grounding 校验的现代中文 Reader Presentation，因此不会临时补写叙事；以下直接显示 source-grounded 史料与证据。"}
         </p>
       </header>
+
+      <ReaderPresentation presentation={readerPresentation} />
 
       <div className="detail-grid">
         <div className="detail-main">
