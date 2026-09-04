@@ -1,6 +1,6 @@
 //! Same-origin web front, embedded at compile time.
 //!
-//! The C1-T9 React/TypeScript/Vite build from `apps/chronicle/webapp/` (built
+//! The C1 React/TypeScript/Vite build from `apps/chronicle/webapp/` (built
 //! output committed under `apps/chronicle/web/dist/` with deterministic asset
 //! names) is served from this binary so the Chronicle deployment path stays
 //! one origin: one build serves public Chronicle routes and `/studio/*`.
@@ -29,8 +29,8 @@ macro_rules! asset {
     };
 }
 
-/// Allowlisted UI assets (C0 set from `web_static.py`, plus the C1-T9 Vite
-/// build output with deterministic filenames from `webapp/vite.config.ts`).
+/// Allowlisted UI assets (C0 set from `web_static.py`, plus the C1 Vite build
+/// output with deterministic filenames from `webapp/vite.config.ts`).
 pub static ASSETS: &[Asset] = &[
     asset!("/styles.css", "text/css; charset=utf-8", "styles.css"),
     asset!("/search.css", "text/css; charset=utf-8", "search.css"),
@@ -72,9 +72,29 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioLoginPage.js"
     ),
     asset!(
+        "/assets/StudioImportsPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioImportsPage.js"
+    ),
+    asset!(
+        "/assets/StudioImportDetailPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioImportDetailPage.js"
+    ),
+    asset!(
+        "/assets/studio-api.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/studio-api.js"
+    ),
+    asset!(
         "/assets/placeholders.js",
         "text/javascript; charset=utf-8",
         "dist/assets/placeholders.js"
+    ),
+    asset!(
+        "/assets/input.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/input.js"
     ),
     asset!(
         "/assets/button.js",
@@ -98,7 +118,7 @@ pub static ASSETS: &[Asset] = &[
     ),
 ];
 
-/// Embedded SPA shell: the C1-T9 React build (public + Studio routes).
+/// Embedded SPA shell: the current React build (public + Studio routes).
 pub static INDEX_HTML: &[u8] = include_bytes!("../../web/dist/index.html");
 
 /// Decide how to serve one browser path.
@@ -116,6 +136,11 @@ pub fn resolve_web_path(path: &str) -> Option<(&'static str, &'static [u8])> {
     None
 }
 
+fn is_single_segment(rest: &str) -> bool {
+    let id = rest.strip_suffix('/').unwrap_or(rest);
+    !id.is_empty() && !id.contains('/')
+}
+
 fn is_spa_path(path: &str) -> bool {
     if path == "/" || path == "/timeline" || path == "/timeline/" {
         return true;
@@ -123,10 +148,14 @@ fn is_spa_path(path: &str) -> bool {
     if path == "/search" || path == "/search/" {
         return true;
     }
-    // C1-T9 Studio shell: served without auth (the shell carries no
-    // privileged data; every Studio API call is server-auth-enforced).
+    // The Studio shell itself is public because it carries no privileged
+    // data; every Studio API is authenticated server-side. C1-T10 adds one
+    // nested navigation route for a durable Ingestion Job detail page.
     if path == "/studio" || path == "/studio/" {
         return true;
+    }
+    if let Some(rest) = path.strip_prefix("/studio/imports/") {
+        return is_single_segment(rest);
     }
     if let Some(rest) = path.strip_prefix("/studio/") {
         let id = rest.strip_suffix('/').unwrap_or(rest);
@@ -140,10 +169,7 @@ fn is_spa_path(path: &str) -> bool {
     }
     for prefix in ["/events/", "/entities/"] {
         if let Some(rest) = path.strip_prefix(prefix) {
-            let id = rest.strip_suffix('/').unwrap_or(rest);
-            if !id.is_empty() && !id.contains('/') {
-                return true;
-            }
+            return is_single_segment(rest);
         }
     }
     false
@@ -176,6 +202,8 @@ mod tests {
             "/studio/",
             "/studio/login",
             "/studio/imports",
+            "/studio/imports/019-example-job",
+            "/studio/imports/019-example-job/",
             "/studio/review",
             "/studio/sources",
         ] {
@@ -192,6 +220,10 @@ mod tests {
             "/assets/index.css",
             "/assets/StudioLayout.js",
             "/assets/StudioHomePage.js",
+            "/assets/StudioImportsPage.js",
+            "/assets/StudioImportDetailPage.js",
+            "/assets/studio-api.js",
+            "/assets/input.js",
             "/assets/placeholders.js",
         ] {
             assert!(resolve_web_path(path).is_some(), "{path}");
@@ -201,7 +233,7 @@ mod tests {
     #[test]
     fn studio_nested_or_unknown_paths_do_not_resolve() {
         for path in [
-            "/studio/imports/extra",
+            "/studio/imports/job/extra",
             "/studio/unknown",
             "/studio/../api/v1/studio/status",
         ] {
