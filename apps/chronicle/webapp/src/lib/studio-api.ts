@@ -410,16 +410,18 @@ export async function mutateJob(
   return (await studioRequest<JobResponse>(auth, path, { method: "POST" })).job;
 }
 
+const REVIEWS_API = "/api/v1/studio/jobs/reviews";
+
 export async function listReviews(
   auth: string | null,
   status: ReviewStatus | "all" = "open",
 ): Promise<ReviewSummary[]> {
   const params = new URLSearchParams({ status, limit: "200", offset: "0" });
-  return (await studioRequest<ReviewsResponse>(auth, `/api/v1/studio/reviews?${params.toString()}`)).reviews;
+  return (await studioRequest<ReviewsResponse>(auth, `${REVIEWS_API}?${params.toString()}`)).reviews;
 }
 
 export async function getReview(auth: string | null, reviewId: string): Promise<ReviewDetail> {
-  const path = `/api/v1/studio/reviews/${encodeURIComponent(reviewId)}`;
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}`;
   return (await studioRequest<ReviewResponse>(auth, path)).review;
 }
 
@@ -430,7 +432,7 @@ export async function submitReviewDecision(
   rationale: string,
   confidence = 0.5,
 ): Promise<ReviewDetail> {
-  const path = `/api/v1/studio/reviews/${encodeURIComponent(reviewId)}/decision`;
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`;
   return (
     await studioRequest<ReviewResponse>(auth, path, {
       method: "POST",
