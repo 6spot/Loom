@@ -1,25 +1,12 @@
 """Explicit deterministic model-boundary fixtures for Chronicle development.
 
-This module is intentionally not a replacement for Chronicle's ingestion
-pipeline. It implements the same ``complete(prompt) -> str`` provider boundary
-used by C1-T6 extraction and C1-T12 Reader Presentation so a development run
-can exercise real source loading, segmentation, contract validation, assembly,
-resolution/review, canonical publication, and presentation persistence without
-requiring a live external model endpoint.
+The provider implements the same ``complete(prompt) -> str`` boundary used by
+C1-T6 extraction and C1-T12 Reader Presentation. Fixture mode therefore still
+runs real source loading, segmentation, contract validation, assembly,
+resolution/review, canonical publication, and presentation persistence.
 
-Fixture mode is source grounded and fail closed:
-
-* extraction rules only fire when their exact evidence substring is present in
-  the current CHUNK SOURCE TEXT and the configured Document title matches;
-* unmatched chunks return a schema-valid empty staged bundle rather than
-  inventing facts;
-* every emitted Claim keeps exact chunk evidence and unresolved local identity;
-* presentation output is synthesized only from the frozen Claim context already
-  embedded in the C1-T12 prompt and binds every block to allowed Claim refs;
-* an invalid/missing fixture pack raises before the worker starts.
-
-The generic C1-T4 StageExecutor fake is not used for historical output in this
-mode. Production deployments must leave CHRONICLE_MODEL_FIXTURE_PACK unset.
+It is development-only, source-grounded, explicit, and fail closed. Production
+must leave ``CHRONICLE_MODEL_FIXTURE_PACK`` unset.
 """
 
 from __future__ import annotations
@@ -100,6 +87,8 @@ def _load_pack(path: Path | str) -> dict[str, Any]:
             raise PersistenceError(f"fixture extraction rule {rule_id} subject must be an object")
         _require_text(subject.get("name"), f"fixture extraction rule {rule_id} subject.name")
         _require_text(subject.get("type"), f"fixture extraction rule {rule_id} subject.type")
+        if subject.get("mention") is not None:
+            _require_text(subject.get("mention"), f"fixture extraction rule {rule_id} subject.mention")
         _require_text(rule.get("predicate"), f"fixture extraction rule {rule_id} predicate")
         event = rule.get("event")
         if not isinstance(event, dict):
@@ -124,8 +113,22 @@ def _between(value: str, start: str, end: str, description: str) -> str:
     return value[start_at:end_at]
 
 
-def _extraction_prompt_parts(prompt: str) -> tuple[dict[str, Any], str]:
-    document_raw = _between(
+def _json_block(prompt: str, start: str, end: str, description: str) -> dict[str, Any]:
+    raw = _between(prompt, start, end, description)
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise PersistenceError(f"fixture extraction prompt {description} is invalid JSON") from exc
+    if not isinstance(value, dict):
+        raise PersistenceError(f"fixture extraction prompt {description} must be an object")
+    return value
+
+
+def _extraction_prompt_parts(
+    prompt: str,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    section = _json_block(prompt, "\nSECTION\n", "\n\nDOCUMENT", "SECTION")
+    document = _json_block(
         prompt, "\nDOCUMENT\n", "\n\nINHERITED CONTEXT", "DOCUMENT"
     )
     chunk_text = _between(
@@ -134,13 +137,7 @@ def _extraction_prompt_parts(prompt: str) -> tuple[dict[str, Any], str]:
         "\n---END CHUNK---",
         "CHUNK SOURCE TEXT",
     )
-    try:
-        document = json.loads(document_raw)
-    except json.JSONDecodeError as exc:
-        raise PersistenceError("fixture extraction prompt DOCUMENT is invalid JSON") from exc
-    if not isinstance(document, dict):
-        raise PersistenceError("fixture extraction prompt DOCUMENT must be an object")
-    return document, chunk_text
+    return section, document, chunk_text
 
 
 def _presentation_context(prompt: str) -> dict[str, Any]:
@@ -172,10 +169,19 @@ def _entity_key(spec: dict[str, Any]) -> tuple[str, str]:
     )
 
 
+def _mention(spec: dict[str, Any]) -> str:
+    return _require_text(spec.get("mention") or spec.get("name"), "fixture entity mention")
+
+
 def _build_extraction_bundle(
-    *, document: dict[str, Any], chunk_text: str, rules: list[dict[str, Any]]
+    *,
+    section: dict[str, Any],
+    document: dict[str, Any],
+    chunk_text: str,
+    rules: list[dict[str, Any]],
 ) -> dict[str, Any]:
     title = _require_text(document.get("title"), "fixture extraction document title")
+    section_label = _require_text(section.get("label"), "fixture extraction section label")
     matched = [
         rule
         for rule in rules
@@ -185,8 +191,13 @@ def _build_extraction_bundle(
     entities: list[dict[str, Any]] = []
     entity_ids: dict[tuple[str, str], str] = {}
 
-    def entity_ref(spec: dict[str, Any]) -> str:
+    def entity_ref(spec: dict[str, Any], evidence: str) -> str:
         key = _entity_key(spec)
+        mention = _mention(spec)
+        if mention not in evidence:
+            raise PersistenceError(
+                f"fixture entity mention {mention!r} is not present in exact evidence"
+            )
         existing = entity_ids.get(key)
         if existing is not None:
             return existing
@@ -200,7 +211,7 @@ def _build_extraction_bundle(
                 "type": kind,
                 "canonical_name": name,
                 "aliases": [],
-                "mentions": [{"text": name}],
+                "mentions": [{"text": mention}],
                 "resolution": {"status": "unresolved"},
                 "extraction": _meta(),
             }
@@ -212,7 +223,7 @@ def _build_extraction_bundle(
     for rule in matched:
         evidence = str(rule["evidence"])
         subject_spec = rule["subject"]
-        subject_ref = entity_ref(subject_spec)
+        subject_ref = entity_ref(subject_spec, evidence)
         claim_object: dict[str, Any] | None = None
         participant_refs = [subject_ref]
         places: list[str] = []
@@ -227,12 +238,7 @@ def _build_extraction_bundle(
                     raise PersistenceError(
                         f"fixture rule {rule['id']} object.entity must be an object"
                     )
-                target_name = _require_text(target.get("name"), "fixture object entity name")
-                if target_name not in evidence:
-                    raise PersistenceError(
-                        f"fixture rule {rule['id']} object entity {target_name!r} is not present in exact evidence"
-                    )
-                target_ref = entity_ref(target)
+                target_ref = entity_ref(target, evidence)
                 claim_object = {"kind": "entity_ref", "ref": target_ref}
                 participant_refs.append(target_ref)
                 if target.get("type") == "place":
@@ -241,11 +247,6 @@ def _build_extraction_bundle(
                 raise PersistenceError(
                     f"fixture rule {rule['id']} has unsupported object kind {kind!r}"
                 )
-        subject_name = _require_text(subject_spec.get("name"), "fixture subject name")
-        if subject_name not in evidence:
-            raise PersistenceError(
-                f"fixture rule {rule['id']} subject {subject_name!r} is not present in exact evidence"
-            )
         events.append(
             {
                 "temp_id": f"evt_{len(events) + 1:03d}",
@@ -275,7 +276,7 @@ def _build_extraction_bundle(
                 "evidence": {
                     "text": evidence,
                     "source_ref": "src_001",
-                    "locator": {"work": "三國志", "section": title},
+                    "locator": {"work": "三國志", "section": section_label},
                 },
                 "assessment": {"status": "unassessed"},
                 "extraction": _meta(),
@@ -379,9 +380,12 @@ class FixtureExtractionModel:
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
             raise PersistenceError("fixture extraction prompt must be non-empty text")
-        document, chunk_text = _extraction_prompt_parts(prompt)
+        section, document, chunk_text = _extraction_prompt_parts(prompt)
         bundle = _build_extraction_bundle(
-            document=document, chunk_text=chunk_text, rules=list(self.rules)
+            section=section,
+            document=document,
+            chunk_text=chunk_text,
+            rules=list(self.rules),
         )
         return json.dumps(bundle, ensure_ascii=False, separators=(",", ":"))
 
