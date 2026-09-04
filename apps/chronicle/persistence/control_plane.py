@@ -438,6 +438,17 @@ def record_chunk(
     _require_sha256(content_sha256, "content_sha256")
     chunk_id = _new_id()
     with conn.transaction():
+        if section_id is not None:
+            owner = conn.execute(
+                "SELECT job_id FROM chronicle.ingestion_sections WHERE section_id = %s",
+                (section_id,),
+            ).fetchone()
+            if owner is None:
+                raise PersistenceError(f"unknown section {section_id}")
+            if owner[0] != job_id:
+                raise PersistenceConflict(
+                    f"section {section_id} belongs to job {owner[0]}, not job {job_id}"
+                )
         try:
             conn.execute(
                 """
@@ -465,6 +476,8 @@ def record_chunk(
             ) from exc
         except psycopg.errors.ForeignKeyViolation as exc:
             raise PersistenceError(f"unknown job or section for chunk ({job_id})") from exc
+        except psycopg.errors.RaiseException as exc:
+            raise PersistenceConflict(str(exc).strip()) from exc
     return chunk_id
 
 
@@ -556,6 +569,17 @@ def open_review_item(
     _require_status(kind, REVIEW_KINDS, "review kind")
     review_id = _new_id()
     with conn.transaction():
+        if chunk_id is not None:
+            owner = conn.execute(
+                "SELECT job_id FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
+                (chunk_id,),
+            ).fetchone()
+            if owner is None:
+                raise PersistenceError(f"unknown chunk {chunk_id}")
+            if owner[0] != job_id:
+                raise PersistenceConflict(
+                    f"chunk {chunk_id} belongs to job {owner[0]}, not job {job_id}"
+                )
         try:
             conn.execute(
                 """
@@ -566,6 +590,8 @@ def open_review_item(
             )
         except psycopg.errors.ForeignKeyViolation as exc:
             raise PersistenceError(f"unknown job or chunk for review ({job_id})") from exc
+        except psycopg.errors.RaiseException as exc:
+            raise PersistenceConflict(str(exc).strip()) from exc
     return review_id
 
 
@@ -608,7 +634,12 @@ def record_output(
     artifact_sha256: str,
     payload: dict[str, Any],
 ) -> uuid.UUID:
-    """Record one assembled ingestion output for an exact (job, revision)."""
+    """Record one assembled ingestion output for an exact (job, revision).
+
+    Outputs bind the job's own revision; a mismatched revision is rejected.
+    Retries are idempotent: repeating an identical call returns the existing
+    row's ID rather than a fresh, un-persisted one.
+    """
     if not isinstance(artifact_type, str) or not artifact_type:
         raise PersistenceError("artifact_type must be a non-empty string")
     _require_sha256(artifact_sha256, "artifact_sha256")
@@ -616,18 +647,45 @@ def record_output(
         raise PersistenceError("output payload must be a JSON object")
     output_id = _new_id()
     with conn.transaction():
+        job_revision = conn.execute(
+            "SELECT revision_id FROM chronicle.ingestion_jobs WHERE job_id = %s",
+            (job_id,),
+        ).fetchone()
+        if job_revision is None:
+            raise PersistenceError(f"unknown job {job_id}")
+        if job_revision[0] != revision_id:
+            raise PersistenceConflict(
+                f"output revision {revision_id} does not match "
+                f"revision {job_revision[0]} of job {job_id}"
+            )
         try:
-            conn.execute(
+            row = conn.execute(
                 """
                 INSERT INTO chronicle.ingestion_outputs(
                     output_id, job_id, revision_id, artifact_type, artifact_sha256, payload
                 ) VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (job_id, artifact_type, artifact_sha256) DO NOTHING
+                RETURNING output_id
                 """,
                 (output_id, job_id, revision_id, artifact_type, artifact_sha256, Jsonb(payload)),
-            )
+            ).fetchone()
         except psycopg.errors.ForeignKeyViolation as exc:
             raise PersistenceError(f"unknown job or revision for output ({job_id})") from exc
+        except psycopg.errors.RaiseException as exc:
+            raise PersistenceConflict(str(exc).strip()) from exc
+        if row is None:
+            # Duplicate retry: return the already-persisted row's ID so the
+            # caller always holds an ID that exists in ingestion_outputs.
+            row = conn.execute(
+                """
+                SELECT output_id FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s AND artifact_sha256 = %s
+                """,
+                (job_id, artifact_type, artifact_sha256),
+            ).fetchone()
+            if row is None:  # pragma: no cover - defensive; conflict implies a row
+                raise PersistenceError(f"output for job {job_id} vanished after conflict")
+            output_id = row[0]
     return output_id
 
 

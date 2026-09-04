@@ -76,6 +76,12 @@ restart) are accepted as idempotent. Review items resolve exactly once
   increasing `attempt`; run history is never rewritten.
 - `trace_provenance` proves every chunk/run/review/output of a job resolves
   to exactly one immutable revision.
+- Relationship invariants hold at both layers: the store rejects
+  output↔foreign-revision, chunk↔foreign-section, and review↔foreign-chunk
+  bindings with `PersistenceConflict`, and database triggers reject the same
+  cross-job bindings for any writer bypassing the store.
+- Output retries are idempotent: repeating an identical `record_output` call
+  returns the already-persisted row's ID, so callers never hold a phantom ID.
 
 ## Ownership boundaries
 

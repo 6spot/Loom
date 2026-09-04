@@ -175,3 +175,70 @@ CREATE TABLE IF NOT EXISTS chronicle.ingestion_outputs (
 
 CREATE INDEX IF NOT EXISTS ingestion_outputs_revision_idx
     ON chronicle.ingestion_outputs(revision_id);
+
+-- Relationship invariants (D-1): every chunk/run/review/output row must
+-- resolve to exactly one immutable revision through its job. Foreign keys
+-- alone cannot express "same job" across two parent links, so triggers
+-- reject cross-job bindings at the database, independent of worker code.
+CREATE OR REPLACE FUNCTION chronicle.enforce_chunk_section_job()
+RETURNS trigger AS $$
+DECLARE
+    section_job uuid;
+BEGIN
+    IF NEW.section_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    SELECT job_id INTO section_job
+    FROM chronicle.ingestion_sections WHERE section_id = NEW.section_id;
+    IF section_job IS DISTINCT FROM NEW.job_id THEN
+        RAISE EXCEPTION 'chronicle.ingestion_chunks section % belongs to a different job than chunk job %', NEW.section_id, NEW.job_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_chunk_section_job ON chronicle.ingestion_chunks;
+CREATE TRIGGER enforce_chunk_section_job
+    BEFORE INSERT OR UPDATE ON chronicle.ingestion_chunks
+    FOR EACH ROW EXECUTE FUNCTION chronicle.enforce_chunk_section_job();
+
+CREATE OR REPLACE FUNCTION chronicle.enforce_review_chunk_job()
+RETURNS trigger AS $$
+DECLARE
+    chunk_job uuid;
+BEGIN
+    IF NEW.chunk_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    SELECT job_id INTO chunk_job
+    FROM chronicle.ingestion_chunks WHERE chunk_id = NEW.chunk_id;
+    IF chunk_job IS DISTINCT FROM NEW.job_id THEN
+        RAISE EXCEPTION 'chronicle.review_items chunk % belongs to a different job than review job %', NEW.chunk_id, NEW.job_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_review_chunk_job ON chronicle.review_items;
+CREATE TRIGGER enforce_review_chunk_job
+    BEFORE INSERT OR UPDATE ON chronicle.review_items
+    FOR EACH ROW EXECUTE FUNCTION chronicle.enforce_review_chunk_job();
+
+CREATE OR REPLACE FUNCTION chronicle.enforce_output_revision_job()
+RETURNS trigger AS $$
+DECLARE
+    job_revision uuid;
+BEGIN
+    SELECT revision_id INTO job_revision
+    FROM chronicle.ingestion_jobs WHERE job_id = NEW.job_id;
+    IF job_revision IS DISTINCT FROM NEW.revision_id THEN
+        RAISE EXCEPTION 'chronicle.ingestion_outputs revision % does not match revision % of job %', NEW.revision_id, job_revision, NEW.job_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_output_revision_job ON chronicle.ingestion_outputs;
+CREATE TRIGGER enforce_output_revision_job
+    BEFORE INSERT OR UPDATE ON chronicle.ingestion_outputs
+    FOR EACH ROW EXECUTE FUNCTION chronicle.enforce_output_revision_job();

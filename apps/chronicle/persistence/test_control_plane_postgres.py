@@ -291,6 +291,140 @@ class ControlPlanePostgresTests(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(tip, rev2)
 
+    def test_output_rejects_revision_mismatch_at_store_and_database(self) -> None:
+        """D-1: an output for job A must bind job A's own revision.
+
+        Both the store pre-check and the database trigger reject a foreign
+        revision, so trace_provenance can never mix one job's chunks with
+        another revision.
+        """
+        with self._connect_ready() as conn:
+            document_id = control_plane.create_document(conn, title="mismatch")
+            rev1, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("m1"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            rev2, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("m2"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            job_id = control_plane.queue_job(conn, revision_id=rev1)
+            with self.assertRaises(PersistenceConflict):
+                control_plane.record_output(
+                    conn, job_id=job_id, revision_id=rev2,
+                    artifact_type="assembled-extraction",
+                    artifact_sha256=_sha256("assembled"),
+                    payload={"chunks": 0},
+                )
+            # Trigger backstop: raw SQL bypassing the store is rejected too.
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        """
+                        INSERT INTO chronicle.ingestion_outputs(
+                            output_id, job_id, revision_id, artifact_type,
+                            artifact_sha256, payload
+                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            uuid.uuid4(), job_id, rev2,
+                            "assembled-extraction", _sha256("assembled"), "{}",
+                        ),
+                    )
+            count = conn.execute(
+                "SELECT count(*) FROM chronicle.ingestion_outputs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()[0]
+            self.assertEqual(count, 0)
+
+    def test_cross_job_section_and_chunk_links_are_rejected(self) -> None:
+        """D-1: chunks bind sections of their own job; reviews bind chunks of
+        their own job. Store pre-checks and database triggers both enforce it."""
+        with self._connect_ready() as conn:
+            document_id = control_plane.create_document(conn, title="cross-job")
+            revision_id, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("c"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            job_a = control_plane.queue_job(conn, revision_id=revision_id)
+            job_b = control_plane.queue_job(conn, revision_id=revision_id)
+            section_b = control_plane.create_section(
+                conn, job_id=job_b, section_index=0, label="other",
+                source_start=0, source_end=10,
+            )
+            with self.assertRaises(PersistenceConflict):
+                control_plane.record_chunk(
+                    conn, job_id=job_a, section_id=section_b, chunk_index=0,
+                    source_start=0, source_end=5,
+                    source_sha256=_sha256("c"), content_sha256=_sha256("c0"),
+                )
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        """
+                        INSERT INTO chronicle.ingestion_chunks(
+                            chunk_id, job_id, section_id, chunk_index,
+                            source_start, source_end, source_sha256, content_sha256
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            uuid.uuid4(), job_a, section_b, 0,
+                            0, 5, _sha256("c"), _sha256("c0"),
+                        ),
+                    )
+            chunk_b = control_plane.record_chunk(
+                conn, job_id=job_b, section_id=None, chunk_index=0,
+                source_start=0, source_end=5,
+                source_sha256=_sha256("c"), content_sha256=_sha256("c0"),
+            )
+            with self.assertRaises(PersistenceConflict):
+                control_plane.open_review_item(
+                    conn, job_id=job_a, kind="chunk_failure", chunk_id=chunk_b,
+                )
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        """
+                        INSERT INTO chronicle.review_items(review_id, job_id, chunk_id, kind)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            uuid.uuid4(), job_a, chunk_b, "chunk_failure",
+                        ),
+                    )
+
+    def test_duplicate_output_retry_returns_existing_id(self) -> None:
+        """D-2: repeating an identical record_output call is idempotent and
+        returns the persisted row's ID, which trace_provenance resolves."""
+        with self._connect_ready() as conn:
+            document_id = control_plane.create_document(conn, title="idempotent")
+            revision_id, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("i"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            job_id = control_plane.queue_job(conn, revision_id=revision_id)
+            first = control_plane.record_output(
+                conn, job_id=job_id, revision_id=revision_id,
+                artifact_type="assembled-extraction",
+                artifact_sha256=_sha256("assembled"),
+                payload={"chunks": 0},
+            )
+            second = control_plane.record_output(
+                conn, job_id=job_id, revision_id=revision_id,
+                artifact_type="assembled-extraction",
+                artifact_sha256=_sha256("assembled"),
+                payload={"chunks": 0},
+            )
+            self.assertEqual(first, second)
+            count = conn.execute(
+                "SELECT count(*) FROM chronicle.ingestion_outputs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()[0]
+            self.assertEqual(count, 1)
+            provenance = control_plane.trace_provenance(conn, output_id=second)
+            self.assertEqual(provenance["revision_id"], str(revision_id))
+            self.assertEqual(provenance["job_id"], str(job_id))
+
     def test_illegal_transitions_are_rejected(self) -> None:
         with self._connect_ready() as conn:
             document_id = control_plane.create_document(conn, title="illegal")
