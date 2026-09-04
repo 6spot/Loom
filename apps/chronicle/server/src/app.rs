@@ -1,4 +1,8 @@
 //! Axum router: public/Studio namespaces, auth enforcement, proxying, web front.
+//!
+//! The web front is the C1-T9 React/TypeScript/Vite build (one build serves
+//! public Chronicle routes and `/studio/*`; the Studio shell itself is
+//! public and every privileged Studio API stays server-auth-enforced).
 
 use std::sync::Arc;
 

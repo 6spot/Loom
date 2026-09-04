@@ -1,9 +1,12 @@
 //! Same-origin web front, embedded at compile time.
 //!
-//! The zero-build browser UI from `apps/chronicle/web/` is served from this
-//! binary so the Chronicle deployment path is one origin. Assets are
-//! allowlisted explicitly (mirroring C0 `web_static.py`); request paths are
-//! never joined to the filesystem, so traversal cannot escape the web root.
+//! The C1-T9 React/TypeScript/Vite build from `apps/chronicle/webapp/` (built
+//! output committed under `apps/chronicle/web/dist/` with deterministic asset
+//! names) is served from this binary so the Chronicle deployment path stays
+//! one origin: one build serves public Chronicle routes and `/studio/*`.
+//! The C0 zero-build assets (`/app.mjs`, `/ui.mjs`, ...) remain allowlisted
+//! for compatibility. Request paths are never joined to the filesystem, so
+//! traversal cannot escape the web root.
 
 /// One servable static asset.
 #[derive(Debug, Clone, Copy)]
@@ -26,7 +29,8 @@ macro_rules! asset {
     };
 }
 
-/// Allowlisted UI assets (same set as C0 `web_static.py`).
+/// Allowlisted UI assets (C0 set from `web_static.py`, plus the C1-T9 Vite
+/// build output with deterministic filenames from `webapp/vite.config.ts`).
 pub static ASSETS: &[Asset] = &[
     asset!("/styles.css", "text/css; charset=utf-8", "styles.css"),
     asset!("/search.css", "text/css; charset=utf-8", "search.css"),
@@ -42,10 +46,60 @@ pub static ASSETS: &[Asset] = &[
         "text/javascript; charset=utf-8",
         "route_safe.mjs"
     ),
+    asset!(
+        "/assets/index.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/index.js"
+    ),
+    asset!(
+        "/assets/index.css",
+        "text/css; charset=utf-8",
+        "dist/assets/index.css"
+    ),
+    asset!(
+        "/assets/StudioLayout.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioLayout.js"
+    ),
+    asset!(
+        "/assets/StudioHomePage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioHomePage.js"
+    ),
+    asset!(
+        "/assets/StudioLoginPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioLoginPage.js"
+    ),
+    asset!(
+        "/assets/placeholders.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/placeholders.js"
+    ),
+    asset!(
+        "/assets/button.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/button.js"
+    ),
+    asset!(
+        "/assets/card.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/card.js"
+    ),
+    asset!(
+        "/assets/badge.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/badge.js"
+    ),
+    asset!(
+        "/assets/cn.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/cn.js"
+    ),
 ];
 
-/// Embedded SPA shell.
-pub static INDEX_HTML: &[u8] = include_bytes!("../../web/index.html");
+/// Embedded SPA shell: the C1-T9 React build (public + Studio routes).
+pub static INDEX_HTML: &[u8] = include_bytes!("../../web/dist/index.html");
 
 /// Decide how to serve one browser path.
 ///
@@ -68,6 +122,21 @@ fn is_spa_path(path: &str) -> bool {
     }
     if path == "/search" || path == "/search/" {
         return true;
+    }
+    // C1-T9 Studio shell: served without auth (the shell carries no
+    // privileged data; every Studio API call is server-auth-enforced).
+    if path == "/studio" || path == "/studio/" {
+        return true;
+    }
+    if let Some(rest) = path.strip_prefix("/studio/") {
+        let id = rest.strip_suffix('/').unwrap_or(rest);
+        if !id.is_empty()
+            && !id.contains('/')
+            && matches!(id, "login" | "imports" | "review" | "sources")
+        {
+            return true;
+        }
+        return false;
     }
     for prefix in ["/events/", "/entities/"] {
         if let Some(rest) = path.strip_prefix(prefix) {
@@ -103,10 +172,40 @@ mod tests {
             "/events/some-id",
             "/events/some-id/",
             "/entities/some-id",
+            "/studio",
+            "/studio/",
+            "/studio/login",
+            "/studio/imports",
+            "/studio/review",
+            "/studio/sources",
         ] {
             let (content_type, body) = resolve_web_path(path).expect(path);
             assert_eq!(content_type, "text/html; charset=utf-8");
             assert!(!body.is_empty(), "{path}");
+        }
+    }
+
+    #[test]
+    fn react_build_assets_resolve() {
+        for path in [
+            "/assets/index.js",
+            "/assets/index.css",
+            "/assets/StudioLayout.js",
+            "/assets/StudioHomePage.js",
+            "/assets/placeholders.js",
+        ] {
+            assert!(resolve_web_path(path).is_some(), "{path}");
+        }
+    }
+
+    #[test]
+    fn studio_nested_or_unknown_paths_do_not_resolve() {
+        for path in [
+            "/studio/imports/extra",
+            "/studio/unknown",
+            "/studio/../api/v1/studio/status",
+        ] {
+            assert!(resolve_web_path(path).is_none(), "{path}");
         }
     }
 

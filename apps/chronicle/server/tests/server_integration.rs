@@ -405,6 +405,37 @@ async fn web_front_serves_shell_and_assets() {
 }
 
 #[tokio::test]
+async fn studio_shell_and_react_assets_serve_without_auth() {
+    // The Studio shell carries no privileged data (auth is enforced on the
+    // Studio APIs), so it is public like the other SPA routes.
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    for path in [
+        "/studio",
+        "/studio/login",
+        "/studio/imports",
+        "/studio/review",
+        "/studio/sources",
+    ] {
+        let (status, head, body) = get(server.port, path, None).await;
+        assert_eq!((path, status), (path, 200));
+        assert!(head.contains("text/html"), "{path}");
+        assert!(
+            String::from_utf8_lossy(&body).contains("Chronicle"),
+            "{path}"
+        );
+    }
+    let (bundle, bundle_head, bundle_body) = get(server.port, "/assets/index.js", None).await;
+    assert_eq!(bundle, 200);
+    assert!(bundle_head.contains("text/javascript"));
+    assert!(!bundle_body.is_empty());
+    // Unknown Studio sub-paths must not resolve to the shell.
+    let (unknown, _, _) = get(server.port, "/studio/unknown", None).await;
+    assert_eq!(unknown, 404);
+    server.stop().await;
+}
+
+#[tokio::test]
 async fn studio_documents_require_admin_credentials() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;

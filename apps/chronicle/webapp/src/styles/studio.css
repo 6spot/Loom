@@ -1,0 +1,267 @@
+/* Studio engineering surface (C1-T9): shadcn/ui-style foundation.
+ * Scoped under .studio-* selectors only. Public Chronicle pages use
+ * chronicle.css and must not import components/ui or these tokens.
+ */
+.studio-shell {
+  min-height: 100vh;
+  background: #fafafa;
+  color: #18181b;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.studio-topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #e4e4e7;
+  background: #ffffff;
+}
+
+.studio-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.studio-brand-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 0.5rem;
+  background: #18181b;
+  color: #fafafa;
+  font-weight: 800;
+}
+
+.studio-brand strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.studio-brand small {
+  display: block;
+  color: #71717a;
+  font-size: 0.7rem;
+}
+
+.studio-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.studio-nav a {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  color: #52525b;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.studio-nav a:hover {
+  background: #f4f4f5;
+}
+
+.studio-nav a.active {
+  background: #18181b;
+  color: #fafafa;
+}
+
+.studio-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.studio-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.studio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.studio-btn-md {
+  padding: 0.55rem 1rem;
+  font-size: 0.875rem;
+}
+
+.studio-btn-sm {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.studio-btn-lg {
+  padding: 0.7rem 1.25rem;
+  font-size: 0.95rem;
+}
+
+.studio-btn-default {
+  background: #18181b;
+  color: #fafafa;
+}
+
+.studio-btn-default:hover {
+  background: #27272a;
+}
+
+.studio-btn-secondary {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+.studio-btn-outline {
+  border-color: #d4d4d8;
+  background: #ffffff;
+  color: #18181b;
+}
+
+.studio-btn-ghost {
+  background: transparent;
+  color: #18181b;
+}
+
+.studio-btn-destructive {
+  background: #dc2626;
+  color: #fafafa;
+}
+
+.studio-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.studio-card {
+  border: 1px solid #e4e4e7;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.studio-card-header {
+  padding: 1.25rem 1.25rem 0;
+}
+
+.studio-card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.studio-card-description {
+  margin: 0.35rem 0 0;
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+.studio-card-content {
+  padding: 1.25rem;
+}
+
+.studio-input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.studio-input:focus {
+  outline: 2px solid #18181b;
+  outline-offset: 1px;
+}
+
+.studio-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.studio-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.studio-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.studio-error {
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.studio-muted {
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+.studio-facts {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.studio-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.studio-facts dt {
+  color: #71717a;
+}
+
+.studio-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.studio-links {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.studio-auth-wrap {
+  display: grid;
+  place-items: center;
+  padding: 4rem 1rem;
+}
+
+.studio-auth-card {
+  width: min(420px, 100%);
+}

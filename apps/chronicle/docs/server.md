@@ -46,9 +46,13 @@ GET /api/v1/studio/status           privileged, admin auth required
 GET+POST /api/v1/studio/documents   privileged, admin auth required
 GET+POST /api/v1/studio/documents/* privileged, admin auth required
 /api/v1/studio/* (other)            privileged, admin auth required, 404 when authed
-/ , /timeline, /search,             same-origin zero-build browser UI
-/events/{id}, /entities/{id},       (embedded at compile time)
-/*.mjs, /*.css
+/ , /timeline, /search,             same-origin React/Vite web UI (C1-T9)
+/events/{id}, /entities/{id},       (embedded at compile time, one build)
+/studio, /studio/login,             Studio shell (public shell; Studio APIs
+/studio/imports, /studio/review,    stay server-auth-enforced)
+/studio/sources,
+/assets/* (Vite build output),
+/*.mjs, /*.css (legacy C0 assets, retained for compat)
 ```
 
 Only `GET` is served on read routes (C0 parity: other methods get typed
