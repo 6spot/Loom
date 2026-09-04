@@ -16,17 +16,25 @@ compose.chronicle.yaml
 Internet / reverse proxy
         |
         v
-chronicle-web :8080
+chronicle-web :8080 (Rust chronicle-server: namespaces, Studio auth, web front)
         |
-        v
+        v  CHRONICLE_UPSTREAM_URL=http://chronicle-read:8081
 Docker private network
+        |
+        +--> chronicle-read :8081 (C0 Python read server, internal only)
         |
         +--> postgres :5432
         |
         +--> chronicle-init (one-shot, idempotent import)
 ```
 
-`postgres` is not published to the host. Only the Chronicle HTTP service may be published.
+`postgres` and `chronicle-read` are not published to the host. Only the
+Rust Chronicle HTTP service may be published. `chronicle-read` is the
+single historical read authority during the C1 migration (C1-T2): public
+Timeline/Event/Entity/Search behavior is preserved through it, and the
+proven C0 server is kept, not deleted. Studio routes
+(`/api/v1/studio/*`) require the environment-configured administrator;
+see [`server.md`](server.md).
 
 `chronicle-init` waits for PostgreSQL, applies Chronicle migrations, and imports the retained accepted 武帝纪 + 吴主传 staged / resolution / canonical artifacts. Re-running the same deployment is safe because Chronicle persistence is idempotent for identical accepted artifacts.
 
@@ -99,6 +107,7 @@ The expected steady state is:
 
 - `postgres` — running / healthy;
 - `chronicle-init` — exited with code 0;
+- `chronicle-read` — running / healthy (internal C0 read sidecar);
 - `chronicle-web` — running / healthy.
 
 Inspect the one-shot import result:
@@ -222,8 +231,9 @@ The checked-in accepted artifacts remain an independent replay path; a database 
 
 ## Security boundary
 
-- PostgreSQL is available only on the Compose network and has no host port mapping.
+- PostgreSQL and the C0 read sidecar are available only on the Compose network and have no host port mapping.
 - Chronicle uses its own database credentials and does not consume `LOOM_DATABASE_URL`.
 - The browser still reads only the Chronicle HTTP API; it never connects to PostgreSQL directly.
+- Studio routes require the single environment-configured administrator (`CHRONICLE_ADMIN_USER` / `CHRONICLE_ADMIN_PASSWORD` in [`server.md`](server.md)). With both unset, Studio fails closed while public reads keep working. Use a strong unique admin password and do not commit `.env.chronicle`.
 - Use a strong unique database password and do not commit `.env.chronicle`.
 - Put the HTTP service behind HTTPS for normal public access.

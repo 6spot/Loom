@@ -9,7 +9,9 @@ on:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/control_plane/**"
+      - "apps/chronicle/server/**"
       - "apps/chronicle/docs/control-plane.md"
+      - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -19,7 +21,9 @@ on:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/control_plane/**"
+      - "apps/chronicle/server/**"
       - "apps/chronicle/docs/control-plane.md"
+      - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -87,6 +91,15 @@ jobs:
           cargo clippy --all-targets -- -D warnings
           cargo fmt --check
 
+      - name: Chronicle server contract
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component clippy --component rustfmt || true
+          rustup default 1.97.1 || true
+          cd apps/chronicle/server
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+          cargo fmt --check
+
       - name: Chronicle read-model contracts
         run: |
           python -m unittest discover \
@@ -138,3 +151,98 @@ jobs:
 
           python apps/chronicle/web/browser_smoke.py \
             --base-url http://127.0.0.1:8080
+
+      - name: Chronicle server front smoke
+        run: |
+          set -euo pipefail
+
+          cargo build --manifest-path apps/chronicle/server/Cargo.toml
+
+          python apps/chronicle/persistence/chronicle_persist.py \
+            --database-url "$LOOM_TEST_POSTGRES_URL" \
+            --bundle wudi=apps/chronicle/.artifacts/c0-t7/wudi/final.json \
+            --bundle wuzhu=apps/chronicle/.artifacts/c0-t7/wuzhu/final.json \
+            --resolution apps/chronicle/.artifacts/c0-t7/resolution/links.json \
+            --catalog apps/chronicle/.artifacts/c0-t7/publication/catalog.json \
+            --report /tmp/chronicle-front-persistence.json
+
+          python apps/chronicle/read_api/server.py \
+            --database-url "$LOOM_TEST_POSTGRES_URL" \
+            --host 127.0.0.1 \
+            --port 8081 \
+            >/tmp/chronicle-front-upstream.log 2>&1 &
+          upstream_pid=$!
+
+          CHRONICLE_PORT=8080 \
+          CHRONICLE_UPSTREAM_URL=http://127.0.0.1:8081 \
+          CHRONICLE_ADMIN_USER=ci-studio-admin \
+          CHRONICLE_ADMIN_PASSWORD=ci-studio-password-0123456789abcdef \
+          ./apps/chronicle/server/target/debug/chronicle-server \
+            >/tmp/chronicle-front-server.log 2>&1 &
+          front_pid=$!
+
+          cleanup() {
+            kill "$front_pid" "$upstream_pid" 2>/dev/null || true
+            wait "$front_pid" "$upstream_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/chronicle-front-server.log
+            cat /tmp/chronicle-front-upstream.log
+            exit 1
+          fi
+
+          # Public namespace serves real C0 reads through the Rust front.
+          curl -fsSG \
+            --data-urlencode 'q=曹操' \
+            http://127.0.0.1:8080/api/v1/public/search \
+            >/tmp/chronicle-front-search.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/chronicle-front-search.json').read_text())
+          matches = [
+              item for item in payload['items']
+              if item['kind'] == 'entity' and item['display'].get('name') == '曹操'
+          ]
+          assert len(matches) == 1, matches
+          assert matches[0]['source_count'] == 2, matches[0]
+          print('chronicle front public search: PASS')
+          PY
+
+          # Legacy C0 compat route through the same front.
+          curl -fsS http://127.0.0.1:8080/v0/timeline?limit=1 >/dev/null
+
+          # Studio auth matrix: anonymous and wrong credentials fail,
+          # configured admin succeeds without leaking the password.
+          code=$(curl -s -o /tmp/chronicle-front-401.json -w '%{http_code}' \
+            http://127.0.0.1:8080/api/v1/studio/status)
+          [ "$code" = "401" ]
+          grep -q '"code":"unauthorized"' /tmp/chronicle-front-401.json
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -u ci-studio-admin:wrong-password \
+            http://127.0.0.1:8080/api/v1/studio/status)
+          [ "$code" = "401" ]
+          curl -fsS -u ci-studio-admin:ci-studio-password-0123456789abcdef \
+            http://127.0.0.1:8080/api/v1/studio/status \
+            >/tmp/chronicle-front-studio.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          text = Path('/tmp/chronicle-front-studio.json').read_text()
+          assert 'ci-studio-password' not in text, 'password leaked'
+          payload = json.loads(text)
+          assert payload['schema'] == 'chronicle.studio-status', payload
+          assert payload['admin_user'] == 'ci-studio-admin', payload
+          assert payload['upstream']['reachable'] is True, payload
+          print('chronicle front studio auth: PASS')
+          PY
