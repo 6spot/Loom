@@ -64,6 +64,10 @@ if str(_PERSISTENCE_DIR) not in sys.path:
 import control_plane  # noqa: E402
 from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
+import documents  # noqa: E402
+import segmentation  # noqa: E402
+from segmentation import SegmentationConfig  # noqa: E402
+
 try:
     import psycopg  # noqa: E402
 except ImportError as exc:  # pragma: no cover - deployment always vendors psycopg
@@ -87,6 +91,11 @@ FAKE_CHUNKS_PER_JOB = 2
 #: Stage that owns chunk execution in the deterministic fake pipeline.
 CHUNK_BEARING_STAGE = "extract"
 
+#: Stages that the C1-T5 real segmentation path owns when a revision
+#: source is available. All other stages keep the deterministic fake
+#: executor until their own tasks land.
+REAL_SEGMENT_STAGES = ("structure", "segment")
+
 #: Fake completion artifact recorded once a job finishes every stage.
 FAKE_OUTPUT_TYPE = "fake-pipeline-result"
 
@@ -109,6 +118,84 @@ def database_url_from_env(explicit: str | None = None) -> str:
             "via --database-url or CHRONICLE_DATABASE_URL"
         )
     return url
+
+
+def source_dir_from_env(explicit: str | None = None) -> Path | None:
+    """Resolve the Chronicle source directory for real segmentation.
+
+    An explicit ``--source-dir`` wins; otherwise a non-empty
+    ``CHRONICLE_SOURCE_DIR`` enables the production revision loader.
+    Returns ``None`` when neither is set: the worker keeps the
+    deterministic fake path (C1-T4 behavior) instead of guessing where
+    sources live.
+    """
+    if explicit:
+        return Path(explicit).expanduser()
+    raw = (os.environ.get("CHRONICLE_SOURCE_DIR") or "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser()
+
+
+def build_revision_source(
+    database_url: str, storage_dir: Path | str
+) -> Callable[[uuid.UUID], tuple[str, str]]:
+    """Build the production revision loader for real segmentation.
+
+    The returned closure maps ``job_id`` to ``(normalized_text,
+    source_sha256)`` by reading the job's immutable revision row, loading
+    its exact stored bytes via ``documents.read_revision_bytes``, verifying
+    the byte hash against the revision row, and normalizing with
+    ``documents.decode_source`` (the same normalization segmentation
+    offsets are defined in). Every failure mode fails closed with
+    :class:`PersistenceError` — unknown job/revision, missing source file,
+    hash mismatch, undecodable bytes, or empty text — so the worker parks
+    the job in ``failed`` (bounded Studio retry) instead of silently
+    falling back to fake checkpoints.
+    """
+    base = Path(storage_dir).expanduser()
+
+    def source(job_id: uuid.UUID) -> tuple[str, str]:
+        with psycopg.connect(database_url) as conn:
+            job = conn.execute(
+                """
+                SELECT revision_id FROM chronicle.ingestion_jobs
+                WHERE job_id = %s
+                """,
+                (job_id,),
+            ).fetchone()
+            if job is None:
+                raise PersistenceError(f"unknown job {job_id}")
+            revision = conn.execute(
+                """
+                SELECT source_sha256, storage_key
+                FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (job[0],),
+            ).fetchone()
+            if revision is None:
+                raise PersistenceError(
+                    f"unknown revision {job[0]} for job {job_id}"
+                )
+            expected_sha, storage_key = revision[0], revision[1]
+        data = documents.read_revision_bytes(base, storage_key)
+        actual_sha = hashlib.sha256(data).hexdigest()
+        if actual_sha != expected_sha:
+            raise PersistenceError(
+                f"source file for revision {job[0]} failed verification: "
+                "stored bytes do not match the immutable revision hash "
+                "(refusing to segment bytes the revision does not own)"
+            )
+        text = documents.decode_source(data)
+        if text == "":
+            raise PersistenceError(
+                f"revision {job[0]} normalizes to empty text; "
+                "nothing to segment"
+            )
+        return text, expected_sha
+
+    return source
 
 
 class StageExecutor:
@@ -182,6 +269,14 @@ class JobRunner:
     so hung executor work holds no row lock and hides no checkpoint.
     Every mutation is lease-fenced to this runner's ``worker`` identity;
     losing the lease raises :class:`LeaseLost` and halts execution.
+
+    ``revision_source`` is the C1-T5 opt-in hook: ``revision_source(job_id)``
+    returns ``(normalized_text, source_sha256)`` for the job's revision, or
+    ``None`` to keep the deterministic fake path. When text is available,
+    the ``structure``/``segment`` stages persist the real versioned
+    segmentation (sections, chunks, context checkpoints) instead of fake
+    executor checkpoints; every other stage is untouched, and jobs without
+    a source behave exactly as in C1-T4.
     """
 
     def __init__(
@@ -193,6 +288,8 @@ class JobRunner:
         lease_seconds: int = DEFAULT_LEASE_SECONDS,
         stop: threading.Event | None = None,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
+        revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
+        segmentation_config: SegmentationConfig | None = None,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
@@ -204,6 +301,8 @@ class JobRunner:
         self.lease_seconds = lease_seconds
         self.stop = stop or threading.Event()
         self.on_event = on_event
+        self.revision_source = revision_source
+        self.segmentation_config = segmentation_config or SegmentationConfig()
 
     # -- single-transaction steps --------------------------------------
 
@@ -349,6 +448,218 @@ class JobRunner:
                     )
         return section_id, chunk_ids
 
+    # -- C1-T5 real structure/segment path -------------------------------
+
+    def _load_real_plan(
+        self, job_id: uuid.UUID
+    ) -> tuple[str, str, segmentation.SegmentationResult] | None:
+        """Resolve the deterministic segmentation plan for a job, if any.
+
+        Returns ``(text, source_sha256, plan)`` when ``revision_source``
+        supplies the revision text, else ``None`` (fake path). The
+        callback's hash is verified against the job's immutable revision
+        row before the plan is accepted: a mismatched source fails closed
+        instead of segmenting bytes the revision does not own. Pure
+        compute apart from short verification reads: no transaction is
+        held open across the source callback.
+        """
+        if self.revision_source is None:
+            return None
+        # No connection is open across this call: a slow source read holds
+        # no row lock and hides no lease expiry.
+        loaded = self.revision_source(job_id)
+        if loaded is None:
+            return None
+        text, source_sha256 = loaded
+        _, _, _, revision_id = self._read_job(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT source_sha256 FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (revision_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown revision {revision_id}")
+            if row[0] != source_sha256:
+                raise PersistenceError(
+                    f"revision source for job {job_id} failed verification: "
+                    "callback hash does not match the immutable revision row "
+                    "(refusing to segment bytes the revision does not own)"
+                )
+        plan = segmentation.segment_revision(
+            text, source_sha256, self.segmentation_config
+        )
+        return text, source_sha256, plan
+
+    def _read_revision_no(self, revision_id: uuid.UUID) -> int:
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT revision_no FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (revision_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown revision {revision_id}")
+            return int(row[0])
+
+    def _read_chunk_ids(self, job_id: uuid.UUID) -> list[uuid.UUID]:
+        """Return persisted chunk ids in plan order, or [] when none exist."""
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT chunk_id FROM chronicle.ingestion_chunks
+                WHERE job_id = %s ORDER BY chunk_index
+                """,
+                (job_id,),
+            ).fetchall()
+            return [row[0] for row in rows]
+
+    def _execute_real_stage(
+        self,
+        job_id: uuid.UUID,
+        stage: str,
+        text: str,
+        source_sha256: str,
+        plan: segmentation.SegmentationResult,
+    ) -> str:
+        """Execute one real structure/segment stage; returns 'ok' or a halt.
+
+        Raises :class:`LeaseLost` when this worker no longer holds the
+        lease; the caller maps it to the 'lease_lost' outcome. Every
+        durable step commits before the next begins; re-entry after a
+        crash reuses the persisted sections/chunks instead of duplicating
+        them, and completed stages are skipped by the caller.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage=stage,
+                status="running", worker=self.worker,
+            )
+        self._heartbeat(job_id)
+        if stage == "structure":
+            # No connection is open across segmentation: pure compute.
+            with psycopg.connect(self.database_url) as conn:
+                with conn.transaction():
+                    control_plane.require_job_lease(
+                        conn, job_id=job_id, worker=self.worker
+                    )
+                    segmentation.ensure_sections(conn, job_id=job_id, plan=plan)
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.write_stage_checkpoint_fenced(
+                    conn, job_id=job_id, stage=stage,
+                    worker=self.worker,
+                    checkpoint={
+                        "segmentation_version": segmentation.SEGMENTATION_VERSION,
+                        "structure_version": segmentation.STRUCTURE_VERSION,
+                        "model_version": segmentation.MODEL_VERSION,
+                        "prompt_version": segmentation.PROMPT_VERSION,
+                        "offset_unit": segmentation.OFFSET_UNIT,
+                        "config": self.segmentation_config.to_dict(),
+                        "source_sha256": source_sha256,
+                        "structure": plan.manifest["structure"],
+                        "section_count": len(plan.sections),
+                        "plan_sha256": plan.manifest["plan_sha256"],
+                    },
+                )
+                control_plane.advance_stage_fenced(
+                    conn, job_id=job_id, stage=stage,
+                    status="completed", worker=self.worker,
+                )
+            self._emit("stage_completed", {"stage": stage})
+            return "ok"
+        # stage == "segment": persist chunks, forward context state, gate budgets.
+        with psycopg.connect(self.database_url) as conn:
+            with conn.transaction():
+                control_plane.require_job_lease(
+                    conn, job_id=job_id, worker=self.worker
+                )
+                section_ids = segmentation.ensure_sections(
+                    conn, job_id=job_id, plan=plan
+                )
+                chunk_ids = segmentation.ensure_chunks(
+                    conn, job_id=job_id, plan=plan,
+                    source_sha256=source_sha256,
+                    section_ids=section_ids,
+                )
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        # Pure compute between connections: context chain + budget gates.
+        pairs = segmentation.context_chain(plan, text, self.segmentation_config)
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        _, _, _, revision_id = self._read_job(job_id)
+        revision_no = self._read_revision_no(revision_id)
+        section_lookup = self._read_section_lookup(job_id)
+        for chunk, chunk_id, pair in zip(plan.chunks, chunk_ids, pairs):
+            locator = segmentation.chunk_locator(
+                job_id=job_id,
+                revision_id=revision_id,
+                revision_no=revision_no,
+                source_sha256=source_sha256,
+                chunk=chunk,
+                section_id=section_lookup.get(chunk.section_index),
+            )
+            checkpoint = segmentation.chunk_checkpoint(
+                locator=locator,
+                context={"input": pair["input"], "output": pair["output"]},
+                manifest_ref={
+                    "plan_sha256": plan.manifest["plan_sha256"],
+                    "boundary_head": chunk.boundary_head,
+                    "boundary_tail": chunk.boundary_tail,
+                },
+            )
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.write_chunk_checkpoint_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    worker=self.worker, checkpoint=checkpoint,
+                )
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.write_stage_checkpoint_fenced(
+                conn, job_id=job_id, stage=stage,
+                worker=self.worker,
+                checkpoint={
+                    "segmentation_version": segmentation.SEGMENTATION_VERSION,
+                    "context_version": segmentation.CONTEXT_VERSION,
+                    "model_version": segmentation.MODEL_VERSION,
+                    "prompt_version": segmentation.PROMPT_VERSION,
+                    "offset_unit": segmentation.OFFSET_UNIT,
+                    "config": self.segmentation_config.to_dict(),
+                    "source_sha256": source_sha256,
+                    "plan_sha256": plan.manifest["plan_sha256"],
+                    "chunk_count": len(plan.chunks),
+                    "budgets_fit": all(
+                        p["output"]["budget"]["fits"] for p in pairs
+                    ),
+                },
+            )
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage=stage,
+                status="completed", worker=self.worker,
+            )
+        self._emit("stage_completed", {"stage": stage})
+        return "ok"
+
+    def _read_section_lookup(self, job_id: uuid.UUID) -> dict[int, uuid.UUID]:
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT section_index, section_id
+                FROM chronicle.ingestion_sections
+                WHERE job_id = %s ORDER BY section_index
+                """,
+                (job_id,),
+            ).fetchall()
+            return {int(row[0]): row[1] for row in rows}
+
     # -- chunk + stage execution ----------------------------------------
 
     def execute_chunks(self, job_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> str:
@@ -435,6 +746,8 @@ class JobRunner:
         halt = self.check_halt(job_id)
         if halt is not None:
             return halt
+        real_unset: Any = object()
+        real: Any = real_unset
         for stage in control_plane.STAGE_NAMES:
             halt = self.check_halt(job_id)
             if halt is not None:
@@ -451,8 +764,53 @@ class JobRunner:
             # A `running` stage is re-entry after a crash: checkpointed
             # state is authoritative, so execution resumes in place.
             self._heartbeat(job_id)
+            if stage in REAL_SEGMENT_STAGES:
+                if real is real_unset:
+                    try:
+                        real = self._load_real_plan(job_id)
+                    except Exception as exc:
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="failed", worker=self.worker,
+                                error=f"real segmentation failed: {exc}",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="failed",
+                                worker=self.worker,
+                                error=f"real segmentation failed: {exc}",
+                            )
+                        self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                        return "failed"
+                if real is not None:
+                    text, source_sha256, plan = real
+                    try:
+                        outcome = self._execute_real_stage(
+                            job_id, stage, text, source_sha256, plan
+                        )
+                    except LeaseLost:
+                        raise
+                    except Exception as exc:
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="failed", worker=self.worker,
+                                error=f"real segmentation failed: {exc}",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="failed",
+                                worker=self.worker,
+                                error=f"real segmentation failed: {exc}",
+                            )
+                        self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                        return "failed"
+                    if outcome != "ok":
+                        return outcome
+                    continue
             if stage == CHUNK_BEARING_STAGE:
-                _, chunk_ids = self.ensure_fake_topology(job_id)
+                chunk_ids = self._read_chunk_ids(job_id)
+                if not chunk_ids:
+                    _, chunk_ids = self.ensure_fake_topology(job_id)
                 outcome = self.execute_chunks(job_id, chunk_ids)
                 if outcome == "ok":
                     with psycopg.connect(self.database_url) as conn:
@@ -580,12 +938,16 @@ def run_once(
     stop: threading.Event | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
     job_id: uuid.UUID | None = None,
+    revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
+    segmentation_config: SegmentationConfig | None = None,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
     The claim commits before execution starts; execution then proceeds in
     short per-step transactions. Returns ``(job_id, outcome)`` or ``None``
-    when no job is claimable.
+    when no job is claimable. ``revision_source`` enables the C1-T5 real
+    structure/segment path for jobs whose revision text it can supply;
+    without it every stage uses the deterministic fake executor.
     """
     stop = stop or threading.Event()
     with psycopg.connect(database_url) as conn:
@@ -597,6 +959,8 @@ def run_once(
     runner = JobRunner(
         database_url, worker=worker, executor=executor,
         lease_seconds=lease_seconds, stop=stop, on_event=on_event,
+        revision_source=revision_source,
+        segmentation_config=segmentation_config,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -611,6 +975,8 @@ def run_forever(
     max_jobs: int | None = None,
     stop: threading.Event | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    revision_source: Callable[[uuid.UUID], tuple[str, str] | None] | None = None,
+    segmentation_config: SegmentationConfig | None = None,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -622,6 +988,8 @@ def run_forever(
             result = run_once(
                 database_url, worker=worker, executor=executor,
                 lease_seconds=lease_seconds, stop=stop, on_event=on_event,
+                revision_source=revision_source,
+                segmentation_config=segmentation_config,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.
@@ -665,6 +1033,13 @@ def build_parser() -> argparse.ArgumentParser:
         "(PostgreSQL-claimed, restart-safe, no external queue)"
     )
     parser.add_argument("--database-url", default=os.environ.get("CHRONICLE_DATABASE_URL"))
+    parser.add_argument(
+        "--source-dir", default=None,
+        help="Chronicle-owned source directory (else CHRONICLE_SOURCE_DIR). "
+        "When set, structure/segment stages run the real versioned "
+        "segmentation over stored revision bytes; when unset, every stage "
+        "uses the deterministic fake executor.",
+    )
     parser.add_argument(
         "--worker-id", default=None,
         help="lease owner identity (default: worker-<host>-<pid>-<rand>)",
@@ -712,18 +1087,34 @@ def main(argv: list[str] | None = None) -> int:
     database_url = database_url_from_env(args.database_url)
     worker = args.worker_id or default_worker_id()
     fail_plan = parse_fail_plan(args.fail_stage)
+    source_dir = source_dir_from_env(args.source_dir)
+    revision_source = (
+        build_revision_source(database_url, source_dir)
+        if source_dir is not None
+        else None
+    )
     stop = threading.Event()
     install_shutdown_handlers(stop)
-    print(
-        f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
-        f"(lease {args.lease_seconds}s)",
-        flush=True,
-    )
+    if source_dir is not None:
+        print(
+            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
+            f"(lease {args.lease_seconds}s) with real C1-T5 segmentation "
+            f"from {source_dir}",
+            flush=True,
+        )
+    else:
+        print(
+            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
+            f"(lease {args.lease_seconds}s) with the deterministic fake "
+            "executor (no --source-dir/CHRONICLE_SOURCE_DIR)",
+            flush=True,
+        )
     tally = run_forever(
         database_url, worker=worker,
         executor_factory=lambda: StageExecutor(fail_plan=dict(fail_plan)),
         lease_seconds=args.lease_seconds, poll_interval=args.poll_interval,
         max_jobs=args.max_jobs, stop=stop,
+        revision_source=revision_source,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

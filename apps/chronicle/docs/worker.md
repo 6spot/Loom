@@ -17,8 +17,12 @@ python3 apps/chronicle/worker/ingestion_worker.py \
 Flags: `--database-url` (else `CHRONICLE_DATABASE_URL`), `--worker-id`
 (default `worker-<host>-<pid>-<rand>`), `--lease-seconds` (default 300),
 `--poll-interval` (default 5s), `--max-jobs` (stop after N jobs; default
-runs until SIGTERM/SIGINT), `--fail-stage STAGE[:COUNT]` (fault-injection
-demos only; never set in production).
+runs until SIGTERM/SIGINT), `--source-dir` (else `CHRONICLE_SOURCE_DIR`;
+when set, `structure`/`segment` run the real C1-T5 segmentation over
+stored revision bytes — see `segmentation.md` — and every source failure
+fails the job instead of falling back to fake checkpoints),
+`--fail-stage STAGE[:COUNT]` (fault-injection demos only; never set in
+production).
 
 Compose ships an opt-in worker service (profile `worker`, not started by
 the default stack):
@@ -49,7 +53,8 @@ docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
    survives a crash at any point.
 4. **Lease fencing.** Every worker mutation (`advance_stage_fenced`,
    `set_chunk_status_fenced`, `record_chunk_run_fenced`,
-   `set_job_status_fenced`, checkpoint/output writes) predicates on the
+   `set_job_status_fenced`, checkpoint/output writes, including the C1-T5
+   `write_chunk_checkpoint_fenced`) predicates on the
    job lease inside the same transaction and raises `LeaseLost` for any
    worker that no longer holds it. Heartbeats are strict: losing the
    lease to a takeover (or to cancellation, which clears the lease)
@@ -101,6 +106,7 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
 | Job retries | `max_attempts` (default 3) claim attempts | `ingestion_jobs` |
 | Chunk retries | `max_attempts` (default 3) per chunk | `ingestion_chunks` |
 | Fake topology | 1 section, 2 chunks per job | `FAKE_CHUNKS_PER_JOB` |
+| Real segmentation | versioned sections/chunks/context (C1-T5) | `segmentation.md` |
 | Job bodies | 64 KiB cap on Studio job requests | sidecar |
 
 Scale guidance for the first envelope: run **one worker per 1–2 CPU** up

@@ -142,6 +142,15 @@ services:
       - worker
     environment:
       CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
+      # C1-T5: the worker segments real stored revision bytes (same
+      # Chronicle-owned source volume the upload sidecar writes). Without
+      # this mount every stage runs the deterministic fake executor.
+      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+    volumes:
+      - type: bind
+        source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
+        target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+        read_only: true
     depends_on:
       postgres:
         condition: service_healthy

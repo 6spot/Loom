@@ -431,8 +431,20 @@ def create_section(
     label: str,
     source_start: int,
     source_end: int,
+    kind: str = "unknown",
+    depth: int = 0,
+    parent_section_index: int | None = None,
 ) -> uuid.UUID:
-    """Record one ordered processing section scope for a job."""
+    """Record one ordered processing section scope for a job.
+
+    ``kind``/``depth``/``parent_section_index`` persist the detected
+    document hierarchy (C1-T5): kind names the structural unit
+    (volume/chapter/biography/treatise/heading/preamble/document),
+    depth is its nesting level, and the parent is the nearest preceding
+    section with a strictly smaller depth (NULL at the top level).
+    Callers that predate structure detection keep the honest ``unknown``
+    kind so old rows are never mistaken for detected structure.
+    """
     if not isinstance(section_index, int) or section_index < 0:
         raise PersistenceError("section_index must be a non-negative integer")
     if not isinstance(label, str) or not label:
@@ -441,16 +453,30 @@ def create_section(
         raise PersistenceError("source_start must be a non-negative integer")
     if not isinstance(source_end, int) or source_end < source_start:
         raise PersistenceError("source_end must be >= source_start")
+    if not isinstance(kind, str) or not kind:
+        raise PersistenceError("section kind must be a non-empty string")
+    if not isinstance(depth, int) or depth < 0:
+        raise PersistenceError("section depth must be a non-negative integer")
+    if parent_section_index is not None and (
+        not isinstance(parent_section_index, int)
+        or parent_section_index < 0
+        or parent_section_index >= section_index
+    ):
+        raise PersistenceError(
+            "parent_section_index must be None or an earlier section index"
+        )
     section_id = _new_id()
     with conn.transaction():
         try:
             conn.execute(
                 """
                 INSERT INTO chronicle.ingestion_sections(
-                    section_id, job_id, section_index, label, source_start, source_end
-                ) VALUES (%s, %s, %s, %s, %s, %s)
+                    section_id, job_id, section_index, label, source_start, source_end,
+                    kind, depth, parent_section_index
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (section_id, job_id, section_index, label, source_start, source_end),
+                (section_id, job_id, section_index, label, source_start, source_end,
+                 kind, depth, parent_section_index),
             )
         except psycopg.errors.UniqueViolation as exc:
             raise PersistenceConflict(
@@ -1258,6 +1284,39 @@ def write_stage_checkpoint_fenced(
             """,
             (Jsonb(checkpoint), _utcnow(), job_id, stage),
         )
+
+
+def write_chunk_checkpoint(
+    conn, *, chunk_id: uuid.UUID, checkpoint: dict[str, Any]
+) -> None:
+    """Write one chunk's processing checkpoint (offsets/context, never authority)."""
+    if not isinstance(checkpoint, dict):
+        raise PersistenceError("chunk checkpoint must be a JSON object")
+    with conn.transaction():
+        row = conn.execute(
+            "SELECT 1 FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
+            (chunk_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown chunk {chunk_id}")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_chunks
+            SET checkpoint = %s, updated_at = %s
+            WHERE chunk_id = %s
+            """,
+            (Jsonb(checkpoint), _utcnow(), chunk_id),
+        )
+
+
+def write_chunk_checkpoint_fenced(
+    conn, *, job_id: uuid.UUID, chunk_id: uuid.UUID, worker: str,
+    checkpoint: dict[str, Any],
+) -> None:
+    """Lease-fenced chunk checkpoint write: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        write_chunk_checkpoint(conn, chunk_id=chunk_id, checkpoint=checkpoint)
 
 
 def record_output_fenced(
