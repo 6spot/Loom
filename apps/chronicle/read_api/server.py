@@ -27,6 +27,7 @@ from repository import ChronicleReadRepository
 from router import dispatch
 from studio_documents import STUDIO_PREFIX, dispatch_studio
 from studio_jobs import STUDIO_JOBS_PREFIX, dispatch_jobs
+from studio_reviews import STUDIO_REVIEWS_PREFIX, dispatch_reviews
 from web_static import web_response
 
 
@@ -119,10 +120,6 @@ def handler_class(
             self._send_bytes(405, "application/json; charset=utf-8", payload)
 
         def _handle_studio_documents(self, path: str, query: str) -> None:
-            # Studio document writes run in a read-write transaction (unlike
-            # the read-only /v0/* path). Authentication is enforced upstream
-            # by the Rust chronicle-server Studio namespace; this sidecar is
-            # never published outside the deployment network.
             if self.command not in ("GET", "POST"):
                 self._method_not_allowed()
                 return
@@ -132,7 +129,6 @@ def handler_class(
                 except ValueError:
                     declared = 0
                 if declared > resolved_max + 1:
-                    # Refuse to buffer an over-limit body at all.
                     payload = (
                         json.dumps(
                             {
@@ -140,9 +136,7 @@ def handler_class(
                                 "version": "0.1",
                                 "error": {
                                     "code": "payload_too_large",
-                                    "message": (
-                                        f"upload exceeds the {resolved_max}-byte limit"
-                                    ),
+                                    "message": f"upload exceeds the {resolved_max}-byte limit",
                                 },
                             },
                             ensure_ascii=False,
@@ -181,19 +175,13 @@ def handler_class(
                 )
             self._send_bytes(status, content_type, payload)
 
-        def _handle_studio_jobs(self, path: str, query: str) -> None:
-            # Studio job lifecycle operations (C1-T4) run in a read-write
-            # transaction. Authentication is enforced upstream by the Rust
-            # chronicle-server Studio namespace; this sidecar is never
-            # published outside the deployment network.
+        def _read_small_studio_body(self, kind: str) -> bytes | None:
             if self.command == "POST":
                 try:
                     declared = int(self.headers.get("Content-Length") or 0)
                 except ValueError:
                     declared = 0
                 if declared > 65536:
-                    # Job operations carry tiny JSON bodies; refuse to
-                    # buffer anything larger at all.
                     payload = (
                         json.dumps(
                             {
@@ -201,7 +189,7 @@ def handler_class(
                                 "version": "0.1",
                                 "error": {
                                     "code": "payload_too_large",
-                                    "message": "job request body exceeds 64 KiB",
+                                    "message": f"{kind} request body exceeds 64 KiB",
                                 },
                             },
                             ensure_ascii=False,
@@ -210,12 +198,16 @@ def handler_class(
                         + "\n"
                     ).encode("utf-8")
                     self._send_bytes(413, "application/json; charset=utf-8", payload)
-                    return
-                body = self.rfile.read(declared) if declared > 0 else b""
-            elif self.command == "GET":
-                body = b""
-            else:
-                self._method_not_allowed()
+                    return None
+                return self.rfile.read(declared) if declared > 0 else b""
+            if self.command == "GET":
+                return b""
+            self._method_not_allowed()
+            return None
+
+        def _handle_studio_jobs(self, path: str, query: str) -> None:
+            body = self._read_small_studio_body("job")
+            if body is None:
                 return
             try:
                 import control_plane
@@ -224,6 +216,34 @@ def handler_class(
                     status, content_type, payload = dispatch_jobs(
                         conn,
                         control_plane,
+                        method=self.command,
+                        path=path,
+                        raw_query=query,
+                        body=body,
+                    )
+            except psycopg.Error:
+                status, content_type, payload = (
+                    503,
+                    "application/json; charset=utf-8",
+                    (
+                        '{"schema":"chronicle.error","version":"0.1",'
+                        '"error":{"code":"database_unavailable",'
+                        '"message":"Chronicle PostgreSQL write failed"}}\n'
+                    ).encode("utf-8"),
+                )
+            self._send_bytes(status, content_type, payload)
+
+        def _handle_studio_reviews(self, path: str, query: str) -> None:
+            body = self._read_small_studio_body("review")
+            if body is None:
+                return
+            try:
+                import resolve_publish
+
+                with psycopg.connect(database_url) as conn:
+                    status, content_type, payload = dispatch_reviews(
+                        conn,
+                        resolve_publish,
                         method=self.command,
                         path=path,
                         raw_query=query,
@@ -253,6 +273,11 @@ def handler_class(
                 STUDIO_JOBS_PREFIX + "/"
             ):
                 self._handle_studio_jobs(split.path, split.query)
+                return
+            if split.path == STUDIO_REVIEWS_PREFIX or split.path.startswith(
+                STUDIO_REVIEWS_PREFIX + "/"
+            ):
+                self._handle_studio_reviews(split.path, split.query)
                 return
 
             status, content_type, body = web_response(self.command, split.path)
