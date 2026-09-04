@@ -1,3 +1,4 @@
+# Temporary branch-only validation; delete before the T12 delivery PR.
 name: Chronicle T12 dev check
 
 on:
