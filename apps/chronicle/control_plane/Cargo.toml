@@ -1,0 +1,15 @@
+[package]
+name = "chronicle-control-plane"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Chronicle C1-T1 ingestion control-plane contract: document/ingestion lifecycle state machines (application-owned, no Loom engine authority, no DB driver)"
+
+[workspace]
+
+[lib]
+name = "chronicle_control_plane"
+path = "src/lib.rs"
+
+[profile.test]
+opt-level = 0
