@@ -128,3 +128,30 @@ services:
       retries: 6
       start_period: 5s
     restart: unless-stopped
+
+  # C1-T4 durable ingestion worker: standalone Python process claiming jobs
+  # from Chronicle PostgreSQL (FOR UPDATE SKIP LOCKED, expiring leases).
+  # No external queue service. Opt-in via the `worker` profile so the
+  # default stack stays read + upload shaped; start explicitly with
+  # `docker compose -f compose.chronicle.yaml --profile worker up -d
+  # chronicle-worker`. Scales by repeating with distinct
+  # CHRONICLE_WORKER_ID values (each container should set its own id).
+  chronicle-worker:
+    <<: *chronicle-image
+    profiles:
+      - worker
+    environment:
+      CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chronicle-init:
+        condition: service_completed_successfully
+    command:
+      - python3
+      - apps/chronicle/worker/ingestion_worker.py
+      - --worker-id
+      - ${CHRONICLE_WORKER_ID:-chronicle-worker-01}
+      - --lease-seconds
+      - ${CHRONICLE_WORKER_LEASE_SECONDS:-300}
+    restart: unless-stopped

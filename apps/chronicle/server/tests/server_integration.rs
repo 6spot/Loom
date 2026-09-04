@@ -98,7 +98,9 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                     )
                 } else if path == "/healthz" {
                     (200, "{\"status\":\"ok\"}".to_string())
-                } else if path.starts_with("/api/v1/studio/documents") {
+                } else if path.starts_with("/api/v1/studio/documents")
+                    || path.starts_with("/api/v1/studio/jobs")
+                {
                     // Echo the Studio request for proxy assertions.
                     let escaped_type = content_type.replace('\\', "\\\\").replace('"', "\\\"");
                     (
@@ -358,9 +360,14 @@ async fn studio_is_fail_closed_without_configuration() {
 async fn unknown_studio_paths_need_auth_then_404() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;
-    let (anon, _, _) = get(server.port, "/api/v1/studio/jobs", None).await;
+    let (anon, _, _) = get(server.port, "/api/v1/studio/does-not-exist", None).await;
     assert_eq!(anon, 401);
-    let (status, _, body) = get(server.port, "/api/v1/studio/jobs", Some(ADMIN_AUTH)).await;
+    let (status, _, body) = get(
+        server.port,
+        "/api/v1/studio/does-not-exist",
+        Some(ADMIN_AUTH),
+    )
+    .await;
     assert_eq!(status, 404);
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
     assert_eq!(payload["error"]["code"], "not_found");
@@ -601,6 +608,143 @@ async fn studio_documents_upstream_outage_maps_to_typed_503() {
     };
     let server = spawn_server(test_state(down, true)).await;
     let (status, _, body) = get(server.port, "/api/v1/studio/documents", Some(ADMIN_AUTH)).await;
+    assert_eq!(status, 503);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "upstream_unavailable");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_jobs_require_admin_credentials() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+
+    // Anonymous lifecycle reads and writes are challenged, never proxied.
+    let (missing, head, body) = get(server.port, "/api/v1/studio/jobs", None).await;
+    assert_eq!(missing, 401);
+    assert!(head.to_ascii_lowercase().contains("www-authenticate"));
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "unauthorized");
+
+    let (denied, _, _) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/jobs/some-id/retry",
+        None,
+        Some("application/json"),
+        b"{}",
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(denied, 401);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_jobs_proxy_method_path_query_and_body() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+
+    // Queue POST: JSON body passes through with its content type.
+    let queue_body = br#"{"revision_id":"00000000-0000-0000-0000-000000000001"}"#;
+    let (queued, _, echo) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/jobs",
+        Some(ADMIN_AUTH),
+        Some("application/json"),
+        queue_body,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(queued, 201);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(payload["schema"], "chronicle.mock-studio");
+    assert_eq!(payload["method"], "POST");
+    assert_eq!(payload["proxied_path"], "/api/v1/studio/jobs");
+    assert_eq!(payload["body_len"], queue_body.len());
+    assert_eq!(payload["content_type"], "application/json");
+
+    // Inspect GET with query passes through with upstream status preserved.
+    let (listed, _, echo) = get(
+        server.port,
+        "/api/v1/studio/jobs?status=failed",
+        Some(ADMIN_AUTH),
+    )
+    .await;
+    assert_eq!(listed, 200);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(payload["method"], "GET");
+    assert_eq!(payload["proxied_path"], "/api/v1/studio/jobs?status=failed");
+    assert_eq!(payload["body_len"], 0);
+
+    // Retry POST on a job sub-path passes through intact.
+    let (retried, _, echo) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/jobs/some-id/retry",
+        Some(ADMIN_AUTH),
+        None,
+        b"",
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(retried, 201);
+    let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
+    assert_eq!(payload["proxied_path"], "/api/v1/studio/jobs/some-id/retry");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_jobs_reject_other_methods() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    let (status, _, body) = raw_request_with_body(
+        server.port,
+        "PUT",
+        "/api/v1/studio/jobs/some-id",
+        Some(ADMIN_AUTH),
+        None,
+        b"",
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(status, 405);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "method_not_allowed");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_jobs_are_fail_closed_without_configuration() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, false)).await;
+    let (status, _, body) = get(server.port, "/api/v1/studio/jobs", Some(ADMIN_AUTH)).await;
+    assert_eq!(status, 503);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "studio_auth_unconfigured");
+    let (posted, _, _) = raw_request_with_body(
+        server.port,
+        "POST",
+        "/api/v1/studio/jobs",
+        Some(ADMIN_AUTH),
+        Some("application/json"),
+        br#"{"revision_id":"00000000-0000-0000-0000-000000000001"}"#,
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(posted, 503);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_jobs_upstream_outage_maps_to_typed_503() {
+    let down = UpstreamTarget {
+        host: "127.0.0.1".to_string(),
+        port: 1,
+    };
+    let server = spawn_server(test_state(down, true)).await;
+    let (status, _, body) = get(server.port, "/api/v1/studio/jobs", Some(ADMIN_AUTH)).await;
     assert_eq!(status, 503);
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
     assert_eq!(payload["error"]["code"], "upstream_unavailable");

@@ -10,8 +10,10 @@ on:
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/control_plane/**"
       - "apps/chronicle/server/**"
+      - "apps/chronicle/worker/**"
       - "apps/chronicle/docs/control-plane.md"
       - "apps/chronicle/docs/server.md"
+      - "apps/chronicle/docs/worker.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/webapp/**"
@@ -23,8 +25,10 @@ on:
       - "apps/chronicle/persistence/**"
       - "apps/chronicle/control_plane/**"
       - "apps/chronicle/server/**"
+      - "apps/chronicle/worker/**"
       - "apps/chronicle/docs/control-plane.md"
       - "apps/chronicle/docs/server.md"
+      - "apps/chronicle/docs/worker.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/webapp/**"
@@ -81,6 +85,13 @@ jobs:
         run: |
           python -m unittest discover \
             -s apps/chronicle/persistence \
+            -p 'test_*.py' \
+            -v
+
+      - name: Chronicle durable worker contracts
+        run: |
+          python -m unittest discover \
+            -s apps/chronicle/worker \
             -p 'test_*.py' \
             -v
 

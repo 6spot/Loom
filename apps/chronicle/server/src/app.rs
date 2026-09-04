@@ -38,6 +38,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/status", any(studio_status))
         .route("/documents", any(studio_documents))
         .route("/documents/{*rest}", any(studio_documents))
+        .route("/jobs", any(studio_jobs))
+        .route("/jobs/{*rest}", any(studio_jobs))
         .fallback(studio_not_found);
     Router::new()
         .route("/healthz", any(health))
@@ -292,7 +294,7 @@ async fn studio_documents(
     proxy_studio(&state, request, &upstream_path).await
 }
 
-/// Forward one authenticated Studio document request to the sidecar.
+/// Forward one authenticated Studio request (documents or jobs) to the sidecar.
 async fn proxy_studio(
     state: &AppState,
     request: axum::http::Request<Body>,
@@ -340,6 +342,35 @@ async fn proxy_studio(
         Ok(upstream) => render_proxied(upstream, &log_method, upstream_path),
         Err(err) => render_upstream_error(err, &log_method, upstream_path),
     }
+}
+
+/// Studio ingestion-job lifecycle operations (C1-T4): queue, inspect,
+/// retry, resume, cancel. Authenticated here; the durable transitions live
+/// in the control-plane contract and execute in the internal Python
+/// sidecar, which this handler forwards to byte-for-byte. Lifecycle
+/// authority stays in this server's authenticated namespace plus the
+/// control-plane state machine; the sidecar never invents a transition.
+async fn studio_jobs(
+    State(state): State<Arc<AppState>>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    // Authorization first: the Studio namespace never reveals method routing
+    // or job existence to unauthenticated callers.
+    match require_admin(&state, &request) {
+        AuthDecision::Authorized(_) => {}
+        denial => return auth_denied(denial),
+    }
+    let path = request.uri().path().to_string();
+    // `nest("/api/v1/studio", ...)` strips the mount prefix before the
+    // inner router runs, so this handler sees `/jobs...` while the
+    // sidecar expects the full Studio path. Re-attach the prefix for the
+    // proxied request; anything else here is unreachable routing.
+    if path != "/jobs" && !path.starts_with("/jobs/") {
+        log_request("STUDIO", &path, 404);
+        return TypedError::not_found("route not found").into_response();
+    }
+    let upstream_path = format!("/api/v1/studio{path}");
+    proxy_studio(&state, request, &upstream_path).await
 }
 
 async fn studio_status(
