@@ -178,10 +178,13 @@ class AssemblyPostgresTests(unittest.TestCase):
             )
             for index, status in enumerate(chunk_statuses):
                 content_sha = hashlib.sha256(f"c1t7-chunk-{index}".encode()).hexdigest()
+                # Consecutive chunks overlap on [25, 50): identical
+                # assertions there are verified boundary duplicates.
+                start, end = (0, 50) if index == 0 else (25, 75)
                 chunk_id = control_plane.record_chunk(
                     conn, job_id=job_id, section_id=section_id,
-                    chunk_index=index, source_start=index * 50,
-                    source_end=index * 50 + 50,
+                    chunk_index=index, source_start=start,
+                    source_end=end,
                     source_sha256=self.source_sha, content_sha256=content_sha,
                 )
                 locator = {
@@ -192,10 +195,12 @@ class AssemblyPostgresTests(unittest.TestCase):
                     "section_index": 0,
                     "section_id": str(section_id),
                     "chunk_index": index,
-                    "source_start": index * 50,
-                    "source_end": index * 50 + 50,
+                    "source_start": start,
+                    "source_end": end,
                     "offset_unit": "chars-normalized-utf8",
                     "content_sha256": content_sha,
+                    "overlap_prev_chars": 0 if index == 0 else 25,
+                    "segmentation_version": "c1t5-seg-v1",
                 }
                 if status == "completed":
                     candidate = _candidate(
@@ -252,8 +257,10 @@ class AssemblyPostgresTests(unittest.TestCase):
         )
         self.assertEqual([], schema_errors)
 
-        # Adjacent duplicate claim suppressed once; the distinct second
-        # claim survives; both entities link as the same identity.
+        # Adjacent duplicate claim suppressed once (verified span
+        # overlap); the distinct second claim survives; the two
+        # same-name subject entities link as the same identity only
+        # because the suppressed duplicate proves their co-reference.
         self.assertEqual(2, len(bundle["entities"]))
         self.assertEqual(2, len(bundle["claims"]))
         report = payload["report"]

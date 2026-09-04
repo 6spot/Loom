@@ -42,17 +42,23 @@ ingestion_outputs row (assembled-source-bundle: bundle + links + report)
   extracted on both sides of one chunk boundary (identical predicate,
   evidence text, subject/object surfaces for claims; identical type,
   title, time, participant/place surfaces for events) keeps the first
-  and suppresses the later duplicate. Suppressed events rewire
-  surviving references. Every suppression is recorded with its
-  signature; genuine repeats in non-adjacent chunks are kept.
+  and suppresses the later duplicate only when the chunk locators
+  verify the overlap: intersecting source spans or declared boundary
+  overlap characters. Adjacent non-overlapping repeats and distant
+  repetitions survive as distinct occurrences and are recorded as
+  preserved repeats. Every suppression is recorded with its
+  signature; nothing is silently multiplied or silently dropped.
 - **Conservative within-book links.** Entity pairs across chunks need
-  the same type plus a shared exact stable surface; only exact
-  canonical-name agreement links as `same_entity`, weaker overlap
-  stays `uncertain` and distinct. Same-name occurrences across types
-  stay distinct with an `ambiguous_same_name` warning. Event pairs
-  need compatible time plus participant (and, for broad types, place)
-  overlap; non-duplicate pairs stay `uncertain` for C1-T8 review.
-  Linking never merges records and never assigns canonical IDs.
+  the same type plus a shared exact stable surface, but a shared name
+  alone never proves identity: same-name records stay `uncertain`
+  unless stronger source-bounded evidence exists — a second shared
+  stable surface beyond the name, or co-reference proven by a
+  suppressed boundary duplicate both records participated in.
+  Same-name occurrences across types stay distinct with an
+  `ambiguous_same_name` warning. Event pairs need compatible time
+  plus participant (and, for broad types, place) overlap;
+  non-duplicate pairs stay `uncertain` for C1-T8 review. Linking
+  never merges records and never assigns canonical IDs.
 - **Deterministic.** No timestamps, UUIDs, or randomness appear in the
   artifact. Unchanged accepted chunk outputs produce byte-identical
   canonical JSON (unit-tested).

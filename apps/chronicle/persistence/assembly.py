@@ -27,14 +27,20 @@ Contract summary (GitHub Issue #496):
 - Boundary-induced duplicate extraction (the same assertion extracted in
   two adjacent chunks because of boundary context or limited overlap) is
   detected by exact-signature match and suppressed deterministically
-  (first chunk wins). Suppression is recorded with evidence, never
-  silent.
+  (first chunk wins) only when the chunk locators verify the overlap:
+  intersecting source spans or declared boundary overlap characters.
+  Adjacent non-overlapping repeats and distant repetitions survive as
+  distinct occurrences and are recorded as preserved repeats.
+  Suppression is recorded with evidence, never silent.
 - Within-book Entity/Event candidate linking is conservative and reuses
   the C0 resolution decision vocabulary (``same_entity`` /
-  ``uncertain``; ``same_occurrence`` / ``uncertain``). Exact-name entity
-  matches link as ``same_entity``; everything weaker stays ``uncertain``
-  and distinct. Ambiguous same-name occurrences across types, and
-  genuine repeated occurrences, are never merged.
+  ``uncertain``; ``same_occurrence`` / ``uncertain``). A shared name
+  alone never proves identity: same-name records stay ``uncertain``
+  unless stronger source-bounded evidence exists (a second shared
+  stable surface, or co-reference proven by a suppressed boundary
+  duplicate both records participated in). Ambiguous same-name
+  occurrences across types, and genuine repeated occurrences, are
+  never merged.
 - The assembly artifact (bundle + within-book links + report) is fully
   deterministic: rerunning over unchanged accepted chunk outputs yields
   byte-identical canonical JSON. No timestamps, UUIDs, or randomness
@@ -225,6 +231,42 @@ def _remapped_id(prefix: str, chunk_index: int, local: str) -> str:
             f"chunk {chunk_index} record {local!r} exceeds the revision-scoped ID space"
         )
     return f"{prefix}_{chunk_index:03d}{number:03d}"
+
+
+def _spans_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    """Whether two chunk locators carry verified overlap/boundary evidence.
+
+    True only when the source spans intersect (shared source bytes the
+    same evidence could come from) or the later chunk declares boundary
+    overlap characters from segmentation. Merely adjacent
+    non-overlapping spans are not duplicate evidence: a genuine
+    repeated passage there must survive as distinct occurrences.
+    """
+
+    def _span(locator: dict[str, Any]) -> tuple[int, int] | None:
+        start, end = locator.get("source_start"), locator.get("source_end")
+        if (
+            isinstance(start, int)
+            and not isinstance(start, bool)
+            and isinstance(end, int)
+            and not isinstance(end, bool)
+            and start < end
+        ):
+            return start, end
+        return None
+
+    first_span, second_span = _span(first), _span(second)
+    if first_span is not None and second_span is not None:
+        if first_span[0] < second_span[1] and second_span[0] < first_span[1]:
+            return True
+    overlap_prev = second.get("overlap_prev_chars")
+    if (
+        isinstance(overlap_prev, int)
+        and not isinstance(overlap_prev, bool)
+        and overlap_prev > 0
+    ):
+        return True
+    return False
 
 
 def _claim_surface_key(ref: Any, entity_names: dict[str, str], event_sigs: dict[str, str]) -> Any:
@@ -502,18 +544,45 @@ def assemble_revision(
     claim_keys = [(index, record, _claim_key(index, record)) for index, record in staged_claims]
     suppressed_claims: set[str] = set()
     suppressions: list[dict[str, Any]] = []
+    preserved_repeats: list[dict[str, Any]] = []
+    locator_by_chunk = {item["chunk_index"]: item["locator"] for item in normalized}
+
+    def _preserve(kind: str, left: dict[str, Any], left_index: int,
+                  right: dict[str, Any], right_index: int, reason: str) -> None:
+        preserved_repeats.append(
+            {
+                "kind": kind,
+                "left_ref": left["temp_id"],
+                "left_chunk": left_index,
+                "right_ref": right["temp_id"],
+                "right_chunk": right_index,
+                "reason": reason,
+            }
+        )
+
     for position in range(len(claim_keys)):
         left_index, left, left_key = claim_keys[position]
         if left["temp_id"] in suppressed_claims:
             continue
         for later in range(position + 1, len(claim_keys)):
             right_index, right, right_key = claim_keys[later]
-            if right["temp_id"] in suppressed_claims:
+            if right["temp_id"] in suppressed_claims or right_key != left_key:
                 continue
-            if right_index != left_index + 1 or right_key != left_key:
+            if right_index != left_index + 1:
+                # Genuine repetition at a distance: keep both, record it.
+                _preserve("claim", left, left_index, right, right_index,
+                          "matching assertions in non-adjacent chunks")
                 continue
-            # Same assertion extracted on both sides of one chunk
-            # boundary: keep the first, suppress the later duplicate.
+            if not _spans_overlap(locator_by_chunk[left_index], locator_by_chunk[right_index]):
+                # Adjacent chunks, identical assertion, but no verified
+                # span overlap or boundary overlap: a genuine repeated
+                # passage must survive as a distinct occurrence.
+                _preserve("claim", left, left_index, right, right_index,
+                          "no verified span overlap between adjacent chunks")
+                continue
+            # Same assertion extracted on both sides of one verified
+            # overlapping chunk boundary: keep the first, suppress the
+            # later duplicate.
             suppressed_claims.add(right["temp_id"])
             evidence = right.get("evidence") if isinstance(right.get("evidence"), dict) else {}
             suppressions.append(
@@ -544,9 +613,15 @@ def assemble_revision(
             continue
         for later in range(position + 1, len(event_keys)):
             right_index, right, right_key = event_keys[later]
-            if right["temp_id"] in suppressed_events:
+            if right["temp_id"] in suppressed_events or right_key != left_key:
                 continue
-            if right_index != left_index + 1 or right_key != left_key:
+            if right_index != left_index + 1:
+                _preserve("event", left, left_index, right, right_index,
+                          "matching occurrences in non-adjacent chunks")
+                continue
+            if not _spans_overlap(locator_by_chunk[left_index], locator_by_chunk[right_index]):
+                _preserve("event", left, left_index, right, right_index,
+                          "no verified span overlap between adjacent chunks")
                 continue
             suppressed_events[right["temp_id"]] = left["temp_id"]
             suppressions.append(
@@ -565,6 +640,40 @@ def assemble_revision(
                 }
             )
     suppressions.sort(key=lambda s: (s["suppressed_chunk"], s["suppressed_ref"]))
+    preserved_repeats.sort(
+        key=lambda r: (r["right_chunk"], r["right_ref"], r["left_ref"])
+    )
+
+    # Entity pairs proven to co-refer by a suppressed boundary duplicate:
+    # when two claims were verified to be the same assertion, their
+    # entity subjects/objects denote the same participant of the same
+    # occurrence. This is the only suppression-derived identity signal;
+    # a shared name alone never proves identity.
+    claim_by_ref = {record["temp_id"]: record for _, record in staged_claims}
+    proven_same: dict[frozenset, dict[str, str]] = {}
+
+    def _entity_ref_of(claim: dict[str, Any] | None, field: str) -> str | None:
+        if not isinstance(claim, dict):
+            return None
+        ref = claim.get(field)
+        if isinstance(ref, dict) and ref.get("kind") == "entity_ref":
+            identity = ref.get("ref")
+            return identity if isinstance(identity, str) else None
+        return None
+
+    for suppression in suppressions:
+        if suppression["kind"] != "claim":
+            continue
+        kept = claim_by_ref.get(suppression["kept_ref"])
+        suppressed = claim_by_ref.get(suppression["suppressed_ref"])
+        for field in ("subject", "object"):
+            left_ref = _entity_ref_of(kept, field)
+            right_ref = _entity_ref_of(suppressed, field)
+            if left_ref and right_ref and left_ref != right_ref:
+                proven_same[frozenset((left_ref, right_ref))] = {
+                    "kept_ref": suppression["kept_ref"],
+                    "suppressed_ref": suppression["suppressed_ref"],
+                }
 
     def _rewire_event_ref(value: Any) -> Any:
         return suppressed_events.get(value, value) if isinstance(value, str) else value
@@ -625,8 +734,6 @@ def assemble_revision(
     # -- conservative within-book candidate linking --------------------------
     entity_index: dict[str, tuple[int, dict[str, Any]]] = {}
     for chunk_index, record in staged_entities:
-        if record["temp_id"] in suppressed_claims or record["temp_id"] in suppressed_events:
-            continue  # pragma: no cover - entities are never suppressed
         entity_index[record["temp_id"]] = (chunk_index, record)
 
     links: list[dict[str, Any]] = []
@@ -688,23 +795,48 @@ def assemble_revision(
             shared = sorted(_stable_entity_surfaces(left) & _stable_entity_surfaces(right))
             if not shared:
                 continue
+            # A shared name alone never proves identity (C0 direction):
+            # same-name records stay uncertain unless stronger
+            # source-bounded evidence exists — either a second shared
+            # stable surface beyond the name, or co-reference proven by
+            # a suppressed boundary duplicate both records participated in.
             left_name = str(left.get("canonical_name") or "")
-            if left_name and left_name == str(right.get("canonical_name") or ""):
+            same_name = bool(left_name) and left_name == str(right.get("canonical_name") or "")
+            extra = sorted(s for s in shared if not (same_name and s == left_name))
+            proof = proven_same.get(frozenset((left_ref, right_ref)))
+            if same_name and (extra or proof is not None):
+                if proof is not None:
+                    rationale = (
+                        f"Both records participate in one verified boundary-duplicate "
+                        f"occurrence ({proof['kept_ref']} ~ {proof['suppressed_ref']}); "
+                        f"shared canonical surface {left_name!r}."
+                    )
+                    signals = [
+                        f"exact canonical surface: {left_name}",
+                        f"co-subjects of duplicate occurrence {proof['kept_ref']}",
+                    ]
+                    confidence = CONFIDENCE_SAME_OCCURRENCE_DUPLICATE
+                else:
+                    rationale = (
+                        f"Same entity type {left.get('type')!r} with exact canonical "
+                        f"surface {left_name!r} plus a second shared stable surface "
+                        f"({', '.join(extra)}) in one revision."
+                    )
+                    signals = [
+                        f"same entity type: {left.get('type')}",
+                        f"exact canonical surface: {left_name}",
+                        "second shared stable surface: " + ", ".join(extra),
+                    ]
+                    confidence = CONFIDENCE_SAME_ENTITY_EXACT_NAME
                 links.append(
                     {
                         "left": {"chunk_index": left_chunk, "ref": left_ref},
                         "right": {"chunk_index": right_chunk, "ref": right_ref},
                         "kind": "entity",
                         "decision": "same_entity",
-                        "confidence": CONFIDENCE_SAME_ENTITY_EXACT_NAME,
-                        "rationale": (
-                            f"Same entity type {left.get('type')!r} with exact "
-                            f"canonical surface {left_name!r} in one revision."
-                        ),
-                        "signals": [
-                            f"same entity type: {left.get('type')}",
-                            f"exact canonical surface: {left_name}",
-                        ],
+                        "confidence": confidence,
+                        "rationale": rationale,
+                        "signals": signals,
                     }
                 )
             else:
@@ -716,8 +848,9 @@ def assemble_revision(
                         "decision": "uncertain",
                         "confidence": CONFIDENCE_UNCERTAIN,
                         "rationale": (
-                            "Shared stable surface without exact canonical-name "
-                            "agreement; kept distinct for review."
+                            "Shared stable surface without stronger identity evidence; "
+                            "a shared name alone never proves identity, so the "
+                            "records are kept distinct for review."
                         ),
                         "signals": ["shared stable surface: " + ", ".join(shared)],
                     }
@@ -817,6 +950,22 @@ def assemble_revision(
                 "refs": [suppression["kept_ref"]],
             }
         )
+    for repeat in preserved_repeats:
+        if repeat["right_chunk"] != repeat["left_chunk"] + 1:
+            continue
+        _warn(
+            {
+                "type": "repeated_assertion_preserved",
+                "severity": "info",
+                "message": (
+                    f"Matching {repeat['kind']} {repeat['left_ref']} (chunk "
+                    f"{repeat['left_chunk']}) and {repeat['right_ref']} (chunk "
+                    f"{repeat['right_chunk']}) preserved as distinct: "
+                    f"{repeat['reason']}."
+                ),
+                "refs": [repeat["left_ref"], repeat["right_ref"]],
+            }
+        )
 
     warnings.sort(
         key=lambda w: (
@@ -892,11 +1041,13 @@ def assemble_revision(
             },
             "suppressed_claims": sum(1 for s in suppressions if s["kind"] == "claim"),
             "suppressed_events": sum(1 for s in suppressions if s["kind"] == "event"),
+            "preserved_repeats": len(preserved_repeats),
             "entity_links": sum(1 for link in links if link["kind"] == "entity"),
             "event_links": sum(1 for link in links if link["kind"] == "event"),
             "unresolved_links": sum(1 for link in links if link["decision"] == "uncertain"),
         },
         "duplicate_suppressions": suppressions,
+        "preserved_repeats": preserved_repeats,
         "unresolved_links": [link["candidate_id"] for link in links if link["decision"] == "uncertain"],
         "record_provenance": provenance,
         "merged_source_titles": titles,

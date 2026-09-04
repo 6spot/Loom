@@ -112,7 +112,15 @@ def _claim(
     }
 
 
-def _locator(chunk_index: int, revision_id: str = "rev-1") -> dict:
+def _locator(
+    chunk_index: int,
+    revision_id: str = "rev-1",
+    source_start: int | None = None,
+    source_end: int | None = None,
+    overlap_prev_chars: int = 0,
+) -> dict:
+    start = chunk_index * 10 if source_start is None else source_start
+    end = chunk_index * 10 + 10 if source_end is None else source_end
     return {
         "job_id": "job-1",
         "revision_id": revision_id,
@@ -121,10 +129,12 @@ def _locator(chunk_index: int, revision_id: str = "rev-1") -> dict:
         "section_index": 0,
         "section_id": None,
         "chunk_index": chunk_index,
-        "source_start": chunk_index * 10,
-        "source_end": chunk_index * 10 + 10,
+        "source_start": start,
+        "source_end": end,
         "offset_unit": "chars-normalized-utf8",
         "content_sha256": "b" * 64,
+        "overlap_prev_chars": overlap_prev_chars,
+        "segmentation_version": "c1t5-seg-v1",
     }
 
 
@@ -137,6 +147,7 @@ def _chunk(
     warnings: list[dict] | None = None,
     run_attempt: int = 1,
     revision_id: str = "rev-1",
+    locator: dict | None = None,
 ) -> dict:
     return {
         "chunk_index": chunk_index,
@@ -148,7 +159,7 @@ def _chunk(
             "claims": claims or [],
             "warnings": warnings or [],
         },
-        "locator": _locator(chunk_index, revision_id),
+        "locator": locator if locator is not None else _locator(chunk_index, revision_id),
         "run_attempt": run_attempt,
         "model_version": "fake-model-v1",
     }
@@ -206,20 +217,62 @@ class AssemblyBundleTests(unittest.TestCase):
         self.assertEqual(1, provenance[sun]["chunk_index"])
         self.assertIn("src_001", provenance)
 
-    def test_exact_name_match_links_same_entity_without_canonical_id(self) -> None:
+    def test_disjoint_same_name_entities_stay_uncertain(self) -> None:
+        # D-1 regression: a shared name alone never proves identity. Two
+        # disjoint-chunk records for the same surface stay uncertain,
+        # distinct, and reviewable.
         result = _assemble(
             _chunk(0, entities=[_entity("ent_001", "曹操")]),
+            _chunk(2, entities=[_entity("ent_001", "曹操")]),
+        )
+        links = result["within_book_links"]["entity_links"]
+        self.assertEqual(1, len(links))
+        self.assertEqual("uncertain", links[0]["decision"])
+        self.assertEqual("wc_001", links[0]["candidate_id"])
+        self.assertEqual(2, len(result["bundle"]["entities"]))
+        for entity in result["bundle"]["entities"]:
+            self.assertEqual("unresolved", entity["resolution"]["status"])
+            self.assertNotIn("id", entity)
+        self.assertIn("wc_001", result["report"]["unresolved_links"])
+        self.assertIn(
+            "unresolved_within_book_identity",
+            [w["type"] for w in result["bundle"]["warnings"]],
+        )
+
+    def test_exact_name_plus_shared_alias_links_same_entity(self) -> None:
+        # Stronger evidence than the name alone: exact canonical-name
+        # agreement plus a second shared stable surface.
+        result = _assemble(
+            _chunk(0, entities=[_entity("ent_001", "曹操", aliases=["太祖"])]),
             _chunk(2, entities=[_entity("ent_001", "曹操", aliases=["太祖"])]),
         )
         links = result["within_book_links"]["entity_links"]
         self.assertEqual(1, len(links))
         self.assertEqual("same_entity", links[0]["decision"])
-        self.assertEqual("wc_001", links[0]["candidate_id"])
-        # Both records survive: linking never merges or assigns canonical IDs.
+        # Linking never merges records or assigns canonical IDs.
         self.assertEqual(2, len(result["bundle"]["entities"]))
         for entity in result["bundle"]["entities"]:
             self.assertEqual("unresolved", entity["resolution"]["status"])
             self.assertNotIn("id", entity)
+
+    def test_suppressed_duplicate_proves_subject_coreference(self) -> None:
+        # When two claims are verified to be the same boundary-duplicate
+        # assertion, their entity subjects denote the same participant.
+        overlap0 = _locator(0, source_start=0, source_end=20)
+        overlap1 = _locator(1, source_start=10, source_end=30)
+        result = _assemble(
+            _chunk(0, entities=[_entity("ent_001", "曹操")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=overlap0),
+            _chunk(1, entities=[_entity("ent_001", "曹操")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=overlap1),
+        )
+        self.assertEqual(1, len(result["bundle"]["claims"]))
+        links = result["within_book_links"]["entity_links"]
+        self.assertEqual(1, len(links))
+        self.assertEqual("same_entity", links[0]["decision"])
+        self.assertIn("duplicate", links[0]["rationale"])
 
     def test_shared_alias_without_name_agreement_stays_uncertain(self) -> None:
         result = _assemble(
@@ -242,12 +295,16 @@ class AssemblyBundleTests(unittest.TestCase):
         kinds = [w["type"] for w in result["bundle"]["warnings"]]
         self.assertIn("ambiguous_same_name", kinds)
 
-    def test_adjacent_duplicate_claim_suppressed_with_evidence(self) -> None:
+    def test_overlapping_duplicate_claim_suppressed_with_evidence(self) -> None:
+        overlap0 = _locator(0, source_start=0, source_end=20)
+        overlap1 = _locator(1, source_start=10, source_end=30)
         result = _assemble(
             _chunk(0, entities=[_entity("ent_001", "劉表")],
-                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")]),
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=overlap0),
             _chunk(1, entities=[_entity("ent_001", "劉表")],
-                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")]),
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=overlap1),
         )
         bundle = result["bundle"]
         # Duplicates collapse to one claim; the entity link remains.
@@ -261,6 +318,42 @@ class AssemblyBundleTests(unittest.TestCase):
         self.assertEqual("died", suppressions[0]["signature"]["predicate"])
         self.assertIn("duplicate_suppressed", [w["type"] for w in bundle["warnings"]])
 
+    def test_adjacent_nonoverlapping_repeat_preserved_distinct(self) -> None:
+        # D-2 regression: adjacent spans [0,10]/[10,20] share no source
+        # bytes, so an identical assertion is a genuine repeated passage
+        # and must survive as two distinct occurrences.
+        result = _assemble(
+            _chunk(0, entities=[_entity("ent_001", "劉表")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")]),
+            _chunk(1, entities=[_entity("ent_001", "劉表")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")]),
+        )
+        self.assertEqual(2, len(result["bundle"]["claims"]))
+        self.assertEqual(0, result["report"]["counts"]["suppressed_claims"])
+        repeats = result["report"]["preserved_repeats"]
+        self.assertEqual(1, len(repeats))
+        self.assertIn("no verified span overlap", repeats[0]["reason"])
+        self.assertIn(
+            "repeated_assertion_preserved",
+            [w["type"] for w in result["bundle"]["warnings"]],
+        )
+
+    def test_boundary_overlap_chars_suppress_duplicate(self) -> None:
+        # Declared boundary overlap is sufficient duplicate evidence even
+        # when the recorded spans merely touch.
+        head = _locator(0, source_start=0, source_end=10)
+        tail = _locator(1, source_start=10, source_end=20, overlap_prev_chars=4)
+        result = _assemble(
+            _chunk(0, entities=[_entity("ent_001", "劉表")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=head),
+            _chunk(1, entities=[_entity("ent_001", "劉表")],
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=tail),
+        )
+        self.assertEqual(1, len(result["bundle"]["claims"]))
+        self.assertEqual(1, result["report"]["counts"]["suppressed_claims"])
+
     def test_genuine_repeat_in_nonadjacent_chunks_kept_distinct(self) -> None:
         result = _assemble(
             _chunk(0, entities=[_entity("ent_001", "劉表")],
@@ -273,22 +366,33 @@ class AssemblyBundleTests(unittest.TestCase):
         # both claims survive and no silent suppression happens.
         self.assertEqual(2, len(result["bundle"]["claims"]))
         self.assertEqual(0, result["report"]["counts"]["suppressed_claims"])
+        self.assertEqual(1, len(result["report"]["preserved_repeats"]))
 
-    def test_adjacent_duplicate_event_suppressed_and_claim_rewired(self) -> None:
+    def test_overlapping_duplicate_event_suppressed_and_claim_rewired(self) -> None:
         evt0 = _event("evt_001", "表卒", "death", participants=["ent_001"])
         evt1 = _event("evt_001", "表卒", "death", participants=["ent_001"])
+        overlap0 = _locator(0, source_start=0, source_end=20)
+        overlap1 = _locator(1, source_start=10, source_end=30)
+        follower = _claim("clm_001", "ent_001", "appointed", "表卒之後")
+        follower["subject"] = {"kind": "event_ref", "ref": "evt_001"}
         result = _assemble(
             _chunk(0, entities=[_entity("ent_001", "劉表")], events=[evt0],
-                   claims=[{
-                       **_claim("clm_001", "ent_001", "died", "八月，表卒"),
-                       "subject": {"kind": "event_ref", "ref": "ent_001"},
-                   }]),
-            _chunk(1, entities=[_entity("ent_001", "劉表")], events=[evt1]),
+                   claims=[_claim("clm_001", "ent_001", "died", "八月，表卒")],
+                   locator=overlap0),
+            _chunk(1, entities=[_entity("ent_001", "劉表")], events=[evt1],
+                   claims=[follower],
+                   locator=overlap1),
         )
         self.assertEqual(1, len(result["bundle"]["events"]))
         self.assertEqual(1, result["report"]["counts"]["suppressed_events"])
         kept = result["bundle"]["events"][0]["temp_id"]
         self.assertEqual(kept, result["report"]["duplicate_suppressions"][0]["kept_ref"])
+        self.assertEqual(2, len(result["bundle"]["claims"]))
+        follower_out = [
+            c for c in result["bundle"]["claims"]
+            if c["predicate"] == "appointed"
+        ][0]
+        self.assertEqual(kept, follower_out["subject"]["ref"])
 
     def test_rerun_is_byte_deterministic(self) -> None:
         chunks = [
