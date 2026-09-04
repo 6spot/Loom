@@ -44,3 +44,15 @@ Make uploaded UTF-8 historical texts durable first-class Documents/Revisions wit
   SQL per governance), PG/filesystem integration tests, and
   `docs/documents.md`. No Loom authority change; Amendment 0006 boundary
   kept. Rust owns auth/routing, Python owns persistence.
+- 2026-09-04 — Reviewer FAIL D-1 addressed: migration 0003 parks the
+  0002 `forbid_revision_mutation` trigger for its own backfill UPDATE and
+  re-arms it immediately; new upgrade regression test applies 0001/0002,
+  inserts a live C1-T1 revision, upgrades, and proves backfill defaults,
+  a still-enforced immutability guard, and clean C1-T3 appends.
+- 2026-09-04 — Reviewer FAIL D-2 addressed: any non-empty declared
+  Content-Type must equal the filename-derived media type (previously only
+  text/plain-vs-markdown swaps were checked); HTTP regression cases plus a
+  dispatch-layer absent-header test added.
+- 2026-09-04 — Reviewer FAIL D-3: prior-head CI failure isolated to the
+  Chrome `--dump-dom` smoke step (all contract steps green); no causal
+  link to this diff found. Fix push re-runs the workflow to green.

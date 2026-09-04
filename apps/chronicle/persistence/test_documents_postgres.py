@@ -410,6 +410,105 @@ class DocumentUploadPostgresTests(unittest.TestCase):
                     conn, revision_id=uuid.uuid4(), storage_dir=self.storage_dir
                 )
 
+    def test_upgrade_from_c1t1_schema_backfills_and_keeps_immutability(self) -> None:
+        """D-1: applying 0003 over a live 0002 database with rows succeeds.
+
+        Reproduces the Reviewer failure: the 0002 forbid_revision_mutation
+        trigger rejects application UPDATEs, so the 0003 backfill must park
+        that trigger for its own upgrade statement and re-arm it. After the
+        upgrade the legacy row carries deterministic defaults, the
+        immutability guard still fires, and new C1-T3 uploads append cleanly.
+        """
+        migrations_dir = HERE / "migrations"
+        # A database that stopped at 0002 with one live C1-T1 revision.
+        legacy_document = uuid.uuid4()
+        legacy_revision = uuid.uuid4()
+        legacy_sha = _sha(b"legacy-bytes")
+        for name in ("0001_chronicle_v0.sql", "0002_chronicle_c1_control_plane.sql"):
+            raw = (migrations_dir / name).read_text(encoding="utf-8")
+            with psycopg.connect(self.database_url) as setup_conn:
+                with setup_conn.transaction():
+                    setup_conn.execute(raw)
+        with psycopg.connect(self.database_url) as setup_conn:
+            with setup_conn.transaction():
+                setup_conn.execute(
+                    "INSERT INTO chronicle.documents(document_id, title)"
+                    " VALUES (%s, %s)",
+                    (legacy_document, "legacy"),
+                )
+                setup_conn.execute(
+                    """
+                    INSERT INTO chronicle.document_revisions(
+                        revision_id, document_id, revision_no,
+                        source_sha256, source_bytes, source_media_type,
+                        supersedes_revision_id
+                    ) VALUES (%s, %s, 1, %s, %s, %s, NULL)
+                    """,
+                    (
+                        legacy_revision,
+                        legacy_document,
+                        legacy_sha,
+                        len(b"legacy-bytes"),
+                        "text/plain",
+                    ),
+                )
+        # The real upgrade path under test: only 0003 is still pending.
+        with psycopg.connect(self.database_url) as conn:
+            apply_migrations(conn)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT filename, storage_key, content_chars, language,
+                       source_label, source_sha256, revision_no
+                FROM chronicle.document_revisions
+                WHERE revision_id = %s
+                """,
+                (legacy_revision,),
+            ).fetchone()
+            self.assertEqual(row[0], "upload.txt")
+            self.assertEqual(
+                row[1], f"documents/{legacy_document}/{legacy_revision}.txt"
+            )
+            self.assertEqual(row[2], 0)
+            self.assertIsNone(row[3])
+            self.assertIsNone(row[4])
+            self.assertEqual(row[5], legacy_sha)
+            # The immutability guard survived the upgrade: the backfill did
+            # not leave the trigger parked or dropped.
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        "UPDATE chronicle.document_revisions SET filename = 'x'"
+                        " WHERE revision_id = %s",
+                        (legacy_revision,),
+                    )
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        "DELETE FROM chronicle.document_revisions WHERE revision_id = %s",
+                        (legacy_revision,),
+                    )
+            # New C1-T3 uploads append on the upgraded schema, superseding
+            # the legacy tip non-destructively.
+            second = documents.upload_revision(
+                conn,
+                storage_dir=self.storage_dir,
+                document_id=legacy_document,
+                filename="legacy.txt",
+                data="legacy-bytes".encode("utf-8"),
+            )
+            self.assertTrue(second["duplicate"])
+            self.assertEqual(second["revision_id"], str(legacy_revision))
+            third = documents.upload_revision(
+                conn,
+                storage_dir=self.storage_dir,
+                document_id=legacy_document,
+                filename="legacy.txt",
+                data="legacy-bytes-v2".encode("utf-8"),
+            )
+            self.assertEqual(third["revision_no"], 2)
+            self.assertEqual(third["supersedes_revision_id"], str(legacy_revision))
+
 
 if __name__ == "__main__":
     unittest.main()

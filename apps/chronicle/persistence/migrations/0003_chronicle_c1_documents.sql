@@ -21,9 +21,20 @@ ALTER TABLE chronicle.document_revisions
 
 -- Deterministic backfill for rows predating this migration. New C1-T3
 -- uploads always supply an explicit storage key; this only repairs history.
+--
+-- The backfill touches existing revision rows, but migration 0002 has
+-- already installed the forbid_revision_mutation trigger that rejects
+-- every application UPDATE/DELETE on this table. The trigger is therefore
+-- parked for the single upgrade statement below and re-armed immediately
+-- afterwards; ordinary writes stay forbidden before, during (outside this
+-- migration transaction), and after the upgrade.
+ALTER TABLE chronicle.document_revisions DISABLE TRIGGER forbid_revision_mutation;
+
 UPDATE chronicle.document_revisions
 SET storage_key = 'documents/' || document_id::text || '/' || revision_id::text || '.txt'
 WHERE storage_key IS NULL;
+
+ALTER TABLE chronicle.document_revisions ENABLE TRIGGER forbid_revision_mutation;
 
 ALTER TABLE chronicle.document_revisions
     ALTER COLUMN storage_key SET NOT NULL;

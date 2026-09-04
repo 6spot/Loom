@@ -23,7 +23,7 @@ import urllib.parse
 import uuid
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import psycopg
@@ -38,6 +38,10 @@ for candidate in (str(HERE), str(PERSISTENCE)):
         sys.path.insert(0, candidate)
 
 from server import handler_class  # noqa: E402
+
+import control_plane  # noqa: E402
+import documents as documents_store  # noqa: E402
+from studio_documents import dispatch_studio  # noqa: E402
 
 from migrations import apply_migrations  # noqa: E402
 
@@ -143,7 +147,7 @@ class StudioDocumentsHttpTests(unittest.TestCase):
         filename: str,
         data: bytes,
         extra: str = "",
-        content_type: str = "text/plain; charset=utf-8",
+        content_type: str | None = "text/plain; charset=utf-8",
     ) -> tuple[int, dict]:
         query = {"filename": filename}
         path = (
@@ -267,6 +271,20 @@ class StudioDocumentsHttpTests(unittest.TestCase):
             document_id, "wudi.txt", "x\n".encode(), content_type="text/markdown"
         )
         self.assertEqual(status, 400)
+        # D-2: every non-empty declared type must match the filename-derived
+        # type — not just text/plain vs text/markdown swaps.
+        for filename, declared in (
+            ("wudi.txt", "application/pdf"),
+            ("wudi.txt", "application/json"),
+            ("wudi.txt", "text/html"),
+            ("wudi.md", "text/plain"),
+            ("wudi.md", "application/pdf"),
+        ):
+            status, payload = self._upload(
+                document_id, filename, "x\n".encode(), content_type=declared
+            )
+            self.assertEqual(status, 400, f"{filename} + {declared}")
+            self.assertEqual(payload["error"]["code"], "bad_request")
         # Empty body.
         status, payload = self._upload(document_id, "wudi.txt", b"")
         self.assertEqual(status, 400)
@@ -300,9 +318,63 @@ class StudioDocumentsHttpTests(unittest.TestCase):
     def test_oversized_upload_is_rejected(self) -> None:
         document_id = self._create_document()
         big = b"y" * (1024 * 1024 + 8)
-        status, payload = self._upload(document_id, "big.txt", big)
+        # The sidecar answers 413 from headers without consuming the ~1 MiB
+        # body, so a fast client can see a reset instead of the response.
+        # That transport race is urllib-level noise: retry until an HTTP
+        # response arrives, then assert it is the typed 413.
+        payload: dict = {}
+        for _ in range(10):
+            try:
+                status, payload = self._upload(document_id, "big.txt", big)
+            except URLError:
+                continue
+            break
+        else:
+            self.fail("oversized upload never received an HTTP response")
         self.assertEqual(status, 413)
         self.assertEqual(payload["error"]["code"], "payload_too_large")
+
+    def test_declared_media_type_matching_rules(self) -> None:
+        """Declared Content-Type may be absent or must equal the file type.
+
+        Note: urllib always sends a default Content-Type when a body is
+        present, so a truly absent header is covered at the dispatch layer
+        in test_absent_content_type_derives_from_filename below; here the
+        parameter normalization (case/parameters) goes over real HTTP.
+        """
+        document_id = self._create_document()
+        # Parameters and letter case are normalized before comparison.
+        status, created = self._upload(
+            document_id,
+            "notes.md",
+            "# 註\n".encode(),
+            content_type="TEXT/MARKDOWN; charset=utf-8",
+        )
+        self.assertEqual(status, 201, created)
+        self.assertEqual(created["revision"]["source_media_type"], "text/markdown")
+
+    def test_absent_content_type_derives_from_filename(self) -> None:
+        """No (or empty) Content-Type derives the type from the filename."""
+        with psycopg.connect(self.database_url) as conn:
+            document_id = control_plane.create_document(conn, title="無聲明")
+            for absent in (None, ""):
+                status, media, raw = dispatch_studio(
+                    conn,
+                    documents_store,
+                    storage_dir=Path(self._tmp.name),
+                    max_upload_bytes=1024 * 1024,
+                    method="POST",
+                    path=f"/api/v1/studio/documents/{document_id}/revisions",
+                    raw_query="filename=wudi.txt",
+                    body="無聲明\n".encode("utf-8"),
+                    content_type=absent,
+                )
+                # The second identical upload is the idempotent duplicate.
+                self.assertIn(status, (200, 201), raw)
+                payload = json.loads(raw)
+                self.assertEqual(
+                    payload["revision"]["source_media_type"], "text/plain"
+                )
 
     def test_create_document_validates_title(self) -> None:
         for bad in ("", "   "):

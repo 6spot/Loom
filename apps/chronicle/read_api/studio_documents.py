@@ -275,13 +275,12 @@ def _upload_revision(
     if not body:
         raise _BadRequest("upload body must not be empty")
     declared = (content_type or "").split(";")[0].strip().lower()
-    if declared in ("text/plain", "text/markdown"):
-        expected = documents.media_type_for_filename(documents.sanitize_filename(filename))
-        if declared != expected:
-            raise _BadRequest(
-                f"Content-Type {declared} does not match filename {filename!r}"
-                f" (expected {expected})"
-            )
+    expected = documents.media_type_for_filename(documents.sanitize_filename(filename))
+    if declared and declared != expected:
+        raise _BadRequest(
+            f"Content-Type {declared} does not match filename {filename!r}"
+            f" (expected {expected})"
+        )
     revision = documents.upload_revision(
         conn,
         storage_dir=storage_dir,
