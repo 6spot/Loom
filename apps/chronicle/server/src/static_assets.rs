@@ -82,6 +82,11 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioImportDetailPage.js"
     ),
     asset!(
+        "/assets/StudioSourcesPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioSourcesPage.js"
+    ),
+    asset!(
         "/assets/studio-api.js",
         "text/javascript; charset=utf-8",
         "dist/assets/studio-api.js"
@@ -222,6 +227,7 @@ mod tests {
             "/assets/StudioHomePage.js",
             "/assets/StudioImportsPage.js",
             "/assets/StudioImportDetailPage.js",
+            "/assets/StudioSourcesPage.js",
             "/assets/studio-api.js",
             "/assets/input.js",
             "/assets/placeholders.js",
