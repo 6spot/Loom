@@ -173,6 +173,10 @@ def _assemble(*chunks: dict) -> dict:
     )
 
 
+def _assemble_no_revision(*chunks: dict) -> dict:
+    return A.assemble_revision(chunks=list(chunks))
+
+
 class AssemblyBundleTests(unittest.TestCase):
     def test_two_chunks_merge_into_one_schema_valid_bundle(self) -> None:
         result = _assemble(
@@ -432,6 +436,59 @@ class AssemblyFailureTests(unittest.TestCase):
         bad["id"] = "01900000-0000-7000-8000-000000000000"
         with self.assertRaises(PersistenceError):
             _assemble(_chunk(0, entities=[bad]))
+
+    def test_nested_canonical_id_fails_closed(self) -> None:
+        # D-3 regression: the C0 schema permits nested resolution
+        # identity, so assembly must reject it explicitly instead of
+        # copying a canonical assignment into the source-owned bundle.
+        bad = _entity("ent_001", "曹操")
+        bad["resolution"] = {
+            "status": "resolved",
+            "canonical_id": "01900000-0000-7000-8000-000000000000",
+        }
+        with self.assertRaises(PersistenceError):
+            _assemble(_chunk(0, entities=[bad]))
+
+    def test_nested_candidate_ids_fail_closed(self) -> None:
+        bad = _entity("ent_001", "曹操")
+        bad["resolution"] = {
+            "status": "ambiguous",
+            "candidate_ids": ["01900000-0000-7000-8000-000000000001"],
+        }
+        with self.assertRaises(PersistenceError):
+            _assemble(_chunk(0, entities=[bad]))
+
+    def test_non_unresolved_status_fails_closed(self) -> None:
+        bad = _entity("ent_001", "曹操")
+        bad["resolution"] = {"status": "resolved"}
+        with self.assertRaises(PersistenceError):
+            _assemble(_chunk(0, entities=[bad]))
+
+    def test_mixed_revisions_without_revision_arg_fails_closed(self) -> None:
+        # D-4 regression: the one-revision contract must hold even when
+        # the optional public `revision` argument is omitted.
+        with self.assertRaises(PersistenceError):
+            _assemble_no_revision(
+                _chunk(0, entities=[_entity("ent_001", "曹操")]),
+                _chunk(1, entities=[_entity("ent_001", "曹操")], revision_id="rev-2"),
+            )
+
+    def test_mixed_source_hashes_without_revision_arg_fails_closed(self) -> None:
+        other_locator = _locator(1)
+        other_locator["source_sha256"] = "c" * 64
+        with self.assertRaises(PersistenceError):
+            _assemble_no_revision(
+                _chunk(0, entities=[_entity("ent_001", "曹操")]),
+                _chunk(1, entities=[_entity("ent_001", "曹操")], locator=other_locator),
+            )
+
+    def test_single_revision_without_revision_arg_assembles(self) -> None:
+        result = _assemble_no_revision(
+            _chunk(0, entities=[_entity("ent_001", "曹操")]),
+            _chunk(1, entities=[_entity("ent_001", "孫權")]),
+        )
+        self.assertEqual("rev-1", result["report"]["revision"]["revision_id"])
+        self.assertEqual("a" * 64, result["report"]["revision"]["source_sha256"])
 
     def test_chunk_without_candidate_fails_closed(self) -> None:
         chunk = _chunk(0)

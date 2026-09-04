@@ -11,8 +11,17 @@ Contract summary (GitHub Issue #496):
   revision are assembled into one revision-scoped staged bundle that
   satisfies the reused C0 Source/Entity/Event/Claim contract
   (``CONTRACT_VERSION``) and the canonical JSON Schema. No canonical
-  identity is assigned: every assembled record keeps a ``temp_id`` and
-  the bundle carries no ``id`` anywhere.
+   identity is assigned: every assembled record keeps a ``temp_id`` and
+   the bundle carries no ``id`` anywhere. Assembly input must already be
+   unresolved/temp-ID-only: a chunk entity carrying a nested
+   ``resolution.canonical_id``/``candidate_ids`` or a non-``unresolved``
+   status fails the whole assembly, because the C0 schema permits those
+   nested fields and only an explicit check keeps direct canonical
+   assignment out of the source-owned artifact. Likewise every chunk
+   locator must name the same revision/source hash: the single expected
+   identity is derived from the locators before validation, so mixed
+   revisions fail closed even when the optional ``revision`` argument
+   is omitted.
 - Chunk-local temp IDs (``ent_001`` in chunk 0 vs ``ent_001`` in chunk 1)
   are remapped into revision-scoped temp IDs
   (``ent_000001``-style) so independent chunk namespaces can never
@@ -322,6 +331,37 @@ def _validate_chunk_input(chunk: dict[str, Any]) -> dict[str, Any]:
                     f"identity ({record.get('id')!r}); temp IDs only"
                 )
 
+    def _reject_nested_canonical(records: list[dict[str, Any]], kind: str) -> None:
+        # The C0 schema permits nested resolution identity fields, so the
+        # schema layer cannot catch them: a chunk entity already resolved
+        # to a canonical UUID (or carrying candidate UUIDs) must fail the
+        # whole assembly instead of leaking direct canonical assignment
+        # into the source-owned artifact.
+        for record in records:
+            resolution = record.get("resolution")
+            if not isinstance(resolution, dict):
+                continue
+            if resolution.get("canonical_id") is not None:
+                raise PersistenceError(
+                    f"chunk {chunk_index} {kind} record "
+                    f"{record.get('temp_id')!r} carries a nested canonical ID; "
+                    "assembly input must be unresolved/temp-ID-only"
+                )
+            candidates = resolution.get("candidate_ids")
+            if candidates is not None and candidates != []:
+                raise PersistenceError(
+                    f"chunk {chunk_index} {kind} record "
+                    f"{record.get('temp_id')!r} carries nested candidate IDs; "
+                    "assembly input must be unresolved/temp-ID-only"
+                )
+            if resolution.get("status") != "unresolved":
+                raise PersistenceError(
+                    f"chunk {chunk_index} {kind} record "
+                    f"{record.get('temp_id')!r} has resolution status "
+                    f"{resolution.get('status')!r}; assembly input must be "
+                    "unresolved/temp-ID-only"
+                )
+
     entities = _records(candidate, "entities")
     events = _records(candidate, "events")
     claims = _records(candidate, "claims")
@@ -330,6 +370,7 @@ def _validate_chunk_input(chunk: dict[str, Any]) -> dict[str, Any]:
     _reject_canonical(entities, "entity")
     _reject_canonical(events, "event")
     _reject_canonical(claims, "claim")
+    _reject_nested_canonical(entities, "entity")
 
     seen: set[str] = set()
     for record in [source, *entities, *events, *claims]:
@@ -398,23 +439,33 @@ def assemble_revision(
         source_sha256 is not None and not isinstance(source_sha256, str)
     ):
         raise PersistenceError("revision identity must use string fields")
-    for item in normalized:
-        locator = item["locator"]
-        if revision_id is not None and locator.get("revision_id") != revision_id:
-            raise PersistenceError(
-                f"chunk {item['chunk_index']} belongs to revision "
-                f"{locator.get('revision_id')!r}, not {revision_id!r}; refusing to "
-                "mix revisions in one source bundle"
-            )
-        if source_sha256 is not None and locator.get("source_sha256") != source_sha256:
-            raise PersistenceError(
-                f"chunk {item['chunk_index']} source hash does not match the "
-                "revision source hash; refusing to assemble"
-            )
-    if revision_id is None:
-        revision_id = normalized[0]["locator"]["revision_id"]
-    if source_sha256 is None:
-        source_sha256 = normalized[0]["locator"]["source_sha256"]
+    # Derive the single expected identity from the chunk locators first,
+    # so the one-revision contract holds even when the optional public
+    # `revision` argument is omitted: any second revision or source hash
+    # fails closed here instead of being silently adopted.
+    locator_identities = {
+        (item["locator"].get("revision_id"), item["locator"].get("source_sha256"))
+        for item in normalized
+    }
+    if len(locator_identities) != 1:
+        raise PersistenceError(
+            "assembly chunks span multiple revisions/source hashes "
+            f"{sorted(str(pair) for pair in locator_identities)}; refusing to "
+            "mix revisions in one source bundle"
+        )
+    (locator_revision_id, locator_source_sha256) = next(iter(locator_identities))
+    if revision_id is not None and locator_revision_id != revision_id:
+        raise PersistenceError(
+            f"chunk locators belong to revision {locator_revision_id!r}, not "
+            f"{revision_id!r}; refusing to mix revisions in one source bundle"
+        )
+    if source_sha256 is not None and locator_source_sha256 != source_sha256:
+        raise PersistenceError(
+            "chunk locator source hash does not match the revision source "
+            "hash; refusing to assemble"
+        )
+    revision_id = locator_revision_id
+    source_sha256 = locator_source_sha256
     revision_no = revision.get("revision_no")
 
     # -- remap chunk-local temp IDs into one revision-scoped namespace --
