@@ -1,13 +1,13 @@
 ---
 task: C1-T2
 issue: 491
-status: in_progress
+status: completed
 depends_on: [C1-T1]
 created_at: 2026-09-04
 started_at: 2026-09-04
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-04
+completion_pr: 510
+merge_sha: 1a6fa8713dd6a14eb79a2f43cba8fb3c37a8a744
 ---
 
 # Chronicle Rust Server and Studio Auth
@@ -22,35 +22,18 @@ Establish the long-lived Rust Chronicle server, public/Studio API separation, an
 
 ## Acceptance
 
-- [ ] Rust Chronicle server entry point exists and is documented.
-- [ ] public and Studio API namespaces are separated.
-- [ ] Studio authorization is enforced server-side from environment credentials.
-- [ ] credentials are never persisted or logged in plaintext.
-- [ ] C0 Timeline/Event/Entity/Search behavior remains covered or is explicitly migrated.
-- [ ] health/error/graceful-shutdown behavior is tested.
-- [ ] no Loom Runtime/Storage authority is moved into Chronicle.
-- [ ] applicable Rust/Chronicle CI passes.
+- [x] Rust Chronicle server entry point exists and is documented.
+- [x] public and Studio API namespaces are separated.
+- [x] Studio authorization is enforced server-side from environment credentials.
+- [x] credentials are never persisted or logged in plaintext.
+- [x] C0 Timeline/Event/Entity/Search behavior remains covered or is explicitly migrated.
+- [x] health/error/graceful-shutdown behavior is tested.
+- [x] no Loom Runtime/Storage authority is moved into Chronicle.
+- [x] applicable Rust/Chronicle CI passes.
 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: standalone Rust crate
-  `apps/chronicle/server/` (Axum/Tokio, own workspace following the
-  C1-T1 `control_plane` precedent; no `loom-*`, SQLx/PostgreSQL driver, or
-  inline SQL per governance). Public `/api/v1/public/*` + legacy `/v0/*`
-  proxy to the preserved C0 Python read model (single historical read
-  authority); Studio `/api/v1/studio/*` requires server-side Basic auth
-  from `CHRONICLE_ADMIN_USER`/`CHRONICLE_ADMIN_PASSWORD` (fail-closed 503
-  when unconfigured); same-origin web UI embedded at compile time;
-  typed C0-compatible errors, health endpoint, graceful shutdown, and
-  26-test coverage (unit + live-router integration). No C1-T1 coupling:
-  control-plane tables are untouched, so this leaf builds in parallel
-  without consuming C1-T1 outputs. Migration boundary documented in
-  `apps/chronicle/docs/server.md`; Compose runs Rust `chronicle-web`
-  fronting internal C0   `chronicle-read` sidecar.
-- 2026-09-04 — Reviewer FAIL addressed: D-1 `CHRONICLE_BIND=0.0.0.0` in the
-  Compose web service (full Docker stack rerun: web healthy and reachable);
-  D-2 raw `CHRONICLE_UPSTREAM_URL`/`CHRONICLE_PORT` redacted from config
-  errors plus regression tests; D-3 deterministic Python upstream readiness
-  and first-contact proxied check in the front smoke (PG18 contracts and
-  full Docker assertions rerun green locally).
+- 2026-09-04 — Implementation added standalone Rust `apps/chronicle/server/` (Axum/Tokio), public `/api/v1/public/*` plus legacy `/v0/*` proxying to the preserved C0 read model, authenticated `/api/v1/studio/*`, compile-time embedded same-origin UI, typed errors, health/config validation and graceful shutdown. Compose runs Rust `chronicle-web` in front of the internal Python read sidecar; no Loom/SQL authority moved into Rust.
+- 2026-09-04 — Review findings addressed: Docker web binding corrected, sensitive upstream/port config values redacted from errors, deterministic upstream readiness/first-contact checks added and deployment smoke rerun.
+- 2026-09-04 — Delivery PR #510 merged as `1a6fa8713dd6a14eb79a2f43cba8fb3c37a8a744`. Exact delivery head `18360c8696b4454425c0be0859cf6aff6c4eba87` passed GitHub Actions Chronicle run 33856736453, Chronicle Docker run 33856736489, and CI run 33856736409. Catch-up post-merge reconciliation records the already-delivered task as completed on the canonical ledger.

@@ -1,13 +1,13 @@
 ---
 task: C1-T1
 issue: 490
-status: in_progress
+status: completed
 depends_on: [C0-T12]
 created_at: 2026-09-04
 started_at: 2026-09-04
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-04
+completion_pr: 509
+merge_sha: f67d5218696d2d118522b2a03e3850c84f4c7106
 ---
 
 # Chronicle Document Ingestion Control Plane
@@ -26,26 +26,18 @@ Application-owned persistence only. Existing C0 staged, Resolution and canonical
 
 ## Acceptance
 
-- [ ] C1 control-plane design and PostgreSQL migration exist.
-- [ ] immutable revision/supersession semantics are enforced.
-- [ ] job/stage/chunk/review provenance is auditable.
-- [ ] Rust lifecycle transition tests cover retry/review/completion.
-- [ ] deterministic fake restart/checkpoint lifecycle passes.
-- [ ] C0 persistence semantics and PostgreSQL 18 regressions remain green.
-- [ ] Rust/Python ownership boundary is documented.
-- [ ] applicable CI/governance checks pass.
+- [x] C1 control-plane design and PostgreSQL migration exist.
+- [x] immutable revision/supersession semantics are enforced.
+- [x] job/stage/chunk/review provenance is auditable.
+- [x] Rust lifecycle transition tests cover retry/review/completion.
+- [x] deterministic fake restart/checkpoint lifecycle passes.
+- [x] C0 persistence semantics and PostgreSQL 18 regressions remain green.
+- [x] Rust/Python ownership boundary is documented.
+- [x] applicable CI/governance checks pass.
 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: additive migration `0002_chronicle_c1_control_plane.sql`,
-  Python store `persistence/control_plane.py`, standalone Rust contract crate
-  `control_plane/` (zero deps, own workspace), PG lifecycle tests, and
-  `docs/control-plane.md`. No Loom authority change; Amendment 0006 boundary kept.
-- 2026-09-04 — Reviewer FAIL D-1/D-2 addressed: DB triggers + store pre-checks
-  enforce output↔revision, chunk↔section, review↔chunk same-job invariants;
-  `record_output` retries return the persisted row ID; 3 new PG tests added.
-- 2026-09-04 — Reviewer FAIL D-3 addressed: generic `forbid_identity_remap`
-  trigger freezes parent identity links (jobs/sections/chunks/runs/reviews/
-  outputs) after insert while lifecycle columns stay mutable; 1 new PG
-  regression test added.
+- 2026-09-04 — Implementation started: additive migration `0002_chronicle_c1_control_plane.sql`, Python store `persistence/control_plane.py`, standalone Rust contract crate `control_plane/`, PG lifecycle tests, and `docs/control-plane.md`. No Loom authority change; Amendment 0006 boundary kept.
+- 2026-09-04 — Reviewer findings addressed: DB/store invariants enforce output↔revision, chunk↔section, review↔chunk same-job consistency; idempotent output retry returns persisted IDs; parent identity links are immutable while lifecycle fields remain mutable.
+- 2026-09-04 — Delivery PR #509 merged as `f67d5218696d2d118522b2a03e3850c84f4c7106`. Exact delivery head `c20e0b8dbe3e65132d2a2fc41acf4eb4c96cd7e6` passed GitHub Actions Chronicle run 33853471138, Chronicle Docker run 33853471095, and CI run 33853471091. Catch-up post-merge reconciliation records the already-delivered task as completed on the canonical ledger.

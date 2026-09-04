@@ -1,13 +1,13 @@
 ---
 task: C1-T5
 issue: 494
-status: in_progress
+status: completed
 depends_on: [C1-T3, C1-T4]
 created_at: 2026-09-04
 started_at: 2026-09-04
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-04
+completion_pr: 515
+merge_sha: 2d5847c53b5939bd26f536f8da57894bd5c23d09
 ---
 
 # Chronicle Structure, Segmentation and Context State
@@ -22,21 +22,19 @@ Produce reproducible document sections and semantic chunks within model budgets 
 
 ## Acceptance
 
-- [ ] section/chunk records retain exact source locators.
-- [ ] unchanged input/version produces reproducible segmentation.
-- [ ] model context budgets reserve prompt/context/output safely.
-- [ ] natural structure/semantic boundaries are preferred to blind fixed-size cuts.
-- [ ] ContextState flows audibly from chunk N to N+1.
-- [ ] inherited time/coreference boundary cases are covered without fabricated precision.
-- [ ] chunks remain non-authoritative processing units.
-- [ ] restart resumes from persisted segmentation checkpoints.
-- [ ] Chronicle CI passes.
+- [x] section/chunk records retain exact source locators.
+- [x] unchanged input/version produces reproducible segmentation.
+- [x] model context budgets reserve prompt/context/output safely.
+- [x] natural structure/semantic boundaries are preferred to blind fixed-size cuts.
+- [x] ContextState flows audibly from chunk N to N+1.
+- [x] inherited time/coreference boundary cases are covered without fabricated precision.
+- [x] chunks remain non-authoritative processing units.
+- [x] restart resumes from persisted segmentation checkpoints.
+- [x] Chronicle CI passes.
 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: versioned structure/segmentation/context module (`persistence/segmentation.py`), worker real `structure`/`segment` path (opt-in, fake path default), per-chunk checkpoint setter, continuity fixture, unit + PostgreSQL resume suites.
-- 2026-09-04 — Delivery PR #515 opened (unmerged). Local evidence: 67 persistence tests OK (28 new), 21 worker tests OK (17 C1-T4 unchanged + 4 new). Post-merge reconciliation (completed/completion_pr/merge_sha) pending.
-- 2026-09-04 — Reviewer FAIL D-1..D-6 addressed on PR #515: budget total now holds all reserves (D-1); deep-copy merge + repeated-entity regression (D-2); migration 0004 persists section kind/depth/parent with resume validation (D-3); exact persisted-set checks against stale rows (D-5); revision source_sha stored/verified separately from slice hash (D-6); production revision loader wired through --source-dir/CHRONICLE_SOURCE_DIR, run_forever, and the Compose worker volume, all fail-closed (D-4). Local evidence: 71 persistence + 31 worker tests OK; compose config validates.
-- 2026-09-04 — Reviewer residual D-7..D-9 addressed on PR #515: zero caps consistently mean empty collections (D-7); span-based atom packing keeps every persisted range within max_chunk_chars with exact separator coverage, overlap clamped to the bound (D-8); context_chain gates the final forwarded bytes including the attached budget report, plus the initial input (D-9). Local evidence: 75 persistence + 31 worker + 36 read-model tests OK.
-- 2026-09-04 — Reviewer residual D-10 addressed on PR #515: context_chain now pre-gates every actual input (serialized prior state plus current chunk) before each advance, so a shrinking output cannot smuggle an oversized input through; shrinking-state regression added. Local evidence: 76 persistence + 31 worker + 36 read-model tests OK.
+- 2026-09-04 — Implementation added versioned structure/segmentation/context planning, persisted section/chunk coordinates and source hashes, bounded ContextState, real worker structure/segment path, source loader/Compose integration, checkpoint/resume validation, and continuity fixtures.
+- 2026-09-04 — Review findings D-1..D-10 were addressed before delivery: reserve accounting, merge/deep-copy behavior, persisted section hierarchy, stale-row exactness, source-hash binding, production revision loading, zero-cap semantics, bounded span packing, and full input/output context budget gating. Local suites were repeatedly rerun through the final candidate.
+- 2026-09-04 — Delivery PR #515 merged as `2d5847c53b5939bd26f536f8da57894bd5c23d09`. Exact delivery head `91b8812cd7fbaf21504a15b5d11d5a7a6fd0a3b6` passed GitHub Actions Chronicle run 33868190922 and Chronicle Docker run 33868190978. Catch-up post-merge reconciliation records the already-delivered task as completed on the canonical ledger.
