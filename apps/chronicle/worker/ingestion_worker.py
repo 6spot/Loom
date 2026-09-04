@@ -64,6 +64,7 @@ if str(_PERSISTENCE_DIR) not in sys.path:
 import control_plane  # noqa: E402
 from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
+import assembly  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
 import segmentation  # noqa: E402
@@ -96,6 +97,12 @@ CHUNK_BEARING_STAGE = "extract"
 #: source is available. All other stages keep the deterministic fake
 #: executor until their own tasks land.
 REAL_SEGMENT_STAGES = ("structure", "segment")
+
+#: Stage that the C1-T7 real source-assembly path owns when real chunk
+#: extraction ran (``chunk_model`` set). It reads the accepted per-chunk
+#: extraction checkpoints and records one revision-scoped source bundle
+#: artifact; without real extraction the stage keeps the fake executor.
+REAL_ASSEMBLE_STAGE = "assemble"
 
 #: Fake completion artifact recorded once a job finishes every stage.
 FAKE_OUTPUT_TYPE = "fake-pipeline-result"
@@ -1042,6 +1049,166 @@ class JobRunner:
             return "needs_review"
         return "failed"
 
+    # -- C1-T7 real source-assembly path --------------------------------
+
+    def _read_assemble_inputs(
+        self, job_id: uuid.UUID
+    ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+        """Read accepted per-chunk extraction outputs for assembly.
+
+        Returns ``(chunks, document, revision)`` for
+        :func:`assembly.assemble_revision`. Every chunk must be
+        ``completed`` with an accepted extraction layer; anything else
+        fails closed instead of assembling a partial bundle.
+        """
+        with psycopg.connect(self.database_url) as conn:
+            meta = conn.execute(
+                """
+                SELECT d.title, r.revision_id, r.revision_no, r.source_sha256
+                FROM chronicle.ingestion_jobs j
+                JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
+                JOIN chronicle.documents d ON d.document_id = r.document_id
+                WHERE j.job_id = %s
+                """,
+                (job_id,),
+            ).fetchone()
+            if meta is None:
+                raise PersistenceError(f"unknown job {job_id}")
+            rows = conn.execute(
+                """
+                SELECT chunk_id, chunk_index, status, checkpoint
+                FROM chronicle.ingestion_chunks
+                WHERE job_id = %s ORDER BY chunk_index
+                """,
+                (job_id,),
+            ).fetchall()
+        if not rows:
+            raise PersistenceError(
+                f"job {job_id} persists no chunks; refusing to assemble "
+                "a source bundle from nothing"
+            )
+        chunks: list[dict[str, Any]] = []
+        for chunk_id, chunk_index, status, checkpoint in rows:
+            checkpoint = checkpoint if isinstance(checkpoint, dict) else {}
+            accepted = checkpoint.get("extraction")
+            if status != "completed" or not isinstance(accepted, dict):
+                raise PersistenceError(
+                    f"chunk {chunk_id} (index {chunk_index}) has no accepted "
+                    "extraction output; refusing to assemble a partial bundle"
+                )
+            if accepted.get("accepted") is not True or not isinstance(
+                accepted.get("candidate"), dict
+            ):
+                raise PersistenceError(
+                    f"chunk {chunk_id} (index {chunk_index}) has no accepted "
+                    "extraction candidate; refusing to assemble"
+                )
+            run_attempt = accepted.get("produced_by_run_attempt")
+            if not isinstance(run_attempt, int) or run_attempt < 1:
+                raise PersistenceError(
+                    f"chunk {chunk_id} accepted output names no producing run"
+                )
+            with psycopg.connect(self.database_url) as conn:
+                run = conn.execute(
+                    """
+                    SELECT checkpoint FROM chronicle.ingestion_chunk_runs
+                    WHERE chunk_id = %s AND attempt = %s
+                    """,
+                    (chunk_id, run_attempt),
+                ).fetchone()
+            if run is None or not isinstance(run[0], dict):
+                raise PersistenceError(
+                    f"chunk {chunk_id} producing run {run_attempt} is missing"
+                )
+            model_version = run[0].get("model_version")
+            if not isinstance(model_version, str) or not model_version:
+                raise PersistenceError(
+                    f"chunk {chunk_id} producing run names no model version"
+                )
+            chunks.append(
+                {
+                    "chunk_index": int(chunk_index),
+                    "candidate": accepted["candidate"],
+                    "locator": accepted["locator"],
+                    "run_attempt": run_attempt,
+                    "model_version": model_version,
+                }
+            )
+        document = {"title": meta[0]}
+        document.update(self.document_meta)
+        revision = {
+            "revision_id": str(meta[1]),
+            "revision_no": int(meta[2]),
+            "source_sha256": meta[3],
+        }
+        return chunks, document, revision
+
+    def _execute_real_assemble(self, job_id: uuid.UUID) -> str:
+        """Execute the ``assemble`` stage over accepted chunk outputs.
+
+        Returns 'ok'/'failed'/'cancelled'/'stopped'. Raises
+        :class:`LeaseLost` when this worker no longer holds the lease.
+        The deterministic assembly artifact (bundle + within-book links
+        + report) is recorded as one control-plane output; rerunning a
+        completed assemble stage is a checkpoint skip, and repeating an
+        identical assembly is idempotent through the output's content
+        addressing.
+        """
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        self._heartbeat(job_id)
+        # No connection is open across assembly: pure compute only.
+        try:
+            chunks, document, revision = self._read_assemble_inputs(job_id)
+            artifact = assembly.assemble_revision(
+                chunks=chunks, document=document, revision=revision
+            )
+        except PersistenceError as exc:
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.advance_stage_fenced(
+                    conn, job_id=job_id, stage=REAL_ASSEMBLE_STAGE,
+                    status="failed", worker=self.worker,
+                    error=f"real assembly failed closed: {exc}",
+                )
+                control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="failed",
+                    worker=self.worker,
+                    error=f"real assembly failed closed: {exc}",
+                )
+            self._emit("stage_failed", {"stage": REAL_ASSEMBLE_STAGE, "error": str(exc)})
+            return "failed"
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        artifact_sha = assembly.sha256_json(artifact)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output_fenced(
+                conn, job_id=job_id, revision_id=uuid.UUID(revision["revision_id"]),
+                worker=self.worker, artifact_type=assembly.ARTIFACT_TYPE,
+                artifact_sha256=artifact_sha, payload=artifact,
+            )
+            control_plane.write_stage_checkpoint_fenced(
+                conn, job_id=job_id, stage=REAL_ASSEMBLE_STAGE,
+                worker=self.worker,
+                checkpoint={
+                    "assembly_version": assembly.ASSEMBLY_VERSION,
+                    "contract_version": assembly.CONTRACT_VERSION,
+                    "artifact_type": assembly.ARTIFACT_TYPE,
+                    "artifact_sha256": artifact_sha,
+                    "bundle_sha256": artifact["report"]["bundle_sha256"],
+                    "counts": artifact["report"]["counts"],
+                    "authoritative": False,
+                    "authority_note": assembly.NON_AUTHORITATIVE_NOTE,
+                },
+            )
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage=REAL_ASSEMBLE_STAGE,
+                status="completed", worker=self.worker,
+            )
+        self._emit("stage_completed", {"stage": REAL_ASSEMBLE_STAGE})
+        return "ok"
+
     # -- chunk + stage execution ----------------------------------------
 
     def execute_chunks(self, job_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> str:
@@ -1291,6 +1458,30 @@ class JobRunner:
                     return "needs_review"
                 else:  # cancelled / stopped: checkpoints stay as written
                     return outcome
+            if stage == REAL_ASSEMBLE_STAGE and (
+                self.chunk_model is not None and self.revision_source is not None
+            ):
+                try:
+                    outcome = self._execute_real_assemble(job_id)
+                except LeaseLost:
+                    raise
+                except Exception as exc:
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker,
+                            error=f"real assembly failed: {exc}",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker,
+                            error=f"real assembly failed: {exc}",
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                    return "failed"
+                if outcome != "ok":
+                    return outcome
+                continue
             else:
                 # No connection is open across this call.
                 try:
