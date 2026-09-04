@@ -75,6 +75,7 @@ def _record_output(
     revision_id: uuid.UUID,
     stored: dict[str, Any],
     context: dict[str, Any],
+    model_version: str,
 ) -> None:
     identity = {
         "artifact_type": ARTIFACT_TYPE,
@@ -97,7 +98,7 @@ def _record_output(
             "content_sha256": stored["content_sha256"],
             "generator_version": presentation.GENERATOR_VERSION,
             "prompt_version": presentation.PROMPT_VERSION,
-            "model_version": None,
+            "model_version": model_version,
             "authoritative": False,
         },
     )
@@ -210,6 +211,7 @@ def execute_present_stage(
                     revision_id=revision_id,
                     stored=stored,
                     context=context,
+                    model_version=model_version,
                 )
 
         report["adopted" if stored.get("adopted") else "published"] += 1
