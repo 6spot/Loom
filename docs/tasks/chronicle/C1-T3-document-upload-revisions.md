@@ -1,13 +1,13 @@
 ---
 task: C1-T3
 issue: 492
-status: in_progress
+status: completed
 depends_on: [C1-T2]
 created_at: 2026-09-04
 started_at: 2026-09-04
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-04
+completion_pr: 511
+merge_sha: 2dd71b7a9f2ae6aae311b9574632ab81eb4828ba
 ---
 
 # Chronicle Document Upload and Immutable Revisions
@@ -22,43 +22,18 @@ Make uploaded UTF-8 historical texts durable first-class Documents/Revisions wit
 
 ## Acceptance
 
-- [ ] authenticated admin can create a Document and upload `.txt`/`.md` revisions.
-- [ ] original content persists through the supported Chronicle data volume.
-- [ ] revision hash/metadata/storage key are deterministic and auditable.
-- [ ] replacement creates a new revision and preserves the old revision.
-- [ ] invalid encoding/size/path/interrupted-write cases fail safely.
-- [ ] revision history and active/superseded state are queryable.
-- [ ] later chunk/evidence provenance can address exact source text.
-- [ ] PostgreSQL/filesystem integration checks pass.
+- [x] authenticated admin can create a Document and upload `.txt`/`.md` revisions.
+- [x] original content persists through the supported Chronicle data volume.
+- [x] revision hash/metadata/storage key are deterministic and auditable.
+- [x] replacement creates a new revision and preserves the old revision.
+- [x] invalid encoding/size/path/interrupted-write cases fail safely.
+- [x] revision history and active/superseded state are queryable.
+- [x] later chunk/evidence provenance can address exact source text.
+- [x] PostgreSQL/filesystem integration checks pass.
 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: additive migration
-  `0003_chronicle_c1_documents.sql` (revision upload metadata + tip view),
-  Python store `persistence/documents.py` (controlled .txt/.md validation,
-  atomic filesystem storage under `CHRONICLE_SOURCE_DIR`, idempotent
-  duplicates, active/superseded history, source locators), Studio document
-  endpoints on the internal sidecar (`read_api/studio_documents.py`),
-  authenticated Studio proxy routes in the Rust server (no DB driver, no
-  SQL per governance), PG/filesystem integration tests, and
-  `docs/documents.md`. No Loom authority change; Amendment 0006 boundary
-  kept. Rust owns auth/routing, Python owns persistence.
-- 2026-09-04 — Reviewer FAIL D-1 addressed: migration 0003 parks the
-  0002 `forbid_revision_mutation` trigger for its own backfill UPDATE and
-  re-arms it immediately; new upgrade regression test applies 0001/0002,
-  inserts a live C1-T1 revision, upgrades, and proves backfill defaults,
-  a still-enforced immutability guard, and clean C1-T3 appends.
-- 2026-09-04 — Reviewer FAIL D-2 addressed: any non-empty declared
-  Content-Type must equal the filename-derived media type (previously only
-  text/plain-vs-markdown swaps were checked); HTTP regression cases plus a
-  dispatch-layer absent-header test added.
-- 2026-09-04 — Reviewer FAIL D-3: prior-head CI failure isolated to the
-  Chrome `--dump-dom` smoke step (all contract steps green); no causal
-  link to this diff found. Fix push re-runs the workflow to green.
-- 2026-09-04 — Reviewer FAIL D-4 addressed: the post-commit final-publish
-  path now removes the staged `.tmp-*` bytes when `os.replace` fails, so
-  failed publishes cannot accumulate orphan copies; the committed row
-  keeps `storage_status: missing` and the next identical upload still
-  repairs it. New PG regression test injects the rename failure and
-  proves cleanup + missing status + repair.
+- 2026-09-04 — Implementation added migration `0003_chronicle_c1_documents.sql`, controlled `.txt`/`.md` validation and atomic filesystem storage, idempotent duplicate repair, active/superseded revision history and source locators, Studio document sidecar endpoints, authenticated Rust proxy routes, source-volume configuration, PG/filesystem tests and `docs/documents.md`.
+- 2026-09-04 — Review findings addressed: migration upgrade temporarily parks/re-arms the prior immutable-revision trigger for backfill; declared Content-Type must match filename-derived media type; failed final publish cleans staged temp bytes and remains repairable on identical re-upload; Chrome smoke was rerun after unrelated prior-head failure isolation.
+- 2026-09-04 — Delivery PR #511 merged as `2dd71b7a9f2ae6aae311b9574632ab81eb4828ba`. Exact delivery head `a9e89f4126402d8842c60db86b02a06231580ccb` passed GitHub Actions Chronicle run 33860204881, Chronicle Docker run 33860204866, and CI run 33860204864. Catch-up post-merge reconciliation records the already-delivered task as completed on the canonical ledger.
