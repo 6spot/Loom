@@ -40,6 +40,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Probe live model credential availability
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          print(f"OPENAI_API_KEY available={bool(os.environ.get('OPENAI_API_KEY'))}")
+          PY
+
       - name: Full Chronicle worker contracts
         run: |
           set -euo pipefail
