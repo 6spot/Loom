@@ -1,10 +1,10 @@
 ---
 task: C1-T7
 issue: 496
-status: planned
+status: in_progress
 depends_on: [C1-T6]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -34,3 +34,4 @@ Assemble many validated chunk outputs into one C0-compatible source bundle while
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation active: pure `persistence/assembly.py` (deterministic revision-scoped merge, boundary-duplicate suppression, conservative within-book links, provenance report) plus real `assemble` worker stage, unit + PostgreSQL tests, `docs/assembly.md`.
