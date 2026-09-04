@@ -18,7 +18,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | C1-T5 | #494 | in_progress | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
 | C1-T6 | #495 | in_progress | C1-T5 | context-aware contract-first chunk extraction |
 | C1-T7 | #496 | in_progress | C1-T6 | source assembly + within-book resolution |
-| C1-T8 | #497 | planned | C1-T7 | cross-source review + canonical publication |
+| C1-T8 | #497 | in_progress | C1-T7 | cross-source review + canonical publication |
 | C1-T9 | #498 | planned | C1-T2 | React/Vite web foundation + shadcn Studio shell |
 | C1-T10 | #499 | planned | C1-T3, C1-T4, C1-T9 | Studio document/import operations + progress |
 | C1-T11 | #500 | planned | C1-T8, C1-T9 | Studio resolution review queue |

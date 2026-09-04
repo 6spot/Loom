@@ -1,10 +1,10 @@
 ---
 task: C1-T8
 issue: 497
-status: planned
+status: in_progress
 depends_on: [C1-T7]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -35,3 +35,4 @@ Integrate new source bundles with existing conservative cross-source resolution,
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation active: pure `persistence/resolve_publish.py` (C0-reusing candidate building, all-uncertain initial artifacts, durable `stage_gate` review items, C0-vocabulary review decisions, deterministic finalize, `publication_v0` wrapper) plus real `resolve`/`publish` worker stages, unit + PostgreSQL tests, `docs/review-publication.md`.
