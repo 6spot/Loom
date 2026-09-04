@@ -1,10 +1,10 @@
 ---
 task: C1-T5
 issue: 494
-status: planned
+status: in_progress
 depends_on: [C1-T3, C1-T4]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -35,3 +35,4 @@ Produce reproducible document sections and semantic chunks within model budgets 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation started: versioned structure/segmentation/context module (`persistence/segmentation.py`), worker real `structure`/`segment` path (opt-in, fake path default), per-chunk checkpoint setter, continuity fixture, unit + PostgreSQL resume suites. Delivery PR pending.

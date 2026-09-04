@@ -1260,6 +1260,39 @@ def write_stage_checkpoint_fenced(
         )
 
 
+def write_chunk_checkpoint(
+    conn, *, chunk_id: uuid.UUID, checkpoint: dict[str, Any]
+) -> None:
+    """Write one chunk's processing checkpoint (offsets/context, never authority)."""
+    if not isinstance(checkpoint, dict):
+        raise PersistenceError("chunk checkpoint must be a JSON object")
+    with conn.transaction():
+        row = conn.execute(
+            "SELECT 1 FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
+            (chunk_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown chunk {chunk_id}")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_chunks
+            SET checkpoint = %s, updated_at = %s
+            WHERE chunk_id = %s
+            """,
+            (Jsonb(checkpoint), _utcnow(), chunk_id),
+        )
+
+
+def write_chunk_checkpoint_fenced(
+    conn, *, job_id: uuid.UUID, chunk_id: uuid.UUID, worker: str,
+    checkpoint: dict[str, Any],
+) -> None:
+    """Lease-fenced chunk checkpoint write: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        write_chunk_checkpoint(conn, chunk_id=chunk_id, checkpoint=checkpoint)
+
+
 def record_output_fenced(
     conn,
     *,

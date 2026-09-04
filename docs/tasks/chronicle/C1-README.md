@@ -15,7 +15,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | C1-T2 | #491 | in_progress | C1-T1 | Rust Chronicle server + API namespaces + single-admin auth |
 | C1-T3 | #492 | planned | C1-T2 | Document upload + immutable revisions/source storage |
 | C1-T4 | #493 | completed | C1-T1, C1-T2 | durable PostgreSQL-backed ingestion worker/resume |
-| C1-T5 | #494 | planned | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
+| C1-T5 | #494 | in_progress | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
 | C1-T6 | #495 | planned | C1-T5 | context-aware contract-first chunk extraction |
 | C1-T7 | #496 | planned | C1-T6 | source assembly + within-book resolution |
 | C1-T8 | #497 | planned | C1-T7 | cross-source review + canonical publication |

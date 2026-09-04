@@ -1,0 +1,29 @@
+{
+  "schema": "chronicle.c1t5-boundary-continuity",
+  "version": "1",
+  "description": "Boundary-continuity fixture for C1-T5 segmentation and ContextState. The explicit regnal time 建安十三年 appears once; later chunks must inherit it verbatim with scope inherited. Pronouns 其/之 after the first chunk must link back to a surface mention from an earlier chunk as uncertain hints. Event sentences from the opening campaign must still be visible in later chunks' recent_events.",
+  "source_file": "raw.txt",
+  "segmentation_config": {
+    "max_chunk_chars": 90,
+    "overlap_chars": 0,
+    "boundary_context_chars": 60,
+    "max_input_chars": 8000,
+    "reserved_prompt_chars": 1500,
+    "reserved_context_chars": 1000,
+    "reserved_output_chars": 1500,
+    "max_entities": 16,
+    "max_places": 16,
+    "max_events": 8,
+    "max_time_exprs": 8
+  },
+  "expect": {
+    "min_sections": 3,
+    "min_chunks": 2,
+    "section_kinds": ["volume", "treatise", "biography"],
+    "explicit_time": "建安十三年",
+    "pronouns": ["其", "之"],
+    "continuity_entities": ["曹操", "劉琮", "張遼", "周瑜"],
+    "place_substring": "荊",
+    "opening_event_substring": "曹操率大軍至荊州"
+  }
+}
