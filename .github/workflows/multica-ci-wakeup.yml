@@ -16,11 +16,13 @@ permissions:
 
 jobs:
   wake:
-    # workflow_run can access repository secrets. Only accept CI runs whose
-    # head repository is this repository, never an untrusted fork.
+    # workflow_run can access repository secrets. Only accept failed CI runs
+    # for pull requests whose head repository is this repository, never an
+    # untrusted fork.
     if: >
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'failure'
 
     runs-on: ubuntu-latest
 
@@ -116,7 +118,7 @@ jobs:
             '{
               type: "comment",
               content:
-                ("GitHub CI state changed. Re-query authoritative linked PR/check state." +
+                ("GitHub CI failed. Re-query authoritative linked PR/check state and continue recovery." +
                  "\nPR=" + $pr +
                  "\nworkflow=" + $workflow +
                  "\nconclusion=" + $conclusion +
