@@ -11,10 +11,11 @@ on:
       - "apps/chronicle/worker/model_provider.py"
       - "apps/chronicle/worker/test_fixture_model_unit.py"
       - "apps/chronicle/worker/test_model_provider_unit.py"
-      - "apps/chronicle/corpus/c1-t13/model-fixture-pack.json"
-      - "apps/chronicle/corpus/c1-t13/source-pack.json"
+      - "apps/chronicle/corpus/c1-t13/**"
       - "apps/chronicle/corpus/source_pack.py"
       - "apps/chronicle/corpus/verify_fixture_pack.py"
+      - "apps/chronicle/corpus/metrics.py"
+      - "compose.chronicle.yaml"
 
 permissions:
   contents: read
@@ -71,3 +72,206 @@ jobs:
             /tmp/c1-t13-evidence
           if-no-files-found: warn
           retention-days: 14
+
+  fixture-corpus-loop:
+    needs: fixture-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t13-high-density-corpus
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Configure isolated Chronicle acceptance environment
+        run: |
+          set -euo pipefail
+          echo "CHRONICLE_POSTGRES_USER=chronicle" >> "$GITHUB_ENV"
+          echo "CHRONICLE_POSTGRES_PASSWORD=t13-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "CHRONICLE_POSTGRES_DB=chronicle" >> "$GITHUB_ENV"
+          echo "CHRONICLE_DATA_DIR=/tmp/loom-chronicle-t13-${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+          echo "CHRONICLE_BIND_IP=127.0.0.1" >> "$GITHUB_ENV"
+          echo "CHRONICLE_PORT=18080" >> "$GITHUB_ENV"
+          echo "CHRONICLE_IMAGE_TAG=c1-t13-fixture" >> "$GITHUB_ENV"
+          echo "CHRONICLE_ADMIN_USER=c1-t13-admin" >> "$GITHUB_ENV"
+          echo "CHRONICLE_ADMIN_PASSWORD=t13-admin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Prepare and verify pinned six-source pack
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/c1-t13-prepared /tmp/c1-t13-evidence "$CHRONICLE_DATA_DIR"
+          mkdir -p /tmp/c1-t13-evidence "$CHRONICLE_DATA_DIR/postgres" "$CHRONICLE_DATA_DIR/sources"
+          python apps/chronicle/corpus/source_pack.py prepare \
+            --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
+            --output-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-evidence/prepare.log
+          python apps/chronicle/corpus/verify_fixture_pack.py \
+            --source-pack apps/chronicle/corpus/c1-t13/source-pack.json \
+            --fixture-pack apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            --prepared-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-evidence/fixture-verification.json
+
+      - name: Start production-shaped Chronicle stack without resident worker
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml up -d --build
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/healthz" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml logs
+            exit 1
+          fi
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            logs chronicle-init | tee /tmp/c1-t13-evidence/chronicle-init.log
+          grep -q "entities=66 events=45 relations=2" /tmp/c1-t13-evidence/chronicle-init.log
+
+      - name: Capture C0 baseline
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
+            > /tmp/c1-t13-evidence/baseline.json
+
+      - name: Queue all six sources through authenticated Studio twice
+        run: |
+          set -euo pipefail
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t13-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/ingest-first.json \
+            > /tmp/c1-t13-evidence/ingest-first.log
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t13-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/ingest-second.json \
+            > /tmp/c1-t13-evidence/ingest-second.log
+
+      - name: Run six real-source jobs to the resolution review gate
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            --profile worker run --rm --no-deps \
+            -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            chronicle-worker \
+            python3 apps/chronicle/worker/ingestion_worker.py \
+              --worker-id c1-t13-fixture-pass1 \
+              --lease-seconds 300 \
+              --poll-interval 0.1 \
+              --max-jobs 6 \
+            | tee /tmp/c1-t13-evidence/worker-pass1.log
+
+      - name: Resolve conservative fixture reviews through Studio and resume jobs
+        run: |
+          set -euo pipefail
+          python apps/chronicle/corpus/c1-t13/fixture_review.py \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/review.json \
+            > /tmp/c1-t13-evidence/review.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('/tmp/c1-t13-evidence/review.json').read_text())
+          Path('/tmp/c1-t13-evidence/resumed-count.txt').write_text(str(report['resumed_job_count']))
+          print(f"resolved reviews={report['resolved_review_count']} resumed jobs={report['resumed_job_count']}")
+          PY
+
+      - name: Resume publication and Reader Presentation after review
+        run: |
+          set -euo pipefail
+          resumed="$(cat /tmp/c1-t13-evidence/resumed-count.txt)"
+          if [ "$resumed" -gt 0 ]; then
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+              --profile worker run --rm --no-deps \
+              -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+              chronicle-worker \
+              python3 apps/chronicle/worker/ingestion_worker.py \
+                --worker-id c1-t13-fixture-pass2 \
+                --lease-seconds 300 \
+                --poll-interval 0.1 \
+                --max-jobs "$resumed" \
+              | tee /tmp/c1-t13-evidence/worker-pass2.log
+          else
+            echo "No review-gated jobs required a second worker pass." | tee /tmp/c1-t13-evidence/worker-pass2.log
+          fi
+
+      - name: Capture final density and verify persisted fixture corpus
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
+            > /tmp/c1-t13-evidence/final.json
+          read_id="$(docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -q chronicle-read)"
+          docker cp /tmp/c1-t13-evidence/baseline.json "$read_id:/tmp/c1-t13-baseline.json"
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read python3 apps/chronicle/corpus/c1-t13/verify_fixture_acceptance.py \
+              --baseline /tmp/c1-t13-baseline.json \
+              --fixture-pack apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+              --report /tmp/c1-t13-acceptance.json \
+            | tee /tmp/c1-t13-evidence/acceptance.log
+          docker cp "$read_id:/tmp/c1-t13-acceptance.json" /tmp/c1-t13-evidence/acceptance.json
+
+      - name: Verify Studio final state and queue idempotency after publication
+        run: |
+          set -euo pipefail
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/jobs?limit=100&offset=0" \
+            > /tmp/c1-t13-evidence/jobs-final.json
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/jobs/reviews?status=all&limit=200&offset=0" \
+            > /tmp/c1-t13-evidence/reviews-final.json
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t13-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t13-evidence/ingest-after-publication.json \
+            > /tmp/c1-t13-evidence/ingest-after-publication.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ev = Path('/tmp/c1-t13-evidence')
+          jobs = json.loads((ev / 'jobs-final.json').read_text())['jobs']
+          assert len(jobs) == 6 and all(job['status'] == 'completed' for job in jobs), jobs
+          replay = json.loads((ev / 'ingest-after-publication.json').read_text())['sources']
+          assert len(replay) == 6
+          assert all(not row['document_created'] and row['revision_duplicate'] and not row['job_created'] for row in replay), replay
+          print('C1-T13 fixture corpus loop + post-publication idempotency: PASS')
+          PY
+
+      - name: Upload full T13 fixture acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-t13-fixture-corpus-evidence
+          path: |
+            /tmp/c1-t13-prepared/prepared.json
+            /tmp/c1-t13-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show final container state and logs on failure
+        if: failure()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a || true
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml logs || true
+
+      - name: Stop Chronicle stack
+        if: always()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml down --remove-orphans || true
+          sudo rm -rf "$CHRONICLE_DATA_DIR" || true
