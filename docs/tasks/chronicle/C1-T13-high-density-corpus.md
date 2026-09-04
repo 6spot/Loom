@@ -1,10 +1,10 @@
 ---
 task: C1-T13
 issue: 502
-status: planned
+status: in_progress
 depends_on: [C1-T10, C1-T11, C1-T12]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-05
 completed_at:
 completion_pr:
 merge_sha:
@@ -34,3 +34,4 @@ Use the real Studio Book-to-Chronicle path to ingest at least five previously un
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-05 — Started from canonical `main` after C1-T12 reconciliation. The first pass will audit the existing production upload/worker/model entry points before selecting the retained source pack, because T13 must exercise the same Studio Document/Revision/IngestionJob path used by the product and may fix only concrete defects discovered inside those accepted ingestion semantics. The source pack remains bounded around approximately 196–220 CE, must contain at least five previously unprocessed complete historical texts, and will prefer `三国志·蜀书·先主传` plus complementary Wei/Shu/Wu biographies with cross-source overlap.
