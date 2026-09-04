@@ -16,9 +16,9 @@ const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));
 const StudioLoginPage = lazy(() => import("./pages/studio/StudioLoginPage"));
 const StudioImportsPage = lazy(() => import("./pages/studio/StudioImportsPage"));
 const StudioImportDetailPage = lazy(() => import("./pages/studio/StudioImportDetailPage"));
+const StudioSourcesPage = lazy(() => import("./pages/studio/StudioSourcesPage"));
 const StudioPlaceholders = {
   ReviewPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.ReviewPage }))),
-  SourcesPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.SourcesPage }))),
 };
 
 function StudioGuard({ children }: { children: JSX.Element }) {
@@ -148,7 +148,7 @@ export default function App() {
             element={
               <StudioGuard>
                 <Suspense fallback={<StudioFallback />}>
-                  <StudioPlaceholders.SourcesPage />
+                  <StudioSourcesPage />
                 </Suspense>
               </StudioGuard>
             }
