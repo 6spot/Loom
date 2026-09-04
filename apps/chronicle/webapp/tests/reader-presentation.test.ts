@@ -8,16 +8,13 @@ describe("Reader Presentation public surface", () => {
   const entityPage = readFileSync(`${root}src/pages/public/EntityPage.tsx`, "utf-8");
 
   it("renders Reader Presentation before source/evidence detail on Event and Entity pages", () => {
+    const reader = "<ReaderPresentation presentation={readerPresentation} />";
     for (const page of [eventPage, entityPage]) {
-      expect(page).toContain("<ReaderPresentation presentation={readerPresentation} />");
-      expect(page.indexOf("<ReaderPresentation presentation={readerPresentation} />")).toBeGreaterThan(0);
+      expect(page).toContain(reader);
+      expect(page.indexOf(reader)).toBeGreaterThan(0);
     }
-    expect(eventPage.indexOf("<ReaderPresentation presentation={readerPresentation} />")).toBeLessThan(
-      eventPage.indexOf("史料与证据"),
-    );
-    expect(entityPage.indexOf("<ReaderPresentation presentation={readerPresentation} />")).toBeLessThan(
-      entityPage.indexOf("来源表示"),
-    );
+    expect(eventPage.indexOf(reader)).toBeLessThan(eventPage.indexOf("<h2>史料与证据</h2>"));
+    expect(entityPage.indexOf(reader)).toBeLessThan(entityPage.indexOf("<h2>来源表示</h2>"));
   });
 
   it("keeps Claim/evidence provenance expandable instead of presenting prose as authority", () => {
