@@ -269,15 +269,18 @@ def handler_class(
             if split.path == STUDIO_PREFIX or split.path.startswith(STUDIO_PREFIX + "/"):
                 self._handle_studio_documents(split.path, split.query)
                 return
-            if split.path == STUDIO_JOBS_PREFIX or split.path.startswith(
-                STUDIO_JOBS_PREFIX + "/"
-            ):
-                self._handle_studio_jobs(split.path, split.query)
-                return
+            # ReviewItems are a job-scoped subresource. Match this more-specific
+            # prefix before the generic jobs prefix so requests reach T11's
+            # review dispatcher instead of the T10 lifecycle router.
             if split.path == STUDIO_REVIEWS_PREFIX or split.path.startswith(
                 STUDIO_REVIEWS_PREFIX + "/"
             ):
                 self._handle_studio_reviews(split.path, split.query)
+                return
+            if split.path == STUDIO_JOBS_PREFIX or split.path.startswith(
+                STUDIO_JOBS_PREFIX + "/"
+            ):
+                self._handle_studio_jobs(split.path, split.query)
                 return
 
             status, content_type, body = web_response(self.command, split.path)
