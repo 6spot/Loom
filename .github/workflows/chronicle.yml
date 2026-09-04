@@ -8,6 +8,8 @@ on:
     paths:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/control_plane/**"
+      - "apps/chronicle/docs/control-plane.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -16,6 +18,8 @@ on:
     paths:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/control_plane/**"
+      - "apps/chronicle/docs/control-plane.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -73,6 +77,15 @@ jobs:
             -s apps/chronicle/persistence \
             -p 'test_*.py' \
             -v
+
+      - name: Chronicle control-plane Rust contract
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component clippy --component rustfmt || true
+          rustup default 1.97.1 || true
+          cd apps/chronicle/control_plane
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+          cargo fmt --check
 
       - name: Chronicle read-model contracts
         run: |

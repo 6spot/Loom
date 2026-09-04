@@ -1,10 +1,10 @@
 ---
 task: C1-T1
 issue: 490
-status: planned
+status: in_progress
 depends_on: [C0-T12]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -38,3 +38,7 @@ Application-owned persistence only. Existing C0 staged, Resolution and canonical
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation started: additive migration `0002_chronicle_c1_control_plane.sql`,
+  Python store `persistence/control_plane.py`, standalone Rust contract crate
+  `control_plane/` (zero deps, own workspace), PG lifecycle tests, and
+  `docs/control-plane.md`. No Loom authority change; Amendment 0006 boundary kept.
