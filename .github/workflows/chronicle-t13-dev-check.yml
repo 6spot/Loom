@@ -125,6 +125,10 @@ jobs:
               '"SELECT status, last_error FROM chronicle.ingestion_jobs WHERE job_id = %s",',
               '"SELECT status, error FROM chronicle.ingestion_jobs WHERE job_id = %s",',
           )
+          text = text.replace(
+              '"SELECT stage_name, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",',
+              '"SELECT stage, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",',
+          )
           prodtest.write_text(text)
           PY
 
