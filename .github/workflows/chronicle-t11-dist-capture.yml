@@ -48,3 +48,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "build(chronicle): refresh T11 web dist"
           git push origin HEAD:feat/chronicle-c1-t11-studio-review
+
+# retry 2: route-split contract now reflects functional T10/T11 pages
