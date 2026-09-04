@@ -1,10 +1,10 @@
 ---
 task: C1-T12
 issue: 501
-status: planned
+status: in_progress
 depends_on: [C1-T8, C1-T9]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -35,3 +35,4 @@ Persist one derived `zh-CN` reader-facing Event/Entity narrative layer that is r
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Started from canonical `main` after C1-T11 reconciliation. T12 will add an application-owned, append-only `zh-CN` Reader Presentation projection above canonical identity/Claims: presentation versions and atomic reader blocks are derived, every published block must bind to persisted `(bundle, Claim ref)` support with evidence, regeneration creates a new projection instead of mutating canonical/source knowledge, and public Event/Entity reads become readable-first while retaining the existing evidence/resolution drill-down.
