@@ -15,6 +15,7 @@ on:
       - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
+      - "apps/chronicle/webapp/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
   pull_request:
@@ -28,6 +29,7 @@ on:
       - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
+      - "apps/chronicle/webapp/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
 

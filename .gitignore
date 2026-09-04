@@ -1,6 +1,11 @@
 # Rust
 /target/
+apps/chronicle/server/target/
 **/*.rs.bk
+
+# JavaScript / Vite (C1-T9 webapp; web/dist stays committed for compile-time embed)
+apps/chronicle/webapp/node_modules/
+apps/chronicle/webapp/scripts/visual/
 
 # Environment / secrets
 .env
