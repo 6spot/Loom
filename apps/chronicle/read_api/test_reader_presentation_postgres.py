@@ -132,6 +132,27 @@ class ReaderPresentationReadApiTests(unittest.TestCase):
                     for claim in rep["claims"]
                 )
                 block_kind = "overview" if target_kind == "entity" else "sequence"
+                blocks = [
+                    {
+                        "block_kind": block_kind,
+                        "epistemic_mode": "fact_summary",
+                        "text": "这是一段只用于验证 Reader Presentation 读取链路的现代中文。",
+                        "claim_refs": [
+                            {"bundle": claim["bundle"], "ref": claim["ref"]}
+                        ],
+                    }
+                ]
+                if context["constraints"]["requires_uncertainty"]:
+                    blocks.append(
+                        {
+                            "block_kind": "uncertainty",
+                            "epistemic_mode": "uncertainty",
+                            "text": "现有来源或身份解析仍保留不确定性，本段不把它消除。",
+                            "claim_refs": [
+                                {"bundle": claim["bundle"], "ref": claim["ref"]}
+                            ],
+                        }
+                    )
                 candidate = presentation.validate_candidate(
                     {
                         "schema": "chronicle.reader-presentation",
@@ -139,16 +160,7 @@ class ReaderPresentationReadApiTests(unittest.TestCase):
                         "target_kind": target_kind,
                         "canonical_id": canonical_id,
                         "language": "zh-CN",
-                        "blocks": [
-                            {
-                                "block_kind": block_kind,
-                                "epistemic_mode": "fact_summary",
-                                "text": "这是一段只用于验证 Reader Presentation 读取链路的现代中文。",
-                                "claim_refs": [
-                                    {"bundle": claim["bundle"], "ref": claim["ref"]}
-                                ],
-                            }
-                        ],
+                        "blocks": blocks,
                     },
                     context,
                 )
