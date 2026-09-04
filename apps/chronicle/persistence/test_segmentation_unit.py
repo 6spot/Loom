@@ -336,7 +336,112 @@ class ContextContinuityTests(unittest.TestCase):
                 self.assertEqual(out["next_head"], "")
             self.assertFalse(out["authoritative"])
 
-    def test_pronoun_links_to_prior_chunk_mention(self) -> None:        # Minimal forced boundary: the second chunk opens with a pronoun
+    def test_zero_caps_mean_empty_collections(self) -> None:
+        # D-7: zero caps disable tracking; they must not leak one item,
+        # the whole list (via [-0:]), or any inherited state.
+        config = SegmentationConfig(
+            max_chunk_chars=50,
+            boundary_context_chars=0,
+            max_entities=0,
+            max_places=0,
+            max_events=0,
+            max_time_exprs=0,
+        )
+        text = "建安十三年，曹操率大軍至荊州。劉表卒。"
+        pair = S.advance_context(S.initial_context(), text, 0, config)
+        out = pair["output"]
+        self.assertEqual(out["inherited_time"], [])
+        self.assertEqual(out["active_entities"], [])
+        self.assertEqual(out["active_places"], [])
+        self.assertEqual(out["recent_events"], [])
+        self.assertEqual(out["prev_tail"], "")
+        self.assertEqual(S.extract_time_expressions(text, 0), [])
+        self.assertEqual(S.extract_candidate_mentions(text, 0), [])
+        self.assertEqual(S.extract_candidate_places(text, 0), [])
+        self.assertEqual(S.extract_event_snippets(text, 0), [])
+        # And a zero cap drops even previously tracked state on advance.
+        first = S.advance_context(
+            S.initial_context(), text, 0, SegmentationConfig()
+        )["output"]
+        self.assertTrue(first["active_entities"])
+        second = S.advance_context(first, text, 1, config)["output"]
+        self.assertEqual(second["active_entities"], [])
+        self.assertEqual(second["inherited_time"], [])
+
+    def test_separator_coverage_never_exceeds_chunk_bound(self) -> None:
+        # D-8: the exact boundary — separator whitespace stays covered
+        # without pushing any persisted range past max_chunk_chars.
+        text = "abcdefghij\n\nklmnopqrst"
+        config = SegmentationConfig(
+            max_chunk_chars=10, boundary_context_chars=4
+        )
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"b8").hexdigest(), config
+        )
+        ranges = [(c.source_start, c.source_end) for c in plan.chunks]
+        self.assertTrue(len(ranges) >= 2)
+        for start, end in ranges:
+            self.assertLessEqual(end - start, config.max_chunk_chars)
+        self.assertEqual("".join(text[s:e] for s, e in ranges), text)
+
+    def test_overlap_is_clamped_to_the_chunk_bound(self) -> None:
+        # D-8 companion: explicit overlap backs up only while the
+        # persisted range still respects max_chunk_chars.
+        text = "0123456789\n\nab"
+        config = SegmentationConfig(
+            max_chunk_chars=10, overlap_chars=8, boundary_context_chars=4
+        )
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"b8o").hexdigest(), config
+        )
+        for chunk in plan.chunks:
+            self.assertLessEqual(
+                chunk.source_end - chunk.source_start, config.max_chunk_chars
+            )
+        self.assertEqual(plan.chunks[1].overlap_prev_chars, 6)
+        self.assertEqual(
+            plan.chunks[1].source_end - plan.chunks[1].source_start, 10
+        )
+
+    def test_forwarded_inputs_fit_the_window(self) -> None:
+        # D-9: the gate covers the actual forwarded bytes, so every
+        # chunk's real input (previous output, budget report attached)
+        # plus its own text fits the configured window — and a window
+        # the forwarded state cannot honor fails closed instead of
+        # reporting a fit the next input cannot keep.
+        text = "曹操率軍。\n\n曹操敗走。\n\n曹操降。"
+        base = dict(
+            max_chunk_chars=10,
+            boundary_context_chars=10,
+            reserved_prompt_chars=0,
+            reserved_context_chars=0,
+            reserved_output_chars=0,
+        )
+        config = SegmentationConfig(max_input_chars=800, **base)
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"b9").hexdigest(), config
+        )
+        self.assertGreaterEqual(len(plan.chunks), 3)
+        pairs = S.context_chain(plan, text, config)
+        for pair in pairs:
+            chunk_text = text[
+                plan.chunks[pair["output"]["chunk_index"]].source_start :
+                plan.chunks[pair["output"]["chunk_index"]].source_end
+            ]
+            input_chars = len(
+                json.dumps(pair["input"], ensure_ascii=False, sort_keys=True)
+            )
+            report = S.check_budgets(len(chunk_text), input_chars, config)
+            self.assertTrue(
+                report["fits"],
+                msg=f"chunk input exceeds window: {report}",
+            )
+        tight = SegmentationConfig(max_input_chars=600, **base)
+        with self.assertRaises(PersistenceError):
+            S.context_chain(plan, text, tight)
+
+    def test_pronoun_links_to_prior_chunk_mention(self) -> None:
+        # Minimal forced boundary: the second chunk opens with a pronoun
         # whose only available antecedent lives in the first chunk.
         text = "曹操率軍至荊州，劉表卒。\n\n其後大敗而還，舉軍而降。"
         config = SegmentationConfig(max_chunk_chars=24, boundary_context_chars=20)

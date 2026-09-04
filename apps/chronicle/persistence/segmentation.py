@@ -383,12 +383,6 @@ class ChunkPlan:
     boundary_tail: str
 
 
-def _split_units(block: str) -> list[str]:
-    """Split a block into paragraph units, keeping trailing blank lines out."""
-    units = [unit for unit in block.split("\n\n") if unit != ""]
-    return units or [block]
-
-
 def _split_sentences(unit: str) -> list[str]:
     pieces = [m.group(0) for m in _SENTENCE_END.finditer(unit) if m.group(0)]
     return pieces or [unit]
@@ -398,87 +392,95 @@ def _hard_cut(piece: str, limit: int) -> list[str]:
     return [piece[i : i + limit] for i in range(0, len(piece), limit)] or [""]
 
 
-def _cut_block(block: str, limit: int) -> list[str]:
-    """Cut one over-limit block on paragraph/line/sentence bounds, else hard."""
-    chunks: list[str] = []
-    for unit in _split_units(block):
-        if len(unit) <= limit:
-            chunks.append(unit)
-            continue
-        for line in unit.split("\n"):
-            if len(line) <= limit:
-                chunks.append(line)
-                continue
-            for sentence in _split_sentences(line):
-                if len(sentence) <= limit:
-                    chunks.append(sentence)
-                else:
-                    chunks.extend(_hard_cut(sentence, limit))
-    return [c for c in chunks if c != ""] or [""]
+_SEPARATOR_RUN = re.compile(r"\n+")
+
+
+def _split_atoms(block: str) -> list[tuple[str, bool]]:
+    """Split a block into ``(span, is_separator)`` atoms tiling it exactly.
+
+    Separators are maximal newline runs; content spans hold no newlines.
+    Concatenating every span reproduces ``block`` byte-for-byte.
+    """
+    atoms: list[tuple[str, bool]] = []
+    pos = 0
+    for match in _SEPARATOR_RUN.finditer(block):
+        if match.start() > pos:
+            atoms.append((block[pos : match.start()], False))
+        atoms.append((match.group(0), True))
+        pos = match.end()
+    if pos < len(block):
+        atoms.append((block[pos:], False))
+    return atoms
+
+
+def _split_content(span: str, limit: int) -> list[str]:
+    """Split an over-limit newline-free span on sentence bounds, else hard.
+
+    Every returned piece is non-empty and within ``limit``; concatenating
+    them reproduces ``span`` exactly (sentence punctuation stays attached).
+    """
+    pieces: list[str] = []
+    for sentence in _split_sentences(span):
+        if len(sentence) <= limit:
+            pieces.append(sentence)
+        else:
+            pieces.extend(_hard_cut(sentence, limit))
+    return [piece for piece in pieces if piece != ""]
 
 
 def segment_section(
     text: str, section: Section, start_index: int, config: SegmentationConfig
 ) -> list[ChunkPlan]:
-    """Segment one section, preferring natural boundaries over fixed cuts."""
+    """Segment one section, preferring natural boundaries over fixed cuts.
+
+    The section body is flattened into atoms (content spans, each within
+    the limit after sentence/hard splitting, plus newline-run separators)
+    that tile it exactly, then greedily packed so no chunk ever exceeds
+    ``max_chunk_chars``: separators ride with neighboring content when
+    they fit and stand alone only when forced. Offsets are tracked
+    arithmetically (never by text search), so identical repeated text
+    still maps to exact, unambiguous ranges. Explicit ``overlap_chars``
+    back up a chunk start but are clamped so the persisted range still
+    respects the bound.
+    """
     body = text[section.source_start : section.source_end]
     if body.strip() == "":
         return []
     limit = config.max_chunk_chars
-    # Greedy accumulate paragraph units; an over-limit unit is cut finely.
-    pieces: list[str] = []
-    current = ""
-    for unit in _split_units(body):
-        if len(unit) > limit:
-            if current != "":
-                pieces.append(current)
-                current = ""
-            pieces.extend(_cut_block(unit, limit))
-        elif current == "":
-            current = unit
-        elif len(current) + 2 + len(unit) <= limit:
-            current = current + "\n\n" + unit
+    atoms: list[tuple[str, bool]] = []
+    for span, is_separator in _split_atoms(body):
+        if len(span) <= limit:
+            atoms.append((span, is_separator))
+        elif is_separator:
+            # Pathological whitespace run: bound it like any other atom.
+            atoms.extend((piece, True) for piece in _hard_cut(span, limit))
         else:
-            pieces.append(current)
-            current = unit
-    if current != "":
-        pieces.append(current)
+            atoms.extend((piece, False) for piece in _split_content(span, limit))
+    groups: list[list[tuple[str, bool]]] = []
+    current: list[tuple[str, bool]] = []
+    current_len = 0
+    for atom_text, is_separator in atoms:
+        if current and current_len + len(atom_text) > limit:
+            groups.append(current)
+            current, current_len = [], 0
+        current.append((atom_text, is_separator))
+        current_len += len(atom_text)
+    if current:
+        groups.append(current)
 
     plans: list[ChunkPlan] = []
     cursor = section.source_start
-    for position, piece in enumerate(pieces):
-        # Locate the piece from the cursor so identical repeated text still
-        # maps to exact offsets. Any skipped gap must be separator
-        # whitespace (paragraph/line breaks consumed by splitting); it is
-        # attributed to the previous chunk so chunks tile their section
-        # exactly. Anything else is input/position drift: fail closed.
-        found = text.find(piece, cursor, section.source_end)
-        if found < 0:  # pragma: no cover - defensive; pieces came from body
-            raise PersistenceError("segmentation lost its source position")
-        gap = text[cursor:found]
-        if gap.strip() != "":
-            raise PersistenceError(
-                "segmentation would leave source bytes uncovered; "
-                "refusing to fork the locator history"
-            )
-        if plans and gap != "":
-            previous = plans[-1]
-            plans[-1] = ChunkPlan(
-                chunk_index=previous.chunk_index,
-                section_index=previous.section_index,
-                source_start=previous.source_start,
-                source_end=found,
-                overlap_prev_chars=previous.overlap_prev_chars,
-                content_sha256=sha256_text(text[previous.source_start : found]),
-                boundary_head=previous.boundary_head,
-                boundary_tail=text[
-                    max(previous.source_start, found - config.boundary_context_chars) : found
-                ],
-            )
-        start, end = found, found + len(piece)
+    for position, group in enumerate(groups):
+        found = cursor
+        end = found + sum(len(atom_text) for atom_text, _ in group)
+        start = found
         overlap = 0
         if position > 0 and config.overlap_chars > 0:
-            overlap = min(config.overlap_chars, start - section.source_start)
+            overlap = min(
+                config.overlap_chars,
+                start - section.source_start,
+                limit - (end - start),
+            )
             start -= overlap
             overlap = found - start
         head = text[start : min(end, start + config.boundary_context_chars)]
@@ -495,33 +497,7 @@ def segment_section(
                 boundary_tail=tail,
             )
         )
-        cursor = found + len(piece)
-    # Attribute trailing separator whitespace to the final chunk so the
-    # section is tiled exactly (sections tile the revision; chunks tile
-    # their section; nothing is silently uncovered).
-    if plans and cursor < section.source_end:
-        trailing = text[cursor : section.source_end]
-        if trailing.strip() != "":  # pragma: no cover - defensive
-            raise PersistenceError(
-                "segmentation would leave source bytes uncovered; "
-                "refusing to fork the locator history"
-            )
-        previous = plans[-1]
-        plans[-1] = ChunkPlan(
-            chunk_index=previous.chunk_index,
-            section_index=previous.section_index,
-            source_start=previous.source_start,
-            source_end=section.source_end,
-            overlap_prev_chars=previous.overlap_prev_chars,
-            content_sha256=sha256_text(text[previous.source_start : section.source_end]),
-            boundary_head=previous.boundary_head,
-            boundary_tail=text[
-                max(
-                    previous.source_start,
-                    section.source_end - config.boundary_context_chars,
-                ) : section.source_end
-            ],
-        )
+        cursor = end
     return plans
 
 
@@ -646,8 +622,23 @@ _ACTION_VERBS = tuple(
 )
 
 
+def _take_last(items: list, limit: int) -> list:
+    """Return the last ``limit`` items; a zero/negative cap means none.
+
+    A bare ``items[-limit:]`` silently returns everything when ``limit``
+    is 0 (``-0 == 0``), so every bounded collection in the context state
+    goes through this helper: zero means an empty collection, never an
+    unbounded one.
+    """
+    if limit <= 0:
+        return []
+    return items[-limit:]
+
+
 def extract_time_expressions(text: str, limit: int = 8) -> list[str]:
     """Return verbatim time-expression spans, in order, deduplicated."""
+    if limit <= 0:
+        return []
     found: list[str] = []
     for _kind, pattern in _TIME_PATTERNS:
         for match in re.finditer(pattern, text):
@@ -677,6 +668,8 @@ def extract_candidate_mentions(text: str, limit: int = 16) -> list[str]:
     names the person, not the phrase. C1-T6 contract extraction owns real
     Entity identity; these never do.
     """
+    if limit <= 0:
+        return []
     found: list[str] = []
     for match in _MENTION_BEFORE_VERB.finditer(text):
         span = _clean_mention(match.group(1))
@@ -695,6 +688,8 @@ def extract_candidate_mentions(text: str, limit: int = 16) -> list[str]:
 
 def extract_candidate_places(text: str, limit: int = 16) -> list[str]:
     """Return conservative place-mention surface candidates (ordered, unique)."""
+    if limit <= 0:
+        return []
     found: list[str] = []
     for match in _PLACE_SUFFIX.finditer(text):
         span = match.group(1)
@@ -714,7 +709,7 @@ def extract_event_snippets(text: str, limit: int = 8) -> list[str]:
             snippet = clean[:160]
             if snippet not in events:
                 events.append(snippet)
-    return events[-limit:]
+    return _take_last(events, limit)
 
 
 def find_pronoun_hints(
@@ -819,8 +814,9 @@ def _merge_surfaces(
             )
             known.append(span)
     # Keep the most recently seen; drop the oldest first (bounded memory).
+    # A zero cap tracks nothing at all (see _take_last).
     merged.sort(key=lambda item: (item["last_seen_chunk"], item["count"]))
-    return merged[-limit:] if limit >= 0 else merged
+    return _take_last(merged, limit)
 
 
 def advance_context(
@@ -863,7 +859,9 @@ def advance_context(
                 "scope": "inherited",
                 "source_chunk": item["source_chunk"],
             }
-            for item in previous_output["inherited_time"][-config.max_time_exprs :]
+            for item in _take_last(
+                previous_output["inherited_time"], config.max_time_exprs
+            )
         ]
     else:
         inherited_time = []
@@ -887,11 +885,11 @@ def advance_context(
         config.max_places,
     )
     fresh_events = extract_event_snippets(chunk_text, limit=config.max_events)
-    recent = list(previous_output.get("recent_events", []))
+    recent = copy.deepcopy(previous_output.get("recent_events", []))
     for snippet in fresh_events:
         if snippet not in [item["text"] for item in recent]:
             recent.append({"text": snippet, "source_chunk": chunk_index})
-    recent_events = recent[-config.max_events :]
+    recent_events = _take_last(recent, config.max_events)
 
     hints = find_pronoun_hints(chunk_text, prior_mention_texts, chunk_index)
 
@@ -929,8 +927,18 @@ def context_chain(
     ``pair[i]["output"]`` is always ``pair[i+1]["input"]``'s forward state
     (same version, ``chunk_index`` stepped by the plan), so the chain is
     auditable and replayable chunk by chunk.
+
+    Budget gates cover the actual forwarded bytes: the initial input is
+    gated before the first chunk, and every output is serialized and gated
+    *after* its ``budget`` report is attached — because the next chunk's
+    input is that exact output document, gating the pre-report size would
+    undercount what the next model call consumes. A chain that cannot fit
+    its forwarded state raises (fail closed) instead of reporting a fit
+    the next input cannot honor.
     """
     config = config or SegmentationConfig()
+    if not plan.chunks:
+        raise PersistenceError("segmentation plan has no chunks to chain")
     pairs: list[dict[str, dict[str, Any]]] = []
     state = initial_context()
     heads = [
@@ -939,6 +947,10 @@ def context_chain(
         else ""
         for c in plan.chunks
     ]
+    _ensure_input_budgets(
+        state, text[plan.chunks[0].source_start : plan.chunks[0].source_end],
+        config,
+    )
     for position, chunk in enumerate(plan.chunks):
         chunk_text = text[chunk.source_start : chunk.source_end]
         pair = advance_context(state, chunk_text, chunk.chunk_index, config)
@@ -947,15 +959,31 @@ def context_chain(
         pair["output"]["next_head"] = (
             heads[position + 1] if position + 1 < len(heads) else ""
         )
-        # Budget gate: serialized output context must fit its reserve.
-        context_chars = len(
+        # Binding gate on the final forwarded document: the next chunk's
+        # input is this exact output (report attached), so the pre-report
+        # size would undercount what the next model call consumes.
+        body_chars = len(
             json.dumps(pair["output"], ensure_ascii=False, sort_keys=True)
         )
-        report = ensure_budgets(len(chunk_text), context_chars, config)
-        pair["output"]["budget"] = report
+        pair["output"]["budget"] = check_budgets(len(chunk_text), body_chars, config)
+        final_chars = len(
+            json.dumps(pair["output"], ensure_ascii=False, sort_keys=True)
+        )
+        pair["output"]["budget"] = ensure_budgets(len(chunk_text), final_chars, config)
         pairs.append(pair)
         state = pair["output"]
     return pairs
+
+
+def _ensure_input_budgets(
+    state_in: dict[str, Any], first_chunk_text: str, config: SegmentationConfig
+) -> dict[str, Any]:
+    """Gate the chain's initial input the same way outputs are gated."""
+    return ensure_budgets(
+        len(first_chunk_text),
+        len(json.dumps(state_in, ensure_ascii=False, sort_keys=True)),
+        config,
+    )
 
 
 # ---------------------------------------------------------------------------

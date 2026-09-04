@@ -41,9 +41,12 @@ ensure_sections / ensure_chunks → ingestion_sections / ingestion_chunks
   hierarchy from the section rows in `section_index` order, and resume
   validates kind/depth/parent against the deterministic plan instead of
   trusting them.
-- **Natural boundaries win.** Headings open sections; paragraphs, then
-  lines, then sentence punctuation bound chunk size. A hard cut is only
-  the fallback for a unit that exceeds `max_chunk_chars` on its own.
+- **Natural boundaries win.** Headings open sections; the body is packed
+  from content/separator atoms so no persisted range ever exceeds
+  `max_chunk_chars` — separators ride with neighboring content when they
+  fit and stand alone only when forced, while explicit overlap is clamped
+  to the same bound. A hard cut remains only the fallback for a unit that
+  exceeds the limit on its own.
   Overlap defaults to zero duplicated characters; continuity travels in
   `ContextState` instead of RAG-style heavy overlap.
 - **ContextState is versioned (`c1t5-ctx-v1`) and auditable**: inherited
@@ -63,7 +66,10 @@ ensure_sections / ensure_chunks → ingestion_sections / ingestion_chunks
 - **Budgets fail closed.** `SegmentationConfig` reserves prompt, context,
   and output space inside `max_input_chars`; the accounted total holds
   every reserve plus the actual serialized context and chunk, so an
-  oversized combination raises instead of silently overflowing. No model is
+  oversized combination raises instead of silently overflowing. Gates
+  cover the actual forwarded bytes (budget report attached), because the
+  next chunk's input is that exact output document. Zero caps disable
+  their collection entirely (zero means empty, never unbounded). No model is
   called in C1-T5 (`model_version: none-deterministic-v1`); the version
   slots exist so C1-T6 fills them without a schema change.
 - **Restart-safe.** Section/chunk writes are idempotent on
