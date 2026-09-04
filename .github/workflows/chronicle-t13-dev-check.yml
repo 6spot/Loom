@@ -9,7 +9,7 @@ on:
       - ".github/workflows/chronicle-t13-dev-check.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check:
@@ -35,10 +35,27 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: feat/chronicle-c1-t13-high-density-corpus
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Make real immutable sources fail closed without extraction model
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/chronicle/worker/ingestion_worker.py")
+          text = path.read_text()
+          old = '''            if stage == CHUNK_BEARING_STAGE:\n                if self.chunk_model is not None:\n'''
+          new = '''            if stage == CHUNK_BEARING_STAGE:\n                if (\n                    self.chunk_model is None\n                    and real is not real_unset\n                    and real is not None\n                ):\n                    error = (\n                        "real immutable source requires an extraction model; "\n                        "refusing deterministic fake extraction"\n                    )\n                    with psycopg.connect(self.database_url) as conn:\n                        control_plane.advance_stage_fenced(\n                            conn, job_id=job_id, stage=stage,\n                            status="failed", worker=self.worker, error=error,\n                        )\n                        control_plane.set_job_status_fenced(\n                            conn, job_id=job_id, status="failed",\n                            worker=self.worker, error=error,\n                        )\n                    self._emit("stage_failed", {"stage": stage, "error": error})\n                    return "failed"\n                if self.chunk_model is not None:\n'''
+          if new not in text:
+              if old not in text:
+                  raise SystemExit("real-source extraction guard insertion point not found")
+              path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Probe live model credential availability
         env:
@@ -115,3 +132,16 @@ jobs:
           path: /tmp/c1-t13-prepared
           if-no-files-found: error
           retention-days: 7
+
+      - name: Commit validated fail-closed worker guard
+        run: |
+          set -euo pipefail
+          git add apps/chronicle/worker/ingestion_worker.py
+          if git diff --cached --quiet; then
+            echo "real-source fail-closed guard already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(chronicle): fail closed real ingestion without model"
+          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
