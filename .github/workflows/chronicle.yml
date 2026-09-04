@@ -141,8 +141,9 @@ jobs:
           npm run smoke:dist
           # The committed web/dist must match the webapp sources so the
           # Rust server embeds the current build without a Node toolchain.
-          git diff --exit-code -- ../../web/dist
-          git status --porcelain -- ../../web/dist | tee /tmp/chronicle-dist-status.txt
+          # From apps/chronicle/webapp the real build output is ../web/dist.
+          git diff --exit-code -- ../web/dist
+          git status --porcelain -- ../web/dist | tee /tmp/chronicle-dist-status.txt
           [ ! -s /tmp/chronicle-dist-status.txt ]
 
       - name: Chronicle two-source browser smoke
