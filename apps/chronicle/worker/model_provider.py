@@ -1,13 +1,18 @@
 """Deployment model provider boundary for Chronicle ingestion workers.
 
 C1-T13 needs the already-tested C1 extraction/presentation provider protocols
-to be reachable from the real Docker worker.  This module intentionally keeps
+to be reachable from the real Docker worker. This module intentionally keeps
 that deployment I/O vendor-neutral: it speaks the small HTTP subset used by a
 Responses-style endpoint (``POST`` JSON with ``model`` + ``input``) and returns
 only the produced text.
 
-Historical authority does not move here.  The provider only supplies raw model
-text to the existing extraction / Reader Presentation validators; those layers
+Development may instead opt in to ``CHRONICLE_MODEL_FIXTURE_PACK``. That mode
+uses the same model boundary and normal Chronicle validators/persistence path;
+it is explicit and mutually exclusive with an external endpoint so production
+can never silently fall back to fixture history.
+
+Historical authority does not move here. Providers only supply raw model text
+to the existing extraction / Reader Presentation validators; those layers
 remain responsible for evidence grounding, schema validation, conservative
 resolution, and fail-closed publication.
 """
@@ -180,14 +185,52 @@ class ResponsesHTTPModel:
         return _response_text(payload)
 
 
-def models_from_env() -> tuple[ResponsesHTTPModel | None, ResponsesHTTPModel | None]:
+def _fixture_models_from_env() -> tuple[Any, Any] | None:
+    """Build the explicit development fixture provider when requested.
+
+    Fixture mode and external-provider mode are mutually exclusive. This makes
+    fixture use visible in configuration and prevents a missing/invalid live
+    provider from ever degrading into deterministic development output.
+    """
+    fixture_pack = _nonempty_env("CHRONICLE_MODEL_FIXTURE_PACK")
+    if fixture_pack is None:
+        return None
+    conflicting = [
+        name
+        for name in (
+            "CHRONICLE_MODEL_ENDPOINT",
+            "CHRONICLE_MODEL_API_KEY",
+            "CHRONICLE_EXTRACTION_MODEL",
+            "CHRONICLE_PRESENTATION_MODEL",
+        )
+        if _nonempty_env(name) is not None
+    ]
+    if conflicting:
+        raise PersistenceError(
+            "CHRONICLE_MODEL_FIXTURE_PACK cannot be combined with external "
+            f"model configuration ({', '.join(conflicting)})"
+        )
+    # Imported lazily so production HTTP-only deployments do not gain any
+    # fixture behavior unless the explicit environment variable is present.
+    import fixture_model
+
+    return fixture_model.models_from_fixture_pack(fixture_pack)
+
+
+def models_from_env() -> tuple[Any | None, Any | None]:
     """Build independently configured extraction/presentation providers.
 
-    No model names means the pre-C1-T13 worker behavior is preserved exactly.
-    Once either model is requested, an explicit endpoint is required so a
-    deployment can choose OpenAI, Luna through a compatible gateway, or a local
-    Responses-compatible service without Chronicle guessing a vendor.
+    ``CHRONICLE_MODEL_FIXTURE_PACK`` is an explicit development-only mode and
+    returns both fixture providers. Otherwise, no model names preserves the
+    pre-C1-T13 worker behavior exactly. Once either live model is requested, an
+    explicit endpoint is required so a deployment can choose OpenAI, Luna
+    through a compatible gateway, or a local Responses-compatible service
+    without Chronicle guessing a vendor.
     """
+    fixture_models = _fixture_models_from_env()
+    if fixture_models is not None:
+        return fixture_models
+
     extraction_name = _nonempty_env("CHRONICLE_EXTRACTION_MODEL")
     presentation_name = _nonempty_env("CHRONICLE_PRESENTATION_MODEL")
     if extraction_name is None and presentation_name is None:
