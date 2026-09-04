@@ -53,6 +53,12 @@ records the executable leaves for GitHub issues #403–#423 after the accepted
 Architecture Amendment 0005. The root issue #398 and stage trackers #399–#402
 are coordination records; only the leaf records in that ledger are executable.
 
+## Chronicle application initiative
+
+Chronicle application work is tracked under [`chronicle/README.md`](chronicle/README.md). The completed C0 source-grounded vertical slice is preserved there as implementation history.
+
+The current C1 Historical World / Book-to-Chronicle plan is registered in [`chronicle/C1-README.md`](chronicle/C1-README.md) under coordination Root #489 and executable leaf issues #490–#506. C1 uses a Root -> executable dependency graph -> serial final gate structure for Multica/agent coordination. Root #489 is coordination-only; READY eligibility comes from the canonical child task records on the default branch, not from Issue state.
+
 ## One task, one file
 
 Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.
