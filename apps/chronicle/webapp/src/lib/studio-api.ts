@@ -1,10 +1,10 @@
-// Chronicle Studio HTTP client for C1-T10.
+// Chronicle Studio HTTP client for C1-T10/T11.
 //
 // The Rust server remains the authentication/authorization boundary. This
 // module only transports the current tab-session Basic auth header to the
 // privileged same-origin `/api/v1/studio/*` API and never touches DB/files
-// directly. Job detail is the server's safe v0.2 projection: model prompts,
-// raw responses and candidates are intentionally not part of these types.
+// directly. Job detail is the server's safe projection: model prompts, raw
+// responses and candidates are intentionally not part of these types.
 
 export class StudioApiError extends Error {
   readonly code: string;
@@ -20,6 +20,11 @@ export class StudioApiError extends Error {
 
 export type JobStatus = "queued" | "running" | "needs_review" | "failed" | "cancelled" | "completed";
 export type StageStatus = "pending" | "running" | "needs_review" | "failed" | "skipped" | "completed";
+export type ReviewStatus = "open" | "resolved" | "dismissed";
+export type ReviewLinkKind = "entity" | "event";
+export type EntityReviewDecision = "same_entity" | "not_same" | "uncertain";
+export type EventReviewDecision = "same_occurrence" | "related_occurrence" | "not_same" | "uncertain";
+export type ReviewDecision = EntityReviewDecision | EventReviewDecision;
 
 export interface DocumentSummary {
   document_id: string;
@@ -161,6 +166,81 @@ export interface JobDetail {
   outputs: JobOutputSummary[];
 }
 
+export interface ReviewDocumentContext {
+  document_id: string;
+  title: string;
+  revision_no: number;
+  filename: string;
+  source_sha256: string;
+  language: string | null;
+  source_label: string | null;
+}
+
+export interface ReviewRef {
+  bundle: string;
+  ref: string;
+}
+
+export interface ReviewSuggestion {
+  decision: string | null;
+  confidence: number | null;
+  rationale: string | null;
+  signals: unknown[];
+}
+
+export interface ReviewChosenDecision {
+  decision: ReviewDecision;
+  confidence: number;
+  rationale: string;
+}
+
+export interface ReviewRecordContext {
+  bundle: string;
+  ref: string;
+  source_title?: string | null;
+  source_ref?: string | null;
+  record: {
+    kind?: ReviewLinkKind;
+    type?: string | null;
+    name?: string | null;
+    title?: string | null;
+    aliases?: unknown[];
+    mentions?: unknown[];
+    time?: unknown;
+    participants?: unknown[];
+    places?: unknown[];
+  };
+}
+
+export interface ReviewSummary {
+  review_id: string;
+  job_id: string;
+  chunk_id: string | null;
+  kind: string;
+  status: ReviewStatus;
+  created_at: string | null;
+  resolved_at: string | null;
+  job_status: JobStatus;
+  revision_id: string;
+  document: ReviewDocumentContext;
+  scope: "resolution";
+  link_kind: ReviewLinkKind;
+  candidate_id: string;
+  resolution_sha256: string;
+  blocking: boolean;
+  allowed_decisions: ReviewDecision[];
+  left: ReviewRef;
+  right: ReviewRef;
+  suggestion: ReviewSuggestion;
+  decision: ReviewChosenDecision | null;
+}
+
+export interface ReviewDetail extends ReviewSummary {
+  left_context: ReviewRecordContext;
+  right_context: ReviewRecordContext;
+  job_open_resolution_reviews: number;
+}
+
 interface DocumentsResponse {
   schema: "chronicle.document-list";
   version: string;
@@ -197,6 +277,18 @@ interface JobResponse {
   schema: "chronicle.job";
   version: string;
   job: JobDetail;
+}
+
+interface ReviewsResponse {
+  schema: "chronicle.review-list";
+  version: string;
+  reviews: ReviewSummary[];
+}
+
+interface ReviewResponse {
+  schema: "chronicle.review";
+  version: string;
+  review: ReviewDetail;
 }
 
 function authHeaders(auth: string | null, extra?: HeadersInit): Headers {
@@ -316,4 +408,36 @@ export async function mutateJob(
 ): Promise<JobDetail> {
   const path = `/api/v1/studio/jobs/${encodeURIComponent(jobId)}/${action}`;
   return (await studioRequest<JobResponse>(auth, path, { method: "POST" })).job;
+}
+
+const REVIEWS_API = "/api/v1/studio/jobs/reviews";
+
+export async function listReviews(
+  auth: string | null,
+  status: ReviewStatus | "all" = "open",
+): Promise<ReviewSummary[]> {
+  const params = new URLSearchParams({ status, limit: "200", offset: "0" });
+  return (await studioRequest<ReviewsResponse>(auth, `${REVIEWS_API}?${params.toString()}`)).reviews;
+}
+
+export async function getReview(auth: string | null, reviewId: string): Promise<ReviewDetail> {
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}`;
+  return (await studioRequest<ReviewResponse>(auth, path)).review;
+}
+
+export async function submitReviewDecision(
+  auth: string | null,
+  reviewId: string,
+  decision: ReviewDecision,
+  rationale: string,
+  confidence = 0.5,
+): Promise<ReviewDetail> {
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`;
+  return (
+    await studioRequest<ReviewResponse>(auth, path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, rationale, confidence }),
+    })
+  ).review;
 }
