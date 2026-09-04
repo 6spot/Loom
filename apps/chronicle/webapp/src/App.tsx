@@ -16,10 +16,9 @@ const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));
 const StudioLoginPage = lazy(() => import("./pages/studio/StudioLoginPage"));
 const StudioImportsPage = lazy(() => import("./pages/studio/StudioImportsPage"));
 const StudioImportDetailPage = lazy(() => import("./pages/studio/StudioImportDetailPage"));
+const StudioReviewPage = lazy(() => import("./pages/studio/StudioReviewPage"));
+const StudioReviewDetailPage = lazy(() => import("./pages/studio/StudioReviewDetailPage"));
 const StudioSourcesPage = lazy(() => import("./pages/studio/StudioSourcesPage"));
-const StudioPlaceholders = {
-  ReviewPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.ReviewPage }))),
-};
 
 function StudioGuard({ children }: { children: JSX.Element }) {
   const auth = useStudioAuth();
@@ -138,7 +137,17 @@ export default function App() {
             element={
               <StudioGuard>
                 <Suspense fallback={<StudioFallback />}>
-                  <StudioPlaceholders.ReviewPage />
+                  <StudioReviewPage />
+                </Suspense>
+              </StudioGuard>
+            }
+          />
+          <Route
+            path="review/:reviewId"
+            element={
+              <StudioGuard>
+                <Suspense fallback={<StudioFallback />}>
+                  <StudioReviewDetailPage />
                 </Suspense>
               </StudioGuard>
             }
