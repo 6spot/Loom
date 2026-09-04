@@ -348,9 +348,11 @@ class WorkerPostgresTests(unittest.TestCase):
             control_plane.advance_stage(conn, job_id=job_id, stage="prepare", status="completed")
             control_plane.cancel_job(conn, job_id=job_id)
             self.assertEqual(_job_status(conn, job_id), "cancelled")
+        # The runner uses its own short transactions, so setup must commit
+        # first; the cancelled status is then visible to it at entry.
+        outcome = worker.JobRunner(self.database_url, worker="worker-cancel").execute_job(job_id)
+        self.assertEqual(outcome, "cancelled")
         with psycopg.connect(self.database_url) as conn:
-            outcome = worker.execute_job(conn, job_id=job_id, worker="worker-cancel")
-            self.assertEqual(outcome, "cancelled")
             stages = _stage_statuses(conn, job_id)
             self.assertEqual(stages["prepare"], "completed")
             self.assertEqual(stages["structure"], "pending")
@@ -373,10 +375,13 @@ class WorkerPostgresTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             job_id, _ = _queue_job(conn)
             control_plane.claim_job(conn, worker="worker-stop")
-            stop = threading.Event()
-            stop.set()
-            outcome = worker.execute_job(conn, job_id=job_id, worker="worker-stop", stop=stop)
-            self.assertEqual(outcome, "stopped")
+        stop = threading.Event()
+        stop.set()
+        outcome = worker.JobRunner(
+            self.database_url, worker="worker-stop", stop=stop
+        ).execute_job(job_id)
+        self.assertEqual(outcome, "stopped")
+        with psycopg.connect(self.database_url) as conn:
             # The job is still running under its lease, so the next worker
             # reclaims it after expiry instead of finding corrupt state.
             self.assertEqual(_job_status(conn, job_id), "running")
@@ -409,3 +414,220 @@ class WorkerUnitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkerDurabilityRegressionTests(unittest.TestCase):
+    """Focused D-1/D-2/D-3 probes from the PR 513 review.
+
+    Each test holds executor work open on one thread while a second,
+    independent connection cancels, reads, or takes over the lease —
+    the exact situations the reviewer's PostgreSQL probes reproduced.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.control_url = _control_url()
+
+    def setUp(self) -> None:
+        self.database_name = f"chronicle_c1t4d_{uuid.uuid4().hex}"
+        with psycopg.connect(self.control_url, autocommit=True) as conn:
+            from psycopg import sql
+
+            conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(self.database_name)))
+        self.database_url = _database_conninfo(self.control_url, self.database_name)
+        with psycopg.connect(self.database_url) as conn:
+            apply_migrations(conn)
+
+    def tearDown(self) -> None:
+        with psycopg.connect(self.control_url, autocommit=True) as conn:
+            from psycopg import sql
+
+            conn.execute(
+                sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(self.database_name))
+            )
+
+    def _wait_stage(self, job_id, stage: str, want: str, timeout: float = 60.0) -> None:
+        import time as _time
+
+        start = _time.monotonic()
+        while _time.monotonic() - start < timeout:
+            with psycopg.connect(self.database_url) as conn:
+                status = conn.execute(
+                    """
+                    SELECT status FROM chronicle.ingestion_job_stages
+                    WHERE job_id = %s AND stage = %s
+                    """,
+                    (job_id, stage),
+                ).fetchone()[0]
+            if status == want:
+                return
+            _time.sleep(0.05)
+        self.fail(f"stage {stage} never reached {want!r}")
+
+    def test_d1_cancel_never_blocks_on_running_executor(self) -> None:
+        """D-1: cancellation commits promptly while a stage is executing."""
+        import time as _time
+
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn)
+        release = threading.Event()
+        executor = StageExecutor()
+        executor.block_stages = {"structure": release}
+        results: list = []
+        thread = threading.Thread(
+            target=lambda: results.append(
+                worker.run_once(
+                    self.database_url, worker="worker-victim", executor=executor
+                )
+            ),
+            daemon=True,
+        )
+        thread.start()
+        try:
+            # The victim advanced `structure` to running and is now parked
+            # inside executor work holding no database transaction.
+            self._wait_stage(job_id, "structure", "running")
+            start = _time.monotonic()
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.cancel_job(conn, job_id=job_id)
+            elapsed = _time.monotonic() - start
+            self.assertLess(
+                elapsed, 10.0,
+                f"cancel blocked {elapsed:.1f}s on executor work",
+            )
+        finally:
+            release.set()
+            thread.join(timeout=120)
+        self.assertFalse(thread.is_alive(), "worker thread did not finish")
+        self.assertEqual(results[0], (job_id, "cancelled"))
+        with psycopg.connect(self.database_url) as conn:
+            stages = _stage_statuses(conn, job_id)
+            # The halted worker wrote nothing past the cancelled point:
+            # `prepare` (finished before cancel) stays completed,
+            # `structure` (running during cancel) was never completed.
+            self.assertEqual(stages["prepare"], "completed")
+            self.assertEqual(stages["structure"], "running")
+
+    def test_d2_checkpoints_visible_to_other_connections_mid_run(self) -> None:
+        """D-2: each durable transition commits before the worker proceeds."""
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn)
+        release = threading.Event()
+        executor = StageExecutor()
+        executor.block_stages = {"structure": release}
+        results: list = []
+        thread = threading.Thread(
+            target=lambda: results.append(
+                worker.run_once(
+                    self.database_url, worker="worker-visible", executor=executor
+                )
+            ),
+            daemon=True,
+        )
+        thread.start()
+        try:
+            self._wait_stage(job_id, "structure", "running")
+            # A second connection must already see `prepare` committed —
+            # under the old held-transaction worker it still read pending.
+            with psycopg.connect(self.database_url) as conn:
+                row = conn.execute(
+                    """
+                    SELECT status, checkpoint
+                    FROM chronicle.ingestion_job_stages
+                    WHERE job_id = %s AND stage = 'prepare'
+                    """,
+                    (job_id,),
+                ).fetchone()
+            self.assertEqual(row[0], "completed")
+            self.assertNotEqual(row[1], {})
+            self.assertEqual(row[1].get("worker_version"), worker.WORKER_VERSION)
+        finally:
+            release.set()
+            thread.join(timeout=120)
+        self.assertEqual(results[0], (job_id, "completed"))
+
+    def test_d3_lease_takeover_halts_stale_worker(self) -> None:
+        """D-3: a worker that lost its lease stops writing immediately."""
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn)
+        release = threading.Event()
+        executor = StageExecutor()
+        executor.block_stages = {"structure": release}
+        results: list = []
+        thread = threading.Thread(
+            target=lambda: results.append(
+                worker.run_once(
+                    self.database_url, worker="worker-stale", executor=executor
+                )
+            ),
+            daemon=True,
+        )
+        thread.start()
+        try:
+            self._wait_stage(job_id, "structure", "running")
+            with psycopg.connect(self.database_url) as conn:
+                # Simulate the stale worker's lease expiring, then a live
+                # worker taking over — the stale thread still sits inside
+                # executor work and must not write afterwards.
+                conn.execute(
+                    """
+                    UPDATE chronicle.ingestion_jobs
+                    SET lease_expires_at = now() - interval '1 second'
+                    WHERE job_id = %s
+                    """,
+                    (job_id,),
+                )
+                taken = control_plane.claim_job(conn, worker="worker-fresh", job_id=job_id)
+                self.assertEqual(taken, job_id)
+        finally:
+            release.set()
+            thread.join(timeout=120)
+        self.assertFalse(thread.is_alive(), "worker thread did not finish")
+        self.assertEqual(results[0], (job_id, "lease_lost"))
+        with psycopg.connect(self.database_url) as conn:
+            stages = _stage_statuses(conn, job_id)
+            # The stale worker's post-takeover checkpoint write was fenced
+            # off: `structure` never reached completed under worker-stale.
+            self.assertEqual(stages["structure"], "running")
+        # The lease holder can still finish the job from checkpoints.
+        fresh = worker.JobRunner(self.database_url, worker="worker-fresh")
+        self.assertEqual(fresh.execute_job(job_id), "completed")
+
+    def test_d3_fenced_mutations_reject_non_holders(self) -> None:
+        """D-3: store-level fencing rejects every non-holder mutation."""
+        from common import LeaseLost
+
+        with psycopg.connect(self.database_url) as conn:
+            job_id, _ = _queue_job(conn)
+            control_plane.claim_job(conn, worker="worker-owner")
+            for attempt in (
+                lambda: control_plane.advance_stage_fenced(
+                    conn, job_id=job_id, stage="prepare",
+                    status="running", worker="worker-impostor",
+                ),
+                lambda: control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="failed", worker="worker-impostor"
+                ),
+                lambda: control_plane.write_stage_checkpoint_fenced(
+                    conn, job_id=job_id, stage="prepare",
+                    worker="worker-impostor", checkpoint={"x": 1},
+                ),
+                lambda: control_plane.heartbeat_job_strict(
+                    conn, job_id=job_id, worker="worker-impostor"
+                ),
+            ):
+                with self.assertRaises(LeaseLost):
+                    attempt()
+            # The holder itself passes every fence.
+            control_plane.advance_stage_fenced(
+                conn, job_id=job_id, stage="prepare",
+                status="running", worker="worker-owner",
+            )
+            control_plane.heartbeat_job_strict(conn, job_id=job_id, worker="worker-owner")
+            # Cancellation clears the lease: even the former owner is fenced.
+            control_plane.cancel_job(conn, job_id=job_id)
+            with self.assertRaises(LeaseLost):
+                control_plane.advance_stage_fenced(
+                    conn, job_id=job_id, stage="prepare",
+                    status="completed", worker="worker-owner",
+                )

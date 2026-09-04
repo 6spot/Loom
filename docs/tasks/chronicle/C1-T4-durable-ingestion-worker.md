@@ -53,3 +53,13 @@ Add a restart-safe PostgreSQL-backed ingestion worker with leases, checkpoints, 
   server 20 + control-plane 10 tests, clippy/fmt, storage-ownership
   check, Compose config. Delivery PR pending; task stays `in_progress`
   until merge + post-merge reconciliation per `task-completion.md`.
+- 2026-09-04 — Reviewer FAIL D-1/D-2/D-3 addressed on PR 513: the worker
+  now runs every database step in its own short committed transaction
+  (`JobRunner`; no transaction held across executor work), so Studio
+  cancel never blocks and expired leases stay reclaimable; each durable
+  transition commits before proceeding, so checkpoints are visible
+  mid-run; every worker mutation is lease-fenced (`LeaseLost` halts stale
+  execution) with a strict heartbeat. 4 focused regression tests added
+  (cancel-during-execution, mid-run checkpoint visibility,
+  takeover-halts-stale, store-level fencing). Full local verification
+  re-run green.

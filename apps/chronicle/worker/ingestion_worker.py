@@ -11,10 +11,17 @@ Durability contract (authoritative: the ``chronicle.*`` tables behind
 - Jobs are claimed with ``claim_job`` (``FOR UPDATE SKIP LOCKED``), so at
   most one active worker lease wins each job while independent jobs progress
   concurrently on different workers.
-- Every lease carries an owner identity and an expiry. Workers renew their
-  own lease with ``heartbeat_job``; a crashed worker's expired lease is
-  re-claimed by the next live worker, and PostgreSQL checkpoints written
-  before the crash survive because they never lived in worker memory.
+- Every database step runs in its own short, explicitly committed
+  transaction. No transaction is ever held across executor work, so a
+  long-running (or hung) stage never blocks Studio cancellation, and an
+  expired lease row is never locked away from a reclaiming worker's
+  ``SKIP LOCKED`` claim.
+- Every durable transition commits before the worker proceeds, so each
+  checkpoint is visible to other connections at once and survives a crash
+  at any point.
+- Every worker mutation is lease-fenced: the holding worker only. Losing
+  the lease (takeover or cancellation) raises ``LeaseLost`` and the stale
+  worker halts instead of writing further state or evidence.
 - Stages/chunks already ``completed`` (or ``skipped``) are never re-run on
   resume; retries append ``ingestion_chunk_runs`` rows instead of
   overwriting prior model/debug evidence.
@@ -55,11 +62,10 @@ if str(_PERSISTENCE_DIR) not in sys.path:
     sys.path.insert(0, str(_PERSISTENCE_DIR))
 
 import control_plane  # noqa: E402
-from common import PersistenceConflict, PersistenceError  # noqa: E402
+from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
 try:
     import psycopg  # noqa: E402
-    from psycopg.types.json import Jsonb  # noqa: E402
 except ImportError as exc:  # pragma: no cover - deployment always vendors psycopg
     raise PersistenceError(
         "the Chronicle worker requires psycopg "
@@ -89,10 +95,6 @@ class StageExecutionError(RuntimeError):
     """Raised by a stage executor when one deterministic fake step fails."""
 
 
-class StopRequested(Exception):
-    """Internal signal: graceful shutdown requested mid-job."""
-
-
 def default_worker_id() -> str:
     """Return a unique worker identity for lease ownership."""
     return f"worker-{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
@@ -118,6 +120,11 @@ class StageExecutor:
     attempt, so tests can script exact failure/retry sequences and
     production fakes always succeed. Real C1-T5/C1-T6 executors will
     implement :meth:`execute_stage` / :meth:`execute_chunk` instead.
+
+    Executor code runs with no database transaction open: it receives
+    plain values and returns plain checkpoints, so a slow or hung model
+    call can never hold a row lock, block cancellation, or hide a lease
+    expiry from a reclaiming worker.
     """
 
     def __init__(
@@ -137,6 +144,12 @@ class StageExecutor:
                 f"fake executor failing stage {stage!r} "
                 f"for job {job_id} ({remaining} failure(s) scripted)"
             )
+        # Sleep hook for transaction-lifetime probes: tests may set
+        # `block_stages = {stage: threading.Event}` to hold executor work
+        # open while another connection cancels or takes over the lease.
+        event = getattr(self, "block_stages", {}).get(stage)
+        if event is not None:
+            event.wait(timeout=120)
         return {"worker_version": WORKER_VERSION, "stage": stage}
 
     def execute_chunk(
@@ -150,6 +163,9 @@ class StageExecutor:
                 f"fake executor failing chunk {chunk_index} "
                 f"for job {job_id} ({remaining} failure(s) scripted)"
             )
+        event = getattr(self, "block_chunks", {}).get(chunk_index)
+        if event is not None:
+            event.wait(timeout=120)
         return {"worker_version": WORKER_VERSION, "chunk_index": chunk_index}
 
 
@@ -157,37 +173,120 @@ def _fake_sha(*parts: str) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
-def ensure_fake_topology(
-    conn, *, job_id: uuid.UUID, worker: str
-) -> tuple[uuid.UUID, list[uuid.UUID]]:
-    """Ensure the fake pipeline topology: one section + N chunks, idempotent.
+class JobRunner:
+    """Executes one claimed job using short committed transactions only.
 
-    Reuses existing ``(job, index)`` rows on worker re-entry after a crash,
-    so resume never duplicates sections/chunks or loses their checkpoints.
-    Returns ``(section_id, chunk_ids)`` ordered by chunk index.
+    Every method that touches the database opens its own connection, runs
+    exactly one committed transaction, and closes it before returning.
+    Executor calls happen strictly between connections, never inside one,
+    so hung executor work holds no row lock and hides no checkpoint.
+    Every mutation is lease-fenced to this runner's ``worker`` identity;
+    losing the lease raises :class:`LeaseLost` and halts execution.
     """
-    del worker  # topology rows carry no worker identity; runs do.
-    section_id: uuid.UUID | None = None
-    row = conn.execute(
-        """
-        SELECT section_id FROM chronicle.ingestion_sections
-        WHERE job_id = %s AND section_index = 0
-        """,
-        (job_id,),
-    ).fetchone()
-    if row is not None:
-        section_id = row[0]
-    else:
-        try:
-            section_id = control_plane.create_section(
-                conn,
-                job_id=job_id,
-                section_index=0,
-                label="fake-section",
-                source_start=0,
-                source_end=FAKE_CHUNKS_PER_JOB * 512,
+
+    def __init__(
+        self,
+        database_url: str,
+        *,
+        worker: str,
+        executor: StageExecutor | None = None,
+        lease_seconds: int = DEFAULT_LEASE_SECONDS,
+        stop: threading.Event | None = None,
+        on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> None:
+        if not isinstance(worker, str) or not worker:
+            raise PersistenceError("worker must be a non-empty string")
+        if lease_seconds < 1:
+            raise PersistenceError("lease_seconds must be a positive integer")
+        self.database_url = database_url
+        self.worker = worker
+        self.executor = executor or StageExecutor()
+        self.lease_seconds = lease_seconds
+        self.stop = stop or threading.Event()
+        self.on_event = on_event
+
+    # -- single-transaction steps --------------------------------------
+
+    def _read_job(self, job_id: uuid.UUID) -> tuple[str, int, int, uuid.UUID]:
+        """Read (status, attempt, max_attempts, revision_id) and commit."""
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT status, attempt, max_attempts, revision_id
+                FROM chronicle.ingestion_jobs WHERE job_id = %s
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown job {job_id}")
+            return row[0], int(row[1]), int(row[2]), row[3]
+
+    def _read_stage(self, job_id: uuid.UUID, stage: str) -> str:
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT status FROM chronicle.ingestion_job_stages
+                WHERE job_id = %s AND stage = %s
+                """,
+                (job_id, stage),
+            ).fetchone()
+            if row is None:
+                raise PersistenceError(f"unknown stage {stage!r} for job {job_id}")
+            return row[0]
+
+    def _read_chunk(self, chunk_id: uuid.UUID) -> tuple[str, int]:
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT status, chunk_index FROM chronicle.ingestion_chunks
+                WHERE chunk_id = %s
+                """,
+                (chunk_id,),
+            ).fetchone()
+            if row is None:  # pragma: no cover - defensive; chunk was just ensured
+                raise PersistenceError(f"unknown chunk {chunk_id}")
+            return row[0], int(row[1])
+
+    def _heartbeat(self, job_id: uuid.UUID) -> None:
+        """Renew the lease in one committed transaction; `LeaseLost` on takeover."""
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.heartbeat_job_strict(
+                conn, job_id=job_id, worker=self.worker,
+                lease_seconds=self.lease_seconds,
             )
-        except PersistenceConflict:
+
+    def _emit(self, event: str, payload: dict[str, Any]) -> None:
+        if self.on_event is not None:
+            self.on_event(event, payload)
+
+    def check_halt(self, job_id: uuid.UUID) -> str | None:
+        """Return 'cancelled'/'stopped' when the runner must halt, else None.
+
+        A single committed read: cancellation (or any externally imposed
+        non-running status) is visible here even while a previous executor
+        step is still winding down, because no transaction is held open.
+        """
+        if self.stop.is_set():
+            return "stopped"
+        status = self._read_job(job_id)[0]
+        if status == "cancelled":
+            return "cancelled"
+        if status != "running":
+            # Externally parked (failed/needs_review/completed by another
+            # actor): stop writing rather than overwriting that decision.
+            return "stopped"
+        return None
+
+    def ensure_fake_topology(
+        self, job_id: uuid.UUID
+    ) -> tuple[uuid.UUID, list[uuid.UUID]]:
+        """Ensure one section + N chunks, each step committed; idempotent.
+
+        Reuses existing ``(job, index)`` rows on re-entry after a crash, so
+        resume never duplicates sections/chunks or loses their checkpoints.
+        Topology inserts are lease-fenced to this runner's worker.
+        """
+        with psycopg.connect(self.database_url) as conn:
             row = conn.execute(
                 """
                 SELECT section_id FROM chronicle.ingestion_sections
@@ -195,145 +294,254 @@ def ensure_fake_topology(
                 """,
                 (job_id,),
             ).fetchone()
-            if row is None:  # pragma: no cover - defensive; conflict implies a row
-                raise
-            section_id = row[0]
-    chunk_ids: list[uuid.UUID] = []
-    for index in range(FAKE_CHUNKS_PER_JOB):
-        row = conn.execute(
-            """
-            SELECT chunk_id FROM chronicle.ingestion_chunks
-            WHERE job_id = %s AND chunk_index = %s
-            """,
-            (job_id, index),
-        ).fetchone()
-        if row is not None:
-            chunk_ids.append(row[0])
-            continue
-        chunk_ids.append(
-            control_plane.record_chunk(
-                conn,
-                job_id=job_id,
-                section_id=section_id,
-                chunk_index=index,
-                source_start=index * 512,
-                source_end=(index + 1) * 512,
-                source_sha256=_fake_sha(str(job_id), "source", str(index)),
-                content_sha256=_fake_sha(str(job_id), "content", str(index)),
-            )
-        )
-    return section_id, chunk_ids
+            if row is not None:
+                section_id = row[0]
+            else:
+                section_id = None
+                with conn.transaction():
+                    control_plane.require_job_lease(conn, job_id=job_id, worker=self.worker)
+                    try:
+                        section_id = control_plane.create_section(
+                            conn, job_id=job_id, section_index=0,
+                            label="fake-section", source_start=0,
+                            source_end=FAKE_CHUNKS_PER_JOB * 512,
+                        )
+                    except PersistenceConflict:
+                        # A concurrent worker won the insert race; fall
+                        # through to the committed re-read below.
+                        pass
+                if section_id is None:
+                    row = conn.execute(
+                        """
+                        SELECT section_id FROM chronicle.ingestion_sections
+                        WHERE job_id = %s AND section_index = 0
+                        """,
+                        (job_id,),
+                    ).fetchone()
+                    if row is None:  # pragma: no cover - conflict implies a row
+                        raise PersistenceError(
+                            f"fake section vanished for job {job_id}"
+                        )
+                    section_id = row[0]
+        chunk_ids: list[uuid.UUID] = []
+        for index in range(FAKE_CHUNKS_PER_JOB):
+            with psycopg.connect(self.database_url) as conn:
+                row = conn.execute(
+                    """
+                    SELECT chunk_id FROM chronicle.ingestion_chunks
+                    WHERE job_id = %s AND chunk_index = %s
+                    """,
+                    (job_id, index),
+                ).fetchone()
+                if row is not None:
+                    chunk_ids.append(row[0])
+                    continue
+                with conn.transaction():
+                    control_plane.require_job_lease(conn, job_id=job_id, worker=self.worker)
+                    chunk_ids.append(
+                        control_plane.record_chunk(
+                            conn, job_id=job_id, section_id=section_id,
+                            chunk_index=index, source_start=index * 512,
+                            source_end=(index + 1) * 512,
+                            source_sha256=_fake_sha(str(job_id), "source", str(index)),
+                            content_sha256=_fake_sha(str(job_id), "content", str(index)),
+                        )
+                    )
+        return section_id, chunk_ids
 
+    # -- chunk + stage execution ----------------------------------------
 
-def _job_status(conn, *, job_id: uuid.UUID) -> tuple[str, int, int]:
-    row = conn.execute(
+    def execute_chunks(self, job_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> str:
+        """Execute every chunk; returns 'ok'/'failed'/'needs_review'/'cancelled'/'stopped'.
+
+        Raises :class:`LeaseLost` when this worker no longer holds the
+        lease; the caller maps it to the 'lease_lost' outcome.
         """
-        SELECT status, attempt, max_attempts
-        FROM chronicle.ingestion_jobs WHERE job_id = %s
-        """,
-        (job_id,),
-    ).fetchone()
-    if row is None:
-        raise PersistenceError(f"unknown job {job_id}")
-    return row[0], int(row[1]), int(row[2])
+        for chunk_id in chunk_ids:
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            status, chunk_index = self._read_chunk(chunk_id)
+            if status == "completed":
+                continue  # checkpoint skip: never re-run succeeded work
+            if status not in ("pending", "running", "failed", "needs_review"):
+                raise PersistenceError(
+                    f"chunk {chunk_id} has unexpected status {status!r}"
+                )
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_chunk_status_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="running", worker=self.worker,
+                )
+            self._heartbeat(job_id)
+            # No connection is open across this call: a hung chunk cannot
+            # hold a row lock or hide its lease expiry.
+            try:
+                checkpoint = self.executor.execute_chunk(chunk_index, job_id)
+            except StageExecutionError as exc:
+                with psycopg.connect(self.database_url) as conn:
+                    control_plane.record_chunk_run_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id,
+                        status="failed", worker=self.worker,
+                        checkpoint={"worker_version": WORKER_VERSION},
+                        error=str(exc),
+                    )
+                    control_plane.set_chunk_status_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id,
+                        status="failed", worker=self.worker,
+                    )
+                self._emit("chunk_failed", {"chunk_id": str(chunk_id), "error": str(exc)})
+                # Bounded retry: further attempts arrive through the Studio
+                # retry operation, which appends a new ChunkRun row.
+                with psycopg.connect(self.database_url) as conn:
+                    row = conn.execute(
+                        """
+                        SELECT attempt, max_attempts
+                        FROM chronicle.ingestion_chunks WHERE chunk_id = %s
+                        """,
+                        (chunk_id,),
+                    ).fetchone()
+                if int(row[0]) >= int(row[1]):
+                    return "needs_review"
+                return "failed"
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.record_chunk_run_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="completed", worker=self.worker,
+                    checkpoint=checkpoint,
+                )
+                control_plane.set_chunk_status_fenced(
+                    conn, job_id=job_id, chunk_id=chunk_id,
+                    status="completed", worker=self.worker,
+                )
+            self._emit("chunk_completed", {"chunk_id": str(chunk_id)})
+        return "ok"
 
+    def execute_job(self, job_id: uuid.UUID) -> str:
+        """Execute one claimed job; returns the outcome string.
 
-def _check_cancelled_or_stop(
-    conn, *, job_id: uuid.UUID, stop: threading.Event
-) -> str | None:
-    """Return 'cancelled'/'stopped' when the worker must halt, else None."""
-    if stop.is_set():
-        return "stopped"
-    status, _, _ = _job_status(conn, job_id=job_id)
-    if status == "cancelled":
-        return "cancelled"
-    return None
+        Outcomes: 'completed', 'failed', 'needs_review', 'cancelled',
+        'stopped', 'lease_lost'. Every durable step commits before the
+        next begins; losing the lease halts with 'lease_lost' without
+        writing further state.
+        """
+        try:
+            return self._execute_job(job_id)
+        except LeaseLost as exc:
+            self._emit("lease_lost", {"job_id": str(job_id), "error": str(exc)})
+            return "lease_lost"
 
-
-def _heartbeat_best_effort(conn, *, job_id: uuid.UUID, worker: str, lease_seconds: int) -> None:
-    """Renew the lease; a lost race (takeover) surfaces at the next check."""
-    try:
-        control_plane.heartbeat_job(
-            conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds
-        )
-    except PersistenceConflict:
-        # Another live worker already took over an expired lease; the next
-        # cancellation/ownership read will steer this worker away.
-        pass
-
-
-def _chunk_max_attempts(conn, *, chunk_id: uuid.UUID) -> int:
-    row = conn.execute(
-        "SELECT max_attempts FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
-        (chunk_id,),
-    ).fetchone()
-    if row is None:  # pragma: no cover - defensive; chunk was just ensured
-        raise PersistenceError(f"unknown chunk {chunk_id}")
-    return int(row[0])
-
-
-def execute_chunks(
-    conn,
-    *,
-    job_id: uuid.UUID,
-    chunk_ids: list[uuid.UUID],
-    worker: str,
-    executor: StageExecutor,
-    lease_seconds: int,
-    stop: threading.Event,
-    on_event: Callable[[str, dict[str, Any]], None] | None = None,
-) -> str:
-    """Execute every chunk of the chunk-bearing stage; returns an outcome.
-
-    Outcomes: ``"ok"`` (all chunks completed), ``"needs_review"`` (a chunk
-    exhausted its bounded attempts and now waits for a human gate),
-    ``"cancelled"`` / ``"stopped"`` (halt requested; checkpoints preserved).
-    """
-    for chunk_id in chunk_ids:
-        halt = _check_cancelled_or_stop(conn, job_id=job_id, stop=stop)
+    def _execute_job(self, job_id: uuid.UUID) -> str:
+        halt = self.check_halt(job_id)
         if halt is not None:
             return halt
-        row = conn.execute(
-            "SELECT status, chunk_index FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
-            (chunk_id,),
-        ).fetchone()
-        if row is None:  # pragma: no cover - defensive; chunk was just ensured
-            raise PersistenceError(f"unknown chunk {chunk_id}")
-        status, chunk_index = row[0], int(row[1])
-        if status == "completed":
-            continue  # checkpoint skip: never re-run succeeded work
-        if status not in ("pending", "running", "failed", "needs_review"):
-            raise PersistenceError(f"chunk {chunk_id} has unexpected status {status!r}")
-        control_plane.set_chunk_status(conn, chunk_id=chunk_id, status="running")
-        _heartbeat_best_effort(conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds)
-        try:
-            checkpoint = executor.execute_chunk(chunk_index, job_id)
-        except StageExecutionError as exc:
-            control_plane.record_chunk_run(
-                conn, chunk_id=chunk_id, status="failed", worker=worker,
-                checkpoint={"worker_version": WORKER_VERSION}, error=str(exc),
+        for stage in control_plane.STAGE_NAMES:
+            halt = self.check_halt(job_id)
+            if halt is not None:
+                return halt
+            stage_status = self._read_stage(job_id, stage)
+            if stage_status in ("completed", "skipped"):
+                continue  # checkpoint skip: never re-run succeeded work
+            if stage_status in ("pending", "failed", "needs_review"):
+                with psycopg.connect(self.database_url) as conn:
+                    control_plane.advance_stage_fenced(
+                        conn, job_id=job_id, stage=stage,
+                        status="running", worker=self.worker,
+                    )
+            # A `running` stage is re-entry after a crash: checkpointed
+            # state is authoritative, so execution resumes in place.
+            self._heartbeat(job_id)
+            if stage == CHUNK_BEARING_STAGE:
+                _, chunk_ids = self.ensure_fake_topology(job_id)
+                outcome = self.execute_chunks(job_id, chunk_ids)
+                if outcome == "ok":
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="completed", worker=self.worker,
+                        )
+                    self._emit("stage_completed", {"stage": stage})
+                elif outcome == "failed":
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage, status="failed",
+                            worker=self.worker,
+                            error="fake chunk fault (bounded retry via Studio)",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker,
+                            error="fake chunk fault (bounded retry via Studio)",
+                        )
+                    return "failed"
+                elif outcome == "needs_review":
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="needs_review", worker=self.worker,
+                            error="chunk attempts exhausted; awaiting review",
+                        )
+                        control_plane.open_review_item(
+                            conn, job_id=job_id, kind="chunk_failure",
+                            payload={"stage": stage, "worker": self.worker},
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="needs_review",
+                            worker=self.worker,
+                            error="chunk attempts exhausted; awaiting review",
+                        )
+                    return "needs_review"
+                else:  # cancelled / stopped: checkpoints stay as written
+                    return outcome
+            else:
+                # No connection is open across this call.
+                try:
+                    checkpoint = self.executor.execute_stage(stage, job_id)
+                except StageExecutionError as exc:
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker, error=str(exc),
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker, error=str(exc),
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                    return "failed"
+                halt = self.check_halt(job_id)
+                if halt is not None:
+                    return halt
+                with psycopg.connect(self.database_url) as conn:
+                    control_plane.write_stage_checkpoint_fenced(
+                        conn, job_id=job_id, stage=stage,
+                        worker=self.worker, checkpoint=checkpoint,
+                    )
+                    control_plane.advance_stage_fenced(
+                        conn, job_id=job_id, stage=stage,
+                        status="completed", worker=self.worker,
+                    )
+                self._emit("stage_completed", {"stage": stage})
+        halt = self.check_halt(job_id)
+        if halt is not None:
+            return halt
+        self._heartbeat(job_id)
+        _, _, _, revision_id = self._read_job(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output_fenced(
+                conn, job_id=job_id, revision_id=revision_id,
+                worker=self.worker, artifact_type=FAKE_OUTPUT_TYPE,
+                artifact_sha256=_fake_sha(str(job_id), FAKE_OUTPUT_TYPE),
+                payload={
+                    "worker_version": WORKER_VERSION,
+                    "stages": list(control_plane.STAGE_NAMES),
+                },
             )
-            control_plane.set_chunk_status(conn, chunk_id=chunk_id, status="failed")
-            if on_event is not None:
-                on_event("chunk_failed", {"chunk_id": str(chunk_id), "error": str(exc)})
-            # Bounded retry: further attempts arrive through the Studio
-            # retry operation, which appends a new ChunkRun row.
-            max_attempts = _chunk_max_attempts(conn, chunk_id=chunk_id)
-            attempt = conn.execute(
-                "SELECT attempt FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
-                (chunk_id,),
-            ).fetchone()[0]
-            if int(attempt) >= max_attempts:
-                return "needs_review"
-            return "failed"
-        control_plane.record_chunk_run(
-            conn, chunk_id=chunk_id, status="completed", worker=worker,
-            checkpoint=checkpoint,
-        )
-        control_plane.set_chunk_status(conn, chunk_id=chunk_id, status="completed")
-        if on_event is not None:
-            on_event("chunk_completed", {"chunk_id": str(chunk_id)})
-    return "ok"
+            control_plane.set_job_status_fenced(
+                conn, job_id=job_id, status="completed", worker=self.worker,
+            )
+        self._emit("job_completed", {"job_id": str(job_id)})
+        return "completed"
 
 
 def execute_job(
@@ -346,138 +554,21 @@ def execute_job(
     stop: threading.Event | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
-    """Execute one claimed job through the 8-stage pipeline; returns outcome.
+    """Compatibility entry: derive the database URL from a live connection.
 
-    Outcomes: ``"completed"``, ``"failed"`` (stage/chunk fault recorded, job
-    parked for bounded Studio retry), ``"needs_review"`` (chunk attempts
-    exhausted; a review gate now owns the job), ``"cancelled"`` (halt
-    requested via Studio; completed checkpoints preserved), ``"stopped"``
-    (graceful shutdown; the ``running`` lease expires for reclaim).
+    The runner itself still uses short per-step connections; `conn` is only
+    used to read the connection parameters. Prefer constructing
+    :class:`JobRunner` with an explicit database URL — the DSN recovered
+    here never carries a password, so password-authenticated deployments
+    must pass the URL explicitly.
     """
-    executor = executor or StageExecutor()
-    stop = stop or threading.Event()
-    halt = _check_cancelled_or_stop(conn, job_id=job_id, stop=stop)
-    if halt is not None:
-        return halt
-    for stage in control_plane.STAGE_NAMES:
-        halt = _check_cancelled_or_stop(conn, job_id=job_id, stop=stop)
-        if halt is not None:
-            return halt
-        stage_status = conn.execute(
-            """
-            SELECT status FROM chronicle.ingestion_job_stages
-            WHERE job_id = %s AND stage = %s
-            """,
-            (job_id, stage),
-        ).fetchone()[0]
-        if stage_status in ("completed", "skipped"):
-            continue  # checkpoint skip: never re-run succeeded work
-        if stage_status in ("pending", "failed", "needs_review"):
-            control_plane.advance_stage(
-                conn, job_id=job_id, stage=stage, status="running"
-            )
-        # A `running` stage is worker re-entry after a crash: the
-        # checkpointed state is authoritative, so execution resumes in place.
-        _heartbeat_best_effort(
-            conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds
-        )
-        if stage == CHUNK_BEARING_STAGE:
-            _, chunk_ids = ensure_fake_topology(conn, job_id=job_id, worker=worker)
-            outcome = execute_chunks(
-                conn, job_id=job_id, chunk_ids=chunk_ids, worker=worker,
-                executor=executor, lease_seconds=lease_seconds, stop=stop,
-                on_event=on_event,
-            )
-            if outcome == "ok":
-                control_plane.advance_stage(
-                    conn, job_id=job_id, stage=stage, status="completed"
-                )
-                if on_event is not None:
-                    on_event("stage_completed", {"stage": stage})
-            elif outcome == "failed":
-                control_plane.advance_stage(
-                    conn, job_id=job_id, stage=stage, status="failed",
-                    error="fake chunk fault (bounded retry via Studio)",
-                )
-                control_plane.set_job_status(
-                    conn, job_id=job_id, status="failed",
-                    error="fake chunk fault (bounded retry via Studio)",
-                )
-                return "failed"
-            elif outcome == "needs_review":
-                control_plane.advance_stage(
-                    conn, job_id=job_id, stage=stage, status="needs_review",
-                    error="chunk attempts exhausted; awaiting review",
-                )
-                control_plane.open_review_item(
-                    conn, job_id=job_id, kind="chunk_failure",
-                    payload={"stage": stage, "worker": worker},
-                )
-                control_plane.set_job_status(
-                    conn, job_id=job_id, status="needs_review",
-                    error="chunk attempts exhausted; awaiting review",
-                )
-                return "needs_review"
-            else:  # cancelled / stopped: checkpoints stay as written
-                return outcome
-        else:
-            try:
-                checkpoint = executor.execute_stage(stage, job_id)
-            except StageExecutionError as exc:
-                control_plane.advance_stage(
-                    conn, job_id=job_id, stage=stage, status="failed", error=str(exc)
-                )
-                control_plane.set_job_status(
-                    conn, job_id=job_id, status="failed", error=str(exc)
-                )
-                if on_event is not None:
-                    on_event(
-                        "stage_failed",
-                        {"stage": stage, "error": str(exc)},
-                    )
-                return "failed"
-            conn.execute(
-                """
-                UPDATE chronicle.ingestion_job_stages
-                SET checkpoint = %s WHERE job_id = %s AND stage = %s
-                """,
-                (Jsonb(checkpoint), job_id, stage),
-            )
-            control_plane.advance_stage(
-                conn, job_id=job_id, stage=stage, status="completed"
-            )
-            if on_event is not None:
-                on_event("stage_completed", {"stage": stage})
-    halt = _check_cancelled_or_stop(conn, job_id=job_id, stop=stop)
-    if halt is not None:
-        return halt
-    _heartbeat_best_effort(
-        conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds
+    info = conn.info
+    database_url = info.dsn
+    runner = JobRunner(
+        database_url, worker=worker, executor=executor,
+        lease_seconds=lease_seconds, stop=stop, on_event=on_event,
     )
-    status, _, _ = _job_status(conn, job_id=job_id)
-    if status == "needs_review":
-        return "needs_review"
-    _record, revision_id = _job_revision(conn, job_id=job_id)
-    control_plane.record_output(
-        conn, job_id=job_id, revision_id=revision_id,
-        artifact_type=FAKE_OUTPUT_TYPE,
-        artifact_sha256=_fake_sha(str(job_id), FAKE_OUTPUT_TYPE),
-        payload={"worker_version": WORKER_VERSION, "stages": list(control_plane.STAGE_NAMES)},
-    )
-    control_plane.set_job_status(conn, job_id=job_id, status="completed")
-    if on_event is not None:
-        on_event("job_completed", {"job_id": str(job_id)})
-    return "completed"
-
-
-def _job_revision(conn, *, job_id: uuid.UUID) -> tuple[Any, uuid.UUID]:
-    row = conn.execute(
-        "SELECT job_id, revision_id FROM chronicle.ingestion_jobs WHERE job_id = %s",
-        (job_id,),
-    ).fetchone()
-    if row is None:
-        raise PersistenceError(f"unknown job {job_id}")
-    return row[0], row[1]
+    return runner.execute_job(job_id)
 
 
 def run_once(
@@ -490,25 +581,24 @@ def run_once(
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
     job_id: uuid.UUID | None = None,
 ) -> tuple[uuid.UUID, str] | None:
-    """Claim one job (queued, or expired-lease running) and execute it.
+    """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
-    Returns ``(job_id, outcome)`` or ``None`` when no job is claimable.
+    The claim commits before execution starts; execution then proceeds in
+    short per-step transactions. Returns ``(job_id, outcome)`` or ``None``
+    when no job is claimable.
     """
     stop = stop or threading.Event()
     with psycopg.connect(database_url) as conn:
         claimed = control_plane.claim_job(
             conn, worker=worker, lease_seconds=lease_seconds, job_id=job_id
         )
-        if claimed is None:
-            return None
-        try:
-            outcome = execute_job(
-                conn, job_id=claimed, worker=worker, executor=executor,
-                lease_seconds=lease_seconds, stop=stop, on_event=on_event,
-            )
-        except StopRequested:
-            outcome = "stopped"
-        return claimed, outcome
+    if claimed is None:
+        return None
+    runner = JobRunner(
+        database_url, worker=worker, executor=executor,
+        lease_seconds=lease_seconds, stop=stop, on_event=on_event,
+    )
+    return claimed, runner.execute_job(claimed)
 
 
 def run_forever(
@@ -546,10 +636,9 @@ def run_forever(
         completed_jobs += 1
         if max_jobs is not None and completed_jobs >= max_jobs:
             break
-        if outcome in ("stopped", "cancelled"):
-            # A stop/cancel halt concerns this worker's run loop as well as
-            # the job: cancelled work must not be immediately re-polled into
-            # a tight loop by the same process.
+        if outcome in ("stopped", "cancelled", "lease_lost"):
+            # A halt concerns this worker's run loop as well as the job:
+            # do not immediately re-poll into a tight loop.
             stop.wait(poll_interval)
     return tally
 

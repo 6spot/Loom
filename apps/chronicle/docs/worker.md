@@ -33,22 +33,35 @@ docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
    whose lease expired (crashed worker) or is missing (freshly
    retried/resumed) — with `SELECT ... FOR UPDATE SKIP LOCKED`. At most
    one active lease wins each job; independent jobs are claimed by
-   different workers concurrently.
+   different workers concurrently. The claim commits before execution
+   starts.
 2. **Execute.** The worker walks the frozen 8-stage pipeline
    (`prepare → structure → segment → extract → assemble → resolve →
    publish → present`). Stages/chunks already `completed` (or `skipped`)
    are never re-run: resume skips succeeded checkpoints by construction.
-3. **Checkpoint.** Every state change commits to PostgreSQL before the
-   worker proceeds. Chunk attempts append `ingestion_chunk_runs` rows with
-   monotonically increasing `attempt`; retries never overwrite prior
-   model/debug evidence.
-4. **Heartbeat.** The lease owner renews its lease between stages/chunks.
-   Only the owner may renew; a takeover race resolves to exactly one
-   winner at the next check.
+3. **Short transactions, never across executor work.** Every database
+   step runs in its own connection and commits exactly one transaction
+   before the worker proceeds. Executor code runs with no transaction
+   open, so a slow or hung stage holds no row lock: Studio cancellation
+   never blocks on worker activity, and an expired lease row is never
+   locked away from a reclaiming worker's `SKIP LOCKED` claim. Each
+   committed step is immediately visible to other connections and
+   survives a crash at any point.
+4. **Lease fencing.** Every worker mutation (`advance_stage_fenced`,
+   `set_chunk_status_fenced`, `record_chunk_run_fenced`,
+   `set_job_status_fenced`, checkpoint/output writes) predicates on the
+   job lease inside the same transaction and raises `LeaseLost` for any
+   worker that no longer holds it. Heartbeats are strict: losing the
+   lease to a takeover (or to cancellation, which clears the lease)
+   halts the stale worker with a `lease_lost` outcome instead of writing
+   further state or evidence.
 5. **Finish.** After all stages, the worker records one deterministic
    output and moves the job to `completed` (lease cleared). Faults park
    the job in `failed` (bounded Studio retry) or `needs_review` (chunk
    attempts exhausted; a `chunk_failure` review gate owns the job).
+   Chunk attempts always append `ingestion_chunk_runs` rows with
+   monotonically increasing `attempt`; retries never overwrite prior
+   model/debug evidence.
 6. **Shutdown.** SIGTERM/SIGINT finishes the current step, then stops.
    The job stays `running` under its lease, so the next live worker
    reclaims it after expiry. Shutdown never marks work failed and never

@@ -34,7 +34,7 @@ import psycopg
 import psycopg.errors
 from psycopg.types.json import Jsonb
 
-from common import PersistenceConflict, PersistenceError
+from common import LeaseLost, PersistenceConflict, PersistenceError
 
 JOB_STATUSES = ("queued", "running", "needs_review", "failed", "cancelled", "completed")
 
@@ -1160,3 +1160,134 @@ def get_job_detail(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
             for row in output_rows
         ],
     }
+
+
+def require_job_lease(conn, *, job_id: uuid.UUID, worker: str) -> None:
+    """Assert `worker` still holds the lease for `job_id`; else raise `LeaseLost`.
+
+    Must be called inside the mutating transaction (it takes `FOR UPDATE`
+    on the job row, so the ownership check and the guarded write commit
+    atomically). Ownership — not expiry — is the fence: a worker whose
+    lease expired but was never taken over may still renew and proceed,
+    while a worker that lost the lease to a takeover (or to cancellation,
+    which clears the lease) is rejected. Callers must halt execution on
+    `LeaseLost` instead of writing further state.
+    """
+    if not isinstance(worker, str) or not worker:
+        raise PersistenceError("worker must be a non-empty string")
+    row = conn.execute(
+        "SELECT lease_owner FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE",
+        (job_id,),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(f"unknown job {job_id}")
+    if row[0] != worker:
+        raise LeaseLost(
+            f"worker {worker!r} no longer holds the lease for job {job_id} "
+            f"(held by {row[0]!r}); halting stale execution"
+        )
+
+
+def advance_stage_fenced(
+    conn, *, job_id: uuid.UUID, stage: str, status: str,
+    worker: str, error: str | None = None,
+) -> None:
+    """Lease-fenced `advance_stage`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        advance_stage(conn, job_id=job_id, stage=stage, status=status, error=error)
+
+
+def set_chunk_status_fenced(
+    conn, *, job_id: uuid.UUID, chunk_id: uuid.UUID, status: str, worker: str
+) -> None:
+    """Lease-fenced `set_chunk_status`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        set_chunk_status(conn, chunk_id=chunk_id, status=status)
+
+
+def record_chunk_run_fenced(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    chunk_id: uuid.UUID,
+    status: str,
+    worker: str,
+    checkpoint: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> tuple[uuid.UUID, int]:
+    """Lease-fenced `record_chunk_run`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        return record_chunk_run(
+            conn, chunk_id=chunk_id, status=status, worker=worker,
+            checkpoint=checkpoint, error=error,
+        )
+
+
+def set_job_status_fenced(
+    conn, *, job_id: uuid.UUID, status: str, worker: str, error: str | None = None
+) -> None:
+    """Lease-fenced `set_job_status`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        set_job_status(conn, job_id=job_id, status=status, error=error)
+
+
+def write_stage_checkpoint_fenced(
+    conn, *, job_id: uuid.UUID, stage: str, worker: str, checkpoint: dict[str, Any]
+) -> None:
+    """Lease-fenced stage checkpoint write: the holding worker only."""
+    if not isinstance(checkpoint, dict):
+        raise PersistenceError("stage checkpoint must be a JSON object")
+    _require_status(stage, STAGE_NAMES, "stage")
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        row = conn.execute(
+            "SELECT 1 FROM chronicle.ingestion_job_stages WHERE job_id = %s AND stage = %s",
+            (job_id, stage),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown stage {stage!r} for job {job_id}")
+        conn.execute(
+            """
+            UPDATE chronicle.ingestion_job_stages
+            SET checkpoint = %s, updated_at = %s
+            WHERE job_id = %s AND stage = %s
+            """,
+            (Jsonb(checkpoint), _utcnow(), job_id, stage),
+        )
+
+
+def record_output_fenced(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    worker: str,
+    artifact_type: str,
+    artifact_sha256: str,
+    payload: dict[str, Any],
+) -> uuid.UUID:
+    """Lease-fenced `record_output`: the holding worker only."""
+    with conn.transaction():
+        require_job_lease(conn, job_id=job_id, worker=worker)
+        return record_output(
+            conn, job_id=job_id, revision_id=revision_id,
+            artifact_type=artifact_type, artifact_sha256=artifact_sha256,
+            payload=payload,
+        )
+
+
+def heartbeat_job_strict(conn, *, job_id: uuid.UUID, worker: str, lease_seconds: int = 300) -> None:
+    """Renew a worker lease; raise `LeaseLost` when the lease moved on.
+
+    Unlike `heartbeat_job` (which reports takeover as a plain conflict for
+    any caller), the strict variant tells the worker loop exactly what
+    happened: keep going after renewal, halt on `LeaseLost`.
+    """
+    try:
+        heartbeat_job(conn, job_id=job_id, worker=worker, lease_seconds=lease_seconds)
+    except PersistenceConflict as exc:
+        raise LeaseLost(str(exc)) from exc
