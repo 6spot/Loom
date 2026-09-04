@@ -1,0 +1,34 @@
+name: Chronicle Dist Capture
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/chronicle-dist-capture.yml"
+      - "apps/chronicle/webapp/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Chronicle committed bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build webapp
+        run: |
+          set -euo pipefail
+          cd apps/chronicle/webapp
+          npm ci
+          npm test
+          npm run build
+          npm run smoke:dist
+
+      - name: Upload generated dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicle-web-dist
+          path: apps/chronicle/web/dist
+          if-no-files-found: error
