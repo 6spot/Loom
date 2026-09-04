@@ -928,13 +928,17 @@ def context_chain(
     (same version, ``chunk_index`` stepped by the plan), so the chain is
     auditable and replayable chunk by chunk.
 
-    Budget gates cover the actual forwarded bytes: the initial input is
-    gated before the first chunk, and every output is serialized and gated
-    *after* its ``budget`` report is attached — because the next chunk's
-    input is that exact output document, gating the pre-report size would
-    undercount what the next model call consumes. A chain that cannot fit
-    its forwarded state raises (fail closed) instead of reporting a fit
-    the next input cannot honor.
+    Budget gates cover both sides of every model input. Before each
+    advance, the actual serialized prior state plus the current chunk is
+    gated — that sum is exactly what the model call consumes, including
+    the initial input. After each advance, the output is serialized and
+    gated *after* its ``budget`` report is attached — because the next
+    chunk's input is that exact output document, gating the pre-report
+    size would undercount what the next call consumes. Either gate
+    failing means the chain cannot honor the configured window, so a
+    shrinking output never smuggles an oversized input through: the chain
+    raises (fail closed) instead of reporting a fit the next input cannot
+    honor.
     """
     config = config or SegmentationConfig()
     if not plan.chunks:
@@ -947,12 +951,10 @@ def context_chain(
         else ""
         for c in plan.chunks
     ]
-    _ensure_input_budgets(
-        state, text[plan.chunks[0].source_start : plan.chunks[0].source_end],
-        config,
-    )
     for position, chunk in enumerate(plan.chunks):
         chunk_text = text[chunk.source_start : chunk.source_end]
+        # Pre-gate: the real input about to be consumed.
+        _ensure_input_budgets(state, chunk_text, config)
         pair = advance_context(state, chunk_text, chunk.chunk_index, config)
         # Forward lookahead stitching: each output names the bounded head of
         # the chunk that follows it (empty for the final chunk).
@@ -976,11 +978,11 @@ def context_chain(
 
 
 def _ensure_input_budgets(
-    state_in: dict[str, Any], first_chunk_text: str, config: SegmentationConfig
+    state_in: dict[str, Any], chunk_text: str, config: SegmentationConfig
 ) -> dict[str, Any]:
-    """Gate the chain's initial input the same way outputs are gated."""
+    """Gate one actual model input: serialized prior state plus chunk text."""
     return ensure_budgets(
-        len(first_chunk_text),
+        len(chunk_text),
         len(json.dumps(state_in, ensure_ascii=False, sort_keys=True)),
         config,
     )

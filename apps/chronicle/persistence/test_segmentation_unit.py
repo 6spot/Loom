@@ -440,6 +440,28 @@ class ContextContinuityTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):
             S.context_chain(plan, text, tight)
 
+    def test_shrinking_state_input_is_gated(self) -> None:
+        # D-10: the first chunk forwards a large hint state while the
+        # second chunk shrinks it. The output-only gate would accept the
+        # small second output, but the actual second input (large prior
+        # state plus its chunk) exceeds the window and must fail closed.
+        first = "曹操率軍。" + "其" * 35 + "。"
+        text = first + "\n\n" + "x" * 100
+        config = SegmentationConfig(
+            max_chunk_chars=100,
+            boundary_context_chars=0,
+            max_input_chars=4755,
+            reserved_prompt_chars=0,
+            reserved_context_chars=0,
+            reserved_output_chars=0,
+        )
+        plan = S.segment_revision(
+            text, hashlib.sha256(b"d10").hexdigest(), config
+        )
+        self.assertGreaterEqual(len(plan.chunks), 2)
+        with self.assertRaises(PersistenceError):
+            S.context_chain(plan, text, config)
+
     def test_pronoun_links_to_prior_chunk_mention(self) -> None:
         # Minimal forced boundary: the second chunk opens with a pronoun
         # whose only available antecedent lives in the first chunk.

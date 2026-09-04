@@ -66,9 +66,12 @@ ensure_sections / ensure_chunks → ingestion_sections / ingestion_chunks
 - **Budgets fail closed.** `SegmentationConfig` reserves prompt, context,
   and output space inside `max_input_chars`; the accounted total holds
   every reserve plus the actual serialized context and chunk, so an
-  oversized combination raises instead of silently overflowing. Gates
+  oversized combination raises instead of silently overflowing. Every
+  actual input (serialized prior state plus current chunk) is gated
+  before each advance, and gates
   cover the actual forwarded bytes (budget report attached), because the
-  next chunk's input is that exact output document. Zero caps disable
+  next chunk's input is that exact output document — so a shrinking
+  output can never smuggle an oversized input through. Zero caps disable
   their collection entirely (zero means empty, never unbounded). No model is
   called in C1-T5 (`model_version: none-deterministic-v1`); the version
   slots exist so C1-T6 fills them without a schema change.
