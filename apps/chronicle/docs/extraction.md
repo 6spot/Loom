@@ -65,10 +65,13 @@ ingestion_chunk_runs rows (one per model attempt, append-only)
   The accepted-output layer records the producing run attempt, and the
   C1-T5 segmentation checkpoint is preserved alongside (merged, not
   replaced).
-- **Schema bound by default.** The worker real-extract path requires
-  the Chronicle staged-bundle JSON Schema dict and fails closed
-  without it; `schema=None` in the pure function skips only the schema
-  layer for focused unit tests, never for production extraction.
+- **Schema bound by default.** The worker real-extract path binds the
+  canonical staged-bundle schema (`require_canonical_schema`: `None`
+  binds it, any non-canonical dict fails closed), so permissive
+  dictionaries cannot accept malformed candidates. `schema=None` in
+  the pure function skips only the schema layer for focused unit
+  tests, never for production extraction. Schema evolution goes
+  through contract versioning, never per-call dictionaries.
 
 ## Production model hook
 

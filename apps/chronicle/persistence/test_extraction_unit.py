@@ -513,6 +513,35 @@ class ExtractionFlowTests(unittest.TestCase):
         self.assertFalse(result2["accepted"])
 
 
+class CanonicalSchemaTests(unittest.TestCase):
+    def test_canonical_schema_loads_with_identity(self) -> None:
+        schema = X.canonical_schema()
+        self.assertEqual(
+            "https://loom.local/chronicle/schemas/chronicle-v0.1.schema.json",
+            schema["$id"],
+        )
+        self.assertEqual(schema, SCHEMA)
+
+    def test_none_binds_canonical(self) -> None:
+        self.assertEqual(SCHEMA, X.require_canonical_schema(None))
+
+    def test_permissive_dict_is_rejected(self) -> None:
+        for permissive in ({}, {"type": "object"}, {"$id": "other"}):
+            with self.assertRaises(PersistenceError):
+                X.require_canonical_schema(permissive)
+
+    def test_mutated_canonical_copy_is_rejected(self) -> None:
+        mutated = copy.deepcopy(SCHEMA)
+        mutated["required"] = ["source"]
+        with self.assertRaises(PersistenceError):
+            X.require_canonical_schema(mutated)
+
+    def test_exact_canonical_copy_passes(self) -> None:
+        self.assertEqual(
+            SCHEMA, X.require_canonical_schema(copy.deepcopy(SCHEMA))
+        )
+
+
 class HistoryTests(unittest.TestCase):
     def test_run_round_trip_replays_cleanly(self) -> None:
         bad = valid_bundle(CHUNK_0, "刘表去世", time_original="建安十三年")

@@ -263,6 +263,7 @@ class ExtractionPostgresTests(unittest.TestCase):
             return job_id, revision_id
 
     def _run(self, model, **kwargs):
+        schema = kwargs.pop("extraction_schema", SCHEMA)
         return worker.run_once(
             self.database_url,
             worker="worker-c1t6",
@@ -270,7 +271,7 @@ class ExtractionPostgresTests(unittest.TestCase):
             segmentation_config=self.segmentation_config,
             chunk_model=model,
             extraction_config=ExtractionConfig(max_repair_attempts=1),
-            extraction_schema=SCHEMA,
+            extraction_schema=schema,
             allowed_predicates=ALLOWED_PREDICATES,
             document_meta=self.doc,
             **kwargs,
@@ -436,7 +437,7 @@ class ExtractionPostgresTests(unittest.TestCase):
             segmentation_config=self.segmentation_config,
             chunk_model=model,
             extraction_config=ExtractionConfig(),
-            extraction_schema=None,
+            extraction_schema={},
             document_meta=self.doc,
         )
         self.assertIsNotNone(result)
@@ -448,7 +449,19 @@ class ExtractionPostgresTests(unittest.TestCase):
                 (job_id,),
             ).fetchone()
             self.assertEqual("failed", row[0])
-            self.assertIn("extraction_schema", row[1])
+            self.assertIn("canonical", row[1])
+
+    def test_none_schema_binds_canonical_and_completes(self) -> None:
+        job_id, _ = self._queue_job()
+        model = ScriptedChunkModel(
+            [json.dumps(canned_bundle(i, "全文"), ensure_ascii=False) for i in range(4)]
+        )
+        result = self._run(model, extraction_schema=None)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[1], "completed")
+        self.assertEqual(4, model.calls)
+        chunks = self._chunks(job_id)
+        self.assertTrue(all(status == "completed" for _, _, status, _, _ in chunks))
 
     def test_crash_window_resume_adopts_accepted_run(self) -> None:
         job_id, _ = self._queue_job()

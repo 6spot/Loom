@@ -44,6 +44,8 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Protocol
 
 from common import PersistenceError
@@ -74,6 +76,65 @@ NON_AUTHORITATIVE_NOTE = (
 #: Warning type a candidate must carry for an entity grounded only in
 #: inherited context surfaces (never as a silent resolution decision).
 INHERITED_ENTITY_WARNING = "inherited_entity_context"
+
+#: Canonical staged-bundle contract reused by C1-T6 (C0, unchanged).
+#: Resolved relative to this module so the worker binds it independent
+#: of the process working directory; it ships alongside this module in
+#: every deployment (whole ``apps/chronicle`` tree).
+CANONICAL_SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "ingestion"
+    / "schemas"
+    / "chronicle-v0.1.schema.json"
+)
+
+#: Identity marker the canonical schema must carry (fail closed on drift).
+CANONICAL_SCHEMA_ID = "https://loom.local/chronicle/schemas/chronicle-v0.1.schema.json"
+
+
+@lru_cache(maxsize=1)
+def canonical_schema() -> dict[str, Any]:
+    """Load the canonical Chronicle staged-bundle JSON Schema.
+
+    C1-T6 reuses the C0 contract without modification (replacing it is
+    an explicit non-goal): this is the single schema chunk candidates
+    are validated against.
+    """
+    try:
+        schema = json.loads(CANONICAL_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise PersistenceError(
+            f"canonical Chronicle schema is unreadable at {CANONICAL_SCHEMA_PATH}: {exc}"
+        ) from exc
+    if not isinstance(schema, dict) or schema.get("$id") != CANONICAL_SCHEMA_ID:
+        raise PersistenceError(
+            "canonical Chronicle schema failed its identity check "
+            f"(expected $id {CANONICAL_SCHEMA_ID!r}); refusing to validate "
+            "against an unrecognized contract"
+        )
+    return schema
+
+
+def require_canonical_schema(value: dict[str, Any] | None) -> dict[str, Any]:
+    """Resolve the effective validation schema, fail-closed.
+
+    ``None`` binds the canonical schema. A supplied dict must equal the
+    canonical schema exactly — a permissive dictionary such as ``{}``
+    would accept malformed candidates, so anything but the canonical
+    contract is rejected. Schema evolution goes through contract
+    versioning (a code change), never per-call dictionaries.
+    """
+    canonical = canonical_schema()
+    if value is None:
+        return canonical
+    if not isinstance(value, dict) or value != canonical:
+        raise PersistenceError(
+            "extraction_schema must be the canonical Chronicle "
+            f"staged-bundle schema ({CANONICAL_SCHEMA_ID}); refusing a "
+            "non-canonical schema that could accept malformed candidates "
+            "(fail closed)"
+        )
+    return canonical
 
 _TOP_LEVEL_KEYS = ("schema_version", "source", "entities", "events", "claims", "warnings")
 

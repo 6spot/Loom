@@ -286,8 +286,10 @@ class JobRunner:
     context-aware contract-first extraction per chunk (bounded repair,
     fail closed, append-only ``ingestion_chunk_runs`` history) instead of
     the fake chunk executor. When unset, ``extract`` keeps the C1-T4 fake
-    behavior. ``extraction_schema`` (a JSON Schema dict) and
-    ``allowed_predicates`` tighten validation when supplied; ``document_meta``
+    behavior. ``extraction_schema`` pins validation to the canonical
+    Chronicle staged-bundle schema: ``None`` binds it automatically and
+    a supplied dict must equal it exactly (anything else fails closed);
+    ``allowed_predicates`` tightens validation when supplied; ``document_meta``
     supplies document-level extraction metadata (e.g. a verified
     normalized year) over the database title.
     """
@@ -840,12 +842,11 @@ class JobRunner:
                 "real extraction requires revision_source (refusing to run "
                 "the model against unknown bytes)"
             )
-        if not isinstance(self.extraction_schema, dict):
-            raise PersistenceError(
-                "real extraction requires extraction_schema (the Chronicle "
-                "staged-bundle JSON Schema dict); refusing to accept "
-                "candidates without schema validation (fail closed)"
-            )
+        # Canonical contract binding (fail closed): None binds the
+        # canonical staged-bundle schema; any non-canonical dict is
+        # rejected so permissive schemas cannot accept malformed
+        # candidates.
+        schema = extraction.require_canonical_schema(self.extraction_schema)
         loaded = self._load_real_plan(job_id)
         if loaded is None:
             raise PersistenceError(
@@ -928,7 +929,7 @@ class JobRunner:
                     context_input=pair["input"],
                     section_label=section["label"],
                     document=document,
-                    schema=self.extraction_schema,
+                    schema=schema,
                     allowed_predicates=self.allowed_predicates,
                     config=self.extraction_config,
                 )
