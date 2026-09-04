@@ -9,7 +9,7 @@ on:
       - ".github/workflows/chronicle-t13-dev-check.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -35,72 +35,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: feat/chronicle-c1-t13-high-density-corpus
-          fetch-depth: 0
-
-      - name: Wire production model providers
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: Path, old: str, new: str, label: str) -> None:
-              text = path.read_text()
-              if new in text:
-                  return
-              if old not in text:
-                  raise SystemExit(f"patch target not found for {label}: {path}")
-              path.write_text(text.replace(old, new, 1))
-
-          worker = Path("apps/chronicle/worker/ingestion_worker.py")
-          replace_once(
-              worker,
-              "import extraction  # noqa: E402\nimport presentation_stage  # noqa: E402\n",
-              "import extraction  # noqa: E402\nimport model_provider  # noqa: E402\nimport presentation_stage  # noqa: E402\n",
-              "worker model_provider import",
-          )
-          replace_once(
-              worker,
-              "    revision_source = (\n        build_revision_source(database_url, source_dir)\n        if source_dir is not None\n        else None\n    )\n    stop = threading.Event()\n",
-              "    revision_source = (\n        build_revision_source(database_url, source_dir)\n        if source_dir is not None\n        else None\n    )\n    extraction_model, presentation_model = model_provider.models_from_env()\n    stop = threading.Event()\n",
-              "worker provider construction",
-          )
-          replace_once(
-              worker,
-              "        revision_source=revision_source,\n        on_event=lambda event, payload: print(\n",
-              "        revision_source=revision_source,\n        chunk_model=extraction_model,\n        presentation_model=presentation_model,\n        on_event=lambda event, payload: print(\n",
-              "worker run_forever provider propagation",
-          )
-          replace_once(
-              worker,
-              "    else:\n        print(\n            f\"chronicle-worker: {worker} claiming from Chronicle PostgreSQL \"\n            f\"(lease {args.lease_seconds}s) with the deterministic fake \"\n            \"executor (no --source-dir/CHRONICLE_SOURCE_DIR)\",\n            flush=True,\n        )\n    tally = run_forever(\n",
-              "    else:\n        print(\n            f\"chronicle-worker: {worker} claiming from Chronicle PostgreSQL \"\n            f\"(lease {args.lease_seconds}s) with the deterministic fake \"\n            \"executor (no --source-dir/CHRONICLE_SOURCE_DIR)\",\n            flush=True,\n        )\n    if extraction_model is not None or presentation_model is not None:\n        print(\n            \"chronicle-worker: production model providers enabled \"\n            f\"(extraction={getattr(extraction_model, 'name', 'off')}, \"\n            f\"presentation={getattr(presentation_model, 'name', 'off')})\",\n            flush=True,\n        )\n    tally = run_forever(\n",
-              "worker safe provider log",
-          )
-
-          compose = Path("compose.chronicle.yaml")
-          replace_once(
-              compose,
-              "      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}\n    volumes:\n",
-              "      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}\n      # C1-T13: real extraction / Reader Presentation are independently\n      # enabled only when their model names are set. The endpoint may be\n      # OpenAI Responses or a compatible Luna/local gateway.\n      CHRONICLE_MODEL_ENDPOINT: ${CHRONICLE_MODEL_ENDPOINT:-}\n      CHRONICLE_MODEL_API_KEY: ${CHRONICLE_MODEL_API_KEY:-}\n      CHRONICLE_MODEL_TIMEOUT_SECONDS: ${CHRONICLE_MODEL_TIMEOUT_SECONDS:-120}\n      CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}\n      CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}\n    volumes:\n",
-              "worker compose model env",
-          )
-
-          env_example = Path(".env.chronicle.example")
-          text = env_example.read_text()
-          marker = "# C1-T13 production model provider"
-          if marker not in text:
-              text += '''\n\n# C1-T13 production model provider. Leave both model names empty to preserve\n# the pre-T13 worker behavior (real stored-source segmentation, but no live\n# model extraction/presentation). Once either model is set, endpoint is\n# required. It must expose a Responses-style POST accepting {model,input}.\n# OpenAI example: https://api.openai.com/v1/responses\n# A Luna/local gateway may be used through the same compatible contract.\n# Never put credentials in CHRONICLE_MODEL_ENDPOINT.\n# CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses\n# CHRONICLE_MODEL_API_KEY=replace-with-provider-api-key\n# CHRONICLE_MODEL_TIMEOUT_SECONDS=120\n# CHRONICLE_EXTRACTION_MODEL=replace-with-extraction-model\n# CHRONICLE_PRESENTATION_MODEL=replace-with-reader-presentation-model\n'''
-              env_example.write_text(text)
-
-          docs = Path("apps/chronicle/docs/worker.md")
-          text = docs.read_text()
-          anchor = '''docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker\n```\n\n## How durability works\n'''
-          insert = '''docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker\n```\n\n### Production extraction / presentation model provider\n\nC1-T13 wires the tested `chunk_model` and `presentation_model` hooks into the\nreal worker process through a Responses-style HTTP boundary. Configure\n`CHRONICLE_MODEL_ENDPOINT` plus either or both model names:\n\n```bash\nexport CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses\nexport CHRONICLE_MODEL_API_KEY=...\nexport CHRONICLE_EXTRACTION_MODEL=...\nexport CHRONICLE_PRESENTATION_MODEL=...\n```\n\nThe endpoint is vendor-neutral at the Chronicle boundary: OpenAI can be used\ndirectly, while Luna or a local service can sit behind a compatible gateway.\nExtraction and Reader Presentation remain independent model selections. If\nboth names are empty, no network model provider is constructed and the prior\nworker behavior is unchanged. If a model name is configured without a valid\nHTTP(S) endpoint, startup fails closed. Credentials are accepted only through\n`CHRONICLE_MODEL_API_KEY`, never embedded in the endpoint URL. Provider errors\ndo not echo response bodies or API keys; the existing extraction/presentation\nvalidators still own schema, evidence grounding, uncertainty and publication\nauthority.\n\n## How durability works\n'''
-          if insert not in text:
-              if anchor not in text:
-                  raise SystemExit("worker docs insertion anchor not found")
-              docs.write_text(text.replace(anchor, insert, 1))
-          PY
 
       - uses: actions/setup-python@v6
         with:
@@ -112,6 +46,11 @@ jobs:
           python -m pip install -r apps/chronicle/persistence/requirements.txt
           python -m pip install -r apps/chronicle/read_api/requirements.txt
           python -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
+
+      - name: Source-pack operator contracts
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s apps/chronicle/corpus -p 'test_*.py' -v
 
       - name: Chronicle Compose model contract
         env:
@@ -131,15 +70,39 @@ jobs:
           grep -Fq 'CHRONICLE_PRESENTATION_MODEL: present-ci' /tmp/chronicle-compose.txt
           grep -Fq 'CHRONICLE_MODEL_TIMEOUT_SECONDS: "120"' /tmp/chronicle-compose.txt
 
-      - name: Commit validated production wiring
+      - name: Prepare pinned C1-T13 Wikisource pack
         run: |
           set -euo pipefail
-          git add apps/chronicle/worker/ingestion_worker.py compose.chronicle.yaml .env.chronicle.example apps/chronicle/docs/worker.md
-          if git diff --cached --quiet; then
-            echo "T13 production model wiring already current"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "feat(chronicle): wire production ingestion models"
-          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
+          python apps/chronicle/corpus/source_pack.py prepare \
+            --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
+            --output-dir /tmp/c1-t13-prepared \
+            > /tmp/c1-t13-prepare.log
+          cat /tmp/c1-t13-prepare.log
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/c1-t13-prepared')
+          report = json.loads((root / 'prepared.json').read_text())
+          assert report['schema'] == 'chronicle.prepared-source-pack', report
+          assert len(report['sources']) == 6, report['sources']
+          seen = set()
+          for item in report['sources']:
+              raw = (root / item['filename']).read_bytes()
+              assert len(raw) == item['bytes'] and len(raw) >= 1000, item
+              assert hashlib.sha256(raw).hexdigest() == item['sha256'], item
+              assert item['sha256'] not in seen, item
+              assert f"oldid={item['oldid']}" in item['source_label'], item
+              assert raw.endswith(b'\n'), item
+              seen.add(item['sha256'])
+              print(item['key'], item['bytes'], item['sha256'])
+          print('C1-T13 pinned acquisition: PASS')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c1-t13-prepared-source-pack
+          path: /tmp/c1-t13-prepared
+          if-no-files-found: error
+          retention-days: 7
