@@ -14,8 +14,9 @@ import "./styles/studio.css";
 const StudioLayout = lazy(() => import("./pages/studio/StudioLayout"));
 const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));
 const StudioLoginPage = lazy(() => import("./pages/studio/StudioLoginPage"));
+const StudioImportsPage = lazy(() => import("./pages/studio/StudioImportsPage"));
+const StudioImportDetailPage = lazy(() => import("./pages/studio/StudioImportDetailPage"));
 const StudioPlaceholders = {
-  ImportsPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.ImportsPage }))),
   ReviewPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.ReviewPage }))),
   SourcesPage: lazy(() => import("./pages/studio/placeholders").then((m) => ({ default: m.SourcesPage }))),
 };
@@ -117,7 +118,17 @@ export default function App() {
             element={
               <StudioGuard>
                 <Suspense fallback={<StudioFallback />}>
-                  <StudioPlaceholders.ImportsPage />
+                  <StudioImportsPage />
+                </Suspense>
+              </StudioGuard>
+            }
+          />
+          <Route
+            path="imports/:jobId"
+            element={
+              <StudioGuard>
+                <Suspense fallback={<StudioFallback />}>
+                  <StudioImportDetailPage />
                 </Suspense>
               </StudioGuard>
             }
