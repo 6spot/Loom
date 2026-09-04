@@ -101,7 +101,7 @@ class ProductionSourceFailClosedTests(unittest.TestCase):
 
         with psycopg.connect(self.database_url) as conn:
             job = conn.execute(
-                "SELECT status, last_error FROM chronicle.ingestion_jobs WHERE job_id = %s",
+                "SELECT status, error FROM chronicle.ingestion_jobs WHERE job_id = %s",
                 (job_id,),
             ).fetchone()
             self.assertEqual(job[0], "failed")
@@ -109,7 +109,7 @@ class ProductionSourceFailClosedTests(unittest.TestCase):
 
             stages = dict(
                 conn.execute(
-                    "SELECT stage_name, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",
+                    "SELECT stage, status FROM chronicle.ingestion_job_stages WHERE job_id = %s",
                     (job_id,),
                 ).fetchall()
             )

@@ -343,6 +343,7 @@ class JobRunner:
         extraction_schema: dict[str, Any] | None = None,
         allowed_predicates: list[str] | None = None,
         document_meta: dict[str, Any] | None = None,
+        allow_fake_after_real_source: bool = False,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
@@ -354,6 +355,10 @@ class JobRunner:
         ):
             raise PersistenceError(
                 "chunk_model must expose complete(prompt)->str and a string name"
+            )
+        if not isinstance(allow_fake_after_real_source, bool):
+            raise PersistenceError(
+                "allow_fake_after_real_source must be a boolean"
             )
         if presentation_model is not None and (
             not callable(getattr(presentation_model, "complete", None))
@@ -377,6 +382,7 @@ class JobRunner:
         self.extraction_schema = extraction_schema
         self.allowed_predicates = allowed_predicates
         self.document_meta = dict(document_meta or {})
+        self.allow_fake_after_real_source = allow_fake_after_real_source
 
     # -- single-transaction steps --------------------------------------
 
@@ -1802,6 +1808,27 @@ class JobRunner:
                         return outcome
                     continue
             if stage == CHUNK_BEARING_STAGE:
+                if (
+                    self.chunk_model is None
+                    and real is not real_unset
+                    and real is not None
+                    and not self.allow_fake_after_real_source
+                ):
+                    error = (
+                        "real immutable source requires an extraction model; "
+                        "refusing deterministic fake extraction"
+                    )
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker, error=error,
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker, error=error,
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": error})
+                    return "failed"
                 if self.chunk_model is not None:
                     try:
                         outcome = self._execute_real_extract(job_id)
@@ -2132,6 +2159,7 @@ def run_once(
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
+    allow_fake_after_real_source: bool = False,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
@@ -2162,6 +2190,7 @@ def run_once(
         extraction_schema=extraction_schema,
         allowed_predicates=allowed_predicates,
         document_meta=document_meta,
+        allow_fake_after_real_source=allow_fake_after_real_source,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -2184,6 +2213,7 @@ def run_forever(
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
+    allow_fake_after_real_source: bool = False,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -2203,6 +2233,7 @@ def run_forever(
                 extraction_schema=extraction_schema,
                 allowed_predicates=allowed_predicates,
                 document_meta=document_meta,
+                allow_fake_after_real_source=allow_fake_after_real_source,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.

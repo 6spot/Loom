@@ -116,6 +116,7 @@ class SegmentationPostgresTests(unittest.TestCase):
         return worker.run_once(
             self.database_url, worker="worker-c1t5",
             revision_source=source, segmentation_config=config,
+            allow_fake_after_real_source=True,
         )
 
     def test_real_path_persists_sections_chunks_and_context(self) -> None:
@@ -418,6 +419,7 @@ class SegmentationPostgresTests(unittest.TestCase):
             result = worker.run_once(
                 self.database_url, worker="worker-c1t5",
                 revision_source=loader, segmentation_config=config,
+                allow_fake_after_real_source=True,
             )
             self.assertIsNotNone(result)
             self.assertEqual(result[1], "completed")
