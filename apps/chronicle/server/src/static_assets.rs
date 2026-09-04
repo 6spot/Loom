@@ -82,6 +82,16 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioImportDetailPage.js"
     ),
     asset!(
+        "/assets/StudioReviewPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioReviewPage.js"
+    ),
+    asset!(
+        "/assets/StudioReviewDetailPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioReviewDetailPage.js"
+    ),
+    asset!(
         "/assets/StudioSourcesPage.js",
         "text/javascript; charset=utf-8",
         "dist/assets/StudioSourcesPage.js"
@@ -90,11 +100,6 @@ pub static ASSETS: &[Asset] = &[
         "/assets/studio-api.js",
         "text/javascript; charset=utf-8",
         "dist/assets/studio-api.js"
-    ),
-    asset!(
-        "/assets/placeholders.js",
-        "text/javascript; charset=utf-8",
-        "dist/assets/placeholders.js"
     ),
     asset!(
         "/assets/input.js",
@@ -154,12 +159,15 @@ fn is_spa_path(path: &str) -> bool {
         return true;
     }
     // The Studio shell itself is public because it carries no privileged
-    // data; every Studio API is authenticated server-side. C1-T10 adds one
-    // nested navigation route for a durable Ingestion Job detail page.
+    // data; every Studio API is authenticated server-side. Nested detail
+    // routes are still shell-only navigation and never bypass API auth.
     if path == "/studio" || path == "/studio/" {
         return true;
     }
     if let Some(rest) = path.strip_prefix("/studio/imports/") {
+        return is_single_segment(rest);
+    }
+    if let Some(rest) = path.strip_prefix("/studio/review/") {
         return is_single_segment(rest);
     }
     if let Some(rest) = path.strip_prefix("/studio/") {
@@ -210,6 +218,8 @@ mod tests {
             "/studio/imports/019-example-job",
             "/studio/imports/019-example-job/",
             "/studio/review",
+            "/studio/review/019-example-review",
+            "/studio/review/019-example-review/",
             "/studio/sources",
         ] {
             let (content_type, body) = resolve_web_path(path).expect(path);
@@ -227,10 +237,11 @@ mod tests {
             "/assets/StudioHomePage.js",
             "/assets/StudioImportsPage.js",
             "/assets/StudioImportDetailPage.js",
+            "/assets/StudioReviewPage.js",
+            "/assets/StudioReviewDetailPage.js",
             "/assets/StudioSourcesPage.js",
             "/assets/studio-api.js",
             "/assets/input.js",
-            "/assets/placeholders.js",
         ] {
             assert!(resolve_web_path(path).is_some(), "{path}");
         }
@@ -240,6 +251,7 @@ mod tests {
     fn studio_nested_or_unknown_paths_do_not_resolve() {
         for path in [
             "/studio/imports/job/extra",
+            "/studio/review/item/extra",
             "/studio/unknown",
             "/studio/../api/v1/studio/status",
         ] {
