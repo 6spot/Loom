@@ -35,4 +35,4 @@ Extend C0 contract-first extraction to persisted book chunks with explicit conte
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
-- 2026-09-04 — Implementation started: versioned chunk-extraction module (`persistence/extraction.py`: bounded request, mechanical validation, bounded correction, replayable ChunkRun history), worker real `extract` path (opt-in `chunk_model` hook, fake path default), inherited-context fixture, unit + PostgreSQL extract suites. Delivery PR pending; post-merge reconciliation (completed/completion_pr/merge_sha) pending.
+- 2026-09-04 — Delivery PR #516 opened (unmerged). Local evidence: 101 persistence tests OK (25 new), 35 worker tests OK (4 new PG + 3 unit), 61 prototype C0 tests OK, 36 read-model tests OK. Post-merge reconciliation (completed/completion_pr/merge_sha) pending.
