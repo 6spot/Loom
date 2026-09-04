@@ -25,4 +25,4 @@ pub use app::{build_router, AppState};
 pub use auth::{credentials_match, parse_basic_credentials};
 pub use config::{AdminCredentials, ChronicleConfig};
 pub use error::{error_body, TypedError};
-pub use upstream::{fetch_upstream, UpstreamTarget};
+pub use upstream::{fetch_upstream, forward_upstream, UpstreamTarget, MAX_PROXY_BODY_BYTES};

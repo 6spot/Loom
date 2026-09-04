@@ -1,10 +1,10 @@
 ---
 task: C1-T3
 issue: 492
-status: planned
+status: in_progress
 depends_on: [C1-T2]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-04
 completed_at:
 completion_pr:
 merge_sha:
@@ -34,3 +34,13 @@ Make uploaded UTF-8 historical texts durable first-class Documents/Revisions wit
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-04 — Implementation started: additive migration
+  `0003_chronicle_c1_documents.sql` (revision upload metadata + tip view),
+  Python store `persistence/documents.py` (controlled .txt/.md validation,
+  atomic filesystem storage under `CHRONICLE_SOURCE_DIR`, idempotent
+  duplicates, active/superseded history, source locators), Studio document
+  endpoints on the internal sidecar (`read_api/studio_documents.py`),
+  authenticated Studio proxy routes in the Rust server (no DB driver, no
+  SQL per governance), PG/filesystem integration tests, and
+  `docs/documents.md`. No Loom authority change; Amendment 0006 boundary
+  kept. Rust owns auth/routing, Python owns persistence.

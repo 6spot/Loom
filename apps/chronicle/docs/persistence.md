@@ -53,6 +53,17 @@ The first migration stores:
 
 JSONB copies preserve the accepted artifact content while relational keys provide durable identity and queryability for the later C0-T10 read model.
 
+The second migration (`0002_chronicle_c1_control_plane.sql`, C1-T1) adds
+the ingestion control plane — Documents, immutable Document Revisions,
+Jobs/Stages/Sections/Chunks/Runs, review items, and outputs — without
+touching the C0 tables above. The third migration
+(`0003_chronicle_c1_documents.sql`, C1-T3) adds per-revision upload
+metadata (filename, relative storage key, character count,
+language/source labels) plus the `document_current_revisions` tip view.
+Uploaded source bytes themselves live on the filesystem under
+`CHRONICLE_SOURCE_DIR` (see `documents.md`); the database holds the
+auditable metadata and relative keys, never absolute host paths.
+
 ## Immutability and idempotency
 
 Persistence never uses an update-on-conflict policy for accepted historical records.

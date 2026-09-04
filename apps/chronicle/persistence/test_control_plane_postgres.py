@@ -525,7 +525,7 @@ class ControlPlanePostgresTests(unittest.TestCase):
                 control_plane.set_job_status(conn, job_id=job_id, status="running")
 
     def test_migration_preserves_c0_tables_and_seed_data(self) -> None:
-        """Applying 0002 on top of 0001 keeps every C0 table present and empty-safe."""
+        """Applying C1 migrations on top of 0001 keeps every C0 table present and empty-safe."""
         with self._connect_ready() as conn:
             tables = conn.execute(
                 """
@@ -557,7 +557,11 @@ class ControlPlanePostgresTests(unittest.TestCase):
             ).fetchall()
             self.assertEqual(
                 [row[0] for row in versions],
-                ["0001_chronicle_v0.sql", "0002_chronicle_c1_control_plane.sql"],
+                [
+                    "0001_chronicle_v0.sql",
+                    "0002_chronicle_c1_control_plane.sql",
+                    "0003_chronicle_c1_documents.sql",
+                ],
             )
 
 

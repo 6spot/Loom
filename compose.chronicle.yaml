@@ -87,10 +87,20 @@ services:
   # C0 Python read model: the single historical read authority during the C1
   # migration. Internal to the Compose network; the Rust chronicle-web fronts
   # it as CHRONICLE_UPSTREAM_URL. Never publish this port to the host.
+  # C1-T3: the same sidecar also serves the internal Studio document
+  # upload/revision endpoints (auth is enforced by chronicle-web); its
+  # CHRONICLE_SOURCE_DIR persists uploaded sources on the supported data
+  # volume so content survives restart/redeploy.
   chronicle-read:
     <<: *chronicle-image
     environment:
       CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
+      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+      CHRONICLE_MAX_UPLOAD_BYTES: ${CHRONICLE_MAX_UPLOAD_BYTES:-10485760}
+    volumes:
+      - type: bind
+        source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
+        target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
     depends_on:
       postgres:
         condition: service_healthy
