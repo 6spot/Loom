@@ -45,3 +45,7 @@ Application-owned persistence only. Existing C0 staged, Resolution and canonical
 - 2026-09-04 — Reviewer FAIL D-1/D-2 addressed: DB triggers + store pre-checks
   enforce output↔revision, chunk↔section, review↔chunk same-job invariants;
   `record_output` retries return the persisted row ID; 3 new PG tests added.
+- 2026-09-04 — Reviewer FAIL D-3 addressed: generic `forbid_identity_remap`
+  trigger freezes parent identity links (jobs/sections/chunks/runs/reviews/
+  outputs) after insert while lifecycle columns stay mutable; 1 new PG
+  regression test added.

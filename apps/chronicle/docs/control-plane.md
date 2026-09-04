@@ -80,6 +80,12 @@ restart) are accepted as idempotent. Review items resolve exactly once
   output↔foreign-revision, chunk↔foreign-section, and review↔foreign-chunk
   bindings with `PersistenceConflict`, and database triggers reject the same
   cross-job bindings for any writer bypassing the store.
+- Identity links are frozen after insert: `jobs.revision_id`,
+  `sections.job_id`, `chunks.(job_id, section_id)`, `chunk_runs.chunk_id`,
+  `reviews.(job_id, chunk_id)`, and `outputs.(job_id, revision_id)` cannot be
+  remapped by later updates, so provenance cannot be split across revisions
+  after the fact. Lifecycle columns (status, lease, attempt, checkpoint,
+  error) stay mutable.
 - Output retries are idempotent: repeating an identical `record_output` call
   returns the already-persisted row's ID, so callers never hold a phantom ID.
 

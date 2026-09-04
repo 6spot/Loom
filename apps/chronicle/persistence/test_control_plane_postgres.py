@@ -425,6 +425,79 @@ class ControlPlanePostgresTests(unittest.TestCase):
             self.assertEqual(provenance["revision_id"], str(revision_id))
             self.assertEqual(provenance["job_id"], str(job_id))
 
+    def test_parent_identity_remap_is_rejected(self) -> None:
+        """D-3: parent identity keys are frozen once child rows exist.
+
+        Reproducer: output recorded for revision 1, then raw-SQL moving its
+        job to revision 2. The move must fail so provenance stays one
+        immutable revision; lifecycle columns must stay mutable.
+        """
+        with self._connect_ready() as conn:
+            document_id = control_plane.create_document(conn, title="remap")
+            rev1, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("r1"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            rev2, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256=_sha256("r2"),
+                source_bytes=10, source_media_type="text/plain",
+            )
+            job_id = control_plane.queue_job(conn, revision_id=rev1)
+            section_id = control_plane.create_section(
+                conn, job_id=job_id, section_index=0, label="scope",
+                source_start=0, source_end=10,
+            )
+            chunk_id = control_plane.record_chunk(
+                conn, job_id=job_id, section_id=section_id, chunk_index=0,
+                source_start=0, source_end=5,
+                source_sha256=_sha256("r1"), content_sha256=_sha256("c0"),
+            )
+            output_id = control_plane.record_output(
+                conn, job_id=job_id, revision_id=rev1,
+                artifact_type="assembled-extraction",
+                artifact_sha256=_sha256("assembled"),
+                payload={"chunks": 1},
+            )
+            # Moving the job to another revision is rejected...
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        "UPDATE chronicle.ingestion_jobs SET revision_id = %s WHERE job_id = %s",
+                        (rev2, job_id),
+                    )
+            # ...as is re-homing sections, chunks, reviews, outputs, and runs.
+            review_id = control_plane.open_review_item(
+                conn, job_id=job_id, kind="stage_gate", chunk_id=chunk_id,
+            )
+            other_job = control_plane.queue_job(conn, revision_id=rev2)
+            for table, key, row_id, new_parent in (
+                ("ingestion_sections", "job_id", section_id, other_job),
+                ("ingestion_chunks", "job_id", chunk_id, other_job),
+                ("review_items", "job_id", review_id, other_job),
+                ("ingestion_outputs", "revision_id", output_id, rev2),
+            ):
+                pk = {
+                    "ingestion_sections": "section_id",
+                    "ingestion_chunks": "chunk_id",
+                    "review_items": "review_id",
+                    "ingestion_outputs": "output_id",
+                }[table]
+                with self.assertRaises(Exception, msg=f"{table}.{key} remap"):
+                    with conn.transaction():
+                        conn.execute(
+                            f"UPDATE chronicle.{table} SET {key} = %s WHERE {pk} = %s",
+                            (new_parent, row_id),
+                        )
+            # Lifecycle columns stay mutable: claim/heartbeat/status still work.
+            control_plane.claim_job(conn, worker="regression-worker", job_id=job_id)
+            control_plane.heartbeat_job(conn, job_id=job_id, worker="regression-worker")
+            control_plane.set_job_status(conn, job_id=job_id, status="cancelled")
+            # Provenance still resolves to exactly one immutable revision.
+            provenance = control_plane.trace_provenance(conn, output_id=output_id)
+            self.assertEqual(provenance["revision_id"], str(rev1))
+            self.assertEqual(provenance["revision_no"], 1)
+            self.assertEqual(len(provenance["chunks"]), 1)
+
     def test_illegal_transitions_are_rejected(self) -> None:
         with self._connect_ready() as conn:
             document_id = control_plane.create_document(conn, title="illegal")

@@ -242,3 +242,58 @@ DROP TRIGGER IF EXISTS enforce_output_revision_job ON chronicle.ingestion_output
 CREATE TRIGGER enforce_output_revision_job
     BEFORE INSERT OR UPDATE ON chronicle.ingestion_outputs
     FOR EACH ROW EXECUTE FUNCTION chronicle.enforce_output_revision_job();
+
+-- Identity immutability (D-3): child-side triggers are not enough while
+-- parent identity keys stay mutable (e.g. moving a job to another revision
+-- after outputs exist would split provenance across two revisions).
+-- Identity-link columns are therefore frozen after insert; lifecycle columns
+-- (status, lease, attempt, checkpoint, error) stay mutable. One generic
+-- trigger function serves every control-plane table via TG_ARGV.
+CREATE OR REPLACE FUNCTION chronicle.forbid_identity_remap()
+RETURNS trigger AS $$
+DECLARE
+    col text;
+    old_val text;
+    new_val text;
+BEGIN
+    FOR i IN 0 .. TG_NARGS - 1 LOOP
+        col := TG_ARGV[i];
+        EXECUTE format('SELECT ($1).%I::text, ($2).%I::text', col, col)
+            INTO old_val, new_val USING OLD, NEW;
+        IF old_val IS DISTINCT FROM new_val THEN
+            RAISE EXCEPTION 'chronicle.% identity column % is immutable (was %, now %)', TG_TABLE_NAME, col, old_val, new_val;
+        END IF;
+    END LOOP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS freeze_job_identity ON chronicle.ingestion_jobs;
+CREATE TRIGGER freeze_job_identity
+    BEFORE UPDATE ON chronicle.ingestion_jobs
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('revision_id');
+
+DROP TRIGGER IF EXISTS freeze_section_identity ON chronicle.ingestion_sections;
+CREATE TRIGGER freeze_section_identity
+    BEFORE UPDATE ON chronicle.ingestion_sections
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('job_id');
+
+DROP TRIGGER IF EXISTS freeze_chunk_identity ON chronicle.ingestion_chunks;
+CREATE TRIGGER freeze_chunk_identity
+    BEFORE UPDATE ON chronicle.ingestion_chunks
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('job_id', 'section_id');
+
+DROP TRIGGER IF EXISTS freeze_chunk_run_identity ON chronicle.ingestion_chunk_runs;
+CREATE TRIGGER freeze_chunk_run_identity
+    BEFORE UPDATE ON chronicle.ingestion_chunk_runs
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('chunk_id');
+
+DROP TRIGGER IF EXISTS freeze_review_identity ON chronicle.review_items;
+CREATE TRIGGER freeze_review_identity
+    BEFORE UPDATE ON chronicle.review_items
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('job_id', 'chunk_id');
+
+DROP TRIGGER IF EXISTS freeze_output_identity ON chronicle.ingestion_outputs;
+CREATE TRIGGER freeze_output_identity
+    BEFORE UPDATE ON chronicle.ingestion_outputs
+    FOR EACH ROW EXECUTE FUNCTION chronicle.forbid_identity_remap('job_id', 'revision_id');
