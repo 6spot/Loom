@@ -343,3 +343,98 @@ h3 { margin-bottom: .45rem; font-size: 1rem; }
   align-items: center;
   gap: 1.1rem;
 }
+
+
+/* C1-T12 derived Reader Presentation: readable first, evidence always available. */
+.reader-presentation {
+  margin: 0 0 1.4rem;
+  padding: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-strong);
+  box-shadow: var(--shadow);
+}
+.reader-presentation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.reader-presentation-heading h2 { margin-bottom: .35rem; }
+.reader-version {
+  white-space: nowrap;
+  padding: .3rem .58rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 750;
+}
+.reader-provenance-note {
+  max-width: 780px;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.65;
+}
+.reader-blocks { display: grid; gap: .8rem; }
+.reader-block {
+  padding: 1rem 1.05rem;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 12px 12px 0;
+  background: var(--paper);
+}
+.reader-block-uncertainty {
+  border-left-color: var(--uncertain);
+  background: var(--uncertain-soft);
+}
+.reader-block-label {
+  margin-bottom: .35rem;
+  color: var(--gold);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.reader-block-uncertainty .reader-block-label { color: var(--uncertain); }
+.reader-block > p { margin-bottom: .75rem; font-size: 1.04rem; line-height: 1.8; }
+.reader-evidence-group > summary,
+.reader-support > summary,
+.reader-generation-meta > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.reader-support-list { display: grid; gap: .55rem; margin-top: .65rem; }
+.reader-support {
+  padding: .7rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper-strong);
+}
+.reader-support-body { margin-top: .65rem; }
+.reader-support-body code { color: var(--muted); font-size: .7rem; }
+.reader-support-body blockquote {
+  margin: .55rem 0;
+  padding-left: .8rem;
+  border-left: 2px solid var(--line);
+  font-family: ui-serif, Georgia, "Songti SC", serif;
+  line-height: 1.75;
+}
+.reader-support-body pre {
+  overflow-x: auto;
+  margin: .5rem 0 0;
+  font-size: .7rem;
+  white-space: pre-wrap;
+}
+.reader-generation-meta { margin-top: 1rem; }
+.reader-generation-meta dl { display: grid; gap: .4rem; margin-bottom: 0; }
+.reader-generation-meta dl > div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .7rem; }
+.reader-generation-meta dt { color: var(--muted); font-size: .72rem; }
+.reader-generation-meta dd { margin: 0; overflow-wrap: anywhere; font-size: .76rem; }
+
+@media (max-width: 540px) {
+  .reader-presentation-heading { display: block; }
+  .reader-version { display: inline-flex; margin-bottom: .8rem; }
+  .reader-generation-meta dl > div { grid-template-columns: 1fr; gap: .15rem; }
+}
