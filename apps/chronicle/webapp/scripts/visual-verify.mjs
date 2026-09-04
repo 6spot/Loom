@@ -18,7 +18,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, "visual");
 const ADMIN_USER = "admin";
 const ADMIN_PASSWORD = "long-password";
+// Review D-1: the server legally accepts non-control Unicode passwords, so
+// the visual pass must prove a Unicode password logs in end to end.
+const UNICODE_PASSWORD = "chronicle-密码-2026";
 const SERVER_PORT = 18080;
+const UNICODE_SERVER_PORT = 18081;
 
 const args = process.argv.slice(2);
 const baseUrlFlag = args.indexOf("--base-url");
@@ -26,6 +30,31 @@ const externalBase = baseUrlFlag >= 0 ? args[baseUrlFlag + 1] : null;
 
 function sleep(ms) {
   return new Promise((done) => setTimeout(done, ms));
+}
+
+function spawnServer(upstreamPort, port, adminPassword) {
+  const binary = join(here, "..", "..", "server", "target", "debug", "chronicle-server");
+  const server = spawn(binary, [], {
+    env: {
+      ...process.env,
+      CHRONICLE_BIND: "127.0.0.1",
+      CHRONICLE_PORT: String(port),
+      CHRONICLE_UPSTREAM_URL: `http://127.0.0.1:${upstreamPort}`,
+      CHRONICLE_ADMIN_USER: ADMIN_USER,
+      CHRONICLE_ADMIN_PASSWORD: adminPassword,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  server.stdout.on("data", (chunk) => process.stdout.write(`[server] ${chunk}`));
+  server.stderr.on("data", (chunk) => process.stderr.write(`[server] ${chunk}`));
+  return server;
+}
+
+async function stopServer(server) {
+  if (!server) return;
+  server.kill("SIGTERM");
+  await sleep(500);
+  server.kill("SIGKILL");
 }
 
 async function waitForHealth(base) {
@@ -55,20 +84,7 @@ async function main() {
     if (!base) {
       mock = await startMockUpstream(0);
       console.log(`mock upstream on 127.0.0.1:${mock.port}`);
-      const binary = join(here, "..", "..", "server", "target", "debug", "chronicle-server");
-      server = spawn(binary, [], {
-        env: {
-          ...process.env,
-          CHRONICLE_BIND: "127.0.0.1",
-          CHRONICLE_PORT: String(SERVER_PORT),
-          CHRONICLE_UPSTREAM_URL: `http://127.0.0.1:${mock.port}`,
-          CHRONICLE_ADMIN_USER: ADMIN_USER,
-          CHRONICLE_ADMIN_PASSWORD: ADMIN_PASSWORD,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      server.stdout.on("data", (chunk) => process.stdout.write(`[server] ${chunk}`));
-      server.stderr.on("data", (chunk) => process.stderr.write(`[server] ${chunk}`));
+      server = spawnServer(mock.port, SERVER_PORT, ADMIN_PASSWORD);
       base = `http://127.0.0.1:${SERVER_PORT}`;
     }
     await waitForHealth(base);
@@ -89,6 +105,17 @@ async function main() {
       check("Wuzhu source on Timeline", timelineHTML.includes("三国志·吴书·吴主传"));
       check("canonical card once", timelineHTML.split(`data-event-id="${RED_CLIFFS}"`).length - 1 === 1);
       check("public nav skips Studio chunks", studioChunks.length === 0);
+      // Review D-2: public nav links must be visibly separated, not one run.
+      const navBoxes = await page.locator(".site-nav a").evaluateAll((links) =>
+        links.map((link) => {
+          const rect = link.getBoundingClientRect();
+          return { x: rect.x, width: rect.width };
+        }),
+      );
+      check("site-nav renders three links", navBoxes.length === 3);
+      const ordered = [...navBoxes].sort((a, b) => a.x - b.x);
+      const gaps = ordered.slice(1).map((box, i) => box.x - (ordered[i].x + ordered[i].width));
+      check("site-nav links have visible gaps", gaps.every((gap) => gap >= 8));
       await page.screenshot({ path: join(OUT, "timeline.png") });
 
       // --- Public: Event Detail.
@@ -171,17 +198,34 @@ async function main() {
       const anon = await fetch(`${base}/api/v1/studio/status`);
       check("studio API 401 without credentials", anon.status === 401);
 
+      // --- Review D-1: Unicode Studio password logs in end to end.
+      // Restart the front with a Unicode admin password and log in through
+      // the real UI in a fresh tab session. With the old btoa() encoding
+      // this throws InvalidCharacterError before any request is sent.
       await page.close();
+      if (!externalBase) {
+        await stopServer(server);
+        server = spawnServer(mock.port, UNICODE_SERVER_PORT, UNICODE_PASSWORD);
+        base = `http://127.0.0.1:${UNICODE_SERVER_PORT}`;
+        await waitForHealth(base);
+      }
+      const unicodePage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      await unicodePage.goto(`${base}/studio`, { waitUntil: "networkidle" });
+      await unicodePage.getByText("Studio 登录").waitFor({ timeout: 10000 });
+      await unicodePage.getByLabel("用户名").fill(ADMIN_USER);
+      await unicodePage.getByLabel("密码").fill(UNICODE_PASSWORD);
+      await unicodePage.getByRole("button", { name: "登录 Studio" }).click();
+      await unicodePage.getByText("Studio 总览").waitFor({ timeout: 10000 });
+      const unicodeHome = await unicodePage.content();
+      check("unicode password studio login", unicodeHome.includes(ADMIN_USER));
+      await unicodePage.screenshot({ path: join(OUT, "studio-unicode-login.png") });
+      await unicodePage.close();
     } finally {
       await browser.close();
     }
     console.log(`chronicle visual verification: PASS (screenshots in ${OUT})`);
   } finally {
-    if (server) {
-      server.kill("SIGTERM");
-      await sleep(500);
-      server.kill("SIGKILL");
-    }
+    await stopServer(server);
     if (mock) await mock.close();
   }
 }

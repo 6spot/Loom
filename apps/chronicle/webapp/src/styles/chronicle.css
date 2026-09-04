@@ -332,3 +332,14 @@ h3 { margin-bottom: .45rem; font-size: 1rem; }
     flex-direction: column;
   }
 }
+
+/* C1-T9 addition (Review D-2): the ported C0 rules style `.site-nav a`
+ * but never lay out the `.site-nav` container, so desktop and mobile
+ * Chromium render the public links as one unseparated run with adjacent
+ * click targets. Lay the container out with visible spacing.
+ */
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}

@@ -11,6 +11,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { basicAuthHeader } from "./basic-auth";
 
 export interface StudioStatus {
   schema: string;
@@ -19,9 +20,7 @@ export interface StudioStatus {
   upstream: { reachable: boolean };
 }
 
-function toBasic(username: string, password: string): string {
-  return `Basic ${btoa(`${username}:${password}`)}`;
-}
+const toBasic = basicAuthHeader;
 
 interface StudioAuth {
   username: string | null;
@@ -131,6 +130,4 @@ export function useStudioAuth(): StudioAuth {
   return auth;
 }
 
-export function basicAuthHeader(username: string, password: string): string {
-  return toBasic(username, password);
-}
+export { basicAuthHeader } from "./basic-auth";
