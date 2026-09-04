@@ -11,6 +11,8 @@ on:
       - ".env.chronicle.example"
       - "apps/chronicle/Dockerfile"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/server/**"
+      - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -22,6 +24,8 @@ on:
       - ".env.chronicle.example"
       - "apps/chronicle/Dockerfile"
       - "apps/chronicle/persistence/**"
+      - "apps/chronicle/server/**"
+      - "apps/chronicle/docs/server.md"
       - "apps/chronicle/read_api/**"
       - "apps/chronicle/web/**"
       - "apps/chronicle/.artifacts/**"
@@ -46,6 +50,8 @@ jobs:
       CHRONICLE_BIND_IP: 127.0.0.1
       CHRONICLE_PORT: "18080"
       CHRONICLE_IMAGE_TAG: ci
+      CHRONICLE_ADMIN_USER: ci-studio-admin
+      CHRONICLE_ADMIN_PASSWORD: ci-studio-password-0123456789abcdef
 
     steps:
       - name: Checkout
@@ -104,6 +110,20 @@ jobs:
             "http://127.0.0.1:${CHRONICLE_PORT}/v0/search" \
             >/tmp/chronicle-search.json
 
+          # Same search through the long-lived public namespace.
+          curl -fsSG \
+            --data-urlencode 'q=曹操' \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/public/search" \
+            >/tmp/chronicle-search-public.json
+
+          # Studio auth matrix through the deployed front.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/status")
+          [ "$code" = "401" ]
+          curl -fsS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+            "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/studio/status" \
+            >/tmp/chronicle-studio.json
+
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -115,6 +135,16 @@ jobs:
           ]
           assert len(matches) == 1, matches
           assert matches[0]['source_count'] == 2, matches[0]
+
+          public = json.loads(Path('/tmp/chronicle-search-public.json').read_text())
+          assert public == payload, 'public namespace diverged from legacy route'
+
+          studio_text = Path('/tmp/chronicle-studio.json').read_text()
+          assert 'ci-studio-password' not in studio_text, 'password leaked'
+          studio = json.loads(studio_text)
+          assert studio['schema'] == 'chronicle.studio-status', studio
+          assert studio['admin_user'] == 'ci-studio-admin', studio
+          assert studio['upstream']['reachable'] is True, studio
           print('chronicle docker smoke: PASS')
           PY
 

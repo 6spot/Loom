@@ -29,16 +29,25 @@ Initial data may focus on a narrow period, but the product and data model must r
 
 ## Run the current browser slice
 
-Against an already imported Chronicle PostgreSQL database:
+The long-lived path is the Rust Chronicle server (`docs/server.md`), which
+fronts the deployment with public/Studio namespaces, single-admin Studio
+auth, and the same-origin web UI. Against an already imported Chronicle
+PostgreSQL database:
 
 ```bash
 export CHRONICLE_DATABASE_URL='postgresql://.../chronicle'
-python3 apps/chronicle/read_api/server.py --host 127.0.0.1 --port 8080
+python3 apps/chronicle/read_api/server.py --host 127.0.0.1 --port 8081 &
+CHRONICLE_UPSTREAM_URL=http://127.0.0.1:8081 \
+cargo run --manifest-path apps/chronicle/server/Cargo.toml
 ```
 
 Open `http://127.0.0.1:8080/timeline`.
 
-The browser UI calls only `/v0/timeline`, `/v0/events/{id}`, and `/v0/entities/{id}`. It does not read local ingestion artifacts or PostgreSQL directly.
+Public reads live under `/api/v1/public/*` (legacy `/v0/*` compat is
+preserved); Studio operations live under `/api/v1/studio/*` and require the
+environment-configured administrator. The browser UI calls only the read
+contracts. It does not read local ingestion artifacts or PostgreSQL
+directly.
 
 ## Initial product pillars
 

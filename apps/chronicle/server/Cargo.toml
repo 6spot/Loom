@@ -1,0 +1,29 @@
+[package]
+name = "chronicle-server"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Chronicle C1-T2 application server: public/Studio API namespaces, single-admin Studio auth, same-origin web front (application-owned, no Loom engine authority, no DB driver)"
+
+[workspace]
+
+[[bin]]
+name = "chronicle-server"
+path = "src/main.rs"
+
+[lib]
+name = "chronicle_server"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "original-uri", "query", "tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "~1.51", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+tokio = { version = "~1.51", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+
+[profile.test]
+opt-level = 0

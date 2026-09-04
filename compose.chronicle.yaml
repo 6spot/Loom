@@ -54,6 +54,42 @@ services:
   chronicle-web:
     <<: *chronicle-image
     environment:
+      CHRONICLE_BIND: 0.0.0.0
+      CHRONICLE_PORT: "8080"
+      CHRONICLE_UPSTREAM_URL: http://chronicle-read:8081
+      CHRONICLE_ADMIN_USER: ${CHRONICLE_ADMIN_USER:-}
+      CHRONICLE_ADMIN_PASSWORD: ${CHRONICLE_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chronicle-init:
+        condition: service_completed_successfully
+      chronicle-read:
+        condition: service_healthy
+    command:
+      - chronicle-server
+    ports:
+      - "${CHRONICLE_BIND_IP:-127.0.0.1}:${CHRONICLE_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    restart: unless-stopped
+
+  # C0 Python read model: the single historical read authority during the C1
+  # migration. Internal to the Compose network; the Rust chronicle-web fronts
+  # it as CHRONICLE_UPSTREAM_URL. Never publish this port to the host.
+  chronicle-read:
+    <<: *chronicle-image
+    environment:
       CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
     depends_on:
       postgres:
@@ -66,16 +102,16 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - "8080"
-    ports:
-      - "${CHRONICLE_BIND_IP:-127.0.0.1}:${CHRONICLE_PORT:-8080}:8080"
+      - "8081"
+    expose:
+      - "8081"
     healthcheck:
       test:
         [
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s

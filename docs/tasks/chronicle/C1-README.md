@@ -12,7 +12,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | Task | Issue | Status | Depends on | Scope |
 | --- | ---: | --- | --- | --- |
 | C1-T1 | #490 | planned | C0-T12 | ingestion control-plane contract + persistence |
-| C1-T2 | #491 | planned | C1-T1 | Rust Chronicle server + API namespaces + single-admin auth |
+| C1-T2 | #491 | in_progress | C1-T1 | Rust Chronicle server + API namespaces + single-admin auth |
 | C1-T3 | #492 | planned | C1-T2 | Document upload + immutable revisions/source storage |
 | C1-T4 | #493 | planned | C1-T1, C1-T2 | durable PostgreSQL-backed ingestion worker/resume |
 | C1-T5 | #494 | planned | C1-T3, C1-T4 | structure detection + semantic segmentation + context state |
