@@ -233,7 +233,7 @@ class RequestTests(unittest.TestCase):
         meta = request["request_meta"]
         self.assertEqual(meta["extraction_version"], "c1t6-v1")
         self.assertEqual(meta["contract_version"], "0.2")
-        self.assertEqual(meta["prompt_version"], "c1t6-prompt-v2")
+        self.assertEqual(meta["prompt_version"], "c1t6-prompt-v3")
         self.assertEqual(meta["locator"]["chunk_index"], 0)
         self.assertIn(CHUNK_0, request["prompt"])
         self.assertIn("建安十三年", request["prompt"])
