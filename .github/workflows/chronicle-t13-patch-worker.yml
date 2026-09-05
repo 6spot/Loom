@@ -1,0 +1,68 @@
+name: Chronicle T13 one-shot worker patch
+
+on:
+  push:
+    branches:
+      - feat/chronicle-c1-t13-high-density-corpus
+    paths:
+      - ".github/workflows/chronicle-t13-patch-worker.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t13-high-density-corpus
+
+      - name: Apply exact publication-boundary patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          worker_path = Path('apps/chronicle/worker/ingestion_worker.py')
+          text = worker_path.read_text(encoding='utf-8')
+
+          old = '''        with psycopg.connect(self.database_url) as conn:\n            corpus = resolve_publish.read_corpus_bundles(conn)\n            prior = resolve_publish.read_corpus_resolutions(conn)\n            existing_catalog = resolve_publish.read_latest_catalog(conn)\n        if new_label not in corpus:\n            raise PersistenceError(\n                f"job {job_id} bundle {new_label!r} is not persisted; "\n                "refusing to publish an unpersisted bundle (run resolve first)"\n            )\n'''
+          new = '''        with psycopg.connect(self.database_url) as conn:\n            corpus = resolve_publish.read_corpus_bundles(conn)\n            staged = resolve_publish.read_all_staged_bundles(conn)\n            prior = resolve_publish.read_corpus_resolutions(conn)\n            existing_catalog = resolve_publish.read_latest_catalog(conn)\n        if new_label not in staged:\n            raise PersistenceError(\n                f"job {job_id} bundle {new_label!r} is not persisted; "\n                "refusing to publish an unpersisted bundle (run resolve first)"\n            )\n        if sha256_json(staged[new_label]) != sha256_json(bundle):\n            raise PersistenceError(\n                f"job {job_id} bundle {new_label!r} differs from the persisted "\n                "staged bundle; refusing publication from conflicting bytes"\n            )\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one staged/published corpus block, found {text.count(old)}')
+          text = text.replace(old, new)
+
+          old = '''        except (\n            publication_v0.PublicationConflict,\n            publication_v0.PublicationV0Error,\n        ) as exc:\n            raise PersistenceError(\n                f"real publication failed closed: {exc}"\n            ) from exc\n'''
+          new = '''        except resolve_publish.publication_v0.PublicationConflict as exc:\n            raise PersistenceError(\n                f"real publication failed closed: {exc}"\n            ) from exc\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one publication exception block, found {text.count(old)}')
+          worker_path.write_text(text.replace(old, new), encoding='utf-8')
+
+          workflow_path = Path('.github/workflows/chronicle-t13-dev-check.yml')
+          workflow = workflow_path.read_text(encoding='utf-8')
+          anchor = '''      - "apps/chronicle/worker/model_provider.py"\n'''
+          addition = '''      - "apps/chronicle/worker/model_provider.py"\n      - "apps/chronicle/worker/ingestion_worker.py"\n      - "apps/chronicle/worker/test_resolve_publish_postgres.py"\n      - "apps/chronicle/persistence/resolve_publish.py"\n'''
+          if workflow.count(anchor) != 1:
+              raise SystemExit(f'expected exactly one dev-workflow path anchor, found {workflow.count(anchor)}')
+          workflow_path.write_text(workflow.replace(anchor, addition), encoding='utf-8')
+          PY
+
+      - name: Syntax-check patched Python
+        run: |
+          python3 -m py_compile \
+            apps/chronicle/worker/ingestion_worker.py \
+            apps/chronicle/persistence/resolve_publish.py
+
+      - name: Commit patch and remove this one-shot workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/chronicle-t13-patch-worker.yml
+          git add \
+            apps/chronicle/worker/ingestion_worker.py \
+            apps/chronicle/persistence/resolve_publish.py \
+            .github/workflows/chronicle-t13-dev-check.yml
+          git diff --cached --check
+          git commit -m "fix(chronicle): enforce published corpus boundary in worker"
+          git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
