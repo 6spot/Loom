@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import shutil
@@ -58,20 +59,34 @@ def year_label(year: int) -> str:
     return "公元 0 年"
 
 
-def detail_for_event(base_url: str, event: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:
+def evidence_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def detail_for_event(
+    base_url: str,
+    event: dict[str, Any],
+    expected_evidence_sha256: str,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
     event_id = str(event.get("canonical_event_id") or "")
     detail = fetch_json(base_url, f"/api/v1/public/events/{quote(event_id, safe='')}")
     evidence = None
     for representation in detail.get("representations", []):
         for claim in representation.get("claims", []):
             text = claim.get("claim", {}).get("evidence", {}).get("text")
-            if isinstance(text, str) and text:
+            if (
+                isinstance(text, str)
+                and text
+                and evidence_sha256(text) == expected_evidence_sha256
+            ):
                 evidence = text
                 break
         if evidence:
             break
     if not evidence:
-        raise AssertionError("selected Event exposes no direct evidence")
+        raise AssertionError(
+            "selected Event does not expose the expected uploaded-source evidence SHA-256"
+        )
     related = [*detail.get("participants", []), *detail.get("places", [])]
     entity = next((item for item in related if item.get("canonical_entity_id")), None)
     if entity is None:
@@ -84,10 +99,15 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--year", required=True, type=int)
     parser.add_argument("--event-id", required=True)
+    parser.add_argument("--evidence-sha256", required=True)
     args = parser.parse_args()
     base_url = args.base_url.rstrip("/")
     chrome = chrome_binary()
     year = args.year
+    if len(args.evidence_sha256) != 64 or any(
+        ch not in "0123456789abcdef" for ch in args.evidence_sha256.lower()
+    ):
+        raise ValueError("--evidence-sha256 must be a 64-character hexadecimal SHA-256")
 
     moment = fetch_json(base_url, f"/api/v1/public/historical-moment?year={year}&limit=100")
     assert moment.get("schema") == "chronicle.historical-moment", moment
@@ -112,7 +132,11 @@ def main() -> int:
         raise AssertionError(
             f"selected Event {args.event_id} is not represented in World year {year}"
         )
-    event_detail, entity, evidence_text = detail_for_event(base_url, event)
+    event_detail, entity, evidence_text = detail_for_event(
+        base_url,
+        event,
+        args.evidence_sha256.lower(),
+    )
     event_id = str(event["canonical_event_id"])
     event_title = str(event.get("display", {}).get("title") or "未命名事件")
     entity_id = str(entity["canonical_entity_id"])
@@ -161,7 +185,7 @@ def main() -> int:
     event_dom = dump_dom(chrome, f"{base_url}/events/{encoded_event}?year={year}#evidence")
     require(event_dom, 'data-view="event"', "Event detail")
     require(event_dom, 'id="evidence"', "Event evidence anchor")
-    require(event_dom, evidence_text, "exact persisted source evidence")
+    require(event_dom, evidence_text, "exact uploaded-source evidence")
     require(
         event_dom,
         f"/entities/{encoded_entity}?year={year}",
@@ -188,7 +212,7 @@ def main() -> int:
     print(
         "C1-T17 Historical World browser flow: PASS "
         f"year={year} timeline=yes search=yes event={event_id} entity={entity_id} "
-        "evidence=yes presentation=yes"
+        "uploaded_evidence=yes presentation=yes"
     )
     return 0
 
