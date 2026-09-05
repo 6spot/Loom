@@ -29,6 +29,7 @@ from common import PersistenceError
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 120.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
 
 
 class ModelProviderError(RuntimeError):
@@ -144,6 +145,7 @@ class ResponsesHTTPModel:
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": MODEL_HTTP_USER_AGENT,
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
