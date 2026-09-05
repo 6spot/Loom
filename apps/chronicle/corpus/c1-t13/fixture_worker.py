@@ -47,6 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-jobs", type=int, required=True)
     parser.add_argument(
         "--model-budget-chars",
+        "--max-input-chars",
+        dest="model_budget_chars",
         type=int,
         default=DEFAULT_FIXTURE_MODEL_BUDGET_CHARS,
         help=(
