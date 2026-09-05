@@ -1552,12 +1552,18 @@ class JobRunner:
         # No connection is open across publication: pure compute only.
         with psycopg.connect(self.database_url) as conn:
             corpus = resolve_publish.read_corpus_bundles(conn)
+            staged = resolve_publish.read_all_staged_bundles(conn)
             prior = resolve_publish.read_corpus_resolutions(conn)
             existing_catalog = resolve_publish.read_latest_catalog(conn)
-        if new_label not in corpus:
+        if new_label not in staged:
             raise PersistenceError(
                 f"job {job_id} bundle {new_label!r} is not persisted; "
                 "refusing to publish an unpersisted bundle (run resolve first)"
+            )
+        if sha256_json(staged[new_label]) != sha256_json(bundle):
+            raise PersistenceError(
+                f"job {job_id} bundle {new_label!r} differs from the persisted "
+                "staged bundle; refusing publication from conflicting bytes"
             )
         initial = resolve_publish.build_initial_resolutions(
             new_bundle=bundle, new_label=new_label, corpus=corpus
@@ -1604,10 +1610,7 @@ class JobRunner:
                 bundles=bundles, resolutions=resolutions,
                 existing_catalog=existing_catalog,
             )
-        except (
-            publication_v0.PublicationConflict,
-            publication_v0.PublicationV0Error,
-        ) as exc:
+        except resolve_publish.publication_v0.PublicationConflict as exc:
             raise PersistenceError(
                 f"real publication failed closed: {exc}"
             ) from exc
