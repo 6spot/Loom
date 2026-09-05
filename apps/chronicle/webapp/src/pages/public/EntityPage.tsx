@@ -1,35 +1,21 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import { useEntity } from "../../lib/queries";
 import { formatTime } from "../../lib/routes";
+import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
 import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
 import type { Representation, TrajectoryEvent } from "../../lib/types";
 
 function EntityRepresentation({ rep }: { rep: Representation }) {
   const entity = rep.entity ?? {};
-  const aliases = Array.isArray(entity.aliases) && entity.aliases.length
-    ? (entity.aliases as string[])
-    : [];
+  const aliases = Array.isArray(entity.aliases) && entity.aliases.length ? (entity.aliases as string[]) : [];
   return (
     <article className="source-card" data-source={rep.bundle}>
       <header>
-        <div>
-          <div className="source-title">{rep.source?.title ?? rep.bundle}</div>
-          <div className="muted">Source representation</div>
-        </div>
-        <code>
-          {rep.bundle}:{rep.ref}
-        </code>
+        <div><div className="source-title">{rep.source?.title ?? rep.bundle}</div><div className="muted">Source representation</div></div>
+        <code>{rep.bundle}:{rep.ref}</code>
       </header>
-      {aliases.length ? (
-        <div className="chip-row">
-          {aliases.map((alias) => (
-            <span key={alias} className="chip">
-              {alias}
-            </span>
-          ))}
-        </div>
-      ) : null}
+      {aliases.length ? <div className="chip-row">{aliases.map((alias) => <span key={alias} className="chip">{alias}</span>)}</div> : null}
       <ClaimsBlock claims={rep.claims ?? []} />
       <RawDetails label="查看源 Entity 记录" payload={entity} />
       <RawDetails label="查看 Source 元数据" payload={rep.source?.record ?? {}} />
@@ -51,6 +37,7 @@ function involvementChips(involvements: TrajectoryEvent["source_involvements"] =
 
 export default function EntityPage() {
   const { id } = useParams();
+  const location = useLocation();
   const entity = useEntity(id);
 
   if (entity.isPending) return <LoadingState label="实体" />;
@@ -64,11 +51,7 @@ export default function EntityPage() {
 
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
-      <div className="breadcrumbs">
-        <Link to="/timeline">时间线</Link>
-        <span>›</span>
-        <span>实体</span>
-      </div>
+      <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>实体</span></div>
       <header className="page-header">
         <p className="eyebrow">Canonical Entity</p>
         <h1>{data.display?.name ?? "未命名实体"}</h1>
@@ -82,6 +65,7 @@ export default function EntityPage() {
             ? "先显示经过 grounding 校验的现代中文 Reader Presentation；人物轨迹、Source representation、直接 Claim 与 Resolution 仍保持可核对。"
             : "此实体暂未生成经过 grounding 校验的现代中文 Reader Presentation；页面不会从常识补写传记，以下直接显示现有事件轨迹与 source-grounded 材料。"}
         </p>
+        <a className="primary-link" href="#evidence" data-test="entity-evidence-link">跳到来源与证据</a>
       </header>
 
       <ReaderPresentation presentation={readerPresentation} />
@@ -89,62 +73,30 @@ export default function EntityPage() {
       <div className="detail-grid">
         <div className="detail-main">
           <section className="panel">
-            <div className="panel-heading">
-              <h2>事件轨迹</h2>
-              <span className="count">{events.length} canonical Events</span>
-            </div>
+            <div className="panel-heading"><h2>事件轨迹</h2><span className="count">{events.length} canonical Events</span></div>
             <div className="trajectory-list">
-              {events.length ? (
-                events.map((event) => (
-                  <Link
-                    key={event.canonical_event_id}
-                    className="trajectory-card"
-                    to={`/events/${encodeURIComponent(event.canonical_event_id)}`}
-                    data-test="trajectory-event"
-                  >
-                    <strong>{event.display?.title ?? "未命名事件"}</strong>
-                    <span className="muted">{formatTime(event.time ?? {})}</span>
-                    <div className="trajectory-meta">
-                      {involvementChips(event.source_involvements ?? []).map((chip) => (
-                        <span key={chip} className="role-chip">
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <p className="muted">暂时没有关联事件。</p>
-              )}
+              {events.length ? events.map((event) => (
+                <Link
+                  key={event.canonical_event_id}
+                  className="trajectory-card"
+                  to={withHistoricalTime(`/events/${encodeURIComponent(event.canonical_event_id)}`, location.search)}
+                  data-test="trajectory-event"
+                >
+                  <strong>{event.display?.title ?? "未命名事件"}</strong>
+                  <span className="muted">{formatTime(event.time ?? {})}</span>
+                  <div className="trajectory-meta">{involvementChips(event.source_involvements ?? []).map((chip) => <span key={chip} className="role-chip">{chip}</span>)}</div>
+                </Link>
+              )) : <p className="muted">暂时没有关联事件。</p>}
             </div>
           </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>来源表示</h2>
-              <span className="count">{reps.length} representations</span>
-            </div>
-            <div className="source-stack">
-              {reps.map((rep, index) => (
-                <EntityRepresentation key={`${rep.bundle ?? "bundle"}:${rep.ref ?? index}`} rep={rep} />
-              ))}
-            </div>
+          <section className="panel" id="evidence">
+            <div className="panel-heading"><h2>来源表示</h2><span className="count">{reps.length} representations</span></div>
+            <div className="source-stack">{reps.map((rep, index) => <EntityRepresentation key={`${rep.bundle ?? "bundle"}:${rep.ref ?? index}`} rep={rep} />)}</div>
           </section>
         </div>
         <aside className="detail-side">
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>Resolution</h2>
-              <span className="count">identity</span>
-            </div>
-            <ResolutionBlock links={data.resolution_links ?? []} targetKind="entity" currentId={data.canonical_entity_id} />
-          </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>直接 Claims</h2>
-              <span className="count">{claims.length}</span>
-            </div>
-            <ClaimsBlock claims={claims} />
-          </section>
+          <section className="panel"><div className="panel-heading"><h2>Resolution</h2><span className="count">identity</span></div><ResolutionBlock links={data.resolution_links ?? []} targetKind="entity" currentId={data.canonical_entity_id} /></section>
+          <section className="panel"><div className="panel-heading"><h2>直接 Claims</h2><span className="count">{claims.length}</span></div><ClaimsBlock claims={claims} /></section>
         </aside>
       </div>
     </section>

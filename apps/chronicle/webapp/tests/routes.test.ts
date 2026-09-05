@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { formatTime, formatYear, isStudioPath, safeRouteFor } from "../src/lib/routes";
 
 describe("public routes", () => {
-  it("maps canonical Timeline/Event/Entity/Search URLs", () => {
-    expect(safeRouteFor("/")).toEqual({ view: "timeline", id: null });
+  it("maps World/Timeline/Event/Entity/Search URLs", () => {
+    expect(safeRouteFor("/")).toEqual({ view: "world", id: null });
+    expect(safeRouteFor("/world/")).toEqual({ view: "world", id: null });
     expect(safeRouteFor("/timeline/")).toEqual({ view: "timeline", id: null });
     expect(safeRouteFor("/events/abc")).toEqual({ view: "event", id: "abc" });
     expect(safeRouteFor("/entities/abc")).toEqual({ view: "entity", id: "abc" });
@@ -18,7 +19,7 @@ describe("public routes", () => {
   it("keeps studio paths out of the public route space", () => {
     expect(isStudioPath("/studio")).toBe(true);
     expect(isStudioPath("/studio/imports")).toBe(true);
-    expect(isStudioPath("/timeline")).toBe(false);
+    expect(isStudioPath("/world")).toBe(false);
     expect(safeRouteFor("/studio")).toEqual({ view: "not_found", id: null });
   });
 });

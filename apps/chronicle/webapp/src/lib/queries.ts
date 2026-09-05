@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, entityPath, eventPath, fetchJSON, searchPathFromSearch, timelinePathFromSearch } from "./api";
+import { historicalMomentPathFromSearch, type HistoricalMomentResponse } from "./historical-moment";
 import type { EntityDetail, EventDetail, SearchResponse, TimelineResponse } from "./types";
 
 export function useTimeline(search: string) {
@@ -7,6 +8,15 @@ export function useTimeline(search: string) {
   return useQuery<TimelineResponse, ApiError>({
     queryKey: ["timeline", path],
     queryFn: () => fetchJSON<TimelineResponse>(path),
+  });
+}
+
+export function useHistoricalMoment(search: string) {
+  const path = historicalMomentPathFromSearch(search);
+  return useQuery<HistoricalMomentResponse, ApiError>({
+    queryKey: ["historical-moment", path],
+    queryFn: () => fetchJSON<HistoricalMomentResponse>(path!),
+    enabled: path !== null,
   });
 }
 

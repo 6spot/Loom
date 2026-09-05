@@ -157,6 +157,9 @@ fn is_single_segment(rest: &str) -> bool {
 }
 
 fn is_spa_path(path: &str) -> bool {
+    if path == "/world" || path == "/world/" {
+        return true;
+    }
     if path == "/" || path == "/timeline" || path == "/timeline/" {
         return true;
     }
@@ -210,6 +213,8 @@ mod tests {
     fn spa_paths_resolve_to_shell() {
         for path in [
             "/",
+            "/world",
+            "/world/",
             "/timeline",
             "/timeline/",
             "/search",
