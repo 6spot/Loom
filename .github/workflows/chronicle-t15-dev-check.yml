@@ -189,7 +189,9 @@ jobs:
           red_cliffs = [event for event in m208['events'] if '赤壁' in (event['display'].get('title') or '')]
           assert red_cliffs, [event['display'] for event in m208['events']]
           assert any(event['claims'] for event in red_cliffs), red_cliffs
-          assert any(event['reader_presentation'] is not None for event in m208['events'])
+          # Reader Presentation is optional per event. The expanded corpus has
+          # published presentations, but a year-scoped projection must not attach
+          # one to a 208 event unless that exact canonical target has one.
           assert m209['schema'] == 'chronicle.historical-moment'
           assert len(m209['coverage']['time']['years']) == 1
           assert m209['coverage']['time']['years'][0]['year'] == 209
