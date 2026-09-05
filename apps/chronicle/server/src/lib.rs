@@ -67,18 +67,19 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
                 let state = studio_state.clone();
                 async move {
-                    match coverage_admin(&state, &request) {
-                        Ok(()) => coverage_proxy(&state, request.method(), uri.query()).await,
-                        Err(response) => response,
+                    if let Some(response) = coverage_admin_rejection(&state, &request) {
+                        response
+                    } else {
+                        coverage_proxy(&state, request.method(), uri.query()).await
                     }
                 }
             }),
         )
 }
 
-fn coverage_admin(state: &AppState, request: &Request<Body>) -> Result<(), Response> {
+fn coverage_admin_rejection(state: &AppState, request: &Request<Body>) -> Option<Response> {
     let Some(admin) = state.admin.as_ref() else {
-        return Err(TypedError::studio_auth_unconfigured().into_response());
+        return Some(TypedError::studio_auth_unconfigured().into_response());
     };
     let authorized = request
         .headers()
@@ -87,14 +88,14 @@ fn coverage_admin(state: &AppState, request: &Request<Body>) -> Result<(), Respo
         .and_then(parse_basic_credentials)
         .is_some_and(|(username, password)| credentials_match(admin, &username, &password));
     if authorized {
-        Ok(())
+        None
     } else {
         let mut response = TypedError::unauthorized().into_response();
         response.headers_mut().insert(
             header::WWW_AUTHENTICATE,
             HeaderValue::from_static("Basic realm=\"chronicle-studio\""),
         );
-        Err(response)
+        Some(response)
     }
 }
 
