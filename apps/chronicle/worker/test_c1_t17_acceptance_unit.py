@@ -12,6 +12,7 @@ if str(ACCEPTANCE_DIR) not in sys.path:
     sys.path.insert(0, str(ACCEPTANCE_DIR))
 
 MODULE_PATH = ACCEPTANCE_DIR / "c1_t17_gate.py"
+WORLD_BROWSER_PATH = ACCEPTANCE_DIR / "world_browser_smoke.py"
 spec = importlib.util.spec_from_file_location("c1_t17_gate", MODULE_PATH)
 assert spec and spec.loader
 G = importlib.util.module_from_spec(spec)
@@ -86,6 +87,12 @@ class GateUnitTests(unittest.TestCase):
         self.assertIn(stop_marker, source)
         self.assertIn(queue_marker, source)
         self.assertLess(source.index(stop_marker), source.index(queue_marker))
+
+    def test_world_browser_acceptance_compiles(self) -> None:
+        source = WORLD_BROWSER_PATH.read_text(encoding="utf-8")
+        compile(source, str(WORLD_BROWSER_PATH), "exec")
+        self.assertIn('parser.add_argument("--event-id", required=True)', source)
+        self.assertIn('data-view=\\"world\\"', source)
 
 
 if __name__ == "__main__":
