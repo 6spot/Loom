@@ -32,9 +32,6 @@ source_calendar.system: chinese_lunisolar_regnal, proleptic_gregorian, unknown.
 Do NOT put `claims` inside events. Do NOT use singular `place`; use `places` array. Participant key is `entity_ref`, never `ref`.
 SECTION/DOCUMENT/CONTEXT are input metadata only: do not copy arbitrary keys such as label, section_index, or kind into canonical records. SECTION.label may be used as evidence.locator.section.'''
 
-# Shorter fallback guide: enough to correct the R8 family of structural drift,
-# while intentionally leaving room for a near-8K initial request's full source
-# and full bounded ContextState during a repair ask.
 MODEL_CONTRACT_CORE = r'''CANONICAL BUNDLE SHAPE (exact field names)
 schema_version="0.1"; use temp_id only, never `id`.
 source={temp_id,kind:"source",source_type,title,language,extraction}
@@ -49,6 +46,7 @@ _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
+_TEMP_ID_RE = re.compile(r"\b(src|ent|evt|clm)_[0-9]{3,}\b")
 _WS_RE = re.compile(r"\s+")
 
 
@@ -62,7 +60,8 @@ def _json(value: Any) -> str:
 
 
 def _diagnostic_signature(value: str) -> str:
-    return _INDEX_PATH_RE.sub("/*", value)
+    value = _INDEX_PATH_RE.sub("/*", value)
+    return _TEMP_ID_RE.sub(lambda match: f"{match.group(1)}_*", value)
 
 
 def compact_validation_errors(errors: list[str]) -> list[str]:
