@@ -149,12 +149,16 @@ GROUNDING / AUTHORITY RULES
 {correction}
 SECTION
 {_json(section)}
+
 DOCUMENT
 {_json(document)}
+
 INHERITED CONTEXT (processing aid only; not evidence/authority)
 {_json(context_input)}
+
 BOUNDARY CONTEXT (interpretation only; not evidence)
 {_json({"boundary_head": boundary_head, "boundary_tail": boundary_tail})}
+
 CHUNK SOURCE TEXT
 ---BEGIN CHUNK---
 {chunk_text}
@@ -179,10 +183,13 @@ VALIDATION DIAGNOSTICS
 PRIOR CANDIDATE BODY OMITTED to preserve the fixed input budget; it remains in ChunkRun history.
 SECTION
 {_json(section)}
+
 DOCUMENT
 {_json(document)}
+
 INHERITED CONTEXT (full bounded state; interpretation only)
 {_json(context_input)}
+
 CHUNK SOURCE TEXT
 ---BEGIN CHUNK---
 {chunk_text}
