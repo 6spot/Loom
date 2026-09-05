@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { entityPath, eventPath, searchPath, timelinePath } from "../src/lib/api";
+import { entityPath, eventPath, searchPath, timelinePath, timelinePathFromSearch } from "../src/lib/api";
 
 describe("public API boundary paths", () => {
   it("timeline keeps the Rust public namespace with sane defaults", () => {
     expect(timelinePath({})).toBe("/api/v1/public/timeline?limit=50&offset=0");
-    expect(timelinePath({ from_year: 208, to_year: 208 })).toBe(
-      "/api/v1/public/timeline?from_year=208&to_year=208&limit=50&offset=0",
-    );
+    expect(timelinePath({ from_year: 208, to_year: 208 })).toBe("/api/v1/public/timeline?from_year=208&to_year=208&limit=50&offset=0");
+    expect(timelinePathFromSearch("?year=208")).toBe("/api/v1/public/timeline?from_year=208&to_year=208&limit=50&offset=0");
   });
 
   it("search requires the query term on the public namespace", () => {

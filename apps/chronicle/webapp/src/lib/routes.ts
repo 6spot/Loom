@@ -1,20 +1,14 @@
 // Shared public presentation helpers (ported from C0 web/ui.mjs so the
-// React migration keeps byte-level DOM contracts the browser smoke relies
-// on: data-event-id, data-view, data-test hooks, and zh-CN section labels).
+// React migration keeps stable DOM contracts the browser smoke relies on).
 
 export function escapeHTML(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
     switch (char) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      default: return "&#39;";
     }
   });
 }
@@ -34,6 +28,7 @@ export function formatTime(time: { start_year?: number | null; end_year?: number
 }
 
 export type PublicRoute =
+  | { view: "world"; id: null }
   | { view: "timeline"; id: null }
   | { view: "event"; id: string }
   | { view: "entity"; id: string }
@@ -42,7 +37,8 @@ export type PublicRoute =
 
 export function routeFor(pathname: string): PublicRoute {
   const path = pathname.replace(/\/+$/, "") || "/";
-  if (path === "/" || path === "/timeline") return { view: "timeline", id: null };
+  if (path === "/" || path === "/world") return { view: "world", id: null };
+  if (path === "/timeline") return { view: "timeline", id: null };
   if (path === "/search") return { view: "search", id: null };
   const event = path.match(/^\/events\/([^/]+)$/);
   if (event) return { view: "event", id: decodeURIComponent(event[1]) };
@@ -52,9 +48,8 @@ export function routeFor(pathname: string): PublicRoute {
 }
 
 export function safeRouteFor(pathname: string): PublicRoute {
-  try {
-    return routeFor(pathname);
-  } catch (error) {
+  try { return routeFor(pathname); }
+  catch (error) {
     if (error instanceof URIError) return { view: "not_found", id: null };
     throw error;
   }

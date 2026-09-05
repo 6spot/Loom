@@ -2,8 +2,7 @@
 //
 // Frontend authority stays downstream of HTTP APIs: this module only calls
 // the Rust chronicle-server public boundary (`/api/v1/public/*`, served from
-// the proven C0 read model). It never touches PostgreSQL, staged artifacts,
-// migrations, or catalog files. See tests/no-db-authority.test.ts.
+// the proven C0 read model). It never touches application persistence or catalog files.
 
 export interface TimelineQuery {
   from_year?: number;
@@ -59,10 +58,15 @@ export function timelinePathFromSearch(search: string): string {
   const query: TimelineQuery = {};
   const fromYear = incoming.get("from_year");
   const toYear = incoming.get("to_year");
+  const contextYear = incoming.get("year");
   const limit = incoming.get("limit");
   const offset = incoming.get("offset");
   if (fromYear !== null && fromYear !== "") query.from_year = Number(fromYear);
   if (toYear !== null && toYear !== "") query.to_year = Number(toYear);
+  if (query.from_year === undefined && query.to_year === undefined && contextYear !== null && contextYear !== "") {
+    query.from_year = Number(contextYear);
+    query.to_year = Number(contextYear);
+  }
   if (limit !== null && limit !== "") query.limit = Number(limit);
   if (offset !== null && offset !== "") query.offset = Number(offset);
   return timelinePath(query);
