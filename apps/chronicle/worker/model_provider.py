@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib import error, parse, request
@@ -29,7 +30,10 @@ from common import PersistenceError
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+DEFAULT_MODEL_MAX_ATTEMPTS = 3
+DEFAULT_MODEL_RETRY_BACKOFF_SECONDS = 1.0
 MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
+TRANSIENT_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504, 520, 522, 523, 524})
 
 
 class ModelProviderError(RuntimeError):
@@ -122,6 +126,8 @@ class ResponsesHTTPModel:
     api_key: str | None = None
     timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS
+    retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -132,6 +138,14 @@ class ResponsesHTTPModel:
             raise PersistenceError("model timeout must be positive")
         if self.max_response_bytes < 1:
             raise PersistenceError("model max_response_bytes must be positive")
+        if (
+            not isinstance(self.max_attempts, int)
+            or isinstance(self.max_attempts, bool)
+            or self.max_attempts < 1
+        ):
+            raise PersistenceError("model max_attempts must be a positive integer")
+        if self.retry_backoff_seconds < 0:
+            raise PersistenceError("model retry_backoff_seconds must be non-negative")
 
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
@@ -149,42 +163,77 @@ class ResponsesHTTPModel:
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        req = request.Request(
-            self.endpoint,
-            data=body,
-            headers=headers,
-            method="POST",
+
+        started = time.monotonic()
+        attempts_made = 0
+        last_transient = "timeout budget exhausted"
+
+        for attempt in range(1, self.max_attempts + 1):
+            if attempt == 1:
+                attempt_timeout = self.timeout_seconds
+            else:
+                attempt_timeout = self.timeout_seconds - (time.monotonic() - started)
+                if attempt_timeout <= 0:
+                    break
+
+            attempts_made += 1
+            req = request.Request(
+                self.endpoint,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+
+            try:
+                with request.urlopen(req, timeout=attempt_timeout) as response:
+                    content_length = response.headers.get("Content-Length")
+                    if content_length is not None:
+                        try:
+                            declared = int(content_length)
+                        except ValueError:
+                            declared = 0
+                        if declared > self.max_response_bytes:
+                            raise ModelProviderError(
+                                "model response exceeds configured size limit"
+                            )
+                    raw = response.read(self.max_response_bytes + 1)
+            except error.HTTPError as exc:
+                # Never echo a provider body: gateways may include request
+                # details, credentials, source text, or model output.
+                if exc.code not in TRANSIENT_HTTP_STATUSES:
+                    raise ModelProviderError(
+                        f"model endpoint returned HTTP {exc.code}"
+                    ) from exc
+                last_transient = f"HTTP {exc.code}"
+            except (error.URLError, TimeoutError, OSError):
+                last_transient = "transport failure"
+            else:
+                if len(raw) > self.max_response_bytes:
+                    raise ModelProviderError(
+                        "model response exceeds configured size limit"
+                    )
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ModelProviderError(
+                        "model endpoint returned invalid JSON"
+                    ) from exc
+                return _response_text(payload)
+
+            if attempt >= self.max_attempts:
+                break
+
+            remaining = self.timeout_seconds - (time.monotonic() - started)
+            backoff = self.retry_backoff_seconds * (2 ** (attempt - 1))
+            if remaining <= backoff:
+                break
+            if backoff > 0:
+                time.sleep(backoff)
+
+        raise ModelProviderError(
+            "model endpoint transient failure after "
+            f"{attempts_made} attempt(s): {last_transient}"
         )
-
-        try:
-            with request.urlopen(req, timeout=self.timeout_seconds) as response:
-                content_length = response.headers.get("Content-Length")
-                if content_length is not None:
-                    try:
-                        declared = int(content_length)
-                    except ValueError:
-                        declared = 0
-                    if declared > self.max_response_bytes:
-                        raise ModelProviderError(
-                            "model response exceeds configured size limit"
-                        )
-                raw = response.read(self.max_response_bytes + 1)
-        except error.HTTPError as exc:
-            # Do not echo a response body: gateways may include request details,
-            # credentials, or source text in their diagnostics.
-            raise ModelProviderError(
-                f"model endpoint returned HTTP {exc.code}"
-            ) from exc
-        except (error.URLError, TimeoutError, OSError) as exc:
-            raise ModelProviderError("model endpoint request failed") from exc
-
-        if len(raw) > self.max_response_bytes:
-            raise ModelProviderError("model response exceeds configured size limit")
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ModelProviderError("model endpoint returned invalid JSON") from exc
-        return _response_text(payload)
 
 
 def _fixture_models_from_env() -> tuple[Any, Any] | None:
