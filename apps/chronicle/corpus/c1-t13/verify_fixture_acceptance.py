@@ -2,11 +2,12 @@
 """Verify the full C1-T13 fixture-driven corpus loop against PostgreSQL.
 
 This checker proves development acceptance without treating fixture output as a
-live-model deployment acceptance.  It checks the persisted product path: six
+live-model deployment acceptance. It checks the persisted product path: six
 Studio jobs completed, exact frozen Claims survived normal extraction/assembly,
 real source/resolution/catalog outputs replaced the generic fake completion
-artifact, Reader Presentation was persisted with fixture provenance, and no
-review debt remains.
+artifact, Reader Presentation was persisted with fixture provenance, review
+debt converged to zero, and the reviewed resolution fixture demonstrates both a
+positive person merge and explicit retained uncertainty.
 """
 
 from __future__ import annotations
@@ -102,6 +103,35 @@ def verify(
             """,
             (expected_titles,),
         )
+        decision_rows = conn.execute(
+            """
+            SELECT COALESCE(ri.payload->'decision'->>'decision',
+                            CASE WHEN ri.status = 'dismissed' THEN 'uncertain' END),
+                   count(*)
+            FROM chronicle.review_items ri
+            JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
+            JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
+            JOIN chronicle.documents d ON d.document_id = r.document_id
+            WHERE d.title = ANY(%s)
+              AND ri.status IN ('resolved', 'dismissed')
+              AND ri.payload->>'scope' = 'resolution'
+            GROUP BY 1 ORDER BY 1
+            """,
+            (expected_titles,),
+        ).fetchall()
+        resolution_decisions = {
+            str(decision): int(count)
+            for decision, count in decision_rows
+            if decision is not None
+        }
+        if resolution_decisions.get("same_entity", 0) < 1:
+            errors.append(
+                "resolution acceptance has no reviewed positive same_entity decision"
+            )
+        if resolution_decisions.get("uncertain", 0) < 1:
+            errors.append(
+                "resolution acceptance retained no explicit uncertainty; conservative boundary is unproven"
+            )
 
         bundle_rows = conn.execute(
             """
@@ -273,7 +303,7 @@ def verify(
 
     return {
         "schema": "chronicle.c1-t13-fixture-acceptance",
-        "version": "0.1",
+        "version": "0.2",
         "passed": True,
         "development_mode": "explicit-model-boundary-fixture",
         "live_provider_deployment_acceptance": "deferred-to-C1-T17",
@@ -282,6 +312,7 @@ def verify(
         "fixture_rules": len(rules),
         "jobs_completed": len(fixture_jobs),
         "resolved_resolution_reviews": resolved_resolution_reviews,
+        "resolution_decisions": resolution_decisions,
         "chunk_run_models": run_models,
         "ingestion_outputs": outputs,
         "reader_presentations": presentations,
