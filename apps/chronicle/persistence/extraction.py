@@ -54,7 +54,7 @@ try:
     from segmentation import CONTEXT_VERSION as EXPECTED_CONTEXT_VERSION
     from segmentation import OFFSET_UNIT
 except ImportError:  # pragma: no cover - standalone import without sibling
-    EXPECTED_CONTEXT_VERSION = "c1t5-ctx-v1"
+    EXPECTED_CONTEXT_VERSION = "c1t5-ctx-v2"
     OFFSET_UNIT = "chars-normalized-utf8"
 
 #: Version of this chunk-extraction pipeline step.

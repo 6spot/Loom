@@ -62,7 +62,7 @@ SEGMENTATION_VERSION = "c1t5-v1"
 STRUCTURE_VERSION = "c1t5-struct-v1"
 
 #: Version of the ContextState input/output schema.
-CONTEXT_VERSION = "c1t5-ctx-v1"
+CONTEXT_VERSION = "c1t5-ctx-v2"
 
 #: No model is called in C1-T5; the deterministic pipeline is the fallback.
 #: C1-T6 extraction records its real model version alongside these slots.
@@ -102,6 +102,7 @@ class SegmentationConfig:
     max_places: int = 16
     max_events: int = 8
     max_time_exprs: int = 8
+    max_coreference_hints: int = 16
 
     def __post_init__(self) -> None:
         for name in (
@@ -115,6 +116,7 @@ class SegmentationConfig:
             "max_places",
             "max_events",
             "max_time_exprs",
+            "max_coreference_hints",
         ):
             value = getattr(self, name)
             if not isinstance(value, int) or value < 0:
@@ -148,6 +150,7 @@ class SegmentationConfig:
             "max_places": self.max_places,
             "max_events": self.max_events,
             "max_time_exprs": self.max_time_exprs,
+            "max_coreference_hints": self.max_coreference_hints,
         }
 
     @classmethod
@@ -891,7 +894,10 @@ def advance_context(
             recent.append({"text": snippet, "source_chunk": chunk_index})
     recent_events = _take_last(recent, config.max_events)
 
-    hints = find_pronoun_hints(chunk_text, prior_mention_texts, chunk_index)
+    hints = _take_last(
+        find_pronoun_hints(chunk_text, prior_mention_texts, chunk_index),
+        config.max_coreference_hints,
+    )
 
     bound = config.boundary_context_chars
     state_out = {
@@ -915,6 +921,179 @@ def advance_context(
         ),
     }
     return {"input": state_in, "output": state_out}
+
+
+
+# Preferred continuity floor used by the global ContextState budget trimmer.
+# These are not identity/truth decisions: all values remain processing hints.
+_PREFERRED_CONTEXT_MINIMUMS = {
+    "coreference_hints": 2,
+    "recent_events": 2,
+    "active_places": 4,
+    "active_entities": 4,
+    "inherited_time": 2,
+}
+_HARD_CONTEXT_MINIMUMS = {
+    "coreference_hints": 0,
+    "recent_events": 1,
+    "active_places": 2,
+    "active_entities": 2,
+    "inherited_time": 1,
+}
+_PREFERRED_BOUNDARY_FLOOR = 128
+_HARD_BOUNDARY_FLOOR = 64
+
+
+def _forward_context_capacity(config: SegmentationConfig) -> int:
+    """Maximum serialized forwarded ContextState safe for any legal chunk.
+
+    The capacity is derived from the same conservative accounting contract
+    as ``check_budgets``. Using ``max_chunk_chars`` here guarantees an output
+    that fits today cannot become an oversized input merely because the next
+    chunk is larger.
+    """
+    return (
+        config.max_input_chars
+        - config.reserved_prompt_chars
+        - config.reserved_context_chars
+        - config.reserved_output_chars
+        - config.max_chunk_chars
+    )
+
+
+def _budgeted_context_state(
+    state: dict[str, Any],
+    chunk_chars: int,
+    config: SegmentationConfig,
+) -> tuple[dict[str, Any], int]:
+    """Attach a conservatively self-accounting budget report.
+
+    A JSON document cannot in general encode its own exact serialized size
+    as a field and be guaranteed to reach an exact fixed point: crossing a
+    decimal-width boundary can make the measured size oscillate by one or
+    more characters. Budget accounting therefore uses a monotonic upper
+    bound instead.
+
+    The persisted ``budget.context_chars`` is always greater than or equal
+    to the actual serialized ContextState length. It may conservatively
+    over-count by a few characters, but it must never under-count.
+    """
+    candidate = copy.deepcopy(state)
+    candidate.pop("budget", None)
+
+    accounted = len(
+        json.dumps(candidate, ensure_ascii=False, sort_keys=True)
+    )
+
+    for _ in range(64):
+        candidate["budget"] = check_budgets(
+            chunk_chars, accounted, config
+        )
+        measured = len(
+            json.dumps(candidate, ensure_ascii=False, sort_keys=True)
+        )
+
+        if measured <= accounted:
+            return candidate, measured
+
+        # Monotonic only: never lower the amount already accounted.
+        accounted = measured
+
+    raise PersistenceError(
+        "serialized ContextState budget upper bound did not converge"
+    )
+
+
+def _trim_forward_context(
+    state: dict[str, Any],
+    chunk_chars: int,
+    config: SegmentationConfig,
+) -> dict[str, Any]:
+    """Deterministically bound one forwarded ContextState.
+
+    Collection maxima remain normal operating caps. This second-level guard
+    handles real long-form prose where many individually bounded collections
+    can still exceed the shared model window when serialized together.
+
+    Oldest/least-near-boundary hints are removed first. Preferred continuity
+    is preserved where possible; if necessary a smaller hard floor is used.
+    A configuration that cannot carry even that minimum still fails closed.
+    """
+    candidate = copy.deepcopy(state)
+    candidate.pop("budget", None)
+
+    capacity = _forward_context_capacity(config)
+    if capacity <= 0:
+        raise PersistenceError(
+            "segmentation config leaves no serialized ContextState capacity "
+            "after prompt/context/output reserves and max_chunk_chars"
+        )
+
+    def measured() -> int:
+        budgeted, chars = _budgeted_context_state(
+            candidate, chunk_chars, config
+        )
+        # Trim against the conservative accounted size, not merely the
+        # observed serialized length. This guarantees both the persisted
+        # document and its own budget report stay within forward capacity.
+        return max(
+            chars,
+            int(budgeted["budget"]["context_chars"]),
+        )
+
+    if measured() <= capacity:
+        return candidate
+
+    order = (
+        "coreference_hints",
+        "recent_events",
+        "active_places",
+        "active_entities",
+        "inherited_time",
+    )
+
+    # First preserve the preferred useful continuity floor.
+    for field in order:
+        minimum = _PREFERRED_CONTEXT_MINIMUMS[field]
+        while len(candidate[field]) > minimum and measured() > capacity:
+            candidate[field].pop(0)
+
+    # Boundary strings are exact source text. Keep their nearest-boundary
+    # side and shave only the far side when collection trimming is not enough.
+    while measured() > capacity and (
+        len(candidate["prev_tail"]) > _PREFERRED_BOUNDARY_FLOOR
+        or len(candidate["next_head"]) > _PREFERRED_BOUNDARY_FLOOR
+    ):
+        if len(candidate["prev_tail"]) > _PREFERRED_BOUNDARY_FLOOR:
+            candidate["prev_tail"] = candidate["prev_tail"][1:]
+        if len(candidate["next_head"]) > _PREFERRED_BOUNDARY_FLOOR:
+            candidate["next_head"] = candidate["next_head"][:-1]
+
+    # Extremely dense text may need the hard floor. Coreference is the first
+    # thing allowed to disappear because it is explicitly uncertain.
+    for field in order:
+        minimum = _HARD_CONTEXT_MINIMUMS[field]
+        while len(candidate[field]) > minimum and measured() > capacity:
+            candidate[field].pop(0)
+
+    while measured() > capacity and (
+        len(candidate["prev_tail"]) > _HARD_BOUNDARY_FLOOR
+        or len(candidate["next_head"]) > _HARD_BOUNDARY_FLOOR
+    ):
+        if len(candidate["prev_tail"]) > _HARD_BOUNDARY_FLOOR:
+            candidate["prev_tail"] = candidate["prev_tail"][1:]
+        if len(candidate["next_head"]) > _HARD_BOUNDARY_FLOOR:
+            candidate["next_head"] = candidate["next_head"][:-1]
+
+    final_chars = measured()
+    if final_chars > capacity:
+        raise PersistenceError(
+            "minimum useful ContextState exceeds the configured model input "
+            f"budget: context {final_chars} > forward capacity {capacity}; "
+            "refusing to silently discard all continuity"
+        )
+
+    return candidate
 
 
 def context_chain(
@@ -961,17 +1140,30 @@ def context_chain(
         pair["output"]["next_head"] = (
             heads[position + 1] if position + 1 < len(heads) else ""
         )
-        # Binding gate on the final forwarded document: the next chunk's
-        # input is this exact output (report attached), so the pre-report
-        # size would undercount what the next model call consumes.
-        body_chars = len(
-            json.dumps(pair["output"], ensure_ascii=False, sort_keys=True)
+        # Bound the complete forwarded state before persisting it. This is
+        # derived from max_chunk_chars, so the next chunk cannot become an
+        # oversized input simply because it is larger than this one.
+        pair["output"] = _trim_forward_context(
+            pair["output"], len(chunk_text), config
         )
-        pair["output"]["budget"] = check_budgets(len(chunk_text), body_chars, config)
-        final_chars = len(
-            json.dumps(pair["output"], ensure_ascii=False, sort_keys=True)
+
+        # Attach the final self-accounting report, then keep the existing
+        # fail-closed gate as the last line of defence.
+        budgeted, final_chars = _budgeted_context_state(
+            pair["output"], len(chunk_text), config
         )
-        pair["output"]["budget"] = ensure_budgets(len(chunk_text), final_chars, config)
+
+        # Keep the conservative self-accounting report produced above.
+        # Replacing it with a report based on ``final_chars`` would change
+        # the JSON length again and reintroduce the self-reference problem.
+        accounted_chars = max(
+            final_chars,
+            int(budgeted["budget"]["context_chars"]),
+        )
+        ensure_budgets(
+            len(chunk_text), accounted_chars, config
+        )
+        pair["output"] = budgeted
         pairs.append(pair)
         state = pair["output"]
     return pairs

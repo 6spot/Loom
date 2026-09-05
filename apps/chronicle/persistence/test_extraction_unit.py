@@ -76,7 +76,7 @@ def context_input(
     inherited: list[dict] | None = None, surfaces: list[str] | None = None
 ) -> dict:
     return {
-        "version": "c1t5-ctx-v1",
+        "version": X.EXPECTED_CONTEXT_VERSION,
         "chunk_index": -1,
         "inherited_time": inherited or [],
         "active_entities": [
