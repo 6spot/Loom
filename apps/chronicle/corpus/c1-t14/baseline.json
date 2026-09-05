@@ -1,0 +1,55 @@
+{
+  "schema": "chronicle.coverage-baseline",
+  "version": "0.1",
+  "authority": {
+    "kind": "retained_measurement",
+    "historical_truth": false,
+    "completeness_claim": false,
+    "note": "Counts describe the accepted C1-T13 Chronicle corpus run only; they do not measure how much history actually existed or has been completely captured."
+  },
+  "acceptance_source": {
+    "task": "C1-T13",
+    "issue": 502,
+    "actions_run": 33932012632,
+    "attempt": 2,
+    "artifact_id": 9959241697,
+    "artifact_zip_sha256": "41855c985ecc6dd312016c0ccd5c7d1764e511f7733fd66dbdd2a9af02bedc5a",
+    "catalog_sha256": "f93f08793d6736cd39e9cc9c2aba82360045ac074b2479c70218ff16e873e0cb"
+  },
+  "focus_window": {
+    "approximate_start_year": 196,
+    "approximate_end_year": 220,
+    "note": "The retained complete biographies naturally contain material outside this product focus window."
+  },
+  "sources": [
+    "三國志·蜀書·先主傳",
+    "三國志·蜀書·諸葛亮傳",
+    "三國志·吳書·周瑜傳",
+    "三國志·吳書·魯肅傳",
+    "三國志·吳書·呂蒙傳",
+    "三國志·魏書·荀彧傳"
+  ],
+  "metrics": {
+    "documents": 6,
+    "document_revisions": 6,
+    "chunks": 32,
+    "source_bundles": 8,
+    "staged_entities": 96,
+    "staged_events": 78,
+    "staged_claims": 75,
+    "canonical_entities": 87,
+    "canonical_events": 70,
+    "canonical_event_relations": 2,
+    "reader_presentations_published": 25,
+    "reader_presentation_blocks": 58,
+    "claim_supports": 58,
+    "open_reviews": 0
+  },
+  "known_gaps": [
+    "The six-source development acceptance used a source-bound model fixture; live-provider deployment quality, latency and reliability remain C1-T17 acceptance work.",
+    "The corpus is biographical/source-selective and must not be treated as balanced coverage across Wei, Shu, Wu, court, local society, economy, culture or geography.",
+    "Events without a verified normalized year remain visible as unknown-time coverage rather than being assigned an inferred year.",
+    "No additional canonical event relation was asserted by the C1-T13 pack; relation growth requires source evidence, not a coverage target.",
+    "A year with zero represented Events means only that the current Chronicle corpus has no published Event at that observed normalized year."
+  ]
+}
