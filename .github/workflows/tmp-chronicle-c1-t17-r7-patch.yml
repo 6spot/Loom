@@ -1,0 +1,97 @@
+name: Temporary Chronicle C1-T17 R7 patch
+
+on:
+  push:
+    branches:
+      - tmp/chronicle-c1-t17-r7-patch
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: tmp/chronicle-c1-t17-r7-patch
+      - name: Apply exact bounded-correction patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("apps/chronicle/persistence/extraction.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    fallback = build_extraction_prompt(
+              chunk_text=chunk_text,
+              section=request["request_meta"]["section"],
+              document=document,
+              context_input=context_input,
+              boundary_head="",
+              boundary_tail="",
+              validation_errors=validation_errors,
+              previous_candidate={
+                  "note": (
+                      "previous candidate omitted to keep this correction bounded; "
+                      "regenerate the complete bundle from CHUNK SOURCE TEXT and the "
+                      "deterministic validation errors"
+                  )
+              },
+          )
+          '''
+          new = '''    compact_json = lambda value: json.dumps(
+              value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+          )
+          fallback = f"""You are Chronicle chunk-extraction contract-v{CONTRACT_VERSION}.
+
+          COMPACT CORRECTION RE-ASK
+          The previous candidate is omitted to keep this correction bounded. Regenerate
+          one complete compact JSON bundle from the immutable CHUNK SOURCE TEXT and the
+          deterministic validation errors below. Correct every listed error. Do not add
+          outside knowledge, and do not delete unrelated source-grounded facts.
+
+          REQUIRED RULES
+          - Return exactly one JSON object with keys schema_version, source, entities, events, claims, warnings; no prose or Markdown.
+          - Use INHERITED CONTEXT only to interpret references/time; it is never evidence or historical authority.
+          - Every Claim.evidence.text must be an exact CHUNK SOURCE TEXT substring.
+          - Use job-local temp IDs only; never emit canonical `id` values.
+          - Keep ambiguous references unresolved; inherited-only entities require an `inherited_entity_context` warning naming them.
+          - Every Claim assessment starts `unassessed`; extraction confidence is separate from historical assessment.
+          - Preserve explicit/inherited traditional time verbatim. Inherited time lists inherited_fields. Never invent normalized month/day; normalized year is allowed only when DOCUMENT supplies the verified mapping.
+          - Keep distinct occurrences/facts distinct, avoid duplicate records, and use an `ontology_gap` warning rather than forcing a predicate that does not fit.
+          - If a listed error cannot be repaired without fabrication, drop only the ungrounded record and emit a warning. Never truncate source evidence.
+          - Keep JSON compact without dropping distinct source-grounded facts.
+
+          VALIDATION ERRORS
+          {compact_json(validation_errors)}
+
+          SECTION
+          {compact_json(request["request_meta"]["section"])}
+
+          DOCUMENT
+          {compact_json(document)}
+
+          INHERITED CONTEXT (processing aid only; never evidence)
+          {compact_json(context_input)}
+
+          CHUNK SOURCE TEXT
+          ---BEGIN CHUNK---
+          {chunk_text}
+          ---END CHUNK---
+          """
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one fallback block, found {text.count(old)}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+      - name: Compile extraction module
+        run: python -m py_compile apps/chronicle/persistence/extraction.py
+      - name: Run R6/R7 live-limit regressions
+        run: python apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
+      - name: Commit patched extraction implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/chronicle/persistence/extraction.py
+          git diff --cached --check
+          git commit -m "fix(chronicle): keep correction reasks within input budget"
+          git push origin HEAD:tmp/chronicle-c1-t17-r7-patch
