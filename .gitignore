@@ -7,6 +7,10 @@ apps/chronicle/server/target/
 apps/chronicle/webapp/node_modules/
 apps/chronicle/webapp/scripts/visual/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Environment / secrets
 .env
 .env.*
