@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from coverage import build_coverage
+from historical_moment import build_historical_moment
 from read_common import ReadModelError, ReadModelNotFound
 from reader_presentation import latest_reader_presentation
 from search import search_catalog
@@ -80,6 +81,23 @@ def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, di
                 repo.conn,
                 from_year=_optional_int(query, "from_year"),
                 to_year=_optional_int(query, "to_year"),
+            )
+
+        if path == "/v0/historical-moment":
+            query = parse_qs(raw_query, keep_blank_values=True)
+            allowed = {"year", "from_year", "to_year", "limit", "offset"}
+            unknown = sorted(set(query) - allowed)
+            if unknown:
+                raise ReadModelError(f"unknown query parameter(s): {', '.join(unknown)}")
+            limit = _optional_int(query, "limit")
+            offset = _optional_int(query, "offset")
+            return 200, build_historical_moment(
+                repo.conn,
+                year=_optional_int(query, "year"),
+                from_year=_optional_int(query, "from_year"),
+                to_year=_optional_int(query, "to_year"),
+                limit=50 if limit is None else limit,
+                offset=0 if offset is None else offset,
             )
 
         if path == "/v0/search":
