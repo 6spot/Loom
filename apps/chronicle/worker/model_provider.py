@@ -27,7 +27,7 @@ from urllib import error, parse, request
 
 from common import PersistenceError
 
-DEFAULT_MODEL_TIMEOUT_SECONDS = 120.0
+DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
 

@@ -92,7 +92,7 @@ def safe_provider(config: dict[str, str]) -> dict[str, Any]:
         "api_key_present": bool(config.get("CHRONICLE_MODEL_API_KEY", "").strip()),
         "extraction_model": config["CHRONICLE_EXTRACTION_MODEL"],
         "presentation_model": config["CHRONICLE_PRESENTATION_MODEL"],
-        "timeout_seconds": config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS", "120"),
+        "timeout_seconds": config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS", "600"),
         "fixture_mode": False,
     }
 

@@ -59,7 +59,7 @@ class ResponsesHTTPModelTests(unittest.TestCase):
             self.assertEqual("现代中文", provider.complete("原文"))
 
         self.assertEqual("https://gateway.example/v1/responses", captured["url"])
-        self.assertEqual(120.0, captured["timeout"])
+        self.assertEqual(600.0, captured["timeout"])
         self.assertEqual({"model": "reader-v1", "input": "原文"}, captured["body"])
         self.assertEqual("Bearer secret-token", captured["headers"]["Authorization"])
         self.assertEqual(
