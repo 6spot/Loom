@@ -124,7 +124,7 @@ export default function StudioCoveragePage() {
         <CardHeader>
           <CardTitle>Time density</CardTitle>
           <CardDescription>
-            observed normalized year：{data.time.known_year_span.start_year ?? "?"}–{data.time.known_year_span.end_year ?? "?"}。0 只表示当前 corpus 未表示。
+            observed normalized year：{data.time.known_year_span.start_year ?? "?"}–{data.time.known_year_span.end_year ?? "?"}。0 只表示当前 corpus 未表示；Coverage 为 0 不表示该时期历史上没有事件。
           </CardDescription>
         </CardHeader>
         <CardContent>
