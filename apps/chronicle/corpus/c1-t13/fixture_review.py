@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Resolve C1-T13 development ReviewItems through the authenticated Studio API.
 
-This is an acceptance harness, not identity authority.  The current development
-policy deliberately keeps every candidate ``uncertain`` while recording the
-full Studio review projection needed to freeze a later, explicit positive-merge
-allowlist.  Fixture replay therefore exercises the real human-review gate
-without treating exact-name matching or model confidence as historical truth.
+This is an acceptance harness, not runtime identity authority.  Positive merge
+choices are restricted to a literal, reviewed allowlist of historical persons
+whose left/right Studio projections have been inspected in the pinned T13 pack.
+Everything else remains ``uncertain``.  Exact-name blocking, model confidence,
+or candidate signals alone never authorize a merge.
 
 Production deployments never run this script.
 """
@@ -22,6 +22,12 @@ from urllib import error, request
 
 class AcceptanceError(RuntimeError):
     pass
+
+
+# Reviewed against the source-bound contexts captured by the T13 fixture pack.
+# Keep deliberately tiny.  Adding a name requires inspecting both source records
+# and documenting the new representative in the T13 evidence/task record.
+_POSITIVE_PERSON_IDENTITIES = frozenset({"曹操", "周瑜"})
 
 
 def _auth(user: str, password: str) -> str:
@@ -70,25 +76,50 @@ def _review_detail(*, base_url: str, auth: str, review_id: str) -> dict[str, Any
     return detail
 
 
-def _decision_for(detail: dict[str, Any]) -> tuple[str, float, str]:
-    """Current fail-safe policy: preserve every candidate as uncertain.
+def _record(detail: dict[str, Any], side: str) -> dict[str, Any]:
+    context = detail.get(f"{side}_context")
+    if not isinstance(context, dict):
+        return {}
+    record = context.get("record")
+    return record if isinstance(record, dict) else {}
 
-    T13 will replace selected cases with a literal reviewed allowlist only after
-    the captured left/right contexts have been inspected.  Do not infer identity
-    from suggestion confidence, candidate signals, or exact-name blocking here.
-    """
+
+def _decision_for(detail: dict[str, Any]) -> tuple[str, float, str]:
+    """Apply only the frozen reviewed allowlist; preserve all other uncertainty."""
     allowed = detail.get("allowed_decisions")
     if not isinstance(allowed, list) or "uncertain" not in allowed:
         raise AcceptanceError(
             f"review {detail.get('review_id')} does not allow conservative uncertain"
         )
+
+    left = _record(detail, "left")
+    right = _record(detail, "right")
+    if (
+        detail.get("link_kind") == "entity"
+        and "same_entity" in allowed
+        and left.get("type") == right.get("type") == "person"
+        and isinstance(left.get("name"), str)
+        and left.get("name") == right.get("name")
+        and left.get("name") in _POSITIVE_PERSON_IDENTITIES
+    ):
+        name = left["name"]
+        return (
+            "same_entity",
+            1.0,
+            (
+                "C1-T13 reviewed fixture allowlist: the captured left/right source "
+                f"records both identify the same historical person {name}; this is an "
+                "explicit acceptance decision, not an inference from match confidence."
+            ),
+        )
+
     return (
         "uncertain",
         0.5,
         (
             "C1-T13 deterministic development fixture: retain candidate uncertainty; "
-            "fixture replay exercises the real review gate but does not claim human "
-            "historical identity adjudication."
+            "the reviewed positive allowlist does not cover this pair, so exact-name "
+            "blocking alone is insufficient to merge it."
         ),
     )
 
@@ -189,9 +220,8 @@ def run(*, base_url: str, user: str, password: str) -> dict[str, Any]:
             payload={},
         ).get("job")
         # C1-T4's durable lifecycle intentionally resumes needs_review ->
-        # running with no lease.  Such a row is claimable by the next worker;
-        # it does NOT bounce through queued.  Verify the exact contract so this
-        # fixture harness cannot silently redefine lifecycle authority.
+        # running with no lease. Such a row is claimable by the next worker;
+        # it does NOT bounce through queued.
         if not isinstance(resumed_job, dict) or resumed_job.get("status") != "running":
             raise AcceptanceError(f"job {job_id} did not return to lease-less running on resume")
         if resumed_job.get("lease_owner") is not None or resumed_job.get("lease_expires_at") is not None:
@@ -207,10 +237,17 @@ def run(*, base_url: str, user: str, password: str) -> dict[str, Any]:
     if remaining:
         raise AcceptanceError(f"open resolution review debt remains after fixture review: {len(remaining)}")
 
+    decisions = {name: 0 for name in ("same_entity", "same_occurrence", "related_occurrence", "not_same", "uncertain")}
+    for item in resolved:
+        decision = item["decision"]
+        decisions[decision] = decisions.get(decision, 0) + 1
+
     return {
         "schema": "chronicle.c1-t13-fixture-review",
-        "version": "0.2",
-        "policy": "conservative-uncertain-with-captured-context-v2",
+        "version": "0.3",
+        "policy": "reviewed-positive-person-allowlist-otherwise-uncertain-v3",
+        "positive_person_allowlist": sorted(_POSITIVE_PERSON_IDENTITIES),
+        "decision_counts": decisions,
         "resolved_reviews": resolved,
         "resolved_review_count": len(resolved),
         "jobs_with_review_candidates": sorted(touched_jobs),
