@@ -1,10 +1,10 @@
 ---
 task: C1-T15
 issue: 504
-status: planned
+status: in_progress
 depends_on: [C1-T13, C1-T14]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-05
 completed_at:
 completion_pr:
 merge_sha:
@@ -33,3 +33,4 @@ Expose a grounded Historical Moment projection for a selected year/period using 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-05 — Started from canonical `main` only after C1-T14 delivery, post-merge Task Ledger reconciliation, and Issue #503 closure. Initial implementation boundary is a deterministic read-only `Historical Moment Projection` over the latest published Chronicle canonical catalog, reusing Coverage absence/density semantics and persisted canonical/source/Claim/Reader Presentation data. It will not infer unsupported territorial control, precise person locations, political ownership, troop counts, or other complete-world-state facts.
