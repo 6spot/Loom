@@ -1,13 +1,13 @@
 ---
 task: C1-T13
 issue: 502
-status: in_progress
+status: completed
 depends_on: [C1-T10, C1-T11, C1-T12]
 created_at: 2026-09-04
 started_at: 2026-09-05
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-05
+completion_pr: 527
+merge_sha: 980ba7bd2d86494ffda7af1da797010936b525bb
 ---
 
 # Chronicle First High-Density Historical Corpus
@@ -31,6 +31,15 @@ Use the real Studio Book-to-Chronicle path to ingest at least five previously un
 - [x] PostgreSQL/browser/Studio real-data checks pass.
 - [x] known corpus gaps are documented.
 
+## Verification
+
+- Delivery PR #527 merged to `main` as `980ba7bd2d86494ffda7af1da797010936b525bb` on 2026-09-05.
+- Chronicle PR workflow run `33933558435` completed successfully against the accepted PR merge ref on PostgreSQL 18.6 / pgvector 0.8.6. It passed persistence contracts, all 70 durable worker tests, Rust control-plane/server tests, read-model/UI/webapp contracts, two-source browser smoke, and server-front/Studio-auth smoke.
+- The permanent publication-authority regressions executed in that worker suite and passed: `test_resolution_touching_inflight_bundle_is_not_published_history` and `test_staged_inflight_bundle_is_not_published_corpus_input`.
+- Chronicle Docker workflow run `33933558513` completed successfully: Compose validation, clean stack startup, imported-world HTTP verification, and cleanup all passed.
+- Full six-source development acceptance passed in Actions run `33932012632` rerun attempt 2. Retained artifact `c1-t13-fixture-corpus-evidence` has artifact ID `9959241697` and ZIP SHA-256 `41855c985ecc6dd312016c0ccd5c7d1764e511f7733fd66dbdd2a9af02bedc5a`.
+- Final accepted corpus metrics are 6 Documents, 6 immutable Revisions, 32 chunks, 96 staged Entities, 78 staged Events, 75 staged Claims, 87 CanonicalEntities, 70 CanonicalEvents, 25 zh-CN Reader Presentations, 58 Claim-supported presentation blocks, and zero open resolution reviews.
+
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
@@ -47,3 +56,4 @@ Use the real Studio Book-to-Chronicle path to ingest at least five previously un
 - 2026-09-05 — Final retained metrics: Documents `0 -> 6`, Revisions `0 -> 6`, chunks `0 -> 32`, staged Entities `71 -> 96`, staged Events `53 -> 78`, staged Claims `50 -> 75`, canonical Entities `66 -> 87`, canonical Events `45 -> 70`, Reader Presentations `0 -> 25`, presentation blocks/supports `0 -> 58`, open reviews `0`. All 25 frozen source-bound Claims persisted and all 58 presentation blocks have Claim support. Final catalog SHA-256 is `f93f08793d6736cd39e9cc9c2aba82360045ac074b2479c70218ff16e873e0cb`.
 - 2026-09-05 — Final evidence artifact: `c1-t13-fixture-corpus-evidence`, artifact ID `9959241697`, ZIP SHA-256 `41855c985ecc6dd312016c0ccd5c7d1764e511f7733fd66dbdd2a9af02bedc5a`. Detailed source hashes, before/after metrics, review examples, grounding guarantees and known gaps are recorded in `apps/chronicle/corpus/c1-t13/acceptance.md`.
 - 2026-09-05 — Implementation acceptance is satisfied, but this task intentionally remains `in_progress`: repository governance requires the delivery PR to merge first, then a canonical-main Task Ledger reconciliation with the actual PR number and merge SHA before Issue #502 may close or C1-T14 may become READY.
+- 2026-09-05 — Delivery PR #527 merged to canonical `main` as `980ba7bd2d86494ffda7af1da797010936b525bb` after Chronicle run `33933558435` and Chronicle Docker run `33933558513` both passed. This reconciliation records the actual delivery evidence and marks C1-T13 completed; downstream READY eligibility is recalculated only after the reconciliation itself reaches `main`.
