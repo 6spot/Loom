@@ -40,7 +40,7 @@ class FakeResponse:
 
 
 class ResponsesHTTPModelTests(unittest.TestCase):
-    def test_posts_model_input_and_bearer_auth(self) -> None:
+    def test_posts_model_input_bearer_auth_and_product_user_agent(self) -> None:
         provider = model_provider.ResponsesHTTPModel(
             name="reader-v1",
             endpoint="https://gateway.example/v1/responses",
@@ -59,9 +59,14 @@ class ResponsesHTTPModelTests(unittest.TestCase):
             self.assertEqual("现代中文", provider.complete("原文"))
 
         self.assertEqual("https://gateway.example/v1/responses", captured["url"])
-        self.assertEqual(120.0, captured["timeout"])
+        self.assertEqual(600.0, captured["timeout"])
         self.assertEqual({"model": "reader-v1", "input": "原文"}, captured["body"])
         self.assertEqual("Bearer secret-token", captured["headers"]["Authorization"])
+        self.assertEqual(
+            model_provider.MODEL_HTTP_USER_AGENT,
+            captured["headers"]["User-agent"],
+        )
+        self.assertFalse(captured["headers"]["User-agent"].startswith("Python-urllib"))
 
     def test_nested_output_text_is_supported(self) -> None:
         provider = model_provider.ResponsesHTTPModel(

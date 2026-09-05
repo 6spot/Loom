@@ -253,6 +253,62 @@ class BudgetTests(unittest.TestCase):
             self.assertTrue(pair["output"]["budget"]["fits"])
 
 
+
+    def test_long_pronoun_dense_context_is_trimmed_to_budget(self) -> None:
+        # Regression for the C1-T17 real-machine failure: a complete
+        # long-form historical source produced dozens of uncertain pronoun
+        # hints in its first ~2K-char chunk and overflowed ContextState before
+        # extraction could begin.
+        sentence = (
+            "建安十三年，曹操谓刘备曰：吾与汝共论天下，其志如此，"
+            "公何以处之？先主曰：吾不忍也。"
+        )
+        text = sentence * 180
+        self.assertGreater(len(text), 7000)
+
+        config = SegmentationConfig()
+        plan = S.segment_revision(
+            text,
+            hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            config,
+        )
+        self.assertGreaterEqual(len(plan.chunks), 4)
+
+        first = plan.chunks[0]
+        first_text = text[first.source_start : first.source_end]
+        raw_hints = S.find_pronoun_hints(first_text, [], first.chunk_index)
+        self.assertGreater(len(raw_hints), config.max_coreference_hints)
+
+        pairs = S.context_chain(plan, text, config)
+        capacity = S._forward_context_capacity(config)
+
+        for pair in pairs:
+            out = pair["output"]
+            serialized = len(
+                json.dumps(out, ensure_ascii=False, sort_keys=True)
+            )
+            accounted = int(out["budget"]["context_chars"])
+
+            self.assertTrue(out["budget"]["fits"])
+            self.assertLessEqual(serialized, accounted)
+            self.assertLessEqual(accounted, capacity)
+            self.assertTrue(
+                S.check_budgets(
+                    config.max_chunk_chars,
+                    accounted,
+                    config,
+                )["fits"]
+            )
+
+        self.assertLess(
+            len(pairs[0]["output"]["coreference_hints"]),
+            len(raw_hints),
+        )
+
+        for before, after in zip(pairs, pairs[1:]):
+            self.assertEqual(after["input"], before["output"])
+
+
 class ContextContinuityTests(unittest.TestCase):
     def test_chain_input_matches_previous_output(self) -> None:
         text, config, plan = _fixture_plan()
@@ -440,13 +496,11 @@ class ContextContinuityTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):
             S.context_chain(plan, text, tight)
 
-    def test_shrinking_state_input_is_gated(self) -> None:
-        # D-10: the first chunk forwards a large hint state while the
-        # second chunk shrinks it. The output-only gate would accept the
-        # small second output, but the actual second input (large prior
-        # state plus its chunk) exceeds the window and must fail closed.
-        first = "曹操率軍。" + "其" * 35 + "。"
-        text = first + "\n\n" + "x" * 100
+    def test_oversized_inherited_state_is_gated_before_advance(self) -> None:
+        # D-10: an already oversized inherited ContextState must fail at
+        # the input gate before the current chunk is allowed to advance or
+        # shrink it. Ctx-v2 normally prevents producing such a state, but
+        # the gate remains mandatory for persisted/resumed/corrupt input.
         config = SegmentationConfig(
             max_chunk_chars=100,
             boundary_context_chars=0,
@@ -455,12 +509,30 @@ class ContextContinuityTests(unittest.TestCase):
             reserved_context_chars=0,
             reserved_output_chars=0,
         )
-        plan = S.segment_revision(
-            text, hashlib.sha256(b"d10").hexdigest(), config
+
+        state = S.initial_context()
+        state["coreference_hints"] = [
+            {
+                "pronoun": "其",
+                "pronoun_chunk": 0,
+                "antecedent_hint": "曹操" * 20,
+                "uncertain": True,
+                "basis": "nearest-prior-surface",
+            }
+            for _ in range(60)
+        ]
+
+        chunk_text = "x" * 100
+        context_chars = len(
+            json.dumps(state, ensure_ascii=False, sort_keys=True)
         )
-        self.assertGreaterEqual(len(plan.chunks), 2)
+        report = S.check_budgets(
+            len(chunk_text), context_chars, config
+        )
+        self.assertFalse(report["fits"])
+
         with self.assertRaises(PersistenceError):
-            S.context_chain(plan, text, config)
+            S._ensure_input_budgets(state, chunk_text, config)
 
     def test_pronoun_links_to_prior_chunk_mention(self) -> None:
         # Minimal forced boundary: the second chunk opens with a pronoun

@@ -7,6 +7,10 @@ apps/chronicle/server/target/
 apps/chronicle/webapp/node_modules/
 apps/chronicle/webapp/scripts/visual/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Environment / secrets
 .env
 .env.*
@@ -31,3 +35,4 @@ Thumbs.db
 *.log
 /data/
 /loom/
+/apps/chronicle/.artifacts/c1-t17/

@@ -49,7 +49,7 @@ ensure_sections / ensure_chunks → ingestion_sections / ingestion_chunks
   exceeds the limit on its own.
   Overlap defaults to zero duplicated characters; continuity travels in
   `ContextState` instead of RAG-style heavy overlap.
-- **ContextState is versioned (`c1t5-ctx-v1`) and auditable**: inherited
+- **ContextState is versioned (`c1t5-ctx-v2`) and auditable**: inherited
   historical time (verbatim, `explicit` vs `inherited` scope, origin
   chunk), active entity/place surfaces, recent event sentences, explicitly
   uncertain coreference hints, and bounded previous/next boundary context.

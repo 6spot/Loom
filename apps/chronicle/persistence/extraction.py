@@ -49,12 +49,13 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from common import PersistenceError
+import extraction_prompt as extraction_prompt_contract
 
 try:
     from segmentation import CONTEXT_VERSION as EXPECTED_CONTEXT_VERSION
     from segmentation import OFFSET_UNIT
 except ImportError:  # pragma: no cover - standalone import without sibling
-    EXPECTED_CONTEXT_VERSION = "c1t5-ctx-v1"
+    EXPECTED_CONTEXT_VERSION = "c1t5-ctx-v2"
     OFFSET_UNIT = "chars-normalized-utf8"
 
 #: Version of this chunk-extraction pipeline step.
@@ -64,7 +65,7 @@ EXTRACTION_VERSION = "c1t6-v1"
 CONTRACT_VERSION = "0.2"
 
 #: Version of the chunk prompt template rendered here.
-PROMPT_VERSION = "c1t6-prompt-v1"
+PROMPT_VERSION = extraction_prompt_contract.PROMPT_VERSION
 
 #: Marker proving chunk candidates are processing output, never authority.
 NON_AUTHORITATIVE_NOTE = (
@@ -163,7 +164,11 @@ class ExtractionConfig:
 
     max_repair_attempts: int = 1
     max_prompt_chars: int = 8000
-    max_response_chars: int = 16000
+    # R6 of the C1-T17 real-machine gate measured a schema-shaped response
+    # of 26,706 chars for a ~2K-char classical-Chinese chunk. 16K was an
+    # uncalibrated development guard, not a contract limit. Keep a hard,
+    # deterministic bound while leaving enough room for real staged bundles.
+    max_response_chars: int = 32768
 
     def __post_init__(self) -> None:
         for name in (
@@ -241,73 +246,19 @@ def build_extraction_prompt(
     if not isinstance(boundary_head, str) or not isinstance(boundary_tail, str):
         raise PersistenceError("boundary context must be strings")
 
-    correction = ""
-    if validation_errors is not None:
-        if previous_candidate is None:
-            raise PersistenceError("a correction re-ask requires the previous candidate")
-        correction = f"""
-CORRECTION RE-ASK
-Your previous bundle failed deterministic validation with exactly these errors.
-Return one complete corrected bundle satisfying every rule below. Change only
-what the errors require; do not add unrelated facts and do not delete
-unrelated records. Do not invent evidence or precision to silence an error:
-if a fact cannot be grounded, drop the ungrounded record and emit a warning.
+    if validation_errors is not None and previous_candidate is None:
+        raise PersistenceError("a correction re-ask requires the previous candidate")
+    return extraction_prompt_contract.render_extraction_prompt(
+        chunk_text=chunk_text,
+        section=section,
+        document=document,
+        context_input=context_input,
+        boundary_head=boundary_head,
+        boundary_tail=boundary_tail,
+        validation_errors=validation_errors,
+        previous_candidate=previous_candidate,
+    )
 
-VALIDATION ERRORS
-{json.dumps(validation_errors, ensure_ascii=False, indent=2)}
-
-PREVIOUS CANDIDATE
-{json.dumps(previous_candidate, ensure_ascii=False, indent=2, sort_keys=True)}
-"""
-
-    return f"""You are Chronicle chunk-extraction contract-v{CONTRACT_VERSION}, a source-grounded historical data extraction agent.
-
-TASK
-Read the CHUNK SOURCE TEXT below and produce one complete staged bundle
-(source/entities/events/claims/warnings) following the SEMANTIC, TIME, and
-IDENTITY rules. Extract only what this chunk asserts; use INHERITED CONTEXT
-solely to interpret references (pronouns, inherited year), never as evidence.
-
-SEMANTIC RULES
-1. Use only CHUNK SOURCE TEXT plus explicit SECTION/DOCUMENT metadata and INHERITED CONTEXT. Never add outside historical knowledge.
-2. Extract source-grounded Entity records needed by the facts you represent.
-3. Create an Event for a distinct historical occurrence in this chunk. Do not merge independent actions merely because they share a sentence.
-4. Create Claims for explicit factual assertions only when a faithful predicate expresses the source meaning. If no predicate fits, emit an `ontology_gap` warning instead of forcing one.
-5. Event and Claim are different layers: Event models the occurrence; Claim models what this source asserts.
-6. Every Claim.evidence.text must be an exact CHUNK SOURCE TEXT substring. Inherited context text is never evidence.
-7. Use job-local temp IDs (`src_001`, `ent_001`, `evt_001`, `clm_001`). Never invent canonical UUIDs: a record carrying `id` is rejected.
-8. Avoid duplicate Entity/Event/Claim records for the same chunk assertion.
-9. Set every Claim assessment status to `unassessed`. Extraction confidence is not historical truth confidence.
-
-TIME RULES
-10. Preserve explicit and safely inherited traditional/regnal source time.
-11. An Event/Claim time whose expression appears verbatim in this chunk is explicit. A time carried from INHERITED CONTEXT must list the inherited calendar fields in `inherited_fields` and keep the inherited expression verbatim in `original_text`.
-12. Never convert a traditional month/day into normalized Gregorian month/day: normalized month/day stay null. A normalized year is allowed only when DOCUMENT metadata supplies the verified mapping; otherwise normalized year stays null too.
-13. If this chunk gives no safe time context, time may remain null. Never guess.
-
-IDENTITY / PROVENANCE RULES
-14. Names and titles are attributes, never identity. Keep ambiguous references unresolved with a warning rather than guessing.
-15. An Entity with no mention in this chunk is allowed only when its name appears in INHERITED CONTEXT surfaces AND the bundle carries an `inherited_entity_context` warning naming it. Such hints stay uncertain until resolution.
-16. Warnings must describe the final bundle you return.
-17. Return exactly one JSON object with keys schema_version, source, entities, events, claims, warnings. No prose.
-{correction}
-SECTION
-{json.dumps(section, ensure_ascii=False, indent=2, sort_keys=True)}
-
-DOCUMENT
-{json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True)}
-
-INHERITED CONTEXT (processing aid, not historical authority, not evidence)
-{json.dumps(context_input, ensure_ascii=False, indent=2, sort_keys=True)}
-
-BOUNDARY CONTEXT (bounded neighbor strings for interpretation only, not evidence)
-{json.dumps({"boundary_head": boundary_head, "boundary_tail": boundary_tail}, ensure_ascii=False, indent=2, sort_keys=True)}
-
-CHUNK SOURCE TEXT
----BEGIN CHUNK---
-{chunk_text}
----END CHUNK---
-"""
 
 
 def sha256_text(value: str) -> str:
@@ -799,6 +750,52 @@ def flatten_validation_errors(report: dict[str, Any]) -> list[str]:
     return result
 
 
+def _bounded_correction_prompt(
+    *,
+    chunk_text: str,
+    request: dict[str, Any],
+    document: dict[str, Any],
+    context_input: dict[str, Any],
+    validation_errors: list[str],
+    previous_candidate: dict[str, Any],
+    config: ExtractionConfig,
+) -> str | None:
+    """Build one correction prompt without widening the fixed input budget.
+
+    The full validator report remains in attempt history. The model-facing
+    diagnostics are deterministically compacted so repeated schema paths or
+    umbrella object errors cannot consume the repair budget. The preferred
+    prompt includes the prior candidate when it fits; otherwise the candidate
+    body is omitted and the complete bundle is regenerated from source/context,
+    compact canonical shape guidance, and representative diagnostics.
+    """
+    correction_errors = extraction_prompt_contract.compact_validation_errors(
+        validation_errors
+    )
+    prompt = build_extraction_prompt(
+        chunk_text=chunk_text,
+        section=request["request_meta"]["section"],
+        document=document,
+        context_input=context_input,
+        boundary_head="",
+        boundary_tail="",
+        validation_errors=correction_errors,
+        previous_candidate=previous_candidate,
+    )
+    if len(prompt) <= config.max_prompt_chars:
+        return prompt
+    fallback = extraction_prompt_contract.render_compact_correction_prompt(
+        chunk_text=chunk_text,
+        section=request["request_meta"]["section"],
+        document=document,
+        context_input=context_input,
+        validation_errors=correction_errors,
+    )
+    if len(fallback) <= config.max_prompt_chars:
+        return fallback
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Bounded extraction with replayable attempt history
 # ---------------------------------------------------------------------------
@@ -861,6 +858,11 @@ def extract_chunk(
         if not isinstance(raw_response, str):
             raise PersistenceError("provider must return response text")
         if len(raw_response) > config.max_response_chars:
+            size_error = (
+                f"model response ({len(raw_response)} chars) exceeds "
+                f"max_response_chars ({config.max_response_chars}); "
+                "refusing to truncate (fail closed)"
+            )
             attempts.append(
                 {
                     "kind": kind,
@@ -868,15 +870,48 @@ def extract_chunk(
                     "prompt_sha256": sha256_text(prompt),
                     "raw_response": raw_response,
                     "raw_response_sha256": sha256_text(raw_response),
-                    "parse_error": (
-                        f"model response ({len(raw_response)} chars) exceeds "
-                        f"max_response_chars ({config.max_response_chars}); "
-                        "refusing to truncate (fail closed)"
-                    ),
+                    "parse_error": size_error,
                     "validation": None,
                     "candidate": None,
                 }
             )
+            if attempt_no < config.max_repair_attempts:
+                prompt = _bounded_correction_prompt(
+                    chunk_text=chunk_text,
+                    request=request,
+                    document=document,
+                    context_input=context_input,
+                    validation_errors=[
+                        "response_size: previous response exceeded the bounded "
+                        f"response budget; return one complete compact JSON bundle "
+                        f"under {config.max_response_chars} characters without "
+                        "dropping distinct source-grounded facts"
+                    ],
+                    previous_candidate={
+                        "note": (
+                            "previous response omitted because it exceeded the "
+                            "bounded response budget"
+                        )
+                    },
+                    config=config,
+                )
+                if prompt is not None:
+                    continue
+                attempts.append(
+                    {
+                        "kind": "correction-skipped",
+                        "prompt": None,
+                        "prompt_sha256": None,
+                        "raw_response": None,
+                        "raw_response_sha256": None,
+                        "parse_error": (
+                            "correction prompt exceeds max_prompt_chars; "
+                            "refusing to truncate (fail closed)"
+                        ),
+                        "validation": None,
+                        "candidate": None,
+                    }
+                )
             break
         try:
             candidate = parse_candidate_response(raw_response)
@@ -937,17 +972,16 @@ def extract_chunk(
                 "error": None,
             }
         if attempt_no < config.max_repair_attempts:
-            prompt = build_extraction_prompt(
+            prompt = _bounded_correction_prompt(
                 chunk_text=chunk_text,
-                section=request["request_meta"]["section"],
+                request=request,
                 document=document,
                 context_input=context_input,
-                boundary_head="",
-                boundary_tail="",
                 validation_errors=flatten_validation_errors(report),
                 previous_candidate=candidate,
+                config=config,
             )
-            if len(prompt) > config.max_prompt_chars:
+            if prompt is None:
                 attempts.append(
                     {
                         "kind": "correction-skipped",
