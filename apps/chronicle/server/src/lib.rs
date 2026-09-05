@@ -55,7 +55,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
                     let state = coverage_public_state.clone();
-                    async move { read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await }
+                    async move {
+                        read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
+                    }
                 },
             ),
         )
@@ -64,7 +66,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
                     let state = coverage_legacy_state.clone();
-                    async move { read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await }
+                    async move {
+                        read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
+                    }
                 },
             ),
         )
