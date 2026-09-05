@@ -124,17 +124,18 @@ def render_extraction_prompt(
     """Render the bounded v3 initial/correction prompt."""
     correction = ""
     if validation_errors is not None:
+        title = "COMPACT CORRECTION RE-ASK" if omit_previous_candidate else "CORRECTION RE-ASK"
         candidate_note = ""
         if omit_previous_candidate:
             candidate_note = (
-                "\nPREVIOUS CANDIDATE\nomitted from this repair prompt to preserve "
-                "the fixed input budget; its raw response/candidate remain in "
-                "ChunkRun history. Regenerate the complete bundle.\n"
+                "\nPRIOR CANDIDATE BODY OMITTED to preserve the fixed input budget; "
+                "its raw response/candidate remain in ChunkRun history. Regenerate "
+                "the complete bundle.\n"
             )
         elif previous_candidate is not None:
             candidate_note = "\nPREVIOUS CANDIDATE\n" + _json(previous_candidate) + "\n"
         correction = (
-            "\nCORRECTION RE-ASK\n"
+            "\n" + title + "\n"
             "The prior bundle failed deterministic validation. Repair every listed "
             "issue, regenerate one complete bundle, and obey CANONICAL BUNDLE SHAPE. "
             "Do not fabricate evidence/precision or delete unrelated grounded facts.\n"
