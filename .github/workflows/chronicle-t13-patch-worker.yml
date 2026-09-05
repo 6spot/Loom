@@ -37,14 +37,6 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit(f'expected exactly one publication exception block, found {text.count(old)}')
           worker_path.write_text(text.replace(old, new), encoding='utf-8')
-
-          workflow_path = Path('.github/workflows/chronicle-t13-dev-check.yml')
-          workflow = workflow_path.read_text(encoding='utf-8')
-          anchor = '''      - "apps/chronicle/worker/model_provider.py"\n'''
-          addition = '''      - "apps/chronicle/worker/model_provider.py"\n      - "apps/chronicle/worker/ingestion_worker.py"\n      - "apps/chronicle/worker/test_resolve_publish_postgres.py"\n      - "apps/chronicle/persistence/resolve_publish.py"\n'''
-          if workflow.count(anchor) != 1:
-              raise SystemExit(f'expected exactly one dev-workflow path anchor, found {workflow.count(anchor)}')
-          workflow_path.write_text(workflow.replace(anchor, addition), encoding='utf-8')
           PY
 
       - name: Syntax-check patched Python
@@ -53,16 +45,12 @@ jobs:
             apps/chronicle/worker/ingestion_worker.py \
             apps/chronicle/persistence/resolve_publish.py
 
-      - name: Commit patch and remove this one-shot workflow
+      - name: Commit worker patch
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/chronicle-t13-patch-worker.yml
-          git add \
-            apps/chronicle/worker/ingestion_worker.py \
-            apps/chronicle/persistence/resolve_publish.py \
-            .github/workflows/chronicle-t13-dev-check.yml
+          git add apps/chronicle/worker/ingestion_worker.py
           git diff --cached --check
           git commit -m "fix(chronicle): enforce published corpus boundary in worker"
           git push origin HEAD:feat/chronicle-c1-t13-high-density-corpus
