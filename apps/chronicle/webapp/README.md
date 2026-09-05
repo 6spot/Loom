@@ -21,6 +21,10 @@ surface.
 /studio/login            Studio login (HTTP Basic credentials, tab-session only)
 ```
 
+The Rust same-origin web front serves the SPA shell for `/world` and `/world/`,
+so a direct browser refresh of a bookmarked Historical World URL remains on the
+React route rather than falling through to an API/404 path.
+
 Public routes may carry the shared historical-time context as either
 `?year=208` or a bounded `?from_year=208&to_year=210` range. Chronicle keeps
 this context in the URL so World, Timeline, Search, Event, and Entity links are
