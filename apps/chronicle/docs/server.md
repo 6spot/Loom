@@ -11,10 +11,10 @@ shutdown, and the same-origin web front.
 The Rust server owns HTTP transport, routing, and authorization. It does
 **not** own historical knowledge:
 
-- Timeline / Event / Entity / Search reads are forwarded to the proven C0
-  Python read model (`apps/chronicle/read_api/`, same `CHRONICLE_DATABASE_URL`
-  PostgreSQL). The C0 read model remains the single historical read
-  authority; this crate introduces no second one.
+- Timeline / Event / Entity / Search / Coverage / Historical Moment reads are
+  forwarded to the proven C0 Python read model (`apps/chronicle/read_api/`,
+  same `CHRONICLE_DATABASE_URL` PostgreSQL). The C0 read model remains the
+  single historical read authority; this crate introduces no second one.
 - The server never opens the Chronicle database directly. Governance
   (`tools/check_storage_sql_ownership.py`) forbids SQLx/PostgreSQL driver
   dependencies in Rust outside `loom-storage`, and this crate has none: no
@@ -36,34 +36,39 @@ chronicle-server            # reads CHRONICLE_* environment, see below
 ```
 
 ```text
-GET /healthz                        public, no auth, no upstream
-GET /api/v1/public/timeline         -> upstream /v0/timeline
-GET /api/v1/public/search           -> upstream /v0/search
-GET /api/v1/public/events/{id}      -> upstream /v0/events/{id}
-GET /api/v1/public/entities/{id}    -> upstream /v0/entities/{id}
-GET /v0/...                         legacy C0 compat, same upstream mapping
-GET /api/v1/studio/status           privileged, admin auth required
-GET+POST /api/v1/studio/documents   privileged, admin auth required
-GET+POST /api/v1/studio/documents/* privileged, admin auth required
-GET+POST /api/v1/studio/jobs        privileged, admin auth required (C1-T4)
-GET+POST /api/v1/studio/jobs/*      privileged, admin auth required (C1-T4)
-/api/v1/studio/* (other)            privileged, admin auth required, 404 when authed
-/ , /timeline, /search,             same-origin React/Vite web UI (C1-T9)
-/events/{id}, /entities/{id},       (embedded at compile time, one build)
-/studio, /studio/login,             Studio shell (public shell; Studio APIs
-/studio/imports, /studio/review,    stay server-auth-enforced)
+GET /healthz                              public, no auth, no upstream
+GET /api/v1/public/timeline               -> upstream /v0/timeline
+GET /api/v1/public/search                 -> upstream /v0/search
+GET /api/v1/public/events/{id}            -> upstream /v0/events/{id}
+GET /api/v1/public/entities/{id}          -> upstream /v0/entities/{id}
+GET /api/v1/public/coverage               -> upstream /v0/coverage (C1-T14)
+GET /api/v1/public/historical-moment      -> upstream /v0/historical-moment (C1-T15)
+GET /v0/...                               legacy C0 compat, same upstream mapping
+GET /api/v1/studio/status                 privileged, admin auth required
+GET+POST /api/v1/studio/documents         privileged, admin auth required
+GET+POST /api/v1/studio/documents/*       privileged, admin auth required
+GET+POST /api/v1/studio/jobs              privileged, admin auth required (C1-T4)
+GET+POST /api/v1/studio/jobs/*            privileged, admin auth required (C1-T4)
+GET /api/v1/studio/coverage               privileged Coverage read (C1-T14)
+/api/v1/studio/* (other)                  privileged, admin auth required, 404 when authed
+/ , /timeline, /search,                   same-origin React/Vite web UI (C1-T9)
+/events/{id}, /entities/{id},             (embedded at compile time, one build)
+/studio, /studio/login,                   Studio shell (public shell; Studio APIs
+/studio/imports, /studio/review,          stay server-auth-enforced)
 /studio/sources,
 /assets/* (Vite build output),
 /*.mjs, /*.css (legacy C0 assets, retained for compat)
 ```
 
 Only `GET` is served on read routes (C0 parity: other methods get typed
-`405 method_not_allowed`). Studio document and job routes accept `GET` and
-`POST` only (other methods get typed `405`); request bodies up to the proxy
-ceiling are forwarded to the sidecar, which enforces the real per-file
-upload limit (documents) and a 64 KiB job-request cap (jobs). API-shaped
-unknowns return typed JSON errors;
-unknown Studio paths require authentication before revealing existence.
+`405 method_not_allowed`). Coverage and Historical Moment remain thin
+read-only aliases over the Python read-model sidecar; Rust does not acquire
+historical or PostgreSQL authority. Studio document and job routes accept
+`GET` and `POST` only (other methods get typed `405`); request bodies up to
+the proxy ceiling are forwarded to the sidecar, which enforces the real
+per-file upload limit (documents) and a 64 KiB job-request cap (jobs).
+API-shaped unknowns return typed JSON errors; unknown Studio paths require
+authentication before revealing existence.
 
 ## Studio ingestion-job operations (C1-T4)
 

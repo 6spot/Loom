@@ -36,24 +36,28 @@ pub use config::{AdminCredentials, ChronicleConfig};
 pub use error::{error_body, TypedError};
 pub use upstream::{fetch_upstream, forward_upstream, UpstreamTarget, MAX_PROXY_BODY_BYTES};
 
-/// Build the Chronicle router and add C1-T14's read-only Coverage aliases.
+/// Build the Chronicle router and add the read-only Coverage/Historical Moment aliases.
 ///
-/// `app::build_router` remains the stable C1-T2/T9 composition root. Coverage
-/// is deliberately a thin forwarding surface over the same Python read-model
-/// upstream, so the Rust server still owns auth/namespace policy without
-/// acquiring PostgreSQL or historical-data authority.
+/// `app::build_router` remains the stable C1-T2/T9 composition root. These
+/// projections are thin forwarding surfaces over the same Python read-model
+/// upstream, so Rust owns namespace/auth policy without acquiring PostgreSQL
+/// or historical-data authority.
 pub fn build_router(state: Arc<AppState>) -> Router {
-    let public_state = state.clone();
-    let legacy_state = state.clone();
-    let studio_state = state.clone();
+    let coverage_public_state = state.clone();
+    let coverage_legacy_state = state.clone();
+    let coverage_studio_state = state.clone();
+    let moment_public_state = state.clone();
+    let moment_legacy_state = state.clone();
 
     app::build_router(state)
         .route(
             "/api/v1/public/coverage",
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = public_state.clone();
-                    async move { coverage_proxy(&state, request.method(), uri.query()).await }
+                    let state = coverage_public_state.clone();
+                    async move {
+                        read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
+                    }
                 },
             ),
         )
@@ -61,8 +65,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/v0/coverage",
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = legacy_state.clone();
-                    async move { coverage_proxy(&state, request.method(), uri.query()).await }
+                    let state = coverage_legacy_state.clone();
+                    async move {
+                        read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
+                    }
                 },
             ),
         )
@@ -70,13 +76,47 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/v1/studio/coverage",
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = studio_state.clone();
+                    let state = coverage_studio_state.clone();
                     async move {
                         if let Some(response) = coverage_admin_rejection(&state, &request) {
                             response
                         } else {
-                            coverage_proxy(&state, request.method(), uri.query()).await
+                            read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
                         }
+                    }
+                },
+            ),
+        )
+        .route(
+            "/api/v1/public/historical-moment",
+            any(
+                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
+                    let state = moment_public_state.clone();
+                    async move {
+                        read_proxy(
+                            &state,
+                            request.method(),
+                            uri.query(),
+                            "/v0/historical-moment",
+                        )
+                        .await
+                    }
+                },
+            ),
+        )
+        .route(
+            "/v0/historical-moment",
+            any(
+                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
+                    let state = moment_legacy_state.clone();
+                    async move {
+                        read_proxy(
+                            &state,
+                            request.method(),
+                            uri.query(),
+                            "/v0/historical-moment",
+                        )
+                        .await
                     }
                 },
             ),
@@ -105,11 +145,16 @@ fn coverage_admin_rejection(state: &AppState, request: &Request<Body>) -> Option
     }
 }
 
-async fn coverage_proxy(state: &AppState, method: &Method, query: Option<&str>) -> Response {
+async fn read_proxy(
+    state: &AppState,
+    method: &Method,
+    query: Option<&str>,
+    upstream_path: &str,
+) -> Response {
     if method != Method::GET {
         return TypedError::method_not_allowed().into_response();
     }
-    let mut target = "/v0/coverage".to_string();
+    let mut target = upstream_path.to_string();
     if let Some(query) = query {
         target.push('?');
         target.push_str(query);
@@ -128,7 +173,7 @@ async fn coverage_proxy(state: &AppState, method: &Method, query: Option<&str>) 
                 .header(header::CONTENT_TYPE, content_type_value)
                 .header("x-content-type-options", "nosniff")
                 .body(Body::from(upstream.body))
-                .expect("coverage proxy response uses validated headers")
+                .expect("read proxy response uses validated headers")
         }
         Err(upstream::UpstreamError::BadResponse(_)) => {
             TypedError::upstream_bad_response().into_response()
