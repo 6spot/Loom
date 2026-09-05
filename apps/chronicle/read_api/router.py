@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import parse_qs
 
+from coverage import build_coverage
 from read_common import ReadModelError, ReadModelNotFound
 from reader_presentation import latest_reader_presentation
 from search import search_catalog
@@ -67,6 +68,18 @@ def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, di
                 to_year=_optional_int(query, "to_year"),
                 limit=50 if limit is None else limit,
                 offset=0 if offset is None else offset,
+            )
+
+        if path == "/v0/coverage":
+            query = parse_qs(raw_query, keep_blank_values=True)
+            allowed = {"from_year", "to_year"}
+            unknown = sorted(set(query) - allowed)
+            if unknown:
+                raise ReadModelError(f"unknown query parameter(s): {', '.join(unknown)}")
+            return 200, build_coverage(
+                repo.conn,
+                from_year=_optional_int(query, "from_year"),
+                to_year=_optional_int(query, "to_year"),
             )
 
         if path == "/v0/search":

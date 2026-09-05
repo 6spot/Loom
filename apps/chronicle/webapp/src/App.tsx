@@ -19,6 +19,7 @@ const StudioImportDetailPage = lazy(() => import("./pages/studio/StudioImportDet
 const StudioReviewPage = lazy(() => import("./pages/studio/StudioReviewPage"));
 const StudioReviewDetailPage = lazy(() => import("./pages/studio/StudioReviewDetailPage"));
 const StudioSourcesPage = lazy(() => import("./pages/studio/StudioSourcesPage"));
+const StudioCoveragePage = lazy(() => import("./pages/studio/StudioCoveragePage"));
 
 function StudioGuard({ children }: { children: JSX.Element }) {
   const auth = useStudioAuth();
@@ -158,6 +159,16 @@ export default function App() {
               <StudioGuard>
                 <Suspense fallback={<StudioFallback />}>
                   <StudioSourcesPage />
+                </Suspense>
+              </StudioGuard>
+            }
+          />
+          <Route
+            path="coverage"
+            element={
+              <StudioGuard>
+                <Suspense fallback={<StudioFallback />}>
+                  <StudioCoveragePage />
                 </Suspense>
               </StudioGuard>
             }

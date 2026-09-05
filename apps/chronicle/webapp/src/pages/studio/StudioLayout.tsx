@@ -22,6 +22,7 @@ export default function StudioLayout() {
           <NavLink to="/studio/imports">Imports</NavLink>
           <NavLink to="/studio/review">Review</NavLink>
           <NavLink to="/studio/sources">Sources / Corpus</NavLink>
+          <NavLink to="/studio/coverage">Coverage</NavLink>
         </nav>
         <div className="studio-user">
           {auth.username ? (
