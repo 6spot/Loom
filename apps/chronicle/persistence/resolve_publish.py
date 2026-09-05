@@ -53,10 +53,11 @@ Contract summary (GitHub Issue #497):
   bundle, resolution artifact(s), and canonical catalog/publication
   evidence by content hash.
 
-No timestamps, UUIDs, or randomness appear in any generated artifact
-(human audit times live only in ``review_items`` rows). Unchanged
-inputs plus unchanged recorded decisions yield byte-identical
-canonical JSON apart from newly allocated canonical UUIDv7 identities.
+No timestamps, UUIDs, or randomness appear in any generated resolution
+artifact (human audit times live only in ``review_items`` rows). Unchanged
+inputs plus unchanged recorded decisions yield byte-identical resolution JSON;
+canonical publication preserves stable prior UUIDv7 identities and allocates
+new UUIDv7 identities only for genuinely new canonical groups.
 """
 
 from __future__ import annotations
@@ -139,16 +140,12 @@ def new_bundle_label(revision_id: uuid.UUID | str) -> str:
     return f"c1rev-{parsed.hex[:12]}"
 
 
-def read_corpus_bundles(conn) -> dict[str, dict[str, Any]]:
-    """Read every persisted staged source bundle, including in-flight jobs.
-
-    This is an audit/storage view, *not* the canonical publication corpus.
-    Call :func:`read_published_corpus_bundles` for resolution/publication.
-    """
-    rows = conn.execute(
-        "SELECT bundle_label, bundle_payload FROM chronicle.source_bundles ORDER BY bundle_label"
-    ).fetchall()
-    return {row[0]: row[1] for row in rows}
+def read_latest_catalog(conn) -> dict[str, Any] | None:
+    """Read the latest persisted canonical catalog payload, if any."""
+    row = conn.execute(
+        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row is not None else None
 
 
 def published_bundle_labels(catalog: dict[str, Any] | None) -> set[str]:
@@ -191,6 +188,14 @@ def published_bundle_labels(catalog: dict[str, Any] | None) -> set[str]:
     return labels
 
 
+def read_all_staged_bundles(conn) -> dict[str, dict[str, Any]]:
+    """Read every persisted staged source bundle, including in-flight jobs."""
+    rows = conn.execute(
+        "SELECT bundle_label, bundle_payload FROM chronicle.source_bundles ORDER BY bundle_label"
+    ).fetchall()
+    return {row[0]: row[1] for row in rows}
+
+
 def read_published_corpus_bundles(
     conn, catalog: dict[str, Any] | None = None
 ) -> dict[str, dict[str, Any]]:
@@ -219,12 +224,14 @@ def read_published_corpus_bundles(
     return found
 
 
-def read_corpus_resolutions(conn) -> list[dict[str, Any]]:
-    """Read every persisted resolution artifact payload in sha order."""
-    rows = conn.execute(
-        "SELECT payload FROM chronicle.resolution_artifacts ORDER BY artifact_sha256"
-    ).fetchall()
-    return [row[0] for row in rows]
+def read_corpus_bundles(conn) -> dict[str, dict[str, Any]]:
+    """Read the canonical-published corpus bundle set.
+
+    Historical staging is intentionally excluded. This function is the worker's
+    resolution/publication input authority; use :func:`read_all_staged_bundles`
+    only for audit/debug views that explicitly need in-flight data.
+    """
+    return read_published_corpus_bundles(conn)
 
 
 def filter_resolutions_for_bundles(
@@ -258,12 +265,18 @@ def filter_resolutions_for_bundles(
     return kept
 
 
-def read_latest_catalog(conn) -> dict[str, Any] | None:
-    """Read the latest persisted canonical catalog payload, if any."""
-    row = conn.execute(
-        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
-    ).fetchone()
-    return row[0] if row is not None else None
+def read_all_staged_resolutions(conn) -> list[dict[str, Any]]:
+    """Read every persisted resolution artifact, including in-flight pairs."""
+    rows = conn.execute(
+        "SELECT payload FROM chronicle.resolution_artifacts ORDER BY artifact_sha256"
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def read_corpus_resolutions(conn) -> list[dict[str, Any]]:
+    """Read only resolution artifacts wholly inside the published corpus."""
+    labels = published_bundle_labels(read_latest_catalog(conn))
+    return filter_resolutions_for_bundles(read_all_staged_resolutions(conn), labels)
 
 
 # ---------------------------------------------------------------------------
