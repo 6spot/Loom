@@ -1,0 +1,41 @@
+name: Chronicle T14 Dist Builder
+
+on:
+  push:
+    branches:
+      - feat/chronicle-c1-t14-coverage
+    paths:
+      - ".github/workflows/chronicle-t14-dist.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-dist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+
+      - name: Build Chronicle web dist
+        run: |
+          set -euo pipefail
+          cd apps/chronicle/webapp
+          npm ci
+          npm test
+          npm run build
+          npm run smoke:dist
+
+      - name: Archive generated dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicle-t14-web-dist
+          path: apps/chronicle/web/dist
+          if-no-files-found: error
