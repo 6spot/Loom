@@ -159,7 +159,7 @@ jobs:
             --report /tmp/c1-t13-evidence/ingest-second.json \
             > /tmp/c1-t13-evidence/ingest-second.log
 
-      - name: Run six real-source jobs to the resolution review gate
+      - name: Run six real-source jobs to the first resolution gate
         run: |
           set -euo pipefail
           docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
@@ -171,44 +171,56 @@ jobs:
               --lease-seconds 300 \
               --poll-interval 0.1 \
               --max-jobs 6 \
-              --max-input-chars 32000 \
+              --model-budget-chars 32000 \
             | tee /tmp/c1-t13-evidence/worker-pass1.log
 
-      - name: Resolve conservative fixture reviews through Studio and resume jobs
+      - name: Converge review, resolution, publication and presentation
         run: |
           set -euo pipefail
-          python apps/chronicle/corpus/c1-t13/fixture_review.py \
-            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
-            --admin-user "$CHRONICLE_ADMIN_USER" \
-            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
-            --report /tmp/c1-t13-evidence/review.json \
-            > /tmp/c1-t13-evidence/review.log
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          report = json.loads(Path('/tmp/c1-t13-evidence/review.json').read_text())
-          Path('/tmp/c1-t13-evidence/resumed-count.txt').write_text(str(report['resumed_job_count']))
-          print(f"resolved reviews={report['resolved_review_count']} resumed jobs={report['resumed_job_count']}")
-          PY
+          converged=0
+          total_resolved=0
+          for cycle in 1 2 3 4; do
+            report="/tmp/c1-t13-evidence/review-cycle-${cycle}.json"
+            log="/tmp/c1-t13-evidence/review-cycle-${cycle}.log"
+            python apps/chronicle/corpus/c1-t13/fixture_review.py \
+              --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+              --admin-user "$CHRONICLE_ADMIN_USER" \
+              --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+              --report "$report" \
+              > "$log"
 
-      - name: Resume publication and Reader Presentation after review
-        run: |
-          set -euo pipefail
-          resumed="$(cat /tmp/c1-t13-evidence/resumed-count.txt)"
-          if [ "$resumed" -gt 0 ]; then
+            read -r resolved resumed < <(python3 - "$report" <<'PY'
+          import json, sys
+          from pathlib import Path
+          data = json.loads(Path(sys.argv[1]).read_text())
+          print(data['resolved_review_count'], data['resumed_job_count'])
+          PY
+            )
+            total_resolved=$((total_resolved + resolved))
+            echo "review cycle ${cycle}: resolved=${resolved} resumed=${resumed}"
+
+            if [ "$resumed" -eq 0 ]; then
+              converged=1
+              echo "review convergence reached after ${cycle} cycle(s); total resolved=${total_resolved}"
+              break
+            fi
+
             docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
               --profile worker run --rm --no-deps \
               -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
               chronicle-worker \
               python3 apps/chronicle/corpus/c1-t13/fixture_worker.py \
-                --worker-id c1-t13-fixture-pass2 \
+                --worker-id "c1-t13-fixture-resume-${cycle}" \
                 --lease-seconds 300 \
                 --poll-interval 0.1 \
                 --max-jobs "$resumed" \
-                --max-input-chars 32000 \
-              | tee /tmp/c1-t13-evidence/worker-pass2.log
-          else
-            echo "No review-gated jobs required a second worker pass." | tee /tmp/c1-t13-evidence/worker-pass2.log
+                --model-budget-chars 32000 \
+              | tee "/tmp/c1-t13-evidence/worker-resume-${cycle}.log"
+          done
+
+          if [ "$converged" -ne 1 ]; then
+            echo "C1-T13 review/publication did not converge within 4 bounded cycles" >&2
+            exit 1
           fi
 
       - name: Capture final density and verify persisted fixture corpus
@@ -249,6 +261,8 @@ jobs:
           ev = Path('/tmp/c1-t13-evidence')
           jobs = json.loads((ev / 'jobs-final.json').read_text())['jobs']
           assert len(jobs) == 6 and all(job['status'] == 'completed' for job in jobs), jobs
+          reviews = json.loads((ev / 'reviews-final.json').read_text())['reviews']
+          assert reviews and all(review['status'] != 'open' for review in reviews), reviews
           replay = json.loads((ev / 'ingest-after-publication.json').read_text())['sources']
           assert len(replay) == 6
           assert all(not row['document_created'] and row['revision_duplicate'] and not row['job_created'] for row in replay), replay
