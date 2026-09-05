@@ -1,0 +1,215 @@
+# Temporary branch-only validation; delete before the C1-T15 delivery PR.
+name: Chronicle T15 dev check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/chronicle-c1-t15-historical-moment
+    paths:
+      - ".github/workflows/chronicle-t15-dev-check.yml"
+      - "apps/chronicle/read_api/historical_moment.py"
+      - "apps/chronicle/read_api/router.py"
+      - "apps/chronicle/server/src/lib.rs"
+      - "apps/chronicle/server/tests/historical_moment_integration.rs"
+
+permissions:
+  contents: read
+
+jobs:
+  high-density-moment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/chronicle-c1-t15-historical-moment
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Chronicle Python dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            -r apps/chronicle/persistence/requirements.txt
+
+      - name: Configure isolated Chronicle acceptance environment
+        run: |
+          set -euo pipefail
+          echo "CHRONICLE_POSTGRES_USER=chronicle" >> "$GITHUB_ENV"
+          echo "CHRONICLE_POSTGRES_PASSWORD=t15-pg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "CHRONICLE_POSTGRES_DB=chronicle" >> "$GITHUB_ENV"
+          echo "CHRONICLE_DATA_DIR=/tmp/loom-chronicle-t15-${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+          echo "CHRONICLE_BIND_IP=127.0.0.1" >> "$GITHUB_ENV"
+          echo "CHRONICLE_PORT=18080" >> "$GITHUB_ENV"
+          echo "CHRONICLE_IMAGE_TAG=c1-t15-fixture" >> "$GITHUB_ENV"
+          echo "CHRONICLE_ADMIN_USER=c1-t15-admin" >> "$GITHUB_ENV"
+          echo "CHRONICLE_ADMIN_PASSWORD=t15-admin-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Prepare and verify pinned six-source pack
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/c1-t15-prepared /tmp/c1-t15-evidence "$CHRONICLE_DATA_DIR"
+          mkdir -p /tmp/c1-t15-evidence "$CHRONICLE_DATA_DIR/postgres" "$CHRONICLE_DATA_DIR/sources"
+          python apps/chronicle/corpus/source_pack.py prepare \
+            --manifest apps/chronicle/corpus/c1-t13/source-pack.json \
+            --output-dir /tmp/c1-t15-prepared \
+            > /tmp/c1-t15-evidence/prepare.log
+          python apps/chronicle/corpus/verify_fixture_pack.py \
+            --source-pack apps/chronicle/corpus/c1-t13/source-pack.json \
+            --fixture-pack apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            --prepared-dir /tmp/c1-t15-prepared \
+            > /tmp/c1-t15-evidence/fixture-verification.json
+
+      - name: Start production-shaped Chronicle stack
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml up -d --build
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/healthz" >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml logs
+            exit 1
+          fi
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            logs chronicle-init | tee /tmp/c1-t15-evidence/chronicle-init.log
+          grep -q "entities=66 events=45 relations=2" /tmp/c1-t15-evidence/chronicle-init.log
+
+      - name: Queue and run six source-bound fixture jobs
+        run: |
+          set -euo pipefail
+          python apps/chronicle/corpus/source_pack.py ingest \
+            --source-dir /tmp/c1-t15-prepared \
+            --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+            --admin-user "$CHRONICLE_ADMIN_USER" \
+            --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+            --report /tmp/c1-t15-evidence/ingest.json \
+            > /tmp/c1-t15-evidence/ingest.log
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            --profile worker run --rm --no-deps \
+            -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+            chronicle-worker \
+            python3 apps/chronicle/corpus/c1-t13/fixture_worker.py \
+              --worker-id c1-t15-fixture-pass1 \
+              --lease-seconds 300 \
+              --poll-interval 0.1 \
+              --max-jobs 6 \
+              --model-budget-chars 32000 \
+            | tee /tmp/c1-t15-evidence/worker-pass1.log
+
+      - name: Converge review, resolution, publication and presentation
+        run: |
+          set -euo pipefail
+          converged=0
+          for cycle in 1 2 3 4; do
+            report="/tmp/c1-t15-evidence/review-cycle-${cycle}.json"
+            python apps/chronicle/corpus/c1-t13/fixture_review.py \
+              --base-url "http://127.0.0.1:${CHRONICLE_PORT}" \
+              --admin-user "$CHRONICLE_ADMIN_USER" \
+              --admin-password "$CHRONICLE_ADMIN_PASSWORD" \
+              --report "$report" \
+              > "/tmp/c1-t15-evidence/review-cycle-${cycle}.log"
+
+            read -r resolved resumed < <(python3 - "$report" <<'PY'
+          import json, sys
+          from pathlib import Path
+          data = json.loads(Path(sys.argv[1]).read_text())
+          print(data['resolved_review_count'], data['resumed_job_count'])
+          PY
+            )
+            echo "review cycle ${cycle}: resolved=${resolved} resumed=${resumed}"
+            if [ "$resumed" -eq 0 ]; then
+              converged=1
+              break
+            fi
+
+            docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+              --profile worker run --rm --no-deps \
+              -e CHRONICLE_MODEL_FIXTURE_PACK=/opt/loom/apps/chronicle/corpus/c1-t13/model-fixture-pack.json \
+              chronicle-worker \
+              python3 apps/chronicle/corpus/c1-t13/fixture_worker.py \
+                --worker-id "c1-t15-fixture-resume-${cycle}" \
+                --lease-seconds 300 \
+                --poll-interval 0.1 \
+                --max-jobs "$resumed" \
+                --model-budget-chars 32000 \
+              > "/tmp/c1-t15-evidence/worker-resume-${cycle}.log"
+          done
+          [ "$converged" -eq 1 ]
+
+      - name: Verify accepted high-density corpus and Historical Moment
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml \
+            exec -T chronicle-read python3 apps/chronicle/corpus/metrics.py \
+            > /tmp/c1-t15-evidence/final.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          final = json.loads(Path('/tmp/c1-t15-evidence/final.json').read_text())
+          assert final['historical_knowledge']['canonical_entities'] == 87, final
+          assert final['historical_knowledge']['canonical_events'] == 70, final
+          assert final['reader_presentation']['published_presentations'] == 25, final
+          assert final['historical_knowledge']['latest_catalog_sha256'] == 'f93f08793d6736cd39e9cc9c2aba82360045ac074b2479c70218ff16e873e0cb', final
+          PY
+
+          curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/public/historical-moment?year=208&limit=100" \
+            > /tmp/c1-t15-evidence/moment-208.json
+          curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/public/historical-moment?year=208&limit=100" \
+            > /tmp/c1-t15-evidence/moment-208-rerun.json
+          curl -fsS "http://127.0.0.1:${CHRONICLE_PORT}/api/v1/public/historical-moment?year=209&limit=100" \
+            > /tmp/c1-t15-evidence/moment-209.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('/tmp/c1-t15-evidence')
+          m208 = json.loads((root / 'moment-208.json').read_text())
+          rerun = json.loads((root / 'moment-208-rerun.json').read_text())
+          m209 = json.loads((root / 'moment-209.json').read_text())
+          assert m208 == rerun
+          assert m208['schema'] == 'chronicle.historical-moment'
+          assert m208['catalog']['latest_catalog_sha256'] == 'f93f08793d6736cd39e9cc9c2aba82360045ac074b2479c70218ff16e873e0cb'
+          assert m208['authority']['historical_world_state'] is False
+          assert m208['authority']['historical_truth'] is False
+          assert m208['coverage']['time']['years'] == [m208['coverage']['time']['years'][0]]
+          assert m208['coverage']['time']['years'][0]['year'] == 208
+          assert m208['coverage']['time']['years'][0]['event_count'] > 0
+          assert m208['events'], m208
+          red_cliffs = [event for event in m208['events'] if '赤壁' in (event['display'].get('title') or '')]
+          assert red_cliffs, [event['display'] for event in m208['events']]
+          assert any(event['claims'] for event in red_cliffs), red_cliffs
+          assert any(event['reader_presentation'] is not None for event in m208['events'])
+          assert m209['schema'] == 'chronicle.historical-moment'
+          assert m209['coverage']['time']['years'][0]['year'] == 209
+          assert m209['uncertainty']['absence_is_not_historical_absence'] is True
+          print('C1-T15 high-density Historical Moment 208/209: PASS')
+          PY
+
+      - name: Upload T15 acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-t15-high-density-moment-evidence
+          path: /tmp/c1-t15-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show container state and logs on failure
+        if: failure()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml ps -a || true
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml logs || true
+
+      - name: Stop Chronicle stack
+        if: always()
+        run: |
+          docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml down --remove-orphans || true
+          sudo rm -rf "$CHRONICLE_DATA_DIR" || true
