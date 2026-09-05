@@ -1,10 +1,10 @@
 ---
 task: C1-T17
 issue: 506
-status: planned
+status: in_progress
 depends_on: [C1-T16]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-05
 completed_at:
 completion_pr:
 merge_sha:
@@ -37,3 +37,4 @@ Prove the full Book-to-Chronicle -> readable historical world loop on the suppor
 ## Progress Log
 
 - 2026-09-04 — Planned as the C1 serial final gate. No implementation/acceptance run started.
+- 2026-09-05 — Started from canonical `main` only after C1-T16 delivery, post-merge Task Ledger reconciliation, and Issue #505 closure. This gate will not treat T13–T16 deterministic model-boundary replay as live-provider evidence: final acceptance requires the operator-configured real external model provider, complete source ingestion through the actual Studio/worker path, production Docker/Compose on Debian with PostgreSQL 18, browser/World evidence, durable restart/retry, and auditable revision supersession. Production mode must remain fail-closed if the configured provider is unavailable.
