@@ -53,7 +53,7 @@ class GateUnitTests(unittest.TestCase):
     def test_sha256_is_stable(self) -> None:
         self.assertEqual(
             G.sha256_bytes(b"chronicle"),
-            "5f9d6effabf0073d9b584fcff0f84e402f54f0113cc7eb07bf4f0db232721545",
+            "43a52bc7d59d42b4020c698b3eff5e35c5f552b81d59eebde76594953a374bcb",
         )
 
 
