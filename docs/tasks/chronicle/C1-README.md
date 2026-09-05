@@ -25,7 +25,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | C1-T12 | #501 | completed | C1-T8, C1-T9 | zh-CN Reader Presentation projection |
 | C1-T13 | #502 | completed | C1-T10, C1-T11, C1-T12 | first high-density historical corpus pack |
 | C1-T14 | #503 | completed | C1-T13 | corpus Coverage model/visibility |
-| C1-T15 | #504 | planned | C1-T13, C1-T14 | Historical Moment projection/API |
+| C1-T15 | #504 | completed | C1-T13, C1-T14 | Historical Moment projection/API |
 | C1-T16 | #505 | planned | C1-T9, C1-T12, C1-T15 | World page + global historical time context |
 | C1-T17 | #506 | planned | C1-T16 | final real Debian Book-to-Chronicle/Historical World gate |
 
@@ -71,11 +71,11 @@ Transitive dependencies mean C1-T17 is the serial final gate over the complete C
 
 GitHub Issue state is collaboration state, not READY authority. Multica/agents must read this index plus the child task record and calculate readiness from the canonical default-branch Task Ledger. A delivery PR merge alone does not complete a task; `docs/development/task-completion.md` post-merge reconciliation remains mandatory.
 
-After the C1-T14 reconciliation reaches the default branch, the current READY leaf is **C1-T15 / #504**. Its hard dependencies C1-T13 and C1-T14 are completed. **C1-T16 / #505 remains blocked** until C1-T15 is canonically completed; C1-T17 remains transitively blocked behind C1-T16.
+After the C1-T15 reconciliation reaches the default branch, the current READY leaf is **C1-T16 / #505**. Its hard dependencies C1-T9, C1-T12, and C1-T15 are completed. **C1-T17 / #506 remains blocked** until C1-T16 is canonically completed.
 
 ## Governance repair note
 
-C1-T1/T2/T3/T5/T6/T7/T8/T9 delivery PRs were merged and their GitHub Issues were advanced/closed before the required default-branch Task Ledger reconciliation. The catch-up reconciliation does not retroactively make that sequencing compliant; it restores the canonical ledger to the factual delivered state using the actual delivery PR, merge SHA, and exact-head CI evidence. C1-T10 through C1-T14 follow the required sequence: exact-head checks -> delivery merge -> ledger reconciliation -> Issue closure.
+C1-T1/T2/T3/T5/T6/T7/T8/T9 delivery PRs were merged and their GitHub Issues were advanced/closed before the required default-branch Task Ledger reconciliation. The catch-up reconciliation does not retroactively make that sequencing compliant; it restores the canonical ledger to the factual delivered state using the actual delivery PR, merge SHA, and exact-head CI evidence. C1-T10 through C1-T15 follow the required sequence: exact-head checks -> delivery merge -> ledger reconciliation -> Issue closure.
 
 ## Final completion
 
