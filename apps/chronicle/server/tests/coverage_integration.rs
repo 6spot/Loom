@@ -11,7 +11,9 @@ use tokio::sync::oneshot;
 const ADMIN_AUTH: &str = "Basic YWRtaW46bG9uZy1wYXNzd29yZA=="; // admin:long-password
 
 async fn mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind upstream");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind upstream");
     let port = listener.local_addr().expect("addr").port();
     let task = tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
@@ -24,9 +26,8 @@ async fn mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) {
                     .next()
                     .and_then(|line| line.split_whitespace().nth(1))
                     .unwrap_or("/");
-                let body = format!(
-                    "{{\"schema\":\"chronicle.coverage\",\"proxied_path\":{path:?}}}"
-                );
+                let body =
+                    format!("{{\"schema\":\"chronicle.coverage\",\"proxied_path\":{path:?}}}");
                 let response = format!(
                     "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
@@ -64,7 +65,11 @@ async fn request(port: u16, method: &str, path: &str, auth: Option<&str>) -> (u1
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|value| value.parse::<u16>().ok())
         .expect("status");
-    (status, headers, String::from_utf8_lossy(&raw[split..]).to_string())
+    (
+        status,
+        headers,
+        String::from_utf8_lossy(&raw[split..]).to_string(),
+    )
 }
 
 async fn live_server(state: AppState) -> (u16, oneshot::Sender<()>, tokio::task::JoinHandle<()>) {
@@ -73,12 +78,17 @@ async fn live_server(state: AppState) -> (u16, oneshot::Sender<()>, tokio::task:
     let (tx, rx) = oneshot::channel();
     let task = tokio::spawn(async move {
         axum::serve(listener, build_router(Arc::new(state)))
-            .with_graceful_shutdown(async { let _ = rx.await; })
+            .with_graceful_shutdown(async {
+                let _ = rx.await;
+            })
             .await
             .expect("serve");
     });
     for _ in 0..50 {
-        if TcpStream::connect(format!("127.0.0.1:{port}")).await.is_ok() {
+        if TcpStream::connect(format!("127.0.0.1:{port}"))
+            .await
+            .is_ok()
+        {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -89,7 +99,11 @@ async fn live_server(state: AppState) -> (u16, oneshot::Sender<()>, tokio::task:
 #[tokio::test]
 async fn public_and_legacy_coverage_forward_to_one_upstream_contract() {
     let (upstream, upstream_task) = mock_upstream().await;
-    let (port, stop, server_task) = live_server(AppState { admin: None, upstream }).await;
+    let (port, stop, server_task) = live_server(AppState {
+        admin: None,
+        upstream,
+    })
+    .await;
 
     let (status, _, body) = request(
         port,
@@ -99,7 +113,10 @@ async fn public_and_legacy_coverage_forward_to_one_upstream_contract() {
     )
     .await;
     assert_eq!(status, 200);
-    assert!(body.contains("/v0/coverage?from_year=208&to_year=208"), "{body}");
+    assert!(
+        body.contains("/v0/coverage?from_year=208&to_year=208"),
+        "{body}"
+    );
 
     let (status, _, body) = request(port, "GET", "/v0/coverage", None).await;
     assert_eq!(status, 200);
@@ -128,7 +145,9 @@ async fn studio_coverage_is_auth_gated_but_uses_same_read_projection() {
 
     let (status, headers, _) = request(port, "GET", "/api/v1/studio/coverage", None).await;
     assert_eq!(status, 401);
-    assert!(headers.to_ascii_lowercase().contains("www-authenticate: basic"));
+    assert!(headers
+        .to_ascii_lowercase()
+        .contains("www-authenticate: basic"));
 
     let (status, _, body) = request(
         port,
@@ -138,7 +157,10 @@ async fn studio_coverage_is_auth_gated_but_uses_same_read_projection() {
     )
     .await;
     assert_eq!(status, 200);
-    assert!(body.contains("/v0/coverage?from_year=208&to_year=210"), "{body}");
+    assert!(
+        body.contains("/v0/coverage?from_year=208&to_year=210"),
+        "{body}"
+    );
 
     let _ = stop.send(());
     server_task.await.expect("server join");
