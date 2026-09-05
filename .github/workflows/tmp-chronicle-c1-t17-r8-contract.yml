@@ -1,0 +1,143 @@
+name: Temporary Chronicle C1-T17 R8 contract patch
+
+on:
+  push:
+    branches:
+      - tmp/chronicle-c1-t17-r8-contract
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: tmp/chronicle-c1-t17-r8-contract
+      - name: Wire v3 model contract into extraction
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("apps/chronicle/persistence/extraction.py")
+          text = path.read_text(encoding="utf-8")
+
+          old_import = "from common import PersistenceError\n"
+          new_import = old_import + "import extraction_prompt as extraction_prompt_contract\n"
+          if text.count(old_import) != 1:
+              raise SystemExit("unexpected common import count")
+          if "import extraction_prompt as extraction_prompt_contract" not in text:
+              text = text.replace(old_import, new_import, 1)
+
+          old_version = 'PROMPT_VERSION = "c1t6-prompt-v2"'
+          if text.count(old_version) != 1:
+              raise SystemExit("unexpected prompt version marker")
+          text = text.replace(
+              old_version,
+              "PROMPT_VERSION = extraction_prompt_contract.PROMPT_VERSION",
+              1,
+          )
+
+          function_start = text.index("def build_extraction_prompt(\n")
+          body_start = text.index('    correction = ""\n', function_start)
+          body_end = text.index("\n\n\ndef sha256_text", body_start)
+          new_body = '''    if validation_errors is not None and previous_candidate is None:
+              raise PersistenceError("a correction re-ask requires the previous candidate")
+          return extraction_prompt_contract.render_extraction_prompt(
+              chunk_text=chunk_text,
+              section=section,
+              document=document,
+              context_input=context_input,
+              boundary_head=boundary_head,
+              boundary_tail=boundary_tail,
+              validation_errors=validation_errors,
+              previous_candidate=previous_candidate,
+          )
+          '''
+          text = text[:body_start] + new_body + text[body_end:]
+
+          correction_start = text.index("def _bounded_correction_prompt(\n")
+          correction_end = text.index(
+              "\n\n# ---------------------------------------------------------------------------\n# Bounded extraction",
+              correction_start,
+          )
+          new_correction = '''def _bounded_correction_prompt(
+              *,
+              chunk_text: str,
+              request: dict[str, Any],
+              document: dict[str, Any],
+              context_input: dict[str, Any],
+              validation_errors: list[str],
+              previous_candidate: dict[str, Any],
+              config: ExtractionConfig,
+          ) -> str | None:
+              """Build one correction prompt without widening the fixed input budget.
+
+              The full validator report remains in attempt history. The model-facing
+              diagnostics are deterministically compacted so repeated schema paths or
+              umbrella object errors cannot consume the repair budget. The preferred
+              prompt includes the prior candidate when it fits; otherwise the candidate
+              body is omitted and the complete bundle is regenerated from source/context,
+              canonical shape guidance, and representative deterministic diagnostics.
+              """
+              correction_errors = extraction_prompt_contract.compact_validation_errors(
+                  validation_errors
+              )
+              prompt = build_extraction_prompt(
+                  chunk_text=chunk_text,
+                  section=request["request_meta"]["section"],
+                  document=document,
+                  context_input=context_input,
+                  boundary_head="",
+                  boundary_tail="",
+                  validation_errors=correction_errors,
+                  previous_candidate=previous_candidate,
+              )
+              if len(prompt) <= config.max_prompt_chars:
+                  return prompt
+              fallback = extraction_prompt_contract.render_extraction_prompt(
+                  chunk_text=chunk_text,
+                  section=request["request_meta"]["section"],
+                  document=document,
+                  context_input=context_input,
+                  boundary_head="",
+                  boundary_tail="",
+                  validation_errors=correction_errors,
+                  previous_candidate=None,
+                  omit_previous_candidate=True,
+              )
+              if len(fallback) <= config.max_prompt_chars:
+                  return fallback
+              return None
+          '''
+          text = text[:correction_start] + new_correction + text[correction_end:]
+          path.write_text(text, encoding="utf-8")
+
+          test_path = Path("apps/chronicle/persistence/test_extraction_unit.py")
+          tests = test_path.read_text(encoding="utf-8")
+          old = 'self.assertEqual(meta["prompt_version"], "c1t6-prompt-v2")'
+          if tests.count(old) != 1:
+              raise SystemExit("unexpected prompt-version test marker")
+          tests = tests.replace(
+              old,
+              'self.assertEqual(meta["prompt_version"], "c1t6-prompt-v3")',
+              1,
+          )
+          test_path.write_text(tests, encoding="utf-8")
+      - name: Compile prompt and extraction modules
+        run: python -m py_compile apps/chronicle/persistence/extraction_prompt.py apps/chronicle/persistence/extraction.py
+      - name: Run C1-T6 extraction unit contracts
+        run: python apps/chronicle/persistence/test_extraction_unit.py -v
+      - name: Run R6 R7 live-limit regressions
+        run: python apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
+      - name: Run R8 schema-shape regressions
+        run: python apps/chronicle/persistence/test_extraction_r8_contract_unit.py -v
+      - name: Commit wired implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/chronicle/persistence/extraction.py apps/chronicle/persistence/test_extraction_unit.py
+          git diff --cached --check
+          git commit -m "fix(chronicle): bind model output to canonical bundle shape"
+          git push origin HEAD:tmp/chronicle-c1-t17-r8-contract
