@@ -9,7 +9,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 
 async fn mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind upstream");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind upstream");
     let port = listener.local_addr().expect("addr").port();
     let task = tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
@@ -46,9 +48,7 @@ async fn request(port: u16, method: &str, path: &str) -> (u16, String) {
     let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .expect("connect");
-    let head = format!(
-        "{method} {path} HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n"
-    );
+    let head = format!("{method} {path} HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n");
     stream.write_all(head.as_bytes()).await.expect("write");
     let mut raw = Vec::new();
     stream.read_to_end(&mut raw).await.expect("read");
