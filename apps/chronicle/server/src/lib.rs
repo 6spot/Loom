@@ -50,30 +50,36 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     app::build_router(state)
         .route(
             "/api/v1/public/coverage",
-            any(move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                let state = public_state.clone();
-                async move { coverage_proxy(&state, request.method(), uri.query()).await }
-            }),
+            any(
+                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
+                    let state = public_state.clone();
+                    async move { coverage_proxy(&state, request.method(), uri.query()).await }
+                },
+            ),
         )
         .route(
             "/v0/coverage",
-            any(move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                let state = legacy_state.clone();
-                async move { coverage_proxy(&state, request.method(), uri.query()).await }
-            }),
+            any(
+                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
+                    let state = legacy_state.clone();
+                    async move { coverage_proxy(&state, request.method(), uri.query()).await }
+                },
+            ),
         )
         .route(
             "/api/v1/studio/coverage",
-            any(move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                let state = studio_state.clone();
-                async move {
-                    if let Some(response) = coverage_admin_rejection(&state, &request) {
-                        response
-                    } else {
-                        coverage_proxy(&state, request.method(), uri.query()).await
+            any(
+                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
+                    let state = studio_state.clone();
+                    async move {
+                        if let Some(response) = coverage_admin_rejection(&state, &request) {
+                            response
+                        } else {
+                            coverage_proxy(&state, request.method(), uri.query()).await
+                        }
                     }
-                }
-            }),
+                },
+            ),
         )
 }
 
