@@ -8,7 +8,7 @@ on:
       - ".github/workflows/chronicle-t14-dist.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-dist:
@@ -33,9 +33,15 @@ jobs:
           npm run build
           npm run smoke:dist
 
-      - name: Archive generated dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: chronicle-t14-web-dist
-          path: apps/chronicle/web/dist
-          if-no-files-found: error
+      - name: Commit generated dist
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A apps/chronicle/web/dist
+          if git diff --cached --quiet; then
+            echo "Chronicle web dist is already synchronized."
+            exit 0
+          fi
+          git commit -m "chore(chronicle): sync C1-T14 web dist"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
