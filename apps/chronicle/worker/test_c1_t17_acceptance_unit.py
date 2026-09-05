@@ -88,11 +88,15 @@ class GateUnitTests(unittest.TestCase):
         self.assertIn(queue_marker, source)
         self.assertLess(source.index(stop_marker), source.index(queue_marker))
 
-    def test_world_browser_acceptance_compiles(self) -> None:
-        source = WORLD_BROWSER_PATH.read_text(encoding="utf-8")
-        compile(source, str(WORLD_BROWSER_PATH), "exec")
-        self.assertIn('parser.add_argument("--event-id", required=True)', source)
-        self.assertIn('data-view="world"', source)
+    def test_world_browser_contract_matches_gate_invocation(self) -> None:
+        gate_source = MODULE_PATH.read_text(encoding="utf-8")
+        browser_source = WORLD_BROWSER_PATH.read_text(encoding="utf-8")
+        compile(browser_source, str(WORLD_BROWSER_PATH), "exec")
+        self.assertIn('parser.add_argument("--event-id", required=True)', browser_source)
+        self.assertNotIn('parser.add_argument("--evidence-sha256"', browser_source)
+        self.assertIn('data-view="world"', browser_source)
+        self.assertIn("support_evidence", browser_source)
+        self.assertIn('"--event-id", public_sample["event_id"]', gate_source)
 
 
 if __name__ == "__main__":
