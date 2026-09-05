@@ -92,7 +92,7 @@ class GateUnitTests(unittest.TestCase):
         source = WORLD_BROWSER_PATH.read_text(encoding="utf-8")
         compile(source, str(WORLD_BROWSER_PATH), "exec")
         self.assertIn('parser.add_argument("--event-id", required=True)', source)
-        self.assertIn('data-view=\\"world\\"', source)
+        self.assertIn('data-view="world"', source)
 
 
 if __name__ == "__main__":
