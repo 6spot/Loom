@@ -64,7 +64,7 @@ EXTRACTION_VERSION = "c1t6-v1"
 CONTRACT_VERSION = "0.2"
 
 #: Version of the chunk prompt template rendered here.
-PROMPT_VERSION = "c1t6-prompt-v1"
+PROMPT_VERSION = "c1t6-prompt-v2"
 
 #: Marker proving chunk candidates are processing output, never authority.
 NON_AUTHORITATIVE_NOTE = (
@@ -163,7 +163,11 @@ class ExtractionConfig:
 
     max_repair_attempts: int = 1
     max_prompt_chars: int = 8000
-    max_response_chars: int = 16000
+    # R6 of the C1-T17 real-machine gate measured a schema-shaped response
+    # of 26,706 chars for a ~2K-char classical-Chinese chunk. 16K was an
+    # uncalibrated development guard, not a contract limit. Keep a hard,
+    # deterministic bound while leaving enough room for real staged bundles.
+    max_response_chars: int = 32768
 
     def __post_init__(self) -> None:
         for name in (
@@ -289,7 +293,8 @@ IDENTITY / PROVENANCE RULES
 14. Names and titles are attributes, never identity. Keep ambiguous references unresolved with a warning rather than guessing.
 15. An Entity with no mention in this chunk is allowed only when its name appears in INHERITED CONTEXT surfaces AND the bundle carries an `inherited_entity_context` warning naming it. Such hints stay uncertain until resolution.
 16. Warnings must describe the final bundle you return.
-17. Return exactly one JSON object with keys schema_version, source, entities, events, claims, warnings. No prose.
+17. Return exactly one JSON object with keys schema_version, source, entities, events, claims, warnings. No prose or Markdown.
+18. Keep the JSON compact: avoid decorative whitespace, redundant aliases/mentions, and semantically duplicate records. Compactness must never remove a distinct source-grounded fact or weaken exact evidence.
 {correction}
 SECTION
 {json.dumps(section, ensure_ascii=False, indent=2, sort_keys=True)}
@@ -799,6 +804,58 @@ def flatten_validation_errors(report: dict[str, Any]) -> list[str]:
     return result
 
 
+def _bounded_correction_prompt(
+    *,
+    chunk_text: str,
+    request: dict[str, Any],
+    document: dict[str, Any],
+    context_input: dict[str, Any],
+    validation_errors: list[str],
+    previous_candidate: dict[str, Any],
+    config: ExtractionConfig,
+) -> str | None:
+    """Build a correction prompt without ever widening the input budget.
+
+    The preferred correction includes the prior candidate. Real long-form
+    extraction can legitimately produce a candidate larger than the 8K input
+    budget; in that case the prior candidate is omitted and the model is asked
+    to regenerate the complete bundle from the immutable source plus exact
+    deterministic errors. This keeps repair bounded without truncating either
+    source or candidate and keeps every original raw response in attempt history.
+    """
+    prompt = build_extraction_prompt(
+        chunk_text=chunk_text,
+        section=request["request_meta"]["section"],
+        document=document,
+        context_input=context_input,
+        boundary_head="",
+        boundary_tail="",
+        validation_errors=validation_errors,
+        previous_candidate=previous_candidate,
+    )
+    if len(prompt) <= config.max_prompt_chars:
+        return prompt
+    fallback = build_extraction_prompt(
+        chunk_text=chunk_text,
+        section=request["request_meta"]["section"],
+        document=document,
+        context_input=context_input,
+        boundary_head="",
+        boundary_tail="",
+        validation_errors=validation_errors,
+        previous_candidate={
+            "note": (
+                "previous candidate omitted to keep this correction bounded; "
+                "regenerate the complete bundle from CHUNK SOURCE TEXT and the "
+                "deterministic validation errors"
+            )
+        },
+    )
+    if len(fallback) <= config.max_prompt_chars:
+        return fallback
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Bounded extraction with replayable attempt history
 # ---------------------------------------------------------------------------
@@ -861,6 +918,11 @@ def extract_chunk(
         if not isinstance(raw_response, str):
             raise PersistenceError("provider must return response text")
         if len(raw_response) > config.max_response_chars:
+            size_error = (
+                f"model response ({len(raw_response)} chars) exceeds "
+                f"max_response_chars ({config.max_response_chars}); "
+                "refusing to truncate (fail closed)"
+            )
             attempts.append(
                 {
                     "kind": kind,
@@ -868,15 +930,48 @@ def extract_chunk(
                     "prompt_sha256": sha256_text(prompt),
                     "raw_response": raw_response,
                     "raw_response_sha256": sha256_text(raw_response),
-                    "parse_error": (
-                        f"model response ({len(raw_response)} chars) exceeds "
-                        f"max_response_chars ({config.max_response_chars}); "
-                        "refusing to truncate (fail closed)"
-                    ),
+                    "parse_error": size_error,
                     "validation": None,
                     "candidate": None,
                 }
             )
+            if attempt_no < config.max_repair_attempts:
+                prompt = _bounded_correction_prompt(
+                    chunk_text=chunk_text,
+                    request=request,
+                    document=document,
+                    context_input=context_input,
+                    validation_errors=[
+                        "response_size: previous response exceeded the bounded "
+                        f"response budget; return one complete compact JSON bundle "
+                        f"under {config.max_response_chars} characters without "
+                        "dropping distinct source-grounded facts"
+                    ],
+                    previous_candidate={
+                        "note": (
+                            "previous response omitted because it exceeded the "
+                            "bounded response budget"
+                        )
+                    },
+                    config=config,
+                )
+                if prompt is not None:
+                    continue
+                attempts.append(
+                    {
+                        "kind": "correction-skipped",
+                        "prompt": None,
+                        "prompt_sha256": None,
+                        "raw_response": None,
+                        "raw_response_sha256": None,
+                        "parse_error": (
+                            "correction prompt exceeds max_prompt_chars; "
+                            "refusing to truncate (fail closed)"
+                        ),
+                        "validation": None,
+                        "candidate": None,
+                    }
+                )
             break
         try:
             candidate = parse_candidate_response(raw_response)
@@ -937,17 +1032,16 @@ def extract_chunk(
                 "error": None,
             }
         if attempt_no < config.max_repair_attempts:
-            prompt = build_extraction_prompt(
+            prompt = _bounded_correction_prompt(
                 chunk_text=chunk_text,
-                section=request["request_meta"]["section"],
+                request=request,
                 document=document,
                 context_input=context_input,
-                boundary_head="",
-                boundary_tail="",
                 validation_errors=flatten_validation_errors(report),
                 previous_candidate=candidate,
+                config=config,
             )
-            if len(prompt) > config.max_prompt_chars:
+            if prompt is None:
                 attempts.append(
                     {
                         "kind": "correction-skipped",
