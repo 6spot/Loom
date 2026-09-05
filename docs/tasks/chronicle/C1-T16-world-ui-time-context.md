@@ -1,10 +1,10 @@
 ---
 task: C1-T16
 issue: 505
-status: planned
+status: in_progress
 depends_on: [C1-T9, C1-T12, C1-T15]
 created_at: 2026-09-04
-started_at:
+started_at: 2026-09-05
 completed_at:
 completion_pr:
 merge_sha:
@@ -34,3 +34,4 @@ Turn Historical Moment into Chronicle's first real public World experience with 
 ## Progress Log
 
 - 2026-09-04 — Planned under C1 Root #489. No implementation started.
+- 2026-09-05 — Started from canonical `main` only after C1-T15 delivery, post-merge Task Ledger reconciliation, and Issue #504 closure. T16 is a public presentation/time-context task only: the World page will consume the grounded C1-T15 Historical Moment/Coverage/read contracts and preserve URL-addressable historical time; frontend code must not infer territorial control, precise person location, political ownership, troop/office state, or any other unsupported complete-world-state fact.
