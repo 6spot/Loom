@@ -79,6 +79,14 @@ class GateUnitTests(unittest.TestCase):
         self.assertEqual(summary["entity_count"], 2)
         self.assertEqual(summary["place_count"], 1)
 
+    def test_long_lived_worker_is_stopped_before_job_queue(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        stop_marker = 'evidence_dir / "worker-stop-before-queue.txt"'
+        queue_marker = "job = S.queue_job("
+        self.assertIn(stop_marker, source)
+        self.assertIn(queue_marker, source)
+        self.assertLess(source.index(stop_marker), source.index(queue_marker))
+
 
 if __name__ == "__main__":
     unittest.main()

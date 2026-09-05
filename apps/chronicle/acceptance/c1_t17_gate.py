@@ -416,6 +416,17 @@ def main() -> int:
         "output_sha256": S.sha256_bytes(c0_output.encode("utf-8")),
     }
 
+    # Stop the long-lived worker before the Job exists. This makes the
+    # fault-injection worker the only process that can claim the queued Job,
+    # so the retry proof is deterministic rather than a race with worker-A.
+    collect_compose(
+        repo,
+        env_file,
+        evidence_dir / "worker-stop-before-queue.txt",
+        ["--profile", "worker", "stop", "chronicle-worker"],
+        worker_id=WORKER_A,
+    )
+
     create_body = json.dumps({"title": args.title}, ensure_ascii=False).encode("utf-8")
     status, payload = S.json_http(
         base_url,
@@ -433,13 +444,6 @@ def main() -> int:
     job_id = job["job_id"]
     evidence["job_id"] = job_id
 
-    collect_compose(
-        repo,
-        env_file,
-        evidence_dir / "worker-stop-before-retry.txt",
-        ["--profile", "worker", "stop", "chronicle-worker"],
-        worker_id=WORKER_A,
-    )
     fault = collect_compose(
         repo,
         env_file,
