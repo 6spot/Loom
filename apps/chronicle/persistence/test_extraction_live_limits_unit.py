@@ -113,7 +113,8 @@ class ExtractionLiveLimitTests(unittest.TestCase):
         self.assertTrue(result["accepted"], result["error"])
         self.assertEqual(2, len(provider.prompts))
         self.assertLessEqual(len(provider.prompts[1]), config.max_prompt_chars)
-        self.assertIn("candidate omitted to keep this correction bounded", provider.prompts[1])
+        self.assertIn("COMPACT CORRECTION RE-ASK", provider.prompts[1])
+        self.assertNotIn("PREVIOUS CANDIDATE", provider.prompts[1])
 
     def test_r7_near_budget_initial_prompt_can_still_get_bounded_correction(self) -> None:
         config = X.ExtractionConfig(max_repair_attempts=1)
