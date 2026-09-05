@@ -42,19 +42,21 @@ jobs:
           function_start = text.index("def build_extraction_prompt(\n")
           body_start = text.index('    correction = ""\n', function_start)
           body_end = text.index("\n\n\ndef sha256_text", body_start)
-          new_body = '''    if validation_errors is not None and previous_candidate is None:
-              raise PersistenceError("a correction re-ask requires the previous candidate")
-          return extraction_prompt_contract.render_extraction_prompt(
-              chunk_text=chunk_text,
-              section=section,
-              document=document,
-              context_input=context_input,
-              boundary_head=boundary_head,
-              boundary_tail=boundary_tail,
-              validation_errors=validation_errors,
-              previous_candidate=previous_candidate,
-          )
-          '''
+          body_lines = [
+              '    if validation_errors is not None and previous_candidate is None:',
+              '        raise PersistenceError("a correction re-ask requires the previous candidate")',
+              '    return extraction_prompt_contract.render_extraction_prompt(',
+              '        chunk_text=chunk_text,',
+              '        section=section,',
+              '        document=document,',
+              '        context_input=context_input,',
+              '        boundary_head=boundary_head,',
+              '        boundary_tail=boundary_tail,',
+              '        validation_errors=validation_errors,',
+              '        previous_candidate=previous_candidate,',
+              '    )',
+          ]
+          new_body = "\n".join(body_lines) + "\n"
           text = text[:body_start] + new_body + text[body_end:]
 
           correction_start = text.index("def _bounded_correction_prompt(\n")
@@ -62,55 +64,57 @@ jobs:
               "\n\n# ---------------------------------------------------------------------------\n# Bounded extraction",
               correction_start,
           )
-          new_correction = '''def _bounded_correction_prompt(
-              *,
-              chunk_text: str,
-              request: dict[str, Any],
-              document: dict[str, Any],
-              context_input: dict[str, Any],
-              validation_errors: list[str],
-              previous_candidate: dict[str, Any],
-              config: ExtractionConfig,
-          ) -> str | None:
-              """Build one correction prompt without widening the fixed input budget.
-
-              The full validator report remains in attempt history. The model-facing
-              diagnostics are deterministically compacted so repeated schema paths or
-              umbrella object errors cannot consume the repair budget. The preferred
-              prompt includes the prior candidate when it fits; otherwise the candidate
-              body is omitted and the complete bundle is regenerated from source/context,
-              canonical shape guidance, and representative deterministic diagnostics.
-              """
-              correction_errors = extraction_prompt_contract.compact_validation_errors(
-                  validation_errors
-              )
-              prompt = build_extraction_prompt(
-                  chunk_text=chunk_text,
-                  section=request["request_meta"]["section"],
-                  document=document,
-                  context_input=context_input,
-                  boundary_head="",
-                  boundary_tail="",
-                  validation_errors=correction_errors,
-                  previous_candidate=previous_candidate,
-              )
-              if len(prompt) <= config.max_prompt_chars:
-                  return prompt
-              fallback = extraction_prompt_contract.render_extraction_prompt(
-                  chunk_text=chunk_text,
-                  section=request["request_meta"]["section"],
-                  document=document,
-                  context_input=context_input,
-                  boundary_head="",
-                  boundary_tail="",
-                  validation_errors=correction_errors,
-                  previous_candidate=None,
-                  omit_previous_candidate=True,
-              )
-              if len(fallback) <= config.max_prompt_chars:
-                  return fallback
-              return None
-          '''
+          correction_lines = [
+              'def _bounded_correction_prompt(',
+              '    *,',
+              '    chunk_text: str,',
+              '    request: dict[str, Any],',
+              '    document: dict[str, Any],',
+              '    context_input: dict[str, Any],',
+              '    validation_errors: list[str],',
+              '    previous_candidate: dict[str, Any],',
+              '    config: ExtractionConfig,',
+              ') -> str | None:',
+              '    """Build one correction prompt without widening the fixed input budget.',
+              '',
+              '    The full validator report remains in attempt history. The model-facing',
+              '    diagnostics are deterministically compacted so repeated schema paths or',
+              '    umbrella object errors cannot consume the repair budget. The preferred',
+              '    prompt includes the prior candidate when it fits; otherwise the candidate',
+              '    body is omitted and the complete bundle is regenerated from source/context,',
+              '    canonical shape guidance, and representative deterministic diagnostics.',
+              '    """',
+              '    correction_errors = extraction_prompt_contract.compact_validation_errors(',
+              '        validation_errors',
+              '    )',
+              '    prompt = build_extraction_prompt(',
+              '        chunk_text=chunk_text,',
+              '        section=request["request_meta"]["section"],',
+              '        document=document,',
+              '        context_input=context_input,',
+              '        boundary_head="",',
+              '        boundary_tail="",',
+              '        validation_errors=correction_errors,',
+              '        previous_candidate=previous_candidate,',
+              '    )',
+              '    if len(prompt) <= config.max_prompt_chars:',
+              '        return prompt',
+              '    fallback = extraction_prompt_contract.render_extraction_prompt(',
+              '        chunk_text=chunk_text,',
+              '        section=request["request_meta"]["section"],',
+              '        document=document,',
+              '        context_input=context_input,',
+              '        boundary_head="",',
+              '        boundary_tail="",',
+              '        validation_errors=correction_errors,',
+              '        previous_candidate=None,',
+              '        omit_previous_candidate=True,',
+              '    )',
+              '    if len(fallback) <= config.max_prompt_chars:',
+              '        return fallback',
+              '    return None',
+          ]
+          new_correction = "\n".join(correction_lines) + "\n"
           text = text[:correction_start] + new_correction + text[correction_end:]
           path.write_text(text, encoding="utf-8")
 
