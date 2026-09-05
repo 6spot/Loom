@@ -31,6 +31,30 @@ the default stack):
 docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
 ```
 
+### Production extraction / presentation model provider
+
+C1-T13 wires the tested `chunk_model` and `presentation_model` hooks into the
+real worker process through a Responses-style HTTP boundary. Configure
+`CHRONICLE_MODEL_ENDPOINT` plus either or both model names:
+
+```bash
+export CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses
+export CHRONICLE_MODEL_API_KEY=...
+export CHRONICLE_EXTRACTION_MODEL=...
+export CHRONICLE_PRESENTATION_MODEL=...
+```
+
+The endpoint is vendor-neutral at the Chronicle boundary: OpenAI can be used
+directly, while Luna or a local service can sit behind a compatible gateway.
+Extraction and Reader Presentation remain independent model selections. If
+both names are empty, no network model provider is constructed and the prior
+worker behavior is unchanged. If a model name is configured without a valid
+HTTP(S) endpoint, startup fails closed. Credentials are accepted only through
+`CHRONICLE_MODEL_API_KEY`, never embedded in the endpoint URL. Provider errors
+do not echo response bodies or API keys; the existing extraction/presentation
+validators still own schema, evidence grounding, uncertainty and publication
+authority.
+
 ## How durability works
 
 1. **Claim.** `claim_job` takes one `queued` job — or one `running` job

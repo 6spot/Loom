@@ -29,6 +29,27 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # Prepare the application-owned source bind mount for the non-root
+  # Chronicle runtime user (UID/GID 10001). Fresh Debian/CI bind paths are
+  # root-owned; this one-shot init is the only root process touching the
+  # source volume while long-lived Chronicle services stay non-root.
+  chronicle-source-init:
+    <<: *chronicle-image
+    user: "0:0"
+    environment:
+      CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+    volumes:
+      - type: bind
+        source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
+        target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p "$$CHRONICLE_SOURCE_DIR"
+        chown -R 10001:10001 "$$CHRONICLE_SOURCE_DIR"
+    restart: "no"
+
   chronicle-init:
     <<: *chronicle-image
     environment:
@@ -106,6 +127,8 @@ services:
         condition: service_healthy
       chronicle-init:
         condition: service_completed_successfully
+      chronicle-source-init:
+        condition: service_completed_successfully
     command:
       - python3
       - apps/chronicle/read_api/server.py
@@ -146,6 +169,14 @@ services:
       # Chronicle-owned source volume the upload sidecar writes). Without
       # this mount every stage runs the deterministic fake executor.
       CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
+      # C1-T13: real extraction / Reader Presentation are independently
+      # enabled only when their model names are set. The endpoint may be
+      # OpenAI Responses or a compatible Luna/local gateway.
+      CHRONICLE_MODEL_ENDPOINT: ${CHRONICLE_MODEL_ENDPOINT:-}
+      CHRONICLE_MODEL_API_KEY: ${CHRONICLE_MODEL_API_KEY:-}
+      CHRONICLE_MODEL_TIMEOUT_SECONDS: ${CHRONICLE_MODEL_TIMEOUT_SECONDS:-120}
+      CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
+      CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
     volumes:
       - type: bind
         source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
@@ -155,6 +186,8 @@ services:
       postgres:
         condition: service_healthy
       chronicle-init:
+        condition: service_completed_successfully
+      chronicle-source-init:
         condition: service_completed_successfully
     command:
       - python3

@@ -161,7 +161,10 @@ def write_source_file(storage_dir: Path | str, storage_key: str, data: bytes) ->
     after rename, the complete new one.
     """
     dest = resolve_storage_path(storage_dir, storage_key)
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc
     tmp = dest.parent / f".tmp-{uuid.uuid4().hex}"
     try:
         with open(tmp, "wb") as handle:
@@ -315,8 +318,12 @@ def upload_revision(
     storage_key = storage_key_for(document_id, revision_id, name)
     dest = resolve_storage_path(storage_dir, storage_key)
     # Stage bytes to a temp sibling first so a DB failure leaves no visible
-    # partial file behind.
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    # partial file behind. Directory failures are normal persistence errors,
+    # never uncaught exceptions that tear down the Studio sidecar connection.
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise PersistenceError(f"failed to prepare source storage: {exc}") from exc
     tmp = dest.parent / f".tmp-{revision_id.hex}"
     try:
         with open(tmp, "wb") as handle:

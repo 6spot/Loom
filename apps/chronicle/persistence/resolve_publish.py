@@ -8,13 +8,15 @@ stages).
 
 Contract summary (GitHub Issue #497):
 
-- A newly assembled source bundle is resolved against the persisted
-  Chronicle corpus (every ``source_bundles`` row except the job's own
-  new label) using the existing conservative C0 candidate semantics
-  (:mod:`resolution_v0` blocking: same Entity type + exact stable
-  surface; Event time compatibility + participant/place overlap). No
-  new blocking rule, no fuzzy matching, no model adjudication: the
-  deterministic layer never invents ``same_entity`` / ``same_occurrence``.
+- A newly assembled source bundle is resolved against the *published*
+  Chronicle corpus: source bundles represented by the latest canonical
+  catalog. Merely staging a source bundle during another in-flight job does
+  not make it canonical publication input. Candidate generation still uses
+  the existing conservative C0 semantics (:mod:`resolution_v0` blocking:
+  same Entity type + exact stable surface; Event time compatibility +
+  participant/place overlap). No new blocking rule, no fuzzy matching, no
+  model adjudication: the deterministic layer never invents
+  ``same_entity`` / ``same_occurrence``.
 - Initial decisions are all ``uncertain``. Every candidate becomes one
   durable ``ReviewItem`` (kind ``stage_gate``, a frozen C1-T1
   vocabulary value) tied to the originating ingestion job with full
@@ -44,15 +46,18 @@ Contract summary (GitHub Issue #497):
   same-links union representations, ``uncertain`` / ``not_same`` /
   ``related_occurrence`` never merge, negative constraints fail closed
   with ``PublicationConflict``, and an existing catalog reuses stable
-  UUIDv7 identities.
+  UUIDv7 identities. Only the latest catalog's published bundles plus the
+  current job bundle enter a publication attempt; other in-flight staged
+  bundles cannot be accidentally canonicalized as singletons.
 - ``IngestionOutput`` rows link the job to the exact produced source
   bundle, resolution artifact(s), and canonical catalog/publication
   evidence by content hash.
 
-No timestamps, UUIDs, or randomness appear in any generated artifact
-(human audit times live only in ``review_items`` rows). Unchanged
-inputs plus unchanged recorded decisions yield byte-identical
-canonical JSON.
+No timestamps, UUIDs, or randomness appear in any generated resolution
+artifact (human audit times live only in ``review_items`` rows). Unchanged
+inputs plus unchanged recorded decisions yield byte-identical resolution JSON;
+canonical publication preserves stable prior UUIDv7 identities and allocates
+new UUIDv7 identities only for genuinely new canonical groups.
 """
 
 from __future__ import annotations
@@ -83,7 +88,7 @@ import publication_v0  # noqa: E402
 import resolution_v0  # noqa: E402
 
 #: Version of this resolve/review/publish pipeline step.
-RESOLVE_PUBLISH_VERSION = "c1t8-v1"
+RESOLVE_PUBLISH_VERSION = "c1t8-v2"
 
 #: Reused C0 resolution contract (candidates + link decisions).
 RESOLUTION_VERSION = resolution_v0.RESOLUTION_VERSION
@@ -135,28 +140,143 @@ def new_bundle_label(revision_id: uuid.UUID | str) -> str:
     return f"c1rev-{parsed.hex[:12]}"
 
 
-def read_corpus_bundles(conn) -> dict[str, dict[str, Any]]:
-    """Read every persisted source bundle payload keyed by bundle label."""
-    rows = conn.execute(
-        "SELECT bundle_label, bundle_payload FROM chronicle.source_bundles ORDER BY bundle_label"
-    ).fetchall()
-    return {row[0]: row[1] for row in rows}
-
-
-def read_corpus_resolutions(conn) -> list[dict[str, Any]]:
-    """Read every persisted resolution artifact payload in sha order."""
-    rows = conn.execute(
-        "SELECT payload FROM chronicle.resolution_artifacts ORDER BY artifact_sha256"
-    ).fetchall()
-    return [row[0] for row in rows]
-
-
 def read_latest_catalog(conn) -> dict[str, Any] | None:
     """Read the latest persisted canonical catalog payload, if any."""
     row = conn.execute(
         "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
     ).fetchone()
     return row[0] if row is not None else None
+
+
+def published_bundle_labels(catalog: dict[str, Any] | None) -> set[str]:
+    """Return source-bundle labels represented by a canonical catalog.
+
+    Canonical membership is the publication authority. A staged bundle that is
+    absent from both canonical Entity and Event representation sets remains
+    in-flight/unpublished and must not be pulled into another job's catalog.
+    """
+    if catalog is None:
+        return set()
+    if not isinstance(catalog, dict):
+        raise PersistenceError("canonical catalog must be an object or null")
+    labels: set[str] = set()
+    for collection in ("canonical_entities", "canonical_events"):
+        records = catalog.get(collection) or []
+        if not isinstance(records, list):
+            raise PersistenceError(f"canonical catalog {collection} must be an array")
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                raise PersistenceError(
+                    f"canonical catalog {collection}[{index}] must be an object"
+                )
+            representations = record.get("representations") or []
+            if not isinstance(representations, list):
+                raise PersistenceError(
+                    f"canonical catalog {collection}[{index}].representations must be an array"
+                )
+            for rep_index, representation in enumerate(representations):
+                if not isinstance(representation, dict):
+                    raise PersistenceError(
+                        f"canonical catalog {collection}[{index}].representations[{rep_index}] must be an object"
+                    )
+                label = representation.get("bundle")
+                if not isinstance(label, str) or not label:
+                    raise PersistenceError(
+                        f"canonical catalog {collection}[{index}].representations[{rep_index}] has no bundle label"
+                    )
+                labels.add(label)
+    return labels
+
+
+def read_all_staged_bundles(conn) -> dict[str, dict[str, Any]]:
+    """Read every persisted staged source bundle, including in-flight jobs."""
+    rows = conn.execute(
+        "SELECT bundle_label, bundle_payload FROM chronicle.source_bundles ORDER BY bundle_label"
+    ).fetchall()
+    return {row[0]: row[1] for row in rows}
+
+
+def read_published_corpus_bundles(
+    conn, catalog: dict[str, Any] | None = None
+) -> dict[str, dict[str, Any]]:
+    """Read only source bundles already represented by canonical publication."""
+    if catalog is None:
+        catalog = read_latest_catalog(conn)
+    labels = published_bundle_labels(catalog)
+    if not labels:
+        return {}
+    rows = conn.execute(
+        """
+        SELECT bundle_label, bundle_payload
+        FROM chronicle.source_bundles
+        WHERE bundle_label = ANY(%s)
+        ORDER BY bundle_label
+        """,
+        (sorted(labels),),
+    ).fetchall()
+    found = {row[0]: row[1] for row in rows}
+    missing = sorted(labels - set(found))
+    if missing:
+        raise PersistenceError(
+            "canonical catalog references missing staged source bundle(s): "
+            + ", ".join(missing)
+        )
+    return found
+
+
+def read_corpus_bundles(conn) -> dict[str, dict[str, Any]]:
+    """Read the canonical-published corpus bundle set.
+
+    Historical staging is intentionally excluded. This function is the worker's
+    resolution/publication input authority; use :func:`read_all_staged_bundles`
+    only for audit/debug views that explicitly need in-flight data.
+    """
+    return read_published_corpus_bundles(conn)
+
+
+def filter_resolutions_for_bundles(
+    resolutions: list[dict[str, Any]], labels: set[str]
+) -> list[dict[str, Any]]:
+    """Keep only resolution artifacts whose two bundles are publication inputs.
+
+    Initial/final artifacts involving an in-flight bundle remain durable audit
+    records but cannot influence a catalog that does not include that bundle.
+    Malformed persisted resolution metadata fails closed rather than being
+    silently ignored.
+    """
+    kept: list[dict[str, Any]] = []
+    for index, resolution in enumerate(resolutions):
+        if not isinstance(resolution, dict):
+            raise PersistenceError(f"persisted resolution[{index}] must be an object")
+        left = resolution.get("left_bundle")
+        right = resolution.get("right_bundle")
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            raise PersistenceError(
+                f"persisted resolution[{index}] is missing left/right bundle metadata"
+            )
+        left_label = left.get("label")
+        right_label = right.get("label")
+        if not isinstance(left_label, str) or not isinstance(right_label, str):
+            raise PersistenceError(
+                f"persisted resolution[{index}] has invalid left/right bundle labels"
+            )
+        if left_label in labels and right_label in labels:
+            kept.append(resolution)
+    return kept
+
+
+def read_all_staged_resolutions(conn) -> list[dict[str, Any]]:
+    """Read every persisted resolution artifact, including in-flight pairs."""
+    rows = conn.execute(
+        "SELECT payload FROM chronicle.resolution_artifacts ORDER BY artifact_sha256"
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def read_corpus_resolutions(conn) -> list[dict[str, Any]]:
+    """Read only resolution artifacts wholly inside the published corpus."""
+    labels = published_bundle_labels(read_latest_catalog(conn))
+    return filter_resolutions_for_bundles(read_all_staged_resolutions(conn), labels)
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +303,7 @@ def build_initial_resolutions(
     new_label: str,
     corpus: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Build one initial resolution artifact per corpus bundle.
+    """Build one initial resolution artifact per published corpus bundle.
 
     Each artifact reuses the C0 candidate blocking
     (:func:`resolution_v0.build_candidate_set`) and records every
@@ -521,81 +641,57 @@ def build_final_resolutions(
     *,
     require_complete: bool = True,
 ) -> list[dict[str, Any]]:
-    """Apply recorded human decisions over initial uncertain artifacts.
-
-    Every candidate keeps its ID, refs, and signals; only
-    decision/confidence/rationale change. Dismissed reviews arrive
-    here as explicit ``uncertain`` decisions (see
-    :func:`collect_review_decisions`), so giving up on a review never
-    merges identities. With ``require_complete`` (the worker
-    default), any candidate with no recorded decision at all —
-    genuinely unreviewed, or bound to a changed initial artifact —
-    fails closed instead of publishing a partially reviewed graph.
-    """
+    """Apply durable review decisions to initial artifacts deterministically."""
     final: list[dict[str, Any]] = []
-    for pristine in initial:
-        # Bind decisions to the full initial artifact hash (the same
-        # hash review items were opened under): any change to the
-        # initial artifact invalidates stale decisions instead of
-        # silently applying them. The hash is taken before any
-        # decision is applied below.
-        full_sha = initial_artifact_sha(pristine)
-        resolution = copy.deepcopy(pristine)
-        for collection, link_kind in (
-            ("entity_links", "entity"),
-            ("event_links", "event"),
-        ):
-            for link in resolution.get(collection) or []:
-                key = _candidate_key(full_sha, str(link.get("candidate_id")))
-                recorded = decisions.get(key)
-                if recorded is None:
+    for artifact in initial:
+        resolution_sha = initial_artifact_sha(artifact)
+        updated = copy.deepcopy(artifact)
+        updated_warnings: list[dict[str, Any]] = []
+        for field, link_kind in (("entity_links", "entity"), ("event_links", "event")):
+            for link in updated.get(field) or []:
+                candidate_id = link.get("candidate_id")
+                key = _candidate_key(resolution_sha, str(candidate_id))
+                decision = decisions.get(key)
+                if decision is None:
                     if require_complete:
                         raise PersistenceError(
-                            "candidate "
-                            f"{link.get('candidate_id')} of resolution "
-                            f"{full_sha[:12]} has no recorded review decision; "
-                            "refusing to publish a partially reviewed graph"
+                            f"resolution candidate {candidate_id!r} in {resolution_sha} "
+                            "has no recorded human decision"
                         )
+                    updated_warnings.append(
+                        {
+                            "type": "unresolved_resolution",
+                            "message": f"Resolution candidate {candidate_id} remains uncertain.",
+                            "refs": [str(candidate_id)],
+                        }
+                    )
                     continue
-                _require_decision(link_kind, recorded["decision"])
-                link["decision"] = recorded["decision"]
-                link["confidence"] = float(recorded["confidence"])
-                link["rationale"] = str(recorded["rationale"])
-        resolution["warnings"] = [
-            {
-                "type": "unresolved_resolution",
-                "message": f"Resolution candidate {link['candidate_id']} remains uncertain.",
-                "refs": [link["candidate_id"]],
-            }
-            for link in (resolution.get("entity_links") or [])
-            + (resolution.get("event_links") or [])
-            if link.get("decision") == "uncertain"
-        ]
-        final.append(resolution)
-    final.sort(key=lambda item: sha256_json(item))
+                link["decision"] = _require_decision(
+                    link_kind, decision.get("decision")
+                )
+                link["confidence"] = float(decision["confidence"])
+                link["rationale"] = str(decision["rationale"])
+                if link["decision"] == "uncertain":
+                    updated_warnings.append(
+                        {
+                            "type": "unresolved_resolution",
+                            "message": f"Resolution candidate {candidate_id} remains uncertain.",
+                            "refs": [str(candidate_id)],
+                        }
+                    )
+        updated["warnings"] = updated_warnings
+        final.append(updated)
+    final.sort(key=sha256_json)
     return final
 
 
-def _initial_identity(resolution: dict[str, Any]) -> dict[str, Any]:
-    """Identity projection of an initial artifact for decision binding."""
-    return {
-        "schema": resolution.get("schema"),
-        "version": resolution.get("version"),
-        "left_bundle": resolution.get("left_bundle"),
-        "right_bundle": resolution.get("right_bundle"),
-        "entity_links": resolution.get("entity_links"),
-        "event_links": resolution.get("event_links"),
-        "warnings": resolution.get("warnings"),
-    }
-
-
-def initial_artifact_sha(resolution: dict[str, Any]) -> str:
-    """Content hash of an initial resolution artifact (review binding)."""
-    return sha256_json(_initial_identity(resolution))
+def initial_artifact_sha(artifact: dict[str, Any]) -> str:
+    """Return the content address for an initial resolution artifact."""
+    return sha256_json(artifact)
 
 
 # ---------------------------------------------------------------------------
-# Canonical publication over accepted decisions
+# Publication bridge (C0 semantics unchanged)
 # ---------------------------------------------------------------------------
 
 
@@ -604,60 +700,41 @@ def publish_with_decisions(
     bundles: dict[str, dict[str, Any]],
     resolutions: list[dict[str, Any]],
     existing_catalog: dict[str, Any] | None,
-    id_factory=publication_v0.new_uuid7,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Publish accepted resolutions into a canonical catalog plus report.
+    """Publish through C0 canonical semantics and return catalog + audit report."""
+    try:
+        catalog = publication_v0.publish_catalog(
+            bundles, resolutions, existing_catalog=existing_catalog
+        )
+    except publication_v0.PublicationConflict:
+        raise
+    except publication_v0.PublicationV0Error as exc:
+        raise PersistenceError(f"canonical publication input is invalid: {exc}") from exc
+    return catalog, publication_report(catalog, resolutions)
 
-    Thin deterministic wrapper over :func:`publication_v0.publish_catalog`
-    (C0 semantics reused unchanged: only ``same_entity`` /
-    ``same_occurrence`` union; ``uncertain`` / ``not_same`` /
-    ``related_occurrence`` never merge; negative constraints and
-    existing-ID collapse fail closed). The report is run metadata —
-    counts and content hashes — never identity authority, and carries
-    no timestamps so reruns stay byte-stable.
-    """
-    catalog = publication_v0.publish_catalog(
-        bundles, resolutions, existing_catalog, id_factory
-    )
-    catalog_sha = sha256_json(catalog)
-    decisions: dict[str, dict[str, int]] = {"entities": {}, "events": {}}
-    for key, collection in (
-        ("entities", "entity_links"),
-        ("events", "event_links"),
-    ):
-        for resolution in resolutions:
-            for link in resolution.get(collection) or []:
-                name = str(link.get("decision"))
-                decisions[key][name] = decisions[key].get(name, 0) + 1
-    report = {
-        "schema": "chronicle.canonical-publication-report",
+
+def publication_report(
+    catalog: dict[str, Any], resolutions: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Return a small deterministic report (no copied source truth)."""
+    decisions = {
+        "entities": {},
+        "events": {},
+    }
+    for resolution in resolutions:
+        for field, destination in (("entity_links", "entities"), ("event_links", "events")):
+            for link in resolution.get(field) or []:
+                decision = str(link.get("decision"))
+                decisions[destination][decision] = decisions[destination].get(decision, 0) + 1
+    return {
+        "schema": "chronicle.publication-report",
         "version": "0.1",
-        "resolve_publish_version": RESOLVE_PUBLISH_VERSION,
         "publication_version": PUBLICATION_VERSION,
-        "bundles": sorted(bundles),
-        "resolutions": sorted(sha256_json(item) for item in resolutions),
-        "existing_catalog": (
-            sha256_json(existing_catalog) if existing_catalog is not None else None
-        ),
-        "catalog_sha256": catalog_sha,
-        "decisions": decisions,
         "counts": {
             "canonical_entities": len(catalog.get("canonical_entities") or []),
             "canonical_events": len(catalog.get("canonical_events") or []),
             "event_relations": len(catalog.get("event_relations") or []),
         },
-        "authoritative": False,
-        "authority_note": (
-            "canonical publication is deterministic identity membership over "
-            "source-owned bundles and accepted resolution links, not "
-            "historical authority; staged sources and claims remain intact"
-        ),
+        "decisions": decisions,
+        "catalog_sha256": sha256_json(catalog),
     }
-    return catalog, report
-
-
-def artifact_canonical_bytes(artifact: dict[str, Any]) -> bytes:
-    """Canonical bytes for hashing/persistence of resolve/publish artifacts."""
-    if not isinstance(artifact, dict):
-        raise PersistenceError("resolve/publish artifact must be a JSON object")
-    return canonical_json_bytes(artifact)

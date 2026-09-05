@@ -1,0 +1,242 @@
+{
+  "schema": "chronicle.model-fixture-pack",
+  "version": "0.1",
+  "model_version": "chronicle-c1-t13-source-fixture-v1",
+  "extraction": {
+    "rules": [
+      {
+        "id": "xianzhu-lead-xuzhou",
+        "document": "三國志·蜀書·先主傳",
+        "evidence": "先主遂領徐州",
+        "subject": {"name": "劉備", "type": "person", "mention": "先主"},
+        "predicate": "held_office",
+        "object": {"kind": "literal", "value": "徐州"},
+        "event": {"type": "administrative", "title": "劉備領徐州"}
+      },
+      {
+        "id": "xianzhu-fought-cao",
+        "document": "三國志·蜀書·先主傳",
+        "evidence": "曹公東征先主，先主敗績",
+        "subject": {"name": "劉備", "type": "person", "mention": "先主"},
+        "predicate": "fought",
+        "object": {"kind": "entity", "entity": {"name": "曹操", "type": "person", "mention": "曹公"}},
+        "event": {"type": "military", "title": "曹操東征劉備"}
+      },
+      {
+        "id": "xianzhu-gained-hanzhong",
+        "document": "三國志·蜀書·先主傳",
+        "evidence": "曹公果引軍還，先主遂有漢中",
+        "subject": {"name": "劉備", "type": "person", "mention": "先主"},
+        "predicate": "gained_territory",
+        "object": {"kind": "entity", "entity": {"name": "漢中", "type": "place", "mention": "漢中"}},
+        "event": {"type": "territorial_change", "title": "劉備取得漢中"}
+      },
+      {
+        "id": "xianzhu-died-yongan",
+        "document": "三國志·蜀書·先主傳",
+        "evidence": "先主殂於永安宮",
+        "subject": {"name": "劉備", "type": "person", "mention": "先主"},
+        "predicate": "died",
+        "object": null,
+        "event": {"type": "death", "title": "劉備卒於永安宮"}
+      },
+
+      {
+        "id": "zhuge-appointed-chancellor",
+        "document": "三國志·蜀書·諸葛亮傳",
+        "evidence": "備稱尊號，拜亮為丞相，錄尚書事",
+        "subject": {"name": "諸葛亮", "type": "person", "mention": "亮"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "丞相"},
+        "event": {"type": "appointment", "title": "諸葛亮拜丞相"}
+      },
+      {
+        "id": "zhuge-appointed-military-adviser",
+        "document": "三國志·蜀書·諸葛亮傳",
+        "evidence": "益州既定，以亮為軍師將軍",
+        "subject": {"name": "諸葛亮", "type": "person", "mention": "亮"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "軍師將軍"},
+        "event": {"type": "appointment", "title": "諸葛亮為軍師將軍"}
+      },
+      {
+        "id": "zhuge-southern-campaign",
+        "document": "三國志·蜀書·諸葛亮傳",
+        "evidence": "亮率眾南征",
+        "subject": {"name": "諸葛亮", "type": "person", "mention": "亮"},
+        "predicate": "moved_to",
+        "object": {"kind": "literal", "value": "南方"},
+        "event": {"type": "movement", "title": "諸葛亮率眾南征"}
+      },
+      {
+        "id": "zhuge-died-army",
+        "document": "三國志·蜀書·諸葛亮傳",
+        "evidence": "亮疾病，卒于軍",
+        "subject": {"name": "諸葛亮", "type": "person", "mention": "亮"},
+        "predicate": "died",
+        "object": null,
+        "event": {"type": "death", "title": "諸葛亮卒於軍中"}
+      },
+
+      {
+        "id": "zhouyu-red-cliffs",
+        "document": "三國志·吳書·周瑜傳",
+        "evidence": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁",
+        "subject": {"name": "周瑜", "type": "person", "mention": "瑜"},
+        "predicate": "fought",
+        "object": {"kind": "entity", "entity": {"name": "曹操", "type": "person", "mention": "曹公"}},
+        "event": {"type": "battle", "title": "周瑜等與曹操遇於赤壁"}
+      },
+      {
+        "id": "zhouyu-nanjun",
+        "document": "三國志·吳書·周瑜傳",
+        "evidence": "瑜與程普又進南郡",
+        "subject": {"name": "周瑜", "type": "person", "mention": "瑜"},
+        "predicate": "moved_to",
+        "object": {"kind": "entity", "entity": {"name": "南郡", "type": "place", "mention": "南郡"}},
+        "event": {"type": "movement", "title": "周瑜與程普進南郡"}
+      },
+      {
+        "id": "zhouyu-appointed",
+        "document": "三國志·吳書·周瑜傳",
+        "evidence": "權拜瑜偏將軍，領南郡太守",
+        "subject": {"name": "周瑜", "type": "person", "mention": "瑜"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "偏將軍、南郡太守"},
+        "event": {"type": "appointment", "title": "周瑜拜偏將軍領南郡太守"}
+      },
+      {
+        "id": "zhouyu-died-baqiu",
+        "document": "三國志·吳書·周瑜傳",
+        "evidence": "瑜還江陵為行裝，而道於巴丘病卒",
+        "subject": {"name": "周瑜", "type": "person", "mention": "瑜"},
+        "predicate": "died",
+        "object": null,
+        "event": {"type": "death", "title": "周瑜道卒巴丘"}
+      },
+
+      {
+        "id": "lusu-adviser",
+        "document": "三國志·吳書·魯肅傳",
+        "evidence": "以肅為贊軍校尉，助畫方略",
+        "subject": {"name": "魯肅", "type": "person", "mention": "肅"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "贊軍校尉"},
+        "event": {"type": "appointment", "title": "魯肅為贊軍校尉"}
+      },
+      {
+        "id": "lusu-replace-zhouyu",
+        "document": "三國志·吳書·魯肅傳",
+        "evidence": "即拜肅奮武校尉，代瑜領兵",
+        "subject": {"name": "魯肅", "type": "person", "mention": "肅"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "奮武校尉"},
+        "event": {"type": "appointment", "title": "魯肅代周瑜領兵"}
+      },
+      {
+        "id": "lusu-jiangling",
+        "document": "三國志·吳書·魯肅傳",
+        "evidence": "肅初住江陵，後下屯陸口",
+        "subject": {"name": "魯肅", "type": "person", "mention": "肅"},
+        "predicate": "stationed_at",
+        "object": {"kind": "entity", "entity": {"name": "江陵", "type": "place", "mention": "江陵"}},
+        "event": {"type": "movement", "title": "魯肅駐江陵後屯陸口"}
+      },
+      {
+        "id": "lusu-guanyu-yiyang",
+        "document": "三國志·吳書·魯肅傳",
+        "evidence": "肅住益陽，與羽相拒",
+        "subject": {"name": "魯肅", "type": "person", "mention": "肅"},
+        "predicate": "fought",
+        "object": {"kind": "entity", "entity": {"name": "關羽", "type": "person", "mention": "羽"}},
+        "event": {"type": "military", "title": "魯肅與關羽相拒益陽"}
+      },
+      {
+        "id": "lusu-died",
+        "document": "三國志·吳書·魯肅傳",
+        "evidence": "肅年四十六，建安二十二年卒",
+        "subject": {"name": "魯肅", "type": "person", "mention": "肅"},
+        "predicate": "died",
+        "object": null,
+        "event": {"type": "death", "title": "魯肅卒"}
+      },
+
+      {
+        "id": "lumeng-appointed-sima",
+        "document": "三國志·吳書·呂蒙傳",
+        "evidence": "張昭薦蒙代當，拜別部司馬",
+        "subject": {"name": "呂蒙", "type": "person", "mention": "蒙"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "別部司馬"},
+        "event": {"type": "appointment", "title": "呂蒙拜別部司馬"}
+      },
+      {
+        "id": "lumeng-huangzu",
+        "document": "三國志·吳書·呂蒙傳",
+        "evidence": "蒙勒前鋒，親梟就首",
+        "subject": {"name": "呂蒙", "type": "person", "mention": "蒙"},
+        "predicate": "fought",
+        "object": null,
+        "event": {"type": "military", "title": "呂蒙為前鋒攻黃祖軍"}
+      },
+      {
+        "id": "lumeng-lukou",
+        "document": "三國志·吳書·呂蒙傳",
+        "evidence": "魯肅卒，蒙西屯陸口",
+        "subject": {"name": "呂蒙", "type": "person", "mention": "蒙"},
+        "predicate": "stationed_at",
+        "object": {"kind": "entity", "entity": {"name": "陸口", "type": "place", "mention": "陸口"}},
+        "event": {"type": "movement", "title": "呂蒙西屯陸口"}
+      },
+      {
+        "id": "lumeng-south-commandery",
+        "document": "三國志·吳書·呂蒙傳",
+        "evidence": "以蒙為南郡太守",
+        "subject": {"name": "呂蒙", "type": "person", "mention": "蒙"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "南郡太守"},
+        "event": {"type": "appointment", "title": "呂蒙為南郡太守"}
+      },
+
+      {
+        "id": "xunyu-join-caocao",
+        "document": "三國志·魏書·荀彧傳",
+        "evidence": "彧去紹從太祖",
+        "subject": {"name": "荀彧", "type": "person", "mention": "彧"},
+        "predicate": "moved_to",
+        "object": {"kind": "entity", "entity": {"name": "曹操", "type": "person", "mention": "太祖"}},
+        "event": {"type": "political", "title": "荀彧離袁紹從曹操"}
+      },
+      {
+        "id": "xunyu-shangshuling",
+        "document": "三國志·魏書·荀彧傳",
+        "evidence": "進彧爲漢侍中，守尚書令",
+        "subject": {"name": "荀彧", "type": "person", "mention": "彧"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "漢侍中、尚書令"},
+        "event": {"type": "appointment", "title": "荀彧進漢侍中守尚書令"}
+      },
+      {
+        "id": "xunyu-wansuui-marquis",
+        "document": "三國志·魏書·荀彧傳",
+        "evidence": "表封彧爲萬歳亭侯",
+        "subject": {"name": "荀彧", "type": "person", "mention": "彧"},
+        "predicate": "appointed",
+        "object": {"kind": "literal", "value": "萬歳亭侯"},
+        "event": {"type": "appointment", "title": "荀彧封萬歳亭侯"}
+      },
+      {
+        "id": "xunyu-died-shouchun",
+        "document": "三國志·魏書·荀彧傳",
+        "evidence": "彧疾留壽春，以憂薨",
+        "subject": {"name": "荀彧", "type": "person", "mention": "彧"},
+        "predicate": "died",
+        "object": null,
+        "event": {"type": "death", "title": "荀彧卒於壽春"}
+      }
+    ]
+  },
+  "presentation": {
+    "mode": "claim-template-zh-CN-v1"
+  }
+}

@@ -73,6 +73,7 @@ import assembly  # noqa: E402
 import canonical_store  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
+import model_provider  # noqa: E402
 import presentation_stage  # noqa: E402
 import resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
@@ -342,6 +343,7 @@ class JobRunner:
         extraction_schema: dict[str, Any] | None = None,
         allowed_predicates: list[str] | None = None,
         document_meta: dict[str, Any] | None = None,
+        allow_fake_after_real_source: bool = False,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
@@ -353,6 +355,10 @@ class JobRunner:
         ):
             raise PersistenceError(
                 "chunk_model must expose complete(prompt)->str and a string name"
+            )
+        if not isinstance(allow_fake_after_real_source, bool):
+            raise PersistenceError(
+                "allow_fake_after_real_source must be a boolean"
             )
         if presentation_model is not None and (
             not callable(getattr(presentation_model, "complete", None))
@@ -376,6 +382,7 @@ class JobRunner:
         self.extraction_schema = extraction_schema
         self.allowed_predicates = allowed_predicates
         self.document_meta = dict(document_meta or {})
+        self.allow_fake_after_real_source = allow_fake_after_real_source
 
     # -- single-transaction steps --------------------------------------
 
@@ -1545,12 +1552,18 @@ class JobRunner:
         # No connection is open across publication: pure compute only.
         with psycopg.connect(self.database_url) as conn:
             corpus = resolve_publish.read_corpus_bundles(conn)
+            staged = resolve_publish.read_all_staged_bundles(conn)
             prior = resolve_publish.read_corpus_resolutions(conn)
             existing_catalog = resolve_publish.read_latest_catalog(conn)
-        if new_label not in corpus:
+        if new_label not in staged:
             raise PersistenceError(
                 f"job {job_id} bundle {new_label!r} is not persisted; "
                 "refusing to publish an unpersisted bundle (run resolve first)"
+            )
+        if sha256_json(staged[new_label]) != sha256_json(bundle):
+            raise PersistenceError(
+                f"job {job_id} bundle {new_label!r} differs from the persisted "
+                "staged bundle; refusing publication from conflicting bytes"
             )
         initial = resolve_publish.build_initial_resolutions(
             new_bundle=bundle, new_label=new_label, corpus=corpus
@@ -1597,10 +1610,7 @@ class JobRunner:
                 bundles=bundles, resolutions=resolutions,
                 existing_catalog=existing_catalog,
             )
-        except (
-            publication_v0.PublicationConflict,
-            publication_v0.PublicationV0Error,
-        ) as exc:
+        except resolve_publish.publication_v0.PublicationConflict as exc:
             raise PersistenceError(
                 f"real publication failed closed: {exc}"
             ) from exc
@@ -1801,6 +1811,27 @@ class JobRunner:
                         return outcome
                     continue
             if stage == CHUNK_BEARING_STAGE:
+                if (
+                    self.chunk_model is None
+                    and real is not real_unset
+                    and real is not None
+                    and not self.allow_fake_after_real_source
+                ):
+                    error = (
+                        "real immutable source requires an extraction model; "
+                        "refusing deterministic fake extraction"
+                    )
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker, error=error,
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker, error=error,
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": error})
+                    return "failed"
                 if self.chunk_model is not None:
                     try:
                         outcome = self._execute_real_extract(job_id)
@@ -2131,6 +2162,7 @@ def run_once(
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
+    allow_fake_after_real_source: bool = False,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
@@ -2161,6 +2193,7 @@ def run_once(
         extraction_schema=extraction_schema,
         allowed_predicates=allowed_predicates,
         document_meta=document_meta,
+        allow_fake_after_real_source=allow_fake_after_real_source,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -2183,6 +2216,7 @@ def run_forever(
     extraction_schema: dict[str, Any] | None = None,
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
+    allow_fake_after_real_source: bool = False,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -2202,6 +2236,7 @@ def run_forever(
                 extraction_schema=extraction_schema,
                 allowed_predicates=allowed_predicates,
                 document_meta=document_meta,
+                allow_fake_after_real_source=allow_fake_after_real_source,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.
@@ -2305,6 +2340,7 @@ def main(argv: list[str] | None = None) -> int:
         if source_dir is not None
         else None
     )
+    extraction_model, presentation_model = model_provider.models_from_env()
     stop = threading.Event()
     install_shutdown_handlers(stop)
     if source_dir is not None:
@@ -2321,12 +2357,21 @@ def main(argv: list[str] | None = None) -> int:
             "executor (no --source-dir/CHRONICLE_SOURCE_DIR)",
             flush=True,
         )
+    if extraction_model is not None or presentation_model is not None:
+        print(
+            "chronicle-worker: production model providers enabled "
+            f"(extraction={getattr(extraction_model, 'name', 'off')}, "
+            f"presentation={getattr(presentation_model, 'name', 'off')})",
+            flush=True,
+        )
     tally = run_forever(
         database_url, worker=worker,
         executor_factory=lambda: StageExecutor(fail_plan=dict(fail_plan)),
         lease_seconds=args.lease_seconds, poll_interval=args.poll_interval,
         max_jobs=args.max_jobs, stop=stop,
         revision_source=revision_source,
+        chunk_model=extraction_model,
+        presentation_model=presentation_model,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

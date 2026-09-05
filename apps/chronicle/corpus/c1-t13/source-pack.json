@@ -1,0 +1,68 @@
+{
+  "schema": "chronicle.corpus-source-pack",
+  "version": "0.1",
+  "pack_id": "c1-t13-late-han-196-220-v1",
+  "language": "zh-Hant",
+  "acquisition": {
+    "provider": "Wikisource MediaWiki Action API",
+    "endpoint": "https://zh.wikisource.org/w/api.php",
+    "transform_version": "mediawiki-section-text-v0.1",
+    "license_note": "Underlying historical works are public domain; Wikisource site text is provided under CC BY-SA terms. Preserve page title and pinned oldid attribution with every uploaded revision."
+  },
+  "sources": [
+    {
+      "key": "xianzhu-liubei",
+      "title": "三國志·蜀書·先主傳",
+      "filename": "sanguozhi-032-xianzhu-liubei.txt",
+      "page_title": "三國志/卷32",
+      "oldid": 2583378,
+      "section": "先主 劉備",
+      "window_role": "Shu anchor; Liu Bei trajectory and cross-source overlap with Cao Cao, Sun Quan, Jingzhou and Red Cliffs"
+    },
+    {
+      "key": "zhuge-liang",
+      "title": "三國志·蜀書·諸葛亮傳",
+      "filename": "sanguozhi-035-zhuge-liang.txt",
+      "page_title": "三國志/卷35",
+      "oldid": 2115776,
+      "section": "諸葛亮",
+      "window_role": "Shu political/strategic anchor; Liu Bei, Jingzhou, Yizhou and 207–223 transition"
+    },
+    {
+      "key": "zhou-yu",
+      "title": "三國志·吳書·周瑜傳",
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "周瑜",
+      "window_role": "Wu military anchor; Red Cliffs and Jingzhou overlap"
+    },
+    {
+      "key": "lu-su",
+      "title": "三國志·吳書·魯肅傳",
+      "filename": "sanguozhi-054-lu-su.txt",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "魯肅",
+      "window_role": "Wu diplomatic anchor; Sun Quan, Liu Bei alliance and Jingzhou disputes"
+    },
+    {
+      "key": "lu-meng",
+      "title": "三國志·吳書·呂蒙傳",
+      "filename": "sanguozhi-054-lu-meng.txt",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "呂蒙",
+      "window_role": "Wu military anchor; Nan commandery, Jingzhou and Guan Yu 219 overlap"
+    },
+    {
+      "key": "xun-yu",
+      "title": "三國志·魏書·荀彧傳",
+      "filename": "sanguozhi-010-xun-yu.txt",
+      "page_title": "三國志/卷10",
+      "oldid": 2274279,
+      "section": "荀彧",
+      "window_role": "Wei cross-camp anchor; Cao Cao regime, Guandu and late-Han political context"
+    }
+  ]
+}
