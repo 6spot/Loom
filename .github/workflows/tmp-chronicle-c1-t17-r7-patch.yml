@@ -22,23 +22,12 @@ jobs:
 
           path = Path("apps/chronicle/persistence/extraction.py")
           text = path.read_text(encoding="utf-8")
-          old = '''    fallback = build_extraction_prompt(
-              chunk_text=chunk_text,
-              section=request["request_meta"]["section"],
-              document=document,
-              context_input=context_input,
-              boundary_head="",
-              boundary_tail="",
-              validation_errors=validation_errors,
-              previous_candidate={
-                  "note": (
-                      "previous candidate omitted to keep this correction bounded; "
-                      "regenerate the complete bundle from CHUNK SOURCE TEXT and the "
-                      "deterministic validation errors"
-                  )
-              },
-          )
-          '''
+          function_marker = "def _bounded_correction_prompt("
+          start_marker = "    fallback = build_extraction_prompt(\n"
+          end_marker = "    if len(fallback) <= config.max_prompt_chars:\n"
+          function_start = text.index(function_marker)
+          start = text.index(start_marker, function_start)
+          end = text.index(end_marker, start)
           new = '''    compact_json = lambda value: json.dumps(
               value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
           )
@@ -80,9 +69,10 @@ jobs:
           ---END CHUNK---
           """
           '''
-          if text.count(old) != 1:
-              raise SystemExit(f"expected exactly one fallback block, found {text.count(old)}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          patched = text[:start] + new + text[end:]
+          if patched == text:
+              raise SystemExit("marker patch produced no change")
+          path.write_text(patched, encoding="utf-8")
       - name: Compile extraction module
         run: python -m py_compile apps/chronicle/persistence/extraction.py
       - name: Run R6/R7 live-limit regressions
