@@ -835,22 +835,46 @@ def _bounded_correction_prompt(
     )
     if len(prompt) <= config.max_prompt_chars:
         return prompt
-    fallback = build_extraction_prompt(
-        chunk_text=chunk_text,
-        section=request["request_meta"]["section"],
-        document=document,
-        context_input=context_input,
-        boundary_head="",
-        boundary_tail="",
-        validation_errors=validation_errors,
-        previous_candidate={
-            "note": (
-                "previous candidate omitted to keep this correction bounded; "
-                "regenerate the complete bundle from CHUNK SOURCE TEXT and the "
-                "deterministic validation errors"
-            )
-        },
+    compact_json = lambda value: json.dumps(
+        value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
     )
+    fallback = f"""You are Chronicle chunk-extraction contract-v{CONTRACT_VERSION}.
+
+    COMPACT CORRECTION RE-ASK
+    The previous candidate is omitted to keep this correction bounded. Regenerate
+    one complete compact JSON bundle from the immutable CHUNK SOURCE TEXT and the
+    deterministic validation errors below. Correct every listed error. Do not add
+    outside knowledge, and do not delete unrelated source-grounded facts.
+
+    REQUIRED RULES
+    - Return exactly one JSON object with keys schema_version, source, entities, events, claims, warnings; no prose or Markdown.
+    - Use INHERITED CONTEXT only to interpret references/time; it is never evidence or historical authority.
+    - Every Claim.evidence.text must be an exact CHUNK SOURCE TEXT substring.
+    - Use job-local temp IDs only; never emit canonical `id` values.
+    - Keep ambiguous references unresolved; inherited-only entities require an `inherited_entity_context` warning naming them.
+    - Every Claim assessment starts `unassessed`; extraction confidence is separate from historical assessment.
+    - Preserve explicit/inherited traditional time verbatim. Inherited time lists inherited_fields. Never invent normalized month/day; normalized year is allowed only when DOCUMENT supplies the verified mapping.
+    - Keep distinct occurrences/facts distinct, avoid duplicate records, and use an `ontology_gap` warning rather than forcing a predicate that does not fit.
+    - If a listed error cannot be repaired without fabrication, drop only the ungrounded record and emit a warning. Never truncate source evidence.
+    - Keep JSON compact without dropping distinct source-grounded facts.
+
+    VALIDATION ERRORS
+    {compact_json(validation_errors)}
+
+    SECTION
+    {compact_json(request["request_meta"]["section"])}
+
+    DOCUMENT
+    {compact_json(document)}
+
+    INHERITED CONTEXT (processing aid only; never evidence)
+    {compact_json(context_input)}
+
+    CHUNK SOURCE TEXT
+    ---BEGIN CHUNK---
+    {chunk_text}
+    ---END CHUNK---
+    """
     if len(fallback) <= config.max_prompt_chars:
         return fallback
     return None
