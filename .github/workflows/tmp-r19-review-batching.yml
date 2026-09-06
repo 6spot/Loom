@@ -28,7 +28,9 @@ jobs:
           node-version: '22'
 
       - name: Apply R19 integration patch
-        run: python tools/tmp_r19_apply.py
+        run: |
+          python tools/tmp_r19_apply.py
+          python tools/tmp_r19_ui_patch.py
 
       - name: Install Chronicle dependencies
         run: |
@@ -63,6 +65,7 @@ jobs:
             apps/chronicle/read_api/studio_reviews.py \
             apps/chronicle/webapp/src/lib/studio-api.ts \
             apps/chronicle/webapp/src/pages/studio/StudioReviewPage.tsx \
+            apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx \
             apps/chronicle/web/dist
           if git diff --cached --quiet; then
             echo 'tested implementation already committed'
