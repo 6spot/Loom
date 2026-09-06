@@ -1,0 +1,40 @@
+name: Temporary Chronicle R15 dist build
+
+on:
+  push:
+    branches:
+      - tmp/chronicle-r15-dist-build
+
+permissions:
+  contents: write
+
+jobs:
+  build-dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: tmp/chronicle-r15-dist-build
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+      - name: Build Chronicle webapp dist
+        working-directory: apps/chronicle/webapp
+        run: |
+          npm ci
+          npm run build
+      - name: Commit generated dist to temporary branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps/chronicle/web/dist; then
+            echo 'generated dist already clean'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/chronicle/web/dist
+          git commit -m 'chore(chronicle): generate R15 review dist [skip ci]'
+          git push origin HEAD:tmp/chronicle-r15-dist-build
