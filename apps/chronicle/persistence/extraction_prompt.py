@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any
 
-PROMPT_VERSION = "c1t6-prompt-v4"
+PROMPT_VERSION = "c1t6-prompt-v5"
 
 MODEL_CONTRACT_GUIDE = r'''CANONICAL BUNDLE SHAPE (field names are exact; this is shape guidance, not source facts)
 Output schema_version MUST be "0.1". Internal Chronicle contract versions are NOT output schema versions.
@@ -41,6 +41,14 @@ claim={temp_id,kind:"claim",subject:{kind,ref},predicate,object,time,evidence:{t
 warning={type,severity,message,refs?}; extraction={method:"model",job_id:null|string,confidence:null|0..1}.
 Event.type must be one of: political, administrative, military, battle, movement, retreat, death, birth, succession, appointment, surrender, diplomatic, epidemic, territorial_change, economic, cultural, other.
 No events[].claims; no singular place; participants use entity_ref. SECTION/DOCUMENT/CONTEXT keys are metadata, not record fields.'''
+
+MONOTONIC_REPAIR_RULES = r'''MONOTONIC REPAIR RULES
+- This is a repair pass, NOT a fresh extraction pass. The CHUNK SOURCE TEXT is present only to verify and minimally repair the prior candidate.
+- If the prior candidate already has canonical record shape (schema/structural/reference shape is usable), preserve its existing source/entity/event/claim temp_ids. Do NOT introduce new Entity/Event/Claim records, new temp_ids, new historical episodes, or extra time spans while repairing grounding/time/assessment/predicate diagnostics.
+- Modify only fields implicated by diagnostics, or delete an invalid record plus dependent references when it cannot be grounded. Unrelated grounded records must remain unchanged in meaning and identity.
+- If a time.original_text is not an exact CHUNK SOURCE TEXT substring and not an exact inherited_time surface, set that event/claim time to null. Do NOT invent, paraphrase, concatenate, widen, or substitute another traditional time expression.
+- For an entity absent from CHUNK SOURCE TEXT: add inherited_entity_context warning only when its exact surface is present in INHERITED CONTEXT; otherwise remove that entity and any dependent fact that cannot remain valid without it. Do NOT replace it with outside historical knowledge.
+- Warnings may be added only to explain the repaired returned bundle. Prefer omission/null over fabrication. Never use the repair pass to discover additional facts from later/earlier passages.'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
@@ -116,7 +124,7 @@ def render_extraction_prompt(
     validation_errors: list[str] | None = None,
     previous_candidate: dict[str, Any] | None = None,
 ) -> str:
-    """Render the full v3 initial/preferred-correction prompt."""
+    """Render the full v5 initial/preferred-correction prompt."""
     correction = ""
     if validation_errors is not None:
         candidate_note = ""
@@ -124,10 +132,11 @@ def render_extraction_prompt(
             candidate_note = "\nPREVIOUS CANDIDATE\n" + _json(previous_candidate) + "\n"
         correction = (
             "\nCORRECTION RE-ASK\n"
-            "The prior bundle failed deterministic validation. Repair every listed "
-            "issue, regenerate one complete bundle, and obey CANONICAL BUNDLE SHAPE. "
-            "Do not fabricate evidence/precision or delete unrelated grounded facts.\n"
-            "VALIDATION DIAGNOSTICS\n"
+            "The prior bundle failed deterministic validation. Return one complete repaired bundle, "
+            "obey CANONICAL BUNDLE SHAPE, and follow MONOTONIC REPAIR RULES. "
+            "Repair every listed issue without turning this into a new extraction pass.\n"
+            + MONOTONIC_REPAIR_RULES
+            + "\nVALIDATION DIAGNOSTICS\n"
             + _json(validation_errors)
             + "\n"
             + candidate_note
@@ -181,10 +190,11 @@ def render_compact_correction_prompt(
     """Render a smaller repair envelope while retaining full source/context."""
     return f'''Chronicle COMPACT CORRECTION RE-ASK. Return one complete compact JSON object only.
 {MODEL_CONTRACT_CORE}
-REPAIR RULES: source/context only; no outside facts; exact Claim evidence substring; inherited context is never evidence/authority; ambiguity stays unresolved; no canonical IDs; assessment=unassessed; no invented normalized month/day/year; preserve distinct facts; ontology_gap when predicate does not fit.
+{MONOTONIC_REPAIR_RULES}
+REPAIR RULES: source/context only; no outside facts; exact Claim evidence substring; inherited context is never evidence/authority; ambiguity stays unresolved; no canonical IDs; assessment=unassessed; no invented normalized month/day/year; preserve distinct valid facts; ontology_gap when predicate does not fit.
 VALIDATION DIAGNOSTICS
 {_json(validation_errors)}
-PRIOR CANDIDATE BODY OMITTED to preserve the fixed input budget; it remains in ChunkRun history.
+PRIOR CANDIDATE BODY OMITTED to preserve the fixed input budget; it remains in ChunkRun history. Do not treat omission as permission to discover or add facts.
 SECTION
 {_json(section)}
 
