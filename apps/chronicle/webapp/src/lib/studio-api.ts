@@ -181,6 +181,16 @@ export interface ReviewRef {
   ref: string;
 }
 
+export interface ReviewCandidateMember {
+  candidate_key: string;
+  resolution_sha256: string;
+  candidate_id: string;
+  link_kind: ReviewLinkKind;
+  left: ReviewRef;
+  right: ReviewRef;
+  signals: string[];
+}
+
 export interface ReviewSuggestion {
   decision: string | null;
   confidence: number | null;
@@ -225,12 +235,18 @@ export interface ReviewSummary {
   document: ReviewDocumentContext;
   scope: "resolution";
   link_kind: ReviewLinkKind;
+  review_subject_id?: string | null;
+  review_subject_version?: string | null;
+  member_count?: number;
+  members?: ReviewCandidateMember[];
   candidate_id: string;
   resolution_sha256: string;
   blocking: boolean;
   allowed_decisions: ReviewDecision[];
   left: ReviewRef;
   right: ReviewRef;
+  left_label?: string | null;
+  right_label?: string | null;
   suggestion: ReviewSuggestion;
   decision: ReviewChosenDecision | null;
 }
@@ -238,6 +254,8 @@ export interface ReviewSummary {
 export interface ReviewDetail extends ReviewSummary {
   left_context: ReviewRecordContext;
   right_context: ReviewRecordContext;
+  left_contexts?: ReviewRecordContext[];
+  right_contexts?: ReviewRecordContext[];
   job_open_resolution_reviews: number;
 }
 

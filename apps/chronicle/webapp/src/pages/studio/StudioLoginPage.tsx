@@ -21,7 +21,7 @@ export default function StudioLoginPage() {
       await auth.login(username, password);
       navigate("/studio", { replace: true });
     } catch (err) {
-      setError(err instanceof Error && err.message === "unauthorized" ? "unauthorized：用户名或密码不正确" : "登录失败：无法连接 Studio 状态接口");
+      setError(err instanceof Error && err.message === "unauthorized" ? "未授权：用户名或密码不正确" : "登录失败：无法连接管理工作台状态接口");
     } finally {
       setPending(false);
     }
@@ -31,7 +31,7 @@ export default function StudioLoginPage() {
     <div className="studio-auth-wrap" data-view="studio-login">
       <Card className="studio-auth-card">
         <CardHeader>
-          <CardTitle>Studio 登录</CardTitle>
+          <CardTitle>管理工作台登录</CardTitle>
           <CardDescription>
             使用环境配置的管理员账号登录。认证由服务端强制执行；浏览器只负责携带凭据，不做任何权限判定。
           </CardDescription>
@@ -59,7 +59,7 @@ export default function StudioLoginPage() {
             </div>
             {error ? <p className="studio-error">{error}</p> : null}
             <Button type="submit" disabled={pending}>
-              {pending ? "登录中…" : "登录 Studio"}
+              {pending ? "登录中…" : "登录管理工作台"}
             </Button>
           </form>
         </CardContent>

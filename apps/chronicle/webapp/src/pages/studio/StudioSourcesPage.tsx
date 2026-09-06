@@ -64,7 +64,7 @@ export default function StudioSourcesPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      if (!resolvedDocumentId || !file) throw new Error("请选择 Document 和文件");
+      if (!resolvedDocumentId || !file) throw new Error("请选择文献和文件");
       return uploadRevision(authHeader, resolvedDocumentId, file, { language, sourceLabel });
     },
     onSuccess: async () => {
@@ -82,22 +82,22 @@ export default function StudioSourcesPage() {
     <div className="studio-stack" data-view="studio-sources">
       <div className="studio-page-heading">
         <div>
-          <p className="studio-eyebrow">C1 · source registry</p>
-          <h1>Sources / Documents</h1>
+          <p className="studio-eyebrow">C1 · 来源登记</p>
+          <h1>来源 / 文献</h1>
           <p className="studio-muted">
-            管理逻辑 Document 与不可变 Revision。替换来源时永远新增 Revision，旧版本与 hash 保留用于审计和 provenance。
+            管理逻辑文献 与不可变 版本。替换来源时永远新增 版本，旧版本与 哈希 保留用于审计和 来源追溯。
           </p>
         </div>
         <Button variant="outline" onClick={() => void documents.refetch()} disabled={documents.isFetching}>
-          {documents.isFetching ? "刷新中…" : "刷新 Sources"}
+          {documents.isFetching ? "刷新中…" : "刷新来源"}
         </Button>
       </div>
 
       <div className="studio-grid studio-grid-wide">
         <Card>
           <CardHeader>
-            <CardTitle>Documents</CardTitle>
-            <CardDescription>一个 Document 对应一份逻辑史料，可以拥有多个不可变 Revision。</CardDescription>
+            <CardTitle>文献</CardTitle>
+            <CardDescription>一个 Document 对应一份逻辑史料，可以拥有多个不可变 版本。</CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -112,17 +112,17 @@ export default function StudioSourcesPage() {
                 value={newTitle}
                 onChange={(event) => setNewTitle(event.target.value)}
                 placeholder="例如：三国志·蜀书·先主传"
-                aria-label="Document 标题"
+                aria-label="文献标题"
               />
               <Button type="submit" disabled={!newTitle.trim() || createMutation.isPending}>
                 新建
               </Button>
             </form>
             {createMutation.error ? <p className="studio-error">{errorText(createMutation.error)}</p> : null}
-            <div className="studio-list" aria-label="Source Documents">
-              {documents.isLoading ? <p className="studio-muted">正在读取 Documents…</p> : null}
+            <div className="studio-list" aria-label="来源文献">
+              {documents.isLoading ? <p className="studio-muted">正在读取文献…</p> : null}
               {documents.error ? <p className="studio-error">{errorText(documents.error)}</p> : null}
-              {documents.data?.length === 0 ? <p className="studio-muted">还没有 Document。</p> : null}
+              {documents.data?.length === 0 ? <p className="studio-muted">还没有文献。</p> : null}
               {documents.data?.map((document) => {
                 const selected = document.document_id === resolvedDocumentId;
                 return (
@@ -136,7 +136,7 @@ export default function StudioSourcesPage() {
                     <span>
                       <strong>{document.title}</strong>
                       <small>
-                        {document.revision_count} 个 revision · active r{document.active_revision_no ?? "—"}
+                        {document.revision_count} 个版本 · 当前第 {document.active_revision_no ?? "—"}
                       </small>
                     </span>
                     <span className="studio-mono">{formatShortHash(document.active_source_sha256)}</span>
@@ -149,9 +149,9 @@ export default function StudioSourcesPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Upload Revision</CardTitle>
+            <CardTitle>上传新版本</CardTitle>
             <CardDescription>
-              {selectedDocument ? `当前 Document：${selectedDocument.title}` : "先创建或选择一个 Document"}
+              {selectedDocument ? `当前文献：${selectedDocument.title}` : "先创建或选择一份文献"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -176,7 +176,7 @@ export default function StudioSourcesPage() {
               </div>
               <div className="studio-grid studio-grid-compact">
                 <div>
-                  <label className="studio-label" htmlFor="studio-source-language">Language</label>
+                  <label className="studio-label" htmlFor="studio-source-language">语言</label>
                   <Input
                     id="studio-source-language"
                     value={language}
@@ -185,12 +185,12 @@ export default function StudioSourcesPage() {
                   />
                 </div>
                 <div>
-                  <label className="studio-label" htmlFor="studio-source-label">Source label</label>
+                  <label className="studio-label" htmlFor="studio-source-label">来源标签</label>
                   <Input
                     id="studio-source-label"
                     value={sourceLabel}
                     onChange={(event) => setSourceLabel(event.target.value)}
-                    placeholder="edition / 来源备注（可选）"
+                    placeholder="版本 / 来源备注（可选）"
                   />
                 </div>
               </div>
@@ -198,7 +198,7 @@ export default function StudioSourcesPage() {
                 type="submit"
                 disabled={!resolvedDocumentId || !file || !mediaTypeForUpload(file.name) || uploadMutation.isPending}
               >
-                {uploadMutation.isPending ? "上传中…" : "上传为新 Revision"}
+                {uploadMutation.isPending ? "上传中…" : "上传为新 版本"}
               </Button>
             </form>
             {uploadMutation.error ? <p className="studio-error">{errorText(uploadMutation.error)}</p> : null}
@@ -208,18 +208,18 @@ export default function StudioSourcesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Revision history</CardTitle>
+          <CardTitle>版本历史</CardTitle>
           <CardDescription>
             {selectedDocument
-              ? `${selectedDocument.title} · active 与 superseded 均保留，不覆盖历史来源`
-              : "选择 Document 后显示版本历史"}
+              ? `${selectedDocument.title} · 当前版本与已替换版本均保留，不覆盖历史来源`
+              : "选择文献后显示版本历史"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {revisions.isLoading && resolvedDocumentId ? <p className="studio-muted">读取 Revision…</p> : null}
+          {revisions.isLoading && resolvedDocumentId ? <p className="studio-muted">读取版本…</p> : null}
           {revisions.error ? <p className="studio-error">{errorText(revisions.error)}</p> : null}
-          {!resolvedDocumentId ? <p className="studio-muted">暂无 Document。</p> : null}
-          {revisions.data?.length === 0 ? <p className="studio-muted">还没有上传 Revision。</p> : null}
+          {!resolvedDocumentId ? <p className="studio-muted">暂无文献。</p> : null}
+          {revisions.data?.length === 0 ? <p className="studio-muted">还没有上传版本。</p> : null}
           <div className="studio-table">
             {revisions.data?.slice().reverse().map((revision) => (
               <div className="studio-table-row studio-revision-row" key={revision.revision_id}>
@@ -227,13 +227,13 @@ export default function StudioSourcesPage() {
                   <div className="studio-row-title">
                     <strong>r{revision.revision_no}</strong>
                     <Badge>{revision.status === "active" ? "当前版本" : "已替换"}</Badge>
-                    {revision.duplicate ? <Badge>duplicate</Badge> : null}
+                    {revision.duplicate ? <Badge>重复上传</Badge> : null}
                   </div>
                   <div className="studio-muted">
-                    {revision.filename} · {revision.source_bytes.toLocaleString()} bytes · {revision.content_chars.toLocaleString()} chars
+                    {revision.filename} · {revision.source_bytes.toLocaleString()} 字节 · {revision.content_chars.toLocaleString()} 字符
                   </div>
                   <div className="studio-muted">
-                    {revision.language ?? "language 未标记"} · {revision.source_label ?? "source label 未标记"}
+                    {revision.language ?? "语言未标记"} · {revision.source_label ?? "来源标签未标记"}
                   </div>
                 </div>
                 <div className="studio-row-actions">

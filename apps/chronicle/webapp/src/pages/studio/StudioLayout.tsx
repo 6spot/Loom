@@ -13,16 +13,16 @@ export default function StudioLayout() {
         <div className="studio-brand">
           <span className="studio-brand-mark">S</span>
           <div>
-            <strong>Chronicle Studio</strong>
-            <small>engineering surface · shadcn foundation</small>
+            <strong>Chronicle 管理工作台</strong>
+            <small>语料生产、人工审核与运行观测</small>
           </div>
         </div>
         <nav className="studio-nav" aria-label="Studio 导航">
           <NavLink to="/studio" end>总览</NavLink>
-          <NavLink to="/studio/imports">Imports</NavLink>
-          <NavLink to="/studio/review">Review</NavLink>
-          <NavLink to="/studio/sources">Sources / Corpus</NavLink>
-          <NavLink to="/studio/coverage">Coverage</NavLink>
+          <NavLink to="/studio/imports">导入</NavLink>
+          <NavLink to="/studio/review">人工审核</NavLink>
+          <NavLink to="/studio/sources">来源 / 语料</NavLink>
+          <NavLink to="/studio/coverage">覆盖度</NavLink>
         </nav>
         <div className="studio-user">
           {auth.username ? (

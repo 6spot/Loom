@@ -18,7 +18,7 @@ export default function StudioHomePage() {
         if (!cancelled) setStatus(result);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "studio status failed");
+        if (!cancelled) setError(err instanceof Error ? err.message : "Studio 状态读取失败");
       });
     return () => {
       cancelled = true;
@@ -44,7 +44,7 @@ export default function StudioHomePage() {
               <div>
                 <dt>上游可达</dt>
                 <dd>
-                  <Badge>{status.upstream.reachable ? "reachable" : "unreachable"}</Badge>
+                  <Badge>{status.upstream.reachable ? "可达" : "不可达"}</Badge>
                 </dd>
               </div>
               <div>
@@ -62,18 +62,18 @@ export default function StudioHomePage() {
       <Card>
         <CardHeader>
           <CardTitle>工程入口</CardTitle>
-          <CardDescription>Imports 已可操作；Review 与更丰富的 Corpus 面板按 C1 依赖继续推进。</CardDescription>
+          <CardDescription>导入、人工审核、来源语料与覆盖度均通过 Chronicle 自有接口工作。</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="studio-links">
             <li>
-              <Link to="/studio/imports">Imports — 上传文献、Revision 历史、Ingestion Job 与运行进度</Link>
+              <Link to="/studio/imports">导入 — 上传文献、查看版本历史、创建导入作业并跟踪进度</Link>
             </li>
             <li>
-              <Link to="/studio/review">Review — 跨来源评审队列（C1-T11）</Link>
+              <Link to="/studio/review">人工审核 — 处理跨来源实体与事件消歧</Link>
             </li>
             <li>
-              <Link to="/studio/sources">Sources / Corpus — 来源与语料（后续任务）</Link>
+              <Link to="/studio/sources">来源 / 语料 — 管理文献来源与不可变版本</Link>
             </li>
           </ul>
         </CardContent>
