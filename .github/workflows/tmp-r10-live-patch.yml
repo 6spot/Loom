@@ -1,0 +1,149 @@
+name: TMP Chronicle R10 Live Patch
+
+on:
+  push:
+    branches:
+      - tmp/chronicle-r10-live-model-contract
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'tmp: validated R10 live model contract fix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHRONICLE_MODEL_ENDPOINT: ${{ secrets.CHRONICLE_MODEL_ENDPOINT }}
+      CHRONICLE_MODEL_API_KEY: ${{ secrets.CHRONICLE_MODEL_API_KEY }}
+      CHRONICLE_EXTRACTION_MODEL: ${{ secrets.CHRONICLE_EXTRACTION_MODEL }}
+      CHRONICLE_PRESENTATION_MODEL: ${{ secrets.CHRONICLE_PRESENTATION_MODEL }}
+      CHRONICLE_MODEL_TIMEOUT_SECONDS: "600"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: tmp/chronicle-r10-live-model-contract
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/chronicle/persistence/requirements.txt
+
+      - name: Apply R10 contract corrections
+        shell: python
+        run: |
+          from pathlib import Path
+
+          extraction = Path('apps/chronicle/persistence/extraction.py')
+          text = extraction.read_text()
+          old = '\n'.join([
+              '    if not isinstance(normalized, dict):',
+              '        errors.append(f"{owner} time.normalized must be an object")',
+              '        return',
+              '    # Normalized precision is never invented at the chunk layer.',
+              '    if normalized.get("month") is not None:',
+              '        errors.append(f"{owner} fabricates normalized month from traditional calendar")',
+              '    if normalized.get("day") is not None:',
+              '        errors.append(f"{owner} fabricates normalized day from traditional calendar")',
+              '    year = normalized.get("year")',
+              '    if year is not None and (verified_year is None or year != verified_year):',
+              '        errors.append(',
+              '            f"{owner} normalized year {year!r} is not the document-verified year"',
+              '        )',
+          ])
+          new = '\n'.join([
+              '    if normalized is not None and not isinstance(normalized, dict):',
+              '        errors.append(f"{owner} time.normalized must be an object or null")',
+              '        return',
+              '    # Canonical schema permits normalized=null when no safe conversion exists.',
+              '    # Only inspect normalized precision when the model actually supplies an object.',
+              '    if isinstance(normalized, dict):',
+              '        if normalized.get("month") is not None:',
+              '            errors.append(f"{owner} fabricates normalized month from traditional calendar")',
+              '        if normalized.get("day") is not None:',
+              '            errors.append(f"{owner} fabricates normalized day from traditional calendar")',
+              '        year = normalized.get("year")',
+              '        if year is not None and (verified_year is None or year != verified_year):',
+              '            errors.append(',
+              '                f"{owner} normalized year {year!r} is not the document-verified year"',
+              '            )',
+          ])
+          if old not in text:
+              raise SystemExit('extraction.py normalized block anchor not found')
+          extraction.write_text(text.replace(old, new, 1))
+
+          prompt = Path('apps/chronicle/persistence/extraction_prompt.py')
+          text = prompt.read_text()
+          text = text.replace('PROMPT_VERSION = "c1t6-prompt-v3"', 'PROMPT_VERSION = "c1t6-prompt-v4"', 1)
+          guide_anchor = 'source: {temp_id,kind:"source",source_type,title,language,extraction,...optional source fields}\n'
+          guide_line = 'Allowed source.source_type: book, article, web, dataset, manuscript, other. For historical works use "book"; never invent genre labels such as "biographical_history".\n'
+          if guide_anchor not in text:
+              raise SystemExit('prompt full source anchor not found')
+          text = text.replace(guide_anchor, guide_anchor + guide_line, 1)
+          core_anchor = 'source={temp_id,kind:"source",source_type,title,language,extraction}\n'
+          core_line = 'source_type must be one of: book, article, web, dataset, manuscript, other.\n'
+          if core_anchor not in text:
+              raise SystemExit('prompt core source anchor not found')
+          text = text.replace(core_anchor, core_anchor + core_line, 1)
+          prompt.write_text(text)
+
+          tests = Path('apps/chronicle/persistence/test_extraction_unit.py')
+          text = tests.read_text()
+          if '"c1t6-prompt-v3"' not in text:
+              raise SystemExit('prompt-version assertion anchor not found')
+          text = text.replace('"c1t6-prompt-v3"', '"c1t6-prompt-v4"', 1)
+          marker = '    def test_paraphrased_evidence_fails_grounding(self) -> None:\n'
+          addition = '\n'.join([
+              '    def test_canonical_normalized_null_is_not_rejected_by_mechanical_validator(self) -> None:',
+              '        bundle = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")',
+              '        bundle["events"][0]["time"]["normalized"] = None',
+              '        bundle["claims"][0]["time"]["normalized"] = None',
+              '        report = self.validate(bundle)',
+              '        self.assertTrue(report["passed"], X.flatten_validation_errors(report))',
+              '',
+              '',
+          ])
+          if marker not in text:
+              raise SystemExit('test insertion anchor not found')
+          tests.write_text(text.replace(marker, addition + marker, 1))
+
+      - name: Compile extraction modules
+        run: python -m py_compile apps/chronicle/persistence/extraction.py apps/chronicle/persistence/extraction_prompt.py apps/chronicle/acceptance/live_model_contract.py
+
+      - name: Install Chronicle dependencies
+        run: python -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Run extraction unit contracts
+        run: |
+          python -m unittest apps/chronicle/persistence/test_extraction_unit.py -v
+          python -m unittest apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
+          python -m unittest apps/chronicle/persistence/test_extraction_r8_contract_unit.py -v
+
+      - name: Validate live secret presence without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in CHRONICLE_MODEL_ENDPOINT CHRONICLE_MODEL_API_KEY CHRONICLE_EXTRACTION_MODEL CHRONICLE_PRESENTATION_MODEL; do
+            [ -n "${!name:-}" ] || { echo "missing required secret: $name" >&2; exit 1; }
+          done
+          echo 'live model secret presence: PASS'
+
+      - name: Run real Luna extraction contract
+        run: python apps/chronicle/acceptance/live_model_contract.py
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/chronicle/persistence/extraction.py \
+            apps/chronicle/persistence/extraction_prompt.py \
+            apps/chronicle/persistence/test_extraction_unit.py \
+            apps/chronicle/acceptance/live_model_contract.py \
+            .github/workflows/chronicle-live-model.yml
+          git commit -m 'tmp: validated R10 live model contract fix'
+          git push origin HEAD:tmp/chronicle-r10-live-model-contract
