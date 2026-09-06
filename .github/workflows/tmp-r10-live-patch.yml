@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: apps/chronicle/persistence/requirements.txt
 
       - name: Apply candidate live contract patch
-        run: python apps/chronicle/acceptance/tmp_apply_live_v5.py
+        run: python apps/chronicle/acceptance/tmp_apply_live_v5_bootstrap.py
 
       - name: Compile extraction modules
         run: python -m py_compile apps/chronicle/persistence/extraction.py apps/chronicle/persistence/extraction_prompt.py apps/chronicle/acceptance/live_model_contract.py
