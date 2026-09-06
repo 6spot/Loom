@@ -68,6 +68,34 @@ class ResponsesHTTPModelTests(unittest.TestCase):
         )
         self.assertFalse(captured["headers"]["User-agent"].startswith("Python-urllib"))
 
+    def test_structured_text_format_is_sent_without_changing_text_boundary(self) -> None:
+        text_format = {
+            "type": "json_schema",
+            "name": "example",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["value"],
+                "properties": {"value": {"type": "string"}},
+            },
+            "strict": True,
+        }
+        provider = model_provider.ResponsesHTTPModel(
+            name="extract-v1",
+            endpoint="https://gateway.example/v1/responses",
+            text_format=text_format,
+        )
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"output_text": '{"value":"ok"}'})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual('{"value":"ok"}', provider.complete("source"))
+        self.assertEqual(text_format, captured["body"]["text"]["format"])
+        self.assertEqual("source", captured["body"]["input"])
+
     def test_nested_output_text_is_supported(self) -> None:
         provider = model_provider.ResponsesHTTPModel(
             name="extract-v1", endpoint="http://model.local/responses"
@@ -95,6 +123,10 @@ class ResponsesHTTPModelTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):
             model_provider.ResponsesHTTPModel(
                 name="x", endpoint="https://user:password@example.test/responses"
+            )
+        with self.assertRaises(PersistenceError):
+            model_provider.ResponsesHTTPModel(
+                name="x", endpoint="https://example.test/responses", text_format="bad"
             )
 
     def test_http_error_does_not_echo_body_or_key(self) -> None:
@@ -169,7 +201,6 @@ class EnvironmentTests(unittest.TestCase):
     }
 
     def clean_env(self, values: dict[str, str] | None = None):
-        env = {key: os.environ.get(key) for key in self.ENV_KEYS}
         patch = {key: "" for key in self.ENV_KEYS}
         if values:
             patch.update(values)
@@ -196,7 +227,25 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual("extract-model", extraction.name)
         self.assertEqual(45.5, extraction.timeout_seconds)
         self.assertEqual("token", extraction.api_key)
+        self.assertIsInstance(extraction.text_format, dict)
+        assert extraction.text_format is not None
+        self.assertEqual("json_schema", extraction.text_format["type"])
+        self.assertTrue(extraction.text_format["strict"])
+        self.assertEqual("0.1", extraction.text_format["schema"]["properties"]["schema_version"]["const"])
         self.assertIsNone(presentation)
+
+    def test_presentation_model_stays_free_text(self) -> None:
+        with self.clean_env(
+            {
+                "CHRONICLE_MODEL_ENDPOINT": "https://gateway.example/v1/responses",
+                "CHRONICLE_PRESENTATION_MODEL": "reader-model",
+            }
+        ):
+            extraction, presentation = model_provider.models_from_env()
+        self.assertIsNone(extraction)
+        self.assertIsNotNone(presentation)
+        assert presentation is not None
+        self.assertIsNone(presentation.text_format)
 
     def test_configured_model_requires_endpoint_and_valid_timeout(self) -> None:
         with self.clean_env({"CHRONICLE_PRESENTATION_MODEL": "reader"}):
