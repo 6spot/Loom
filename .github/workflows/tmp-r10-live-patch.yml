@@ -1,4 +1,4 @@
-name: TMP Chronicle Structured Output Probe
+name: TMP Chronicle Structured Extraction Validation
 
 on:
   push:
@@ -6,12 +6,12 @@ on:
       - tmp/chronicle-r10-live-model-contract
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  probe:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       CHRONICLE_MODEL_ENDPOINT: ${{ secrets.CHRONICLE_MODEL_ENDPOINT }}
       CHRONICLE_MODEL_API_KEY: ${{ secrets.CHRONICLE_MODEL_API_KEY }}
@@ -27,6 +27,28 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/chronicle/persistence/requirements.txt
+
+      - name: Compile patch helper
+        run: python -m py_compile apps/chronicle/acceptance/tmp_apply_structured_provider.py
+
+      - name: Apply structured extraction provider patch
+        run: python apps/chronicle/acceptance/tmp_apply_structured_provider.py
+
+      - name: Compile changed modules
+        run: python -m py_compile apps/chronicle/worker/model_provider.py apps/chronicle/persistence/extraction.py apps/chronicle/acceptance/live_model_contract.py
+
+      - name: Install Chronicle dependencies
+        run: python -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Run provider and extraction contracts
+        run: |
+          python -m unittest apps/chronicle/worker/test_model_provider_unit.py -v
+          python -m unittest apps/chronicle/worker/test_model_provider_retry_unit.py -v
+          python -m unittest apps/chronicle/persistence/test_extraction_unit.py -v
+          python -m unittest apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
+          python -m unittest apps/chronicle/persistence/test_extraction_r8_contract_unit.py -v
 
       - name: Validate live secret presence without printing values
         shell: bash
@@ -37,11 +59,25 @@ jobs:
           done
           echo 'live model secret presence: PASS'
 
-      - name: Compile structured output probes
-        run: python -m py_compile apps/chronicle/acceptance/tmp_probe_structured_output.py apps/chronicle/acceptance/tmp_probe_chronicle_schema_nonstrict.py
+      - name: Run real Luna extraction contract with canonical structured output
+        run: python apps/chronicle/acceptance/live_model_contract.py
 
-      - name: Probe Responses JSON Schema structured output
-        run: python apps/chronicle/acceptance/tmp_probe_structured_output.py
-
-      - name: Probe Chronicle canonical schema non-strict structured output
-        run: python apps/chronicle/acceptance/tmp_probe_chronicle_schema_nonstrict.py
+      - name: Commit validated implementation when live contract passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            apps/chronicle/worker/model_provider.py \
+            apps/chronicle/worker/test_model_provider_unit.py \
+            apps/chronicle/persistence/extraction.py \
+            apps/chronicle/persistence/test_extraction_unit.py \
+            apps/chronicle/acceptance/live_model_contract.py \
+            .github/workflows/chronicle-live-model.yml
+          if git diff --cached --quiet; then
+            echo 'validated implementation already committed'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'tmp: validate canonical structured extraction provider'
+          git push origin HEAD:tmp/chronicle-r10-live-model-contract
