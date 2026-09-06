@@ -198,10 +198,18 @@ export interface ReviewSuggestion {
   signals: unknown[];
 }
 
+export interface ReviewGroupDecisionInput {
+  review_group_id: string;
+  decision: ReviewDecision;
+  confidence: number;
+  rationale: string;
+}
+
 export interface ReviewChosenDecision {
   decision: ReviewDecision;
   confidence: number;
   rationale: string;
+  group_decisions?: ReviewGroupDecisionInput[];
 }
 
 export interface ReviewRecordContext {
@@ -222,6 +230,13 @@ export interface ReviewRecordContext {
   };
 }
 
+export interface ReviewGroupDetail {
+  review_group_id: string;
+  member_count: number;
+  signals: string[];
+  right_contexts: ReviewRecordContext[];
+}
+
 export interface ReviewSummary {
   review_id: string;
   job_id: string;
@@ -238,6 +253,8 @@ export interface ReviewSummary {
   review_subject_id?: string | null;
   review_subject_version?: string | null;
   member_count?: number;
+  group_count?: number;
+  groups?: unknown[];
   members?: ReviewCandidateMember[];
   candidate_id: string;
   resolution_sha256: string;
@@ -256,6 +273,7 @@ export interface ReviewDetail extends ReviewSummary {
   right_context: ReviewRecordContext;
   left_contexts?: ReviewRecordContext[];
   right_contexts?: ReviewRecordContext[];
+  review_groups?: ReviewGroupDetail[];
   job_open_resolution_reviews: number;
 }
 
@@ -449,13 +467,21 @@ export async function submitReviewDecision(
   decision: ReviewDecision,
   rationale: string,
   confidence = 0.5,
+  groupDecisions: ReviewGroupDecisionInput[] = [],
 ): Promise<ReviewDetail> {
   const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`;
+  const payload: {
+    decision: ReviewDecision;
+    rationale: string;
+    confidence: number;
+    group_decisions?: ReviewGroupDecisionInput[];
+  } = { decision, rationale, confidence };
+  if (groupDecisions.length) payload.group_decisions = groupDecisions;
   return (
     await studioRequest<ReviewResponse>(auth, path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, rationale, confidence }),
+      body: JSON.stringify(payload),
     })
   ).review;
 }

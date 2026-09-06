@@ -467,6 +467,7 @@ def resolve_resolution_review(
     decision: str,
     rationale: str,
     confidence: float = CONFIDENCE_INITIAL_UNCERTAIN,
+    group_decisions: list[dict[str, Any]] | None = None,
 ) -> None:
     """Record a human decision on one resolution review item.
 
@@ -509,6 +510,11 @@ def resolve_resolution_review(
         "confidence": float(confidence),
         "rationale": rationale.strip(),
     }
+    normalized_group_decisions = review_subjects.normalize_group_decisions(
+        payload, group_decisions
+    )
+    if normalized_group_decisions:
+        decided["decision"]["group_decisions"] = normalized_group_decisions
     # Two short sequential transactions (the codebase never holds one
     # transaction across steps): a crash between them leaves the
     # decision in the payload while the item stays open, so the next

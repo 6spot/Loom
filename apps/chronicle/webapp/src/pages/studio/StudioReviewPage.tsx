@@ -45,7 +45,7 @@ export default function StudioReviewPage() {
           <p className="studio-eyebrow">C1 · 人工消歧关口</p>
           <h1>人工审核队列</h1>
           <p className="studio-muted">
-            系统只组织候选与证据，不替你决定历史身份。相同语义簇只审核一次；“证据不足，暂不确定”始终不会触发合并。
+            系统把指向同一已发布身份/事件的重复问题组织成审核批次，但批次本身不代表同一身份；“证据不足，暂不确定”始终不会触发合并。
           </p>
         </div>
         <div className="studio-row-actions">
@@ -77,6 +77,7 @@ export default function StudioReviewPage() {
           <div className="studio-table" aria-label="人工消歧审核队列">
             {reviews.data?.map((review) => {
               const members = review.member_count ?? 1;
+              const groups = review.group_count ?? 1;
               return (
                 <div className="studio-table-row" key={review.review_id}>
                   <div className="studio-stack studio-stack-tight">
@@ -92,7 +93,7 @@ export default function StudioReviewPage() {
                       <strong>{review.right_label ?? "本次来源记录"}</strong>
                     </div>
                     <div className="studio-muted">
-                      {members > 1 ? `该审核主题合并了 ${members} 个底层候选` : "1 个底层候选"}
+                      {groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
                       {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
                       {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
                       {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}

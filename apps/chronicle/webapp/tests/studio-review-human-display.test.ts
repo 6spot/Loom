@@ -47,7 +47,7 @@ function eventContext(
   };
 }
 
-describe("R15 human-decidable Studio review display", () => {
+describe("R15/R19 human-decidable Studio review display", () => {
   it("keeps stable decision enums but renders the primary choices in Chinese", () => {
     expect(decisionLabel("same_occurrence")).toBe("同一次事件");
     expect(decisionLabel("related_occurrence")).toBe("有关联，但不是同一次事件");
@@ -86,5 +86,17 @@ describe("R15 human-decidable Studio review display", () => {
     expect(page).not.toContain("Original suggestion");
     expect(page).not.toContain("Administrator decision");
     expect(page).not.toContain("Decision confidence");
+  });
+
+  it("makes review batching non-authoritative and exposes explicit per-group exceptions", () => {
+    const page = readFileSync(
+      resolve(HERE, "../src/pages/studio/StudioReviewDetailPage.tsx"),
+      "utf8",
+    );
+    expect(page).toContain("重复问题已整理为审核批次");
+    expect(page).toContain("批次只是把指向同一个已发布身份或事件的问题集中展示");
+    expect(page).toContain("存在例外，展开逐组判断");
+    expect(page).toContain("此组使用不同判断");
+    expect(page).toContain("逐组例外判断");
   });
 });
