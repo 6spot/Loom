@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
 import {
-  formatShortHash,
   getReview,
   mutateJob,
   StudioApiError,
@@ -195,9 +194,12 @@ export default function StudioReviewDetailPage() {
   if (review.error) return <p className="studio-error">{errorText(review.error)}</p>;
   if (!item) return <p className="studio-muted">审核项不存在。</p>;
 
-  const left = item.left_context as HumanReviewContext;
-  const right = item.right_context as HumanReviewContext;
+  const leftContexts = (item.left_contexts?.length ? item.left_contexts : [item.left_context]) as HumanReviewContext[];
+  const rightContexts = (item.right_contexts?.length ? item.right_contexts : [item.right_context]) as HumanReviewContext[];
+  const left = leftContexts[0];
+  const right = rightContexts[0];
   const comparisons = comparisonRows(item.link_kind, left, right);
+  const memberCount = item.member_count ?? 1;
 
   return (
     <div className="studio-stack" data-view="studio-review-detail">
@@ -206,7 +208,7 @@ export default function StudioReviewDetailPage() {
           <p className="studio-eyebrow">人工消歧</p>
           <h1>{item.link_kind === "entity" ? "实体是否同一身份" : "事件是否同一发生"}</h1>
           <p className="studio-muted">
-            候选 {item.candidate_id} · 解析批次 {formatShortHash(item.resolution_sha256)}
+            审核主题 {item.review_subject_id ?? item.candidate_id} · {memberCount} 个底层候选
           </p>
         </div>
         <div className="studio-row-actions">
@@ -236,6 +238,22 @@ export default function StudioReviewDetailPage() {
         </CardContent>
       </Card>
 
+      {memberCount > 1 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>已合并重复审核</CardTitle>
+            <CardDescription>
+              该审核主题包含 {memberCount} 个底层候选。它们只因为已发布规范身份或来源内已证明的同一关系而被归到同一主题；分组本身不是身份结论。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="studio-safe-note">
+              你只需审核一次；一个判断会确定性应用到该主题中的全部底层候选，同时每个候选 ID、来源引用和证据仍保留在审计记录中。
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>关键对比</CardTitle>
@@ -256,8 +274,16 @@ export default function StudioReviewDetailPage() {
       </Card>
 
       <div className="studio-grid studio-grid-wide">
-        <RecordCard label="左侧记录" context={item.left_context} />
-        <RecordCard label="右侧记录" context={item.right_context} />
+        <div className="studio-stack">
+          {leftContexts.map((context, index) => (
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={leftContexts.length > 1 ? `已发布侧记录 ${index + 1}` : "已发布侧记录"} context={context} />
+          ))}
+        </div>
+        <div className="studio-stack">
+          {rightContexts.map((context, index) => (
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={rightContexts.length > 1 ? `本次来源记录 ${index + 1}` : "本次来源记录"} context={context} />
+          ))}
+        </div>
       </div>
 
       <div className="studio-grid studio-grid-wide">
@@ -289,7 +315,7 @@ export default function StudioReviewDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>你的人工判断</CardTitle>
-            <CardDescription>只根据上方两侧来源证据作决定；“证据不足，暂不确定”不会触发合并。</CardDescription>
+            <CardDescription>只根据上方两侧来源证据作决定；“证据不足，暂不确定”不会触发合并。若该主题包含多个底层候选，这一个判断会应用到全部成员。</CardDescription>
           </CardHeader>
           <CardContent>
             {item.decision ? (

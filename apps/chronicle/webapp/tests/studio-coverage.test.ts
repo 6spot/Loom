@@ -11,8 +11,8 @@ describe("C1-T14 Studio Coverage", () => {
     expect(api).toContain('mutates_history: false');
     expect(page).toContain("不是历史完整度");
     expect(page).toContain("0 只表示当前 corpus 未表示");
-    expect(page).toContain("Source contribution");
-    expect(page).toContain("Actionable gaps");
+    expect(page).toContain("来源贡献");
+    expect(page).toContain("可行动缺口");
     expect(page).toContain("<progress");
   });
 });

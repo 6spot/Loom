@@ -4,6 +4,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { useStudioAuth } from "../../lib/studio-auth";
+import { stageLabel, studioStatusLabel } from "../../lib/studio-i18n";
 import {
   formatShortHash,
   getJob,
@@ -27,25 +28,12 @@ function formatTime(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
 }
 
-function statusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    pending: "等待",
-    queued: "排队中",
-    running: "处理中",
-    needs_review: "待评审",
-    failed: "失败",
-    skipped: "跳过",
-    cancelled: "已取消",
-    completed: "完成",
-  };
-  return labels[status] ?? status;
-}
 
 function Validation({ value }: { value: unknown }) {
   if (value === undefined || value === null) return null;
   return (
     <details className="studio-details">
-      <summary>validation</summary>
+      <summary>校验详情</summary>
       <pre className="studio-code">{JSON.stringify(value, null, 2)}</pre>
     </details>
   );
@@ -57,9 +45,9 @@ function StageRow({ stage }: { stage: JobStage }) {
       <div className="studio-stage-marker" data-status={stage.status} aria-hidden="true" />
       <div>
         <div className="studio-row-title">
-          <strong>{stage.stage}</strong>
-          <Badge>{statusLabel(stage.status)}</Badge>
-          <span className="studio-muted">attempt {stage.attempt}</span>
+          <strong>{stageLabel(stage.stage)}</strong>
+          <Badge>{studioStatusLabel(stage.status)}</Badge>
+          <span className="studio-muted">尝试 {stage.attempt}</span>
         </div>
         <div className="studio-muted">{formatTime(stage.started_at)} → {formatTime(stage.finished_at)}</div>
         {stage.error ? <p className="studio-error">{stage.error}</p> : null}
@@ -74,11 +62,11 @@ function ChunkRow({ chunk }: { chunk: JobChunk }) {
     <details className="studio-chunk" open={failed}>
       <summary>
         <span className="studio-row-title">
-          <strong>Chunk {chunk.chunk_index}</strong>
-          <Badge>{statusLabel(chunk.status)}</Badge>
-          <span>attempt {chunk.attempt}/{chunk.max_attempts}</span>
+          <strong>分段 {chunk.chunk_index}</strong>
+          <Badge>{studioStatusLabel(chunk.status)}</Badge>
+          <span>尝试 {chunk.attempt}/{chunk.max_attempts}</span>
         </span>
-        <span className="studio-muted">source chars {chunk.source_start}–{chunk.source_end}</span>
+        <span className="studio-muted">源文本字符 {chunk.source_start}–{chunk.source_end}</span>
       </summary>
       <div className="studio-chunk-body">
         <dl className="studio-facts studio-facts-dense">
@@ -87,15 +75,15 @@ function ChunkRow({ chunk }: { chunk: JobChunk }) {
           <div><dt>source sha</dt><dd className="studio-mono">{formatShortHash(chunk.source_sha256)}</dd></div>
           <div><dt>content sha</dt><dd className="studio-mono">{formatShortHash(chunk.content_sha256)}</dd></div>
         </dl>
-        <h4>Run attempts</h4>
+        <h4>运行尝试</h4>
         {chunk.runs.length === 0 ? <p className="studio-muted">尚未执行。</p> : null}
         <div className="studio-run-list">
           {chunk.runs.map((run) => (
             <div className="studio-run" key={run.run_id}>
               <div className="studio-row-title">
                 <strong>#{run.attempt}</strong>
-                <Badge>{statusLabel(run.status)}</Badge>
-                <span className="studio-muted">{run.worker ?? "worker 未记录"}</span>
+                <Badge>{studioStatusLabel(run.status)}</Badge>
+                <span className="studio-muted">{run.worker ?? "执行器未记录"}</span>
               </div>
               <div className="studio-muted">{formatTime(run.started_at)} → {formatTime(run.finished_at)}</div>
               {run.error ? <p className="studio-error">{run.error}</p> : null}
@@ -111,7 +99,7 @@ function ChunkRow({ chunk }: { chunk: JobChunk }) {
               {run.meta.attempts?.map((attempt, index) => (
                 <div className="studio-attempt-meta" key={`${run.run_id}-${index}`}>
                   <div className="studio-muted">
-                    model call {index + 1} · {attempt.kind ?? "attempt"} · prompt {formatShortHash(attempt.prompt_sha256)} · response {formatShortHash(attempt.raw_response_sha256)}
+                    模型调用 {index + 1} · {attempt.kind ?? "attempt"} · prompt {formatShortHash(attempt.prompt_sha256)} · response {formatShortHash(attempt.raw_response_sha256)}
                   </div>
                   {attempt.parse_error ? <p className="studio-error">{attempt.parse_error}</p> : null}
                   <Validation value={attempt.validation} />
@@ -120,7 +108,7 @@ function ChunkRow({ chunk }: { chunk: JobChunk }) {
             </div>
           ))}
         </div>
-        <p className="studio-safe-note">Studio 仅显示版本、hash、validation 与错误；原始 prompt、model response、candidate 留在服务端审计记录中。</p>
+        <p className="studio-safe-note">管理工作台仅显示版本、哈希、校验与错误；原始提示、模型响应和候选数据留在服务端审计记录中。</p>
       </div>
     </details>
   );
@@ -146,7 +134,7 @@ function JobActions({ job }: { job: JobDetail }) {
     <div className="studio-row-actions">
       {job.status === "failed" ? (
         <Button
-          onClick={() => act("retry", "重新执行这个失败的 Ingestion Job？已完成 checkpoint 会保留。")}
+          onClick={() => act("retry", "重新执行这个失败的 导入作业？已完成 checkpoint 会保留。")}
           disabled={mutation.isPending || job.attempt >= job.max_attempts}
         >
           Retry
@@ -154,7 +142,7 @@ function JobActions({ job }: { job: JobDetail }) {
       ) : null}
       {job.status === "needs_review" ? (
         <Button
-          onClick={() => act("resume", "恢复这个待评审 Job？只有所有 review item 已解决时后端才会允许。")}
+          onClick={() => act("resume", "恢复这个待评审 Job？只有所有 审核项 已解决时后端才会允许。")}
           disabled={mutation.isPending || job.open_reviews > 0}
         >
           Resume
@@ -192,67 +180,67 @@ export default function StudioImportDetailPage() {
     return <p className="studio-error">缺少 job id。</p>;
   }
   if (job.isLoading) {
-    return <p className="studio-muted">正在读取 Ingestion Job…</p>;
+    return <p className="studio-muted">正在读取 导入作业…</p>;
   }
   if (job.error || !job.data) {
     return (
       <Card>
-        <CardHeader><CardTitle>Job 无法读取</CardTitle></CardHeader>
+        <CardHeader><CardTitle>导入作业无法读取</CardTitle></CardHeader>
         <CardContent>
           <p className="studio-error">{errorText(job.error)}</p>
-          <Button variant="outline" onClick={() => navigate("/studio/imports")}>返回 Imports</Button>
+          <Button variant="outline" onClick={() => navigate("/studio/imports")}>返回导入列表</Button>
         </CardContent>
       </Card>
     );
   }
 
   const data = job.data;
-  const failedChunks = data.chunks.filter((chunk) => chunk.status === "failed").length;
-  const completedChunks = data.chunks.filter((chunk) => chunk.status === "completed").length;
+  const failed分段 = data.chunks.filter((chunk) => chunk.status === "failed").length;
+  const completed分段 = data.chunks.filter((chunk) => chunk.status === "completed").length;
   const currentStage = data.stages.find((stage) => stage.status === "running" || stage.status === "needs_review" || stage.status === "failed");
 
   return (
     <div className="studio-stack" data-view="studio-import-detail">
       <div className="studio-page-heading">
         <div>
-          <Link className="studio-back-link" to="/studio/imports">← Imports</Link>
-          <p className="studio-eyebrow">Ingestion Job</p>
+          <Link className="studio-back-link" to="/studio/imports">← 返回导入列表</Link>
+          <p className="studio-eyebrow">导入作业</p>
           <h1 className="studio-mono">{data.job_id}</h1>
           <div className="studio-row-title">
-            <Badge>{statusLabel(data.status)}</Badge>
-            <span className="studio-muted">revision <span className="studio-mono">{data.revision_id}</span></span>
+            <Badge>{studioStatusLabel(data.status)}</Badge>
+            <span className="studio-muted">版本 <span className="studio-mono">{data.revision_id}</span></span>
           </div>
         </div>
         <JobActions job={data} />
       </div>
 
       <div className="studio-metric-grid">
-        <Card><CardContent><span className="studio-metric-label">Current stage</span><strong className="studio-metric-value">{currentStage?.stage ?? (data.status === "completed" ? "done" : "—")}</strong></CardContent></Card>
-        <Card><CardContent><span className="studio-metric-label">Chunks</span><strong className="studio-metric-value">{completedChunks}/{data.chunks.length}</strong></CardContent></Card>
-        <Card><CardContent><span className="studio-metric-label">Failed chunks</span><strong className="studio-metric-value">{failedChunks}</strong></CardContent></Card>
-        <Card><CardContent><span className="studio-metric-label">Open reviews</span><strong className="studio-metric-value">{data.open_reviews}</strong></CardContent></Card>
+        <Card><CardContent><span className="studio-metric-label">当前阶段</span><strong className="studio-metric-value">{currentStage?.stage ?? (data.status === "completed" ? "已完成" : "—")}</strong></CardContent></Card>
+        <Card><CardContent><span className="studio-metric-label">分段</span><strong className="studio-metric-value">{completed分段}/{data.chunks.length}</strong></CardContent></Card>
+        <Card><CardContent><span className="studio-metric-label">失败分段</span><strong className="studio-metric-value">{failed分段}</strong></CardContent></Card>
+        <Card><CardContent><span className="studio-metric-label">待处理审核</span><strong className="studio-metric-value">{data.open_reviews}</strong></CardContent></Card>
       </div>
 
-      {data.error ? <div className="studio-error-box"><strong>Job error</strong><p>{data.error}</p></div> : null}
+      {data.error ? <div className="studio-error-box"><strong>作业错误</strong><p>{data.error}</p></div> : null}
 
       <div className="studio-grid studio-grid-wide">
         <Card>
-          <CardHeader><CardTitle>Pipeline</CardTitle><CardDescription>durable stage state</CardDescription></CardHeader>
+          <CardHeader><CardTitle>处理流水线</CardTitle><CardDescription>持久化阶段状态</CardDescription></CardHeader>
           <CardContent><div className="studio-stage-list">{data.stages.map((stage) => <StageRow key={stage.stage} stage={stage} />)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Job facts</CardTitle><CardDescription>worker / retry / output status</CardDescription></CardHeader>
+          <CardHeader><CardTitle>作业信息</CardTitle><CardDescription>执行器 / 重试 / 输出状态</CardDescription></CardHeader>
           <CardContent>
             <dl className="studio-facts">
-              <div><dt>attempt</dt><dd>{data.attempt}/{data.max_attempts}</dd></div>
-              <div><dt>lease owner</dt><dd>{data.lease_owner ?? "—"}</dd></div>
-              <div><dt>lease expiry</dt><dd>{formatTime(data.lease_expires_at)}</dd></div>
-              <div><dt>created</dt><dd>{formatTime(data.created_at)}</dd></div>
-              <div><dt>updated</dt><dd>{formatTime(data.updated_at)}</dd></div>
-              <div><dt>outputs</dt><dd>{data.outputs.length}</dd></div>
+              <div><dt>尝试次数</dt><dd>{data.attempt}/{data.max_attempts}</dd></div>
+              <div><dt>租约持有者</dt><dd>{data.lease_owner ?? "—"}</dd></div>
+              <div><dt>租约到期</dt><dd>{formatTime(data.lease_expires_at)}</dd></div>
+              <div><dt>创建时间</dt><dd>{formatTime(data.created_at)}</dd></div>
+              <div><dt>更新时间</dt><dd>{formatTime(data.updated_at)}</dd></div>
+              <div><dt>输出数量</dt><dd>{data.outputs.length}</dd></div>
             </dl>
             {data.status === "needs_review" && data.open_reviews > 0 ? (
-              <p className="studio-muted">还有 {data.open_reviews} 个 review item。C1-T11 Review Queue 完成后可在评审页面处理，再回来 Resume。</p>
+              <p className="studio-muted">还有 {data.open_reviews} 个 审核项。C1-T11 人工审核队列 完成后可在评审页面处理，再回来 Resume。</p>
             ) : null}
           </CardContent>
         </Card>
@@ -260,32 +248,32 @@ export default function StudioImportDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Chunks & attempts</CardTitle>
+          <CardTitle>分段 & attempts</CardTitle>
           <CardDescription>源文本坐标、失败信息、运行版本/hash；不返回原始模型 prompt/response。</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.chunks.length === 0 ? <p className="studio-muted">尚未产生 chunk。</p> : null}
+          {data.chunks.length === 0 ? <p className="studio-muted">尚未产生分段。</p> : null}
           <div className="studio-chunk-list">{data.chunks.map((chunk) => <ChunkRow key={chunk.chunk_id} chunk={chunk} />)}</div>
         </CardContent>
       </Card>
 
       <div className="studio-grid studio-grid-wide">
         <Card>
-          <CardHeader><CardTitle>Review debt</CardTitle><CardDescription>T10 只显示摘要；决策属于 C1-T11。</CardDescription></CardHeader>
+          <CardHeader><CardTitle>审核待办</CardTitle><CardDescription>T10 只显示摘要；决策属于 C1-T11。</CardDescription></CardHeader>
           <CardContent>
-            {data.reviews.length === 0 ? <p className="studio-muted">没有 review item。</p> : null}
+            {data.reviews.length === 0 ? <p className="studio-muted">没有 审核项。</p> : null}
             <div className="studio-table">
               {data.reviews.map((review) => (
                 <div className="studio-table-row" key={review.review_id}>
                   <div><strong>{review.kind}</strong><div className="studio-muted studio-mono">{review.review_id}</div></div>
-                  <div className="studio-row-actions"><Badge>{review.status}</Badge><span className="studio-muted">chunk {review.chunk_id?.slice(0, 8) ?? "—"}</span></div>
+                  <div className="studio-row-actions"><Badge>{review.status}</Badge><span className="studio-muted">分段 {review.chunk_id?.slice(0, 8) ?? "—"}</span></div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Outputs</CardTitle><CardDescription>content-addressed ingestion artifacts</CardDescription></CardHeader>
+          <CardHeader><CardTitle>输出</CardTitle><CardDescription>按内容寻址的导入产物</CardDescription></CardHeader>
           <CardContent>
             {data.outputs.length === 0 ? <p className="studio-muted">尚无输出。</p> : null}
             <div className="studio-table">

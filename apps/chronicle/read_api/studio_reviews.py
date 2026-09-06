@@ -119,6 +119,16 @@ def _review_rows(conn, *, status: str, limit: int, offset: int) -> list[tuple]:
 
 
 def _suggestion(conn, payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("review_subject_version"):
+        return {
+            "decision": payload.get("initial_decision"),
+            "confidence": 0.5,
+            "rationale": (
+                "This review subject aggregates only candidate links that share "
+                "already-proven component authority; grouping itself is not an identity decision."
+            ),
+            "signals": list(payload.get("signals") or []),
+        }
     link_kind = payload.get("link_kind")
     table = (
         "chronicle.resolution_entity_links"
@@ -376,10 +386,33 @@ def _side_context(conn, side: Any, *, link_kind: str) -> dict[str, Any]:
     }
 
 
+def _side_name(conn, side: Any, *, link_kind: str) -> str | None:
+    if not isinstance(side, dict):
+        return None
+    bundle, ref = side.get("bundle"), side.get("ref")
+    if not isinstance(bundle, str) or not isinstance(ref, str):
+        return None
+    table = "chronicle.staged_entities" if link_kind == "entity" else "chronicle.staged_events"
+    row = conn.execute(
+        f"SELECT payload FROM {table} WHERE bundle_label = %s AND record_ref = %s",
+        (bundle, ref),
+    ).fetchone()
+    if row is None or not isinstance(row[0], dict):
+        return None
+    record = row[0]
+    value = (
+        record.get("canonical_name") or record.get("name")
+        if link_kind == "entity"
+        else record.get("title") or record.get("name")
+    )
+    return value if isinstance(value, str) and value else None
+
+
 def _summary(row: tuple, conn) -> dict[str, Any]:
     payload = row[5] if isinstance(row[5], dict) else {}
     suggestion = _suggestion(conn, payload)
     decision = payload.get("decision") if isinstance(payload.get("decision"), dict) else None
+    link_kind = str(payload.get("link_kind") or "")
     return {
         "review_id": str(row[0]),
         "job_id": str(row[1]),
@@ -400,13 +433,19 @@ def _summary(row: tuple, conn) -> dict[str, Any]:
             "source_label": row[16],
         },
         "scope": payload.get("scope"),
-        "link_kind": payload.get("link_kind"),
+        "link_kind": link_kind,
+        "review_subject_id": payload.get("review_subject_id"),
+        "review_subject_version": payload.get("review_subject_version"),
+        "member_count": int(payload.get("member_count") or 1),
+        "members": list(payload.get("members") or []),
         "candidate_id": payload.get("candidate_id"),
         "resolution_sha256": payload.get("resolution_sha256"),
         "blocking": bool(payload.get("blocking", False)),
         "allowed_decisions": list(payload.get("allowed_decisions") or []),
         "left": payload.get("left"),
         "right": payload.get("right"),
+        "left_label": _side_name(conn, payload.get("left"), link_kind=link_kind),
+        "right_label": _side_name(conn, payload.get("right"), link_kind=link_kind),
         "suggestion": suggestion,
         "decision": decision,
     }
@@ -434,6 +473,39 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
     link_kind = str(item.get("link_kind") or "")
     item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)
     item["right_context"] = _side_context(conn, item.get("right"), link_kind=link_kind)
+    members = item.get("members") if isinstance(item.get("members"), list) else []
+    left_refs: list[dict[str, Any]] = []
+    right_refs: list[dict[str, Any]] = []
+    seen_left: set[tuple[str, str]] = set()
+    seen_right: set[tuple[str, str]] = set()
+    for member in members:
+        if not isinstance(member, dict):
+            continue
+        for side_name, target, seen in (
+            ("left", left_refs, seen_left),
+            ("right", right_refs, seen_right),
+        ):
+            side = member.get(side_name)
+            if not isinstance(side, dict):
+                continue
+            bundle, ref = side.get("bundle"), side.get("ref")
+            if not isinstance(bundle, str) or not isinstance(ref, str):
+                continue
+            key = (bundle, ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            target.append({"bundle": bundle, "ref": ref})
+    if not left_refs and isinstance(item.get("left"), dict):
+        left_refs = [item["left"]]
+    if not right_refs and isinstance(item.get("right"), dict):
+        right_refs = [item["right"]]
+    item["left_contexts"] = [
+        _side_context(conn, side, link_kind=link_kind) for side in left_refs
+    ]
+    item["right_contexts"] = [
+        _side_context(conn, side, link_kind=link_kind) for side in right_refs
+    ]
     open_count = conn.execute(
         """
         SELECT count(*) FROM chronicle.review_items

@@ -7,9 +7,9 @@ import {
   reviewLinkKindLabel,
   reviewStatusLabel,
   stageLabel,
-} from "../../lib/studio-i18n";
+} from "../src/lib/studio-i18n";
 
-const STUDIO_DIR = new URL(".", import.meta.url);
+const STUDIO_DIR = new URL("../src/pages/studio/", import.meta.url);
 
 function source(name: string): string {
   return readFileSync(join(STUDIO_DIR.pathname, name), "utf8");

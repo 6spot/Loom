@@ -17,10 +17,11 @@ Contract summary (GitHub Issue #497):
   participant/place overlap). No new blocking rule, no fuzzy matching, no
   model adjudication: the deterministic layer never invents
   ``same_entity`` / ``same_occurrence``.
-- Initial decisions are all ``uncertain``. Every candidate becomes one
-  durable ``ReviewItem`` (kind ``stage_gate``, a frozen C1-T1
-  vocabulary value) tied to the originating ingestion job with full
-  source/bundle/ref provenance in its payload.
+- Initial decisions are all ``uncertain``. Architecture Amendment 0007
+  materializes one durable ``ReviewItem`` per proven semantic review subject,
+  while retaining every underlying candidate key/source/bundle/ref in the
+  payload. Published equivalence comes only from canonical catalog membership;
+  incoming equivalence comes only from proven C1-T7 same-links.
 - Blocking policy: every candidate blocks. Publishing the new bundle
   as unattended singletons first and merging later is unsafe: a later
   accepted same-link across two already-published canonical UUIDs
@@ -86,9 +87,10 @@ from psycopg.types.json import Jsonb  # noqa: E402
 
 import publication_v0  # noqa: E402
 import resolution_v0  # noqa: E402
+import review_subjects  # noqa: E402
 
 #: Version of this resolve/review/publish pipeline step.
-RESOLVE_PUBLISH_VERSION = "c1t8-v2"
+RESOLVE_PUBLISH_VERSION = "c1t8-v3"
 
 #: Reused C0 resolution contract (candidates + link decisions).
 RESOLUTION_VERSION = resolution_v0.RESOLUTION_VERSION
@@ -436,58 +438,16 @@ def review_payload(
 def open_resolution_reviews(
     conn, *, job_id: uuid.UUID, resolutions: list[dict[str, Any]]
 ) -> list[uuid.UUID]:
-    """Open (or adopt) one review item per resolution candidate.
+    """Open/adopt Amendment-0007 semantic review subjects.
 
-    Idempotent: existing items for this job with the same
-    ``(resolution_sha256, candidate_id)`` — open, resolved, or
-    dismissed — are reused in deterministic order instead of
-    duplicated, so a crashed-then-resumed worker never multiplies
-    review gates.
+    Fresh jobs collapse only equivalence already proven by canonical catalog
+    membership / C1-T7 same-links. Pre-amendment jobs keep their frozen legacy
+    candidate plan. Final C0 candidate links are restored by deterministic
+    decision fan-out.
     """
-    rows = conn.execute(
-        """
-        SELECT review_id, status, payload
-        FROM chronicle.review_items
-        WHERE job_id = %s
-        ORDER BY created_at, review_id
-        """,
-        (job_id,),
-    ).fetchall()
-    existing: dict[str, uuid.UUID] = {}
-    for review_id, _status, payload in rows:
-        payload = payload if isinstance(payload, dict) else {}
-        if payload.get("scope") != REVIEW_SCOPE:
-            continue
-        key = _candidate_key(
-            str(payload.get("resolution_sha256") or ""),
-            str(payload.get("candidate_id") or ""),
-        )
-        existing.setdefault(key, review_id)
-
-    ordered: list[uuid.UUID] = []
-    for resolution in resolutions:
-        resolution_sha = initial_artifact_sha(resolution)
-        links: list[tuple[str, dict[str, Any]]] = [
-            ("entity", link) for link in resolution.get("entity_links") or []
-        ] + [("event", link) for link in resolution.get("event_links") or []]
-        links.sort(key=lambda item: str(item[1].get("candidate_id")))
-        for link_kind, link in links:
-            candidate_id = link.get("candidate_id")
-            if not isinstance(candidate_id, str) or not candidate_id:
-                raise PersistenceError("resolution link is missing candidate_id")
-            key = _candidate_key(resolution_sha, candidate_id)
-            if key in existing:
-                ordered.append(existing[key])
-                continue
-            payload = review_payload(
-                resolution_sha=resolution_sha, candidate=link, link_kind=link_kind
-            )
-            review_id = control_plane.open_review_item(
-                conn, job_id=job_id, kind=REVIEW_KIND, payload=payload
-            )
-            existing[key] = review_id
-            ordered.append(review_id)
-    return ordered
+    return review_subjects.open_review_subjects(
+        conn, job_id=job_id, resolutions=resolutions
+    )
 
 
 def _require_decision(link_kind: str, decision: Any) -> str:
@@ -565,57 +525,8 @@ def resolve_resolution_review(
 def collect_review_decisions(
     conn, *, job_id: uuid.UUID
 ) -> dict[str, dict[str, Any]]:
-    """Collect recorded decisions keyed by ``resolution_sha:candidate_id``.
-
-    Resolution-scoped items in ``resolved`` status contribute their
-    recorded human decision. Items in ``dismissed`` status contribute
-    an explicit ``uncertain`` decision: dismissal is a durable,
-    auditable terminal state of the review (the row stays with its
-    ``resolved_at`` stamp), so finalization can distinguish "reviewed
-    and set aside, keep distinct" from "never reviewed". Candidates
-    with no item at all — genuinely unreviewed, or bound to a changed
-    initial artifact — stay absent, and finalization with
-    ``require_complete=True`` still fails closed on those.
-    """
-    rows = conn.execute(
-        """
-        SELECT status, payload FROM chronicle.review_items
-        WHERE job_id = %s AND status IN ('resolved', 'dismissed')
-        ORDER BY created_at, review_id
-        """,
-        (job_id,),
-    ).fetchall()
-    decisions: dict[str, dict[str, Any]] = {}
-    for status, payload in rows:
-        payload = payload if isinstance(payload, dict) else {}
-        if payload.get("scope") != REVIEW_SCOPE:
-            continue
-        key = _candidate_key(
-            str(payload.get("resolution_sha256") or ""),
-            str(payload.get("candidate_id") or ""),
-        )
-        if status == "dismissed":
-            decisions[key] = {
-                "decision": "uncertain",
-                "confidence": CONFIDENCE_INITIAL_UNCERTAIN,
-                "rationale": (
-                    "Resolution review dismissed without a same/not-same "
-                    "decision; the candidate is kept distinct as explicit "
-                    "uncertain and remains reviewable."
-                ),
-                "dismissed": True,
-            }
-            continue
-        decision = payload.get("decision")
-        if not isinstance(decision, dict):
-            continue
-        _require_decision(str(payload.get("link_kind")), decision.get("decision"))
-        decisions[key] = {
-            "decision": decision["decision"],
-            "confidence": float(decision["confidence"]),
-            "rationale": str(decision["rationale"]),
-        }
-    return decisions
+    """Collect terminal reviews and fan subject decisions to C0 candidates."""
+    return review_subjects.collect_review_subject_decisions(conn, job_id=job_id)
 
 
 def open_resolution_review_count(conn, *, job_id: uuid.UUID) -> int:
