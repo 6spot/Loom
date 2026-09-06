@@ -62,7 +62,7 @@ class R8ContractPromptTests(unittest.TestCase):
     def test_initial_prompt_names_canonical_shape_and_output_schema_version(self) -> None:
         request = make_request()
         prompt = request["prompt"]
-        self.assertEqual("c1t6-prompt-v4", request["request_meta"]["prompt_version"])
+        self.assertEqual("c1t6-prompt-v5", request["request_meta"]["prompt_version"])
         self.assertIn('Output schema_version MUST be "0.1"', prompt)
         self.assertIn('kind:"source"', prompt)
         self.assertIn("temp_id only", prompt)
@@ -107,6 +107,9 @@ class R8ContractPromptTests(unittest.TestCase):
         self.assertIn("events/*", repair)
         self.assertIn("entity_ref", repair)
         self.assertIn("schema_version", repair)
+        self.assertIn("MONOTONIC REPAIR RULES", repair)
+        self.assertIn("NOT a fresh extraction pass", repair)
+        self.assertIn("set that event/claim time to null", repair)
         self.assertNotIn("events/23", repair)
 
     def test_compact_diagnostics_preserve_full_validation_history(self) -> None:
@@ -117,7 +120,7 @@ class R8ContractPromptTests(unittest.TestCase):
         self.assertIsNotNone(first["validation"])
         self.assertGreater(first["validation"]["count"], 100)
         # Full deterministic validation remains in history; only the re-ask is
-        # summarized/deduplicated to protect the fixed 8K model-input budget.
+        # summarized/deduplicated to protect the fixed model-input budget.
         full_errors = X.flatten_validation_errors(first["validation"])
         self.assertGreater(len(full_errors), 100)
         repair = provider.prompts[1]
