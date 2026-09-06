@@ -128,7 +128,13 @@ def _response_text(payload: Any) -> str:
 
 @dataclass(frozen=True)
 class ResponsesHTTPModel:
-    """Small synchronous provider implementing Chronicle's ``complete`` hook."""
+    """Small synchronous provider implementing Chronicle's ``complete`` hook.
+
+    ``timeout_seconds`` is the timeout for each HTTP attempt, not a shared
+    budget across all retries. This distinction is important for long-running
+    model requests: a transient connection failure that consumes one attempt's
+    timeout must not silently make ``max_attempts > 1`` ineffective.
+    """
 
     name: str
     endpoint: str
@@ -179,18 +185,10 @@ class ResponsesHTTPModel:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        started = time.monotonic()
         attempts_made = 0
-        last_transient = "timeout budget exhausted"
+        last_transient = "transport failure"
 
         for attempt in range(1, self.max_attempts + 1):
-            if attempt == 1:
-                attempt_timeout = self.timeout_seconds
-            else:
-                attempt_timeout = self.timeout_seconds - (time.monotonic() - started)
-                if attempt_timeout <= 0:
-                    break
-
             attempts_made += 1
             req = request.Request(
                 self.endpoint,
@@ -200,7 +198,7 @@ class ResponsesHTTPModel:
             )
 
             try:
-                with request.urlopen(req, timeout=attempt_timeout) as response:
+                with request.urlopen(req, timeout=self.timeout_seconds) as response:
                     content_length = response.headers.get("Content-Length")
                     if content_length is not None:
                         try:
@@ -238,10 +236,7 @@ class ResponsesHTTPModel:
             if attempt >= self.max_attempts:
                 break
 
-            remaining = self.timeout_seconds - (time.monotonic() - started)
             backoff = self.retry_backoff_seconds * (2 ** (attempt - 1))
-            if remaining <= backoff:
-                break
             if backoff > 0:
                 time.sleep(backoff)
 
