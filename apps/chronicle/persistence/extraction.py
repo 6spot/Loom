@@ -426,19 +426,20 @@ def _check_time(
     if not isinstance(source_calendar, dict):
         errors.append(f"{owner} time.source_calendar must be an object")
         return
-    if not isinstance(normalized, dict):
-        errors.append(f"{owner} time.normalized must be an object")
+    if normalized is not None and not isinstance(normalized, dict):
+        errors.append(f"{owner} time.normalized must be an object or null")
         return
-    # Normalized precision is never invented at the chunk layer.
-    if normalized.get("month") is not None:
-        errors.append(f"{owner} fabricates normalized month from traditional calendar")
-    if normalized.get("day") is not None:
-        errors.append(f"{owner} fabricates normalized day from traditional calendar")
-    year = normalized.get("year")
-    if year is not None and (verified_year is None or year != verified_year):
-        errors.append(
-            f"{owner} normalized year {year!r} is not the document-verified year"
-        )
+    # Canonical schema permits normalized=null when no safe conversion exists.
+    if isinstance(normalized, dict):
+        if normalized.get("month") is not None:
+            errors.append(f"{owner} fabricates normalized month from traditional calendar")
+        if normalized.get("day") is not None:
+            errors.append(f"{owner} fabricates normalized day from traditional calendar")
+        year = normalized.get("year")
+        if year is not None and (verified_year is None or year != verified_year):
+            errors.append(
+                f"{owner} normalized year {year!r} is not the document-verified year"
+            )
     inherited_fields = source_calendar.get("inherited_fields")
     if original in chunk_text:
         return  # Explicit local time marker.

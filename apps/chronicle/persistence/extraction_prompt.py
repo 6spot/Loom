@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any
 
-PROMPT_VERSION = "c1t6-prompt-v3"
+PROMPT_VERSION = "c1t6-prompt-v4"
 
 MODEL_CONTRACT_GUIDE = r'''CANONICAL BUNDLE SHAPE (field names are exact; this is shape guidance, not source facts)
 Output schema_version MUST be "0.1". Internal Chronicle contract versions are NOT output schema versions.
@@ -139,6 +139,10 @@ def render_extraction_prompt(
 
 GROUNDING / AUTHORITY RULES
 - Use only CHUNK SOURCE TEXT plus explicit SECTION/DOCUMENT metadata and bounded INHERITED CONTEXT. Never add outside historical knowledge.
+- Preserve CHUNK SOURCE TEXT Unicode surfaces exactly. Entity canonical_name/mentions and Claim evidence must never convert simplified/traditional characters, normalize spelling, or paraphrase an exact source surface.
+- A locally grounded entity must copy at least one exact mention surface from CHUNK SOURCE TEXT. If it exists only in inherited context, preserve that exact inherited surface and emit inherited_entity_context warning; otherwise omit it.
+- Event time must be null unless time.original_text is an exact CHUNK SOURCE TEXT substring or an exact inherited_time surface. Use normalized year only when DOCUMENT.verified_normalized_year supplies that exact mapping; otherwise normalized must be null.
+- Claim evidence.text must be one exact CHUNK SOURCE TEXT substring and evidence.locator.section must equal SECTION.label exactly.
 - INHERITED CONTEXT is interpretation aid only, never evidence or authority. Every Claim.evidence.text must be an exact CHUNK SOURCE TEXT substring.
 - Create source-grounded entities needed by represented facts. Names/titles are attributes, never identity; ambiguity stays unresolved with a warning.
 - An inherited-only entity is allowed only when its surface exists in INHERITED CONTEXT and an inherited_entity_context warning names it.

@@ -3,8 +3,12 @@
 C1-T13 needs the already-tested C1 extraction/presentation provider protocols
 to be reachable from the real Docker worker. This module intentionally keeps
 that deployment I/O vendor-neutral: it speaks the small HTTP subset used by a
-Responses-style endpoint (``POST`` JSON with ``model`` + ``input``) and returns
-only the produced text.
+Responses-style endpoint and returns only produced text.
+
+Extraction additionally supplies a strict structured-output projection of the
+canonical Chronicle bundle contract. That projection constrains generation
+only; the existing canonical schema/grounding/reference/time validators remain
+the acceptance authority. Reader Presentation remains free-text.
 
 Development may instead opt in to ``CHRONICLE_MODEL_FIXTURE_PACK``. That mode
 uses the same model boundary and normal Chronicle validators/persistence path;
@@ -27,6 +31,11 @@ from typing import Any
 from urllib import error, parse, request
 
 from common import PersistenceError
+
+try:
+    from extraction_model_schema import extraction_text_format
+except ImportError:  # pragma: no cover - package import path
+    from .extraction_model_schema import extraction_text_format
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -128,6 +137,7 @@ class ResponsesHTTPModel:
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
+    text_format: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -146,13 +156,18 @@ class ResponsesHTTPModel:
             raise PersistenceError("model max_attempts must be a positive integer")
         if self.retry_backoff_seconds < 0:
             raise PersistenceError("model retry_backoff_seconds must be non-negative")
+        if self.text_format is not None and not isinstance(self.text_format, dict):
+            raise PersistenceError("model text_format must be a JSON object")
 
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
             raise ModelProviderError("model prompt must be a non-empty string")
 
+        payload: dict[str, Any] = {"model": self.name, "input": prompt}
+        if self.text_format is not None:
+            payload["text"] = {"format": self.text_format}
         body = json.dumps(
-            {"model": self.name, "input": prompt},
+            payload,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -277,6 +292,10 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     explicit endpoint is required so a deployment can choose OpenAI, Luna
     through a compatible gateway, or a local Responses-compatible service
     without Chronicle guessing a vendor.
+
+    Live extraction receives Chronicle's strict structured-output projection;
+    presentation remains unconstrained text because it has a different output
+    contract and is validated independently.
     """
     fixture_models = _fixture_models_from_env()
     if fixture_models is not None:
@@ -296,7 +315,11 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     api_key = _nonempty_env("CHRONICLE_MODEL_API_KEY")
     timeout = _timeout_from_env()
 
-    def build(name: str | None) -> ResponsesHTTPModel | None:
+    def build(
+        name: str | None,
+        *,
+        text_format: dict[str, Any] | None = None,
+    ) -> ResponsesHTTPModel | None:
         if name is None:
             return None
         return ResponsesHTTPModel(
@@ -304,6 +327,10 @@ def models_from_env() -> tuple[Any | None, Any | None]:
             endpoint=endpoint,
             api_key=api_key,
             timeout_seconds=timeout,
+            text_format=text_format,
         )
 
-    return build(extraction_name), build(presentation_name)
+    return (
+        build(extraction_name, text_format=extraction_text_format()),
+        build(presentation_name),
+    )
