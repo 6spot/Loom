@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import unittest
@@ -97,6 +98,32 @@ class ExtractionModelSchemaTests(unittest.TestCase):
         self.assertNotIn("work", source_props)
         self.assertEqual({"section"}, set(locator_props))
         self.assertNotIn("contextual", mention_props)
+
+    def test_r13_chunk_projection_keeps_resolution_unresolved(self) -> None:
+        schema = S.extraction_model_schema()
+        resolution_status = (
+            schema["properties"]["entities"]["items"]["properties"]
+            ["resolution"]["properties"]["status"]
+        )
+        self.assertEqual("unresolved", resolution_status["const"])
+        self.assertNotIn("enum", resolution_status)
+
+        for forbidden in ("ambiguous", "new", "resolved"):
+            with self.subTest(status=forbidden):
+                bundle = copy.deepcopy(sample_bundle())
+                bundle["entities"][0]["resolution"]["status"] = forbidden
+                model_errors = list(
+                    Draft202012Validator(S.extraction_model_schema()).iter_errors(bundle)
+                )
+                self.assertTrue(model_errors)
+
+        # The canonical schema remains broader on purpose: those statuses belong
+        # to later resolution/canonical stages, not the chunk-extraction model.
+        canonical = json.loads(CANONICAL.read_text(encoding="utf-8"))
+        ambiguous = copy.deepcopy(sample_bundle())
+        ambiguous["entities"][0]["resolution"]["status"] = "ambiguous"
+        canonical_errors = list(Draft202012Validator(canonical).iter_errors(ambiguous))
+        self.assertEqual([], canonical_errors)
 
 
 if __name__ == "__main__":
