@@ -37,8 +37,11 @@ jobs:
           done
           echo 'live model secret presence: PASS'
 
-      - name: Compile structured output probe
-        run: python -m py_compile apps/chronicle/acceptance/tmp_probe_structured_output.py
+      - name: Compile structured output probes
+        run: python -m py_compile apps/chronicle/acceptance/tmp_probe_structured_output.py apps/chronicle/acceptance/tmp_probe_chronicle_schema.py
 
       - name: Probe Responses JSON Schema structured output
         run: python apps/chronicle/acceptance/tmp_probe_structured_output.py
+
+      - name: Probe Chronicle canonical schema structured output
+        run: python apps/chronicle/acceptance/tmp_probe_chronicle_schema.py
