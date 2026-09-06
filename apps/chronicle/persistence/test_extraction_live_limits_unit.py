@@ -73,9 +73,33 @@ class ExtractionLiveLimitTests(unittest.TestCase):
         )
         return best
 
-    def test_default_response_guard_accepts_r6_observed_size(self) -> None:
-        self.assertEqual(32768, X.ExtractionConfig().max_response_chars)
+    def test_default_response_guard_accepts_r9_observed_sizes(self) -> None:
+        self.assertEqual(65536, X.ExtractionConfig().max_response_chars)
         self.assertGreater(X.ExtractionConfig().max_response_chars, 26706)
+        self.assertGreater(X.ExtractionConfig().max_response_chars, 32856)
+        self.assertGreater(X.ExtractionConfig().max_response_chars, 41280)
+
+    def test_r9_measured_large_bundle_reaches_normal_validation(self) -> None:
+        config = X.ExtractionConfig(max_repair_attempts=0)
+        good = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")
+        good["warnings"] = [
+            {
+                "type": "r9_size_regression",
+                "severity": "info",
+                "message": "x" * 41000,
+                "refs": [],
+            }
+        ]
+        raw = json.dumps(good, ensure_ascii=False)
+        self.assertGreater(len(raw), 41280)
+        self.assertLess(len(raw), config.max_response_chars)
+        provider = FakeProvider([raw])
+
+        result = self._run(provider, config=config)
+
+        self.assertTrue(result["accepted"], result["error"])
+        self.assertIsNone(result["attempts"][0]["parse_error"])
+        self.assertTrue(result["attempts"][0]["validation"]["passed"])
 
     def test_over_budget_response_gets_one_bounded_compact_reask(self) -> None:
         config = X.ExtractionConfig(max_repair_attempts=1)
