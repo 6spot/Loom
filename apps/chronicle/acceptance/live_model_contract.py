@@ -6,9 +6,14 @@ Responses-compatible provider, the current extraction prompt, JSON parsing,
 canonical staged-bundle validation, grounding, time precision, references,
 and assessment rules against a committed source fixture.
 
+A PASS must also be non-trivial: the accepted candidate must contain at least
+one Entity, Event, and Claim, and at least one Claim must carry exact evidence
+from the fixture source. This prevents a structurally valid but empty bundle
+from satisfying live-provider prevalidation.
+
 It never prints prompts, raw model output, endpoint credentials, or API keys.
-Only bounded metadata, hashes, and compact deterministic validation summaries
-are emitted.
+Only bounded metadata, hashes, counts, and compact deterministic validation
+summaries are emitted.
 """
 
 from __future__ import annotations
@@ -72,16 +77,59 @@ def _attempt_summary(attempt: dict) -> dict:
     }
 
 
-def _summary(result: dict) -> dict:
+def _candidate_contract(candidate: object, *, chunk_text: str) -> dict:
+    if not isinstance(candidate, dict):
+        return {
+            "nontrivial": False,
+            "entity_count": 0,
+            "event_count": 0,
+            "claim_count": 0,
+            "exact_evidence_claim_count": 0,
+        }
+
+    def records(name: str) -> list[dict]:
+        value = candidate.get(name)
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
+
+    entities = records("entities")
+    events = records("events")
+    claims = records("claims")
+    exact_evidence_claims = 0
+    for claim in claims:
+        evidence = claim.get("evidence")
+        text = evidence.get("text") if isinstance(evidence, dict) else None
+        if isinstance(text, str) and text and text in chunk_text:
+            exact_evidence_claims += 1
+
+    return {
+        "nontrivial": bool(entities and events and claims and exact_evidence_claims),
+        "entity_count": len(entities),
+        "event_count": len(events),
+        "claim_count": len(claims),
+        "exact_evidence_claim_count": exact_evidence_claims,
+    }
+
+
+def _summary(result: dict, *, chunk_text: str) -> dict:
     attempts = [
         _attempt_summary(attempt)
         for attempt in (result.get("attempts") or [])
         if isinstance(attempt, dict)
     ]
+    candidate_contract = _candidate_contract(result.get("candidate"), chunk_text=chunk_text)
     return {
         "schema": "chronicle.live-model-contract",
         "prompt_version": X.PROMPT_VERSION,
         "accepted": bool(result.get("accepted")),
+        "nontrivial": candidate_contract["nontrivial"],
+        "candidate_counts": {
+            "entities": candidate_contract["entity_count"],
+            "events": candidate_contract["event_count"],
+            "claims": candidate_contract["claim_count"],
+            "exact_evidence_claims": candidate_contract["exact_evidence_claim_count"],
+        },
         "attempt_count": len(attempts),
         "attempts": attempts,
     }
@@ -137,13 +185,13 @@ def main() -> int:
         config=config,
     )
 
-    summary = _summary(result)
+    summary = _summary(result, chunk_text=chunk_text)
     summary["model"] = extraction_model.name
     summary["prompt_chars"] = request["request_meta"]["prompt_chars"]
     summary["prompt_sha256"] = request["request_meta"]["prompt_sha256"]
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
 
-    if result.get("accepted"):
+    if result.get("accepted") and summary["nontrivial"]:
         print("Chronicle live model contract: PASS")
         return 0
 
