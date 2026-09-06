@@ -164,11 +164,12 @@ class ExtractionConfig:
 
     max_repair_attempts: int = 1
     max_prompt_chars: int = 8000
-    # R6 of the C1-T17 real-machine gate measured a schema-shaped response
-    # of 26,706 chars for a ~2K-char classical-Chinese chunk. 16K was an
-    # uncalibrated development guard, not a contract limit. Keep a hard,
-    # deterministic bound while leaving enough room for real staged bundles.
-    max_response_chars: int = 32768
+    # C1-T17 live runs measured complete model bundles at 26,706 chars (R6)
+    # and 32,856 / 41,280 chars (R9) for ~2K-char classical-Chinese chunks.
+    # This is a resource-protection envelope, not a semantic compactness rule:
+    # keep it hard and deterministic, never truncate, and let canonical
+    # parse/schema/grounding validation decide whether an in-envelope bundle is valid.
+    max_response_chars: int = 65536
 
     def __post_init__(self) -> None:
         for name in (
