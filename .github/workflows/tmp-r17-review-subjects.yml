@@ -34,7 +34,10 @@ jobs:
           src_test = Path("apps/chronicle/webapp/src/pages/studio/StudioLocalization.test.ts")
           dst_test = Path("apps/chronicle/webapp/tests/studio-localization.test.ts")
           if src_test.exists():
-              dst_test.write_text(src_test.read_text(encoding="utf-8"), encoding="utf-8")
+              moved = src_test.read_text(encoding="utf-8")
+              moved = moved.replace('../../lib/', '../src/lib/')
+              moved = moved.replace('../../components/', '../src/components/')
+              dst_test.write_text(moved, encoding="utf-8")
               src_test.unlink()
 
           coverage_page = Path("apps/chronicle/webapp/src/pages/studio/StudioCoveragePage.tsx")
