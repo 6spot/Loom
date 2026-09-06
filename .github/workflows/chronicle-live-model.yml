@@ -11,8 +11,11 @@ on:
       - "apps/chronicle/persistence/extraction.py"
       - "apps/chronicle/persistence/extraction_prompt.py"
       - "apps/chronicle/worker/model_provider.py"
+      - "apps/chronicle/worker/production_worker.py"
+      - "apps/chronicle/worker/test_production_worker_budget_unit.py"
       - "apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json"
       - "apps/chronicle/ingestion/fixtures/c1t6-inherited-jianan/raw.txt"
+      - "compose.chronicle.yaml"
 
 permissions:
   contents: read
@@ -46,6 +49,9 @@ jobs:
 
       - name: Install Chronicle dependencies
         run: python -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Validate unified production model budget
+        run: python apps/chronicle/worker/test_production_worker_budget_unit.py
 
       - name: Validate secret presence without printing values
         shell: bash
