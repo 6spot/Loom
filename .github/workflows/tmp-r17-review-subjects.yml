@@ -45,8 +45,11 @@ jobs:
       - name: Run persistence unit contracts
         run: python -m unittest discover -s apps/chronicle/persistence -p 'test_*unit.py' -v
 
-      - name: Run read-api unit contracts
-        run: python -m unittest discover -s apps/chronicle/read_api -p 'test_*unit.py' -v
+      - name: Run read-api contracts
+        run: python -m unittest discover -s apps/chronicle/read_api -p 'test_*.py' -v
+
+      - name: Run R15 human-review projection regression
+        run: python apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -82,5 +85,3 @@ jobs:
             docs/tasks/chronicle/C1-T17-final-acceptance-gate.md
           git commit -m 'feat(chronicle): collapse review debt and localize Studio [skip ci]'
           git push origin HEAD:tmp/chronicle-r17-review-subjects
-
-# Retrigger marker after fixing review_subjects.py syntax.
