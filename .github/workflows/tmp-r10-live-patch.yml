@@ -44,11 +44,11 @@ jobs:
 
       - name: Run provider and extraction contracts
         run: |
-          python -m unittest apps/chronicle/worker/test_model_provider_unit.py -v
-          python -m unittest apps/chronicle/worker/test_model_provider_retry_unit.py -v
-          python -m unittest apps/chronicle/persistence/test_extraction_unit.py -v
-          python -m unittest apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
-          python -m unittest apps/chronicle/persistence/test_extraction_r8_contract_unit.py -v
+          python apps/chronicle/worker/test_model_provider_unit.py -v
+          python apps/chronicle/worker/test_model_provider_retry_unit.py -v
+          python apps/chronicle/persistence/test_extraction_unit.py -v
+          python apps/chronicle/persistence/test_extraction_live_limits_unit.py -v
+          python apps/chronicle/persistence/test_extraction_r8_contract_unit.py -v
 
       - name: Validate live secret presence without printing values
         shell: bash
