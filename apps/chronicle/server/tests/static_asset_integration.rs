@@ -17,9 +17,7 @@ async fn get(port: u16, path: &str) -> Result<(u16, String, Vec<u8>), String> {
     let mut stream = TcpStream::connect(("127.0.0.1", port))
         .await
         .map_err(|err| err.to_string())?;
-    let request = format!(
-        "GET {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
-    );
+    let request = format!("GET {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
     stream
         .write_all(request.as_bytes())
         .await
@@ -85,7 +83,8 @@ async fn production_front_serves_every_committed_vite_asset_over_http() {
         let (status, head, body) = get(port, route).await.expect("Studio shell response");
         assert_eq!(status, 200, "{route}");
         assert!(
-            head.to_ascii_lowercase().contains("content-type: text/html"),
+            head.to_ascii_lowercase()
+                .contains("content-type: text/html"),
             "{route}: {head}"
         );
         assert!(
@@ -98,7 +97,10 @@ async fn production_front_serves_every_committed_vite_asset_over_http() {
         .iter()
         .filter(|asset| asset.path.starts_with("/assets/"))
         .collect::<Vec<_>>();
-    assert!(!vite_assets.is_empty(), "Vite asset allowlist must not be empty");
+    assert!(
+        !vite_assets.is_empty(),
+        "Vite asset allowlist must not be empty"
+    );
 
     for asset in vite_assets {
         let (status, head, body) = get(port, asset.path).await.expect(asset.path);
