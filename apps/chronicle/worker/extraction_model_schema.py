@@ -133,6 +133,11 @@ def extraction_model_schema() -> dict[str, Any]:
         "required": ["text"],
         "properties": {"text": {"type": "string", "minLength": 1}},
     }
+    # Chunk extraction never owns entity identity decisions.  Keep every
+    # model-produced Entity unresolved and express ambiguity through warnings;
+    # the later deterministic resolution/review stage is the only place that
+    # may classify/link identities.  This also matches assembly's strict
+    # temp-ID-only input contract.
     resolution = {
         "type": "object",
         "additionalProperties": False,
@@ -140,7 +145,7 @@ def extraction_model_schema() -> dict[str, Any]:
         "properties": {
             "status": {
                 "type": "string",
-                "enum": ["unresolved", "new", "ambiguous"],
+                "const": "unresolved",
             }
         },
     }
