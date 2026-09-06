@@ -68,7 +68,6 @@ class _DisjointSet:
         left_root, right_root = self.find(left), self.find(right)
         if left_root == right_root:
             return
-        # Lexicographic root makes the component key independent of input order.
         kept, moved = sorted((left_root, right_root))
         self.parent[moved] = kept
 
@@ -192,8 +191,6 @@ def _new_component_roots(
             dsu.union(left_ref, right_ref)
         elif decision in prohibited:
             negative_pairs.append((left_ref, right_ref, str(decision)))
-        # `uncertain` is deliberately not an equivalence edge and is not a
-        # contradiction by itself; it simply contributes no transitive proof.
 
     roots = dsu.canonical_roots()
     for left_ref, right_ref, decision in negative_pairs:
@@ -211,13 +208,7 @@ def build_review_subjects(
     catalog: dict[str, Any] | None,
     within_book_links: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    """Collapse candidate-pair review debt to proven component pairs.
-
-    Published-side equivalence comes only from the canonical catalog.  The
-    incoming source side uses only already-proven C1-T7 same-links.  Every
-    candidate remains a member of exactly one subject and is retained for
-    deterministic decision fan-out/audit.
-    """
+    """Collapse candidate-pair review debt to proven component pairs."""
     members = _candidate_members(resolutions)
     if not members:
         return []
@@ -260,6 +251,7 @@ def build_review_subjects(
         )
         right_members = sorted(
             {(item["right"]["bundle"], item["right"]["ref"]) for item in ordered}
+        )
         identity = {
             "version": REVIEW_SUBJECT_VERSION,
             "link_kind": kind,
@@ -316,7 +308,6 @@ def subject_payload(subject: dict[str, Any]) -> dict[str, Any]:
         "review_subject_id": subject["review_subject_id"],
         "review_subject_version": REVIEW_SUBJECT_VERSION,
         "link_kind": link_kind,
-        # Representative legacy fields keep older Studio/API consumers safe.
         "candidate_id": representative["candidate_id"],
         "resolution_sha256": representative["resolution_sha256"],
         "left": dict(representative["left"]),
@@ -456,13 +447,7 @@ def _open_legacy(
 def open_review_subjects(
     conn, *, job_id: uuid.UUID, resolutions: list[dict[str, Any]]
 ) -> list[uuid.UUID]:
-    """Open one durable ReviewItem per proven semantic component pair.
-
-    Existing subject plans are adopted as an atomic frozen plan: their member
-    coverage must exactly match the current initial resolution candidates.
-    Pre-amendment jobs that already contain legacy candidate-level reviews keep
-    that legacy plan instead of being silently rematerialized mid-flight.
-    """
+    """Open one durable ReviewItem per proven semantic component pair."""
     members = _candidate_members(resolutions)
     existing_rows = _scoped_review_rows(conn, job_id)
     if existing_rows:
@@ -492,9 +477,6 @@ def open_review_subjects(
         return []
     catalog, within_book_links = _load_subject_inputs(conn, job_id)
     if catalog is None:
-        # Fake/unit jobs and pre-C1-T7 persisted jobs have no assembly/catalog
-        # authority to prove components. Preserve their established candidate
-        # review behavior rather than guessing equivalence.
         return _open_legacy(conn, job_id=job_id, members=members, existing_rows=[])
 
     subjects = build_review_subjects(
@@ -522,7 +504,6 @@ def _require_decision(link_kind: str, decision: Any) -> str:
 def decision_entries_for_payload(
     payload: dict[str, Any], *, status: str
 ) -> dict[str, dict[str, Any]]:
-    """Expand one terminal ReviewItem payload back to candidate-level decisions."""
     if payload.get("scope") != REVIEW_SCOPE:
         return {}
     link_kind = str(payload.get("link_kind") or "")
@@ -565,7 +546,6 @@ def decision_entries_for_payload(
 def collect_review_subject_decisions(
     conn, *, job_id: uuid.UUID
 ) -> dict[str, dict[str, Any]]:
-    """Collect terminal reviews and deterministically fan out subject decisions."""
     rows = conn.execute(
         """
         SELECT status, payload FROM chronicle.review_items
