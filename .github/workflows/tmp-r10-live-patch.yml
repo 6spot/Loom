@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message != 'tmp: validated R10 live model contract fix'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -70,44 +69,52 @@ jobs:
               '                f"{owner} normalized year {year!r} is not the document-verified year"',
               '            )',
           ])
-          if old not in text:
+          if old in text:
+              extraction.write_text(text.replace(old, new, 1))
+          elif 'time.normalized must be an object or null' not in text:
               raise SystemExit('extraction.py normalized block anchor not found')
-          extraction.write_text(text.replace(old, new, 1))
 
           prompt = Path('apps/chronicle/persistence/extraction_prompt.py')
           text = prompt.read_text()
-          text = text.replace('PROMPT_VERSION = "c1t6-prompt-v3"', 'PROMPT_VERSION = "c1t6-prompt-v4"', 1)
+          if 'PROMPT_VERSION = "c1t6-prompt-v3"' in text:
+              text = text.replace('PROMPT_VERSION = "c1t6-prompt-v3"', 'PROMPT_VERSION = "c1t6-prompt-v4"', 1)
+          elif 'PROMPT_VERSION = "c1t6-prompt-v4"' not in text:
+              raise SystemExit('prompt version anchor not found')
           guide_anchor = 'source: {temp_id,kind:"source",source_type,title,language,extraction,...optional source fields}\n'
           guide_line = 'Allowed source.source_type: book, article, web, dataset, manuscript, other. For historical works use "book"; never invent genre labels such as "biographical_history".\n'
-          if guide_anchor not in text:
-              raise SystemExit('prompt full source anchor not found')
-          text = text.replace(guide_anchor, guide_anchor + guide_line, 1)
+          if guide_line not in text:
+              if guide_anchor not in text:
+                  raise SystemExit('prompt full source anchor not found')
+              text = text.replace(guide_anchor, guide_anchor + guide_line, 1)
           core_anchor = 'source={temp_id,kind:"source",source_type,title,language,extraction}\n'
           core_line = 'source_type must be one of: book, article, web, dataset, manuscript, other.\n'
-          if core_anchor not in text:
-              raise SystemExit('prompt core source anchor not found')
-          text = text.replace(core_anchor, core_anchor + core_line, 1)
+          if core_line not in text:
+              if core_anchor not in text:
+                  raise SystemExit('prompt core source anchor not found')
+              text = text.replace(core_anchor, core_anchor + core_line, 1)
           prompt.write_text(text)
 
           tests = Path('apps/chronicle/persistence/test_extraction_unit.py')
           text = tests.read_text()
-          if '"c1t6-prompt-v3"' not in text:
-              raise SystemExit('prompt-version assertion anchor not found')
-          text = text.replace('"c1t6-prompt-v3"', '"c1t6-prompt-v4"', 1)
+          if '"c1t6-prompt-v3"' in text:
+              text = text.replace('"c1t6-prompt-v3"', '"c1t6-prompt-v4"', 1)
           marker = '    def test_paraphrased_evidence_fails_grounding(self) -> None:\n'
-          addition = '\n'.join([
-              '    def test_canonical_normalized_null_is_not_rejected_by_mechanical_validator(self) -> None:',
-              '        bundle = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")',
-              '        bundle["events"][0]["time"]["normalized"] = None',
-              '        bundle["claims"][0]["time"]["normalized"] = None',
-              '        report = self.validate(bundle)',
-              '        self.assertTrue(report["passed"], X.flatten_validation_errors(report))',
-              '',
-              '',
-          ])
-          if marker not in text:
-              raise SystemExit('test insertion anchor not found')
-          tests.write_text(text.replace(marker, addition + marker, 1))
+          test_name = 'test_canonical_normalized_null_is_not_rejected_by_mechanical_validator'
+          if test_name not in text:
+              addition = '\n'.join([
+                  '    def test_canonical_normalized_null_is_not_rejected_by_mechanical_validator(self) -> None:',
+                  '        bundle = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")',
+                  '        bundle["events"][0]["time"]["normalized"] = None',
+                  '        bundle["claims"][0]["time"]["normalized"] = None',
+                  '        report = self.validate(bundle)',
+                  '        self.assertTrue(report["passed"], X.flatten_validation_errors(report))',
+                  '',
+                  '',
+              ])
+              if marker not in text:
+                  raise SystemExit('test insertion anchor not found')
+              text = text.replace(marker, addition + marker, 1)
+          tests.write_text(text)
 
       - name: Compile extraction modules
         run: python -m py_compile apps/chronicle/persistence/extraction.py apps/chronicle/persistence/extraction_prompt.py apps/chronicle/acceptance/live_model_contract.py
@@ -133,17 +140,21 @@ jobs:
       - name: Run real Luna extraction contract
         run: python apps/chronicle/acceptance/live_model_contract.py
 
-      - name: Commit validated implementation
+      - name: Commit validated implementation when changed
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             apps/chronicle/persistence/extraction.py \
             apps/chronicle/persistence/extraction_prompt.py \
             apps/chronicle/persistence/test_extraction_unit.py \
             apps/chronicle/acceptance/live_model_contract.py \
             .github/workflows/chronicle-live-model.yml
+          if git diff --cached --quiet; then
+            echo 'validated implementation already committed'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'tmp: validated R10 live model contract fix'
           git push origin HEAD:tmp/chronicle-r10-live-model-contract
