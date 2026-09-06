@@ -3,7 +3,7 @@
 This module contains only deterministic prompt rendering/diagnostic compaction.
 Canonical validation remains owned by ``extraction.py`` and the canonical JSON
 Schema; these guides are model-facing assistance, never alternate schemas or
-authority layers.
+authority layers. R12 monotonic repair is enforced mechanically by the harness.
 """
 
 from __future__ import annotations
