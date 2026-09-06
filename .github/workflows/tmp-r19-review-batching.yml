@@ -1,0 +1,23 @@
+name: Temporary Chronicle R19 review batching
+
+on:
+  push:
+    branches:
+      - tmp/chronicle-r19-review-batching
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-review-batching:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Chronicle dependencies
+        run: python -m pip install psycopg[binary] jsonschema
+      - name: Validate R18 review batching
+        run: python apps/chronicle/persistence/test_review_subjects_r16_unit.py
