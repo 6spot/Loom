@@ -37,6 +37,10 @@ jobs:
               moved = src_test.read_text(encoding="utf-8")
               moved = moved.replace('../../lib/', '../src/lib/')
               moved = moved.replace('../../components/', '../src/components/')
+              moved = moved.replace(
+                  'const STUDIO_DIR = new URL(".", import.meta.url);',
+                  'const STUDIO_DIR = new URL("../src/pages/studio/", import.meta.url);',
+              )
               dst_test.write_text(moved, encoding="utf-8")
               src_test.unlink()
 
