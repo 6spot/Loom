@@ -49,6 +49,17 @@ jobs:
           text = text.replace("list文献", "listDocuments")
           coverage_page.write_text(text, encoding="utf-8")
 
+          sources_page = Path("apps/chronicle/webapp/src/pages/studio/StudioSourcesPage.tsx")
+          text = sources_page.read_text(encoding="utf-8")
+          text = text.replace("list版本s", "listRevisions")
+          text = text.replace("upload版本", "uploadRevision")
+          sources_page.write_text(text, encoding="utf-8")
+
+          review_detail = Path("apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx")
+          text = review_detail.read_text(encoding="utf-8")
+          text = text.replace("  formatShortHash,\n", "")
+          review_detail.write_text(text, encoding="utf-8")
+
           coverage_test = Path("apps/chronicle/webapp/tests/studio-coverage.test.ts")
           text = coverage_test.read_text(encoding="utf-8")
           text = text.replace('"Source contribution"', '"来源贡献"')
@@ -100,7 +111,7 @@ jobs:
       - name: Verify patch quality
         run: |
           git diff --check
-          ! grep -R "list文献" -n apps/chronicle/webapp/src
+          ! grep -R -E "list文献|list版本s|upload版本" -n apps/chronicle/webapp/src
           git status --short
 
       - name: Commit tested implementation and generated dist
