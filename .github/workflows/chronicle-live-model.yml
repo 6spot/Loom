@@ -26,6 +26,7 @@ on:
       - "apps/chronicle/webapp/src/lib/review-display.ts"
       - "apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx"
       - "apps/chronicle/webapp/tests/studio-review-human-display.test.ts"
+      - "apps/chronicle/web/dist/**"
       - "compose.chronicle.yaml"
 
 permissions:
