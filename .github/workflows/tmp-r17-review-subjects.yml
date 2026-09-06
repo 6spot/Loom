@@ -119,7 +119,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
-            .github/workflows/chronicle-live-model.yml \
             apps/chronicle/persistence/resolve_publish.py \
             apps/chronicle/read_api/studio_reviews.py \
             apps/chronicle/webapp/src/lib/studio-api.ts \
