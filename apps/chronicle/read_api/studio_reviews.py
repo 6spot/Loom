@@ -172,9 +172,147 @@ def _record_projection(record: Any, *, link_kind: str) -> dict[str, Any]:
         "kind": "event",
         "type": record.get("type"),
         "title": record.get("title"),
+        "summary": record.get("summary"),
         "time": record.get("time"),
         "participants": list(record.get("participants") or []),
         "places": list(record.get("places") or []),
+    }
+
+
+def _entity_display_from_rows(rows: list[tuple]) -> dict[str, dict[str, Any]]:
+    """Project staged entity rows to a ref->human-label map without resolving identity."""
+    result: dict[str, dict[str, Any]] = {}
+    for ref, payload in rows:
+        if not isinstance(ref, str) or not isinstance(payload, dict):
+            continue
+        name = payload.get("canonical_name") or payload.get("name")
+        result[ref] = {
+            "ref": ref,
+            "name": name if isinstance(name, str) and name else ref,
+            "type": payload.get("type"),
+        }
+    return result
+
+
+def _claim_evidence_from_rows(rows: list[tuple], record_ref: str) -> list[dict[str, Any]]:
+    """Return exact staged Claim evidence directly referencing one record.
+
+    This is a read-only evidence projection. It never infers that two records
+    are identical and never treats a title/summary as source evidence.
+    """
+    evidence: list[dict[str, Any]] = []
+    for claim_ref, payload in rows:
+        if not isinstance(payload, dict):
+            continue
+        subject = payload.get("subject")
+        obj = payload.get("object")
+        subject_match = isinstance(subject, dict) and subject.get("ref") == record_ref
+        object_match = isinstance(obj, dict) and obj.get("ref") == record_ref
+        if not subject_match and not object_match:
+            continue
+        raw_evidence = payload.get("evidence")
+        if not isinstance(raw_evidence, dict):
+            continue
+        text = raw_evidence.get("text")
+        if not isinstance(text, str) or not text:
+            continue
+        evidence.append(
+            {
+                "claim_ref": str(claim_ref),
+                "relation": "subject" if subject_match else "object",
+                "predicate": payload.get("predicate"),
+                "text": text,
+                "source_ref": raw_evidence.get("source_ref"),
+                "locator": raw_evidence.get("locator") if isinstance(raw_evidence.get("locator"), dict) else {},
+            }
+        )
+    return evidence
+
+
+def _time_display(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    source_calendar = value.get("source_calendar")
+    normalized = value.get("normalized")
+    source_calendar = source_calendar if isinstance(source_calendar, dict) else {}
+    normalized = normalized if isinstance(normalized, dict) else {}
+    return {
+        "original_text": value.get("original_text"),
+        "era": source_calendar.get("era"),
+        "era_year": source_calendar.get("era_year"),
+        "season": source_calendar.get("season"),
+        "month": source_calendar.get("month"),
+        "day": source_calendar.get("day"),
+        "normalized_year": normalized.get("year"),
+        "precision": normalized.get("precision"),
+        "approximate": bool(normalized.get("approximate", False)),
+    }
+
+
+def _display_projection(
+    record: Any,
+    *,
+    link_kind: str,
+    entity_display: dict[str, dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build a human-review display projection from already-staged facts only."""
+    if not isinstance(record, dict):
+        return {"evidence": evidence}
+    if link_kind == "entity":
+        name = record.get("canonical_name") or record.get("name")
+        return {
+            "kind": "entity",
+            "type": record.get("type"),
+            "name": name,
+            "aliases": list(record.get("aliases") or []),
+            "mentions": [
+                mention.get("text")
+                for mention in list(record.get("mentions") or [])
+                if isinstance(mention, dict) and isinstance(mention.get("text"), str)
+            ],
+            "evidence": evidence,
+        }
+
+    participants: list[dict[str, Any]] = []
+    for participant in list(record.get("participants") or []):
+        if not isinstance(participant, dict):
+            continue
+        ref = participant.get("entity_ref")
+        if not isinstance(ref, str):
+            continue
+        label = entity_display.get(ref, {"ref": ref, "name": ref, "type": None})
+        participants.append(
+            {
+                "ref": ref,
+                "name": label.get("name") or ref,
+                "type": label.get("type"),
+                "role": participant.get("role"),
+            }
+        )
+
+    places: list[dict[str, Any]] = []
+    for ref in list(record.get("places") or []):
+        if not isinstance(ref, str):
+            continue
+        label = entity_display.get(ref, {"ref": ref, "name": ref, "type": None})
+        places.append(
+            {
+                "ref": ref,
+                "name": label.get("name") or ref,
+                "type": label.get("type"),
+            }
+        )
+
+    return {
+        "kind": "event",
+        "type": record.get("type"),
+        "name": record.get("title"),
+        "summary": record.get("summary"),
+        "time": _time_display(record.get("time")),
+        "participants": participants,
+        "places": places,
+        "evidence": evidence,
     }
 
 
@@ -195,13 +333,46 @@ def _side_context(conn, side: Any, *, link_kind: str) -> dict[str, Any]:
         (bundle, ref),
     ).fetchone()
     if row is None:
-        return {"bundle": bundle, "ref": ref, "source_title": None, "record": {}}
+        return {
+            "bundle": bundle,
+            "ref": ref,
+            "source_title": None,
+            "record": {},
+            "display": {"evidence": []},
+        }
+
+    entity_rows = conn.execute(
+        """
+        SELECT record_ref, payload
+        FROM chronicle.staged_entities
+        WHERE bundle_label = %s
+        ORDER BY record_ref
+        """,
+        (bundle,),
+    ).fetchall()
+    claim_rows = conn.execute(
+        """
+        SELECT record_ref, payload
+        FROM chronicle.staged_claims
+        WHERE bundle_label = %s
+        ORDER BY record_ref
+        """,
+        (bundle,),
+    ).fetchall()
+    entity_display = _entity_display_from_rows(entity_rows)
+    evidence = _claim_evidence_from_rows(claim_rows, ref)
     return {
         "bundle": bundle,
         "ref": ref,
         "source_title": row[0],
         "source_ref": row[1],
         "record": _record_projection(row[2], link_kind=link_kind),
+        "display": _display_projection(
+            row[2],
+            link_kind=link_kind,
+            entity_display=entity_display,
+            evidence=evidence,
+        ),
     }
 
 

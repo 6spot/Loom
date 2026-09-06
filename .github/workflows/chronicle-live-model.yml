@@ -18,6 +18,14 @@ on:
       - "apps/chronicle/worker/test_production_worker_budget_unit.py"
       - "apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json"
       - "apps/chronicle/ingestion/fixtures/c1t6-inherited-jianan/raw.txt"
+      # T17 human-review changes must still produce an exact-head real-provider
+      # run before the next operator gate; these paths do not change model
+      # authority, they only ensure the final candidate shares one SHA.
+      - "apps/chronicle/read_api/studio_reviews.py"
+      - "apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py"
+      - "apps/chronicle/webapp/src/lib/review-display.ts"
+      - "apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx"
+      - "apps/chronicle/webapp/tests/studio-review-human-display.test.ts"
       - "compose.chronicle.yaml"
 
 permissions:
@@ -61,6 +69,9 @@ jobs:
 
       - name: Validate model transport retry semantics
         run: python apps/chronicle/worker/test_model_provider_transport_retry_unit.py
+
+      - name: Validate R15 human-review projection
+        run: python apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py
 
       - name: Validate secret presence without printing values
         shell: bash
