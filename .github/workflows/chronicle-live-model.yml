@@ -10,8 +10,10 @@ on:
       - "apps/chronicle/acceptance/live_model_contract.py"
       - "apps/chronicle/persistence/extraction.py"
       - "apps/chronicle/persistence/extraction_prompt.py"
+      - "apps/chronicle/worker/extraction_model_schema.py"
       - "apps/chronicle/worker/model_provider.py"
       - "apps/chronicle/worker/production_worker.py"
+      - "apps/chronicle/worker/test_extraction_model_schema_unit.py"
       - "apps/chronicle/worker/test_production_worker_budget_unit.py"
       - "apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json"
       - "apps/chronicle/ingestion/fixtures/c1t6-inherited-jianan/raw.txt"
@@ -52,6 +54,9 @@ jobs:
 
       - name: Validate unified production model budget
         run: python apps/chronicle/worker/test_production_worker_budget_unit.py
+
+      - name: Validate extraction identity boundary
+        run: python apps/chronicle/worker/test_extraction_model_schema_unit.py
 
       - name: Validate secret presence without printing values
         shell: bash
