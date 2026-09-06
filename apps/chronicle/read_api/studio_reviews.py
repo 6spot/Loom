@@ -437,6 +437,8 @@ def _summary(row: tuple, conn) -> dict[str, Any]:
         "review_subject_id": payload.get("review_subject_id"),
         "review_subject_version": payload.get("review_subject_version"),
         "member_count": int(payload.get("member_count") or 1),
+        "group_count": int(payload.get("group_count") or 1),
+        "groups": list(payload.get("groups") or []),
         "members": list(payload.get("members") or []),
         "candidate_id": payload.get("candidate_id"),
         "resolution_sha256": payload.get("resolution_sha256"),
@@ -506,6 +508,40 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
     item["right_contexts"] = [
         _side_context(conn, side, link_kind=link_kind) for side in right_refs
     ]
+    review_groups: list[dict[str, Any]] = []
+    for raw_group in item.get("groups") or []:
+        if not isinstance(raw_group, dict):
+            continue
+        group_id = raw_group.get("review_group_id")
+        members = raw_group.get("members") or []
+        if not isinstance(group_id, str) or not isinstance(members, list):
+            continue
+        group_refs: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for member in members:
+            side = member.get("right") if isinstance(member, dict) else None
+            if not isinstance(side, dict):
+                continue
+            bundle, ref = side.get("bundle"), side.get("ref")
+            if not isinstance(bundle, str) or not isinstance(ref, str):
+                continue
+            key = (bundle, ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            group_refs.append({"bundle": bundle, "ref": ref})
+        review_groups.append(
+            {
+                "review_group_id": group_id,
+                "member_count": int(raw_group.get("member_count") or len(members)),
+                "signals": list(raw_group.get("signals") or []),
+                "right_contexts": [
+                    _side_context(conn, side, link_kind=link_kind)
+                    for side in group_refs
+                ],
+            }
+        )
+    item["review_groups"] = review_groups
     open_count = conn.execute(
         """
         SELECT count(*) FROM chronicle.review_items
@@ -585,6 +621,9 @@ def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, bod
         decision = payload.get("decision")
         rationale = payload.get("rationale")
         confidence = payload.get("confidence", resolve_publish.CONFIDENCE_INITIAL_UNCERTAIN)
+        group_decisions = payload.get("group_decisions")
+        if group_decisions is not None and not isinstance(group_decisions, list):
+            raise _BadRequest("group_decisions must be an array when given")
         if not isinstance(decision, str):
             raise _BadRequest("decision must be a string")
         if not isinstance(rationale, str):
@@ -595,6 +634,7 @@ def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, bod
             decision=decision,
             rationale=rationale,
             confidence=confidence,
+            group_decisions=group_decisions,
         )
         return 200, "application/json; charset=utf-8", _json_bytes(
             {"schema": "chronicle.review", "version": "0.1", "review": _detail(conn, review_id)}

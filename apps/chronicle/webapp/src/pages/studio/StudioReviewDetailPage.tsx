@@ -12,7 +12,11 @@ import {
   StudioApiError,
   submitReviewDecision,
 } from "../../lib/studio-api";
-import type { ReviewDecision, ReviewRecordContext } from "../../lib/studio-api";
+import type {
+  ReviewDecision,
+  ReviewGroupDecisionInput,
+  ReviewRecordContext,
+} from "../../lib/studio-api";
 import {
   comparisonRows,
   decisionHelp,
@@ -31,6 +35,13 @@ function errorText(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
+
+type GroupOverrideDraft = {
+  enabled: boolean;
+  decision: ReviewDecision | "";
+  rationale: string;
+  confidence: string;
+};
 
 function pretty(value: unknown): string {
   if (value == null) return "—";
@@ -137,21 +148,53 @@ export default function StudioReviewDetailPage() {
   const [decision, setDecision] = useState<ReviewDecision | "">("");
   const [rationale, setRationale] = useState("");
   const [confidence, setConfidence] = useState("0.5");
+  const [showExceptions, setShowExceptions] = useState(false);
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, GroupOverrideDraft>>({});
 
   useEffect(() => {
     if (!decision && allowed.length) setDecision(allowed[0]);
   }, [allowed, decision]);
 
+  useEffect(() => {
+    setShowExceptions(false);
+    setGroupOverrides({});
+  }, [reviewId]);
+
+  const setGroupOverride = (groupId: string, patch: Partial<GroupOverrideDraft>) => {
+    setGroupOverrides((current) => {
+      const existing = current[groupId] ?? {
+        enabled: false,
+        decision: (decision || allowed[0] || "") as ReviewDecision | "",
+        rationale: "",
+        confidence: confidence || "0.5",
+      };
+      return { ...current, [groupId]: { ...existing, ...patch } };
+    });
+  };
+
   const canSubmit = useMemo(() => {
     const parsed = Number(confidence);
+    const overridesValid = Object.values(groupOverrides).every((draft) => {
+      if (!draft.enabled) return true;
+      const groupConfidence = Number(draft.confidence);
+      return Boolean(
+        draft.decision &&
+        allowed.includes(draft.decision as ReviewDecision) &&
+        draft.rationale.trim() &&
+        Number.isFinite(groupConfidence) &&
+        groupConfidence >= 0 &&
+        groupConfidence <= 1,
+      );
+    });
     return Boolean(
       item?.status === "open" &&
       decision &&
       allowed.includes(decision as ReviewDecision) &&
       rationale.trim() &&
-      Number.isFinite(parsed) && parsed >= 0 && parsed <= 1,
+      Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 &&
+      overridesValid,
     );
-  }, [allowed, confidence, decision, item?.status, rationale]);
+  }, [allowed, confidence, decision, groupOverrides, item?.status, rationale]);
 
   const decide = useMutation({
     mutationFn: async () => {
@@ -159,12 +202,24 @@ export default function StudioReviewDetailPage() {
       if (!window.confirm(`确认提交“${decisionLabel(decision)}”？提交后该审核项将作为审计历史保留，不能静默改写。`)) {
         throw new Error("已取消提交");
       }
+      const reviewGroups = item.review_groups ?? [];
+      const groupDecisions: ReviewGroupDecisionInput[] = reviewGroups.flatMap((group) => {
+        const draft = groupOverrides[group.review_group_id];
+        if (!draft?.enabled || !draft.decision) return [];
+        return [{
+          review_group_id: group.review_group_id,
+          decision: draft.decision as ReviewDecision,
+          rationale: draft.rationale.trim(),
+          confidence: Number(draft.confidence),
+        }];
+      });
       return submitReviewDecision(
         authHeader,
         item.review_id,
         decision,
         rationale.trim(),
         Number(confidence),
+        groupDecisions,
       );
     },
     onSuccess: async (updated) => {
@@ -200,6 +255,8 @@ export default function StudioReviewDetailPage() {
   const right = rightContexts[0];
   const comparisons = comparisonRows(item.link_kind, left, right);
   const memberCount = item.member_count ?? 1;
+  const reviewGroups = item.review_groups ?? [];
+  const groupCount = item.group_count ?? (reviewGroups.length || 1);
 
   return (
     <div className="studio-stack" data-view="studio-review-detail">
@@ -208,7 +265,7 @@ export default function StudioReviewDetailPage() {
           <p className="studio-eyebrow">人工消歧</p>
           <h1>{item.link_kind === "entity" ? "实体是否同一身份" : "事件是否同一发生"}</h1>
           <p className="studio-muted">
-            审核主题 {item.review_subject_id ?? item.candidate_id} · {memberCount} 个底层候选
+            审核批次 {item.review_subject_id ?? item.candidate_id} · {groupCount} 个来源候选组 / {memberCount} 个底层候选
           </p>
         </div>
         <div className="studio-row-actions">
@@ -238,18 +295,23 @@ export default function StudioReviewDetailPage() {
         </CardContent>
       </Card>
 
-      {memberCount > 1 ? (
+      {memberCount > 1 || groupCount > 1 ? (
         <Card>
           <CardHeader>
-            <CardTitle>已合并重复审核</CardTitle>
+            <CardTitle>重复问题已整理为审核批次</CardTitle>
             <CardDescription>
-              该审核主题包含 {memberCount} 个底层候选。它们只因为已发布规范身份或来源内已证明的同一关系而被归到同一主题；分组本身不是身份结论。
+              该批次包含 {groupCount} 个来源候选组 / {memberCount} 个底层候选。批次只是把指向同一个已发布身份或事件的问题集中展示，绝不表示这些来源候选组彼此已经被认定为同一实体或同一次事件。
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="studio-stack">
             <p className="studio-safe-note">
-              你只需审核一次；一个判断会确定性应用到该主题中的全部底层候选，同时每个候选 ID、来源引用和证据仍保留在审计记录中。
+              默认情况下你可以对整个批次给出一个判断；如果其中某组证据不同，使用“存在例外，展开逐组判断”，只覆盖那个例外组。所有候选 ID、来源引用和证据都会继续保留在审计记录中。
             </p>
+            {item.status === "open" && groupCount > 1 ? (
+              <Button type="button" variant="outline" onClick={() => setShowExceptions((value) => !value)}>
+                {showExceptions ? "收起逐组判断" : "存在例外，展开逐组判断"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -315,7 +377,7 @@ export default function StudioReviewDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>你的人工判断</CardTitle>
-            <CardDescription>只根据上方两侧来源证据作决定；“证据不足，暂不确定”不会触发合并。若该主题包含多个底层候选，这一个判断会应用到全部成员。</CardDescription>
+            <CardDescription>只根据上方来源证据作决定；“证据不足，暂不确定”不会触发合并。默认判断应用到未设置例外的候选组，逐组例外只覆盖对应组。</CardDescription>
           </CardHeader>
           <CardContent>
             {item.decision ? (
@@ -323,6 +385,12 @@ export default function StudioReviewDetailPage() {
                 <div><dt>判断</dt><dd><Badge>{decisionLabel(item.decision.decision)}</Badge></dd></div>
                 <div><dt>置信度</dt><dd>{item.decision.confidence}</dd></div>
                 <div><dt>判断依据</dt><dd>{item.decision.rationale}</dd></div>
+                {item.decision.group_decisions?.length ? (
+                  <div>
+                    <dt>逐组例外</dt>
+                    <dd>{item.decision.group_decisions.map((group) => `${group.review_group_id}：${decisionLabel(group.decision)}（${group.rationale}）`).join("；")}</dd>
+                  </div>
+                ) : null}
                 <div><dt>处理时间</dt><dd>{item.resolved_at ?? "—"}</dd></div>
               </dl>
             ) : (
@@ -368,6 +436,88 @@ export default function StudioReviewDetailPage() {
                     onChange={(event) => setConfidence(event.target.value)}
                   />
                 </div>
+
+                {showExceptions && reviewGroups.length > 1 ? (
+                  <div className="studio-stack">
+                    <div>
+                      <strong>逐组例外判断</strong>
+                      <p className="studio-muted">只有你明确启用的候选组才覆盖上面的默认判断。未启用的组继续使用默认判断；这里的分组不是身份结论。</p>
+                    </div>
+                    {reviewGroups.map((group, index) => {
+                      const draft = groupOverrides[group.review_group_id] ?? {
+                        enabled: false,
+                        decision: (decision || allowed[0] || "") as ReviewDecision | "",
+                        rationale: "",
+                        confidence: confidence || "0.5",
+                      };
+                      const names = group.right_contexts
+                        .map((context) => {
+                          const human = context as HumanReviewContext;
+                          return human.display?.name ?? context.record?.name ?? context.record?.title ?? context.ref;
+                        })
+                        .filter(Boolean);
+                      return (
+                        <Card key={group.review_group_id}>
+                          <CardHeader>
+                            <CardTitle>候选组 {index + 1}：{names.join("、") || "未命名记录"}</CardTitle>
+                            <CardDescription>{group.member_count} 个底层候选 · 组 ID {group.review_group_id}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="studio-stack">
+                            {group.right_contexts.map((context) => (
+                              <EvidenceList key={`${group.review_group_id}:${context.bundle}:${context.ref}`} context={context as HumanReviewContext} />
+                            ))}
+                            <Button
+                              type="button"
+                              variant={draft.enabled ? "default" : "outline"}
+                              onClick={() => setGroupOverride(group.review_group_id, { enabled: !draft.enabled })}
+                            >
+                              {draft.enabled ? "取消此组例外，恢复默认判断" : "此组使用不同判断"}
+                            </Button>
+                            {draft.enabled ? (
+                              <div className="studio-form">
+                                <div>
+                                  <label className="studio-label" htmlFor={`group-decision-${group.review_group_id}`}>此组判断</label>
+                                  <select
+                                    id={`group-decision-${group.review_group_id}`}
+                                    className="studio-select"
+                                    value={draft.decision}
+                                    onChange={(event) => setGroupOverride(group.review_group_id, { decision: event.target.value as ReviewDecision })}
+                                  >
+                                    {allowed.map((value) => <option key={value} value={value}>{decisionLabel(value)}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="studio-label" htmlFor={`group-rationale-${group.review_group_id}`}>此组判断依据</label>
+                                  <textarea
+                                    id={`group-rationale-${group.review_group_id}`}
+                                    className="studio-textarea"
+                                    rows={3}
+                                    value={draft.rationale}
+                                    onChange={(event) => setGroupOverride(group.review_group_id, { rationale: event.target.value })}
+                                    placeholder="说明为什么这一候选组与批次默认判断不同，并引用上方逐字证据。"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="studio-label" htmlFor={`group-confidence-${group.review_group_id}`}>此组置信度（0–1）</label>
+                                  <Input
+                                    id={`group-confidence-${group.review_group_id}`}
+                                    type="number"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={draft.confidence}
+                                    onChange={(event) => setGroupOverride(group.review_group_id, { confidence: event.target.value })}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
                 <Button type="submit" disabled={!canSubmit || decide.isPending}>
                   {decide.isPending ? "提交中…" : "确认并提交判断"}
                 </Button>
