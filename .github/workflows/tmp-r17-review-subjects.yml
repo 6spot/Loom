@@ -82,3 +82,5 @@ jobs:
             docs/tasks/chronicle/C1-T17-final-acceptance-gate.md
           git commit -m 'feat(chronicle): collapse review debt and localize Studio [skip ci]'
           git push origin HEAD:tmp/chronicle-r17-review-subjects
+
+# Retrigger marker after fixing review_subjects.py syntax.
