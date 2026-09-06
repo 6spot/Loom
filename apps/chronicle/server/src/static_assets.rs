@@ -313,8 +313,9 @@ mod tests {
             "every committed Vite JS/CSS chunk must be embedded by the production Rust server"
         );
         for path in built_assets {
-            let (content_type, body) = resolve_web_path(&path)
-                .unwrap_or_else(|| panic!("production server cannot resolve built Vite asset {path}"));
+            let (content_type, body) = resolve_web_path(&path).unwrap_or_else(|| {
+                panic!("production server cannot resolve built Vite asset {path}")
+            });
             let expected_type = if path.ends_with(".css") {
                 "text/css; charset=utf-8"
             } else {
