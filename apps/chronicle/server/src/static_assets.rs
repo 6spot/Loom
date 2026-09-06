@@ -97,9 +97,24 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioSourcesPage.js"
     ),
     asset!(
+        "/assets/StudioCoveragePage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioCoveragePage.js"
+    ),
+    asset!(
+        "/assets/review-display.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/review-display.js"
+    ),
+    asset!(
         "/assets/studio-api.js",
         "text/javascript; charset=utf-8",
         "dist/assets/studio-api.js"
+    ),
+    asset!(
+        "/assets/studio-i18n.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/studio-i18n.js"
     ),
     asset!(
         "/assets/useMutation.js",
@@ -182,7 +197,7 @@ fn is_spa_path(path: &str) -> bool {
         let id = rest.strip_suffix('/').unwrap_or(rest);
         if !id.is_empty()
             && !id.contains('/')
-            && matches!(id, "login" | "imports" | "review" | "sources")
+            && matches!(id, "login" | "imports" | "review" | "sources" | "coverage")
         {
             return true;
         }
@@ -199,6 +214,7 @@ fn is_spa_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn assets_resolve_with_content_types() {
@@ -231,6 +247,8 @@ mod tests {
             "/studio/review/019-example-review",
             "/studio/review/019-example-review/",
             "/studio/sources",
+            "/studio/coverage",
+            "/studio/coverage/",
         ] {
             let (content_type, body) = resolve_web_path(path).expect(path);
             assert_eq!(content_type, "text/html; charset=utf-8");
@@ -245,16 +263,60 @@ mod tests {
             "/assets/index.css",
             "/assets/StudioLayout.js",
             "/assets/StudioHomePage.js",
+            "/assets/StudioLoginPage.js",
             "/assets/StudioImportsPage.js",
             "/assets/StudioImportDetailPage.js",
             "/assets/StudioReviewPage.js",
             "/assets/StudioReviewDetailPage.js",
             "/assets/StudioSourcesPage.js",
+            "/assets/StudioCoveragePage.js",
+            "/assets/review-display.js",
             "/assets/studio-api.js",
+            "/assets/studio-i18n.js",
             "/assets/useMutation.js",
             "/assets/input.js",
+            "/assets/button.js",
+            "/assets/card.js",
+            "/assets/badge.js",
+            "/assets/cn.js",
         ] {
             assert!(resolve_web_path(path).is_some(), "{path}");
+        }
+    }
+
+    #[test]
+    fn vite_dist_asset_allowlist_is_complete() {
+        let assets_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../web/dist/assets");
+        let mut built_assets = std::fs::read_dir(&assets_dir)
+            .expect("read Chronicle Vite dist assets")
+            .filter_map(Result::ok)
+            .filter_map(|entry| {
+                let name = entry.file_name().into_string().ok()?;
+                if name.ends_with(".js") || name.ends_with(".css") {
+                    Some(format!("/assets/{name}"))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        built_assets.sort();
+
+        let mut allowlisted_assets = ASSETS
+            .iter()
+            .filter(|asset| asset.path.starts_with("/assets/"))
+            .map(|asset| asset.path.to_owned())
+            .collect::<Vec<_>>();
+        allowlisted_assets.sort();
+
+        assert_eq!(
+            allowlisted_assets, built_assets,
+            "every committed Vite JS/CSS chunk must be embedded by the production Rust server"
+        );
+        for path in built_assets {
+            assert!(
+                resolve_web_path(&path).is_some(),
+                "production server cannot resolve built Vite asset {path}"
+            );
         }
     }
 
