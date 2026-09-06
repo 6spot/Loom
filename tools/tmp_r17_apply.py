@@ -1,0 +1,717 @@
+#!/usr/bin/env python3
+"""Temporary R17 implementation driver. Removed before candidate freeze."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import re
+
+
+def read(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def write(path: str, text: str) -> None:
+    Path(path).write_text(text, encoding="utf-8")
+
+
+def require_replace(text: str, old: str, new: str, *, context: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{context}: expected one occurrence, got {count}: {old[:120]!r}")
+    return text.replace(old, new, 1)
+
+
+# ---------------------------------------------------------------------------
+# C1-T8 review-subject delegation.
+# ---------------------------------------------------------------------------
+path = "apps/chronicle/persistence/resolve_publish.py"
+text = read(path)
+text = require_replace(
+    text,
+    "import publication_v0  # noqa: E402\nimport resolution_v0  # noqa: E402\n",
+    "import publication_v0  # noqa: E402\nimport resolution_v0  # noqa: E402\nimport review_subjects  # noqa: E402\n",
+    context=path,
+)
+text = require_replace(
+    text,
+    'RESOLVE_PUBLISH_VERSION = "c1t8-v2"',
+    'RESOLVE_PUBLISH_VERSION = "c1t8-v3"',
+    context=path,
+)
+text = require_replace(
+    text,
+    "- Initial decisions are all ``uncertain``. Every candidate becomes one\n  durable ``ReviewItem`` (kind ``stage_gate``, a frozen C1-T1\n  vocabulary value) tied to the originating ingestion job with full\n  source/bundle/ref provenance in its payload.\n",
+    "- Initial decisions are all ``uncertain``. Architecture Amendment 0007\n  materializes one durable ``ReviewItem`` per proven semantic review subject,\n  while retaining every underlying candidate key/source/bundle/ref in the\n  payload. Published equivalence comes only from canonical catalog membership;\n  incoming equivalence comes only from proven C1-T7 same-links.\n",
+    context=path,
+)
+open_pattern = re.compile(r"def open_resolution_reviews\(\n.*?\n\ndef _require_decision", re.S)
+open_replacement = '''def open_resolution_reviews(
+    conn, *, job_id: uuid.UUID, resolutions: list[dict[str, Any]]
+) -> list[uuid.UUID]:
+    """Open/adopt Amendment-0007 semantic review subjects.
+
+    Fresh jobs collapse only equivalence already proven by canonical catalog
+    membership / C1-T7 same-links. Pre-amendment jobs keep their frozen legacy
+    candidate plan. Final C0 candidate links are restored by deterministic
+    decision fan-out.
+    """
+    return review_subjects.open_review_subjects(
+        conn, job_id=job_id, resolutions=resolutions
+    )
+
+
+def _require_decision'''
+text, count = open_pattern.subn(open_replacement, text, count=1)
+if count != 1:
+    raise SystemExit(f"{path}: open_resolution_reviews patch failed")
+collect_pattern = re.compile(r"def collect_review_decisions\(\n.*?\n\ndef open_resolution_review_count", re.S)
+collect_replacement = '''def collect_review_decisions(
+    conn, *, job_id: uuid.UUID
+) -> dict[str, dict[str, Any]]:
+    """Collect terminal reviews and fan subject decisions to C0 candidates."""
+    return review_subjects.collect_review_subject_decisions(conn, job_id=job_id)
+
+
+def open_resolution_review_count'''
+text, count = collect_pattern.subn(collect_replacement, text, count=1)
+if count != 1:
+    raise SystemExit(f"{path}: collect_review_decisions patch failed")
+write(path, text)
+
+
+# ---------------------------------------------------------------------------
+# Review API: subject metadata + all member contexts.
+# ---------------------------------------------------------------------------
+path = "apps/chronicle/read_api/studio_reviews.py"
+text = read(path)
+text = require_replace(
+    text,
+    '''def _suggestion(conn, payload: dict[str, Any]) -> dict[str, Any]:
+    link_kind = payload.get("link_kind")
+''',
+    '''def _suggestion(conn, payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("review_subject_version"):
+        return {
+            "decision": payload.get("initial_decision"),
+            "confidence": 0.5,
+            "rationale": (
+                "This review subject aggregates only candidate links that share "
+                "already-proven component authority; grouping itself is not an identity decision."
+            ),
+            "signals": list(payload.get("signals") or []),
+        }
+    link_kind = payload.get("link_kind")
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''def _summary(row: tuple, conn) -> dict[str, Any]:
+    payload = row[5] if isinstance(row[5], dict) else {}
+    suggestion = _suggestion(conn, payload)
+    decision = payload.get("decision") if isinstance(payload.get("decision"), dict) else None
+    return {
+''',
+    '''def _side_name(conn, side: Any, *, link_kind: str) -> str | None:
+    if not isinstance(side, dict):
+        return None
+    bundle, ref = side.get("bundle"), side.get("ref")
+    if not isinstance(bundle, str) or not isinstance(ref, str):
+        return None
+    table = "chronicle.staged_entities" if link_kind == "entity" else "chronicle.staged_events"
+    row = conn.execute(
+        f"SELECT payload FROM {table} WHERE bundle_label = %s AND record_ref = %s",
+        (bundle, ref),
+    ).fetchone()
+    if row is None or not isinstance(row[0], dict):
+        return None
+    record = row[0]
+    value = (
+        record.get("canonical_name") or record.get("name")
+        if link_kind == "entity"
+        else record.get("title") or record.get("name")
+    )
+    return value if isinstance(value, str) and value else None
+
+
+def _summary(row: tuple, conn) -> dict[str, Any]:
+    payload = row[5] if isinstance(row[5], dict) else {}
+    suggestion = _suggestion(conn, payload)
+    decision = payload.get("decision") if isinstance(payload.get("decision"), dict) else None
+    link_kind = str(payload.get("link_kind") or "")
+    return {
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '        "link_kind": payload.get("link_kind"),\n        "candidate_id": payload.get("candidate_id"),\n',
+    '        "link_kind": link_kind,\n'
+    '        "review_subject_id": payload.get("review_subject_id"),\n'
+    '        "review_subject_version": payload.get("review_subject_version"),\n'
+    '        "member_count": int(payload.get("member_count") or 1),\n'
+    '        "members": list(payload.get("members") or []),\n'
+    '        "candidate_id": payload.get("candidate_id"),\n',
+    context=path,
+)
+text = require_replace(
+    text,
+    '        "left": payload.get("left"),\n        "right": payload.get("right"),\n',
+    '        "left": payload.get("left"),\n'
+    '        "right": payload.get("right"),\n'
+    '        "left_label": _side_name(conn, payload.get("left"), link_kind=link_kind),\n'
+    '        "right_label": _side_name(conn, payload.get("right"), link_kind=link_kind),\n',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''    item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)
+    item["right_context"] = _side_context(conn, item.get("right"), link_kind=link_kind)
+    open_count = conn.execute(
+''',
+    '''    item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)
+    item["right_context"] = _side_context(conn, item.get("right"), link_kind=link_kind)
+    members = item.get("members") if isinstance(item.get("members"), list) else []
+    left_refs: list[dict[str, Any]] = []
+    right_refs: list[dict[str, Any]] = []
+    seen_left: set[tuple[str, str]] = set()
+    seen_right: set[tuple[str, str]] = set()
+    for member in members:
+        if not isinstance(member, dict):
+            continue
+        for side_name, target, seen in (
+            ("left", left_refs, seen_left),
+            ("right", right_refs, seen_right),
+        ):
+            side = member.get(side_name)
+            if not isinstance(side, dict):
+                continue
+            bundle, ref = side.get("bundle"), side.get("ref")
+            if not isinstance(bundle, str) or not isinstance(ref, str):
+                continue
+            key = (bundle, ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            target.append({"bundle": bundle, "ref": ref})
+    if not left_refs and isinstance(item.get("left"), dict):
+        left_refs = [item["left"]]
+    if not right_refs and isinstance(item.get("right"), dict):
+        right_refs = [item["right"]]
+    item["left_contexts"] = [
+        _side_context(conn, side, link_kind=link_kind) for side in left_refs
+    ]
+    item["right_contexts"] = [
+        _side_context(conn, side, link_kind=link_kind) for side in right_refs
+    ]
+    open_count = conn.execute(
+''',
+    context=path,
+)
+write(path, text)
+
+
+# ---------------------------------------------------------------------------
+# TypeScript review API types.
+# ---------------------------------------------------------------------------
+path = "apps/chronicle/webapp/src/lib/studio-api.ts"
+text = read(path)
+text = require_replace(
+    text,
+    '''export interface ReviewRef {
+  bundle: string;
+  ref: string;
+}
+
+''',
+    '''export interface ReviewRef {
+  bundle: string;
+  ref: string;
+}
+
+export interface ReviewCandidateMember {
+  candidate_key: string;
+  resolution_sha256: string;
+  candidate_id: string;
+  link_kind: ReviewLinkKind;
+  left: ReviewRef;
+  right: ReviewRef;
+  signals: string[];
+}
+
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''  link_kind: ReviewLinkKind;
+  candidate_id: string;
+  resolution_sha256: string;
+''',
+    '''  link_kind: ReviewLinkKind;
+  review_subject_id?: string | null;
+  review_subject_version?: string | null;
+  member_count?: number;
+  members?: ReviewCandidateMember[];
+  candidate_id: string;
+  resolution_sha256: string;
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''  left: ReviewRef;
+  right: ReviewRef;
+  suggestion: ReviewSuggestion;
+''',
+    '''  left: ReviewRef;
+  right: ReviewRef;
+  left_label?: string | null;
+  right_label?: string | null;
+  suggestion: ReviewSuggestion;
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''export interface ReviewDetail extends ReviewSummary {
+  left_context: ReviewRecordContext;
+  right_context: ReviewRecordContext;
+  job_open_resolution_reviews: number;
+}
+''',
+    '''export interface ReviewDetail extends ReviewSummary {
+  left_context: ReviewRecordContext;
+  right_context: ReviewRecordContext;
+  left_contexts?: ReviewRecordContext[];
+  right_contexts?: ReviewRecordContext[];
+  job_open_resolution_reviews: number;
+}
+''',
+    context=path,
+)
+write(path, text)
+
+
+# ---------------------------------------------------------------------------
+# Review queue: grouped semantic subjects, Chinese primary path.
+# ---------------------------------------------------------------------------
+write("apps/chronicle/webapp/src/pages/studio/StudioReviewPage.tsx", '''import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { useStudioAuth } from "../../lib/studio-auth";
+import { formatShortHash, listReviews, ReviewStatus, StudioApiError } from "../../lib/studio-api";
+import { decisionLabel, jobStatusLabel, reviewLinkKindLabel, reviewStatusLabel } from "../../lib/studio-i18n";
+import { signalLabel } from "../../lib/review-display";
+
+function errorText(error: unknown): string {
+  if (error instanceof StudioApiError) return `${error.code}: ${error.message}`;
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function confidence(value: number | null): string {
+  return value == null ? "—" : `${Math.round(value * 100)}%`;
+}
+
+const FILTERS: Array<{ value: ReviewStatus | "all"; label: string }> = [
+  { value: "open", label: "待处理" },
+  { value: "resolved", label: "已处理" },
+  { value: "dismissed", label: "已忽略" },
+  { value: "all", label: "全部" },
+];
+
+export default function StudioReviewPage() {
+  const auth = useStudioAuth();
+  const authHeader = auth.authHeader();
+  const [status, setStatus] = useState<ReviewStatus | "all">("open");
+  const reviews = useQuery({
+    queryKey: ["studio", "reviews", status],
+    queryFn: () => listReviews(authHeader, status),
+    refetchInterval: status === "open" || status === "all" ? 5000 : false,
+  });
+
+  const openCount = reviews.data?.filter((item) => item.status === "open").length ?? 0;
+
+  return (
+    <div className="studio-stack" data-view="studio-review">
+      <div className="studio-page-heading">
+        <div>
+          <p className="studio-eyebrow">C1 · 人工消歧关口</p>
+          <h1>人工审核队列</h1>
+          <p className="studio-muted">
+            系统只组织候选与证据，不替你决定历史身份。相同语义簇只审核一次；“证据不足，暂不确定”始终不会触发合并。
+          </p>
+        </div>
+        <div className="studio-row-actions">
+          <Badge>待处理 {openCount} 项</Badge>
+          <Button variant="outline" onClick={() => void reviews.refetch()} disabled={reviews.isFetching}>
+            {reviews.isFetching ? "刷新中…" : "刷新队列"}
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>消歧审核</CardTitle>
+          <CardDescription>每一行代表一个需要人判断的语义审核主题；主题可以包含多个底层候选，但不会跨越未经证明的身份关系。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="studio-filter-row" role="group" aria-label="审核状态过滤">
+            {FILTERS.map(({ value, label }) => (
+              <Button key={value} size="sm" variant={status === value ? "default" : "outline"} onClick={() => setStatus(value)}>
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          {reviews.isLoading ? <p className="studio-muted">正在读取持久化审核项…</p> : null}
+          {reviews.error ? <p className="studio-error">{errorText(reviews.error)}</p> : null}
+          {reviews.data?.length === 0 ? <p className="studio-muted">当前筛选条件下没有消歧审核。</p> : null}
+
+          <div className="studio-table" aria-label="人工消歧审核队列">
+            {reviews.data?.map((review) => {
+              const members = review.member_count ?? 1;
+              return (
+                <div className="studio-table-row" key={review.review_id}>
+                  <div className="studio-stack studio-stack-tight">
+                    <div className="studio-row-title">
+                      <Badge>{reviewStatusLabel(review.status)}</Badge>
+                      <Badge>{reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <strong>{review.document.title}</strong>
+                      <span className="studio-muted">第 {review.document.revision_no} 版</span>
+                    </div>
+                    <div>
+                      <strong>{review.left_label ?? "已发布侧记录"}</strong>
+                      <span className="studio-muted"> ↔ </span>
+                      <strong>{review.right_label ?? "本次来源记录"}</strong>
+                    </div>
+                    <div className="studio-muted">
+                      {members > 1 ? `该审核主题合并了 ${members} 个底层候选` : "1 个底层候选"}
+                      {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
+                      {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
+                      {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}
+                    </div>
+                    {review.suggestion.signals.length ? (
+                      <div className="studio-muted">匹配信号：{review.suggestion.signals.map(signalLabel).join(" · ")}</div>
+                    ) : null}
+                    <details className="studio-details">
+                      <summary>技术详情 / 审计字段</summary>
+                      <div className="studio-muted studio-mono">
+                        主题 {review.review_subject_id ?? "legacy"} · 候选 {review.candidate_id} · 解析批次 {formatShortHash(review.resolution_sha256)}
+                      </div>
+                    </details>
+                  </div>
+                  <div className="studio-row-actions">
+                    <Badge>{jobStatusLabel(review.job_status)}</Badge>
+                    <Link className="studio-link-button" to={`/studio/imports/${encodeURIComponent(review.job_id)}`}>查看导入作业</Link>
+                    <Link className="studio-link-button" to={`/studio/review/${encodeURIComponent(review.review_id)}`}>查看并判断</Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+''')
+
+
+# Review detail: show group size and every unique member context.
+path = "apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx"
+text = read(path)
+text = require_replace(
+    text,
+    '''  const left = item.left_context as HumanReviewContext;
+  const right = item.right_context as HumanReviewContext;
+  const comparisons = comparisonRows(item.link_kind, left, right);
+''',
+    '''  const leftContexts = (item.left_contexts?.length ? item.left_contexts : [item.left_context]) as HumanReviewContext[];
+  const rightContexts = (item.right_contexts?.length ? item.right_contexts : [item.right_context]) as HumanReviewContext[];
+  const left = leftContexts[0];
+  const right = rightContexts[0];
+  const comparisons = comparisonRows(item.link_kind, left, right);
+  const memberCount = item.member_count ?? 1;
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''          <p className="studio-muted">
+            候选 {item.candidate_id} · 解析批次 {formatShortHash(item.resolution_sha256)}
+          </p>
+''',
+    '''          <p className="studio-muted">
+            审核主题 {item.review_subject_id ?? item.candidate_id} · {memberCount} 个底层候选
+          </p>
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>关键对比</CardTitle>
+''',
+    '''      </Card>
+
+      {memberCount > 1 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>已合并重复审核</CardTitle>
+            <CardDescription>
+              该审核主题包含 {memberCount} 个底层候选。它们只因为已发布规范身份或来源内已证明的同一关系而被归到同一主题；分组本身不是身份结论。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="studio-safe-note">
+              你只需审核一次；一个判断会确定性应用到该主题中的全部底层候选，同时每个候选 ID、来源引用和证据仍保留在审计记录中。
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>关键对比</CardTitle>
+''',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''      <div className="studio-grid studio-grid-wide">
+        <RecordCard label="左侧记录" context={item.left_context} />
+        <RecordCard label="右侧记录" context={item.right_context} />
+      </div>
+''',
+    '''      <div className="studio-grid studio-grid-wide">
+        <div className="studio-stack">
+          {leftContexts.map((context, index) => (
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={leftContexts.length > 1 ? `已发布侧记录 ${index + 1}` : "已发布侧记录"} context={context} />
+          ))}
+        </div>
+        <div className="studio-stack">
+          {rightContexts.map((context, index) => (
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={rightContexts.length > 1 ? `本次来源记录 ${index + 1}` : "本次来源记录"} context={context} />
+          ))}
+        </div>
+      </div>
+''',
+    context=path,
+)
+text = text.replace(
+    '            <CardDescription>只根据上方两侧来源证据作决定；“证据不足，暂不确定”不会触发合并。</CardDescription>',
+    '            <CardDescription>只根据上方两侧来源证据作决定；“证据不足，暂不确定”不会触发合并。若该主题包含多个底层候选，这一个判断会应用到全部成员。</CardDescription>',
+    1,
+)
+write(path, text)
+
+
+# ---------------------------------------------------------------------------
+# Studio-wide primary-label localization.
+# ---------------------------------------------------------------------------
+replacements: dict[str, list[tuple[str, str]]] = {
+    "apps/chronicle/webapp/src/pages/studio/StudioLayout.tsx": [
+        ("Chronicle Studio", "Chronicle 管理工作台"),
+        ("engineering surface · shadcn foundation", "语料生产、人工审核与运行观测"),
+        (">Imports<", ">导入<"),
+        (">Review<", ">人工审核<"),
+        (">Sources / Corpus<", ">来源 / 语料<"),
+        (">Coverage<", ">覆盖度<"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioHomePage.tsx": [
+        ('"studio status failed"', '"Studio 状态读取失败"'),
+        ('"reachable" : "unreachable"', '"可达" : "不可达"'),
+        ("Imports 已可操作；Review 与更丰富的 Corpus 面板按 C1 依赖继续推进。", "导入、人工审核、来源语料与覆盖度均通过 Chronicle 自有接口工作。"),
+        ("Imports — 上传文献、Revision 历史、Ingestion Job 与运行进度", "导入 — 上传文献、查看版本历史、创建导入作业并跟踪进度"),
+        ("Review — 跨来源评审队列（C1-T11）", "人工审核 — 处理跨来源实体与事件消歧"),
+        ("Sources / Corpus — 来源与语料（后续任务）", "来源 / 语料 — 管理文献来源与不可变版本"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioImportsPage.tsx": [
+        (" 个 revision", " 个版本"), (">duplicate<", ">重复上传<"), (" bytes", " 字节"),
+        ("language 未标记", "语言未标记"), ("开始 Ingestion", "开始导入处理"),
+        ("C1 · corpus production", "C1 · 语料生产"), ("Documents & Imports", "文献与导入"),
+        ("上传不可变文献版本，启动 ingestion，并从 durable PostgreSQL 状态查看进度。", "上传不可变文献版本，启动导入处理，并从持久化 PostgreSQL 状态查看进度。"),
+        ("刷新 Jobs", "刷新作业"), ("<CardTitle>Documents</CardTitle>", "<CardTitle>文献</CardTitle>"),
+        ("逻辑文献容器；替换原文时新增 Revision，不覆盖旧版本。", "逻辑文献容器；替换原文时新增版本，不覆盖旧版本。"),
+        ('aria-label="Document 标题"', 'aria-label="文献标题"'), ('aria-label="Documents"', 'aria-label="文献列表"'),
+        ("正在读取 Documents…", "正在读取文献…"), ("还没有 Document。", "还没有文献。"),
+        ("<CardTitle>Upload Revision</CardTitle>", "<CardTitle>上传新版本</CardTitle>"),
+        ("当前 Document：", "当前文献："), ("先创建或选择一个 Document", "先创建或选择一份文献"),
+        (">Language<", ">语言<"), (">Source label<", ">来源标签<"),
+        ("edition / 来源备注（可选）", "版本 / 来源备注（可选）"), ("上传为新 Revision", "上传为新版本"),
+        ("<CardTitle>Revision history</CardTitle>", "<CardTitle>版本历史</CardTitle>"),
+        ("active 与 superseded 均保留", "当前版本与已替换版本均保留"),
+        ("选择 Document 后显示版本历史", "选择文献后显示版本历史"), ("读取 Revision…", "读取版本…"),
+        ("暂无 Document。", "暂无文献。"), ("还没有上传 Revision。", "还没有上传版本。"),
+        ("<CardTitle>Ingestion Jobs</CardTitle>", "<CardTitle>导入作业</CardTitle>"),
+        ("durable job 状态", "持久化作业状态"), ('aria-label="Job 状态筛选"', 'aria-label="作业状态筛选"'),
+        ("读取 Jobs…", "读取作业…"), ("当前筛选没有 Job。", "当前筛选没有作业。"),
+        ("revision {job.revision_id.slice(0, 8)} · attempt {job.attempt}/{job.max_attempts}", "版本 {job.revision_id.slice(0, 8)} · 尝试 {job.attempt}/{job.max_attempts}"),
+        ("{job.completed_stages}/8 stages", "{job.completed_stages}/8 阶段"), ("{job.chunk_count} chunks", "{job.chunk_count} 分段"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioImportDetailPage.tsx": [
+        ("<summary>validation</summary>", "<summary>校验详情</summary>"), ("attempt {stage.attempt}", "尝试 {stage.attempt}"),
+        ("<strong>{stage.stage}</strong>", "<strong>{stageLabel(stage.stage)}</strong>"),
+        ("<strong>Chunk {chunk.chunk_index}</strong>", "<strong>分段 {chunk.chunk_index}</strong>"),
+        ("attempt {chunk.attempt}/{chunk.max_attempts}", "尝试 {chunk.attempt}/{chunk.max_attempts}"),
+        ("source chars {chunk.source_start}–{chunk.source_end}", "源文本字符 {chunk.source_start}–{chunk.source_end}"),
+        ("<h4>Run attempts</h4>", "<h4>运行尝试</h4>"), ("worker 未记录", "执行器未记录"),
+        ("model call {index + 1}", "模型调用 {index + 1}"),
+        ("Studio 仅显示版本、hash、validation 与错误；原始 prompt、model response、candidate 留在服务端审计记录中。", "管理工作台仅显示版本、哈希、校验与错误；原始提示、模型响应和候选数据留在服务端审计记录中。"),
+        (">Retry<", ">重试<"), (">Resume<", ">继续处理<"), (">Cancel<", ">取消<"),
+        ("Ingestion Job", "导入作业"), ("Job 无法读取", "导入作业无法读取"), ("返回 Imports", "返回导入列表"),
+        ("← Imports", "← 返回导入列表"), ("revision <span", "版本 <span"),
+        ("Current stage", "当前阶段"), ("Chunks", "分段"), ("Failed chunks", "失败分段"),
+        ("Open reviews", "待处理审核"), ("done", "已完成"), ("Job error", "作业错误"),
+        ("<CardTitle>Pipeline</CardTitle>", "<CardTitle>处理流水线</CardTitle>"), ("durable stage state", "持久化阶段状态"),
+        ("<CardTitle>Job facts</CardTitle>", "<CardTitle>作业信息</CardTitle>"), ("worker / retry / output status", "执行器 / 重试 / 输出状态"),
+        ("<dt>attempt</dt>", "<dt>尝试次数</dt>"), ("<dt>lease owner</dt>", "<dt>租约持有者</dt>"),
+        ("<dt>lease expiry</dt>", "<dt>租约到期</dt>"), ("<dt>created</dt>", "<dt>创建时间</dt>"),
+        ("<dt>updated</dt>", "<dt>更新时间</dt>"), ("<dt>outputs</dt>", "<dt>输出数量</dt>"),
+        ("review item", "审核项"), ("Review Queue", "人工审核队列"),
+        ("<CardTitle>Chunks & attempts</CardTitle>", "<CardTitle>分段与运行尝试</CardTitle>"), ("尚未产生 chunk。", "尚未产生分段。"),
+        ("<CardTitle>Review debt</CardTitle>", "<CardTitle>审核待办</CardTitle>"), ("没有 review item。", "没有审核项。"),
+        ("chunk {review.chunk_id?.slice(0, 8) ?? \"—\"}", "分段 {review.chunk_id?.slice(0, 8) ?? \"—\"}"),
+        ("<CardTitle>Outputs</CardTitle>", "<CardTitle>输出</CardTitle>"), ("content-addressed ingestion artifacts", "按内容寻址的导入产物"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioSourcesPage.tsx": [
+        ("请选择 Document 和文件", "请选择文献和文件"), ("C1 · source registry", "C1 · 来源登记"),
+        ("Sources / Documents", "来源 / 文献"), ("逻辑 Document", "逻辑文献"), ("Revision", "版本"),
+        ("hash", "哈希"), ("provenance", "来源追溯"), ("刷新 Sources", "刷新来源"),
+        ("<CardTitle>Documents</CardTitle>", "<CardTitle>文献</CardTitle>"),
+        ('aria-label="Document 标题"', 'aria-label="文献标题"'), ('aria-label="Source Documents"', 'aria-label="来源文献"'),
+        ("正在读取 Documents…", "正在读取文献…"), ("还没有 Document。", "还没有文献。"), (" 个 revision", " 个版本"),
+        ("active r", "当前第 "), ("<CardTitle>Upload 版本</CardTitle>", "<CardTitle>上传新版本</CardTitle>"),
+        ("当前 Document：", "当前文献："), ("先创建或选择一个 Document", "先创建或选择一份文献"),
+        (">Language<", ">语言<"), (">Source label<", ">来源标签<"), ("edition / 来源备注（可选）", "版本 / 来源备注（可选）"),
+        ("<CardTitle>版本 history</CardTitle>", "<CardTitle>版本历史</CardTitle>"),
+        ("active 与 superseded 均保留", "当前版本与已替换版本均保留"), ("选择 Document 后显示版本历史", "选择文献后显示版本历史"),
+        ("读取 版本…", "读取版本…"), ("暂无 Document。", "暂无文献。"), ("还没有上传 版本。", "还没有上传版本。"),
+        (">duplicate<", ">重复上传<"), (" bytes", " 字节"), (" chars", " 字符"), ("language 未标记", "语言未标记"),
+        ("source label 未标记", "来源标签未标记"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioCoveragePage.tsx": [
+        ("正在重算 Coverage…", "正在重算覆盖度…"), ("Coverage 读取失败", "覆盖度读取失败"),
+        ("C1 · derived corpus measurement", "C1 · 派生语料测量"), ("<h1>Coverage</h1>", "<h1>覆盖度</h1>"),
+        ("Public Historical Moment", "公开历史时刻"), ("historical_truth=false", "历史事实权威=false"),
+        ("mutates_history=false", "修改历史数据=false"), ("<CardTitle>Corpus snapshot</CardTitle>", "<CardTitle>语料快照</CardTitle>"),
+        ("canonical catalog", "规范目录"), ("Published sources", "已发布来源"), ("Documents", "文献"),
+        ("Canonical Entities", "规范实体"), ("Canonical Events", "规范事件"),
+        ("Claims in published sources", "已发布来源中的事实声明"), ("Open resolution reviews", "待处理消歧审核"),
+        ("Published presentations", "已发布读者呈现"), ("Unknown-time Events", "时间未知事件"),
+        ("<CardTitle>Actionable gaps</CardTitle>", "<CardTitle>可行动缺口</CardTitle>"),
+        ("sparse / unrepresented", "表示稀疏 / 当前未表示"), (" published Reader Presentation", " 个已发布读者呈现"),
+        (" resolution review", " 个消歧审核"), ("published source", "已发布来源"), (" Events", " 个事件"),
+        ("<CardTitle>Time density</CardTitle>", "<CardTitle>时间密度</CardTitle>"), ("observed normalized year", "已观测规范化年份"),
+        ("current corpus", "当前语料"), ('aria-label="Coverage by year"', 'aria-label="按年份覆盖度"'), (" Sources", " 个来源"),
+        ("<CardTitle>Source contribution</CardTitle>", "<CardTitle>来源贡献</CardTitle>"), ("representation", "表示记录"),
+        (" Claims", " 个事实声明"), (" Entities", " 个实体"),
+        ("<CardTitle>Event / Claim domains</CardTitle>", "<CardTitle>事件 / 事实声明领域</CardTitle>"),
+        ("<h3>Event types</h3>", "<h3>事件类型</h3>"), ("<h3>Claim predicates</h3>", "<h3>事实谓词</h3>"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/StudioLoginPage.tsx": [
+        ("unauthorized：用户名或密码不正确", "未授权：用户名或密码不正确"),
+        ("Studio 登录", "管理工作台登录"), ("无法连接 Studio 状态接口", "无法连接管理工作台状态接口"),
+        ("登录 Studio", "登录管理工作台"),
+    ],
+    "apps/chronicle/webapp/src/pages/studio/placeholders.tsx": [
+        ('title="Review"', 'title="人工审核"'), ("跨来源 resolution 评审队列。", "跨来源消歧评审队列。"), ("特权 API", "受保护接口"),
+    ],
+}
+for file_path, pairs in replacements.items():
+    source = read(file_path)
+    for old, new in pairs:
+        source = source.replace(old, new)
+    write(file_path, source)
+
+# Shared status/stage labels in imports/detail.
+path = "apps/chronicle/webapp/src/pages/studio/StudioImportDetailPage.tsx"
+text = read(path)
+if 'from "../../lib/studio-i18n"' not in text:
+    text = text.replace(
+        'import { useStudioAuth } from "../../lib/studio-auth";\n',
+        'import { useStudioAuth } from "../../lib/studio-auth";\nimport { stageLabel, studioStatusLabel } from "../../lib/studio-i18n";\n',
+        1,
+    )
+text = re.sub(r'\nfunction statusLabel\(status: string\): string \{.*?\n\}\n', '\n', text, count=1, flags=re.S)
+text = text.replace("statusLabel(", "studioStatusLabel(")
+write(path, text)
+
+path = "apps/chronicle/webapp/src/pages/studio/StudioImportsPage.tsx"
+text = read(path)
+if 'from "../../lib/studio-i18n"' not in text:
+    text = text.replace(
+        'import { useStudioAuth } from "../../lib/studio-auth";\n',
+        'import { useStudioAuth } from "../../lib/studio-auth";\nimport { studioStatusLabel } from "../../lib/studio-i18n";\n',
+        1,
+    )
+text = re.sub(r'\nfunction statusLabel\(status: string\): string \{.*?\n\}\n', '\n', text, count=1, flags=re.S)
+text = text.replace("statusLabel(", "studioStatusLabel(")
+write(path, text)
+
+path = "apps/chronicle/webapp/src/pages/studio/StudioCoveragePage.tsx"
+text = read(path)
+if 'from "../../lib/studio-i18n"' not in text:
+    text = text.replace(
+        'import { useStudioAuth } from "../../lib/studio-auth";\n',
+        'import { useStudioAuth } from "../../lib/studio-auth";\nimport { densityLabel } from "../../lib/studio-i18n";\n',
+        1,
+    )
+text = text.replace("<Badge>{item.density}</Badge>", "<Badge>{densityLabel(item.density)}</Badge>")
+write(path, text)
+
+
+# T17 ledger records R15/R16 blockers without marking acceptance complete.
+path = "docs/tasks/chronicle/C1-T17-final-acceptance-gate.md"
+text = read(path)
+if "R16 then exposed candidate-pair review-debt multiplication" not in text:
+    text = text.rstrip() + "\n" + '''- 2026-09-06 — R15 reached the real human resolution gate with 39 ReviewItems and proved the authority pause works, but exposed that the Studio review detail was not human-decidable: raw temp IDs/JSON and mixed English/Chinese obscured the exact source evidence. Issue #536 added a zh-CN, evidence-first review projection; exact-head CI later passed before R16.
+- 2026-09-06 — R16 then exposed candidate-pair review-debt multiplication: repeated representations such as 曹操 / 操 / 曹公 could require several semantically equivalent operator decisions. Issue #537 and Architecture Amendment 0007 refine only ReviewItem materialization to proven semantic component pairs; candidate generation, final C0 link artifacts and canonical publication remain unchanged. Issue #538 simultaneously completes the Studio zh-CN operator surface. R16 is preserved as real-machine evidence and is not a final PASS run.
+'''
+write(path, text)
+
+
+# Exact-head Live contract trigger + focused R16 regression.
+path = ".github/workflows/chronicle-live-model.yml"
+text = read(path)
+text = require_replace(
+    text,
+    '      - "apps/chronicle/read_api/studio_reviews.py"\n',
+    '      - "apps/chronicle/persistence/resolve_publish.py"\n'
+    '      - "apps/chronicle/persistence/review_subjects.py"\n'
+    '      - "apps/chronicle/persistence/test_review_subjects_r16_unit.py"\n'
+    '      - "apps/chronicle/read_api/studio_reviews.py"\n',
+    context=path,
+)
+text = require_replace(
+    text,
+    '      - "apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx"\n',
+    '      - "apps/chronicle/webapp/src/lib/studio-i18n.ts"\n'
+    '      - "apps/chronicle/webapp/src/pages/studio/**"\n',
+    context=path,
+)
+text = require_replace(
+    text,
+    '''      - name: Validate R15 human-review projection
+        run: python apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py
+
+''',
+    '''      - name: Validate R15 human-review projection
+        run: python apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py
+
+      - name: Validate R16 review-subject collapse
+        run: python apps/chronicle/persistence/test_review_subjects_r16_unit.py
+
+''',
+    context=path,
+)
+write(path, text)
