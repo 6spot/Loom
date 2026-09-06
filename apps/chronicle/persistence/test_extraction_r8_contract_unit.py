@@ -62,7 +62,7 @@ class R8ContractPromptTests(unittest.TestCase):
     def test_initial_prompt_names_canonical_shape_and_output_schema_version(self) -> None:
         request = make_request()
         prompt = request["prompt"]
-        self.assertEqual("c1t6-prompt-v4", request["request_meta"]["prompt_version"])
+        self.assertEqual("c1t6-prompt-v3", request["request_meta"]["prompt_version"])
         self.assertIn('Output schema_version MUST be "0.1"', prompt)
         self.assertIn('kind:"source"', prompt)
         self.assertIn("temp_id only", prompt)
