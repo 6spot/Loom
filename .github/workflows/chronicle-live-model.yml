@@ -26,6 +26,7 @@ on:
       - "apps/chronicle/persistence/test_review_subjects_r16_unit.py"
       - "apps/chronicle/read_api/studio_reviews.py"
       - "apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py"
+      - "apps/chronicle/server/src/static_assets.rs"
       - "apps/chronicle/webapp/src/lib/review-display.ts"
       - "apps/chronicle/webapp/src/lib/studio-i18n.ts"
       - "apps/chronicle/webapp/src/pages/studio/**"
