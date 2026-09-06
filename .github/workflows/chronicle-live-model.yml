@@ -1,0 +1,63 @@
+name: Chronicle Live Model Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/chronicle-c1-t17-final-gate
+    paths:
+      - ".github/workflows/chronicle-live-model.yml"
+      - "apps/chronicle/acceptance/live_model_contract.py"
+      - "apps/chronicle/persistence/extraction.py"
+      - "apps/chronicle/persistence/extraction_prompt.py"
+      - "apps/chronicle/worker/model_provider.py"
+      - "apps/chronicle/ingestion/schemas/chronicle-v0.1.schema.json"
+      - "apps/chronicle/ingestion/fixtures/c1t6-inherited-jianan/raw.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chronicle-live-model-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-model:
+    name: Real provider extraction contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHRONICLE_MODEL_ENDPOINT: ${{ secrets.CHRONICLE_MODEL_ENDPOINT }}
+      CHRONICLE_MODEL_API_KEY: ${{ secrets.CHRONICLE_MODEL_API_KEY }}
+      CHRONICLE_EXTRACTION_MODEL: ${{ secrets.CHRONICLE_EXTRACTION_MODEL }}
+      CHRONICLE_PRESENTATION_MODEL: ${{ secrets.CHRONICLE_PRESENTATION_MODEL }}
+      CHRONICLE_MODEL_TIMEOUT_SECONDS: "600"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: apps/chronicle/persistence/requirements.txt
+
+      - name: Install Chronicle dependencies
+        run: python -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Validate secret presence without printing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in CHRONICLE_MODEL_ENDPOINT CHRONICLE_MODEL_API_KEY CHRONICLE_EXTRACTION_MODEL CHRONICLE_PRESENTATION_MODEL; do
+            if [ -z "${!name:-}" ]; then
+              echo "missing required Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+          echo 'live model secret presence: PASS'
+
+      - name: Run real provider extraction contract
+        run: python apps/chronicle/acceptance/live_model_contract.py
