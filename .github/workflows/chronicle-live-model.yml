@@ -21,10 +21,14 @@ on:
       # T17 human-review changes must still produce an exact-head real-provider
       # run before the next operator gate; these paths do not change model
       # authority, they only ensure the final candidate shares one SHA.
+      - "apps/chronicle/persistence/resolve_publish.py"
+      - "apps/chronicle/persistence/review_subjects.py"
+      - "apps/chronicle/persistence/test_review_subjects_r16_unit.py"
       - "apps/chronicle/read_api/studio_reviews.py"
       - "apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py"
       - "apps/chronicle/webapp/src/lib/review-display.ts"
-      - "apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx"
+      - "apps/chronicle/webapp/src/lib/studio-i18n.ts"
+      - "apps/chronicle/webapp/src/pages/studio/**"
       - "apps/chronicle/webapp/tests/studio-review-human-display.test.ts"
       - "apps/chronicle/web/dist/**"
       - "compose.chronicle.yaml"
@@ -73,6 +77,9 @@ jobs:
 
       - name: Validate R15 human-review projection
         run: python apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py
+
+      - name: Validate R16 review-subject collapse
+        run: python apps/chronicle/persistence/test_review_subjects_r16_unit.py
 
       - name: Validate secret presence without printing values
         shell: bash
