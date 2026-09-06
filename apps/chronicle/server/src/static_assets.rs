@@ -313,10 +313,15 @@ mod tests {
             "every committed Vite JS/CSS chunk must be embedded by the production Rust server"
         );
         for path in built_assets {
-            assert!(
-                resolve_web_path(&path).is_some(),
-                "production server cannot resolve built Vite asset {path}"
-            );
+            let (content_type, body) = resolve_web_path(&path)
+                .unwrap_or_else(|| panic!("production server cannot resolve built Vite asset {path}"));
+            let expected_type = if path.ends_with(".css") {
+                "text/css; charset=utf-8"
+            } else {
+                "text/javascript; charset=utf-8"
+            };
+            assert_eq!(content_type, expected_type, "wrong Content-Type for {path}");
+            assert!(!body.is_empty(), "empty embedded Vite asset {path}");
         }
     }
 
