@@ -7,7 +7,8 @@ canonical staged-bundle validation, grounding, time precision, references,
 and assessment rules against a committed source fixture.
 
 It never prints prompts, raw model output, endpoint credentials, or API keys.
-Only bounded metadata, hashes, and validation summaries are emitted.
+Only bounded metadata, hashes, and compact deterministic validation summaries
+are emitted.
 """
 
 from __future__ import annotations
@@ -46,28 +47,37 @@ def _context() -> dict:
     }
 
 
-def _summary(result: dict) -> dict:
-    attempts = []
-    for attempt in result.get("attempts") or []:
-        raw = attempt.get("raw_response")
-        report = attempt.get("validation")
-        categories = {}
-        if isinstance(report, dict):
-            categories = {
-                name: len(values or [])
-                for name, values in (report.get("errors") or {}).items()
-            }
-        attempts.append(
-            {
-                "kind": attempt.get("kind"),
-                "raw_chars": len(raw) if isinstance(raw, str) else None,
-                "raw_response_sha256": attempt.get("raw_response_sha256"),
-                "parse_error": bool(attempt.get("parse_error")),
-                "validation_passed": report.get("passed") if isinstance(report, dict) else None,
-                "validation_count": report.get("count") if isinstance(report, dict) else None,
-                "validation_categories": categories,
-            }
+def _attempt_summary(attempt: dict) -> dict:
+    raw = attempt.get("raw_response")
+    report = attempt.get("validation")
+    categories = {}
+    compact_diagnostics: list[str] = []
+    if isinstance(report, dict):
+        categories = {
+            name: len(values or [])
+            for name, values in (report.get("errors") or {}).items()
+        }
+        compact_diagnostics = prompt_contract.compact_validation_errors(
+            X.flatten_validation_errors(report)
         )
+    return {
+        "kind": attempt.get("kind"),
+        "raw_chars": len(raw) if isinstance(raw, str) else None,
+        "raw_response_sha256": attempt.get("raw_response_sha256"),
+        "parse_error": bool(attempt.get("parse_error")),
+        "validation_passed": report.get("passed") if isinstance(report, dict) else None,
+        "validation_count": report.get("count") if isinstance(report, dict) else None,
+        "validation_categories": categories,
+        "compact_diagnostics": compact_diagnostics,
+    }
+
+
+def _summary(result: dict) -> dict:
+    attempts = [
+        _attempt_summary(attempt)
+        for attempt in (result.get("attempts") or [])
+        if isinstance(attempt, dict)
+    ]
     return {
         "schema": "chronicle.live-model-contract",
         "prompt_version": X.PROMPT_VERSION,
@@ -137,17 +147,6 @@ def main() -> int:
         print("Chronicle live model contract: PASS")
         return 0
 
-    attempts = result.get("attempts") or []
-    last_report = None
-    for attempt in reversed(attempts):
-        if isinstance(attempt, dict) and isinstance(attempt.get("validation"), dict):
-            last_report = attempt["validation"]
-            break
-    if last_report is not None:
-        diagnostics = prompt_contract.compact_validation_errors(
-            X.flatten_validation_errors(last_report)
-        )
-        print(json.dumps({"compact_diagnostics": diagnostics}, ensure_ascii=False))
     print("Chronicle live model contract: FAIL")
     return 1
 
