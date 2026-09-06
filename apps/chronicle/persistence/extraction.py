@@ -752,6 +752,50 @@ def flatten_validation_errors(report: dict[str, Any]) -> list[str]:
     return result
 
 
+def _monotonic_repair_errors(
+    previous_attempt: dict[str, Any],
+    candidate: dict[str, Any],
+) -> list[str]:
+    """Reject semantic expansion for locally repairable correction attempts.
+
+    R12 showed a shape-valid first candidate with only grounding/time errors
+    being replaced by a much larger correction containing unrelated later
+    history. When the previous candidate has no schema/structural/reference
+    errors, repair must therefore be non-expanding across Entity/Event/Claim
+    identities. Shape-invalid candidates (for example the R8 schema drift)
+    still need freedom to rebuild the canonical shape.
+    """
+    previous_candidate = previous_attempt.get("candidate")
+    previous_report = previous_attempt.get("validation")
+    if not isinstance(previous_candidate, dict) or not isinstance(previous_report, dict):
+        return []
+    categories = previous_report.get("errors")
+    if not isinstance(categories, dict):
+        return []
+    if any(categories.get(name) for name in ("schema_validation", "structural", "references")):
+        return []
+
+    errors: list[str] = []
+    for collection in ("entities", "events", "claims"):
+        before = {
+            _identity(item, "")
+            for item in _items(previous_candidate, collection)
+            if _identity(item, "")
+        }
+        after = {
+            _identity(item, "")
+            for item in _items(candidate, collection)
+            if _identity(item, "")
+        }
+        added = sorted(after - before)
+        if added:
+            errors.append(
+                f"correction repair expanded {collection} with new temp_id(s): "
+                + ", ".join(added[:8])
+            )
+    return errors
+
+
 def _bounded_correction_prompt(
     *,
     chunk_text: str,
@@ -945,6 +989,22 @@ def extract_chunk(
                 previous_candidate={"note": "no parseable candidate was returned"},
             )
             continue
+        if kind == "correction" and attempts:
+            repair_errors = _monotonic_repair_errors(attempts[-1], candidate)
+            if repair_errors:
+                attempts.append(
+                    {
+                        "kind": kind,
+                        "prompt": prompt,
+                        "prompt_sha256": sha256_text(prompt),
+                        "raw_response": raw_response,
+                        "raw_response_sha256": sha256_text(raw_response),
+                        "parse_error": "repair policy: " + "; ".join(repair_errors),
+                        "validation": None,
+                        "candidate": copy.deepcopy(candidate),
+                    }
+                )
+                break
         report = validate_chunk_candidate(
             candidate,
             chunk_text=chunk_text,
@@ -1120,7 +1180,7 @@ def verify_history(
         stored = attempt.get("validation")
         raw = attempt.get("raw_response")
         if stored is None or raw is None:
-            continue  # Transport-failure attempts have nothing to replay.
+            continue  # Transport/policy-failure attempts have nothing to replay.
         try:
             candidate = parse_candidate_response(raw)
         except ChunkModelError as exc:
