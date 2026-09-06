@@ -63,10 +63,14 @@ describe("Studio zh-CN operator surface", () => {
     for (const text of forbidden) expect(combined).not.toContain(text);
   });
 
-  it("keeps grouped review debt visible as one semantic subject", () => {
+  it("keeps review batching visible without claiming the batch is semantic equivalence", () => {
     const queue = source("StudioReviewPage.tsx");
     const detail = source("StudioReviewDetailPage.tsx");
+    expect(queue).toContain("来源候选组");
     expect(queue).toContain("底层候选");
-    expect(detail).toContain("一个判断会确定性应用到该主题中的全部底层候选");
+    expect(detail).toContain("重复问题已整理为审核批次");
+    expect(detail).toContain("存在例外，展开逐组判断");
+    expect(detail).toContain("批次只是把指向同一个已发布身份或事件的问题集中展示");
+    expect(detail).not.toContain("一个判断会确定性应用到该主题中的全部底层候选");
   });
 });
