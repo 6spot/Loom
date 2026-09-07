@@ -14,6 +14,7 @@ import {
 } from "../../lib/studio-api";
 import type {
   ReviewDecision,
+  ReviewGroupDetail,
   ReviewGroupDecisionInput,
   ReviewRecordContext,
 } from "../../lib/studio-api";
@@ -129,6 +130,70 @@ function RecordCard({ label, context }: { label: string; context: ReviewRecordCo
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+export function CanonicalIdentityConflictNotice({
+  error, reviewGroups = [],
+}: { error: StudioApiError; reviewGroups?: ReviewGroupDetail[] }) {
+  const details = error.details;
+  const groups = details?.review_groups ?? [];
+  const incoming = groups.length
+    ? groups.map((group) => ({
+      id: group.review_group_id,
+      number: reviewGroups.findIndex((item) => item.review_group_id === group.review_group_id) + 1,
+      contexts: group.right_contexts,
+    }))
+    : [{ id: "incoming", number: 0, contexts: details?.incoming_contexts ?? [] }];
+
+  return (
+    <section className="studio-error-box studio-stack" role="alert" aria-label="实体身份冲突">
+      <strong>该判断无法提交</strong>
+      <p>
+        它会把当前来源实体同时连接到两个已经发布的实体。Chronicle 不允许在普通导入审核中合并两个既有实体。
+        本次判断未保存，审核项仍待处理，之前的审核记录保持不变。
+      </p>
+      {details?.canonical_entities?.length ? (
+        <div>
+          <strong>涉及的已发布实体</strong>
+          <ul className="studio-links">
+            {details.canonical_entities.map((entity) => {
+              const sources = [...new Set(entity.contexts.map((context) => context.source_title).filter(Boolean))];
+              return (
+                <li key={entity.canonical_id}>
+                  {entity.names.join("、") || "未命名实体"}
+                  {sources.length ? `（来源：${sources.join("、")}）` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+      {incoming.filter((group) => group.contexts.length).map((group) => {
+        const names = [...new Set(group.contexts.map((context) => (
+          (context as HumanReviewContext).display?.name ?? context.record?.name
+        )).filter(Boolean))];
+        return (
+          <div className="studio-stack" key={group.id}>
+            <strong>需调整的来源候选组{group.number > 0 ? ` ${group.number}` : ""}：{names.join("、") || "未命名记录"}</strong>
+            {group.contexts.map((context) => (
+              <div key={`${context.bundle}:${context.ref}`}>
+                <p className="studio-muted">来源：{context.source_title ?? "未知来源"}</p>
+                <EvidenceList context={context as HumanReviewContext} />
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      <p>
+        请选择其中一个已发布实体作为“同一实体”，其他候选请选择“不是同一实体”或“证据不足，暂不确定”。
+        如果批次中只有部分候选组冲突，可点击“存在例外，展开逐组判断”，修改这些组后重新提交。
+      </p>
+      <details className="studio-details">
+        <summary>冲突技术详情 / 审计字段</summary>
+        <pre className="studio-code">{pretty(details ?? { code: error.code, message: error.message })}</pre>
+      </details>
+    </section>
   );
 }
 
@@ -523,7 +588,11 @@ export default function StudioReviewDetailPage() {
                 </Button>
               </form>
             )}
-            {decide.error && errorText(decide.error) !== "已取消提交" ? <p className="studio-error">{errorText(decide.error)}</p> : null}
+            {decide.error instanceof StudioApiError && decide.error.code === "canonical_identity_conflict" ? (
+              <CanonicalIdentityConflictNotice error={decide.error} reviewGroups={reviewGroups} />
+            ) : decide.error && errorText(decide.error) !== "已取消提交" ? (
+              <p className="studio-error">{errorText(decide.error)}</p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

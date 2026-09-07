@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import control_plane
 from common import PersistenceConflict, PersistenceError, sha256_json
@@ -30,6 +30,19 @@ ASSEMBLY_ARTIFACT_TYPE = "assembled-source-bundle"
 CONFIDENCE_INITIAL_UNCERTAIN = 0.5
 ENTITY_DECISIONS = ("same_entity", "not_same", "uncertain")
 EVENT_DECISIONS = ("same_occurrence", "related_occurrence", "not_same", "uncertain")
+_Node = TypeVar("_Node", str, tuple[str, str])
+
+
+class CanonicalIdentityConflict(PersistenceConflict):
+    """A human Entity decision would join distinct published canonical IDs."""
+
+    code = "canonical_identity_conflict"
+
+    def __init__(self, details: dict[str, Any]) -> None:
+        super().__init__(
+            "当前判断会把一个来源实体组同时连接到两个已经发布的实体，不能提交。"
+        )
+        self.details = details
 
 
 def candidate_key(resolution_sha: str, candidate_id: str) -> str:
@@ -49,14 +62,14 @@ def _rep_json(rep: tuple[str, str]) -> dict[str, str]:
     return {"bundle": rep[0], "ref": rep[1]}
 
 
-class _DisjointSet:
-    def __init__(self, items: set[str]) -> None:
+class _DisjointSet(Generic[_Node]):
+    def __init__(self, items: set[_Node]) -> None:
         self.parent = {item: item for item in items}
 
-    def add(self, item: str) -> None:
+    def add(self, item: _Node) -> None:
         self.parent.setdefault(item, item)
 
-    def find(self, item: str) -> str:
+    def find(self, item: _Node) -> _Node:
         if item not in self.parent:
             self.add(item)
         parent = self.parent[item]
@@ -64,18 +77,18 @@ class _DisjointSet:
             self.parent[item] = self.find(parent)
         return self.parent[item]
 
-    def union(self, left: str, right: str) -> None:
+    def union(self, left: _Node, right: _Node) -> None:
         left_root, right_root = self.find(left), self.find(right)
         if left_root == right_root:
             return
         kept, moved = sorted((left_root, right_root))
         self.parent[moved] = kept
 
-    def canonical_roots(self) -> dict[str, str]:
-        grouped: dict[str, list[str]] = defaultdict(list)
+    def canonical_roots(self) -> dict[_Node, _Node]:
+        grouped: dict[_Node, list[_Node]] = defaultdict(list)
         for item in sorted(self.parent):
             grouped[self.find(item)].append(item)
-        result: dict[str, str] = {}
+        result: dict[_Node, _Node] = {}
         for members in grouped.values():
             root = min(members)
             for member in members:
@@ -751,6 +764,201 @@ def collect_review_subject_decisions(
                 )
             decisions[key] = decision
     return decisions
+
+
+def validate_entity_review_decision_graph(
+    *,
+    resolutions: list[dict[str, Any]],
+    reviews: list[tuple[Any, str, dict[str, Any]]],
+    proposed_review_id: Any,
+    proposed_payload: dict[str, Any],
+    catalog: dict[str, Any] | None,
+    within_book_links: dict[str, Any] | None,
+) -> None:
+    """Validate the effective candidate graph without writing or assigning IDs.
+
+    The frozen links, terminal human decisions, and proposed default/overrides
+    use the same fan-out as finalization. Review groups/batches are never edges.
+    Published membership and proven within-book same-links are the only other
+    equivalence inputs. Event decisions retain their existing contract.
+    """
+    if proposed_payload.get("link_kind") != "entity":
+        return
+    proposed = decision_entries_for_payload(proposed_payload, status="resolved")
+    if not any(item["decision"] == "same_entity" for item in proposed.values()):
+        return
+
+    members = {item["candidate_key"]: item for item in _candidate_members(resolutions)}
+    covered: list[str] = []
+    decisions: dict[str, dict[str, Any]] = {}
+    for review_id, status, payload in reviews:
+        keys = _payload_candidate_keys(payload)
+        covered.extend(keys)
+        for key in keys:
+            if key not in members or members[key]["link_kind"] != payload.get("link_kind"):
+                raise PersistenceConflict("review plan differs from the frozen resolution candidates")
+        if review_id != proposed_review_id:
+            for key, value in decision_entries_for_payload(payload, status=status).items():
+                if key in decisions and decisions[key] != value:
+                    raise PersistenceConflict(f"candidate {key} has conflicting review decisions")
+                decisions[key] = value
+    if sorted(covered) != sorted(members) or len(covered) != len(set(covered)):
+        raise PersistenceConflict("review plan no longer covers the frozen resolution candidates")
+    if not any(review_id == proposed_review_id for review_id, _, _ in reviews):
+        raise PersistenceConflict("proposed review is absent from the frozen review plan")
+    if not set(proposed).issubset(members):
+        raise PersistenceConflict("proposed review differs from the frozen resolution candidates")
+
+    membership = _catalog_membership(catalog, "entity")
+    dsu = _DisjointSet(set(membership))
+    canonical_reps: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for rep, canonical_id in membership.items():
+        canonical_reps[canonical_id].append(rep)
+    for reps in canonical_reps.values():
+        for rep in reps[1:]:
+            dsu.union(reps[0], rep)
+
+    entity_members = {key: member for key, member in members.items() if member["link_kind"] == "entity"}
+    incoming_labels = {member["right"]["bundle"] for member in entity_members.values()}
+    if len(incoming_labels) != 1:
+        raise PersistenceError("Entity review graph requires one incoming bundle")
+    incoming_label = next(iter(incoming_labels))
+    incoming_refs = {member["right"]["ref"] for member in entity_members.values()}
+    if within_book_links is not None:
+        if not isinstance(within_book_links, dict):
+            raise PersistenceError("within_book_links must be an object")
+        for link in within_book_links.get("entity_links") or []:
+            if isinstance(link, dict):
+                for side in ("left", "right"):
+                    endpoint = link.get(side)
+                    if isinstance(endpoint, dict) and isinstance(endpoint.get("ref"), str):
+                        incoming_refs.add(endpoint["ref"])
+    roots = _new_component_roots(within_book_links, link_kind="entity", refs=incoming_refs)
+    for ref, root in roots.items():
+        dsu.union((incoming_label, ref), (incoming_label, root))
+
+    frozen = {
+        candidate_key(sha256_json(artifact), link["candidate_id"]): link["decision"]
+        for artifact in resolutions for link in artifact.get("entity_links") or []
+    }
+    same_members: dict[str, dict[str, Any]] = {}
+    proposed_same: dict[str, dict[str, Any]] = {}
+    for key, member in entity_members.items():
+        left = _representation(member["left"], "frozen Entity candidate.left")
+        right = _representation(member["right"], "frozen Entity candidate.right")
+        dsu.add(left)
+        dsu.add(right)
+        effective = proposed.get(key, decisions.get(key, {"decision": frozen[key]}))
+        if effective["decision"] != "same_entity":
+            continue
+        same_members[key] = member
+        if key in proposed:
+            proposed_same[key] = member
+        else:
+            dsu.union(left, right)
+
+    # Identify the offending proposed groups against the already-effective
+    # graph, before safe groups in the same batch attach to the target. This
+    # avoids blaming an unrelated incoming group merely for sharing a batch.
+    prior_ids: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for rep, canonical_id in membership.items():
+        prior_ids[dsu.find(rep)].add(canonical_id)
+    conflicting_keys: set[str] = set()
+    for key, member in proposed_same.items():
+        left = _representation(member["left"], "proposed Entity candidate.left")
+        right = _representation(member["right"], "proposed Entity candidate.right")
+        if len(prior_ids[dsu.find(left)] | prior_ids[dsu.find(right)]) > 1:
+            conflicting_keys.add(key)
+    for member in proposed_same.values():
+        dsu.union(_representation(member["left"], "left"), _representation(member["right"], "right"))
+
+    component_ids: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for rep, canonical_id in membership.items():
+        component_ids[dsu.find(rep)].add(canonical_id)
+    collisions = {root for root, ids in component_ids.items() if len(ids) > 1}
+    if not collisions:
+        return
+    collided_refs = {rep for rep in dsu.parent if dsu.find(rep) in collisions}
+    collided_keys = {
+        key for key, member in same_members.items()
+        if dsu.find(_representation(member["left"], "left")) in collisions
+    }
+    conflicting_keys = (conflicting_keys & collided_keys) or (set(proposed_same) & collided_keys)
+    groups = [
+        group for group in _payload_groups(proposed_payload)
+        if set(_group_candidate_keys(group)) & conflicting_keys
+    ]
+    raise CanonicalIdentityConflict({
+        "review_id": str(proposed_review_id),
+        "canonical_ids": sorted({membership[rep] for rep in collided_refs if rep in membership}),
+        "review_group_ids": sorted(str(group["review_group_id"]) for group in groups),
+        "candidate_keys": sorted(collided_keys),
+        "proposed_candidate_keys": sorted(conflicting_keys),
+        "incoming_refs": [_rep_json(rep) for rep in sorted(collided_refs) if rep not in membership],
+        "published_refs": [
+            {**_rep_json(rep), "canonical_id": membership[rep]}
+            for rep in sorted(collided_refs) if rep in membership
+        ],
+        "review_groups": [
+            {
+                "review_group_id": group["review_group_id"],
+                "candidate_keys": _group_candidate_keys(group),
+                "incoming_refs": [
+                    _rep_json(rep) for rep in sorted({
+                        _representation(members[key]["right"], "group incoming ref")
+                        for key in _group_candidate_keys(group)
+                    })
+                ],
+            }
+            for group in groups
+        ],
+    })
+
+
+def validate_proposed_entity_review(conn, *, job_id: uuid.UUID, review_id: uuid.UUID, payload: dict[str, Any]) -> None:
+    """Load a job's frozen review inputs inside the caller's locked transaction."""
+    if payload.get("link_kind") != "entity":
+        return
+    proposed = decision_entries_for_payload(payload, status="resolved")
+    if not any(item["decision"] == "same_entity" for item in proposed.values()):
+        return
+    reviews = _scoped_review_rows(conn, job_id)
+    hashes = {
+        key.split(":", 1)[0]
+        for _review_id, _status, review_payload in reviews
+        for key in _payload_candidate_keys(review_payload)
+    }
+    # Output-linked initials freeze the complete candidate set. Legacy jobs
+    # also retain their exact artifact addresses in the ReviewItem payload.
+    hashes.update(row[0] for row in conn.execute(
+        """
+        SELECT artifact_sha256 FROM chronicle.ingestion_outputs
+        WHERE job_id = %s AND artifact_type = 'cross-source-resolution'
+          AND payload->>'role' = 'initial'
+        """,
+        (job_id,),
+    ).fetchall())
+    rows = conn.execute(
+        """
+        SELECT artifact_sha256, payload FROM chronicle.resolution_artifacts
+        WHERE artifact_sha256 = ANY(%s) ORDER BY artifact_sha256
+        """,
+        (sorted(hashes),),
+    ).fetchall()
+    if {row[0] for row in rows} != hashes or any(sha256_json(row[1]) != row[0] for row in rows):
+        raise PersistenceConflict("frozen review resolution artifacts are missing or changed")
+    _catalog, within_book_links = _load_subject_inputs(conn, job_id)
+    # Legacy candidate plans may have no assembly output, but published
+    # membership still applies to their human decisions.
+    catalog_row = conn.execute(
+        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
+    ).fetchone()
+    validate_entity_review_decision_graph(
+        resolutions=[row[1] for row in rows], reviews=reviews,
+        proposed_review_id=review_id, proposed_payload=payload,
+        catalog=catalog_row[0] if catalog_row is not None else None,
+        within_book_links=within_book_links,
+    )
 
 
 def review_subject_counts(subjects: list[dict[str, Any]]) -> dict[str, int]:

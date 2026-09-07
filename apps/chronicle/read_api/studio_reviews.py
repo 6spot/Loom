@@ -43,12 +43,17 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     )
 
 
-def _error(status: int, code: str, message: str) -> tuple[int, str, bytes]:
+def _error(
+    status: int, code: str, message: str, *, details: dict[str, Any] | None = None,
+) -> tuple[int, str, bytes]:
+    error: dict[str, Any] = {"code": code, "message": message}
+    if details is not None:
+        error["details"] = details
     return status, "application/json; charset=utf-8", _json_bytes(
         {
             "schema": "chronicle.error",
             "version": "0.1",
-            "error": {"code": code, "message": message},
+            "error": error,
         }
     )
 
@@ -553,6 +558,45 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
     return item
 
 
+def _identity_conflict_details(conn, details: dict[str, Any]) -> dict[str, Any]:
+    """Enrich rejected graph refs with the existing source/evidence projection.
+
+    Names only explain the conflict; the persistence guard's canonical IDs
+    remain the authority. No review, resolution, or catalog is written here.
+    """
+    contexts: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def context(side: dict[str, Any]) -> dict[str, Any]:
+        key = (side["bundle"], side["ref"])
+        if key not in contexts:
+            contexts[key] = _side_context(conn, side, link_kind="entity")
+        return contexts[key]
+
+    canonical_entities: list[dict[str, Any]] = []
+    for canonical_id in details["canonical_ids"]:
+        representations = [
+            context(side) for side in details["published_refs"]
+            if side["canonical_id"] == canonical_id
+        ]
+        names = {
+            item.get("display", {}).get("name") for item in representations
+        }
+        canonical_entities.append({
+            "canonical_id": canonical_id,
+            "names": sorted(name for name in names if isinstance(name, str) and name),
+            "contexts": representations,
+        })
+    return {
+        **details,
+        "canonical_entities": canonical_entities,
+        "incoming_contexts": [context(side) for side in details["incoming_refs"]],
+        "review_groups": [
+            {**group, "right_contexts": [context(side) for side in group["incoming_refs"]]}
+            for group in details["review_groups"]
+        ],
+    }
+
+
 def dispatch_reviews(
     conn,
     resolve_publish,
@@ -563,6 +607,7 @@ def dispatch_reviews(
     body: bytes = b"",
 ) -> tuple[int, str, bytes]:
     from common import PersistenceConflict, PersistenceError
+    from review_subjects import CanonicalIdentityConflict
 
     try:
         return _route(
@@ -577,6 +622,10 @@ def dispatch_reviews(
         return _error(400, "bad_request", str(exc))
     except _NotFound as exc:
         return _error(404, "not_found", str(exc))
+    except CanonicalIdentityConflict as exc:
+        return _error(
+            409, exc.code, str(exc), details=_identity_conflict_details(conn, exc.details),
+        )
     except PersistenceConflict as exc:
         return _error(409, "conflict", str(exc))
     except PersistenceError as exc:

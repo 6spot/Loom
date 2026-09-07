@@ -9,12 +9,14 @@
 export class StudioApiError extends Error {
   readonly code: string;
   readonly status: number;
+  readonly details?: CanonicalIdentityConflictDetails;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details?: CanonicalIdentityConflictDetails) {
     super(message);
     this.name = "StudioApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -237,6 +239,28 @@ export interface ReviewGroupDetail {
   right_contexts: ReviewRecordContext[];
 }
 
+export interface CanonicalIdentityConflictDetails {
+  review_id: string;
+  canonical_ids: string[];
+  canonical_entities: Array<{
+    canonical_id: string;
+    names: string[];
+    contexts: ReviewRecordContext[];
+  }>;
+  review_group_ids: string[];
+  candidate_keys: string[];
+  proposed_candidate_keys: string[];
+  incoming_refs: ReviewRef[];
+  incoming_contexts: ReviewRecordContext[];
+  published_refs: Array<ReviewRef & { canonical_id: string }>;
+  review_groups: Array<{
+    review_group_id: string;
+    candidate_keys: string[];
+    incoming_refs: ReviewRef[];
+    right_contexts: ReviewRecordContext[];
+  }>;
+}
+
 export interface ReviewSummary {
   review_id: string;
   job_id: string;
@@ -342,11 +366,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new StudioApiError(response.status, "invalid_response", `Studio API returned HTTP ${response.status}`);
   }
   if (!response.ok) {
-    const error = (payload as { error?: { code?: string; message?: string } })?.error;
+    const error = (payload as { error?: {
+      code?: string; message?: string; details?: CanonicalIdentityConflictDetails;
+    } })?.error;
     throw new StudioApiError(
       response.status,
       error?.code ?? "request_failed",
       error?.message ?? `Studio API returned HTTP ${response.status}`,
+      error?.details,
     );
   }
   return payload as T;

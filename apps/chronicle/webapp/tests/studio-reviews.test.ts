@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getReview,
   listReviews,
+  StudioApiError,
   submitReviewDecision,
 } from "../src/lib/studio-api";
 
@@ -46,6 +47,27 @@ function stubReviewFetch(calls: Array<{ path: string; init?: RequestInit }>) {
 }
 
 describe("Studio review API client", () => {
+  it("preserves the typed 409 context and leaves a corrected decision to the reviewer", async () => {
+    const details = {
+      canonical_ids: ["canonical-a", "canonical-b"],
+      review_group_ids: ["group-x"],
+      incoming_refs: [{ bundle: "incoming", ref: "ent_x" }],
+    };
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      schema: "chronicle.error", version: "0.1",
+      error: { code: "canonical_identity_conflict", message: "该判断无法提交", details },
+    }), { status: 409, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    const error = await submitReviewDecision("Basic abc", "r1", "same_entity", "核对证据", 0.9)
+      .catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(StudioApiError);
+    expect(error).toMatchObject({
+      status: 409, code: "canonical_identity_conflict", message: "该判断无法提交", details,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the authenticated job-scoped review subresource without changing legacy bodies", async () => {
     const calls: Array<{ path: string; init?: RequestInit }> = [];
     stubReviewFetch(calls);

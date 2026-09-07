@@ -24,6 +24,8 @@ on:
       - "apps/chronicle/persistence/resolve_publish.py"
       - "apps/chronicle/persistence/review_subjects.py"
       - "apps/chronicle/persistence/test_review_subjects_r16_unit.py"
+      - "apps/chronicle/persistence/test_entity_review_conflict_r19_unit.py"
+      - "apps/chronicle/persistence/test_entity_review_conflict_r19_postgres.py"
       - "apps/chronicle/read_api/studio_reviews.py"
       - "apps/chronicle/read_api/test_studio_reviews_r15_projection_unit.py"
       - "apps/chronicle/server/src/static_assets.rs"
@@ -81,6 +83,9 @@ jobs:
 
       - name: Validate R16 review-subject collapse
         run: python apps/chronicle/persistence/test_review_subjects_r16_unit.py
+
+      - name: Validate R19 Entity review graph
+        run: python apps/chronicle/persistence/test_entity_review_conflict_r19_unit.py
 
       - name: Validate secret presence without printing values
         shell: bash

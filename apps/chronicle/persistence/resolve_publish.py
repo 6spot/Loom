@@ -88,6 +88,7 @@ from psycopg.types.json import Jsonb  # noqa: E402
 import publication_v0  # noqa: E402
 import resolution_v0  # noqa: E402
 import review_subjects  # noqa: E402
+from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
 
 #: Version of this resolve/review/publish pipeline step.
 RESOLVE_PUBLISH_VERSION = "c1t8-v3"
@@ -476,56 +477,69 @@ def resolve_resolution_review(
     the item resolved through the standard control-plane transition
     (open items only; resolved history stays auditable). Raises
     :class:`PersistenceError` for any vocabulary violation and
-    :class:`PersistenceConflict` when the item is not open.
+    :class:`PersistenceConflict` when the item is not open, or
+    :class:`CanonicalIdentityConflict` when Entity same-links would join
+    existing canonical IDs. Validation and resolution are one atomic write.
     """
-    row = conn.execute(
-        "SELECT status, payload FROM chronicle.review_items WHERE review_id = %s",
-        (review_id,),
-    ).fetchone()
-    if row is None:
-        raise PersistenceError(f"unknown review item {review_id}")
-    status, payload = row[0], row[1] if isinstance(row[1], dict) else {}
-    if status != "open":
-        raise PersistenceConflict(
-            f"review item {review_id} is already {status!r}"
-        )
-    if payload.get("scope") != REVIEW_SCOPE:
-        raise PersistenceError(
-            f"review item {review_id} is not a resolution review "
-            f"(scope {payload.get('scope')!r})"
-        )
-    link_kind = payload.get("link_kind")
-    decision = _require_decision(str(link_kind), decision)
-    if not isinstance(rationale, str) or not rationale.strip():
-        raise PersistenceError("resolution review rationale must be non-empty")
-    if (
-        not isinstance(confidence, (int, float))
-        or isinstance(confidence, bool)
-        or not 0 <= confidence <= 1
-    ):
-        raise PersistenceError("resolution review confidence must be within [0, 1]")
-    decided = dict(payload)
-    decided["decision"] = {
-        "decision": decision,
-        "confidence": float(confidence),
-        "rationale": rationale.strip(),
-    }
-    normalized_group_decisions = review_subjects.normalize_group_decisions(
-        payload, group_decisions
-    )
-    if normalized_group_decisions:
-        decided["decision"]["group_decisions"] = normalized_group_decisions
-    # Two short sequential transactions (the codebase never holds one
-    # transaction across steps): a crash between them leaves the
-    # decision in the payload while the item stays open, so the next
-    # attempt simply records the decision again instead of publishing
-    # a half-reviewed graph.
+    # Serialize decisions for one job before reading its effective graph. The
+    # row lock also prevents a concurrent submission from rewriting this item
+    # after another request resolves it. No model/network work occurs here.
     with conn.transaction():
+        owner = conn.execute(
+            """
+            SELECT job_id FROM chronicle.ingestion_jobs
+            WHERE job_id = (SELECT job_id FROM chronicle.review_items WHERE review_id = %s)
+            FOR UPDATE
+            """,
+            (review_id,),
+        ).fetchone()
+        if owner is None:
+            raise PersistenceError(f"unknown review item {review_id}")
+        row = conn.execute(
+            "SELECT status, payload FROM chronicle.review_items WHERE review_id = %s FOR UPDATE",
+            (review_id,),
+        ).fetchone()
+        if row is None:
+            raise PersistenceError(f"unknown review item {review_id}")
+        status, payload = row[0], row[1] if isinstance(row[1], dict) else {}
+        if status != "open":
+            raise PersistenceConflict(
+                f"review item {review_id} is already {status!r}"
+            )
+        if payload.get("scope") != REVIEW_SCOPE:
+            raise PersistenceError(
+                f"review item {review_id} is not a resolution review "
+                f"(scope {payload.get('scope')!r})"
+            )
+        link_kind = payload.get("link_kind")
+        decision = _require_decision(str(link_kind), decision)
+        if not isinstance(rationale, str) or not rationale.strip():
+            raise PersistenceError("resolution review rationale must be non-empty")
+        if (
+            not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not 0 <= confidence <= 1
+        ):
+            raise PersistenceError("resolution review confidence must be within [0, 1]")
+        decided = dict(payload)
+        decided["decision"] = {
+            "decision": decision,
+            "confidence": float(confidence),
+            "rationale": rationale.strip(),
+        }
+        normalized_group_decisions = review_subjects.normalize_group_decisions(
+            payload, group_decisions
+        )
+        if normalized_group_decisions:
+            decided["decision"]["group_decisions"] = normalized_group_decisions
+        review_subjects.validate_proposed_entity_review(
+            conn, job_id=owner[0], review_id=review_id, payload=decided
+        )
         conn.execute(
             "UPDATE chronicle.review_items SET payload = %s WHERE review_id = %s",
             (Jsonb(decided), review_id),
         )
-    control_plane.resolve_review_item(conn, review_id=review_id, status="resolved")
+        control_plane.resolve_review_item(conn, review_id=review_id, status="resolved")
 
 
 def collect_review_decisions(

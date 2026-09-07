@@ -27,7 +27,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | C1-T14 | #503 | completed | C1-T13 | corpus Coverage model/visibility |
 | C1-T15 | #504 | completed | C1-T13, C1-T14 | Historical Moment projection/API |
 | C1-T16 | #505 | completed | C1-T9, C1-T12, C1-T15 | World page + global historical time context |
-| C1-T17 | #506 | planned | C1-T16 | final real Debian Book-to-Chronicle/Historical World gate |
+| C1-T17 | #506 | in_progress | C1-T16 | final real Debian Book-to-Chronicle/Historical World gate |
 
 ## Execution spine
 

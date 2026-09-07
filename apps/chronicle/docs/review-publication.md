@@ -16,7 +16,7 @@ assembled source bundle (one revision, label c1rev-<id>)
         ▼
 resolve: candidates vs persisted corpus (C0 blocking reused)
         │  → initial all-uncertain artifacts (persisted)
-        │  → one stage_gate ReviewItem per candidate (same job)
+        │  → frozen stage_gate review batches (same job, Amendment 0007)
         │  → needs_review while any candidate is open
         │  → resume applies recorded decisions → final artifacts
         ▼
@@ -58,6 +58,17 @@ ingestion_outputs: source-bundle + cross-source-resolution(s)
   with no review item at all still fails finalization closed.
   Resume reuses completed stages and never re-runs accepted
   extraction work.
+- **Entity review decisions cannot bridge existing canonical IDs.** Before
+  accepting an Entity `same_entity`, the application expands the frozen batch
+  default and explicit group overrides to candidate-level decisions, combines
+  them with the job's effective reviews, frozen resolution links, proven
+  within-book same-links and current published membership, and checks the
+  connected components. A component containing multiple already-published
+  Entity IDs rejects the submission. The job row serializes concurrent review
+  submissions; graph validation, decision payload and terminal review status
+  share one short transaction. A rejection leaves the item open and all prior
+  audit history unchanged. Event decisions retain their existing contract,
+  and the publisher's final canonical-collapse defense remains mandatory.
 - **No new state machine.** Review items reuse the frozen
   `stage_gate` kind; `resume_job` still refuses while any item is
   open. No migration was needed.
@@ -83,7 +94,21 @@ carries a real assembled bundle output (the C1-T7 artifact); other
 jobs keep the deterministic fake executor for those stages.
 `present` stays fake (Reader Presentation is C1-T12 scope).
 
-## Reviewing (until the Studio queue lands in C1-T11)
+## Reviewing
+
+Studio submits decisions through
+`POST /api/v1/studio/jobs/reviews/{review_id}/decision`. Entity identity
+collisions return HTTP `409` in the existing `chronicle.error` envelope with
+`error.code = canonical_identity_conflict`. Its `details` retains canonical
+IDs, candidate keys, incoming/published refs and conflicting review groups;
+the existing staged-record projection adds readable names and exact Claim
+evidence. Names explain the conflict but never establish identity. Studio
+keeps the form available, explains the correction in Chinese, and reserves
+internal IDs for technical details. The reviewer must keep at most one
+canonical target as `same_entity` and choose `not_same` or `uncertain` for the
+conflicting candidate/group. Ordinary ingestion does not merge existing IDs.
+
+The underlying application call uses the same boundary:
 
 ```python
 import resolve_publish as R
