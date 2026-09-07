@@ -52,6 +52,34 @@ The current public projection is the greatest published `presentation_version` f
 
 The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
 
+The live Responses request uses a presentation-specific strict `text.format`
+derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v2` supplies
+the exact output header (including `target_kind` and `canonical_id`), all block
+fields, bounds and Claim-ref shape. The provider adapter adds explicit string
+types to canonical const/enum fields and omits schema annotations and
+`uniqueItems`, which is outside the documented
+[Responses strict array subset](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas).
+The prompt still requires unique supports and the existing validator normalizes
+duplicate refs. Missing/null/wrong target fields, out-of-scope Claims and omitted
+required uncertainty still fail closed; model output is never patched with
+missing target metadata. The candidate schema, Claim authority and immutable
+persistence contract remain unchanged.
+
+The `Chronicle Live Model Contract` workflow checks real extraction plus Entity
+and Event presentation before a new T17 run. Its presentation check uses the
+retained C0 刘表 and 赤壁 examples in a fresh PostgreSQL test database and calls
+the production context loader, generator, validators and persistence functions,
+including exact-input adoption. It reports only metadata, hashes and counts.
+To run that focused check with the configured live provider and an isolated test
+PostgreSQL service, set `LOOM_TEST_POSTGRES_URL` and run:
+
+```bash
+python3 apps/chronicle/acceptance/live_presentation_contract.py
+```
+
+This preflight is regression evidence, not a substitute for full-source T17
+ingestion, human review, readability inspection or browser acceptance.
+
 Targets with no direct evidenced Claims are omitted rather than filled from model knowledge. Exact-input crash/retry adoption reuses the already-published projection without another model call. The resulting presentation and its job output remain explicitly `authoritative: false`.
 
 ## Reader API / UI

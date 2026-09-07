@@ -55,6 +55,12 @@ do not echo response bodies or API keys; the existing extraction/presentation
 validators still own schema, evidence grounding, uncertainty and publication
 authority.
 
+Both live providers send strict Responses `text.format` constraints for their
+own contracts: extraction uses the staged-bundle projection and presentation
+uses the [Reader Presentation candidate shape](reader-presentation.md). The
+presentation prompt supplies the exact canonical target; the output validator
+still rejects a missing or mismatched target instead of filling it in.
+
 ## How durability works
 
 1. **Claim.** `claim_job` takes one `queued` job — or one `running` job

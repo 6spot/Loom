@@ -234,7 +234,7 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual("0.1", extraction.text_format["schema"]["properties"]["schema_version"]["const"])
         self.assertIsNone(presentation)
 
-    def test_presentation_model_stays_free_text(self) -> None:
+    def test_presentation_model_sends_its_own_strict_contract(self) -> None:
         with self.clean_env(
             {
                 "CHRONICLE_MODEL_ENDPOINT": "https://gateway.example/v1/responses",
@@ -245,7 +245,24 @@ class EnvironmentTests(unittest.TestCase):
         self.assertIsNone(extraction)
         self.assertIsNotNone(presentation)
         assert presentation is not None
-        self.assertIsNone(presentation.text_format)
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"output_text": "{}"})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual("{}", presentation.complete("reader context"))
+        fmt = captured["body"]["text"]["format"]
+        self.assertEqual("reader-model", captured["body"]["model"])
+        self.assertEqual("json_schema", fmt["type"])
+        self.assertTrue(fmt["strict"])
+        self.assertEqual("chronicle.reader-presentation", fmt["schema"]["properties"]["schema"]["const"])
+        self.assertEqual(
+            {"schema", "version", "target_kind", "canonical_id", "language", "blocks"},
+            set(fmt["schema"]["required"]),
+        )
+        self.assertNotIn("schema_version", fmt["schema"]["properties"])
 
     def test_configured_model_requires_endpoint_and_valid_timeout(self) -> None:
         with self.clean_env({"CHRONICLE_PRESENTATION_MODEL": "reader"}):

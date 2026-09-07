@@ -29,7 +29,7 @@ CONTRACT_VERSION = "0.1"
 SCHEMA_NAME = "chronicle.reader-presentation"
 BASE_LANGUAGE = "zh-CN"
 GENERATOR_VERSION = "c1t12-v1"
-PROMPT_VERSION = "c1t12-reader-zh-v1"
+PROMPT_VERSION = "c1t12-reader-zh-v2"
 MAX_BLOCKS = 12
 MAX_BLOCK_TEXT_CHARS = 600
 BLOCK_KINDS = ("overview", "sequence", "outcome", "source_notes", "uncertainty")
@@ -224,6 +224,13 @@ def build_prompt(context: dict[str, Any]) -> str:
     if context.get("schema") != "chronicle.reader-presentation-context":
         raise PersistenceError("Reader Presentation context has the wrong schema")
     payload = canonical_json_bytes(context).decode("utf-8")
+    header = canonical_json_bytes({
+        "schema": SCHEMA_NAME,
+        "version": CONTRACT_VERSION,
+        "target_kind": context["target_kind"],
+        "canonical_id": context["canonical_id"],
+        "language": BASE_LANGUAGE,
+    }).decode("utf-8")
     return (
         "你是 Chronicle Reader Presentation 生成器。只允许使用下面 INPUT JSON 中已经提供的事实。\n"
         "目标：把古文/结构化 Claim 整理成现代、清楚、克制的简体中文阅读文本，而不是逐字翻译。\n"
@@ -235,8 +242,19 @@ def build_prompt(context: dict[str, Any]) -> str:
         "5. 如果 INPUT.constraints.requires_uncertainty=true，必须至少输出一个 block_kind=uncertainty、epistemic_mode=uncertainty 的 block，明确来源分歧或身份不确定，而不是消除它。\n"
         "6. 不要生成 why/significance；C1-T12 只允许 overview/sequence/outcome/source_notes/uncertainty。\n"
         "7. 只输出严格 JSON，不要 Markdown、代码围栏或解释。\n"
-        f"输出 schema={SCHEMA_NAME}, version={CONTRACT_VERSION}, language={BASE_LANGUAGE}。\n"
-        "INPUT:\n"
+        "输出结构：只允许 schema、version、target_kind、canonical_id、language、blocks 六个顶层字段，全部必填。\n"
+        "OUTPUT_HEADER 中的五个字段必须逐字复制到输出顶层，再在同一层添加 blocks；不要嵌套 header 对象。\n"
+        "target_kind 和 canonical_id 必须与 INPUT 完全相同，不得省略、写成 null 或换成来源 temp_id。\n"
+        "输出 schema 是 chronicle.reader-presentation，不是 INPUT 的 context schema。\n"
+        f"blocks 是 1..{MAX_BLOCKS} 个对象的数组；每个对象只能且必须包含 block_kind、epistemic_mode、text、claim_refs。\n"
+        f"block_kind 只能是 {'/'.join(BLOCK_KINDS)}；epistemic_mode 只能是 {'/'.join(EPISTEMIC_MODES)}。\n"
+        "block_kind=uncertainty 与 epistemic_mode=uncertainty 必须同时使用。\n"
+        f"text 是 1..{MAX_BLOCK_TEXT_CHARS} 字的非空现代简体中文字符串。\n"
+        "claim_refs 是 1..16 个不重复对象的数组；每个对象只能且必须包含 bundle、ref 两个非空字符串。\n"
+        "从 INPUT.representations 中的 claims 原样复制 bundle/ref 二元组；ref 是 Claim ref，不是 Entity/Event ref。\n"
+        "OUTPUT_HEADER:\n"
+        + header
+        + "\nINPUT:\n"
         + payload
     )
 

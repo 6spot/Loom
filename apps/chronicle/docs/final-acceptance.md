@@ -19,6 +19,12 @@ Normal Chronicle deployment still needs only Git + Docker. The **final acceptanc
 
 Use a dedicated fresh `CHRONICLE_DATA_DIR` for the final gate. The runner rejects a revision-1 source SHA-256 already present in Chronicle so a failed/debug run cannot be silently presented as a first ingestion. If you need to rehearse, use a disposable data directory and perform the final evidence run from a clean fresh directory.
 
+Before starting a fresh run, require Chronicle, Chronicle Docker, Chronicle
+Live Model Contract and applicable repository CI to pass on the same frozen
+candidate SHA. The live-model workflow covers both extraction and Claim-bound
+Entity/Event presentation. A code change requires all four checks on the new
+candidate and fresh data/evidence/log paths; failed runs remain failure evidence.
+
 ## Prepare configuration
 
 Use a clean checkout of the exact candidate commit and configure `.env.chronicle` from `.env.chronicle.example` with at least:
@@ -114,4 +120,4 @@ A gate failure is evidence, not permission to weaken the check. In particular:
 
 ## Completion protocol
 
-A successful real-machine script run is necessary but not sufficient to close C1-T17. PR #535 must still receive final exact-head Chronicle, Chronicle Docker and repository CI. Only after the live evidence is recorded should the PR leave Draft. After delivery merge, perform the mandatory post-merge Task Ledger reconciliation, re-read canonical `main`, close #506, then reconcile and close C1 root #489.
+A successful real-machine script run is necessary but not sufficient to close C1-T17. PR #535 must still receive final exact-head Chronicle, Chronicle Docker, Chronicle Live Model Contract and applicable repository CI. Only after the live evidence is recorded should the PR leave Draft. After delivery merge, perform the mandatory post-merge Task Ledger reconciliation, re-read canonical `main`, close #506, then reconcile and close C1 root #489.

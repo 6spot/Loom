@@ -5,10 +5,10 @@ to be reachable from the real Docker worker. This module intentionally keeps
 that deployment I/O vendor-neutral: it speaks the small HTTP subset used by a
 Responses-style endpoint and returns only produced text.
 
-Extraction additionally supplies a strict structured-output projection of the
-canonical Chronicle bundle contract. That projection constrains generation
-only; the existing canonical schema/grounding/reference/time validators remain
-the acceptance authority. Reader Presentation remains free-text.
+Extraction and Reader Presentation each supply their own strict structured-
+output constraint derived from their canonical contract. These constrain
+generation only; the existing schema/grounding/reference/time/uncertainty
+validators remain the acceptance authority.
 
 Development may instead opt in to ``CHRONICLE_MODEL_FIXTURE_PACK``. That mode
 uses the same model boundary and normal Chronicle validators/persistence path;
@@ -34,8 +34,10 @@ from common import PersistenceError
 
 try:
     from extraction_model_schema import extraction_text_format
+    from presentation_model_schema import presentation_text_format
 except ImportError:  # pragma: no cover - package import path
     from .extraction_model_schema import extraction_text_format
+    from .presentation_model_schema import presentation_text_format
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -288,9 +290,8 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     through a compatible gateway, or a local Responses-compatible service
     without Chronicle guessing a vendor.
 
-    Live extraction receives Chronicle's strict structured-output projection;
-    presentation remains unconstrained text because it has a different output
-    contract and is validated independently.
+    Each live model receives the strict structured-output constraint for its
+    own contract and is validated independently after generation.
     """
     fixture_models = _fixture_models_from_env()
     if fixture_models is not None:
@@ -327,5 +328,5 @@ def models_from_env() -> tuple[Any | None, Any | None]:
 
     return (
         build(extraction_name, text_format=extraction_text_format()),
-        build(presentation_name),
+        build(presentation_name, text_format=presentation_text_format()),
     )

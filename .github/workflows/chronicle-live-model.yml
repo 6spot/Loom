@@ -8,6 +8,14 @@ on:
     paths:
       - ".github/workflows/chronicle-live-model.yml"
       - "apps/chronicle/acceptance/live_model_contract.py"
+      - "apps/chronicle/acceptance/live_presentation_contract.py"
+      - "apps/chronicle/persistence/presentation.py"
+      - "apps/chronicle/persistence/test_presentation_r20_contract_unit.py"
+      - "apps/chronicle/worker/presentation_model_schema.py"
+      - "apps/chronicle/worker/test_presentation_model_schema_unit.py"
+      - "apps/chronicle/worker/test_model_provider_unit.py"
+      - "apps/chronicle/ingestion/schemas/chronicle-reader-presentation-v0.1.schema.json"
+      - "apps/chronicle/.artifacts/c0-t7/**"
       - "apps/chronicle/persistence/extraction.py"
       - "apps/chronicle/persistence/extraction_prompt.py"
       - "apps/chronicle/worker/extraction_model_schema.py"
@@ -45,10 +53,25 @@ concurrency:
 
 jobs:
   live-model:
-    name: Real provider extraction contract
+    name: Real provider extraction and presentation contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
       CHRONICLE_MODEL_ENDPOINT: ${{ secrets.CHRONICLE_MODEL_ENDPOINT }}
       CHRONICLE_MODEL_API_KEY: ${{ secrets.CHRONICLE_MODEL_API_KEY }}
       CHRONICLE_EXTRACTION_MODEL: ${{ secrets.CHRONICLE_EXTRACTION_MODEL }}
@@ -74,6 +97,12 @@ jobs:
 
       - name: Validate extraction identity boundary
         run: python apps/chronicle/worker/test_extraction_model_schema_unit.py
+
+      - name: Validate R20 Reader output contract and provider wiring
+        run: |
+          python apps/chronicle/persistence/test_presentation_r20_contract_unit.py
+          python apps/chronicle/worker/test_presentation_model_schema_unit.py
+          python apps/chronicle/worker/test_model_provider_unit.py
 
       - name: Validate model transport retry semantics
         run: python apps/chronicle/worker/test_model_provider_transport_retry_unit.py
@@ -101,3 +130,6 @@ jobs:
 
       - name: Run real provider extraction contract
         run: python apps/chronicle/acceptance/live_model_contract.py
+
+      - name: Run real provider Entity and Event presentation contracts
+        run: python apps/chronicle/acceptance/live_presentation_contract.py
