@@ -185,17 +185,89 @@ def wait_job(
     *,
     wanted: set[str],
     timeout_seconds: int = 900,
+    idle_timeout_seconds: int | None = None,
+    progress_path: Path | None = None,
 ) -> dict[str, Any]:
-    deadline = time.time() + timeout_seconds
+    """Wait within absolute and optional durable-progress deadlines.
+
+    Heartbeats, status timestamps and repeated output IDs are not progress.
+    Only newly completed stages/chunks or committed outputs renew idle time;
+    no progress can extend the absolute deadline or satisfy ``wanted``.
+    """
+    if timeout_seconds <= 0 or (
+        idle_timeout_seconds is not None and idle_timeout_seconds <= 0
+    ):
+        raise ValueError("job wait limits must be positive")
+    started = time.monotonic()
+    deadline = started + timeout_seconds
+    last_progress = started
+    last_logged = started - 30
+    seen: set[tuple[str, str]] = set()
     last: dict[str, Any] = {}
-    while time.time() < deadline:
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        if idle_timeout_seconds is not None:
+            idle_remaining = last_progress + idle_timeout_seconds - time.monotonic()
+            if idle_remaining <= 0:
+                raise GateError(
+                    f"job made no durable progress for {idle_timeout_seconds}s; "
+                    f"wanted={sorted(wanted)} last={last}"
+                )
+            remaining = min(remaining, idle_remaining)
         status, payload = json_http(
             base_url,
             f"/api/v1/studio/jobs/{job_id}",
             auth=auth,
+            timeout=min(30, remaining),
         )
         require_status(status, 200, payload, "job detail")
         last = payload["job"]
+        now = time.monotonic()
+        if now >= deadline:
+            break
+        progress = {
+            ("stage", stage["stage"])
+            for stage in last.get("stages", [])
+            if stage.get("status") in {"completed", "skipped"}
+        } | {
+            ("chunk", chunk["chunk_id"])
+            for chunk in last.get("chunks", [])
+            if chunk.get("status") == "completed"
+        } | {
+            ("output", output["output_id"])
+            for output in last.get("outputs", [])
+        }
+        changed = bool(progress - seen)
+        if changed:
+            seen.update(progress)
+            last_progress = now
+        if progress_path is not None and (
+            changed or now - last_logged >= 30
+            or last.get("status") in wanted | TERMINAL_JOB_STATES
+        ):
+            observation = {
+                "observed_at_unix": time.time(),
+                "job_id": job_id,
+                "status": last.get("status"),
+                "elapsed_seconds": round(now - started, 1),
+                "idle_seconds": round(now - last_progress, 1),
+                "stages": {s["stage"]: s["status"] for s in last.get("stages", [])},
+                "completed_chunks": sum(
+                    c.get("status") == "completed" for c in last.get("chunks", [])
+                ),
+                "reader_presentations": sum(
+                    o.get("artifact_type") == "reader-presentation"
+                    for o in last.get("outputs", [])
+                ),
+                "outputs": len(last.get("outputs", [])),
+                "open_reviews": last.get("open_reviews"),
+            }
+            with progress_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(observation, ensure_ascii=False) + "\n")
+            print("C1-T17 progress: " + json.dumps(observation, ensure_ascii=False), flush=True)
+            last_logged = now
         if last.get("status") in wanted:
             return last
         if (
@@ -203,8 +275,14 @@ def wait_job(
             and last.get("status") not in wanted
         ):
             raise GateError(f"job entered unexpected terminal state: {last}")
-        time.sleep(2)
-    raise GateError(f"job did not reach {sorted(wanted)}; last={last}")
+        remaining = deadline - time.monotonic()
+        if idle_timeout_seconds is not None:
+            remaining = min(remaining, last_progress + idle_timeout_seconds - time.monotonic())
+        time.sleep(max(0, min(2, remaining)))
+    raise GateError(
+        f"job exceeded absolute wait limit {timeout_seconds}s; "
+        f"did not reach {sorted(wanted)}; last={last}"
+    )
 
 
 def source_query(filename: str, source_label: str) -> str:

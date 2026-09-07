@@ -134,6 +134,9 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
   Cancelling an already-cancelled job is idempotent.
 - Both `retry` and `resume` clear the stale lease so the next live worker
   can claim the job (a `running` job without a lease is claimable).
+- Successful `resume` clears the old review error on the job and the resumed
+  stages, so a running job no longer advertises a resolved review as a current
+  blocker. Review decisions and append-only chunk-run history remain intact.
 
 ## Operational concurrency limits
 

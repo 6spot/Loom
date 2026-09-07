@@ -62,7 +62,7 @@ The current public projection is the greatest published `presentation_version` f
 The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
 
 The live Responses request uses a presentation-specific strict `text.format`
-derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v4` retains
+derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v5` retains
 the complete output instructions introduced in v2 and supplies
 the exact output header (including `target_kind` and `canonical_id`), all block
 fields, bounds and Claim-ref shape. The provider adapter adds explicit string
@@ -96,6 +96,17 @@ there. When the quote omits the place or role, the Reader must preserve that
 limit rather than fill it from the target name or relation fields. It must
 also avoid joining separate fragments with unsupported simultaneity or cause.
 This does not edit, reassess or remove the original Claim.
+
+The model-facing input contains each direct Claim's exact evidence,
+assessment, source and support ref, together with current resolution and
+uncertainty constraints. It omits the staged target description and extracted
+`subject` / `predicate` / `object` fields: those determine citation scope but
+can also suggest actors, recipients or results absent from the quoted text.
+The full generation context remains unchanged for fingerprinting, validation,
+lease-fenced persistence and audit. This is a generation input projection,
+not a rewrite or new interpretation of historical authority. In particular,
+an omitted actor cannot be filled from the source title or another block, and
+east/west affiliation cannot be paraphrased as a geographic boundary.
 
 The `Chronicle Live Model Contract` workflow checks real extraction plus Entity
 and Event presentation before a new T17 run. Its presentation check uses the

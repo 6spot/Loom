@@ -313,6 +313,8 @@ class WorkerPostgresTests(unittest.TestCase):
         self.assertEqual(second, (job_id, "needs_review"))
         with psycopg.connect(self.database_url) as conn:
             self.assertEqual(_job_status(conn, job_id), "needs_review")
+            blocked = control_plane.get_job_detail(conn, job_id=job_id)
+            self.assertTrue(blocked["error"])
             reviews = conn.execute(
                 "SELECT kind, status FROM chronicle.review_items WHERE job_id = %s",
                 (job_id,),
@@ -321,6 +323,10 @@ class WorkerPostgresTests(unittest.TestCase):
             # Resume is refused while the gate is open.
             with self.assertRaises(PersistenceConflict):
                 control_plane.resume_job(conn, job_id=job_id)
+            self.assertEqual(
+                blocked["error"],
+                control_plane.get_job_detail(conn, job_id=job_id)["error"],
+            )
             review_id = conn.execute(
                 "SELECT review_id FROM chronicle.review_items WHERE job_id = %s",
                 (job_id,),
@@ -332,6 +338,13 @@ class WorkerPostgresTests(unittest.TestCase):
                 (job_id,),
             )
             control_plane.resume_job(conn, job_id=job_id)
+            resumed = control_plane.get_job_detail(conn, job_id=job_id)
+            self.assertIsNone(resumed["error"])
+            self.assertIsNone(next(s for s in resumed["stages"] if s["stage"] == "extract")["error"])
+            self.assertEqual(blocked["chunks"][0]["runs"], resumed["chunks"][0]["runs"])
+            self.assertEqual(0, resumed["open_reviews"])
+            self.assertEqual(1, len(resumed["reviews"]))
+            self.assertEqual("resolved", resumed["reviews"][0]["status"])
         third = worker.run_once(self.database_url, worker="worker-gate")
         self.assertEqual(third, (job_id, "completed"))
         with psycopg.connect(self.database_url) as conn:

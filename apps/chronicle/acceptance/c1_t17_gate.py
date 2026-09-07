@@ -557,13 +557,20 @@ def main() -> int:
         auth,
         job_id,
         wanted={"needs_review", "completed"},
-        timeout_seconds=1800,
+        timeout_seconds=6 * 60 * 60,
+        idle_timeout_seconds=30 * 60,
+        progress_path=evidence_dir / "job-progress.jsonl",
     )
     if current.get("status") == "needs_review":
         require_operator_review(base_url, auth, job_id, evidence)
         S.write_json(evidence_dir / "manifest.partial.json", evidence)
         S.job_action(base_url, auth, job_id, "resume")
-        current = S.wait_job(base_url, auth, job_id, wanted={"completed"}, timeout_seconds=1800)
+        current = S.wait_job(
+            base_url, auth, job_id, wanted={"completed"},
+            timeout_seconds=6 * 60 * 60,
+            idle_timeout_seconds=30 * 60,
+            progress_path=evidence_dir / "job-progress.jsonl",
+        )
     else:
         evidence["review_gate"] = {
             "required": False,

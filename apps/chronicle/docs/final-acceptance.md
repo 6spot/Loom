@@ -96,6 +96,22 @@ The final gate is deliberately not an identity oracle. If the job enters `needs_
 
 If `needs_review` is caused by something other than the supported resolution review workflow, the gate fails rather than weakening acceptance.
 
+## Waiting for durable progress
+
+The waits before and after resolution review each have a six-hour absolute
+limit and a 30-minute limit without durable progress. A complete book can
+produce many sequential Reader targets, so the idle limit is renewed only by
+newly completed stages/chunks or new committed output IDs. Heartbeats,
+timestamps, repeated outputs and model retries do not renew it. Progress never
+substitutes for the required completed job, and an unexpected terminal state
+still fails immediately.
+
+`job-progress.jsonl` and the terminal report stage/chunk completion, committed
+Reader counts and idle time at least every 30 seconds while polling succeeds.
+This distinguishes a long productive stage from a stalled request; it does
+not claim to fix provider latency or change production model timeouts. A run
+that already timed out retains its original failure verdict.
+
 ## Evidence directory
 
 By default evidence is written to:
