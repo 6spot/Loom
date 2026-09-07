@@ -99,9 +99,7 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                     )
                 } else if path == "/healthz" {
                     (200, "{\"status\":\"ok\"}".to_string())
-                } else if path == "/api/v1/studio/jobs/reviews/r19/decision"
-                    && method == "POST"
-                {
+                } else if path == "/api/v1/studio/jobs/reviews/r19/decision" && method == "POST" {
                     (409, REVIEW_CONFLICT.to_string())
                 } else if path.starts_with("/api/v1/studio/documents")
                     || path.starts_with("/api/v1/studio/jobs")
