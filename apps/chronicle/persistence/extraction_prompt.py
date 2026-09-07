@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any
 
-PROMPT_VERSION = "c1t6-prompt-v5"
+PROMPT_VERSION = "c1t6-prompt-v6"
 
 MODEL_CONTRACT_GUIDE = r'''CANONICAL BUNDLE SHAPE (field names are exact; this is shape guidance, not source facts)
 Output schema_version MUST be "0.1". Internal Chronicle contract versions are NOT output schema versions.
@@ -124,7 +124,7 @@ def render_extraction_prompt(
     validation_errors: list[str] | None = None,
     previous_candidate: dict[str, Any] | None = None,
 ) -> str:
-    """Render the full v5 initial/preferred-correction prompt."""
+    """Render the full v6 initial/preferred-correction prompt."""
     correction = ""
     if validation_errors is not None:
         candidate_note = ""
@@ -156,6 +156,7 @@ GROUNDING / AUTHORITY RULES
 - Create source-grounded entities needed by represented facts. Names/titles are attributes, never identity; ambiguity stays unresolved with a warning.
 - An inherited-only entity is allowed only when its surface exists in INHERITED CONTEXT and an inherited_entity_context warning names it.
 - Distinct occurrences remain distinct Events; Claims are explicit source assertions, not Events. Avoid semantic duplicates.
+- An Event title/participants is not Claim evidence. When the source explicitly asserts an occurrence's outcome or another fact about that occurrence, express it as a top-level Claim referring to that Event (event_ref) with exact evidence and a faithful predicate. Do not leave explicit occurrence assertions only in Event titles or attach every Claim exclusively to participants. Do not duplicate assertions or invent a Claim when the source/predicate cannot support one; preserve ontology_gap instead.
 - Use a faithful configured predicate when possible; otherwise emit ontology_gap instead of forcing meaning. Claim assessment always starts unassessed.
 - Preserve explicit/safely inherited traditional time verbatim. Inherited time lists inherited_fields. Never invent normalized month/day; normalized year is allowed only when DOCUMENT supplies the verified mapping. If unsafe/unknown, use null.
 - Warnings describe the final returned bundle. Compact JSON must not drop a distinct source-grounded fact.

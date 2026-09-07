@@ -75,6 +75,11 @@ The runner is orchestration-only. Product mutations go through the authenticated
 13. identify a newly published **or newly enriched** Event for the selected year whose direct evidence is an exact substring of revision 1 and whose Reader Presentation support also traces to a revision-1 Claim; record whether the canonical Event ID was reused;
 14. run real Chromium through Timeline + Search + World -> that Event -> canonical Entity/Place -> exact evidence while preserving the selected historical-time context.
 
+The Event sample must bind both direct evidence and Reader support to the
+uploaded revision's `c1rev-<id>` bundle and the same direct Claim ref. Matching
+quote text alone is insufficient: an older source can contain the same words.
+The manifest records the evidence revision, bundle, Claim ref and text hash.
+
 After the script succeeds, perform the
 [Reader grounding/readability inspection](reader-presentation.md#t12-manual-groundingreadability-inspection)
 on the generated presentations. Archive the public projections and a separate

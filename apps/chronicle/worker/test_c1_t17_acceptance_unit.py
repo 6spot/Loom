@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import importlib.util
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ACCEPTANCE_DIR = Path(__file__).resolve().parents[1] / "acceptance"
 if str(ACCEPTANCE_DIR) not in sys.path:
@@ -20,6 +22,76 @@ spec.loader.exec_module(G)
 
 
 class GateUnitTests(unittest.TestCase):
+    revision_id = "6414727d-6b68-4ee5-8ccb-92bbb8dde5d5"
+    revision_bundle = "c1rev-6414727d6b68"
+
+    def changed_event_sample(self, direct_bundle: str, support_bundle: str):
+        before = {"events": [{
+            "canonical_event_id": "event-1", "source_count": 2,
+            "representation_count": 2,
+        }]}
+        after = {"events": [{
+            "canonical_event_id": "event-1", "source_count": 3,
+            "representation_count": 3, "display": {"title": "交战"},
+        }]}
+        claim = {
+            "bundle": direct_bundle, "ref": "clm_001",
+            "claim": {"evidence": {"text": "不利"}},
+        }
+        support = {**copy.deepcopy(claim), "bundle": support_bundle}
+        detail = {
+            "representations": [{"bundle": direct_bundle, "claims": [claim]}],
+            "participants": [{"canonical_entity_id": "entity-1"}],
+            "reader_presentation": {
+                "language": "zh-CN",
+                "blocks": [{"text": "该来源记载结果不利。", "supports": [support]}],
+            },
+        }
+        return before, after, detail
+
+    def select_sample(self, before, after, detail):
+        with mock.patch.object(G.S, "json_http", return_value=(200, detail)):
+            return G.select_changed_event(
+                "http://unit.test", before, after, "先主战不利，还秭归。",
+                revision_id=self.revision_id,
+            )
+
+    def test_changed_event_requires_revision_claims_despite_equal_quote_text(self) -> None:
+        for direct_bundle, support_bundle in (
+            ("wudi", "wudi"),
+            (self.revision_bundle, "wudi"),
+            ("wudi", self.revision_bundle),
+            ("c1rev-other", "c1rev-other"),
+        ):
+            with self.subTest(direct=direct_bundle, support=support_bundle):
+                with self.assertRaisesRegex(G.S.GateError, "revision-1 Claim"):
+                    self.select_sample(*self.changed_event_sample(direct_bundle, support_bundle))
+
+    def test_changed_event_binds_support_to_direct_claim_and_exact_evidence(self) -> None:
+        for field, value in (("ref", "clm_unrelated"), ("evidence", "不利，还秭归")):
+            with self.subTest(field=field):
+                before, after, detail = self.changed_event_sample(
+                    self.revision_bundle, self.revision_bundle
+                )
+                support = detail["reader_presentation"]["blocks"][0]["supports"][0]
+                if field == "ref":
+                    support["ref"] = value
+                else:
+                    support["claim"]["evidence"]["text"] = value
+                with self.assertRaisesRegex(G.S.GateError, "revision-1 Claim"):
+                    self.select_sample(before, after, detail)
+
+    def test_changed_event_accepts_enrichment_with_revision_bound_support(self) -> None:
+        sample = self.select_sample(*self.changed_event_sample(
+            self.revision_bundle, self.revision_bundle
+        ))
+        self.assertTrue(sample["canonical_id_reused"])
+        self.assertEqual(sample["evidence_revision_id"], self.revision_id)
+        self.assertEqual(sample["evidence_bundle"], self.revision_bundle)
+        self.assertEqual(sample["evidence_claim_ref"], "clm_001")
+        self.assertEqual(sample["presentation_support"]["bundle"], self.revision_bundle)
+        self.assertEqual(sample["evidence_sha256"], G.S.sha256_bytes("不利".encode()))
+
     def live(self) -> dict[str, str]:
         return {
             "CHRONICLE_POSTGRES_PASSWORD": "db-secret",

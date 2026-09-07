@@ -16,6 +16,7 @@ import re
 import sys
 import time
 import urllib.parse
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -194,7 +195,17 @@ def moment_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def select_changed_event(base_url: str, before: dict[str, Any], after: dict[str, Any], source_text: str) -> dict[str, Any]:
+def select_changed_event(
+    base_url: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    source_text: str,
+    *,
+    revision_id: str,
+) -> dict[str, Any]:
+    # C1-T8 publishes each uploaded revision under this public bundle label.
+    # Equal quote text in an older source is not revision-1 provenance.
+    revision_bundle = f"c1rev-{uuid.UUID(revision_id).hex[:12]}"
     before_map = {
         str(item.get("canonical_event_id")): (
             int(item.get("source_count") or 0),
@@ -225,15 +236,22 @@ def select_changed_event(base_url: str, before: dict[str, Any], after: dict[str,
             f"/api/v1/public/events/{urllib.parse.quote(event_id, safe='')}",
         )
         S.require_status(status, 200, detail, "changed Event detail")
-        evidence_text = None
+        direct_claims: dict[str, str] = {}
         for representation in detail.get("representations", []):
+            if representation.get("bundle") != revision_bundle:
+                continue
             for claim in representation.get("claims", []):
                 text = claim.get("claim", {}).get("evidence", {}).get("text")
-                if isinstance(text, str) and text and text in source_text:
-                    evidence_text = text
-                    break
-            if evidence_text:
-                break
+                claim_ref = claim.get("ref")
+                if (
+                    claim.get("bundle") == revision_bundle
+                    and isinstance(claim_ref, str)
+                    and claim_ref
+                    and isinstance(text, str)
+                    and text
+                    and text in source_text
+                ):
+                    direct_claims[claim_ref] = text
         related = [*detail.get("participants", []), *detail.get("places", [])]
         entity = next((item for item in related if item.get("canonical_entity_id")), None)
         presentation = detail.get("reader_presentation")
@@ -242,14 +260,17 @@ def select_changed_event(base_url: str, before: dict[str, Any], after: dict[str,
             for block in presentation.get("blocks", []):
                 for support in block.get("supports", []):
                     support_text = support.get("claim", {}).get("evidence", {}).get("text")
-                    if isinstance(support_text, str) and support_text and support_text in source_text:
+                    if (
+                        support.get("bundle") == revision_bundle
+                        and support.get("ref") in direct_claims
+                        and support_text == direct_claims[support["ref"]]
+                    ):
                         matching_support = support
                         break
                 if matching_support:
                     break
         if (
-            evidence_text
-            and entity
+            entity
             and matching_support
             and isinstance(presentation, dict)
             and presentation.get("language") == "zh-CN"
@@ -259,6 +280,7 @@ def select_changed_event(base_url: str, before: dict[str, Any], after: dict[str,
             presentation_chars = sum(len(str(block.get("text") or "")) for block in blocks)
             if not blocks or presentation_chars < 1:
                 continue
+            evidence_text = direct_claims[matching_support["ref"]]
             return {
                 "event_id": event_id,
                 "event_title": event.get("display", {}).get("title"),
@@ -268,6 +290,9 @@ def select_changed_event(base_url: str, before: dict[str, Any], after: dict[str,
                 "evidence_sha256": S.sha256_bytes(evidence_text.encode("utf-8")),
                 "evidence_chars": len(evidence_text),
                 "evidence_matches_revision_1": True,
+                "evidence_revision_id": revision_id,
+                "evidence_bundle": revision_bundle,
+                "evidence_claim_ref": matching_support["ref"],
                 "presentation_id": presentation.get("presentation_id"),
                 "presentation_content_sha256": presentation.get("content_sha256"),
                 "presentation_language": presentation.get("language"),
@@ -594,7 +619,11 @@ def main() -> int:
     }
 
     public_sample = select_changed_event(
-        base_url, before, after, source.read_text(encoding="utf-8")
+        base_url,
+        before,
+        after,
+        source.read_text(encoding="utf-8"),
+        revision_id=rev1["revision_id"],
     )
     evidence["new_public_sample"] = public_sample
     S.write_json(evidence_dir / "manifest.partial.json", evidence)

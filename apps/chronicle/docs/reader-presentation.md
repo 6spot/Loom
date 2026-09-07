@@ -62,7 +62,7 @@ The current public projection is the greatest published `presentation_version` f
 The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
 
 The live Responses request uses a presentation-specific strict `text.format`
-derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v3` retains
+derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v4` retains
 the complete output instructions introduced in v2 and supplies
 the exact output header (including `target_kind` and `canonical_id`), all block
 fields, bounds and Claim-ref shape. The provider adapter adds explicit string
@@ -87,6 +87,15 @@ internal field names or resolution enum values. Required uncertainty describes
 the actual evidence boundary; a conservative disagreement flag alone does not
 prove an identity conflict or turn complementary accounts into contradictory
 ones.
+
+Direct Claim membership establishes citation scope, not the correctness of
+every extracted relationship. The generator must check each stated actor,
+recipient, location, time and result against that block's quoted evidence. A
+Claim linked to a place does not by itself establish that an event happened
+there. When the quote omits the place or role, the Reader must preserve that
+limit rather than fill it from the target name or relation fields. It must
+also avoid joining separate fragments with unsupported simultaneity or cause.
+This does not edit, reassess or remove the original Claim.
 
 The `Chronicle Live Model Contract` workflow checks real extraction plus Entity
 and Event presentation before a new T17 run. Its presentation check uses the
@@ -122,6 +131,7 @@ The initial inspection uses retained C0 historical artifacts rather than invente
 | 孙权 Entity (`wuzhu/clm_008`) | `sent_forces`; evidence `权遣周瑜、程普等行` in 《三国志·吴书·吴主传》 | `《吴主传》记载，孙权派周瑜、程普等出兵。` | Preserves the explicit dispatch action; does not infer the later battle result into this block. |
 | Naming actor in a fragment | `posthumously_named`; evidence `追谥曰孝愍皇帝` | `这段记载写有“追谥曰孝愍皇帝”，片段未明示受谥者。` | Does not invent the actor's death or turn the actor into the recipient. |
 | 刘备 ancestry | `has_ancestry`; evidence `先主姓刘，讳备，字玄德，涿郡涿县人，汉景帝子中山靖王胜之后也` | `《先主传》记载，刘备字玄德，涿郡涿县人，是汉景帝之子中山靖王刘胜的后裔。` | Preserves the historian's attribution; does not change it to `刘备自称` without a supporting self-report. |
+| Place-associated epidemic Claim | `wudi/clm_025`; evidence `于是大疫，吏士多死者` | `《武帝纪》记有“大疫，吏士多死者”；这段引文没有说明发生地点。` | The retained Claim's association with 益州 cannot license `益州发生大疫`. |
 
 A tempting sentence such as `曹操在赤壁遭火攻击败，这成为三国格局的决定性转折` is intentionally outside T12 support for the inspected Event context: those causal/significance details are not licensed merely because they are familiar historical knowledge. Such prose must wait for supporting Chronicle Claims (and later causal interpretation semantics), not be smuggled in by the reader layer.
 

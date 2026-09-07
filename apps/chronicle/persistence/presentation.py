@@ -30,7 +30,7 @@ CONTRACT_VERSION = "0.1"
 SCHEMA_NAME = "chronicle.reader-presentation"
 BASE_LANGUAGE = "zh-CN"
 GENERATOR_VERSION = "c1t12-v1"
-PROMPT_VERSION = "c1t12-reader-zh-v3"
+PROMPT_VERSION = "c1t12-reader-zh-v4"
 MAX_BLOCKS = 12
 MAX_BLOCK_TEXT_CHARS = 600
 BLOCK_KINDS = ("overview", "sequence", "outcome", "source_notes", "uncertainty")
@@ -236,11 +236,13 @@ def build_prompt(context: dict[str, Any]) -> str:
         "6. 不要生成 why/significance；C1-T12 只允许 overview/sequence/outcome/source_notes/uncertainty。\n"
         "7. 只输出严格 JSON，不要 Markdown、代码围栏或解释。\n"
         "8. 逐句核对所引 evidence、predicate、subject、object 的施事和受事。目标人物不一定是每个动作的施事，也不一定是动作的承受者；不得颠倒主动与被动、授予者与受予者。结构化关系与证据片段不足以确定角色时，只引述片段或省略，不补人物、死亡或结果。\n"
+        "8a. 直接关联只确定引用范围，不证明抽取关系的每个角色都正确。尤其不能把目标地点自动写成事件发生地：若 evidence 只说‘于是大疫，吏士多死者’，就只能引述疫病和死者，说明片段未交代发生地；不能因为 subject/object 或目标名称关联到某州，就写成该州发生疫病。人物、地点、军队、官职都适用：证据未明的施事、受事、地点与归属不能靠目标名称或关联字段补全。\n"
         "9. 例如只有‘追谥曰某号’时，不能写成目标人物去世或目标人物被追谥为该号；受谥者未明就保持未明。‘先主追谥某人’与‘先主被追谥’不是同一事实。\n"
         "10. 保留话语来源与原文具体程度：史书叙述不能改成当事人‘自称’；‘或传闻’不能改成已经证实。没有明确历法换算时保留原纪年，不把‘二十二年’改成持续二十二年的时段。现代化措辞不得补材质、身份或原因，例如‘贩履’只能写卖鞋，不能擅自写卖草鞋。\n"
         "11. INPUT.representations 是已发布的同一 canonical 目标成员。record.resolution.status 是不可变抽取记录的旧状态，不代表当前身份仍待审核。当前关联只看 resolution_links 与 constraints；不要因别名不同或旧 unresolved 字段否认已发布成员关系。\n"
         "12. requires_uncertainty 不等于身份冲突。uncertain_resolution_detected 说明与其他记录的关联仍存疑；disagreement_detected 只是所引陈述的对象或时间不同，不能擅自声称同名人物必非一人、身份尚未确认或事实互相矛盾。互补细节、记载侧重不同或一处未提及，不等于分歧；只有同一事项上无法同时成立的具体断言才可称矛盾。需要 uncertainty 时，具体说明有依据的证据边界。\n"
-        "13. text 面向普通读者：用史书名称、人物、地点和‘记载/尚不能确定’说明；不要输出 INPUT、Claim、predicate、subject、same_entity、uncertain、unresolved 等处理过程或字段值，也不要用‘相关主体’替代本来已明确的称谓。证据未明的称谓可保留原文，不借常识补全。\n"
+        "13. text 面向普通读者：用史书名称、人物、地点和‘记载/尚不能确定’说明；不要输出 INPUT、Claim、predicate、subject、same_entity、uncertain、unresolved 等处理过程或字段值，也不要写‘结构化信息/结构化记载/相关对象’或用‘相关主体’替代本来已明确的称谓。证据未明的称谓可保留原文，不借常识补全。\n"
+        "14. 输出前逐块核对：每个人物动作、地点、时间、数量和结果都必须由该块所引 evidence 支持。不能只检查引用编号存在；不能把不同片段用‘同时/因此’连成原文未说明的时序或因果。没有足够证据时删去该细节，或引用原文并明确缺失的信息，不改写原始 Claim 来消除问题。\n"
         "输出结构：只允许 schema、version、target_kind、canonical_id、language、blocks 六个顶层字段，全部必填。\n"
         "OUTPUT_HEADER 中的五个字段必须逐字复制到输出顶层，再在同一层添加 blocks；不要嵌套 header 对象。\n"
         "target_kind 和 canonical_id 必须与 INPUT 完全相同，不得省略、写成 null 或换成来源 temp_id。\n"
