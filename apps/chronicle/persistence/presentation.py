@@ -31,7 +31,7 @@ CONTRACT_VERSION = "0.1"
 SCHEMA_NAME = "chronicle.reader-presentation"
 BASE_LANGUAGE = "zh-CN"
 GENERATOR_VERSION = "c1t12-v1"
-PROMPT_VERSION = "c1t12-reader-zh-v6"
+PROMPT_VERSION = "c1t12-reader-zh-v7"
 MAX_BLOCKS = 12
 MAX_BLOCK_TEXT_CHARS = 600
 BLOCK_KINDS = ("overview", "sequence", "outcome", "source_notes", "uncertainty")
@@ -259,6 +259,7 @@ def build_prompt(context: dict[str, Any]) -> str:
         "13. text 面向普通读者：用史书名称、人物、地点和‘记载/尚不能确定’说明；不要输出 INPUT、Claim、predicate、subject、same_entity、uncertain、unresolved 等处理过程或字段值，也不要写‘结构化信息/结构化记载/相关对象’或用‘相关主体’替代本来已明确的称谓。证据未明的称谓可保留原文，不借常识补全。\n"
         "14. 输出前逐块核对：每个人物动作、地点、时间、数量和结果都必须由该块所引 evidence 支持。不能只检查引用编号存在；不能把不同片段用‘同时/因此’连成原文未说明的时序或因果。方向上的归属不能改成某地以东或以西的地域边界。没有足够证据时删去该细节，或引用原文并明确缺失的信息，不改写原始 Claim 来消除问题。\n"
         "14a. 保留原文动作及其作用范围。古文的顿号或逗号不能单独决定哪些对象并列；‘分/划分’所支配的整体不能改成后续归属清单中的一个分项。若断句、整体与分项或归属仍有歧义，就原样引述片段并说明限制，不把含混标点整理成确定的范围或归属结论。\n"
+        "14b. 不得因古文动词的多义而新增动作或改变宾语。比如‘众人上甲为乙’可记为推举甲为乙，不能写成‘众人向甲上奏’：被推举者不是因此就成为奏章的收受者。只有证据明写上奏及其对象，才可叙述相应的上奏关系；词义不明时保留原句。\n"
         "输出结构：只允许 schema、version、target_kind、canonical_id、language、blocks 六个顶层字段，全部必填。\n"
         "OUTPUT_HEADER 中的五个字段必须逐字复制到输出顶层，再在同一层添加 blocks；不要嵌套 header 对象。\n"
         "target_kind 和 canonical_id 必须与 INPUT 完全相同，不得省略、写成 null 或换成来源 temp_id。\n"
