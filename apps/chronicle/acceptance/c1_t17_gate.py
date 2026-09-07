@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import sys
 import time
 import urllib.parse
@@ -168,8 +169,18 @@ def moment(base_url: str, year: int) -> dict[str, Any]:
 
 
 def moment_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    catalog = payload.get("catalog")
+    catalog_sha = catalog.get("latest_catalog_sha256") if isinstance(catalog, dict) else None
+    if (
+        not isinstance(catalog_sha, str)
+        or re.fullmatch(r"[0-9a-f]{64}", catalog_sha) is None
+        or catalog.get("status") != "published"
+    ):
+        raise S.GateError(
+            "historical moment catalog.latest_catalog_sha256 must contain a published SHA-256"
+        )
     return {
-        "catalog_sha256": payload.get("catalog", {}).get("artifact_sha256"),
+        "catalog_sha256": catalog_sha,
         "event_count": len(payload.get("events", [])),
         "entity_count": len(payload.get("entities", [])),
         "place_count": len(payload.get("places", [])),
@@ -397,6 +408,7 @@ def main() -> int:
 
     assert_source_not_seen(base_url, auth, S.sha256_bytes(source.read_bytes()))
     before = moment(base_url, args.world_year)
+    S.write_json(evidence_dir / "world-before.json", before)
     evidence["before_world"] = moment_summary(before)
     evidence["before_metrics"] = compose_json(
         repo,
@@ -404,6 +416,7 @@ def main() -> int:
         ["--profile", "worker", "exec", "-T", "chronicle-worker", "python3", "apps/chronicle/corpus/metrics.py"],
         worker_id=WORKER_A,
     )
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
 
     c0_browser = S.run(
         [sys.executable, "apps/chronicle/web/browser_smoke.py", "--base-url", base_url],
@@ -443,6 +456,7 @@ def main() -> int:
     job = S.queue_job(base_url, auth, rev1["revision_id"])
     job_id = job["job_id"]
     evidence["job_id"] = job_id
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
 
     fault = collect_compose(
         repo,
@@ -511,6 +525,7 @@ def main() -> int:
             "takeover_lease_owner_observed": takeover.get("lease_owner"),
         }
     )
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
 
     current = S.wait_job(
         base_url,
@@ -521,6 +536,7 @@ def main() -> int:
     )
     if current.get("status") == "needs_review":
         require_operator_review(base_url, auth, job_id, evidence)
+        S.write_json(evidence_dir / "manifest.partial.json", evidence)
         S.job_action(base_url, auth, job_id, "resume")
         current = S.wait_job(base_url, auth, job_id, wanted={"completed"}, timeout_seconds=1800)
     else:
@@ -529,6 +545,7 @@ def main() -> int:
             "reason": "no blocking resolution candidates",
         }
     evidence["completed_job"] = current
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
     collect_compose(
         repo,
         env_file,
@@ -549,8 +566,10 @@ def main() -> int:
         raise S.GateError("revision 1 content is no longer auditable after replacement")
     evidence["document"]["revision_2"] = rev2
     evidence["document"]["revision_1_still_exact"] = True
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
 
     after = moment(base_url, args.world_year)
+    S.write_json(evidence_dir / "world-after.json", after)
     evidence["after_world"] = moment_summary(after)
     evidence["after_metrics"] = compose_json(
         repo,
@@ -558,6 +577,7 @@ def main() -> int:
         ["--profile", "worker", "exec", "-T", "chronicle-worker", "python3", "apps/chronicle/corpus/metrics.py"],
         worker_id=WORKER_B,
     )
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
     if evidence["after_world"]["catalog_sha256"] == evidence["before_world"]["catalog_sha256"]:
         raise S.GateError("canonical catalog did not change after live ingestion")
     before_ids = set(evidence["before_world"]["event_ids"])
@@ -577,6 +597,7 @@ def main() -> int:
         base_url, before, after, source.read_text(encoding="utf-8")
     )
     evidence["new_public_sample"] = public_sample
+    S.write_json(evidence_dir / "manifest.partial.json", evidence)
     browser = S.run(
         [
             sys.executable,

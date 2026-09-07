@@ -71,7 +71,7 @@ The runner is orchestration-only. Product mutations go through the authenticated
 9. if genuine cross-source ambiguity produces resolution ReviewItems, pause and require the operator to resolve them in `/studio/review`; the runner refuses non-interactive auto-decisions, re-reads the resulting decisions, calls `/resume`, and continues;
 10. canonical publication and Claim-supported zh-CN Reader Presentation complete;
 11. upload changed revision 2, require `revision_no=2` and `supersedes_revision_id=revision1`, then retrieve revision 1 exact bytes after replacement;
-12. collect before/after corpus density + Coverage and require the canonical catalog to change;
+12. collect before/after corpus density + Coverage and require the published `catalog.latest_catalog_sha256` from Historical Moment to change; missing or invalid hashes fail immediately, including before ingestion;
 13. identify a newly published **or newly enriched** Event for the selected year whose direct evidence is an exact substring of revision 1 and whose Reader Presentation support also traces to a revision-1 Claim; record whether the canonical Event ID was reused;
 14. run real Chromium through Timeline + Search + World -> that Event -> canonical Entity/Place -> exact evidence while preserving the selected historical-time context.
 
@@ -104,6 +104,13 @@ apps/chronicle/.artifacts/c1-t17/
 - C0 regression and T17 World/Timeline/Search browser-smoke hashes.
 
 Compose status/images and worker/browser logs are saved beside the manifest. The runner does **not** write admin/database passwords, provider API keys, model prompts or raw model responses.
+
+`manifest.partial.json` is checkpointed after the baseline, job creation,
+takeover, human review, job completion, source replacement and final public
+observations. `world-before.json` and `world-after.json` retain the actual public
+Historical Moment responses. These partial records preserve already observed
+evidence if a later check fails; only a successful full gate writes
+`manifest.json`, and partial evidence never counts as PASS.
 
 Attach/archive this directory for Issue #506. Do not commit credentials or the operator's source files.
 

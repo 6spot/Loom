@@ -65,7 +65,7 @@ class GateUnitTests(unittest.TestCase):
 
     def test_moment_summary_is_deterministic(self) -> None:
         payload = {
-            "catalog": {"artifact_sha256": "a" * 64},
+            "catalog": {"status": "published", "latest_catalog_sha256": "a" * 64},
             "events": [
                 {"canonical_event_id": "b"},
                 {"canonical_event_id": "a"},
@@ -76,9 +76,25 @@ class GateUnitTests(unittest.TestCase):
             "coverage": {"represented": True},
         }
         summary = G.moment_summary(payload)
+        self.assertEqual(summary["catalog_sha256"], "a" * 64)
         self.assertEqual(summary["event_ids"], ["a", "b"])
         self.assertEqual(summary["entity_count"], 2)
         self.assertEqual(summary["place_count"], 1)
+
+    def test_moment_summary_rejects_missing_or_invalid_catalog_hash(self) -> None:
+        for catalog in (
+            None,
+            {},
+            {"status": "published", "artifact_sha256": "a" * 64},
+            {"status": "published", "latest_catalog_sha256": None},
+            {"status": "published", "latest_catalog_sha256": ""},
+            {"status": "published", "latest_catalog_sha256": "g" * 64},
+            {"status": "published", "latest_catalog_sha256": 123},
+            {"status": "unknown", "latest_catalog_sha256": "a" * 64},
+        ):
+            with self.subTest(catalog=catalog):
+                with self.assertRaisesRegex(G.S.GateError, "latest_catalog_sha256"):
+                    G.moment_summary({"catalog": catalog})
 
     def test_long_lived_worker_is_stopped_before_job_queue(self) -> None:
         source = MODULE_PATH.read_text(encoding="utf-8")
