@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -22,9 +23,12 @@ for candidate in (str(HERE), str(INGESTION)):
         sys.path.insert(0, candidate)
 
 import canonical_store  # noqa: E402
+import control_plane  # noqa: E402
 import presentation  # noqa: E402
+import resolution_store  # noqa: E402
+import resolve_publish  # noqa: E402
 import staged_store  # noqa: E402
-from common import PersistenceError  # noqa: E402
+from common import PersistenceError, sha256_json  # noqa: E402
 from migrations import apply_migrations  # noqa: E402
 
 import publication_v0  # noqa: E402
@@ -201,6 +205,109 @@ class ReaderPresentationPostgresTests(unittest.TestCase):
         with psycopg.connect(self.control_url, autocommit=True) as conn:
             conn.execute(
                 sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(self.database_name))
+            )
+
+    def _persist_review_pair(self, conn, *, decision=None, final_other_job=False):
+        """Retain the same initial/final output history as the real worker."""
+        incoming = copy.deepcopy(_bundle())
+        incoming["source"]["title"] = "第二来源"
+        staged_store.persist_bundle(conn, "incoming", incoming)
+        initial = resolve_publish.build_initial_resolutions(
+            new_bundle=incoming, new_label="incoming", corpus={"wudi": _bundle()}
+        )[0]
+
+        def job():
+            document_id = control_plane.create_document(conn, title="review context")
+            revision_id, _ = control_plane.create_revision(
+                conn, document_id=document_id, source_sha256="b" * 64,
+                source_bytes=1, source_media_type="text/plain",
+            )
+            return revision_id, control_plane.queue_job(conn, revision_id=revision_id)
+
+        revision_id, job_id = job()
+
+        def output(artifact, role, revision, owner):
+            artifact_sha, _ = resolution_store.persist_resolution(conn, artifact)
+            control_plane.record_output(
+                conn, job_id=owner, revision_id=revision,
+                artifact_type=resolve_publish.RESOLUTION_ARTIFACT_TYPE,
+                artifact_sha256=artifact_sha,
+                payload={"resolution_sha256": artifact_sha, "role": role,
+                         "left_bundle": "wudi", "right_bundle": "incoming"},
+            )
+
+        output(initial, "initial", revision_id, job_id)
+        if decision is None:
+            return initial, None
+        final = copy.deepcopy(initial)
+        for link in final["entity_links"]:
+            link.update(decision=decision, confidence=0.9, rationale="Reviewed source context.")
+        if final_other_job:
+            revision_id, job_id = job()
+        output(final, "final", revision_id, job_id)
+        catalog = publication_v0.publish_catalog(
+            {"wudi": _bundle(), "incoming": incoming}, [final],
+            resolve_publish.read_latest_catalog(conn),
+        )
+        canonical_store.persist_catalog(conn, catalog)
+        return initial, final
+
+    def test_unpublished_review_does_not_change_reader_context(self) -> None:
+        with psycopg.connect(self.database_url) as conn:
+            before = presentation.load_generation_context(
+                conn, target_kind="entity", canonical_id=self.entity_id
+            )
+            self._persist_review_pair(conn)
+            after = presentation.load_generation_context(
+                conn, target_kind="entity", canonical_id=self.entity_id
+            )
+            self.assertEqual(before, after)
+
+    def test_final_same_link_replaces_initial_uncertainty_without_erasing_audit(self) -> None:
+        with psycopg.connect(self.database_url) as conn:
+            initial, final = self._persist_review_pair(conn, decision="same_entity")
+            context = presentation.load_generation_context(
+                conn, target_kind="entity", canonical_id=self.entity_id
+            )
+            self.assertFalse(context["constraints"]["requires_uncertainty"])
+            self.assertEqual(
+                ["same_entity"], [link["decision"] for link in context["resolution_links"]]
+            )
+            self.assertEqual(
+                {sha256_json(final)},
+                {sha256_json(item) for item in resolve_publish.read_corpus_resolutions(conn)},
+            )
+            self.assertEqual(
+                {sha256_json(initial), sha256_json(final)},
+                {sha256_json(item) for item in resolve_publish.read_all_staged_resolutions(conn)},
+            )
+
+    def test_reviewed_uncertainty_remains_required(self) -> None:
+        with psycopg.connect(self.database_url) as conn:
+            _initial, final = self._persist_review_pair(conn, decision="uncertain")
+            context = presentation.load_generation_context(
+                conn, target_kind="entity", canonical_id=self.entity_id
+            )
+            self.assertTrue(context["constraints"]["requires_uncertainty"])
+            self.assertEqual(
+                [(sha256_json(final), "uncertain")],
+                [(link["resolution_sha256"], link["decision"])
+                 for link in context["resolution_links"]],
+            )
+            self.assertEqual(2, len(resolve_publish.read_all_staged_resolutions(conn)))
+
+    def test_another_jobs_final_does_not_supersede_initial_by_pair_or_time(self) -> None:
+        with psycopg.connect(self.database_url) as conn:
+            initial, final = self._persist_review_pair(
+                conn, decision="same_entity", final_other_job=True
+            )
+            context = presentation.load_generation_context(
+                conn, target_kind="entity", canonical_id=self.entity_id
+            )
+            self.assertTrue(context["constraints"]["requires_uncertainty"])
+            self.assertEqual(
+                {sha256_json(initial), sha256_json(final)},
+                {link["resolution_sha256"] for link in context["resolution_links"]},
             )
 
     def test_event_and_entity_presentations_are_claim_bound_and_versioned(self) -> None:

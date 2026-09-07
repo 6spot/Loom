@@ -75,6 +75,16 @@ The runner is orchestration-only. Product mutations go through the authenticated
 13. identify a newly published **or newly enriched** Event for the selected year whose direct evidence is an exact substring of revision 1 and whose Reader Presentation support also traces to a revision-1 Claim; record whether the canonical Event ID was reused;
 14. run real Chromium through Timeline + Search + World -> that Event -> canonical Entity/Place -> exact evidence while preserving the selected historical-time context.
 
+After the script succeeds, perform the
+[Reader grounding/readability inspection](reader-presentation.md#t12-manual-groundingreadability-inspection)
+on the generated presentations. Archive the public projections and a separate
+`manual-reader-review.json` with the inspected IDs/hashes and content verdict.
+The script checks provenance references and navigation; its PASS does not prove
+that a paraphrase preserves who acted, who received an action, or whether a
+source reported a rumor. A material content error leaves final T17 acceptance
+failed even when the original script log, exit code and manifest say PASS.
+Preserve those original observations and record the content failure separately.
+
 ## Review behavior
 
 The final gate is deliberately not an identity oracle. If the job enters `needs_review`, the script prints the Studio Review URL and pauses. You decide `same_entity`, `same_occurrence`, `uncertain`, `related_occurrence`, etc. from the actual source evidence in Studio. The script then verifies no ReviewItems for that job remain open and records the resulting decision metadata. It never chooses a semantic identity decision automatically.

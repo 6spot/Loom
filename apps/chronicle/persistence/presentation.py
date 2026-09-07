@@ -24,12 +24,13 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from common import PersistenceConflict, PersistenceError, canonical_json_bytes, sha256_json
+from resolve_publish import read_corpus_resolutions
 
 CONTRACT_VERSION = "0.1"
 SCHEMA_NAME = "chronicle.reader-presentation"
 BASE_LANGUAGE = "zh-CN"
 GENERATOR_VERSION = "c1t12-v1"
-PROMPT_VERSION = "c1t12-reader-zh-v2"
+PROMPT_VERSION = "c1t12-reader-zh-v3"
 MAX_BLOCKS = 12
 MAX_BLOCK_TEXT_CHARS = 600
 BLOCK_KINDS = ("overview", "sequence", "outcome", "source_notes", "uncertainty")
@@ -94,36 +95,28 @@ def _direct_claims(conn, *, bundle: str, ref_kind: str, record_ref: str) -> list
 
 
 def _resolution_links(conn, *, target_kind: str, reps: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    table = (
-        "chronicle.resolution_entity_links"
-        if target_kind == "entity"
-        else "chronicle.resolution_event_links"
-    )
+    collection = "entity_links" if target_kind == "entity" else "event_links"
+    target_refs = {(rep["bundle"], rep["ref"]) for rep in reps}
     found: dict[tuple[str, str], dict[str, Any]] = {}
-    for rep in reps:
-        rows = conn.execute(
-            f"""
-            SELECT resolution_sha256, candidate_id,
-                   left_bundle_label, left_record_ref,
-                   right_bundle_label, right_record_ref,
-                   decision, confidence, rationale, signals
-            FROM {table}
-            WHERE (left_bundle_label = %s AND left_record_ref = %s)
-               OR (right_bundle_label = %s AND right_record_ref = %s)
-            ORDER BY resolution_sha256, candidate_id
-            """,
-            (rep["bundle"], rep["ref"], rep["bundle"], rep["ref"]),
-        ).fetchall()
-        for row in rows:
-            found[(row[0], row[1])] = {
-                "resolution_sha256": row[0],
-                "candidate_id": row[1],
-                "left": {"bundle": row[2], "ref": row[3]},
-                "right": {"bundle": row[4], "ref": row[5]},
-                "decision": row[6],
-                "confidence": float(row[7]),
-                "rationale": row[8],
-                "signals": row[9] if isinstance(row[9], list) else [],
+    # Reuse publication's effective corpus view. Historical initial reviews
+    # and another job's unpublished source cannot change current reader prose.
+    for artifact in read_corpus_resolutions(conn):
+        artifact_sha = sha256_json(artifact)
+        for link in artifact.get(collection) or []:
+            left, right = link["left"], link["right"]
+            if not target_refs.intersection({
+                (left["bundle"], left["ref"]), (right["bundle"], right["ref"])
+            }):
+                continue
+            found[(artifact_sha, link["candidate_id"])] = {
+                "resolution_sha256": artifact_sha,
+                "candidate_id": link["candidate_id"],
+                "left": left,
+                "right": right,
+                "decision": link["decision"],
+                "confidence": float(link["confidence"]),
+                "rationale": link["rationale"],
+                "signals": link["signals"] if isinstance(link.get("signals"), list) else [],
             }
     return [found[key] for key in sorted(found)]
 
@@ -239,9 +232,15 @@ def build_prompt(context: dict[str, Any]) -> str:
         "2. 每个 block 必须是一个可以单独审计的原子陈述，并至少引用一个 INPUT.constraints.allowed_claim_refs 中的 Claim。\n"
         "3. claim_refs 只能写成 {\"bundle\":...,\"ref\":...}；不能创造 Claim。\n"
         "4. 若证据不足，省略该内容；不要猜。\n"
-        "5. 如果 INPUT.constraints.requires_uncertainty=true，必须至少输出一个 block_kind=uncertainty、epistemic_mode=uncertainty 的 block，明确来源分歧或身份不确定，而不是消除它。\n"
+        "5. 如果 INPUT.constraints.requires_uncertainty=true，必须至少输出一个 block_kind=uncertainty、epistemic_mode=uncertainty 的 block，具体说明所引证据的边界；实际存在的来源分歧或身份不确定必须如实保留，不得消除，也不得夸大。\n"
         "6. 不要生成 why/significance；C1-T12 只允许 overview/sequence/outcome/source_notes/uncertainty。\n"
         "7. 只输出严格 JSON，不要 Markdown、代码围栏或解释。\n"
+        "8. 逐句核对所引 evidence、predicate、subject、object 的施事和受事。目标人物不一定是每个动作的施事，也不一定是动作的承受者；不得颠倒主动与被动、授予者与受予者。结构化关系与证据片段不足以确定角色时，只引述片段或省略，不补人物、死亡或结果。\n"
+        "9. 例如只有‘追谥曰某号’时，不能写成目标人物去世或目标人物被追谥为该号；受谥者未明就保持未明。‘先主追谥某人’与‘先主被追谥’不是同一事实。\n"
+        "10. 保留话语来源与原文具体程度：史书叙述不能改成当事人‘自称’；‘或传闻’不能改成已经证实。没有明确历法换算时保留原纪年，不把‘二十二年’改成持续二十二年的时段。现代化措辞不得补材质、身份或原因，例如‘贩履’只能写卖鞋，不能擅自写卖草鞋。\n"
+        "11. INPUT.representations 是已发布的同一 canonical 目标成员。record.resolution.status 是不可变抽取记录的旧状态，不代表当前身份仍待审核。当前关联只看 resolution_links 与 constraints；不要因别名不同或旧 unresolved 字段否认已发布成员关系。\n"
+        "12. requires_uncertainty 不等于身份冲突。uncertain_resolution_detected 说明与其他记录的关联仍存疑；disagreement_detected 只是所引陈述的对象或时间不同，不能擅自声称同名人物必非一人、身份尚未确认或事实互相矛盾。互补细节、记载侧重不同或一处未提及，不等于分歧；只有同一事项上无法同时成立的具体断言才可称矛盾。需要 uncertainty 时，具体说明有依据的证据边界。\n"
+        "13. text 面向普通读者：用史书名称、人物、地点和‘记载/尚不能确定’说明；不要输出 INPUT、Claim、predicate、subject、same_entity、uncertain、unresolved 等处理过程或字段值，也不要用‘相关主体’替代本来已明确的称谓。证据未明的称谓可保留原文，不借常识补全。\n"
         "输出结构：只允许 schema、version、target_kind、canonical_id、language、blocks 六个顶层字段，全部必填。\n"
         "OUTPUT_HEADER 中的五个字段必须逐字复制到输出顶层，再在同一层添加 blocks；不要嵌套 header 对象。\n"
         "target_kind 和 canonical_id 必须与 INPUT 完全相同，不得省略、写成 null 或换成来源 temp_id。\n"
@@ -252,6 +251,8 @@ def build_prompt(context: dict[str, Any]) -> str:
         f"text 是 1..{MAX_BLOCK_TEXT_CHARS} 字的非空现代简体中文字符串。\n"
         "claim_refs 是 1..16 个不重复对象的数组；每个对象只能且必须包含 bundle、ref 两个非空字符串。\n"
         "从 INPUT.representations 中的 claims 原样复制 bundle/ref 二元组；ref 是 Claim ref，不是 Entity/Event ref。\n"
+        f"本次输出的必填不确定性说明：requires_uncertainty={json.dumps(bool(context.get('constraints', {}).get('requires_uncertainty')))}。\n"
+        f"该值为 true 时，先为一个 block_kind=uncertainty、epistemic_mode=uncertainty 的块预留位置，再选择其他内容，总数仍不超过 {MAX_BLOCKS}。即使记载互补而不矛盾，该块也必须保留，可说明所引片段在时间、范围或对象上的具体限制；不能以‘没有矛盾’为由省略。\n"
         "OUTPUT_HEADER:\n"
         + header
         + "\nINPUT:\n"

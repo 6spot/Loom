@@ -87,6 +87,7 @@ from psycopg.types.json import Jsonb  # noqa: E402
 
 import publication_v0  # noqa: E402
 import resolution_v0  # noqa: E402
+import resolution_store  # noqa: E402
 import review_subjects  # noqa: E402
 from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
 
@@ -277,9 +278,11 @@ def read_all_staged_resolutions(conn) -> list[dict[str, Any]]:
 
 
 def read_corpus_resolutions(conn) -> list[dict[str, Any]]:
-    """Read only resolution artifacts wholly inside the published corpus."""
+    """Read effective resolution artifacts wholly inside the published corpus."""
     labels = published_bundle_labels(read_latest_catalog(conn))
-    return filter_resolutions_for_bundles(read_all_staged_resolutions(conn), labels)
+    return filter_resolutions_for_bundles(
+        resolution_store.read_effective_resolutions(conn), labels
+    )
 
 
 # ---------------------------------------------------------------------------

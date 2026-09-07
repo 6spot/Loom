@@ -46,6 +46,41 @@ def _verify_bundle_metadata(conn, bundle_ref: dict[str, Any], side: str) -> str:
     return label
 
 
+def read_effective_resolutions(conn) -> list[dict[str, Any]]:
+    """Read artifacts excluding explicitly replaced job-initial versions.
+
+    Only a persisted final output for the same job and exact bundle pair
+    replaces its initial artifact. Imported C0 artifacts, other jobs and
+    unchanged initial/final content remain effective; timestamps never decide
+    semantic precedence. All historical rows remain available for audit.
+    Publication membership is applied separately by the corpus reader.
+    """
+    rows = conn.execute(
+        """
+        SELECT artifact.payload
+        FROM chronicle.resolution_artifacts artifact
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM chronicle.ingestion_outputs initial_output
+            JOIN chronicle.ingestion_outputs final_output
+              ON final_output.job_id = initial_output.job_id
+             AND final_output.artifact_type = 'cross-source-resolution'
+             AND final_output.payload->>'role' = 'final'
+             AND final_output.artifact_sha256 <> initial_output.artifact_sha256
+            JOIN chronicle.resolution_artifacts final_artifact
+              ON final_artifact.artifact_sha256 = final_output.artifact_sha256
+             AND final_artifact.left_bundle_label = artifact.left_bundle_label
+             AND final_artifact.right_bundle_label = artifact.right_bundle_label
+            WHERE initial_output.artifact_type = 'cross-source-resolution'
+              AND initial_output.payload->>'role' = 'initial'
+              AND initial_output.artifact_sha256 = artifact.artifact_sha256
+        )
+        ORDER BY artifact.artifact_sha256
+        """
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
 def persist_resolution(conn, resolution: dict[str, Any]) -> tuple[str, dict[str, int]]:
     artifact_sha = sha256_json(resolution)
     left_bundle = resolution.get("left_bundle")
