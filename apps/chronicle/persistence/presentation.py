@@ -31,7 +31,7 @@ CONTRACT_VERSION = "0.1"
 SCHEMA_NAME = "chronicle.reader-presentation"
 BASE_LANGUAGE = "zh-CN"
 GENERATOR_VERSION = "c1t12-v1"
-PROMPT_VERSION = "c1t12-reader-zh-v5"
+PROMPT_VERSION = "c1t12-reader-zh-v6"
 MAX_BLOCKS = 12
 MAX_BLOCK_TEXT_CHARS = 600
 BLOCK_KINDS = ("overview", "sequence", "outcome", "source_notes", "uncertainty")
@@ -258,6 +258,7 @@ def build_prompt(context: dict[str, Any]) -> str:
         "12. requires_uncertainty 不等于身份冲突。uncertain_resolution_detected 说明与其他记录的关联仍存疑；disagreement_detected 只是所引陈述的对象或时间不同，不能擅自声称同名人物必非一人、身份尚未确认或事实互相矛盾。互补细节、记载侧重不同或一处未提及，不等于分歧；只有同一事项上无法同时成立的具体断言才可称矛盾。需要 uncertainty 时，具体说明有依据的证据边界。\n"
         "13. text 面向普通读者：用史书名称、人物、地点和‘记载/尚不能确定’说明；不要输出 INPUT、Claim、predicate、subject、same_entity、uncertain、unresolved 等处理过程或字段值，也不要写‘结构化信息/结构化记载/相关对象’或用‘相关主体’替代本来已明确的称谓。证据未明的称谓可保留原文，不借常识补全。\n"
         "14. 输出前逐块核对：每个人物动作、地点、时间、数量和结果都必须由该块所引 evidence 支持。不能只检查引用编号存在；不能把不同片段用‘同时/因此’连成原文未说明的时序或因果。方向上的归属不能改成某地以东或以西的地域边界。没有足够证据时删去该细节，或引用原文并明确缺失的信息，不改写原始 Claim 来消除问题。\n"
+        "14a. 保留原文动作及其作用范围。古文的顿号或逗号不能单独决定哪些对象并列；‘分/划分’所支配的整体不能改成后续归属清单中的一个分项。若断句、整体与分项或归属仍有歧义，就原样引述片段并说明限制，不把含混标点整理成确定的范围或归属结论。\n"
         "输出结构：只允许 schema、version、target_kind、canonical_id、language、blocks 六个顶层字段，全部必填。\n"
         "OUTPUT_HEADER 中的五个字段必须逐字复制到输出顶层，再在同一层添加 blocks；不要嵌套 header 对象。\n"
         "target_kind 和 canonical_id 必须与 INPUT 完全相同，不得省略、写成 null 或换成来源 temp_id。\n"

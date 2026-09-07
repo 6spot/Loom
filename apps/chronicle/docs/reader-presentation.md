@@ -62,7 +62,7 @@ The current public projection is the greatest published `presentation_version` f
 The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
 
 The live Responses request uses a presentation-specific strict `text.format`
-derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v5` retains
+derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v6` retains
 the complete output instructions introduced in v2 and supplies
 the exact output header (including `target_kind` and `canonical_id`), all block
 fields, bounds and Claim-ref shape. The provider adapter adds explicit string
@@ -107,6 +107,9 @@ lease-fenced persistence and audit. This is a generation input projection,
 not a rewrite or new interpretation of historical authority. In particular,
 an omitted actor cannot be filled from the source title or another block, and
 east/west affiliation cannot be paraphrased as a geographic boundary.
+Paraphrasing also preserves the action and its scope: a partitioned whole is
+not another member of the resulting affiliation list. Ambiguous punctuation
+must remain quoted with its limits rather than becoming a definite assignment.
 
 The `Chronicle Live Model Contract` workflow checks real extraction plus Entity
 and Event presentation before a new T17 run. Its presentation check uses the
