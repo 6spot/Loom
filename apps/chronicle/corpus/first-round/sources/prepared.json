@@ -1,0 +1,60 @@
+{
+  "schema": "chronicle.prepared-source-pack",
+  "version": "0.1",
+  "pack_id": "c2-r1-t02-first-round-v1",
+  "manifest_sha256": "ff51bf140b1ce4aaa6ef8eb2184a2c2260481cf17257bfff048b62b5524db012",
+  "transform_version": "mediawiki-text-v0.2",
+  "sources": [
+    {
+      "key": "xianzhu-liubei",
+      "title": "三國志·蜀書·先主傳",
+      "filename": "sanguozhi-032-xianzhu-liubei.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷32",
+      "oldid": 2583378,
+      "extract": "section",
+      "source_label": "Wikisource 三國志/卷32 oldid=2583378 section=先主 劉備 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B732&oldid=2583378",
+      "bytes": 37474,
+      "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "section": "先主 劉備"
+    },
+    {
+      "key": "zhou-yu",
+      "title": "三國志·吳書·周瑜傳",
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "extract": "section",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=周瑜 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
+      "bytes": 14996,
+      "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "section": "周瑜"
+    },
+    {
+      "key": "lu-su",
+      "title": "三國志·吳書·魯肅傳",
+      "filename": "sanguozhi-054-lu-su.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "extract": "section",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=魯肅 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
+      "bytes": 10715,
+      "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+      "section": "魯肅"
+    },
+    {
+      "key": "zztj-065",
+      "title": "資治通鑑·卷第六十五（漢紀五十七，建安十一年至十三年）",
+      "filename": "zizhi-tongjian-065-quan.txt",
+      "language": "zh-Hant",
+      "page_title": "資治通鑑/卷065",
+      "oldid": 2306420,
+      "extract": "full_page",
+      "source_label": "Wikisource 資治通鑑/卷065 oldid=2306420 extract=full_page transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E8%B3%87%E6%B2%BB%E9%80%9A%E9%91%91/%E5%8D%B7065&oldid=2306420",
+      "bytes": 31786,
+      "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38"
+    }
+  ]
+}

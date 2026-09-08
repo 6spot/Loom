@@ -69,7 +69,13 @@ def _clean_block(value: str) -> str:
 
 
 class _SectionTextParser(HTMLParser):
-    """Extract rendered paragraph text under one exact h2/h3 heading."""
+    """Extract rendered paragraph text under one exact h2/h3 heading.
+
+    Only ``<p>`` blocks between the target heading and the next h2/h3
+    heading are kept.  Site chrome (scripts, edit sections, reference
+    footnotes) is skipped so pinned section bytes never silently gain or
+    lose commentary/head/tail text.
+    """
 
     _VOID = {"br", "img", "meta", "link", "hr", "input", "source", "wbr"}
 
@@ -171,6 +177,145 @@ def extract_section_text(html: str, section: str) -> str:
     return parser.result()
 
 
+_CHROME_TABLE_CLASSES = frozenset({"ws-header", "ws-footer", "ws-noexport"})
+_CHROME_DIV_CLASSES = frozenset({"licenseContainer", "licensetpl"})
+_CHROME_SKIP_CLASSES = frozenset({"sisitem", "noprint"})
+
+
+class _FullPageTextParser(HTMLParser):
+    """Extract every content paragraph of one complete Wikisource page.
+
+    Used for complete ``資治通鑑`` volumes that form a single natural
+    chapter.  Year (h2/h3) headings are kept as their own blocks so no
+    original structure is lost.  Rendered site chrome is skipped in full:
+
+    - ``ws-header`` / ``ws-footer`` / ``ws-noexport`` navigation tables
+      (volume neighbours, sister-project box, footer pager);
+    - ``licenseContainer`` / ``licensetpl`` public-domain banners;
+    - ``plainSister`` / ``sisitem`` / ``noprint`` helper nodes;
+    - scripts, styles, edit sections and reference footnotes (same rule
+      as section extraction).
+
+    The parser never synthesizes text; head/tail completeness is decided
+    by the pinned revision, not by trimming.
+    """
+
+    _VOID = {"br", "img", "meta", "link", "hr", "input", "source", "wbr"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._chrome_stack: list[bool] = []
+        self._chrome_depth = 0
+        self._skip_starts: list[bool] = []
+        self.skip_depth = 0
+        self.heading_tag: str | None = None
+        self.heading_parts: list[str] = []
+        self.paragraph_depth = 0
+        self.paragraph_parts: list[str] = []
+        self.blocks: list[str] = []
+
+    @staticmethod
+    def _classes(attrs: list[tuple[str, str | None]]) -> set[str]:
+        raw = next((value for key, value in attrs if key == "class"), None) or ""
+        return set(raw.split())
+
+    def _chrome_start(self, tag: str, attrs: list[tuple[str, str | None]]) -> bool:
+        classes = self._classes(attrs)
+        node_id = next((value for key, value in attrs if key == "id"), None) or ""
+        if tag == "table" and classes & _CHROME_TABLE_CLASSES:
+            return True
+        if tag == "div" and classes & _CHROME_DIV_CLASSES:
+            return True
+        if node_id == "plainSister" or classes & _CHROME_SKIP_CLASSES:
+            return True
+        return False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
+        classes = self._classes(attrs)
+        starts_skip = bool(
+            self.skip_depth
+            or tag in {"script", "style", "noscript"}
+            or "mw-editsection" in classes
+            or "reference" in classes
+        )
+        if tag not in self._VOID:
+            self._skip_starts.append(starts_skip)
+            self._chrome_stack.append(bool(self._chrome_depth) or self._chrome_start(tag, attrs))
+            self._chrome_depth = sum(1 for entered in self._chrome_stack if entered)
+        if starts_skip:
+            self.skip_depth += 1
+            return
+        if self._chrome_depth:
+            return
+        if tag in {"h2", "h3"}:
+            self.heading_tag = tag
+            self.heading_parts = []
+            return
+        if tag == "p":
+            self.paragraph_depth += 1
+            if self.paragraph_depth == 1:
+                self.paragraph_parts = []
+            return
+        if tag == "br" and self.paragraph_depth:
+            self.paragraph_parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag not in self._VOID and self._skip_starts:
+            started_skip = self._skip_starts.pop()
+            if started_skip:
+                self.skip_depth = max(0, self.skip_depth - 1)
+        if tag not in self._VOID and self._chrome_stack:
+            self._chrome_stack.pop()
+            self._chrome_depth = sum(1 for entered in self._chrome_stack if entered)
+            if self.skip_depth or self._chrome_depth:
+                if self.heading_tag == tag:
+                    self.heading_tag = None
+                    self.heading_parts = []
+                return
+        else:
+            if self.skip_depth or self._chrome_depth:
+                return
+        if self.skip_depth or self._chrome_depth:
+            return
+        if self.heading_tag == tag:
+            block = _clean_block("".join(self.heading_parts))
+            if block:
+                self.blocks.append(block)
+            self.heading_tag = None
+            self.heading_parts = []
+            return
+        if tag == "p" and self.paragraph_depth:
+            self.paragraph_depth -= 1
+            if self.paragraph_depth == 0:
+                block = _clean_block("".join(self.paragraph_parts))
+                if block:
+                    self.blocks.append(block)
+                self.paragraph_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self.skip_depth or self._chrome_depth:
+            return
+        if self.heading_tag is not None:
+            self.heading_parts.append(data)
+        elif self.paragraph_depth:
+            self.paragraph_parts.append(data)
+
+    def result(self) -> str:
+        if not self.blocks:
+            raise SourcePackError("full-page source contains no paragraphs")
+        return "\n\n".join(self.blocks).strip() + "\n"
+
+
+def extract_full_page_text(html: str) -> str:
+    """Extract the complete pinned page text, excluding site chrome."""
+    parser = _FullPageTextParser()
+    parser.feed(html)
+    parser.close()
+    return parser.result()
+
+
 def load_manifest(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -189,9 +334,19 @@ def load_manifest(path: Path) -> dict[str, Any]:
     for item in sources:
         if not isinstance(item, dict):
             raise SourcePackError("every source-pack entry must be an object")
-        for field in ("key", "title", "filename", "page_title", "section"):
+        for field in ("key", "title", "filename", "page_title"):
             if not isinstance(item.get(field), str) or not item[field].strip():
                 raise SourcePackError(f"source entry requires non-empty {field}")
+        extract_mode = item.get("extract", "section")
+        if extract_mode not in ("section", "full_page"):
+            raise SourcePackError("source entry extract must be 'section' or 'full_page'")
+        section = item.get("section", "")
+        if extract_mode == "section":
+            if not isinstance(section, str) or not section.strip():
+                raise SourcePackError("section-mode source entry requires non-empty section")
+        else:
+            if isinstance(section, str) and section.strip():
+                raise SourcePackError("full_page-mode source entry must not carry a section")
         oldid = item.get("oldid")
         if not isinstance(oldid, int) or oldid < 1:
             raise SourcePackError("source entry oldid must be a positive integer")
@@ -254,6 +409,11 @@ def _source_label(entry: dict[str, Any], transform_version: str) -> str:
         + "&oldid="
         + str(entry["oldid"])
     )
+    if entry.get("extract", "section") == "full_page":
+        return (
+            f"Wikisource {entry['page_title']} oldid={entry['oldid']} "
+            f"extract=full_page transform={transform_version} source={permanent}"
+        )
     return (
         f"Wikisource {entry['page_title']} oldid={entry['oldid']} "
         f"section={entry['section']} transform={transform_version} source={permanent}"
@@ -280,24 +440,28 @@ def prepare_pack(
         if html is None:
             html = _fetch_parse_html(endpoint, oldid, timeout=timeout)
             html_by_oldid[oldid] = html
-        text = extract_section_text(html, entry["section"])
+        if entry.get("extract", "section") == "full_page":
+            text = extract_full_page_text(html)
+        else:
+            text = extract_section_text(html, entry["section"])
         raw = text.encode("utf-8")
         target = output_dir / entry["filename"]
         target.write_bytes(raw)
-        prepared.append(
-            {
-                "key": entry["key"],
-                "title": entry["title"],
-                "filename": entry["filename"],
-                "language": manifest.get("language", "zh-Hant"),
-                "page_title": entry["page_title"],
-                "oldid": oldid,
-                "section": entry["section"],
-                "source_label": _source_label(entry, transform_version),
-                "bytes": len(raw),
-                "sha256": _sha256(raw),
-            }
-        )
+        record: dict[str, Any] = {
+            "key": entry["key"],
+            "title": entry["title"],
+            "filename": entry["filename"],
+            "language": manifest.get("language", "zh-Hant"),
+            "page_title": entry["page_title"],
+            "oldid": oldid,
+            "extract": entry.get("extract", "section"),
+            "source_label": _source_label(entry, transform_version),
+            "bytes": len(raw),
+            "sha256": _sha256(raw),
+        }
+        if entry.get("extract", "section") == "section":
+            record["section"] = entry["section"]
+        prepared.append(record)
 
     report = {
         "schema": PREPARED_SCHEMA,

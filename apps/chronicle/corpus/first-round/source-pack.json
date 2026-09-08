@@ -1,0 +1,73 @@
+{
+  "acquisition": {
+    "endpoint": "https://zh.wikisource.org/w/api.php",
+    "license_note": "Underlying historical works are public domain; Wikisource site text is provided under CC BY-SA terms. Preserve page title and pinned oldid attribution with every uploaded revision.",
+    "provider": "Wikisource MediaWiki Action API",
+    "transform_section": "mediawiki-section-text-v0.1 (unchanged reuse for the three Sanguozhi sections)",
+    "transform_version": "mediawiki-text-v0.2",
+    "transform_volume": "mediawiki-fullpage-text-v0.1: every content <p> in page order plus h2/h3 year headings; ws-header/ws-footer/ws-noexport tables, licenseContainer/licensetpl banners, plainSister/sisitem/noprint helpers, scripts/styles/edit-sections/reference footnotes excluded; no other trimming"
+  },
+  "language": "zh-Hant",
+  "pack_id": "c2-r1-t02-first-round-v1",
+  "schema": "chronicle.corpus-source-pack",
+  "sources": [
+    {
+      "extract": "section",
+      "filename": "sanguozhi-032-xianzhu-liubei.txt",
+      "key": "xianzhu-liubei",
+      "oldid": 2583378,
+      "page_title": "三國志/卷32",
+      "section": "先主 劉備",
+      "title": "三國志·蜀書·先主傳",
+      "window_role": "Sanguozhi anchor; Liu Bei trajectory and cross-book overlap with Cao Cao, Sun Quan, Jingzhou and Red Cliffs (reused pinned revision from c1-t13, bytes and hash must match)"
+    },
+    {
+      "extract": "section",
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "key": "zhou-yu",
+      "oldid": 2387393,
+      "page_title": "三國志/卷54",
+      "section": "周瑜",
+      "title": "三國志·吳書·周瑜傳",
+      "window_role": "Sanguozhi anchor; Red Cliffs and Jingzhou overlap (reused pinned revision from c1-t13, bytes and hash must match)"
+    },
+    {
+      "extract": "section",
+      "filename": "sanguozhi-054-lu-su.txt",
+      "key": "lu-su",
+      "oldid": 2387393,
+      "page_title": "三國志/卷54",
+      "section": "魯肅",
+      "title": "三國志·吳書·魯肅傳",
+      "window_role": "Sanguozhi anchor; Sun Quan/Liu Bei alliance and Jingzhou disputes (reused pinned revision from c1-t13, bytes and hash must match)"
+    },
+    {
+      "extract": "full_page",
+      "filename": "zizhi-tongjian-065-quan.txt",
+      "key": "zztj-065",
+      "oldid": 2306420,
+      "page_title": "資治通鑑/卷065",
+      "title": "資治通鑑·卷第六十五（漢紀五十七，建安十一年至十三年）",
+      "window_role": "Cross-book anchor; complete volume covering Jian'an 13 and Red Cliffs from the annalistic side; single natural chapter within capacity"
+    }
+  ],
+  "version": "0.1",
+  "works": [
+    {
+      "chapters": [
+        "xianzhu-liubei",
+        "zhou-yu",
+        "lu-su"
+      ],
+      "upload": "ingest/sanguozhi-three-chapters.md",
+      "work": "三國志"
+    },
+    {
+      "chapters": [
+        "zztj-065"
+      ],
+      "upload": "ingest/zizhi-tongjian-065.md",
+      "work": "資治通鑑"
+    }
+  ]
+}
