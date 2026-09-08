@@ -10,7 +10,7 @@ created_at: 2026-09-08
 
 # Chronicle 第二轮：连续历史阅读、侧边时间轴与事件导航
 
-父协调 Issue [#549](https://github.com/6spot/Loom/issues/549)，总讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **18 个叶：设计准备 D01 进行中，原 17 个阅读产品叶仍为 planned，0 个完成**；不是一个可整体派给模型的大编码任务。第一轮 [#548](https://github.com/6spot/Loom/issues/548) 与 [台账](../first-round/README.md) 独立验收，第三轮 #550 仍为阶段规划。
+父协调 Issue [#549](https://github.com/6spot/Loom/issues/549)，总讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **18 个叶：设计准备 D01 已完成，原 17 个阅读产品叶仍为 planned，共1个完成**；不是一个可整体派给模型的大编码任务。第一轮 [#548](https://github.com/6spot/Loom/issues/548) 与 [台账](../first-round/README.md) 独立验收，第三轮 #550 仍为阶段规划。
 
 用户新增的背景方向记录于 [background-art.md](../../../../apps/chronicle/docs/background-art.md)：仅页面背景，AI 可建议位置，生成/上传由人触发，人工校验保存后才展示。D01 先交付跨时代画风技能和离线候选库；Studio 上传、保存关联与页面展示另待拆分，不把设计准备当成完整背景功能。页面原型仍待设计和评阅。
 
@@ -29,7 +29,7 @@ Txx 指本轮 C2-R2-Txx，R1-Txx 指第一轮。每个 Issue 写明输入输出�
 
 | Task | Issue | Status | Depends on | 交付 |
 | --- | --- | --- | --- | --- |
-| [D01](D01-background-art-skill.md) | [#588](https://github.com/6spot/Loom/issues/588) | in_progress | 无 | 历史背景图技能、候选归档检索与人工背景设计 |
+| [D01](D01-background-art-skill.md) | [#588](https://github.com/6spot/Loom/issues/588) | completed | 无 | 历史背景图技能、候选归档检索与人工背景设计 |
 | [T01](T01-reading-contract.md) | [#570](https://github.com/6spot/Loom/issues/570) | planned | R1-T01 | 阅读注解、叙事时间与导航 DTO 契约 |
 | [T02](T02-reading-cases-harness.md) | [#571](https://github.com/6spot/Loom/issues/571) | planned | R1-T02 | 真实阅读样例与独立组件浏览器基座 |
 | [T03](T03-reading-generation.md) | [#572](https://github.com/6spot/Loom/issues/572) | planned | T01, R1-T19 | 完整章联合生成阅读注解并接入 provider |
@@ -107,7 +107,7 @@ flowchart LR
 | T03/T07/T08 完成 | T09；尚未完成的 UI 模块继续 | HTTP/router 统一接线 |
 | 所有接线前置完成 | T15 → T16 → T17 | 整页构建、离线整链、真实内容依次验收 |
 
-当前第一轮所有相关前置仍为 planned，因此 **原 17 个阅读产品叶当前没有 READY 项**。D01 无第一轮前置，作为设计准备已开始；它完成也不会解锁缺少第一轮依赖的阅读产品叶。最先可能解锁的产品项是 T01/#570（等 #551）和 T02/#571（等 #552）。
+阅读产品叶的 READY 资格仍按第一轮及本轮默认分支记录计算，不能根据已合并交付或已生成文件判断。D01 无第一轮前置，现已完成设计准备；它不会解锁缺少第一轮依赖的产品叶。最先可能解锁的产品项是 T01/#570（等 #551）和 T02/#571（等 #552）；以当次组合校验为准。
 
 ## 文件所有权
 
@@ -162,3 +162,5 @@ flowchart LR
 初始 17 叶拆分只交付文档和 GitHub 规划；未运行新产品、数据库、浏览器或模型验收。实施时各叶运行自己的契约检查，T16 接完整 CI，T17 才给真实内容结论。新增 D01 的技能/工具验证另记录于其任务文件，不构成产品或真实内容验收。
 
 初始 17 叶规划核对（2026-09-08，D01 加入前）：既有 validator 的跨轮组合检查通过，共 38 条记录，无缺失依赖/完成规则违规，当时第二轮 READY 为 0；完整图无循环，T17 覆盖当时本轮其他16项。17 个任务的 metadata、验收与索引一致，126 个本地文档链接有效，共享写文件有顺序。GitHub 回读确认17个原生子 Issue、19份父子正文及 open 状态正确。SQL ownership 与文档 whitespace 检查通过。Architecture checker 在执行 Cargo metadata 时因本机缺少 cargo 退出，未宣称通过；该次未改产品代码、SQL或依赖。
+
+D01 交付核对（2026-09-09）：10项离线测试、技能格式/UI metadata、67个本地链接、SQL ownership和whitespace通过；39条跨轮记录无缺失依赖/完成规则违规，T17覆盖18个叶且图无环。GitHub父#549有18个原生子任务。交付PR[#592](https://github.com/6spot/Loom/pull/592)的CI/Validator gates通过，实际merge为`65b8f4858e1df56c441f6c6969d265a139f01752`；本次同步完成记录和索引。没有生成图片或实现背景产品链路。
