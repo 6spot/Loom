@@ -25,7 +25,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - [x] 450项以上、相同created_at、多job和kind的筛选/翻页/计数正确。
 - [x] 处理前页后继续游标不会漏中间项；旧cursor不能套到别的scope。
 - [x] 晚提交落在旧cursor前的项能在从头重读时发现；API不谎称冻结总数。
-- [ ] 现页面和验收脚本仍可工作，没有首200项作为全量结论的残留消费者。
+- [x] 现页面和验收脚本仍可工作，没有首200项作为全量结论的残留消费者。
 
 ## Verification
 
@@ -43,9 +43,10 @@ Acceptance coverage: 460 bulk items sharing one `created_at` across 2 jobs × 2 
 
 Not verified: full-workspace test suites outside the owned contracts (not required by the Issue); C1-T17 production gate re-run (explicitly out of scope — gate script only updated as a consumer). Post-merge reconciliation (`completion_pr`/`merge_sha`, README index, Issue close) is still required per `docs/development/task-completion.md` and must happen after the delivery PR merges.
 
-Known residual outside this task's file ownership: `apps/chronicle/corpus/c1-t13/fixture_review.py` (historical C1 fixture driver, unreferenced by CI/workflows/acceptance/docs) still calls the retired `reviews`-array/`offset` shape. Left untouched per ownership rules; reported to the coordinator for reassignment.
+Review follow-up 2026-09-08: per Reviewer CHANGES_REQUIRED on PR #591, the retired-shape consumer `apps/chronicle/corpus/c1-t13/fixture_review.py` was migrated (Leader-authorized scope extension) to a `_list_open_reviews` helper that follows `next_cursor` over `items` (limit 100); both listing sites no longer use `reviews`/`offset`/first-200. Verified by `py_compile` plus a live throwaway smoke running `fixture_review.run()` against the PG-backed test server: resolved 2 reviews, resumed 1 job, decisions `{same_entity: 1, uncertain: 1}`, report schema `chronicle.c1-t13-fixture-review/0.3`. No remaining first-200-as-total consumers: repo-wide search finds no other `reviews`-array or review-list `offset` callers. PR body now carries `Closes LM-11` adjacent to `Multica-Issue: LM-11`.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-08 — Implementation complete within T09 file ownership (queue API, typed client, both test suites, gate consumer, rebuilt dist). Evidence above; delivery PR pending, post-merge reconciliation still open.
+- 2026-09-08 — Reviewer CHANGES_REQUIRED addressed on the same PR: migrated `corpus/c1-t13/fixture_review.py` to the keyset queue, verified live, checked acceptance item 4, added `Closes LM-11` to the PR body. Awaiting re-review; merge + default-branch reconciliation still open.

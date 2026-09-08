@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 from urllib import error, request
+from urllib.parse import quote
 
 
 class AcceptanceError(RuntimeError):
@@ -124,17 +125,36 @@ def _decision_for(detail: dict[str, Any]) -> tuple[str, float, str]:
     )
 
 
+def _list_open_reviews(*, base_url: str, auth: str) -> list[dict[str, Any]]:
+    """Collect every open resolution review through the keyset queue API.
+
+    The queue is keyset-paged (``chronicle.studio-review-page``); a single
+    first-N window is never treated as the whole queue.
+    """
+    collected: list[dict[str, Any]] = []
+    cursor: str | None = None
+    for _ in range(1000):
+        path = "/api/v1/studio/jobs/reviews?status=open&limit=100"
+        if cursor:
+            path += f"&cursor={quote(cursor, safe='')}"
+        listing = _call(base_url=base_url, auth=auth, method="GET", path=path)
+        if listing.get("schema") != "chronicle.studio-review-page":
+            raise AcceptanceError(
+                f"review list response has unexpected schema {listing.get('schema')!r}"
+            )
+        items = listing.get("items")
+        if not isinstance(items, list):
+            raise AcceptanceError("review list response has no items array")
+        collected.extend(items)
+        cursor = listing.get("next_cursor")
+        if not cursor:
+            return collected
+    raise AcceptanceError("review list pagination did not terminate")
+
+
 def run(*, base_url: str, user: str, password: str) -> dict[str, Any]:
     auth = _auth(user, password)
-    listing = _call(
-        base_url=base_url,
-        auth=auth,
-        method="GET",
-        path="/api/v1/studio/jobs/reviews?status=open&limit=200&offset=0",
-    )
-    reviews = listing.get("reviews")
-    if not isinstance(reviews, list):
-        raise AcceptanceError("review list response has no reviews array")
+    reviews = _list_open_reviews(base_url=base_url, auth=auth)
 
     resolved: list[dict[str, Any]] = []
     touched_jobs: set[str] = set()
@@ -228,12 +248,7 @@ def run(*, base_url: str, user: str, password: str) -> dict[str, Any]:
             raise AcceptanceError(f"job {job_id} resume retained a stale worker lease")
         resumed.append(job_id)
 
-    remaining = _call(
-        base_url=base_url,
-        auth=auth,
-        method="GET",
-        path="/api/v1/studio/jobs/reviews?status=open&limit=200&offset=0",
-    ).get("reviews")
+    remaining = _list_open_reviews(base_url=base_url, auth=auth)
     if remaining:
         raise AcceptanceError(f"open resolution review debt remains after fixture review: {len(remaining)}")
 
