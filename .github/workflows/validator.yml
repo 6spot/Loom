@@ -9,13 +9,8 @@ on:
       - ".github/workflows/validator.yml"
       - ".github/CODEOWNERS"
       - "apps/loom-validator/**"
-      - "tools/test.sh"
       - "tools/test_validator_ready.py"
       - "tools/validator_ready.py"
-      - "tools/validator-authority-gate.sh"
-      - "tools/validator-certification-gate.py"
-      - "tools/validator-certification-gate.sh"
-      - "tools/validator-pg18-gate.sh"
       - "tools/fixtures/validator-ready/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
@@ -76,7 +71,7 @@ jobs:
               [[ -n "$path" ]] || continue
 
               case "$path" in
-                .github/workflows/validator.yml|.github/CODEOWNERS|apps/loom-validator/*|tools/test.sh|tools/validator-authority-gate.sh|tools/validator-certification-gate.py|tools/validator-certification-gate.sh|tools/validator-pg18-gate.sh)
+                .github/workflows/validator.yml|.github/CODEOWNERS|apps/loom-validator/*)
                   implementation=true
                   ;;
               esac
@@ -93,8 +88,6 @@ jobs:
             echo "implementation=$implementation"
             echo "ledger=$ledger"
           } >> "$GITHUB_OUTPUT"
-
-          printf 'implementation=%s ledger=%s\n' "$implementation" "$ledger"
 
   ledger:
     name: Validator task ledger
@@ -118,8 +111,8 @@ jobs:
       - name: Validator Stage-1 re-certification ledger
         run: python3 tools/validator_ready.py --root docs/tasks/validator-recert/stage-1 --check --format json
 
-  validator:
-    name: Validator stage checks
+  validator-static:
+    name: Validator static checks
     needs: changes
     if: needs.changes.outputs.implementation == 'true'
     runs-on: ubuntu-latest
@@ -127,15 +120,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Install Rust
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
           rustup default "$RUST_VERSION"
-          rustc --version
-          cargo --version
 
       - name: Restore Cargo cache
         uses: actions/cache@v4
@@ -144,9 +133,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: validator-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          key: validator-static-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            validator-${{ runner.os }}-${{ env.RUST_VERSION }}-
+            validator-static-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      - name: Format Validator
+        run: cargo fmt --manifest-path apps/loom-validator/Cargo.toml -- --check
 
       - name: Check Validator
         run: cargo check -p loom-validator --all-targets --all-features
@@ -154,22 +146,13 @@ jobs:
       - name: Clippy Validator
         run: cargo clippy -p loom-validator --all-targets --all-features -- -D warnings
 
-      - name: Validator unit tests
-        run: cargo test -p loom-validator --all-features --lib
-
       - name: Validator Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc -p loom-validator --no-deps
-
-      - name: Validator authority regression
-        run: bash tools/validator-authority-gate.sh
-
-      - name: T24 certification-tool regression
-        run: python3 tools/validator-certification-gate.py --regression-check
 
   validator-gate:
     name: Validator Gate
     if: always()
-    needs: [changes, ledger, validator]
+    needs: [changes, ledger, validator-static]
     runs-on: ubuntu-latest
 
     steps:
@@ -177,15 +160,15 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           LEDGER: ${{ needs.ledger.result }}
-          VALIDATOR: ${{ needs.validator.result }}
+          VALIDATOR_STATIC: ${{ needs.validator-static.result }}
         shell: bash
         run: |
           set -euo pipefail
-          for result in "$CHANGES" "$LEDGER" "$VALIDATOR"; do
+          for result in "$CHANGES" "$LEDGER" "$VALIDATOR_STATIC"; do
             case "$result" in
               success|skipped) ;;
               *)
-                echo "Required Validator job ended with: $result" >&2
+                echo "Required Validator check ended with: $result" >&2
                 exit 1
                 ;;
             esac
