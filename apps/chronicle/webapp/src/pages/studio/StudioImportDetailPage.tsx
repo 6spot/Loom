@@ -242,6 +242,14 @@ export default function StudioImportDetailPage() {
             {data.status === "needs_review" && data.open_reviews > 0 ? (
               <p className="studio-muted">还有 {data.open_reviews} 个 审核项。C1-T11 人工审核队列 完成后可在评审页面处理，再回来 Resume。</p>
             ) : null}
+            <div className="studio-row-actions">
+              <Link
+                className="studio-link-button"
+                to={`/studio/review?status=open&job_id=${encodeURIComponent(data.job_id)}`}
+              >
+                进入该作业的审核队列
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

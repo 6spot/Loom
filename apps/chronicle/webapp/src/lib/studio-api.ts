@@ -507,10 +507,13 @@ export async function listReviewPage(
   return studioRequest<ReviewPage>(auth, `${REVIEWS_API}?${params.toString()}`);
 }
 
-// Transitional wrapper: traverse the keyset pages of the new queue API so
-// pages that have not been rewired to true pagination (T11) keep working.
-// There is no second server-side pagination; remove this once the
-// continuous-review UI reads page by page.
+// Transitional wrapper (T09): traverse the keyset pages of the queue API so
+// callers that have not been rewired to true pagination keep working. There
+// is no second server-side pagination. T11 continuous-review pages read page
+// by page via listReviewPage and no longer consume this wrapper; the export
+// is retained (deprecated) because tests/studio-reviews.test.ts owns its
+// traversal contract outside the T11 file scope.
+// @deprecated Use listReviewPage with scope filters and next_cursor.
 export async function listReviews(
   auth: string | null,
   status: ReviewStatus | "all" = "open",
