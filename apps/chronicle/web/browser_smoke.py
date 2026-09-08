@@ -27,23 +27,31 @@ def chrome_binary() -> str:
 
 
 def dump_dom(chrome: str, url: str) -> str:
-    result = subprocess.run(
-        [
-            chrome,
-            "--headless=new",
-            "--no-sandbox",
-            "--disable-gpu",
-            "--disable-dev-shm-usage",
-            "--virtual-time-budget=3000",
-            "--dump-dom",
-            url,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-    return html.unescape(result.stdout)
+    command = [
+        chrome,
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--virtual-time-budget=3000",
+        "--dump-dom",
+        url,
+    ]
+    for attempt in range(1, 3):
+        try:
+            result = subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            return html.unescape(result.stdout)
+        except subprocess.TimeoutExpired:
+            if attempt == 2:
+                raise
+            print(f"Chrome DOM dump timed out; retrying once: {url}")
+    raise AssertionError("unreachable")
 
 
 def require(text: str, needle: str, description: str) -> None:
