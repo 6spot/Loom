@@ -1,0 +1,365 @@
+{
+  "schema": "chronicle.first-round-cases",
+  "version": "0.1",
+  "pack_id": "c2-r1-t02-first-round-v1",
+  "rule": "synthetic entries carry synthetic=true and must never be cited as source observations; every real ref quote must occur in the recorded file at [start,end) with the given 1-based occurrence index; every real ref quote must additionally contain at least one of its case key_surfaces, so the ref independently proves the stated question",
+  "cases": [
+    {
+      "id": "T02-C01",
+      "category": "same-chapter-appellation",
+      "title": "先主傳同章指代：先主/備",
+      "question": "先主傳開篇「先主姓劉，諱備」是否確立「先主＝劉備」同章共指？",
+      "observation": "開篇即以「先主姓劉，諱備，字玄德」確立全傳「先主」為劉備的同章共指；後文「先主少孤」等均回指此人。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主姓劉，諱備",
+          "occurrence": 1,
+          "start": 0,
+          "end": 7
+        },
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主少孤，與母販履織蓆為業",
+          "occurrence": 1,
+          "start": 102,
+          "end": 115
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "先主",
+        "備",
+        "玄德"
+      ]
+    },
+    {
+      "id": "T02-C02",
+      "category": "same-chapter-appellation",
+      "title": "周瑜傳同章稱謂：周瑜/公瑾",
+      "question": "「周瑜字公瑾」與後文「公瑾」是否同指？",
+      "observation": "開篇「周瑜字公瑾」立下字號對應；卷末孫權語「孤念公瑾，豈有已乎」中的「公瑾」回指周瑜本人（全傳「公瑾」共15次，均指周瑜）。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "周瑜字公瑾",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "孤念公瑾，豈有已乎？",
+          "occurrence": 1,
+          "start": 5006,
+          "end": 5016
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "周瑜",
+        "公瑾"
+      ]
+    },
+    {
+      "id": "T02-C03",
+      "category": "same-chapter-appellation",
+      "title": "魯肅傳同章稱謂：魯肅/子敬",
+      "question": "「魯肅字子敬」與「子敬」是否同指？",
+      "observation": "開篇「魯肅字子敬」立字；孫權迎魯肅時直呼「子敬，孤持鞍下馬相迎」，「子敬」即魯肅本人（傳中「子敬」3次均指魯肅）。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "魯肅字子敬",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "子敬，孤持鞍下馬相迎，足以顯卿未？",
+          "occurrence": 1,
+          "start": 2068,
+          "end": 2085
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "魯肅",
+        "子敬"
+      ]
+    },
+    {
+      "id": "T02-C04",
+      "category": "cross-chapter-recurrence",
+      "title": "赤壁跨章復現（先主傳↔周瑜傳）",
+      "question": "赤壁之戰是否在先主傳與周瑜傳兩章同時記載？",
+      "observation": "兩章各有赤壁記載：先主傳「與曹公戰於赤壁，大破之」；周瑜傳「權遂遣瑜及程普等與備並力逆曹公，遇於赤壁」。同一事件、兩章互證。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "與曹公戰於赤壁，大破之",
+          "occurrence": 1,
+          "start": 5114,
+          "end": 5125
+        },
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "遇於赤壁",
+          "occurrence": 1,
+          "start": 2320,
+          "end": 2324
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "赤壁"
+      ]
+    },
+    {
+      "id": "T02-C05",
+      "category": "cross-book-same-event",
+      "title": "跨書同事件：赤壁（吳書↔通鑑）",
+      "question": "周瑜傳的赤壁遭遇戰與通鑑卷65「進，與操遇於赤壁」是否為同一事件？",
+      "observation": "是同一事件的三方互證：周瑜傳記孫劉聯軍逆曹公遇於赤壁；通鑑卷65以編年體記「進，與操遇於赤壁。時操軍眾已有疾疫」，細節（疾疫/初戰不利）可對讀。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "遇於赤壁",
+          "occurrence": 1,
+          "start": 2320,
+          "end": 2324
+        },
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "進，與操遇於赤壁",
+          "occurrence": 1,
+          "start": 9270,
+          "end": 9278
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "赤壁"
+      ]
+    },
+    {
+      "id": "T02-C06",
+      "category": "cross-book-same-person",
+      "title": "跨書同人：周瑜受命督軍",
+      "question": "「遂以周瑜、程普為左右督，將兵與備並力逆操」中的周瑜是否即吳書周瑜傳之周瑜？",
+      "observation": "是。通鑑此句記孫權以周瑜為左督與劉備並力；吳書周瑜傳記同一任命（權遣瑜及程普與備並力）。人名、職事、協同對象三者一致，可作跨書同人核對點；最終身份歸併仍走審核，不由本核對點自動合併。",
+      "refs": [
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "遂以周瑜、程普為左右督，將兵與備並力逆操",
+          "occurrence": 1,
+          "start": 9067,
+          "end": 9087
+        },
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "權遂遣瑜及程普等與備並力逆曹公",
+          "occurrence": 1,
+          "start": 2304,
+          "end": 2319
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "周瑜",
+        "程普",
+        "並力"
+      ]
+    },
+    {
+      "id": "T02-C07",
+      "category": "place-ambiguity",
+      "title": "地點歧義：南郡/江陵（須保留uncertain）",
+      "question": "通鑑「追操至南郡」與「留…守江陵」中的南郡、江陵能否直接等同？",
+      "observation": "不能。兩句同段相鄰（追擊至南郡／留曹仁守江陵），「南郡」為郡名、「江陵」為城名，雖地理關聯但在文本中是不同指稱層級；無進一步原文依據時必須保留uncertain，不得因同屬荊州戰場自動合併。",
+      "refs": [
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "追操至南郡",
+          "occurrence": 1,
+          "start": 9577,
+          "end": 9582
+        },
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "留征南將軍曹仁、橫野將軍徐晃守江陵",
+          "occurrence": 1,
+          "start": 9598,
+          "end": 9615
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "南郡",
+        "江陵"
+      ]
+    },
+    {
+      "id": "T02-C08",
+      "category": "annotation-attribution",
+      "title": "嵌注歸屬：先主傳《典略》注",
+      "question": "「〈《典略》曰：備本臨邑侯枝屬也。〉」是陳壽正文斷言還是裴注轉述？",
+      "observation": "是嵌注（裴松之引《典略》），以〈〉包裹置於世系敘述之後；譯文必須保留「《典略》記載」歸屬，不得改寫為正文斷言「劉備本為臨邑侯枝屬」。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "〈《典略》曰：備本臨邑侯枝屬也。〉",
+          "occurrence": 1,
+          "start": 58,
+          "end": 75
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "典略"
+      ]
+    },
+    {
+      "id": "T02-C09",
+      "category": "annotation-attribution",
+      "title": "嵌注歸屬：周瑜傳《江表傳》注",
+      "question": "周瑜傳「〈《江表傳》曰：策又給瑜鼓吹…」的歸屬層為何？",
+      "observation": "同為〈〉嵌注，記孫策給周瑜鼓吹館舍之優禮；與正文「授建威中郎將，即與兵二千人」並存，兩層來源不同，譯文須分層保留。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "《江表傳》曰：策又給瑜鼓吹",
+          "occurrence": 1,
+          "start": 563,
+          "end": 576
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "江表傳"
+      ]
+    },
+    {
+      "id": "T02-C10",
+      "category": "no-direct-claim",
+      "title": "無直接Claim：卷65馬超僅背景提及",
+      "question": "卷65「馬超、韓遂尚在關西，為操後患」能否作為馬超本人的直接事迹Claim？",
+      "observation": "不能。此句是魯肅勸孫權抗曹時的戰略背景鋪陳（關西後患），馬超在本卷無出場、無動作、無時間地點包裹的直接斷言；僅能作event_context提及，不得偽造direct_claim。",
+      "refs": [
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "馬超、韓遂尚在關西",
+          "occurrence": 1,
+          "start": 8589,
+          "end": 8598
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "馬超"
+      ]
+    },
+    {
+      "id": "T02-C11",
+      "category": "head-completeness",
+      "title": "首部完整：三傳開篇與通鑑卷首",
+      "question": "四章開篇是否完整可定位？",
+      "observation": "先主傳以「先主姓劉，諱備」起於偏移0；周瑜傳以「周瑜字公瑾」起於偏移0；魯肅傳以「魯肅字子敬」起於偏移0；通鑑卷首為Wikisource卷題「資治通鑑 第065卷」接原典紀首「【漢紀五十七】起柔兆閹茂，盡著雍困敦，凡三年。」四者均在文件頭部連續可定位，無獲取截斷。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主姓劉，諱備",
+          "occurrence": 1,
+          "start": 0,
+          "end": 7
+        },
+        {
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "周瑜字公瑾",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "魯肅字子敬",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "資治通鑑 第065卷",
+          "occurrence": 1,
+          "start": 0,
+          "end": 10
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "先主姓劉",
+        "周瑜字公瑾",
+        "魯肅字子敬",
+        "資治通鑑 第065卷"
+      ]
+    },
+    {
+      "id": "T02-C12",
+      "category": "tail-completeness",
+      "title": "尾部完整：先主傳讖語尾與通鑑卷末",
+      "question": "兩部著作尾部是否完整、注文未被截斷？",
+      "observation": "先主傳尾為裴注轉述的意其讖語「其畫作大人而埋之者，即是言先主死意。〉」，〈〉閉合完整；通鑑卷末為「權乃分其地為新都郡，以齊為太守。」其後僅站點授權橫幅（已按規則排除），原典正文無缺失。",
+      "refs": [
+        {
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "其畫作大人而埋之者，即是言先主死意。〉",
+          "occurrence": 1,
+          "start": 12552,
+          "end": 12571
+        },
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "以齊為太守。",
+          "occurrence": 1,
+          "start": 10673,
+          "end": 10679
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "先主死意",
+        "以齊為太守"
+      ]
+    },
+    {
+      "id": "T02-C13",
+      "category": "commentary-attribution",
+      "title": "史論歸屬：習鑿齒論曰",
+      "question": "通鑑「習鑿齒論曰：昔齊桓一矜其功而叛者九國」是當時記事還是後世史論？",
+      "observation": "是後世史論（東晉習鑿齒對曹操的評論），置於建安十三年記事之後；譯文與事件抽取須標為論述歸屬，不得當作建安十三年當事人的同期言論。",
+      "refs": [
+        {
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "習鑿齒論曰：昔齊桓一矜其功而叛者九國",
+          "occurrence": 1,
+          "start": 10078,
+          "end": 10096
+        }
+      ],
+      "synthetic": false,
+      "key_surfaces": [
+        "習鑿齒論曰"
+      ]
+    },
+    {
+      "id": "T02-N01",
+      "category": "synthetic-negative",
+      "title": "合成負例（非原書記載）：江陵太守劉備",
+      "question": "「江陵太守劉備」是否為原書記載？",
+      "observation": "否。本條為合成負例：該表述在四章原文中零命中，僅用於驗證定位工具對「同名/同地拼湊式斷言」的拒絕能力；禁止引用為史料發現。",
+      "refs": [],
+      "synthetic": true
+    }
+  ]
+}
