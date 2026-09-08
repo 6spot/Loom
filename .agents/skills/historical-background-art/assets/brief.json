@@ -1,0 +1,13 @@
+{
+  "title": "赤壁江面背景候选",
+  "subject": {"kind": "event", "name": "赤壁之战"},
+  "era": "东汉末年·建安十三年",
+  "region": "中国·长江流域",
+  "style": "淡彩水墨，青灰江面与少量远景赭红",
+  "palette": ["#7C9296", "#858681", "#B9A174", "#A9776C"],
+  "composition": "横向画幅；中央正文区低细节留白，舟船和远景分布在页边",
+  "origin": {"kind": "generated", "tool": "image_gen", "model": null, "source": "", "rights": "AI 意象插图，不是史实照片"},
+  "tags": ["赤壁", "战争", "江面", "青灰"],
+  "proposed_placement": "建议用于赤壁发生叙述的背景；精确位置由用户在页面预览中确认",
+  "derived_from": null
+}

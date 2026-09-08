@@ -4,7 +4,7 @@ issue: 586
 kind: leaf
 parent: C2-R2
 status: planned
-depends_on: [C2-R2-T16]
+depends_on: [C2-R2-T16, C2-R2-D01]
 created_at: 2026-09-08
 started_at:
 completed_at:
@@ -35,3 +35,4 @@ Not run. Implementation has not started. During delivery record actual test/CI e
 ## Progress Log
 
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
+- 2026-09-08 — Final gate also waits for design-preparation D01/#588. D01 delivers the reusable background skill and candidate archive only; future Studio/image-display tasks are not silently added to this acceptance scope.

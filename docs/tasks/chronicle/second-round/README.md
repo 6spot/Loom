@@ -2,15 +2,17 @@
 task: C2-R2
 issue: 549
 kind: root
-status: planned
+status: in_progress
 depends_on: []
-children: [C2-R2-T01, C2-R2-T02, C2-R2-T03, C2-R2-T04, C2-R2-T05, C2-R2-T06, C2-R2-T07, C2-R2-T08, C2-R2-T09, C2-R2-T10, C2-R2-T11, C2-R2-T12, C2-R2-T13, C2-R2-T14, C2-R2-T15, C2-R2-T16, C2-R2-T17]
+children: [C2-R2-D01, C2-R2-T01, C2-R2-T02, C2-R2-T03, C2-R2-T04, C2-R2-T05, C2-R2-T06, C2-R2-T07, C2-R2-T08, C2-R2-T09, C2-R2-T10, C2-R2-T11, C2-R2-T12, C2-R2-T13, C2-R2-T14, C2-R2-T15, C2-R2-T16, C2-R2-T17]
 created_at: 2026-09-08
 ---
 
 # Chronicle 第二轮：连续历史阅读、侧边时间轴与事件导航
 
-父协调 Issue [#549](https://github.com/6spot/Loom/issues/549)，总讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **17 个执行叶，0 个完成，尚未开始实现**；不是一个可整体派给模型的大编码任务。第一轮 [#548](https://github.com/6spot/Loom/issues/548) 与 [台账](../first-round/README.md) 独立验收，第三轮 #550 仍为阶段规划。
+父协调 Issue [#549](https://github.com/6spot/Loom/issues/549)，总讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **18 个叶：设计准备 D01 进行中，原 17 个阅读产品叶仍为 planned，0 个完成**；不是一个可整体派给模型的大编码任务。第一轮 [#548](https://github.com/6spot/Loom/issues/548) 与 [台账](../first-round/README.md) 独立验收，第三轮 #550 仍为阶段规划。
+
+用户新增的背景方向记录于 [background-art.md](../../../../apps/chronicle/docs/background-art.md)：仅页面背景，AI 可建议位置，生成/上传由人触发，人工校验保存后才展示。D01 先交付跨时代画风技能和离线候选库；Studio 上传、保存关联与页面展示另待拆分，不把设计准备当成完整背景功能。页面原型仍待设计和评阅。
 
 ## 已固定的结果
 
@@ -27,6 +29,7 @@ Txx 指本轮 C2-R2-Txx，R1-Txx 指第一轮。每个 Issue 写明输入输出�
 
 | Task | Issue | Status | Depends on | 交付 |
 | --- | --- | --- | --- | --- |
+| [D01](D01-background-art-skill.md) | [#588](https://github.com/6spot/Loom/issues/588) | in_progress | 无 | 历史背景图技能、候选归档检索与人工背景设计 |
 | [T01](T01-reading-contract.md) | [#570](https://github.com/6spot/Loom/issues/570) | planned | R1-T01 | 阅读注解、叙事时间与导航 DTO 契约 |
 | [T02](T02-reading-cases-harness.md) | [#571](https://github.com/6spot/Loom/issues/571) | planned | R1-T02 | 真实阅读样例与独立组件浏览器基座 |
 | [T03](T03-reading-generation.md) | [#572](https://github.com/6spot/Loom/issues/572) | planned | T01, R1-T19 | 完整章联合生成阅读注解并接入 provider |
@@ -43,7 +46,7 @@ Txx 指本轮 C2-R2-Txx，R1-Txx 指第一轮。每个 Issue 写明输入输出�
 | [T14](T14-reading-context.md) | [#583](https://github.com/6spot/Loom/issues/583) | planned | T01, T02 | 当前正文人物、地点及有来源的事件角色组件 |
 | [T15](T15-reading-page-integration.md) | [#584](https://github.com/6spot/Loom/issues/584) | planned | T06, T09, T10, T11, T12, T13, T14 | 统一接入连续阅读页面、事件入口与生产构建 |
 | [T16](T16-reading-automated-gate.md) | [#585](https://github.com/6spot/Loom/issues/585) | planned | T15 | 离线整链、浏览器交互与长文性能验收接入 CI |
-| [T17](T17-reading-live-acceptance.md) | [#586](https://github.com/6spot/Loom/issues/586) | planned | T16 | 真实章节阅读、事件定位与第二轮独立验收 |
+| [T17](T17-reading-live-acceptance.md) | [#586](https://github.com/6spot/Loom/issues/586) | planned | T16, D01 | 真实章节阅读、事件定位与第二轮独立验收 |
 
 跨轮入口：R1-T01 = [#551](https://github.com/6spot/Loom/issues/551)，R1-T02 = [#552](https://github.com/6spot/Loom/issues/552)，R1-T15 = [#565](https://github.com/6spot/Loom/issues/565)，R1-T19 = [#569](https://github.com/6spot/Loom/issues/569)。依赖是否完成以默认分支完整对账为准。
 
@@ -91,10 +94,12 @@ flowchart LR
   T14 --> T15
   T15 --> T16["T16 离线/浏览器/CI"]
   T16 --> T17["T17 真实内容验收"]
+  D01["D01 背景技能/候选档案"] --> T17
 ```
 
 | 依赖成熟时 | 可并行工作 | 交接限制 |
 | --- | --- | --- |
+| 无产品数据前置 | D01 可先行，与原阅读任务独立 | 只写技能、候选档案工具和背景设计；不接产品 API/页面 |
 | R1-T01 / R1-T02 分别完成 | T01 与 T02 可各自开始 | 新协议文件、样例和基座独立；不回改第一轮任务 |
 | T01/T02 完成 | T11、T12、T13、T14；R1-T15 也完成则 T10 | 独立组件不挂 App，各写自己的 scene/spec |
 | R1-T19 与 T01 完成 | T03、T04、T05 | 第一轮生产链先独立验收，再演进 0.2 |
@@ -102,7 +107,7 @@ flowchart LR
 | T03/T07/T08 完成 | T09；尚未完成的 UI 模块继续 | HTTP/router 统一接线 |
 | 所有接线前置完成 | T15 → T16 → T17 | 整页构建、离线整链、真实内容依次验收 |
 
-当前第一轮所有相关前置仍为 planned，因此 **第二轮当前没有 READY 的实施叶**。规划完成不等于开工许可，也不等于第一轮内容已生成。最先可能解锁的是 T01/#570（等 #551）和 T02/#571（等 #552）。
+当前第一轮所有相关前置仍为 planned，因此 **原 17 个阅读产品叶当前没有 READY 项**。D01 无第一轮前置，作为设计准备已开始；它完成也不会解锁缺少第一轮依赖的阅读产品叶。最先可能解锁的产品项是 T01/#570（等 #551）和 T02/#571（等 #552）。
 
 ## 文件所有权
 
@@ -110,6 +115,7 @@ flowchart LR
 
 | 文件/资源 | 唯一 owner / 修改顺序 |
 | --- | --- |
+| 仓库 .agents/skills/historical-background-art、assets/backgrounds、docs/background-art.md | D01；不改生产 API、App、dist 或数据库 |
 | 新 0.2 schemas、reading_contract.py、reading-types.ts、c2r2-contract fixtures | T01，其他叶消费 |
 | corpus/second-round 样例、Vite 基座、reading-component-smoke.mjs | T02；各组件独立增加 scene/spec；真实验收仅 T17 写 acceptance/ |
 | chapter_contract.py / chapter_prompt.py / chapter_extraction.py / provider / fixture model | R1-T19 后由 T03 接管 |
@@ -153,6 +159,6 @@ flowchart LR
 
 跨轮台账使用 [task-completion 的多目录组合](../../../development/task-completion.md#dependencies-across-initiative-directories)，root=docs/tasks/chronicle，scopes=first-round/second-round，调用原 validator 的 discover/evaluate/validate，不复制第一轮任务记录。仅在 second-round 上运行单目录 CLI 会缺失上游依赖；扩大到全部历史 Chronicle 目录则遇到既有多行 metadata 格式，本轮不改写历史来绕过它。
 
-本次只交付文档和 GitHub 拆分；未运行新产品、数据库、浏览器或模型验收。实施时各叶运行自己的契约检查，T16 接完整 CI，T17 才给真实内容结论。
+初始 17 叶拆分只交付文档和 GitHub 规划；未运行新产品、数据库、浏览器或模型验收。实施时各叶运行自己的契约检查，T16 接完整 CI，T17 才给真实内容结论。新增 D01 的技能/工具验证另记录于其任务文件，不构成产品或真实内容验收。
 
-规划核对（2026-09-08）：既有 validator 的跨轮组合检查通过，共 38 条记录，无缺失依赖/完成规则违规，第二轮当前 READY 为 0；完整图无循环，T17 覆盖本轮其他16项。17 个任务的 metadata、验收与索引一致，126 个本地文档链接有效，共享写文件有顺序。GitHub 回读确认17个原生子 Issue、19份父子正文及 open 状态正确。SQL ownership 与文档 whitespace 检查通过。Architecture checker 在执行 Cargo metadata 时因本机缺少 cargo 退出，未宣称通过；本次未改产品代码、SQL或依赖。
+初始 17 叶规划核对（2026-09-08，D01 加入前）：既有 validator 的跨轮组合检查通过，共 38 条记录，无缺失依赖/完成规则违规，当时第二轮 READY 为 0；完整图无循环，T17 覆盖当时本轮其他16项。17 个任务的 metadata、验收与索引一致，126 个本地文档链接有效，共享写文件有顺序。GitHub 回读确认17个原生子 Issue、19份父子正文及 open 状态正确。SQL ownership 与文档 whitespace 检查通过。Architecture checker 在执行 Cargo metadata 时因本机缺少 cargo 退出，未宣称通过；该次未改产品代码、SQL或依赖。

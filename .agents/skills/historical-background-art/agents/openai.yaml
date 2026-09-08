@@ -1,0 +1,4 @@
+interface:
+  display_name: "历史背景图"
+  short_description: "按时代规划淡彩背景，人工触发生成，归档检索并在确认后用于页面"
+  default_prompt: "使用 $historical-background-art，根据当前历史内容建议背景配图位置和画风，先给我提示词，等我明确触发生成。"
