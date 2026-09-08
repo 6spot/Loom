@@ -36,38 +36,7 @@ on:
       - "docs/quickstart.md"
       - "docs/operator-guide.md"
       - "!apps/loom-validator/**"
-  pull_request:
-    paths:
-      - ".github/workflows/ci.yml"
-      - ".github/CODEOWNERS"
-      - ".dockerignore"
-      - ".env.example"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "**/Cargo.toml"
-      - "**/*.rs"
-      - "crates/loom-storage/**"
-      - "capabilities/**"
-      - "tests/**"
-      - "compose.test-db.yaml"
-      - "compose.yaml"
-      - "Dockerfile"
-      - "docker/**"
-      - "deny.toml"
-      - "rust-toolchain.toml"
-      - "rustfmt.toml"
-      - "tools/check_architecture.py"
-      - "tools/check_storage_sql_ownership.py"
-      - "tools/postgres-test.sh"
-      - "tools/test_validator_ready.py"
-      - "tools/validator_ready.py"
-      - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/scheduler-discovery/**"
-      - "docs/tasks/ci-governance/**"
-      - "README.md"
-      - "docs/quickstart.md"
-      - "docs/operator-guide.md"
-      - "!apps/loom-validator/**"
+  pull_request: {}
 
 permissions:
   contents: read
@@ -411,10 +380,45 @@ jobs:
       - name: Validate Compose config
         run: docker compose -f compose.yaml config --quiet
 
+  core-gate:
+    name: Core Gate
+    if: always()
+    needs: [changes, documentation, ledger, dependency-policy, rust, postgres-contract, deployment]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require successful applicable checks
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          DOCUMENTATION: ${{ needs.documentation.result }}
+          LEDGER: ${{ needs.ledger.result }}
+          DEPENDENCY_POLICY: ${{ needs.dependency-policy.result }}
+          RUST: ${{ needs.rust.result }}
+          POSTGRES_CONTRACT: ${{ needs.postgres-contract.result }}
+          DEPLOYMENT: ${{ needs.deployment.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in \
+            "$CHANGES" \
+            "$DOCUMENTATION" \
+            "$LEDGER" \
+            "$DEPENDENCY_POLICY" \
+            "$RUST" \
+            "$POSTGRES_CONTRACT" \
+            "$DEPLOYMENT"; do
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "Required Core CI job ended with: $result" >&2
+                exit 1
+                ;;
+            esac
+          done
+
   multica-wakeup:
     name: Notify Multica of CI failure
-    # Include every check job so classification failures are covered too.
-    needs: [changes, documentation, ledger, dependency-policy, rust, postgres-contract, deployment]
+    needs: [core-gate]
     if: >
       failure() && !cancelled() &&
       github.event_name == 'pull_request' &&
