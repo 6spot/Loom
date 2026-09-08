@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import unittest
 import uuid
 from pathlib import Path
@@ -288,6 +289,131 @@ class ChapterStorePostgresTests(unittest.TestCase):
             count = conn.execute(
                 "SELECT count(*) FROM chronicle.chapter_artifacts").fetchone()[0]
             self.assertEqual(count, 0)
+
+    def test_failed_producing_run_rejected_and_rows_unchanged(self) -> None:
+        """A failed run can never produce an accepted chapter: the write is
+        refused before any row changes, leaving the artifact table empty
+        and the chunk still running for a genuine retry."""
+        with self._connect_ready() as conn:
+            ctx = self._setup_job(conn)
+            failed_run, _ = control_plane.record_chunk_run(
+                conn, chunk_id=ctx["chunk_id"], status="failed",
+                worker=ctx["worker"], error="simulated model fault",
+            )
+            with self.assertRaisesRegex(PersistenceConflict, "failed run"):
+                chapter_store.record_accepted_chapter_fenced(
+                    conn, job_id=ctx["job_id"], chunk_id=ctx["chunk_id"],
+                    worker=ctx["worker"], request=ctx["request"], candidate=ctx["candidate"],
+                    producing_run={"run_id": str(failed_run), "model": "m",
+                                   "prompt_schema_version": "v"},
+                )
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM chronicle.chapter_artifacts").fetchone()[0], 0)
+            status = conn.execute(
+                "SELECT status FROM chronicle.ingestion_chunks WHERE chunk_id = %s",
+                (ctx["chunk_id"],)).fetchone()[0]
+            self.assertEqual(status, "running")
+
+    def test_concurrent_identical_accept_and_publish_is_idempotent(self) -> None:
+        """Barrier-aligned concurrent replays of the same artifact and
+        publication all succeed with the same ids and leave single rows:
+        the savepoint-scoped race inserts keep the fenced transactions
+        usable instead of dying with InFailedSqlTransaction."""
+        with self._connect_ready() as conn:
+            ctx = self._setup_job(conn)
+            catalog_sha, assembled_sha, publication = self._publication(ctx)
+            producing_run = {"run_id": str(ctx["run_id"]), "model": "m",
+                             "prompt_schema_version": "v"}
+            job_id, chunk_id, worker = ctx["job_id"], ctx["chunk_id"], ctx["worker"]
+            request, candidate = ctx["request"], ctx["candidate"]
+        barrier = threading.Barrier(4)
+        outcomes: list = [None] * 4
+
+        def _replay(index: int) -> None:
+            try:
+                with psycopg.connect(self.database_url) as conn:
+                    barrier.wait(timeout=60)
+                    sha = chapter_store.record_accepted_chapter_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
+                        request=request, candidate=candidate,
+                        producing_run=producing_run,
+                    )
+                    pub_id = chapter_store.persist_chapter_publication(
+                        conn, job_id=job_id, worker=worker, artifact_sha256=sha,
+                        catalog_sha256=catalog_sha, assembled_bundle_sha256=assembled_sha,
+                        publication=publication,
+                    )
+                    outcomes[index] = (sha, str(pub_id), None)
+            except Exception as exc:  # captured, asserted below
+                outcomes[index] = (None, None, exc)
+
+        threads = [threading.Thread(target=_replay, args=(i,)) for i in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=120)
+            self.assertFalse(thread.is_alive(), "replay thread hung")
+        for sha, pub_id, error in outcomes:
+            self.assertIsNone(error, f"concurrent replay failed: {error!r}")
+        self.assertEqual(len({sha for sha, _, _ in outcomes}), 1)
+        self.assertEqual(len({pub_id for _, pub_id, _ in outcomes}), 1)
+        with psycopg.connect(self.database_url) as conn:
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM chronicle.chapter_artifacts").fetchone()[0], 1)
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM chronicle.chapter_publications").fetchone()[0], 1)
+
+    def test_concurrent_chapter_conflict_surfaced_as_persistence_conflict(self) -> None:
+        """Two chapters racing on one chunk (one chunk per chapter: the
+        second insert violates the unique binding) must surface a
+        PersistenceConflict, never a leaked InFailedSqlTransaction from a
+        UniqueViolation recovery SELECT on an aborted transaction."""
+        with self._connect_ready() as conn:
+            ctx = self._setup_job(conn)
+            producing_run = {"run_id": str(ctx["run_id"]), "model": "m",
+                             "prompt_schema_version": "v"}
+            other_request = copy.deepcopy(ctx["request"])
+            other_request["chapter_id"] = "ch_756922e9af0d759d29d74760"
+            other_candidate = copy.deepcopy(ctx["candidate"])
+            other_candidate["chapter_id"] = other_request["chapter_id"]
+            report = chapter_contract.validate_chapter_candidate(
+                other_request, other_candidate)
+            self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+            job_id, chunk_id, worker = ctx["job_id"], ctx["chunk_id"], ctx["worker"]
+            pairs = [(ctx["request"], ctx["candidate"]),
+                     (other_request, other_candidate)]
+        barrier = threading.Barrier(2)
+        outcomes: list = [None] * 2
+
+        def _accept(index: int) -> None:
+            try:
+                with psycopg.connect(self.database_url) as conn:
+                    barrier.wait(timeout=60)
+                    request, candidate = pairs[index]
+                    sha = chapter_store.record_accepted_chapter_fenced(
+                        conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
+                        request=request, candidate=candidate,
+                        producing_run=producing_run,
+                    )
+                    outcomes[index] = ("ok", sha)
+            except Exception as exc:  # captured, asserted below
+                outcomes[index] = ("error", exc)
+
+        threads = [threading.Thread(target=_accept, args=(i,)) for i in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=120)
+            self.assertFalse(thread.is_alive(), "accept thread hung")
+        kinds = sorted(kind for kind, _ in outcomes)
+        self.assertEqual(kinds, ["error", "ok"])
+        error = next(value for kind, value in outcomes if kind == "error")
+        self.assertIsInstance(error, PersistenceConflict)
+        self.assertNotIsInstance(error, LeaseLost)
+        self.assertNotIn("InFailedSqlTransaction", type(error).__name__)
+        with psycopg.connect(self.database_url) as conn:
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM chronicle.chapter_artifacts").fetchone()[0], 1)
 
     def test_lease_lost_and_cancelled_cannot_write(self) -> None:
         with self._connect_ready() as conn:

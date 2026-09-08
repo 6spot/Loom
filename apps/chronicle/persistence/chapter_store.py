@@ -201,7 +201,7 @@ def record_accepted_chapter_fenced(
 
         run_row = conn.execute(
             """
-            SELECT chunk_id, worker, checkpoint
+            SELECT chunk_id, worker, checkpoint, status
             FROM chronicle.ingestion_chunk_runs WHERE run_id = %s
             """,
             (producing_run_id,),
@@ -215,6 +215,11 @@ def record_accepted_chapter_fenced(
             raise PersistenceConflict(
                 f"producing run {producing_run_id} belongs to chunk {run_row[0]}, "
                 f"not chunk {chunk_id}"
+            )
+        if run_row[3] not in ("running", "completed"):
+            raise PersistenceConflict(
+                f"producing run {producing_run_id} is {run_row[3]!r}; "
+                "a failed run can never produce an accepted chapter"
             )
         run_checkpoint = run_row[2] or {}
         if isinstance(run_checkpoint, dict) and run_checkpoint.get("request_fingerprint") not in (
@@ -252,28 +257,33 @@ def record_accepted_chapter_fenced(
             return artifact_sha256
 
         try:
-            conn.execute(
-                """
-                INSERT INTO chronicle.chapter_artifacts(
-                    artifact_sha256, job_id, revision_id, document_id,
-                    chapter_id, chapter_index, chunk_id, producing_run_id,
-                    request_fingerprint, candidate_sha256, payload
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    artifact_sha256,
-                    job_id,
-                    job_revision_id,
-                    document_id,
-                    chapter_id,
-                    int(request.get("chapter_index", 0)),
-                    chunk_id,
-                    producing_run_id,
-                    request_fingerprint,
-                    candidate_sha256,
-                    Jsonb(artifact),
-                ),
-            )
+            # The race insert runs in its own savepoint: a concurrent
+            # identical accept rolls back only to the savepoint, so the
+            # fenced transaction stays usable for the idempotent re-read
+            # below instead of dying with InFailedSqlTransaction.
+            with conn.transaction(savepoint_name="chapter_artifact_insert"):
+                conn.execute(
+                    """
+                    INSERT INTO chronicle.chapter_artifacts(
+                        artifact_sha256, job_id, revision_id, document_id,
+                        chapter_id, chapter_index, chunk_id, producing_run_id,
+                        request_fingerprint, candidate_sha256, payload
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        artifact_sha256,
+                        job_id,
+                        job_revision_id,
+                        document_id,
+                        chapter_id,
+                        int(request.get("chapter_index", 0)),
+                        chunk_id,
+                        producing_run_id,
+                        request_fingerprint,
+                        candidate_sha256,
+                        Jsonb(artifact),
+                    ),
+                )
         except Exception as exc:
             from psycopg import errors as _errors
 
@@ -281,10 +291,15 @@ def record_accepted_chapter_fenced(
                 # Lost race with a concurrent identical accept: re-read
                 # under the same fence instead of reporting a conflict.
                 row = conn.execute(
-                    "SELECT payload FROM chronicle.chapter_artifacts WHERE artifact_sha256 = %s",
-                    (artifact_sha256,),
+                    "SELECT artifact_sha256, payload FROM chronicle.chapter_artifacts"
+                    " WHERE job_id = %s AND chapter_id = %s",
+                    (job_id, chapter_id),
                 ).fetchone()
-                if row is not None and row[0] == artifact:
+                if (
+                    row is not None
+                    and row[0] == artifact_sha256
+                    and row[1] == artifact
+                ):
                     _point_chunk_at_artifact(
                         conn, chunk_id=chunk_id, artifact_sha256=artifact_sha256,
                         request_fingerprint=request_fingerprint,
@@ -494,26 +509,30 @@ def persist_chapter_publication(
 
         publication_id = _new_publication_id()
         try:
-            conn.execute(
-                """
-                INSERT INTO chronicle.chapter_publications(
-                    publication_id, artifact_sha256, catalog_sha256,
-                    assembled_bundle_sha256, document_id, revision_id, job_id,
-                    chapter_id, payload
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    publication_id,
-                    artifact_sha256,
-                    catalog_sha256,
-                    assembled_bundle_sha256,
-                    artifact_row[2],
-                    artifact_row[1],
-                    job_id,
-                    artifact_row[3],
-                    Jsonb(publication),
-                ),
-            )
+            # As above, the race insert is savepoint-scoped so a
+            # concurrent identical publication stays idempotent instead
+            # of aborting the fenced transaction.
+            with conn.transaction(savepoint_name="chapter_publication_insert"):
+                conn.execute(
+                    """
+                    INSERT INTO chronicle.chapter_publications(
+                        publication_id, artifact_sha256, catalog_sha256,
+                        assembled_bundle_sha256, document_id, revision_id, job_id,
+                        chapter_id, payload
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        publication_id,
+                        artifact_sha256,
+                        catalog_sha256,
+                        assembled_bundle_sha256,
+                        artifact_row[2],
+                        artifact_row[1],
+                        job_id,
+                        artifact_row[3],
+                        Jsonb(publication),
+                    ),
+                )
         except Exception as exc:
             from psycopg import errors as _errors
 
