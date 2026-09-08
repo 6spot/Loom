@@ -1,0 +1,26 @@
+{
+  "publication_id": "11111111-1111-7000-8000-111111111111",
+  "chapter_id": "ch_other_chapter",
+  "revision_id": "rev_c2r1_demo_002",
+  "source_title": "contract fixture II",
+  "chapter_title": "second chapter",
+  "translation_blocks": [
+    {
+      "block_id": "t_b01",
+      "text": "第二章白话正文第一段，与第一章不同，用于验证快速切换不串响应。",
+      "source_block_ids": ["b_b01"],
+      "source_anchor_ids": ["anc_second_chapter"],
+      "entity_refs": [],
+      "event_refs": []
+    }
+  ],
+  "source_overview": {
+    "source_title": "contract fixture II",
+    "chapter_title": "second chapter",
+    "revision_id": "rev_c2r1_demo_002",
+    "block_count": 1,
+    "anchor_count": 1
+  },
+  "references": { "entities": [], "events": [] },
+  "note": "harness-only second publication for fast-switch isolation checks"
+}

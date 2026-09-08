@@ -1,0 +1,13 @@
+{
+  "anchor_id": "anc_malicious",
+  "view": "window",
+  "source_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+  "chapter_range": [0, 35],
+  "page_range": [0, 12],
+  "segments": [
+    { "text": "<img src=x onerror=alert(1)>建安十三年", "highlight": false },
+    { "text": "<script>alert(\"pwn\")</script>曹操屯江陵。", "highlight": true }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

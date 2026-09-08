@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "publication_id": "11111111-1111-7000-8000-111111111111",
+      "document_id": "doc_demo_002",
+      "revision_id": "rev_c2r1_demo_002",
+      "revision_no": 1,
+      "chapter_id": "ch_other_chapter",
+      "chapter_index": 1,
+      "chapter_title": "second chapter",
+      "source_title": "contract fixture II"
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

@@ -1,0 +1,12 @@
+{
+  "anchor_id": "anc_f00ff77e8922b3e5",
+  "view": "chapter",
+  "source_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+  "chapter_range": [0, 35],
+  "page_range": [16, 35],
+  "segments": [
+    { "text": "周瑜敗操於赤壁。公聞之，王命退兵。", "highlight": false }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}
