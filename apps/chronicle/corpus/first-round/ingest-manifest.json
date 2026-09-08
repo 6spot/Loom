@@ -28,6 +28,8 @@
           ],
           "page_title": "三國志/卷32",
           "oldid": 2583378,
+          "normalized_sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "normalized_chars": 12572,
           "ingest_file": "ingest/sanguozhi-three-chapters.md",
           "ingest_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
           "ingest_chars": 21215
@@ -48,6 +50,8 @@
           ],
           "page_title": "三國志/卷54",
           "oldid": 2387393,
+          "normalized_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "normalized_chars": 5018,
           "ingest_file": "ingest/sanguozhi-three-chapters.md",
           "ingest_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
           "ingest_chars": 21215
@@ -68,6 +72,8 @@
           ],
           "page_title": "三國志/卷54",
           "oldid": 2387393,
+          "normalized_sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "normalized_chars": 3583,
           "ingest_file": "ingest/sanguozhi-three-chapters.md",
           "ingest_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
           "ingest_chars": 21215
@@ -98,6 +104,8 @@
           ],
           "page_title": "資治通鑑/卷065",
           "oldid": 2306420,
+          "normalized_sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+          "normalized_chars": 10680,
           "ingest_file": "ingest/zizhi-tongjian-065.md",
           "ingest_sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
           "ingest_chars": 10715

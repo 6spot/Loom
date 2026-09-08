@@ -93,6 +93,8 @@ def main() -> int:
             pinned = prepared_by_key[record["key"]]
             record["page_title"] = pinned["page_title"]
             record["oldid"] = pinned["oldid"]
+            record["normalized_sha256"] = pinned["normalized_sha256"]
+            record["normalized_chars"] = pinned["normalized_chars"]
             record["ingest_file"] = f"ingest/{filename}"
             record["ingest_sha256"] = file_sha
             record["ingest_chars"] = len(text)

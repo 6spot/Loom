@@ -57,6 +57,29 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def normalize_source_text(data: bytes) -> str:
+    """Mirror ``documents.decode_source`` for corpus hash purposes.
+
+    Strict UTF-8 decode, strip one leading BOM, normalize CRLF/CR to LF.
+    ``normalized_sha256`` in prepared reports is the SHA-256 of this text
+    encoded back to UTF-8 (``offset_unit: chars-normalized-utf8`` in the
+    chapter-production contract §2.2).
+    """
+    try:
+        text = bytes(data).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SourcePackError(f"prepared source is not valid UTF-8: {exc}") from exc
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def normalized_source_hash(data: bytes) -> tuple[str, int]:
+    """Return ``(normalized_sha256, normalized_chars)`` for raw file bytes."""
+    normalized = normalize_source_text(data)
+    return _sha256(normalized.encode("utf-8")), len(normalized)
+
+
 def _normalize_heading(value: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", value)).strip()
 
@@ -447,6 +470,7 @@ def prepare_pack(
         raw = text.encode("utf-8")
         target = output_dir / entry["filename"]
         target.write_bytes(raw)
+        normalized_sha256, normalized_chars = normalized_source_hash(raw)
         record: dict[str, Any] = {
             "key": entry["key"],
             "title": entry["title"],
@@ -458,6 +482,8 @@ def prepare_pack(
             "source_label": _source_label(entry, transform_version),
             "bytes": len(raw),
             "sha256": _sha256(raw),
+            "normalized_sha256": normalized_sha256,
+            "normalized_chars": normalized_chars,
         }
         if entry.get("extract", "section") == "section":
             record["section"] = entry["section"]

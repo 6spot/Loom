@@ -5,12 +5,19 @@
 
 ## 凍結版本（不再留待選篇目）
 
-| # | 著作 / 章 | 來源頁與固定版本 | 下載字節 / 規範化字符 | SHA-256 |
-| --- | --- | --- | ---: | --- |
-| 1 | 三國志·蜀書·先主傳 | `三國志/卷32` oldid `2583378`，`section=先主 劉備` | 37474 / 12572 | `ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8` |
-| 2 | 三國志·吳書·周瑜傳 | `三國志/卷54` oldid `2387393`，`section=周瑜` | 14996 / 5018 | `63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e` |
-| 3 | 三國志·吳書·魯肅傳 | `三國志/卷54` oldid `2387393`，`section=魯肅` | 10715 / 3583 | `1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d` |
-| 4 | 資治通鑑·卷第六十五（漢紀五十七，建安十一年至十三年） | `資治通鑑/卷065` oldid `2306420`，整頁全文 | 31786 / 10680 | `c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38` |
+| # | 著作 / 章 | 來源頁與固定版本 | 下載字節 / 規範化字符 | SHA-256（原始字節） | normalized_sha256（`decode_source` 規範化後） |
+| --- | --- | --- | ---: | --- | --- |
+| 1 | 三國志·蜀書·先主傳 | `三國志/卷32` oldid `2583378`，`section=先主 劉備` | 37474 / 12572 | `ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8` | `ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8` |
+| 2 | 三國志·吳書·周瑜傳 | `三國志/卷54` oldid `2387393`，`section=周瑜` | 14996 / 5018 | `63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e` | `63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e` |
+| 3 | 三國志·吳書·魯肅傳 | `三國志/卷54` oldid `2387393`，`section=魯肅` | 10715 / 3583 | `1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d` | `1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d` |
+| 4 | 資治通鑑·卷第六十五（漢紀五十七，建安十一年至十三年） | `資治通鑑/卷065` oldid `2306420`，整頁全文 | 31786 / 10680 | `c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38` | `c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38` |
+
+規範化規則與 `apps/chronicle/persistence/documents.py::decode_source`
+一致（嚴格 UTF-8、去單個 BOM、CRLF/CR→LF；`normalized_sha256` 為規範化文本
+UTF-8 編碼的 SHA-256，字符數為 `chars-normalized-utf8`）。本批四份原文均為
+無 BOM 的 LF 文本，故規範化 hash 與原始 hash 相同——此為核驗結論而非省略
+記錄的理由，四份 hash 均已記入 `sources/prepared.json`、
+`ingest-manifest.json` 與 `scale-report.json` 並由測試重算校驗。
 
 - 前三章與 `c1-t13` 提交的固定 oldid 文本逐字節一致（上表 SHA 與
   `c1-t13/sources/prepared.json` 相同），未重新生成不同版本，也未把三章當三部著作。

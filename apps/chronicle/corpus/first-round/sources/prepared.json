@@ -16,6 +16,8 @@
       "source_label": "Wikisource 三國志/卷32 oldid=2583378 section=先主 劉備 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B732&oldid=2583378",
       "bytes": 37474,
       "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "normalized_sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "normalized_chars": 12572,
       "section": "先主 劉備"
     },
     {
@@ -29,6 +31,8 @@
       "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=周瑜 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
       "bytes": 14996,
       "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "normalized_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "normalized_chars": 5018,
       "section": "周瑜"
     },
     {
@@ -42,6 +46,8 @@
       "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=魯肅 transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
       "bytes": 10715,
       "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+      "normalized_sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+      "normalized_chars": 3583,
       "section": "魯肅"
     },
     {
@@ -54,7 +60,9 @@
       "extract": "full_page",
       "source_label": "Wikisource 資治通鑑/卷065 oldid=2306420 extract=full_page transform=mediawiki-text-v0.2 source=https://zh.wikisource.org/w/index.php?title=%E8%B3%87%E6%B2%BB%E9%80%9A%E9%91%91/%E5%8D%B7065&oldid=2306420",
       "bytes": 31786,
-      "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38"
+      "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+      "normalized_sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+      "normalized_chars": 10680
     }
   ]
 }

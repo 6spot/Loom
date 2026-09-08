@@ -2,7 +2,7 @@
   "schema": "chronicle.first-round-cases",
   "version": "0.1",
   "pack_id": "c2-r1-t02-first-round-v1",
-  "rule": "synthetic entries carry synthetic=true and must never be cited as source observations; every real ref quote must occur in the recorded file at [start,end) with the given 1-based occurrence index",
+  "rule": "synthetic entries carry synthetic=true and must never be cited as source observations; every real ref quote must occur in the recorded file at [start,end) with the given 1-based occurrence index; every real ref quote must additionally contain at least one of its case key_surfaces, so the ref independently proves the stated question",
   "cases": [
     {
       "id": "T02-C01",
@@ -26,14 +26,19 @@
           "end": 115
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "先主",
+        "備",
+        "玄德"
+      ]
     },
     {
       "id": "T02-C02",
       "category": "same-chapter-appellation",
       "title": "周瑜傳同章稱謂：周瑜/公瑾",
       "question": "「周瑜字公瑾」與後文「公瑾」是否同指？",
-      "observation": "開篇「周瑜字公瑾」立下字號對應；後文「公瑾」出現15次，均在周瑜傳內指代周瑜本人。",
+      "observation": "開篇「周瑜字公瑾」立下字號對應；卷末孫權語「孤念公瑾，豈有已乎」中的「公瑾」回指周瑜本人（全傳「公瑾」共15次，均指周瑜）。",
       "refs": [
         {
           "file": "sources/sanguozhi-054-zhou-yu.txt",
@@ -44,20 +49,24 @@
         },
         {
           "file": "sources/sanguozhi-054-zhou-yu.txt",
-          "quote": "吳中皆呼為周郎",
+          "quote": "孤念公瑾，豈有已乎？",
           "occurrence": 1,
-          "start": 653,
-          "end": 660
+          "start": 5006,
+          "end": 5016
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "周瑜",
+        "公瑾"
+      ]
     },
     {
       "id": "T02-C03",
       "category": "same-chapter-appellation",
       "title": "魯肅傳同章稱謂：魯肅/子敬",
       "question": "「魯肅字子敬」與「子敬」是否同指？",
-      "observation": "開篇立字，「肅乃指一囷與周瑜」等敘述中「肅」與「子敬」同指魯肅。",
+      "observation": "開篇「魯肅字子敬」立字；孫權迎魯肅時直呼「子敬，孤持鞍下馬相迎」，「子敬」即魯肅本人（傳中「子敬」3次均指魯肅）。",
       "refs": [
         {
           "file": "sources/sanguozhi-054-lu-su.txt",
@@ -68,13 +77,17 @@
         },
         {
           "file": "sources/sanguozhi-054-lu-su.txt",
-          "quote": "肅乃指一囷與周瑜",
+          "quote": "子敬，孤持鞍下馬相迎，足以顯卿未？",
           "occurrence": 1,
-          "start": 105,
-          "end": 113
+          "start": 2068,
+          "end": 2085
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "魯肅",
+        "子敬"
+      ]
     },
     {
       "id": "T02-C04",
@@ -98,7 +111,10 @@
           "end": 2324
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "赤壁"
+      ]
     },
     {
       "id": "T02-C05",
@@ -122,7 +138,10 @@
           "end": 9278
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "赤壁"
+      ]
     },
     {
       "id": "T02-C06",
@@ -146,7 +165,12 @@
           "end": 2319
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "周瑜",
+        "程普",
+        "並力"
+      ]
     },
     {
       "id": "T02-C07",
@@ -170,7 +194,11 @@
           "end": 9615
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "南郡",
+        "江陵"
+      ]
     },
     {
       "id": "T02-C08",
@@ -187,7 +215,10 @@
           "end": 75
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "典略"
+      ]
     },
     {
       "id": "T02-C09",
@@ -204,7 +235,10 @@
           "end": 576
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "江表傳"
+      ]
     },
     {
       "id": "T02-C10",
@@ -221,7 +255,10 @@
           "end": 8598
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "馬超"
+      ]
     },
     {
       "id": "T02-C11",
@@ -259,7 +296,13 @@
           "end": 10
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "先主姓劉",
+        "周瑜字公瑾",
+        "魯肅字子敬",
+        "資治通鑑 第065卷"
+      ]
     },
     {
       "id": "T02-C12",
@@ -283,7 +326,11 @@
           "end": 10679
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "先主死意",
+        "以齊為太守"
+      ]
     },
     {
       "id": "T02-C13",
@@ -300,7 +347,10 @@
           "end": 10096
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "key_surfaces": [
+        "習鑿齒論曰"
+      ]
     },
     {
       "id": "T02-N01",

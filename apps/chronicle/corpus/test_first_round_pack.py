@@ -43,6 +43,8 @@ EXPECTED_SOURCES = {
         "oldid": 2583378,
         "bytes": 37474,
         "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+        "normalized_sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+        "normalized_chars": 12572,
     },
     "zhou-yu": {
         "filename": "sanguozhi-054-zhou-yu.txt",
@@ -50,6 +52,8 @@ EXPECTED_SOURCES = {
         "oldid": 2387393,
         "bytes": 14996,
         "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+        "normalized_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+        "normalized_chars": 5018,
     },
     "lu-su": {
         "filename": "sanguozhi-054-lu-su.txt",
@@ -57,6 +61,8 @@ EXPECTED_SOURCES = {
         "oldid": 2387393,
         "bytes": 10715,
         "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+        "normalized_sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+        "normalized_chars": 3583,
     },
     "zztj-065": {
         "filename": "zizhi-tongjian-065-quan.txt",
@@ -64,6 +70,8 @@ EXPECTED_SOURCES = {
         "oldid": 2306420,
         "bytes": 31786,
         "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+        "normalized_sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+        "normalized_chars": 10680,
     },
 }
 
@@ -118,6 +126,11 @@ class ManifestTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(raw).hexdigest(), expected["sha256"])
             self.assertEqual(record["bytes"], expected["bytes"])
             self.assertEqual(record["sha256"], expected["sha256"])
+            normalized_sha256, normalized_chars = source_pack.normalized_source_hash(raw)
+            self.assertEqual(record["normalized_sha256"], expected["normalized_sha256"])
+            self.assertEqual(record["normalized_chars"], expected["normalized_chars"])
+            self.assertEqual(normalized_sha256, expected["normalized_sha256"])
+            self.assertEqual(normalized_chars, expected["normalized_chars"])
 
     def test_sanguozhi_reuses_exact_c1_t13_bytes(self) -> None:
         legacy = _load_json(HERE / "c1-t13" / "sources" / "prepared.json")
@@ -238,6 +251,14 @@ class IngestTests(unittest.TestCase):
                         (FIRST_ROUND / chapter["source_file"]).read_bytes()
                     ).hexdigest(),
                 )
+                expected = EXPECTED_SOURCES[chapter["key"]]
+                self.assertEqual(chapter["normalized_sha256"], expected["normalized_sha256"])
+                self.assertEqual(chapter["normalized_chars"], expected["normalized_chars"])
+                normalized_sha256, normalized_chars = source_pack.normalized_source_hash(
+                    (FIRST_ROUND / chapter["source_file"]).read_bytes()
+                )
+                self.assertEqual(chapter["normalized_sha256"], normalized_sha256)
+                self.assertEqual(chapter["normalized_chars"], normalized_chars)
 
     def test_sanguozhi_chapters_share_one_revision(self) -> None:
         stored = _load_json(FIRST_ROUND / "ingest-manifest.json")
@@ -289,6 +310,7 @@ class CasesTests(unittest.TestCase):
             self.assertIn(required, category_kinds)
         for case in real:
             self.assertTrue(case["refs"], case["id"])
+            self.assertTrue(case.get("key_surfaces"), case["id"])
             for ref in case["refs"]:
                 text = (FIRST_ROUND / ref["file"]).read_text(encoding="utf-8")
                 start, end = ref["start"], ref["end"]
@@ -298,6 +320,10 @@ class CasesTests(unittest.TestCase):
                 self.assertEqual(actual_occurrence, ref["occurrence"], f"{case['id']} {ref}")
                 self.assertGreaterEqual(start, 0)
                 self.assertLessEqual(end, len(text))
+                self.assertTrue(
+                    any(surface in ref["quote"] for surface in case["key_surfaces"]),
+                    f"{case['id']} ref does not independently prove the question: {ref}",
+                )
         for case in synthetic:
             self.assertEqual(case["refs"], [])
             self.assertTrue(case.get("synthetic"))
@@ -323,6 +349,14 @@ class ScaleTests(unittest.TestCase):
         for chapter in report["chapters"]:
             self.assertLessEqual(chapter["chars"], CHAPTER_LIMIT, chapter["chapter"])
             self.assertTrue(chapter["within_limit"])
+            expected = EXPECTED_SOURCES[chapter["chapter"]]
+            self.assertEqual(chapter["normalized_sha256"], expected["normalized_sha256"])
+            self.assertEqual(chapter["normalized_chars"], expected["normalized_chars"])
+            normalized_sha256, normalized_chars = source_pack.normalized_source_hash(
+                (FIRST_ROUND / chapter["file"]).read_bytes()
+            )
+            self.assertEqual(chapter["normalized_sha256"], normalized_sha256)
+            self.assertEqual(chapter["normalized_chars"], normalized_chars)
         rejected = report["rejection_sample"]
         self.assertTrue(rejected["synthetic"])
         self.assertEqual(rejected["expected_verdict"], "reject")
