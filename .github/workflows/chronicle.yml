@@ -22,24 +22,7 @@ on:
       - "apps/chronicle/webapp/**"
       - "apps/chronicle/.artifacts/**"
       - "apps/chronicle/ingestion/schemas/**"
-  pull_request:
-    paths:
-      - ".github/workflows/chronicle.yml"
-      - "apps/chronicle/persistence/**"
-      - "apps/chronicle/control_plane/**"
-      - "apps/chronicle/server/**"
-      - "apps/chronicle/worker/**"
-      - "apps/chronicle/docs/control-plane.md"
-      - "apps/chronicle/docs/server.md"
-      - "apps/chronicle/docs/worker.md"
-      - "apps/chronicle/docs/extraction.md"
-      - "apps/chronicle/docs/assembly.md"
-      - "apps/chronicle/ingestion/fixtures/**"
-      - "apps/chronicle/read_api/**"
-      - "apps/chronicle/web/**"
-      - "apps/chronicle/webapp/**"
-      - "apps/chronicle/.artifacts/**"
-      - "apps/chronicle/ingestion/schemas/**"
+  pull_request: {}
 
 permissions:
   contents: read
@@ -49,8 +32,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Classify Chronicle changes
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.classify.outputs.relevant }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify Chronicle-owned changes
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          relevant=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            relevant=true
+          else
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              base="${{ github.event.pull_request.base.sha }}"
+              head="${{ github.event.pull_request.head.sha }}"
+            else
+              base="${{ github.event.before }}"
+              head="${{ github.sha }}"
+              if [[ "$base" =~ ^0+$ ]]; then
+                base="${head}^"
+              fi
+            fi
+
+            git diff --name-only "$base" "$head" > /tmp/chronicle-changed-files
+            cat /tmp/chronicle-changed-files
+
+            while IFS= read -r path; do
+              [[ -n "$path" ]] || continue
+              case "$path" in
+                .github/workflows/chronicle.yml|apps/chronicle/persistence/*|apps/chronicle/control_plane/*|apps/chronicle/server/*|apps/chronicle/worker/*|apps/chronicle/docs/control-plane.md|apps/chronicle/docs/server.md|apps/chronicle/docs/worker.md|apps/chronicle/docs/extraction.md|apps/chronicle/docs/assembly.md|apps/chronicle/ingestion/fixtures/*|apps/chronicle/read_api/*|apps/chronicle/web/*|apps/chronicle/webapp/*|apps/chronicle/.artifacts/*|apps/chronicle/ingestion/schemas/*)
+                  relevant=true
+                  break
+                  ;;
+              esac
+            done < /tmp/chronicle-changed-files
+          fi
+
+          echo "relevant=$relevant" >> "$GITHUB_OUTPUT"
+          echo "relevant=$relevant"
+
   postgres:
     name: Chronicle PostgreSQL 18 contracts
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -207,11 +243,6 @@ jobs:
             >/tmp/chronicle-front-upstream.log 2>&1 &
           upstream_pid=$!
 
-          # Deterministic upstream readiness: the Python /healthz is
-          # database-independent, so it proves the read sidecar accepts
-          # connections before any proxied request is issued. Waiting only
-          # for the Rust front is not enough (its health check is
-          # intentionally upstream-independent).
           upstream_ready=0
           for _ in $(seq 1 80); do
             if curl -fsS http://127.0.0.1:8081/healthz >/dev/null; then
@@ -255,8 +286,6 @@ jobs:
             exit 1
           fi
 
-          # First contact through the front is a proxied read: fail loudly
-          # here (with both logs) instead of inside later assertions.
           curl -fsS 'http://127.0.0.1:8080/api/v1/public/timeline?limit=1' \
             >/tmp/chronicle-front-first.json || {
             cat /tmp/chronicle-front-server.log
@@ -264,7 +293,6 @@ jobs:
             exit 1
           }
 
-          # Public namespace serves real C0 reads through the Rust front.
           curl -fsSG \
             --data-urlencode 'q=曹操' \
             http://127.0.0.1:8080/api/v1/public/search \
@@ -282,11 +310,8 @@ jobs:
           print('chronicle front public search: PASS')
           PY
 
-          # Legacy C0 compat route through the same front.
           curl -fsS http://127.0.0.1:8080/v0/timeline?limit=1 >/dev/null
 
-          # Studio auth matrix: anonymous and wrong credentials fail,
-          # configured admin succeeds without leaking the password.
           code=$(curl -s -o /tmp/chronicle-front-401.json -w '%{http_code}' \
             http://127.0.0.1:8080/api/v1/studio/status)
           [ "$code" = "401" ]
@@ -310,9 +335,33 @@ jobs:
           print('chronicle front studio auth: PASS')
           PY
 
+  chronicle-gate:
+    name: Chronicle Gate
+    if: always()
+    needs: [changes, postgres]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require successful applicable checks
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          POSTGRES: ${{ needs.postgres.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in "$CHANGES" "$POSTGRES"; do
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "Required Chronicle job ended with: $result" >&2
+                exit 1
+                ;;
+            esac
+          done
+
   multica-wakeup:
     name: Notify Multica of CI failure
-    needs: [postgres]
+    needs: [chronicle-gate]
     if: >
       failure() && !cancelled() &&
       github.event_name == 'pull_request' &&
