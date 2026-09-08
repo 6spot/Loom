@@ -114,3 +114,33 @@ plus `expected-context.json`) proves pronouns, inherited regnal time, and
 event sentences survive a chunk boundary. The unit suite
 (`persistence/test_segmentation_unit.py`) and the PostgreSQL resume suite
 (`worker/test_segmentation_postgres.py`) consume it.
+
+## C2-R1 natural-chapter planner (not this module)
+
+The first-round natural-chapter planner is a separate pure module,
+`apps/chronicle/persistence/chapter_plan.py`
+(`plan_chapters(text, revision_locator, filename)` → chapters plus
+`plan_sha256`, unit suite `persistence/test_chapter_plan_unit.py`). It
+owns a different question from everything above:
+
+- **C1 functions in `segmentation.py`** prepare one revision for model
+  processing: structure detection, size-bounded chunk plans, and
+  `ContextState` continuity. Chunks are processing units
+  (`authoritative: false`), and a persisted `Section.source_end` ends at
+  the next heading of any kind.
+- **C2-R1 `chapter_plan.py`** fixes whole natural chapters as
+  comprehension units: frozen `.txt` single-chapter / `.md` `#` book +
+  `##` chapter entries, absolute code-point ranges, heading/body/
+  separator block manifests, `required_block_ids`, chapter/plan
+  hashes, and whole-chapter capacity rejection. Sub-headings
+  (`###` and deeper) stay inside their chapter; prose such as letter
+  titles or `第十三` never re-splits a chapter.
+
+Consequences: `detect_structure` heading information must not be reused
+as chapter boundaries, and a parent section's `source_end` must never be
+taken as a chapter end — the new planner computes chapter ranges from
+the frozen entries directly and verifies gap-free tiling itself. The
+ingestion worker path is unchanged by the planner's arrival. The
+normative chapter rules live only in
+[chapter-production.md](chapter-production.md) §2; this page does not
+duplicate them.
