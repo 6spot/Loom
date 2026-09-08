@@ -14,6 +14,7 @@ Initial data may focus on a narrow period, but the product and data model must r
 
 - `docs/` — Chronicle product, UX, data, read API, and browser UI documents.
 - `ingestion/` — schema-driven historical-data ingestion, resolution, and canonical publication prototypes/contracts.
+- `corpus/` — pinned historical source packs and development fixture tooling; [six retained biographies](corpus/c1-t13/sources/README.md).
 - `persistence/` — Chronicle-owned PostgreSQL persistence for staged, Resolution, and canonical layers.
 - `read_api/` — deterministic Timeline/Event/Entity read contracts plus the same-origin HTTP host.
 - `web/` — zero-build Chronicle browser UI that consumes only the C0-T10 HTTP API.

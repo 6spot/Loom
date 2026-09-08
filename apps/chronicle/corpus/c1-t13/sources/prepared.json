@@ -1,0 +1,81 @@
+{
+  "schema": "chronicle.prepared-source-pack",
+  "version": "0.1",
+  "pack_id": "c1-t13-late-han-196-220-v1",
+  "manifest_sha256": "298fa919c0fde7dce8a98f48c4f5bc5d52a7627eb1091c540c7a65d723fd7f37",
+  "transform_version": "mediawiki-section-text-v0.1",
+  "sources": [
+    {
+      "key": "xianzhu-liubei",
+      "title": "三國志·蜀書·先主傳",
+      "filename": "sanguozhi-032-xianzhu-liubei.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷32",
+      "oldid": 2583378,
+      "section": "先主 劉備",
+      "source_label": "Wikisource 三國志/卷32 oldid=2583378 section=先主 劉備 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B732&oldid=2583378",
+      "bytes": 37474,
+      "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8"
+    },
+    {
+      "key": "zhuge-liang",
+      "title": "三國志·蜀書·諸葛亮傳",
+      "filename": "sanguozhi-035-zhuge-liang.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷35",
+      "oldid": 2115776,
+      "section": "諸葛亮",
+      "source_label": "Wikisource 三國志/卷35 oldid=2115776 section=諸葛亮 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B735&oldid=2115776",
+      "bytes": 39206,
+      "sha256": "b35b16f8fcd3b4385cbf0b68269429104e2594931d7d230b25f8f4973d24c9f6"
+    },
+    {
+      "key": "zhou-yu",
+      "title": "三國志·吳書·周瑜傳",
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "周瑜",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=周瑜 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
+      "bytes": 14996,
+      "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+    },
+    {
+      "key": "lu-su",
+      "title": "三國志·吳書·魯肅傳",
+      "filename": "sanguozhi-054-lu-su.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "魯肅",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=魯肅 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
+      "bytes": 10715,
+      "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d"
+    },
+    {
+      "key": "lu-meng",
+      "title": "三國志·吳書·呂蒙傳",
+      "filename": "sanguozhi-054-lu-meng.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷54",
+      "oldid": 2387393,
+      "section": "呂蒙",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=呂蒙 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B754&oldid=2387393",
+      "bytes": 14164,
+      "sha256": "3d9785cd1c2353fb74663789d3f2b9c098354718312c352ad2d4b41465217a86"
+    },
+    {
+      "key": "xun-yu",
+      "title": "三國志·魏書·荀彧傳",
+      "filename": "sanguozhi-010-xun-yu.txt",
+      "language": "zh-Hant",
+      "page_title": "三國志/卷10",
+      "oldid": 2274279,
+      "section": "荀彧",
+      "source_label": "Wikisource 三國志/卷10 oldid=2274279 section=荀彧 transform=mediawiki-section-text-v0.1 source=https://zh.wikisource.org/w/index.php?title=%E4%B8%89%E5%9C%8B%E5%BF%97/%E5%8D%B710&oldid=2274279",
+      "bytes": 23458,
+      "sha256": "23f14265a544a076fa3ecde76694c07a952a3b458bb0053cdeb3d2389a40bd3c"
+    }
+  ]
+}
