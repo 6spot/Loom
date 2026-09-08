@@ -2,6 +2,8 @@
 
 C1-T17 is the serial closeout gate for Chronicle C1. It is not a feature task: it independently proves the complete existing Book-to-Chronicle -> Historical World path on the supported real deployment.
 
+C1-T17 is completed; its acceptance decision, delivery and reconciliation are archived in the [task record](../../../docs/tasks/chronicle/C1-T17-final-acceptance-gate.md). This guide retains the explicit operator procedure for future requested acceptance runs. The temporary T17 live-model Actions workflow has been retired.
+
 ## What counts
 
 The final evidence must come from a **clean Debian host**, `compose.chronicle.yaml`, PostgreSQL 18, the real Rust web front + Python read sidecar + durable worker, a previously unprocessed complete UTF-8 historical text, and a real external Responses-compatible model provider. T13–T16 model-boundary fixture runs remain useful regression evidence but cannot satisfy T17.
@@ -19,11 +21,14 @@ Normal Chronicle deployment still needs only Git + Docker. The **final acceptanc
 
 Use a dedicated fresh `CHRONICLE_DATA_DIR` for the final gate. The runner rejects a revision-1 source SHA-256 already present in Chronicle so a failed/debug run cannot be silently presented as a first ingestion. If you need to rehearse, use a disposable data directory and perform the final evidence run from a clean fresh directory.
 
-Before starting a fresh run, require Chronicle, Chronicle Docker, Chronicle
-Live Model Contract and applicable repository CI to pass on the same frozen
-candidate SHA. The live-model workflow covers both extraction and Claim-bound
-Entity/Event presentation. A code change requires all four checks on the new
-candidate and fresh data/evidence/log paths; failed runs remain failure evidence.
+Before an operator-requested fresh run, require Chronicle, Chronicle Docker
+and applicable repository CI to pass on the frozen candidate SHA. Run the
+explicit [live-provider preflights](reader-presentation.md#offline-pipeline)
+for extraction and Claim-bound Entity/Event presentation from the same checkout
+with the configured provider and an isolated PostgreSQL test database. A code
+change requires these checks on the new candidate and fresh data/evidence/log
+paths; failed runs remain failure evidence. Ordinary development does not
+automatically repeat the completed T17 acceptance run.
 
 ## Prepare configuration
 
@@ -158,4 +163,4 @@ A gate failure is evidence, not permission to weaken the check. In particular:
 
 ## Completion protocol
 
-A successful real-machine script run is necessary but not sufficient to close C1-T17. PR #535 must still receive final exact-head Chronicle, Chronicle Docker, Chronicle Live Model Contract and applicable repository CI. Only after the live evidence is recorded should the PR leave Draft. After delivery merge, perform the mandatory post-merge Task Ledger reconciliation, re-read canonical `main`, close #506, then reconcile and close C1 root #489.
+C1-T17 delivery PR #535 and reconciliation PR #542 are complete; their historical workflow results remain part of the archived acceptance evidence. For a later executable acceptance task, record its exact-candidate CI, explicit live-provider preflights, real-machine run and separate content inspection, then follow the repository [task-completion procedure](../../../docs/development/task-completion.md) for delivery, default-branch reconciliation and Issue closure. The completed T17 workflow is not a standing merge prerequisite for future development.

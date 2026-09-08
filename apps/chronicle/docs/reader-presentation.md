@@ -114,20 +114,25 @@ Ambiguous verbs also cannot introduce a different action or recipient:
 proposing someone for a title does not make that person the addressee of a
 memorial. The evidence must explicitly support that additional relation.
 
-The `Chronicle Live Model Contract` workflow checks real extraction plus Entity
-and Event presentation before a new T17 run. Its presentation check uses the
+Explicit live-provider preflights check real extraction plus Entity and Event
+presentation when requested by an operator. The presentation check uses the
 retained C0 刘表 and 赤壁 examples in a fresh PostgreSQL test database and calls
 the production context loader, generator, validators and persistence functions,
 including exact-input adoption. It reports only metadata, hashes and counts.
-To run that focused check with the configured live provider and an isolated test
-PostgreSQL service, set `LOOM_TEST_POSTGRES_URL` and run:
+To run those focused checks with the configured live provider and an isolated
+test PostgreSQL service, set `LOOM_TEST_POSTGRES_URL` and the production provider
+environment (`CHRONICLE_MODEL_ENDPOINT`, `CHRONICLE_MODEL_API_KEY` when needed,
+`CHRONICLE_EXTRACTION_MODEL` and `CHRONICLE_PRESENTATION_MODEL`), then run:
 
 ```bash
+python3 apps/chronicle/acceptance/live_model_contract.py
 python3 apps/chronicle/acceptance/live_presentation_contract.py
 ```
 
-This preflight is regression evidence, not a substitute for full-source T17
-ingestion, human review, readability inspection or browser acceptance.
+The temporary T17 `Chronicle Live Model Contract` Actions workflow is retired;
+its historical results remain in the completed task's evidence. These explicit
+preflights remain regression evidence and do not replace full-source ingestion,
+review, readability inspection or browser acceptance for a future acceptance task.
 
 Targets with no direct evidenced Claims are omitted rather than filled from model knowledge. Exact-input crash/retry adoption reuses the already-published projection without another model call. The resulting presentation and its job output remain explicitly `authoritative: false`.
 
