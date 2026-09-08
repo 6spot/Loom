@@ -209,5 +209,198 @@ class FixtureEnvironmentTests(unittest.TestCase):
                 model_provider.models_from_env()
 
 
+# ---------------------------------------------------------------------------
+# Chapter fixtures (C2-R1-T06)
+# ---------------------------------------------------------------------------
+
+CHAPTER_TEXT = "建安十三年，曹操屯江陵。周瑜敗操於赤壁。"
+CHAPTER_ID = "ch_" + "b2" * 12
+
+
+def chapter_request() -> dict:
+    import hashlib
+
+    text_hash = hashlib.sha256(CHAPTER_TEXT.encode("utf-8")).hexdigest()
+    return {
+        "chapter_id": CHAPTER_ID,
+        "chapter_index": 0,
+        "revision_id": "rev-t06-fixture-1",
+        "source_sha256": text_hash,
+        "normalized_sha256": text_hash,
+        "normalized_text": CHAPTER_TEXT,
+        "blocks": [
+            {"block_id": "b_001", "kind": "body", "start": 0, "end": 12},
+            {"block_id": "b_002", "kind": "body", "start": 12, "end": 20},
+        ],
+        "required_block_ids": ["b_001", "b_002"],
+        "plan_version": "c2r1-chapters-v1",
+        "limits": {
+            "max_source_chars": 32768,
+            "max_prompt_chars": 262144,
+            "max_response_chars": 524288,
+            "max_response_bytes": 4194304,
+            "max_output_tokens": 65536,
+            "max_correction_rounds": 1,
+        },
+        "schema_versions": {"candidate": "0.1", "bundle": "0.1"},
+    }
+
+
+def chapter_pack_model_version() -> str:
+    return "chronicle-c2r1-t06-chapter-fixture-v1"
+
+
+def chapter_pack_payload(fingerprint: str | None = None) -> dict:
+    chapter: dict = {
+        "chapter_id": CHAPTER_ID,
+        "revision_id": "rev-t06-fixture-1",
+        "source_title": "三國志·蜀書·先主傳",
+        "translation_text": "建安十三年曹操屯兵江陵，周瑜於赤壁破操。",
+        "entities": [
+            {"name": "曹操", "type": "person", "mention": "曹操"},
+            {"name": "周瑜", "type": "person", "mention": "周瑜"},
+        ],
+        "event": {"type": "battle", "title": "赤壁之戰"},
+        "predicate": "stationed_at",
+    }
+    if fingerprint is not None:
+        chapter["request_fingerprint"] = fingerprint
+    return {
+        "schema": "chronicle.chapter-fixture-pack",
+        "version": "0.1",
+        "model_version": chapter_pack_model_version(),
+        "chapters": [chapter],
+    }
+
+
+def write_chapter_pack(payload: dict) -> Path:
+    tmp = Path(tempfile.mkdtemp())
+    path = tmp / "chapter-pack.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def chapter_prompt(request: dict) -> str:
+    return (
+        "chapter system instructions\nCHAPTER_REQUEST\n"
+        + json.dumps(request, ensure_ascii=False)
+        + "\n---END CHAPTER_REQUEST---\nchapter source follows"
+    )
+
+
+class ChapterFixtureTests(unittest.TestCase):
+    def test_chapter_pack_loads_with_auditable_name(self) -> None:
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        self.assertTrue(model.name.startswith("fixture:"))
+        self.assertIn(chapter_pack_model_version(), model.name)
+        self.assertIn("chapter", model.name)
+        self.assertEqual([CHAPTER_ID], model.chapter_ids())
+
+    def test_chapter_candidate_passes_t01_validator(self) -> None:
+        import chapter_contract as C
+
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        candidate = json.loads(model.complete(chapter_prompt(chapter_request())))
+        report = C.validate_chapter_candidate(chapter_request(), candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        self.assertEqual(CHAPTER_ID, candidate["chapter_id"])
+
+    def test_fixture_and_live_share_candidate_shape(self) -> None:
+        import chapter_contract as C
+        import extraction_model_schema as S
+        from jsonschema import Draft202012Validator
+
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        request = chapter_request()
+        via_prompt = json.loads(model.complete(chapter_prompt(request)))
+        via_request = model.build_for_request(request)
+        self.assertEqual(via_request, via_prompt)
+        # The live chapter provider is constrained to this strict projection;
+        # the fixture must satisfy the same shape so both walk one protocol.
+        projection = Draft202012Validator(S.chapter_candidate_model_schema())
+        self.assertTrue(projection.is_valid(via_prompt))
+        report = C.validate_chapter_candidate(request, via_prompt)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+    def test_translation_covers_all_required_blocks_with_sources(self) -> None:
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        candidate = model.build_for_request(chapter_request())
+        covered: list[str] = []
+        for block in candidate["translation"]["blocks"]:
+            covered.extend(block["source_block_ids"])
+        self.assertEqual(["b_001", "b_002"], covered)
+        bundle = candidate["bundle"]
+        refs = (
+            [e["temp_id"] for e in bundle["entities"]]
+            + [e["temp_id"] for e in bundle["events"]]
+            + [c["temp_id"] for c in bundle["claims"]]
+        )
+        sourced = {entry["record_ref"] for entry in candidate["record_sources"]}
+        self.assertEqual(set(refs), sourced)
+        for entry in candidate["record_sources"]:
+            self.assertTrue(entry["selections"])
+        for mention in candidate["mentions"]:
+            self.assertEqual(mention["surface"], mention["selection"]["quote"])
+
+    def test_chapter_id_drift_fails_closed(self) -> None:
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        drifted = chapter_request()
+        drifted["chapter_id"] = "ch_" + "c3" * 12
+        with self.assertRaisesRegex(PersistenceError, "drift|no chapter"):
+            model.build_for_request(drifted)
+        with self.assertRaisesRegex(PersistenceError, "drift|no chapter"):
+            model.complete(chapter_prompt(drifted))
+
+    def test_unknown_chapter_or_missing_envelope_fails_closed(self) -> None:
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload())
+        )
+        with self.assertRaisesRegex(PersistenceError, "missing the CHAPTER_REQUEST"):
+            model.complete("plain chapter text without any envelope " + CHAPTER_ID)
+        with self.assertRaisesRegex(PersistenceError, "must be non-empty"):
+            model.complete("")
+        payload = chapter_pack_payload()
+        payload["chapters"] = []
+        with self.assertRaisesRegex(PersistenceError, "non-empty array"):
+            fixture_model.models_from_chapter_fixture_pack(write_chapter_pack(payload))
+        bad = chapter_pack_payload()
+        bad["schema"] = "wrong"
+        with self.assertRaisesRegex(PersistenceError, "schema/version"):
+            fixture_model.models_from_chapter_fixture_pack(write_chapter_pack(bad))
+
+    def test_ungrounded_mention_fails_closed(self) -> None:
+        payload = chapter_pack_payload()
+        payload["chapters"][0]["entities"][0]["mention"] = "不存在的人名"
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(payload)
+        )
+        with self.assertRaisesRegex(PersistenceError, "not present in the chapter text"):
+            model.build_for_request(chapter_request())
+
+    def test_request_fingerprint_binding(self) -> None:
+        import chapter_contract as C
+
+        fingerprint = C.request_fingerprint(chapter_request())
+        model = fixture_model.models_from_chapter_fixture_pack(
+            write_chapter_pack(chapter_pack_payload(fingerprint=fingerprint))
+        )
+        candidate = model.build_for_request(chapter_request())
+        self.assertEqual(CHAPTER_ID, candidate["chapter_id"])
+        tampered = chapter_request()
+        tampered["revision_id"] = "rev-tampered"
+        with self.assertRaisesRegex(PersistenceError, "fingerprint mismatch"):
+            model.build_for_request(tampered)
+
+
 if __name__ == "__main__":
     unittest.main()
