@@ -10,7 +10,7 @@ created_at: 2026-09-08
 
 # Chronicle 第一轮：章节生产、合并审核与完整译文
 
-父协调 Issue：[#548](https://github.com/6spot/Loom/issues/548)，上层讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **19 个执行叶，2 个完成（T01、T02 已对账）**。#548 仅协调；后两轮 #549/#550 不在此图中。
+父协调 Issue：[#548](https://github.com/6spot/Loom/issues/548)，上层讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮 **19 个执行叶，3 个完成（T01、T02、T03 已对账）**。#548 仅协调；后两轮 #549/#550 不在此图中。
 
 本轮结果是完整自然章 → 联合翻译/提取 → 有原文上下文的关联审核 → 已发布完整白话 → 按需原文。19 项是把同一结果拆成有界交付，不是增加19个产品方向。
 
@@ -29,7 +29,7 @@ created_at: 2026-09-08
 | --- | --- | --- | --- | --- |
 | [T01](T01-chapter-contract.md) | [#551](https://github.com/6spot/Loom/issues/551) | completed | — | 章节联合产物 schema、原文锚点与校验器 |
 | [T02](T02-acceptance-corpus.md) | [#552](https://github.com/6spot/Loom/issues/552) | completed | — | 冻结两部著作、四个完整自然章及内容核对点 |
-| [T03](T03-chapter-planning.md) | [#553](https://github.com/6spot/Loom/issues/553) | in_progress | T01, T02 | 自然章规划与规范化原文 block manifest |
+| [T03](T03-chapter-planning.md) | [#553](https://github.com/6spot/Loom/issues/553) | completed | T01, T02 | 自然章规划与规范化原文 block manifest |
 | [T04](T04-chapter-store.md) | [#554](https://github.com/6spot/Loom/issues/554) | planned | T01 | 章产物存储、租约写入与发布记录表 |
 | [T05](T05-chapter-extraction.md) | [#555](https://github.com/6spot/Loom/issues/555) | planned | T01, T03 | 完整章联合翻译与提取、完整上下文修正 |
 | [T06](T06-chapter-provider.md) | [#556](https://github.com/6spot/Loom/issues/556) | planned | T01 | 真实模型与fixture适配新的联合输出协议 |
