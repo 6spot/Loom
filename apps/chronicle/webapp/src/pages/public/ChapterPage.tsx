@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import ChapterSourceReference from "../../components/ChapterSourceReference";
+import ChapterSourceReference, { type ChapterSourceClient } from "../../components/ChapterSourceReference";
 import {
   anchorsForBlock,
   canonicalTargetForRef,
@@ -19,6 +19,7 @@ export interface ChapterPageClient {
 export interface ChapterPageProps {
   publicationId: string;
   client?: ChapterPageClient;
+  sourceClient?: ChapterSourceClient;
 }
 
 interface OpenSource {
@@ -35,6 +36,7 @@ interface OpenSource {
 export default function ChapterPage({
   publicationId,
   client = { fetchDetail: fetchChapterDetail },
+  sourceClient,
 }: ChapterPageProps) {
   const query = useQuery<ChapterDetailResponse>({
     queryKey: chapterReaderKeys.chapter(publicationId),
@@ -79,17 +81,19 @@ export default function ChapterPage({
       </section>
     );
   }
-  return <ChapterDetailView detail={query.data} openSource={openSource} onOpenSource={setOpenSource} />;
+  return <ChapterDetailView detail={query.data} openSource={openSource} onOpenSource={setOpenSource} sourceClient={sourceClient} />;
 }
 
 export function ChapterDetailView({
   detail,
   openSource,
   onOpenSource,
+  sourceClient,
 }: {
   detail: ChapterDetailResponse;
   openSource?: OpenSource | null;
   onOpenSource?: (source: OpenSource | null) => void;
+  sourceClient?: ChapterSourceClient;
 }) {
   const blocks = useMemo(
     () => (Array.isArray(detail.translation_blocks) ? detail.translation_blocks : []),
@@ -140,6 +144,7 @@ export function ChapterDetailView({
           publicationId={detail.publication_id}
           anchorId={openSource.anchorId}
           anchorLabel={openSource.label}
+          client={sourceClient}
           onClose={() => onOpenSource?.(null)}
         />
       ) : null}

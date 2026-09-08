@@ -259,6 +259,21 @@ export function classifyChapterError(error: unknown): { kind: ChapterStatusKind;
   return { kind: "error", code: "unknown_error", message: "阅读服务暂时不可用，请稍后重试" };
 }
 
+/** 合并目录分页：按 publication_id 去重追加，保证快速翻页不丢不重。纯函数。 */
+export function mergeDirectoryPages(
+  existing: ChapterDirectoryItem[],
+  page: ChapterDirectoryResponse,
+): ChapterDirectoryItem[] {
+  const seen = new Set((existing ?? []).map((item) => item.publication_id));
+  const merged = [...(existing ?? [])];
+  for (const item of page?.items ?? []) {
+    if (!item || seen.has(item.publication_id)) continue;
+    seen.add(item.publication_id);
+    merged.push(item);
+  }
+  return merged;
+}
+
 /** 服务端未给 canonical 目标的引用：只展示名称/引用，不生成详情链接。 */
 export function canonicalTargetForRef(
   ref: ChapterRef,

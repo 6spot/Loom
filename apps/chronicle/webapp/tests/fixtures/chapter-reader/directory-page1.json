@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "publication_id": "00000000-0000-7000-8000-000000000000",
+      "document_id": "doc_demo_001",
+      "revision_id": "rev_c2r1_demo_001",
+      "revision_no": 1,
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "chapter_index": 0,
+      "chapter_title": "demo chapter",
+      "source_title": "contract fixture"
+    }
+  ],
+  "next_cursor": "dir-cursor-p2",
+  "has_more": true
+}

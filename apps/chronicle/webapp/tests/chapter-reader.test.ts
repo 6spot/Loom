@@ -15,6 +15,7 @@ import {
   fetchChapterDetail,
   fetchChapterDirectory,
   fetchChapterSource,
+  mergeDirectoryPages,
   refDisplayName,
   type ChapterDetailResponse,
   type ChapterDirectoryResponse,
@@ -322,6 +323,39 @@ describe("chapter-reader safe rendering", () => {
     const html = renderToString(React.createElement(ChapterIndexView, { data: empty }));
     expect(html).toContain("chapter-index-empty");
     expect(html).toContain("还没有已发布的篇章");
+  });
+
+  it("merges cursor pages without loss or duplication", async () => {
+    stubFetch((path) => {
+      if (path.includes("cursor=")) {
+        return jsonResponse({
+          items: [directoryFixture.items[1], directoryFixture.items[0]],
+          next_cursor: null,
+        });
+      }
+      return jsonResponse({ items: [directoryFixture.items[0]], next_cursor: "c2" });
+    });
+    const page1 = await fetchChapterDirectory({ limit: 50 });
+    const page2 = await fetchChapterDirectory({ limit: 50, cursor: page1.next_cursor });
+    const merged = mergeDirectoryPages(mergeDirectoryPages([], page1), page2);
+    expect(merged.map((item) => item.publication_id)).toEqual([
+      "00000000-0000-7000-8000-000000000000",
+      "11111111-1111-7000-8000-111111111111",
+    ]);
+  });
+
+  it("renders chapter navigation entries and a load-more affordance", () => {
+    const selected: string[] = [];
+    const html = renderToString(
+      React.createElement(ChapterIndexView, {
+        data: { ...(directoryFixture as unknown as ChapterDirectoryResponse), next_cursor: "c2" },
+        onLoadMore: () => {},
+        onSelectChapter: (publicationId: string) => { selected.push(publicationId); },
+      }),
+    );
+    expect(html).toContain("chapter-index-open");
+    expect(html).toContain("chapter-index-more-button");
+    expect(html).toContain("读下一页");
   });
 });
 

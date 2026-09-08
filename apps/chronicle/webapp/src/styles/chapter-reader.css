@@ -193,6 +193,48 @@
   font-weight: 700;
 }
 
+.chr-index-link {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1f2528;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: #7d2f2f;
+}
+
+.chr-index-link:focus-visible {
+  outline: 3px solid #345d6f;
+  outline-offset: 2px;
+}
+
+.chr-index-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.chr-index-more button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #7d2f2f;
+  border-radius: 999px;
+  background: #fff;
+  color: #7d2f2f;
+  padding: 0.4rem 0.9rem;
+  min-height: 2.5rem;
+  align-self: flex-start;
+}
+
+.chr-index-more button:focus-visible {
+  outline: 3px solid #345d6f;
+  outline-offset: 2px;
+}
+
 @media (max-width: 40rem) {
   .chr-reader,
   .chr-index {

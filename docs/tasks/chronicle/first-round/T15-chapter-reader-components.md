@@ -31,13 +31,14 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 Delivery branch evidence (2026-09-08, pre-merge; post-merge reconciliation still required per task-completion):
 
-- `npm --prefix apps/chronicle/webapp test -- tests/chapter-reader.test.ts` — 16/16 pass.
-- `npm --prefix apps/chronicle/webapp test` (full webapp suite) — 59/59 pass, no regressions.
+- `npm --prefix apps/chronicle/webapp test -- tests/chapter-reader.test.ts` — 18/18 pass (fetch/SSR/contract/conformance + `mergeDirectoryPages` + navigation/load-more affordances).
+- `npx playwright test --config tests/fixtures/chapter-reader/harness/playwright.config.ts` — 6/6 pass: real mount/click/keyboard/async evidence (directory cursor pagination + directory→chapter navigation, on-demand source open/expand/paginate, Escape-close focus restore, source + chapter retry, fast-switch isolation across two publications and two anchors, malicious HTML inert).
+- `npm --prefix apps/chronicle/webapp test` (full webapp suite) — 61/61 pass, no regressions.
 - `npm --prefix apps/chronicle/webapp run lint` (`tsc --noEmit`) — clean.
 - `npm --prefix apps/chronicle/webapp run build` — succeeds; `git status` shows no change under `apps/chronicle/web/dist` (module not yet wired to App, T17 owns routing).
-- `git diff --check` — clean.
+- `git diff --check` — clean. No new packages/lockfile changes (harness reuses `@playwright/test` + bundled chromium + vite).
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
-- 2026-09-08 — Implemented reader-only modules on the delivery branch (lib/chapter-reader client+query keys, ChapterIndexPage, ChapterPage, ChapterSourceReference, chapter-reader.css, 16 interaction tests, fixtures harness). No App/router/global-CSS/dist changes. Focused checks listed under Verification pass locally. Awaiting review/merge; completion_pr/merge_sha reconciliation pending post-merge.
+- 2026-09-08 — Addressed Reviewer CHANGES_REQUIRED on the same delivery branch/PR: ChapterIndexPage now paginates by cursor with a load-more affordance and navigates via onSelectChapter/href callback (no App/router); added a runnable Playwright component-interaction harness (mount/click/Escape/retry/async, 6/6 pass) plus directory pagination fixtures. Still no App/router/global-CSS/dist changes. Awaiting re-review/merge; completion_pr/merge_sha reconciliation pending post-merge.
