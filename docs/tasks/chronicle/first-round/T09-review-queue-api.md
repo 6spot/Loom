@@ -3,10 +3,10 @@ task: C2-R1-T09
 issue: 559
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: []
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-08
 completed_at:
 completion_pr:
 merge_sha:
@@ -22,15 +22,31 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Acceptance
 
-- [ ] 450项以上、相同created_at、多job和kind的筛选/翻页/计数正确。
-- [ ] 处理前页后继续游标不会漏中间项；旧cursor不能套到别的scope。
-- [ ] 晚提交落在旧cursor前的项能在从头重读时发现；API不谎称冻结总数。
-- [ ] 现页面和验收脚本仍可工作，没有首200项作为全量结论的残留消费者。
+- [x] 450项以上、相同created_at、多job和kind的筛选/翻页/计数正确。
+- [x] 处理前页后继续游标不会漏中间项；旧cursor不能套到别的scope。
+- [x] 晚提交落在旧cursor前的项能在从头重读时发现；API不谎称冻结总数。
+- [x] 现页面和验收脚本仍可工作，没有首200项作为全量结论的残留消费者。
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+Implementation complete on branch `agent/executor/bb3634f87ae1`, delivery PR pending merge. All commands below ran 2026-09-08 against the delivery head (uncommitted tree identical to the PR head except this ledger record):
+
+- `python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_reviews_postgres.py'` — 13 tests OK (4 pre-existing updated to the 0.2 page schema + 5 new keyset/fingerprint tests; subclass re-runs included).
+- `python3 -m unittest discover -s apps/chronicle/worker -p 'test_c1_t17*_unit.py'` — 19 tests OK.
+- `npm --prefix apps/chronicle/webapp test` — 15 files / 43 tests passed (incl. 2 new `listReviewPage`/wrapper traversal tests).
+- `npm --prefix apps/chronicle/webapp run build` — OK; `run smoke:dist` — PASS; rebuilt `apps/chronicle/web/dist/assets/studio-api.js` committed, no new asset names so `server/src/static_assets.rs` needed no change.
+- `cargo test --lib` in `apps/chronicle/server` — 23 passed, incl. `vite_dist_asset_allowlist_is_complete`.
+- R15 projection unit (`test_studio_reviews_r15_projection_unit.py`, pytest-style, executed directly) — 2 passed; `test_studio_entity_conflict_r19_postgres.py` — 2 tests OK (detail/decision paths untouched).
+- `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check` — valid.
+
+Acceptance coverage: 460 bulk items sharing one `created_at` across 2 jobs × 2 link kinds (+2 fixture reviews) paginated end-to-end with stable `(created_at, review_id)` order; cursor continued after resolving the whole front page misses nothing; cross-scope/malformed/offset/duplicate-param cursors return 400; a late row inserted before an old cursor is found at the head of a fresh read while `open_count` tracks the observed total; fingerprint is identical across pages and across decisions and rotates only on plan-membership change. `StudioReviewPage` keeps working via the `listReviews` full-page wrapper; `c1_t17_gate.py` now filters by `job_id` and follows `next_cursor`.
+
+Not verified: full-workspace test suites outside the owned contracts (not required by the Issue); C1-T17 production gate re-run (explicitly out of scope — gate script only updated as a consumer). Post-merge reconciliation (`completion_pr`/`merge_sha`, README index, Issue close) is still required per `docs/development/task-completion.md` and must happen after the delivery PR merges.
+
+Review follow-up 2026-09-08: per Reviewer CHANGES_REQUIRED on PR #591, the retired-shape consumer `apps/chronicle/corpus/c1-t13/fixture_review.py` was migrated (Leader-authorized scope extension) to a `_list_open_reviews` helper that follows `next_cursor` over `items` (limit 100); both listing sites no longer use `reviews`/`offset`/first-200. Verified by `py_compile` plus a live throwaway smoke running `fixture_review.run()` against the PG-backed test server: resolved 2 reviews, resumed 1 job, decisions `{same_entity: 1, uncertain: 1}`, report schema `chronicle.c1-t13-fixture-review/0.3`. No remaining first-200-as-total consumers: repo-wide search finds no other `reviews`-array or review-list `offset` callers. PR body now carries `Closes LM-11` adjacent to `Multica-Issue: LM-11`.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-08 — Implementation complete within T09 file ownership (queue API, typed client, both test suites, gate consumer, rebuilt dist). Evidence above; delivery PR pending, post-merge reconciliation still open.
+- 2026-09-08 — Reviewer CHANGES_REQUIRED addressed on the same PR: migrated `corpus/c1-t13/fixture_review.py` to the keyset queue, verified live, checked acceptance item 4, added `Closes LM-11` to the PR body. Awaiting re-review; merge + default-branch reconciliation still open.

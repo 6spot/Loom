@@ -211,8 +211,15 @@ class StudioReviewsHttpTests(unittest.TestCase):
     def test_list_and_detail_are_source_attributed(self) -> None:
         status, payload = self._json("GET", STUDIO_REVIEWS_PREFIX)
         self.assertEqual(status, 200, payload)
-        self.assertEqual(len(payload["reviews"]), 2)
-        entity = next(item for item in payload["reviews"] if item["link_kind"] == "entity")
+        self.assertEqual(payload["schema"], "chronicle.studio-review-page")
+        self.assertEqual(payload["version"], "0.2")
+        self.assertEqual(len(payload["items"]), 2)
+        self.assertIsNone(payload["next_cursor"])
+        self.assertEqual(payload["open_count"], 2)
+        self.assertIn("observed_at", payload)
+        self.assertRegex(payload["plan_fingerprint"], r"^[0-9a-f]{64}$")
+        entity = next(item for item in payload["items"] if item["link_kind"] == "entity")
+        self.assertEqual(entity["plan_fingerprint"], payload["plan_fingerprint"])
         self.assertEqual(entity["document"]["title"], "三國志測試")
         self.assertEqual(entity["suggestion"]["decision"], "uncertain")
         self.assertEqual(entity["suggestion"]["confidence"], 0.5)
@@ -249,8 +256,10 @@ class StudioReviewsHttpTests(unittest.TestCase):
 
         status, payload = self._json("GET", f"{STUDIO_REVIEWS_PREFIX}?status=resolved")
         self.assertEqual(status, 200, payload)
-        self.assertEqual(len(payload["reviews"]), 1)
-        self.assertEqual(payload["reviews"][0]["decision"]["decision"], "same_entity")
+        self.assertEqual(len(payload["items"]), 1)
+        self.assertEqual(payload["items"][0]["decision"]["decision"], "same_entity")
+        # open_count is the whole-scope open total, independent of the status filter.
+        self.assertEqual(payload["open_count"], 1)
 
     def test_uncertain_is_first_class_and_resume_is_server_gated(self) -> None:
         first, second = map(str, self.review_ids)
@@ -283,6 +292,270 @@ class StudioReviewsHttpTests(unittest.TestCase):
         self.assertEqual(status, 409, payload)
         status, payload = self._json("GET", f"{STUDIO_REVIEWS_PREFIX}/{review_id}")
         self.assertEqual(payload["review"]["decision"]["decision"], "not_same")
+
+
+class StudioReviewsKeysetPaginationTests(StudioReviewsHttpTests):
+    """C2-R1-T09: stable keyset queue over 450+ items, shared timestamps."""
+
+    SHARED_CREATED_AT = "2026-02-01T00:00:00+00:00"
+    BULK_COUNT = 460
+
+    def _queue_second_job(self) -> uuid.UUID:
+        with psycopg.connect(self.database_url) as conn:
+            document_id = control_plane.create_document(conn, title="資治通鑑測試")
+            revision_id, _ = control_plane.create_revision(
+                conn,
+                document_id=document_id,
+                source_sha256=_sha(uuid.uuid4().hex),
+                source_bytes=128,
+                source_media_type="text/plain",
+                filename="second.txt",
+                language="zh-Hant",
+                source_label="test edition",
+            )
+            job_id = control_plane.queue_job(conn, revision_id=revision_id)
+            control_plane.claim_job(conn, worker="review-test", job_id=job_id)
+            control_plane.set_job_status(conn, job_id=job_id, status="needs_review")
+            conn.commit()
+            return job_id
+
+    def _bulk_insert(self, job_ids: list[uuid.UUID]) -> list[str]:
+        from psycopg.types.json import Jsonb
+
+        rows = []
+        for index in range(self.BULK_COUNT):
+            link_kind = "entity" if index % 2 == 0 else "event"
+            record_ref = "ent_001" if link_kind == "entity" else "evt_001"
+            allowed = (
+                ["same_entity", "not_same", "uncertain"]
+                if link_kind == "entity"
+                else ["same_occurrence", "related_occurrence", "not_same", "uncertain"]
+            )
+            payload = {
+                "scope": "resolution",
+                "link_kind": link_kind,
+                "candidate_id": f"bulk-{index}",
+                "resolution_sha256": _sha(f"bulk-resolution-{index}"),
+                "left": {"bundle": "left", "ref": record_ref},
+                "right": {"bundle": "right", "ref": record_ref},
+                "signals": [],
+                "initial_decision": "uncertain",
+                "blocking": True,
+                "allowed_decisions": allowed,
+                "decision": None,
+            }
+            rows.append(
+                (
+                    uuid.uuid4(),
+                    job_ids[index % len(job_ids)],
+                    "stage_gate",
+                    payload,
+                )
+            )
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """
+                    INSERT INTO chronicle.review_items
+                        (review_id, job_id, kind, status, payload, created_at)
+                    VALUES (%s, %s, %s, 'open', %s, %s::timestamptz)
+                    """,
+                    [(rid, job, kind, Jsonb(payload), self.SHARED_CREATED_AT) for rid, job, kind, payload in rows],
+                )
+            conn.commit()
+        return [str(rid) for rid, _, _, _ in rows]
+
+    def _get_page(self, query: str):
+        status, payload = self._json("GET", f"{STUDIO_REVIEWS_PREFIX}?{query}" if query else STUDIO_REVIEWS_PREFIX)
+        self.assertEqual(status, 200, payload)
+        return payload
+
+    def _collect_all(self, query: str, *, initial_cursor: str | None = None) -> tuple[list[dict], dict]:
+        from urllib.parse import quote
+
+        items: list[dict] = []
+        cursor: str | None = initial_cursor
+        last_payload: dict = {}
+        for _ in range(100):
+            suffix = query
+            if cursor:
+                glue = "&" if suffix else ""
+                suffix = f"{suffix}{glue}cursor={quote(cursor, safe='')}"
+            last_payload = self._get_page(suffix)
+            items.extend(last_payload["items"])
+            cursor = last_payload["next_cursor"]
+            if not cursor:
+                break
+        else:
+            self.fail("pagination did not terminate")
+        return items, last_payload
+
+    def test_bulk_filter_paginate_and_count(self) -> None:
+        second_job = self._queue_second_job()
+        bulk_ids = set(self._bulk_insert([self.job_id, second_job]))
+        total = self.BULK_COUNT + 2
+
+        items, _ = self._collect_all("status=open&limit=50")
+        self.assertEqual(len(items), total)
+        self.assertEqual(len({item["review_id"] for item in items}), total)
+        keys = [(item["created_at"], item["review_id"]) for item in items]
+        self.assertEqual(keys, sorted(keys))
+
+        fingerprints = {item["plan_fingerprint"] for item in items}
+        self.assertEqual(len(fingerprints), 1)
+
+        # Per-job scope.
+        for job_id, expected_open in ((self.job_id, self.BULK_COUNT // 2 + 2), (second_job, self.BULK_COUNT // 2)):
+            scoped, _ = self._collect_all(f"status=open&limit=100&job_id={job_id}")
+            self.assertEqual(len(scoped), expected_open)
+            self.assertTrue(all(item["job_id"] == str(job_id) for item in scoped))
+
+        # Per-kind scope.
+        entities, _ = self._collect_all("status=open&limit=100&link_kind=entity")
+        events, _ = self._collect_all("status=open&limit=100&link_kind=event")
+        self.assertEqual(len(entities), self.BULK_COUNT // 2 + 1)
+        self.assertEqual(len(events), self.BULK_COUNT // 2 + 1)
+        self.assertTrue(all(item["link_kind"] == "entity" for item in entities))
+        self.assertTrue(all(item["link_kind"] == "event" for item in events))
+        self.assertEqual(
+            {item["review_id"] for item in entities} | {item["review_id"] for item in events},
+            bulk_ids | {str(rid) for rid in self.review_ids},
+        )
+
+    def test_continue_cursor_after_resolving_front_page(self) -> None:
+        self._bulk_insert([self.job_id])
+        first = self._get_page("status=open&limit=50")
+        self.assertIsNotNone(first["next_cursor"])
+        first_ids = [item["review_id"] for item in first["items"]]
+
+        for review_id in first_ids:
+            link_kind = next(item["link_kind"] for item in first["items"] if item["review_id"] == review_id)
+            decision = "not_same" if link_kind == "entity" else "related_occurrence"
+            status, _ = self._json(
+                "POST", f"{STUDIO_REVIEWS_PREFIX}/{review_id}/decision",
+                {"decision": decision, "rationale": "批量核對", "confidence": 0.8},
+            )
+            self.assertEqual(status, 200)
+
+        continued, _ = self._collect_all(
+            "status=open&limit=50", initial_cursor=first["next_cursor"]
+        )
+        continued_ids = {item["review_id"] for item in continued}
+        # No still-open item past the cursor is skipped, and no resolved
+        # front-page item reappears.
+        self.assertEqual(len(continued_ids), len(continued))
+        self.assertFalse(continued_ids & set(first_ids))
+        fresh, _ = self._collect_all("status=open&limit=100")
+        self.assertEqual(continued_ids, {item["review_id"] for item in fresh})
+        self.assertEqual(len(fresh), self.BULK_COUNT + 2 - len(first_ids))
+
+    def test_cursor_scope_binding_and_malformed_input_rejected(self) -> None:
+        self._bulk_insert([self.job_id])
+        first = self._get_page("status=open&limit=10")
+        cursor = first["next_cursor"]
+        self.assertIsNotNone(cursor)
+        from urllib.parse import quote
+        encoded = quote(cursor, safe="")
+
+        bad_paths = [
+            f"{STUDIO_REVIEWS_PREFIX}?status=resolved&limit=10&cursor={encoded}",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&limit=10&job_id={self.job_id}&cursor={encoded}",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&limit=10&link_kind=entity&cursor={encoded}",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&cursor=not-a-cursor",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&cursor={quote('{{bad json', safe='')}",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&limit=0",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&limit=101",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&offset=0",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&status=resolved",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&job_id=nope",
+            f"{STUDIO_REVIEWS_PREFIX}?status=open&link_kind=person",
+            f"{STUDIO_REVIEWS_PREFIX}?status=bogus",
+        ]
+        for path in bad_paths:
+            status, payload = self._json("GET", path)
+            self.assertEqual(status, 400, path)
+            self.assertEqual(payload["error"]["code"], "bad_request")
+
+    def test_late_row_before_cursor_found_on_fresh_read(self) -> None:
+        self._bulk_insert([self.job_id])
+        first = self._get_page("status=open&limit=50")
+        cursor = first["next_cursor"]
+        before_count = first["open_count"]
+        before_fingerprint = first["plan_fingerprint"]
+        self.assertIsNotNone(cursor)
+
+        from psycopg.types.json import Jsonb
+
+        late_id = uuid.uuid4()
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute(
+                """
+                INSERT INTO chronicle.review_items
+                    (review_id, job_id, kind, status, payload, created_at)
+                VALUES (%s, %s, 'stage_gate', 'open', %s, %s::timestamptz)
+                """,
+                (
+                    late_id,
+                    self.job_id,
+                    Jsonb({
+                        "scope": "resolution",
+                        "link_kind": "entity",
+                        "candidate_id": "late-arrival",
+                        "resolution_sha256": _sha("late-resolution"),
+                        "left": {"bundle": "left", "ref": "ent_001"},
+                        "right": {"bundle": "right", "ref": "ent_001"},
+                        "signals": [],
+                        "initial_decision": "uncertain",
+                        "blocking": True,
+                        "allowed_decisions": ["same_entity", "not_same", "uncertain"],
+                        "decision": None,
+                    }),
+                    "2020-01-01T00:00:00+00:00",
+                ),
+            )
+            conn.commit()
+
+        # The observed open count moves with reality instead of freezing a total.
+        refetched = self._get_page("status=open&limit=50")
+        self.assertEqual(refetched["open_count"], before_count + 1)
+        self.assertNotEqual(refetched["plan_fingerprint"], before_fingerprint)
+
+        continued, _ = self._collect_all("status=open&limit=100", initial_cursor=cursor)
+        self.assertNotIn(str(late_id), {item["review_id"] for item in continued})
+
+        fresh, _ = self._collect_all("status=open&limit=100")
+        fresh_ids = [item["review_id"] for item in fresh]
+        self.assertIn(str(late_id), fresh_ids)
+        # The late row sorts before the old cursor, i.e. at the head.
+        self.assertEqual(fresh_ids[0], str(late_id))
+        self.assertEqual(len(fresh), before_count + 1)
+
+    def test_fingerprint_stable_across_pages_and_decisions(self) -> None:
+        self._bulk_insert([self.job_id])
+        first = self._get_page("status=open&limit=50")
+        fingerprint = first["plan_fingerprint"]
+        seen = {item["review_id"] for item in first["items"]}
+
+        from urllib.parse import quote
+        cursor: str | None = first["next_cursor"]
+        while cursor:
+            page = self._get_page(f"status=open&limit=50&cursor={quote(cursor, safe='')}")
+            self.assertEqual(page["plan_fingerprint"], fingerprint)
+            seen.update(item["review_id"] for item in page["items"])
+            cursor = page["next_cursor"]
+        self.assertEqual(len(seen), self.BULK_COUNT + 2)
+
+        # Resolving one item changes status/open_count but not the frozen plan.
+        victim = first["items"][0]
+        decision = "not_same" if victim["link_kind"] == "entity" else "not_same"
+        status, _ = self._json(
+            "POST", f"{STUDIO_REVIEWS_PREFIX}/{victim['review_id']}/decision",
+            {"decision": decision, "rationale": "指代不同", "confidence": 0.8},
+        )
+        self.assertEqual(status, 200)
+        after = self._get_page("status=open&limit=50")
+        self.assertEqual(after["plan_fingerprint"], fingerprint)
+        self.assertEqual(after["open_count"], first["open_count"] - 1)
 
 
 if __name__ == "__main__":

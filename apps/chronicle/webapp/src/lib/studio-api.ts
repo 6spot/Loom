@@ -290,6 +290,7 @@ export interface ReviewSummary {
   right_label?: string | null;
   suggestion: ReviewSuggestion;
   decision: ReviewChosenDecision | null;
+  plan_fingerprint?: string | null;
 }
 
 export interface ReviewDetail extends ReviewSummary {
@@ -339,10 +340,28 @@ interface JobResponse {
   job: JobDetail;
 }
 
-interface ReviewsResponse {
-  schema: "chronicle.review-list";
+export interface ReviewPageQuery {
+  status?: ReviewStatus | "all";
+  jobId?: string | null;
+  linkKind?: ReviewLinkKind | null;
+  limit?: number;
+  cursor?: string | null;
+}
+
+export interface ReviewPage {
+  schema: "chronicle.studio-review-page";
   version: string;
-  reviews: ReviewSummary[];
+  query: {
+    status: ReviewStatus | "all";
+    job_id: string | null;
+    link_kind: ReviewLinkKind | null;
+    limit: number;
+  };
+  items: ReviewSummary[];
+  next_cursor: string | null;
+  open_count: number;
+  observed_at: string;
+  plan_fingerprint: string;
 }
 
 interface ReviewResponse {
@@ -475,12 +494,36 @@ export async function mutateJob(
 
 const REVIEWS_API = "/api/v1/studio/jobs/reviews";
 
+export async function listReviewPage(
+  auth: string | null,
+  query: ReviewPageQuery = {},
+): Promise<ReviewPage> {
+  const params = new URLSearchParams();
+  params.set("status", query.status ?? "open");
+  if (query.jobId) params.set("job_id", query.jobId);
+  if (query.linkKind) params.set("link_kind", query.linkKind);
+  params.set("limit", String(query.limit ?? 50));
+  if (query.cursor) params.set("cursor", query.cursor);
+  return studioRequest<ReviewPage>(auth, `${REVIEWS_API}?${params.toString()}`);
+}
+
+// Transitional wrapper: traverse the keyset pages of the new queue API so
+// pages that have not been rewired to true pagination (T11) keep working.
+// There is no second server-side pagination; remove this once the
+// continuous-review UI reads page by page.
 export async function listReviews(
   auth: string | null,
   status: ReviewStatus | "all" = "open",
 ): Promise<ReviewSummary[]> {
-  const params = new URLSearchParams({ status, limit: "200", offset: "0" });
-  return (await studioRequest<ReviewsResponse>(auth, `${REVIEWS_API}?${params.toString()}`)).reviews;
+  const collected: ReviewSummary[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 1000; page += 1) {
+    const result = await listReviewPage(auth, { status, limit: 100, cursor });
+    collected.push(...result.items);
+    if (!result.next_cursor) return collected;
+    cursor = result.next_cursor;
+  }
+  throw new StudioApiError(500, "review_page_overflow", "审核队列分页遍历超出上限");
 }
 
 export async function getReview(auth: string | null, reviewId: string): Promise<ReviewDetail> {

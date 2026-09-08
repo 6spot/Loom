@@ -99,13 +99,23 @@ def wait_attempt_increment(base_url: str, auth: str, job_id: str, previous: int,
 
 
 def reviews_for_job(base_url: str, auth: str, job_id: str, status_filter: str) -> list[dict[str, Any]]:
-    status, payload = S.json_http(
-        base_url,
-        f"/api/v1/studio/jobs/reviews?status={status_filter}&limit=200",
-        auth=auth,
-    )
-    S.require_status(status, 200, payload, "review list")
-    return [item for item in payload.get("reviews", []) if item.get("job_id") == job_id]
+    collected: list[dict[str, Any]] = []
+    cursor: str | None = None
+    for _ in range(1000):
+        query = f"/api/v1/studio/jobs/reviews?status={status_filter}&job_id={job_id}&limit=100"
+        if cursor:
+            query += f"&cursor={urllib.parse.quote(cursor, safe='')}"
+        status, payload = S.json_http(base_url, query, auth=auth)
+        S.require_status(status, 200, payload, "review list")
+        if payload.get("schema") != "chronicle.studio-review-page":
+            raise S.GateError(f"unexpected review list schema: {payload.get('schema')!r}")
+        collected.extend(payload.get("items", []))
+        cursor = payload.get("next_cursor")
+        if not cursor:
+            break
+    else:
+        raise S.GateError("review list pagination did not terminate")
+    return [item for item in collected if item.get("job_id") == job_id]
 
 
 def require_operator_review(base_url: str, auth: str, job_id: str, evidence: dict[str, Any]) -> None:
