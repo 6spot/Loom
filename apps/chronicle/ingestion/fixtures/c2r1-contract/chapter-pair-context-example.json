@@ -1,13 +1,61 @@
 {
   "review_mode": "chapter_pair",
   "left": {
-    "bundle": "a",
-    "ref": "ent_001",
-    "chapter": 0
+    "context_id": "ctx_a_ent001",
+    "bundle": "chapter-a",
+    "bundle_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+    "record_ref": "ent_001",
+    "revision_id": "rev_c2r1_demo_001",
+    "chapter_id": "ch_756922e9af0d759d29d7475f",
+    "artifact_sha256": "bc23768c85a2287b1eea9e8da7bb60ea9249cc47f82c42ce930cb27beed5e02e",
+    "source_title": "contract fixture",
+    "chapter_title": "b_001",
+    "available": true,
+    "anchors": [
+      {
+        "anchor_id": "anc_f00ff77e8922b3e5",
+        "revision_id": "rev_c2r1_demo_001",
+        "chapter_id": "ch_756922e9af0d759d29d7475f",
+        "source_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+        "normalized_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+        "first_block_id": "b_001",
+        "last_block_id": "b_001",
+        "quote": "建安十三年，曹操屯江陵。",
+        "quote_sha256": "84436e7e746f63a59fe831293b65abffd4c36a15d86bd9cc86af82e20997eb3b",
+        "occurrence": 1,
+        "start": 0,
+        "end": 12
+      }
+    ],
+    "evidence_kind": "mention"
   },
   "right": {
-    "bundle": "b",
-    "ref": "ent_002",
-    "chapter": 1
+    "context_id": "ctx_b_ent002",
+    "bundle": "chapter-b",
+    "bundle_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+    "record_ref": "ent_002",
+    "revision_id": "rev_c2r1_demo_001",
+    "chapter_id": "ch_756922e9af0d759d29d7475f",
+    "artifact_sha256": "bc23768c85a2287b1eea9e8da7bb60ea9249cc47f82c42ce930cb27beed5e02e",
+    "source_title": "contract fixture",
+    "chapter_title": "b_002",
+    "available": true,
+    "anchors": [
+      {
+        "anchor_id": "anc_ddd24a143c8b0d0c",
+        "revision_id": "rev_c2r1_demo_001",
+        "chapter_id": "ch_756922e9af0d759d29d7475f",
+        "source_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+        "normalized_sha256": "73e4e7148e975927ac36e49763158533997ac9a1603d969843180ca1018bd46b",
+        "first_block_id": "b_001",
+        "last_block_id": "b_001",
+        "quote": "曹操屯江陵",
+        "quote_sha256": "f27173e978acb7a5f060f07ad391d14cf6047a2fa4d324434b1631f3ae3cf34e",
+        "occurrence": 1,
+        "start": 6,
+        "end": 11
+      }
+    ],
+    "evidence_kind": "record_source"
   }
 }

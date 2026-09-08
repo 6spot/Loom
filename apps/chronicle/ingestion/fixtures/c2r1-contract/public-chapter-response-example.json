@@ -41,5 +41,30 @@
       "event_refs": []
     }
   ],
+  "source_overview": {
+    "source_title": "contract fixture",
+    "chapter_title": "demo chapter",
+    "revision_id": "rev_c2r1_demo_001",
+    "block_count": 3,
+    "anchor_count": 11
+  },
+  "references": {
+    "entities": [
+      {
+        "ref": "ent_001",
+        "name": "曹操"
+      },
+      {
+        "ref": "ent_002",
+        "name": "周瑜"
+      }
+    ],
+    "events": [
+      {
+        "ref": "evt_001",
+        "title": "赤壁之戰"
+      }
+    ]
+  },
   "note": "contract fixture example, not a historical answer"
 }

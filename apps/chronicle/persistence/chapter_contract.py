@@ -290,7 +290,7 @@ def _require_request(request: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if not isinstance(required, list) or not required:
         raise PersistenceError("required_block_ids must be a non-empty array")
     for block_id in required:
-        if block_id not in by_id:
+        if not isinstance(block_id, str) or block_id not in by_id:
             raise PersistenceError(f"required_block_id {block_id!r} has no block")
     if request.get("plan_version", PLAN_VERSION) != PLAN_VERSION:
         raise PersistenceError(
@@ -332,9 +332,9 @@ def resolve_selection(
     last = selection.get("last_block_id")
     quote = selection.get("quote")
     occurrence = selection.get("occurrence")
-    if first not in blocks_by_id:
+    if not isinstance(first, str) or first not in blocks_by_id:
         return None, f"{owner} references unknown first_block {first!r}"
-    if last not in blocks_by_id:
+    if not isinstance(last, str) or last not in blocks_by_id:
         return None, f"{owner} references unknown last_block {last!r}"
     if not isinstance(quote, str) or not quote:
         return None, f"{owner} quote must be a non-empty string"
@@ -458,12 +458,47 @@ def validate_chapter_candidate(
     entities = bundle.get("entities") if isinstance(bundle.get("entities"), list) else []
     events = bundle.get("events") if isinstance(bundle.get("events"), list) else []
     claims = bundle.get("claims") if isinstance(bundle.get("claims"), list) else []
-    entity_ids = {e.get("temp_id") for e in entities if isinstance(e, dict)}
-    event_ids = {e.get("temp_id") for e in events if isinstance(e, dict)}
-    claim_ids = {c.get("temp_id") for c in claims if isinstance(c, dict)}
+    entity_ids = {e.get("temp_id") for e in entities if isinstance(e, dict) and isinstance(e.get("temp_id"), str)}
+    event_ids = {e.get("temp_id") for e in events if isinstance(e, dict) and isinstance(e.get("temp_id"), str)}
+    claim_ids = {c.get("temp_id") for c in claims if isinstance(c, dict) and isinstance(c.get("temp_id"), str)}
     all_refs = entity_ids | event_ids | claim_ids
     source = bundle.get("source") if isinstance(bundle.get("source"), dict) else {}
-    source_id = source.get("temp_id")
+    source_id = source.get("temp_id") if isinstance(source.get("temp_id"), str) else None
+    if isinstance(source, dict) and source and not isinstance(source.get("temp_id"), str):
+        references.append("source temp_id must be a string")
+
+    # Global temporary-ID discipline: these IDs are the downstream
+    # reference/assembly keys, so every record temp_id must be unique
+    # across the whole bundle (including the source) and carry the
+    # prefix of its record type. Non-string temp_ids fail closed here
+    # (schema_validation reports them too) instead of raising TypeError.
+    seen_temp_ids: dict[str, str] = {}
+    if isinstance(source.get("temp_id"), str):
+        seen_temp_ids[source["temp_id"]] = "source"
+    for collection_name, collection, prefix in (
+        ("entities", entities, "ent_"),
+        ("events", events, "evt_"),
+        ("claims", claims, "clm_"),
+    ):
+        for record in collection:
+            if not isinstance(record, dict):
+                continue
+            temp_id = record.get("temp_id")
+            owner = str(temp_id) if isinstance(temp_id, str) else collection_name
+            if not isinstance(temp_id, str) or not temp_id:
+                references.append(f"{collection_name} record requires a string temp_id")
+                continue
+            if not temp_id.startswith(prefix):
+                references.append(
+                    f"{owner} temp_id must carry the {prefix!r} {collection_name} prefix"
+                )
+            if temp_id in seen_temp_ids:
+                references.append(
+                    f"duplicate temp_id {temp_id!r} "
+                    f"({seen_temp_ids[temp_id]} vs {collection_name})"
+                )
+            else:
+                seen_temp_ids[temp_id] = collection_name
 
     # Bundle presence: a candidate must carry both translation and bundle
     # content; translation-only or bundle-only candidates are rejected.
@@ -491,26 +526,47 @@ def validate_chapter_candidate(
                 references.append(f"{owner} must not carry candidate_ids")
 
     # Reference closure + kinds for translation refs, claim refs, participants.
+    # Every membership test is type-guarded: schema-invalid model output
+    # (arrays/objects where IDs belong) must fail closed as a rejected
+    # candidate, never raise TypeError.
     seen_tblock_ids: set[str] = set()
     covered_source_blocks: set[str] = set()
+    source_order: list[str] = []
     for index, block in enumerate(tblocks, 1):
         if not isinstance(block, dict):
+            references.append(f"translation.blocks[{index}] must be an object")
             continue
         owner = f"translation.blocks[{index}]"
         block_id = block.get("block_id")
-        if block_id in seen_tblock_ids:
-            references.append(f"{owner} duplicate block_id {block_id!r}")
-        seen_tblock_ids.add(block_id)  # type: ignore[arg-type]
-        for source_block_id in block.get("source_block_ids") or []:
-            if source_block_id not in blocks_by_id:
-                references.append(f"{owner} references unknown source block {source_block_id!r}")
-            else:
-                covered_source_blocks.add(source_block_id)
+        if not isinstance(block_id, str) or not block_id:
+            references.append(f"{owner} block_id must be a non-empty string")
+        else:
+            if block_id in seen_tblock_ids:
+                references.append(f"{owner} duplicate block_id {block_id!r}")
+            seen_tblock_ids.add(block_id)
+        source_block_ids = block.get("source_block_ids")
+        if not isinstance(source_block_ids, list):
+            references.append(f"{owner} source_block_ids must be an array")
+        else:
+            for source_block_id in source_block_ids:
+                if not isinstance(source_block_id, str):
+                    references.append(
+                        f"{owner} references malformed source block {source_block_id!r}"
+                    )
+                    continue
+                if source_block_id not in blocks_by_id:
+                    references.append(f"{owner} references unknown source block {source_block_id!r}")
+                else:
+                    covered_source_blocks.add(source_block_id)
+                    source_order.append(source_block_id)
         for ref in (block.get("entity_refs") or []) + (block.get("event_refs") or []):
             if not isinstance(ref, dict):
                 references.append(f"{owner} has a malformed typed reference")
                 continue
             kind, target = ref.get("kind"), ref.get("ref")
+            if not isinstance(target, str):
+                references.append(f"{owner} has a malformed typed reference")
+                continue
             if kind == "entity" and target not in entity_ids:
                 references.append(f"{owner} references missing entity {target!r}")
             elif kind == "event" and target not in event_ids:
@@ -523,25 +579,32 @@ def validate_chapter_candidate(
     for event in events:
         if not isinstance(event, dict):
             continue
-        owner = str(event.get("temp_id") or "event")
+        owner = str(event.get("temp_id") or "event") if isinstance(event.get("temp_id"), str) else "event"
         for participant in event.get("participants") or []:
-            if isinstance(participant, dict) and participant.get("entity_ref") not in entity_ids:
-                references.append(f"{owner} references missing entity {participant.get('entity_ref')!r}")
+            if not isinstance(participant, dict):
+                references.append(f"{owner} has a malformed participant")
+                continue
+            entity_ref = participant.get("entity_ref")
+            if not isinstance(entity_ref, str) or entity_ref not in entity_ids:
+                references.append(f"{owner} references missing entity {entity_ref!r}")
         for place in event.get("places") or []:
-            if place not in entity_ids:
+            if not isinstance(place, str) or place not in entity_ids:
                 references.append(f"{owner} references missing place entity {place!r}")
         parent = event.get("parent_event_ref")
-        if parent is not None and parent not in event_ids:
+        if parent is not None and (not isinstance(parent, str) or parent not in event_ids):
             references.append(f"{owner} references missing parent event {parent!r}")
     for claim in claims:
         if not isinstance(claim, dict):
             continue
-        owner = str(claim.get("temp_id") or "claim")
+        owner = str(claim.get("temp_id")) if isinstance(claim.get("temp_id"), str) else "claim"
         for field in ("subject", "object"):
             ref = claim.get(field)
             if ref is None or not isinstance(ref, dict):
                 continue
             kind, target = ref.get("kind"), ref.get("ref")
+            if not isinstance(target, str):
+                references.append(f"{owner}.{field} has a malformed reference")
+                continue
             if kind == "entity" and target not in entity_ids:
                 references.append(f"{owner}.{field} references missing entity {target!r}")
             elif kind == "event" and target not in event_ids:
@@ -559,11 +622,15 @@ def validate_chapter_candidate(
     by_record: dict[str, dict[str, Any]] = {}
     for entry in candidate.get("record_sources") or []:
         if not isinstance(entry, dict):
+            record_sources.append("record_sources entry must be an object")
             continue
         ref = entry.get("record_ref")
+        if not isinstance(ref, str) or not ref:
+            record_sources.append(f"record_sources entry has malformed record_ref {ref!r}")
+            continue
         if ref in by_record:
             record_sources.append(f"duplicate record_sources entry for {ref!r}")
-        by_record[str(ref)] = entry
+        by_record[ref] = entry
         kind = entry.get("record_kind")
         expected_kind = None
         if ref in entity_ids:
@@ -588,8 +655,8 @@ def validate_chapter_candidate(
     for claim in claims:
         if not isinstance(claim, dict):
             continue
-        owner = str(claim.get("temp_id"))
-        entry = by_record.get(owner)
+        owner = str(claim.get("temp_id")) if isinstance(claim.get("temp_id"), str) else "claim"
+        entry = by_record.get(owner) if isinstance(claim.get("temp_id"), str) else None
         evidence = claim.get("evidence") if isinstance(claim.get("evidence"), dict) else {}
         if entry and isinstance(entry.get("selections"), list) and entry["selections"]:
             first = entry["selections"][0]
@@ -602,15 +669,22 @@ def validate_chapter_candidate(
     seen_mentions: set[str] = set()
     for mention in candidate.get("mentions") or []:
         if not isinstance(mention, dict):
+            mentions.append("mention entry must be an object")
             continue
         mention_id = mention.get("mention_id")
+        if not isinstance(mention_id, str) or not mention_id:
+            mentions.append(f"mention entry has malformed mention_id {mention_id!r}")
+            continue
         owner = f"mention {mention_id!r}"
         if mention_id in seen_mentions:
             mentions.append(f"duplicate {owner}")
-        seen_mentions.add(mention_id)  # type: ignore[arg-type]
+        seen_mentions.add(mention_id)
         status = mention.get("status")
         target = mention.get("target_ref")
         candidates_refs = mention.get("candidate_refs") or []
+        if not isinstance(candidates_refs, list):
+            mentions.append(f"{owner} candidate_refs must be an array")
+            candidates_refs = []
         if status == "resolved" and (not target or candidates_refs):
             mentions.append(f"{owner} resolved requires non-empty target_ref and empty candidate_refs")
         elif status == "ambiguous" and (target is not None or len(candidates_refs) < 2):
@@ -620,7 +694,7 @@ def validate_chapter_candidate(
         elif status not in ("resolved", "ambiguous", "unresolved"):
             mentions.append(f"{owner} has invalid status {status!r}")
         for ref in ([target] if target else []) + list(candidates_refs):
-            if ref not in entity_ids:
+            if not isinstance(ref, str) or ref not in entity_ids:
                 mentions.append(f"{owner} references missing entity {ref!r}")
         selection = mention.get("selection")
         if isinstance(selection, dict) and selection.get("quote") != mention.get("surface"):
@@ -646,13 +720,28 @@ def validate_chapter_candidate(
                 if error:
                     anchors.append(error)
 
-    # Translation coverage: every required (non-empty body) block appears.
+    # Translation coverage and order: every required (non-empty body)
+    # block appears, and translation blocks are ordered. Array order is
+    # meaningful (chapter-production.md section 4): the flattened
+    # source_block_ids sequence must follow request block order, so a
+    # reversed chapter cannot validate.
     required = request.get("required_block_ids") or []
     if isinstance(required, list):
         missing = [b for b in required if b not in covered_source_blocks]
         if missing:
             coverage.append(
-                "translation misses required source blocks: " + ", ".join(sorted(missing))
+                "translation misses required source blocks: " + ", ".join(sorted(str(b) for b in missing))
+            )
+    if blocks_by_id and source_order:
+        order_index = {
+            block["block_id"]: position
+            for position, block in enumerate(request["blocks"])
+            if isinstance(block, dict) and isinstance(block.get("block_id"), str)
+        }
+        indices = [order_index[b] for b in source_order if b in order_index]
+        if indices != sorted(indices):
+            coverage.append(
+                "translation source_block_ids order does not follow chapter block order"
             )
 
     # Time precision: normalized month/day are never invented; original
@@ -767,6 +856,8 @@ def collect_anchors(
         if not isinstance(block, dict):
             continue
         for source_block_id in block.get("source_block_ids") or []:
+            if not isinstance(source_block_id, str):
+                continue
             info = blocks_by_id.get(source_block_id)
             if info is None:
                 continue
@@ -833,6 +924,11 @@ def accept_chapter_candidate(
 ) -> dict[str, Any]:
     """Accept a passing candidate and emit its bound artifact.
 
+    Validation is always recomputed for this exact request/candidate
+    pair. A caller-supplied ``report`` is accepted only as a
+    consistency check: it must agree with the recomputed report on both
+    outcome and error set, otherwise acceptance fails closed. A forged
+    ``{"passed": True}`` can therefore never accept a bad candidate.
     Raises :class:`PersistenceError` when the candidate does not pass.
     The model-generatable candidate is embedded verbatim; every
     program-bound value (hashes, offsets, fingerprint, run) is computed
@@ -843,9 +939,20 @@ def accept_chapter_candidate(
     for key in ("run_id", "model", "prompt_schema_version"):
         if not isinstance(producing_run.get(key), str) or not producing_run[key]:
             raise PersistenceError(f"producing_run requires non-empty {key!r}")
-    checked = report if report is not None else validate_chapter_candidate(request, candidate)
-    if not isinstance(checked, dict) or not checked.get("passed"):
-        detail = "; ".join(flatten_validation_errors(checked)) if isinstance(checked, dict) else "no report"
+    fresh = validate_chapter_candidate(request, candidate)
+    if report is not None:
+        if not isinstance(report, dict):
+            raise PersistenceError("supplied validation report must be a JSON object")
+        if bool(report.get("passed")) != bool(fresh["passed"]) or set(
+            flatten_validation_errors(report)
+        ) != set(flatten_validation_errors(fresh)):
+            raise PersistenceError(
+                "supplied validation report does not match this "
+                "request/candidate pair; refusing to accept (fail closed)"
+            )
+    checked = fresh
+    if not checked.get("passed"):
+        detail = "; ".join(flatten_validation_errors(checked))
         raise PersistenceError(f"chapter candidate failed validation: {detail}")
     anchors = collect_anchors(request, candidate)
     fingerprint = request_fingerprint(request)
@@ -902,6 +1009,13 @@ def validate_resolution_v02(document: dict[str, Any]) -> dict[str, Any]:
         structural.append("resolution schema/version must be chronicle.resolution-links/0.2")
     if document.get("scope") not in ("within_revision", "cross_source"):
         structural.append("resolution scope must be within_revision|cross_source")
+    if document.get("scope") == "cross_source" and isinstance(
+        document.get("left_bundle"), dict
+    ) and isinstance(document.get("right_bundle"), dict):
+        if document["left_bundle"].get("label") == document["right_bundle"].get("label"):
+            structural.append(
+                "cross_source resolution requires distinct left/right bundle labels"
+            )
     seen: set[str] = set()
     for collection, prefix in (("entity_links", "ec_"), ("event_links", "vc_")):
         for link in document.get(collection) or []:
@@ -940,6 +1054,26 @@ def validate_resolution_v02(document: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+#: Evidence kinds for review SourceContext descriptors (review-workflow.md §4).
+EVIDENCE_KINDS = (
+    "direct_claim",
+    "mention",
+    "record_source",
+    "event_context",
+    "translation",
+)
+
+#: Batch audit vocabulary (Amendment 0007 §4/§8).
+REVIEW_SUBJECT_VERSION = "0.2"
+ENTITY_REVIEW_DECISIONS = ("same_entity", "not_same", "uncertain")
+EVENT_REVIEW_DECISIONS = (
+    "same_occurrence",
+    "related_occurrence",
+    "not_same",
+    "uncertain",
+)
+
+
 def example_assembled_mapping(
     *, revision_refs: dict[str, str], chapter_by_ref: dict[str, str]
 ) -> dict[str, Any]:
@@ -952,40 +1086,317 @@ def example_assembled_mapping(
     }
 
 
-def example_chapter_pair_context(
-    *, left: dict[str, Any], right: dict[str, Any]
+def example_source_descriptor(
+    *,
+    context_id: str,
+    bundle: str,
+    bundle_sha256: str,
+    record_ref: str,
+    revision_id: str,
+    chapter_id: str,
+    artifact_sha256: str,
+    source_title: str,
+    chapter_title: str,
+    available: bool = True,
+    anchors: list[dict[str, Any]] | None = None,
+    evidence_kind: str = "record_source",
 ) -> dict[str, Any]:
-    """Build the review-workflow chapter_pair evidence DTO example shape."""
+    """Build one review SourceContext descriptor (review-workflow.md §4)."""
     return {
-        "review_mode": "chapter_pair",
-        "left": left,
-        "right": right,
+        "context_id": context_id,
+        "bundle": bundle,
+        "bundle_sha256": bundle_sha256,
+        "record_ref": record_ref,
+        "revision_id": revision_id,
+        "chapter_id": chapter_id,
+        "artifact_sha256": artifact_sha256,
+        "source_title": source_title,
+        "chapter_title": chapter_title,
+        "available": available,
+        "anchors": list(anchors or []),
+        "evidence_kind": evidence_kind,
     }
 
 
-def example_public_chapter_response(
-    *, artifact: dict[str, Any], translation_blocks: list[dict[str, Any]]
+def validate_source_descriptor(descriptor: dict[str, Any]) -> list[str]:
+    """Return required-field errors for one SourceContext descriptor."""
+    errors: list[str] = []
+    if not isinstance(descriptor, dict):
+        return ["source descriptor must be an object"]
+    for field in (
+        "context_id",
+        "bundle",
+        "bundle_sha256",
+        "record_ref",
+        "revision_id",
+        "chapter_id",
+        "artifact_sha256",
+        "source_title",
+        "chapter_title",
+        "available",
+        "anchors",
+        "evidence_kind",
+    ):
+        if field not in descriptor:
+            errors.append(f"source descriptor is missing {field!r}")
+    if descriptor.get("evidence_kind") not in EVIDENCE_KINDS:
+        errors.append(
+            f"source descriptor evidence_kind must be one of {list(EVIDENCE_KINDS)}"
+        )
+    if "anchors" in descriptor and not isinstance(descriptor["anchors"], list):
+        errors.append("source descriptor anchors must be an array")
+    return errors
+
+
+def example_chapter_pair_context(
+    *, left: dict[str, Any], right: dict[str, Any]
 ) -> dict[str, Any]:
-    """Build the public chapter detail response example shape."""
+    """Build the review-workflow chapter_pair evidence DTO example shape.
+
+    Both sides are SourceContext descriptors; chapter_pair carries no
+    published canonical side and never borrows a batch identifier.
+    """
+    return {
+        "review_mode": "chapter_pair",
+        "left": dict(left),
+        "right": dict(right),
+    }
+
+
+def validate_chapter_pair_context(context: dict[str, Any]) -> list[str]:
+    """Return required-field errors for a chapter_pair evidence DTO."""
+    errors: list[str] = []
+    if not isinstance(context, dict):
+        return ["chapter_pair context must be an object"]
+    if context.get("review_mode") != "chapter_pair":
+        errors.append("chapter_pair context review_mode must be 'chapter_pair'")
+    for side in ("left", "right"):
+        if side not in context:
+            errors.append(f"chapter_pair context is missing {side!r}")
+            continue
+        for error in validate_source_descriptor(context[side]):
+            errors.append(f"{side}: {error}")
+    return errors
+
+
+def example_batch_context(
+    *,
+    review_subject_id: str,
+    link_kind: str,
+    canonical_id: str,
+    groups: list[dict[str, Any]],
+    members: list[dict[str, Any]],
+    signals: list[str] | None = None,
+) -> dict[str, Any]:
+    """Build the published_batch evidence DTO example shape (Am. 0007 §4).
+
+    Batching is question organization only, never an identity conclusion:
+    the DTO retains every incoming review group with its deterministic
+    group ID and proven component root, all underlying candidate keys
+    and member bundle/ref pairs, the default decision, and per-group
+    overrides.
+    """
+    if link_kind == "entity":
+        allowed = list(ENTITY_REVIEW_DECISIONS)
+    elif link_kind == "event":
+        allowed = list(EVENT_REVIEW_DECISIONS)
+    else:
+        raise PersistenceError(f"unknown batch link kind {link_kind!r}")
+    return {
+        "review_mode": "published_batch",
+        "review_subject_id": review_subject_id,
+        "review_subject_version": REVIEW_SUBJECT_VERSION,
+        "link_kind": link_kind,
+        "published_canonical_id": canonical_id,
+        "left_subject": {
+            "component_kind": "published_canonical",
+            "canonical_id": canonical_id,
+        },
+        "right_subject": {
+            "component_kind": "operator_review_batch",
+        },
+        "groups": [dict(group) for group in groups],
+        "group_count": len(groups),
+        "members": [dict(member) for member in members],
+        "member_count": len(members),
+        "signals": list(signals or []),
+        "default_decision": "uncertain",
+        "group_overrides": [],
+        "allowed_decisions": allowed,
+        "note": "contract fixture example, not a historical answer",
+    }
+
+
+def validate_batch_context(context: dict[str, Any]) -> list[str]:
+    """Return required-field errors for a published_batch evidence DTO."""
+    errors: list[str] = []
+    if not isinstance(context, dict):
+        return ["batch context must be an object"]
+    for field in (
+        "review_mode",
+        "review_subject_id",
+        "review_subject_version",
+        "link_kind",
+        "published_canonical_id",
+        "left_subject",
+        "right_subject",
+        "groups",
+        "group_count",
+        "members",
+        "member_count",
+        "signals",
+        "default_decision",
+        "group_overrides",
+        "allowed_decisions",
+    ):
+        if field not in context:
+            errors.append(f"batch context is missing {field!r}")
+    if context.get("review_mode") != "published_batch":
+        errors.append("batch context review_mode must be 'published_batch'")
+    if context.get("link_kind") not in ("entity", "event"):
+        errors.append("batch context link_kind must be entity|event")
+    groups = context.get("groups")
+    if isinstance(groups, list):
+        if context.get("group_count") != len(groups):
+            errors.append("batch context group_count must match groups")
+        for index, group in enumerate(groups):
+            if not isinstance(group, dict):
+                errors.append(f"batch context groups[{index}] must be an object")
+                continue
+            for field in (
+                "review_group_id",
+                "component_root",
+                "members",
+                "member_count",
+                "candidate_keys",
+            ):
+                if field not in group:
+                    errors.append(f"batch context groups[{index}] is missing {field!r}")
+    members = context.get("members")
+    if isinstance(members, list) and context.get("member_count") != len(members):
+        errors.append("batch context member_count must match members")
+    return errors
+
+
+def example_public_chapter_response(
+    *,
+    artifact: dict[str, Any],
+    translation_blocks: list[dict[str, Any]],
+    source_overview: dict[str, Any] | None = None,
+    references: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the public chapter detail response example shape.
+
+    Detail responses carry the complete ordered translation blocks plus
+    a source overview and the precomputed object/event references; they
+    never generate content dynamically.
+    """
     return {
         "publication_id": "00000000-0000-7000-8000-000000000000",
         "chapter_id": artifact.get("chapter_id"),
         "revision_id": artifact.get("revision_id"),
         "translation_blocks": list(translation_blocks),
+        "source_overview": dict(source_overview or {}),
+        "references": dict(references or {}),
         "note": "contract fixture example, not a historical answer",
     }
 
 
-def example_review_page(*, items: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build the studio-review-page/0.2 queue example shape."""
+def validate_public_chapter_response(response: dict[str, Any]) -> list[str]:
+    """Return required-field errors for a public chapter detail response."""
+    errors: list[str] = []
+    if not isinstance(response, dict):
+        return ["public chapter response must be an object"]
+    for field in (
+        "publication_id",
+        "chapter_id",
+        "revision_id",
+        "translation_blocks",
+        "source_overview",
+        "references",
+    ):
+        if field not in response:
+            errors.append(f"public chapter response is missing {field!r}")
+    overview = response.get("source_overview")
+    if isinstance(overview, dict):
+        for field in ("source_title", "chapter_title", "revision_id"):
+            if field not in overview:
+                errors.append(f"public chapter source_overview is missing {field!r}")
+    refs = response.get("references")
+    if isinstance(refs, dict):
+        for field in ("entities", "events"):
+            if field not in refs:
+                errors.append(f"public chapter references is missing {field!r}")
+    return errors
+
+
+def example_review_page(
+    *,
+    items: list[dict[str, Any]],
+    open_count: int,
+    observed_at: str,
+    query: dict[str, Any] | None = None,
+    next_cursor: str | None = None,
+) -> dict[str, Any]:
+    """Build the studio-review-page/0.2 queue example shape.
+
+    ``open_count`` is the read-transaction observation over the whole
+    job/link_kind scope, independent of the current page; it is never
+    derived from ``len(items)``.
+    """
+    if not isinstance(open_count, int) or isinstance(open_count, bool) or open_count < 0:
+        raise PersistenceError("review page open_count must be a non-negative integer")
+    if not isinstance(observed_at, str) or not observed_at:
+        raise PersistenceError("review page observed_at must be a non-empty string")
     return {
         "schema": "chronicle.studio-review-page",
         "version": "0.2",
-        "query": {"status": "open", "limit": 50},
+        "query": dict(query or {"status": "open", "limit": 50}),
         "items": list(items),
-        "next_cursor": None,
-        "open_count": len(items),
+        "next_cursor": next_cursor,
+        "open_count": open_count,
+        "observed_at": observed_at,
     }
+
+
+def validate_review_page(page: dict[str, Any]) -> list[str]:
+    """Return required-field errors for a studio-review-page/0.2 DTO."""
+    errors: list[str] = []
+    if not isinstance(page, dict):
+        return ["review page must be an object"]
+    for field in (
+        "schema",
+        "version",
+        "query",
+        "items",
+        "next_cursor",
+        "open_count",
+        "observed_at",
+    ):
+        if field not in page:
+            errors.append(f"review page is missing {field!r}")
+    if page.get("schema") != "chronicle.studio-review-page" or page.get("version") != "0.2":
+        errors.append("review page schema/version must be chronicle.studio-review-page/0.2")
+    if "open_count" in page and (
+        not isinstance(page["open_count"], int)
+        or isinstance(page["open_count"], bool)
+        or page["open_count"] < 0
+    ):
+        errors.append("review page open_count must be a non-negative integer")
+    if "observed_at" in page and (
+        not isinstance(page["observed_at"], str) or not page["observed_at"]
+    ):
+        errors.append("review page observed_at must be a non-empty string")
+    items = page.get("items")
+    if isinstance(items, list):
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                errors.append(f"review page items[{index}] must be an object")
+                continue
+            for field in ("review_id", "status", "plan_fingerprint"):
+                if field not in item:
+                    errors.append(f"review page items[{index}] is missing {field!r}")
+    return errors
 
 
 __all__ = [
@@ -994,25 +1405,36 @@ __all__ = [
     "CANDIDATE_SCHEMA",
     "CANDIDATE_VERSION",
     "ChapterLimits",
+    "ENTITY_REVIEW_DECISIONS",
+    "EVENT_REVIEW_DECISIONS",
+    "EVIDENCE_KINDS",
     "OFFSET_UNIT",
     "PLAN_VERSION",
     "RESOLUTION_SCHEMA",
     "RESOLUTION_VERSION",
+    "REVIEW_SUBJECT_VERSION",
     "accept_chapter_candidate",
     "anchor_id_for",
     "artifact_schema",
     "candidate_schema",
     "collect_anchors",
     "example_assembled_mapping",
+    "example_batch_context",
     "example_chapter_pair_context",
     "example_public_chapter_response",
     "example_review_page",
+    "example_source_descriptor",
     "flatten_validation_errors",
     "normalize_source_bytes",
     "request_fingerprint",
     "resolution_v02_schema",
     "resolve_selection",
     "sha256_text",
+    "validate_batch_context",
     "validate_chapter_candidate",
+    "validate_chapter_pair_context",
+    "validate_public_chapter_response",
     "validate_resolution_v02",
+    "validate_review_page",
+    "validate_source_descriptor",
 ]

@@ -272,17 +272,132 @@ class TimeAndSchemaTests(unittest.TestCase):
         # v0.1 vocabulary preserved: same candidate prefixes, same decisions.
         self.assertIn("candidate_id", json.dumps(valid))
 
-    def test_shared_dto_examples_load(self) -> None:
-        for name in (
-            "assembled-mapping-example.json",
-            "chapter-pair-context-example.json",
-            "batch-context-example.json",
-            "public-chapter-response-example.json",
-            "public-source-response-example.json",
-            "review-page-example.json",
-        ):
-            value = load(name)
-            self.assertIsInstance(value, dict)
+    def test_shared_dto_examples_validate(self) -> None:
+        pair = load("chapter-pair-context-example.json")
+        self.assertEqual([], C.validate_chapter_pair_context(pair))
+        batch = load("batch-context-example.json")
+        self.assertEqual([], C.validate_batch_context(batch))
+        pub = load("public-chapter-response-example.json")
+        self.assertEqual([], C.validate_public_chapter_response(pub))
+        page = load("review-page-example.json")
+        self.assertEqual([], C.validate_review_page(page))
+        # open_count is scope-observed, never derived from the page.
+        self.assertNotEqual(page["open_count"], len(page["items"]))
+        self.assertIn("observed_at", page)
+
+    def test_incomplete_dto_examples_fail_validators(self) -> None:
+        page = load("review-page-example.json")
+        bad_page = {k: v for k, v in page.items() if k != "observed_at"}
+        self.assertTrue(C.validate_review_page(bad_page))
+        batch = load("batch-context-example.json")
+        bad_batch = copy.deepcopy(batch)
+        del bad_batch["groups"][0]["candidate_keys"]
+        self.assertTrue(C.validate_batch_context(bad_batch))
+        pub = load("public-chapter-response-example.json")
+        bad_pub = {k: v for k, v in pub.items() if k != "source_overview"}
+        self.assertTrue(C.validate_public_chapter_response(bad_pub))
+        pair = load("chapter-pair-context-example.json")
+        bad_pair = copy.deepcopy(pair)
+        del bad_pair["left"]["evidence_kind"]
+        self.assertTrue(C.validate_chapter_pair_context(bad_pair))
+
+
+class ForgedReportTests(unittest.TestCase):
+    def test_forged_passing_report_cannot_accept_dangling_candidate(self) -> None:
+        request, _ = base()
+        candidate = load("candidate-dangling-ref.json")
+        with self.assertRaises(PersistenceError):
+            C.accept_chapter_candidate(
+                request, candidate,
+                producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+                report={"passed": True, "errors": {}},
+            )
+
+    def test_matching_report_accepts(self) -> None:
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"])
+        artifact = C.accept_chapter_candidate(
+            request, candidate,
+            producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+            report=report,
+        )
+        self.assertEqual(artifact["chapter_id"], request["chapter_id"])
+
+    def test_stale_report_for_other_candidate_rejected(self) -> None:
+        request, candidate = base()
+        other = load("candidate-missing-tail.json")
+        stale = C.validate_chapter_candidate(request, other)
+        with self.assertRaises(PersistenceError):
+            C.accept_chapter_candidate(
+                request, candidate,
+                producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+                report=stale,
+            )
+
+
+class FailClosedTypeTests(unittest.TestCase):
+    def test_schema_invalid_ids_fail_closed_without_exception(self) -> None:
+        request, candidate = base()
+        candidate["translation"]["blocks"][0]["block_id"] = ["t_001"]
+        candidate["translation"]["blocks"][0]["source_block_ids"] = ["b_001", ["b_002"]]
+        candidate["mentions"][0]["mention_id"] = {"id": 1}
+        candidate["mentions"][1]["candidate_refs"] = "ent_001"
+        candidate["bundle"]["entities"][0]["temp_id"] = ["ent_001"]
+        candidate["record_sources"][0]["record_ref"] = {"ref": "ent_001"}
+        try:
+            report = C.validate_chapter_candidate(request, candidate)
+        except TypeError as exc:
+            self.fail(f"validate_chapter_candidate raised TypeError: {exc}")
+        self.assertFalse(report["passed"])
+        self.assertGreater(report["count"], 0)
+
+
+class TempIdUniquenessTests(unittest.TestCase):
+    def test_duplicate_temp_id_across_entities_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["entities"][1]["temp_id"] = "ent_001"
+        assert_rejected(self, C.validate_chapter_candidate(request, candidate), "references")
+
+    def test_wrong_prefix_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["temp_id"] = "evt_001"
+        assert_rejected(self, C.validate_chapter_candidate(request, candidate), "references")
+
+
+class ResolutionScopeTests(unittest.TestCase):
+    def test_cross_source_same_labels_rejected(self) -> None:
+        doc = load("resolution-v02-within-revision.json")
+        doc = copy.deepcopy(doc)
+        doc["scope"] = "cross_source"
+        doc["right_bundle"] = dict(doc["left_bundle"])
+        report = C.validate_resolution_v02(doc)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("distinct" in message for message in report["errors"]["structural"])
+        )
+
+    def test_within_revision_example_still_passes(self) -> None:
+        self.assertTrue(
+            C.validate_resolution_v02(load("resolution-v02-within-revision.json"))["passed"]
+        )
+
+
+class TranslationOrderTests(unittest.TestCase):
+    def test_reversed_translation_blocks_rejected(self) -> None:
+        request, candidate = base()
+        candidate["translation"]["blocks"] = list(reversed(candidate["translation"]["blocks"]))
+        assert_rejected(
+            self, C.validate_chapter_candidate(request, candidate), "translation_coverage"
+        )
+
+    def test_reversed_source_block_ids_rejected(self) -> None:
+        request, candidate = base()
+        block = candidate["translation"]["blocks"][0]
+        block["source_block_ids"] = list(reversed(block["source_block_ids"]))
+        assert_rejected(
+            self, C.validate_chapter_candidate(request, candidate), "translation_coverage"
+        )
 
 
 if __name__ == "__main__":
