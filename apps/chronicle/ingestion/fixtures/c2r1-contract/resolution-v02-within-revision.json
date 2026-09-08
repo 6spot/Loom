@@ -1,0 +1,36 @@
+{
+  "schema": "chronicle.resolution-links",
+  "version": "0.2",
+  "scope": "within_revision",
+  "left_bundle": {
+    "label": "chapter-a",
+    "source_ref": "src_001",
+    "source_title": "t"
+  },
+  "right_bundle": {
+    "label": "chapter-b",
+    "source_ref": "src_001",
+    "source_title": "t"
+  },
+  "entity_links": [
+    {
+      "candidate_id": "ec_001",
+      "left": {
+        "bundle": "a",
+        "ref": "ent_001"
+      },
+      "right": {
+        "bundle": "b",
+        "ref": "ent_002"
+      },
+      "decision": "uncertain",
+      "confidence": 0.4,
+      "rationale": "same surface across chapters, needs review",
+      "signals": [
+        "shared_surface"
+      ]
+    }
+  ],
+  "event_links": [],
+  "warnings": []
+}

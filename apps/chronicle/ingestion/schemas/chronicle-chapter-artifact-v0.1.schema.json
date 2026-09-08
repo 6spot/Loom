@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.1.schema.json",
+  "title": "Chronicle Chapter Artifact v0.1 (program-accepted output)",
+  "description": "Accepted chapter artifact produced only by accept_chapter_candidate from a passing candidate. Binds the candidate to revision/source/chapter hashes, resolved anchors, request fingerprint and producing run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "chapter_id", "revision_id", "source_sha256", "normalized_sha256", "candidate", "candidate_sha256", "anchors", "request_fingerprint", "producing_run"],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-artifact"},
+    "version": {"const": "0.1"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "revision_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate": {"type": "object"},
+    "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchors": {"type": "array", "items": {"$ref": "#/$defs/anchor"}},
+    "request_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "producing_run": {"$ref": "#/$defs/producing_run"}
+  },
+  "$defs": {
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor_id", "revision_id", "chapter_id", "source_sha256", "normalized_sha256", "first_block_id", "last_block_id", "quote", "quote_sha256", "occurrence", "start", "end"],
+      "properties": {
+        "anchor_id": {"type": "string", "pattern": "^anc_[0-9a-f]{16}$"},
+        "revision_id": {"type": "string", "minLength": 1},
+        "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "first_block_id": {"type": "string", "minLength": 1},
+        "last_block_id": {"type": "string", "minLength": 1},
+        "quote": {"type": "string", "minLength": 1},
+        "quote_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "occurrence": {"type": "integer", "minimum": 1},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1}
+      }
+    },
+    "producing_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "model", "prompt_schema_version"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "prompt_schema_version": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

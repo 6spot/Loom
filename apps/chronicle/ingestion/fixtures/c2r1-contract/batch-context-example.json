@@ -1,0 +1,66 @@
+{
+  "review_mode": "published_batch",
+  "review_subject_id": "rs_example000000000000000001",
+  "review_subject_version": "0.2",
+  "link_kind": "entity",
+  "published_canonical_id": "00000000-0000-7000-8000-000000000001",
+  "left_subject": {
+    "component_kind": "published_canonical",
+    "canonical_id": "00000000-0000-7000-8000-000000000001"
+  },
+  "right_subject": {
+    "component_kind": "operator_review_batch"
+  },
+  "groups": [
+    {
+      "review_group_id": "rg_example000000000000000001",
+      "component_root": "ent_001",
+      "members": [
+        {
+          "bundle": "incoming",
+          "ref": "ent_001"
+        }
+      ],
+      "member_count": 1,
+      "candidate_keys": [
+        [
+          "res-sha",
+          "ec_001"
+        ]
+      ],
+      "signals": [
+        "shared_surface"
+      ]
+    }
+  ],
+  "group_count": 1,
+  "members": [
+    {
+      "candidate_key": [
+        "res-sha",
+        "ec_001"
+      ],
+      "candidate_id": "ec_001",
+      "left": {
+        "bundle": "pub",
+        "ref": "canonical-1"
+      },
+      "right": {
+        "bundle": "incoming",
+        "ref": "ent_001"
+      }
+    }
+  ],
+  "member_count": 1,
+  "signals": [
+    "shared_surface"
+  ],
+  "default_decision": "uncertain",
+  "group_overrides": [],
+  "allowed_decisions": [
+    "same_entity",
+    "not_same",
+    "uncertain"
+  ],
+  "note": "contract fixture example, not a historical answer"
+}
