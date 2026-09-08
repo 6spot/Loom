@@ -1,0 +1,45 @@
+{
+  "publication_id": "00000000-0000-7000-8000-000000000000",
+  "chapter_id": "ch_756922e9af0d759d29d7475f",
+  "revision_id": "rev_c2r1_demo_001",
+  "source_title": "contract fixture",
+  "chapter_title": "demo chapter",
+  "translation_blocks": [
+    {
+      "block_id": "t_001",
+      "text": "建安十三年曹操屯兵江陵，又在赤壁閱兵；周瑜在赤壁擊敗曹操。",
+      "source_block_ids": ["b_001", "b_002"],
+      "source_anchor_ids": ["anc_f00ff77e8922b3e5", "anc_58d6842876db1d38"],
+      "entity_refs": [
+        { "kind": "entity", "ref": "ent_001" },
+        { "kind": "entity", "ref": "ent_002" },
+        { "kind": "entity", "ref": "ent_003" }
+      ],
+      "event_refs": [{ "kind": "event", "ref": "evt_001" }]
+    },
+    {
+      "block_id": "t_002",
+      "text": "其人聽聞後君王下令退兵。",
+      "source_block_ids": ["b_003"],
+      "source_anchor_ids": ["anc_b003_window"],
+      "entity_refs": [],
+      "event_refs": []
+    }
+  ],
+  "source_overview": {
+    "source_title": "contract fixture",
+    "chapter_title": "demo chapter",
+    "revision_id": "rev_c2r1_demo_001",
+    "block_count": 3,
+    "anchor_count": 11
+  },
+  "references": {
+    "entities": [
+      { "ref": "ent_001", "name": "曹操" },
+      { "ref": "ent_002", "name": "周瑜" },
+      { "ref": "ent_003", "name": "公", "canonical_id": null }
+    ],
+    "events": [{ "ref": "evt_001", "title": "赤壁之戰" }]
+  },
+  "note": "harness fixture derived from the T01 frozen public-chapter-response-example; source_anchor_ids is the server-owned block→anchor mapping the T14 reader API will return (harness carries it explicitly so the browser never guesses anchors)"
+}

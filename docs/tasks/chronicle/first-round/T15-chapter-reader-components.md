@@ -3,10 +3,10 @@ task: C2-R1-T15
 issue: 565
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: [C2-R1-T01]
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-08
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,8 +29,15 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+Delivery branch evidence (2026-09-08, pre-merge; post-merge reconciliation still required per task-completion):
+
+- `npm --prefix apps/chronicle/webapp test -- tests/chapter-reader.test.ts` — 16/16 pass.
+- `npm --prefix apps/chronicle/webapp test` (full webapp suite) — 59/59 pass, no regressions.
+- `npm --prefix apps/chronicle/webapp run lint` (`tsc --noEmit`) — clean.
+- `npm --prefix apps/chronicle/webapp run build` — succeeds; `git status` shows no change under `apps/chronicle/web/dist` (module not yet wired to App, T17 owns routing).
+- `git diff --check` — clean.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-08 — Implemented reader-only modules on the delivery branch (lib/chapter-reader client+query keys, ChapterIndexPage, ChapterPage, ChapterSourceReference, chapter-reader.css, 16 interaction tests, fixtures harness). No App/router/global-CSS/dist changes. Focused checks listed under Verification pass locally. Awaiting review/merge; completion_pr/merge_sha reconciliation pending post-merge.

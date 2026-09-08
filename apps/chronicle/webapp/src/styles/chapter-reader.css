@@ -1,0 +1,209 @@
+/* Chapter reader 专属样式（C2-R1-T15）。
+ * 全部选择器以 chr- 为前缀的类名限定在本模块容器内；不写全局元素选择器，
+ * 不导入、不覆盖 chronicle.css / studio.css / world.css；未挂接 App 前不影响生产 dist。
+ */
+
+.chr-reader,
+.chr-index {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+
+.chr-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: #667074;
+}
+
+.chr-reader-heading h1,
+.chr-index h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.6rem;
+  line-height: 1.35;
+}
+
+.chr-meta {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+  color: #3d4448;
+}
+
+.chr-muted {
+  color: #667074;
+  font-size: 0.9rem;
+}
+
+/* 单栏全文：默认无双栏，章/来源信息次要，正文优先。 */
+.chr-single-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.chr-paragraph {
+  padding: 1rem 1.1rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 12px;
+  background: #fffdf8;
+}
+
+.chr-paragraph-text {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.9;
+}
+
+.chr-paragraph-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.chr-position {
+  color: #667074;
+}
+
+.chr-source-button,
+.chr-close-button,
+.chr-source-toolbar button,
+.chr-source-footer button,
+.chr-state-card button,
+.chr-reader button,
+.chr-index button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #7d2f2f;
+  border-radius: 999px;
+  background: #fff;
+  color: #7d2f2f;
+  padding: 0.4rem 0.9rem;
+  min-height: 2.5rem;
+}
+
+.chr-source-button:focus-visible,
+.chr-close-button:focus-visible,
+.chr-source-toolbar button:focus-visible,
+.chr-ref-link:focus-visible {
+  outline: 3px solid #345d6f;
+  outline-offset: 2px;
+}
+
+.chr-refs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chr-ref-link {
+  color: #345d6f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.chr-ref-text {
+  border-bottom: 1px dotted #667074;
+}
+
+/* 按需原文面板：默认收起，点击才请求；关闭恢复焦点与阅读位置。 */
+.chr-source-panel {
+  margin-top: 1.5rem;
+  border: 1px solid #345d6f;
+  border-radius: 12px;
+  background: #f4f7f8;
+  padding: 1rem 1.1rem;
+}
+
+.chr-source-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.chr-source-heading h3 {
+  margin: 0.25rem 0;
+  font-size: 1.05rem;
+}
+
+.chr-source-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.chr-source-toolbar button[aria-pressed="true"] {
+  background: #7d2f2f;
+  color: #fff;
+}
+
+.chr-source-text {
+  white-space: pre-wrap;
+  line-height: 2;
+  background: #fff;
+  border: 1px solid #d8d0c2;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.chr-source-text mark {
+  background: #f4ebcc;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.chr-source-footer {
+  margin-top: 0.75rem;
+}
+
+.chr-state-card {
+  border: 1px dashed #7d2f2f;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin: 0.75rem 0;
+  background: #fff;
+}
+
+.chr-index-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.chr-index-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.chr-index-title {
+  font-weight: 700;
+}
+
+@media (max-width: 40rem) {
+  .chr-reader,
+  .chr-index {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  .chr-source-heading {
+    flex-direction: column;
+  }
+
+  .chr-paragraph-text {
+    font-size: 1rem;
+  }
+}
