@@ -17,9 +17,9 @@ function Placeholder({ title, description, next }: { title: string; description:
 export function ReviewPage() {
   return (
     <Placeholder
-      title="Review"
-      description="跨来源 resolution 评审队列。C1-T9 只提供工程占位，不实现评审工作流。"
-      next="后续 C1-T11 在此挂载评审队列；当前版本不调用任何特权 API。"
+      title="人工审核"
+      description="跨来源消歧评审队列。C1-T9 只提供工程占位，不实现评审工作流。"
+      next="后续 C1-T11 在此挂载评审队列；当前版本不调用任何受保护接口。"
     />
   );
 }

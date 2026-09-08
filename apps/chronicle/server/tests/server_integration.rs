@@ -13,6 +13,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 
 const ADMIN_AUTH: &str = "Basic YWRtaW46bG9uZy1wYXNzd29yZA=="; // admin:long-password
+const REVIEW_CONFLICT: &str = r#"{"schema":"chronicle.error","version":"0.1","error":{"code":"canonical_identity_conflict","message":"当前判断会连接两个已经发布的实体，不能提交。","details":{"canonical_ids":["canonical-a","canonical-b"],"review_group_ids":["group-x"],"incoming_refs":[{"bundle":"c1rev-r19","ref":"ent_000044"}]}}}"#;
 
 struct LiveServer {
     port: u16,
@@ -98,6 +99,8 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                     )
                 } else if path == "/healthz" {
                     (200, "{\"status\":\"ok\"}".to_string())
+                } else if path == "/api/v1/studio/jobs/reviews/r19/decision" && method == "POST" {
+                    (409, REVIEW_CONFLICT.to_string())
                 } else if path.starts_with("/api/v1/studio/documents")
                     || path.starts_with("/api/v1/studio/jobs")
                 {
@@ -692,6 +695,37 @@ async fn studio_jobs_proxy_method_path_query_and_body() {
     assert_eq!(retried, 201);
     let payload: serde_json::Value = serde_json::from_slice(&echo).expect("json");
     assert_eq!(payload["proxied_path"], "/api/v1/studio/jobs/some-id/retry");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_review_identity_conflict_preserves_status_and_context_behind_auth() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    let path = "/api/v1/studio/jobs/reviews/r19/decision";
+    let decision = br#"{"decision":"same_entity","rationale":"source evidence","confidence":0.9}"#;
+
+    for (auth, expected_status) in [(None, 401), (Some(ADMIN_AUTH), 409)] {
+        let (status, headers, body) = raw_request_with_body(
+            server.port,
+            "POST",
+            path,
+            auth,
+            Some("application/json"),
+            decision,
+        )
+        .await
+        .expect("review submission answers");
+        assert_eq!(status, expected_status);
+        assert!(headers.to_ascii_lowercase().contains("application/json"));
+        if status == 409 {
+            assert_eq!(body, REVIEW_CONFLICT.as_bytes());
+        } else {
+            let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(payload["error"]["code"], "unauthorized");
+            assert!(payload["error"].get("details").is_none());
+        }
+    }
     server.stop().await;
 }
 

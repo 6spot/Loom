@@ -55,6 +55,12 @@ do not echo response bodies or API keys; the existing extraction/presentation
 validators still own schema, evidence grounding, uncertainty and publication
 authority.
 
+Both live providers send strict Responses `text.format` constraints for their
+own contracts: extraction uses the staged-bundle projection and presentation
+uses the [Reader Presentation candidate shape](reader-presentation.md). The
+presentation prompt supplies the exact canonical target; the output validator
+still rejects a missing or mismatched target instead of filling it in.
+
 ## How durability works
 
 1. **Claim.** `claim_job` takes one `queued` job — or one `running` job
@@ -128,6 +134,9 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
   Cancelling an already-cancelled job is idempotent.
 - Both `retry` and `resume` clear the stale lease so the next live worker
   can claim the job (a `running` job without a lease is claimable).
+- Successful `resume` clears the old review error on the job and the resumed
+  stages, so a running job no longer advertises a resolved review as a current
+  blocker. Review decisions and append-only chunk-run history remain intact.
 
 ## Operational concurrency limits
 

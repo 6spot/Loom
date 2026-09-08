@@ -3,8 +3,12 @@
 C1-T13 needs the already-tested C1 extraction/presentation provider protocols
 to be reachable from the real Docker worker. This module intentionally keeps
 that deployment I/O vendor-neutral: it speaks the small HTTP subset used by a
-Responses-style endpoint (``POST`` JSON with ``model`` + ``input``) and returns
-only the produced text.
+Responses-style endpoint and returns only produced text.
+
+Extraction and Reader Presentation each supply their own strict structured-
+output constraint derived from their canonical contract. These constrain
+generation only; the existing schema/grounding/reference/time/uncertainty
+validators remain the acceptance authority.
 
 Development may instead opt in to ``CHRONICLE_MODEL_FIXTURE_PACK``. That mode
 uses the same model boundary and normal Chronicle validators/persistence path;
@@ -21,14 +25,26 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib import error, parse, request
 
 from common import PersistenceError
 
-DEFAULT_MODEL_TIMEOUT_SECONDS = 120.0
+try:
+    from extraction_model_schema import extraction_text_format
+    from presentation_model_schema import presentation_text_format
+except ImportError:  # pragma: no cover - package import path
+    from .extraction_model_schema import extraction_text_format
+    from .presentation_model_schema import presentation_text_format
+
+DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+DEFAULT_MODEL_MAX_ATTEMPTS = 3
+DEFAULT_MODEL_RETRY_BACKOFF_SECONDS = 1.0
+MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
+TRANSIENT_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504, 520, 522, 523, 524})
 
 
 class ModelProviderError(RuntimeError):
@@ -114,13 +130,22 @@ def _response_text(payload: Any) -> str:
 
 @dataclass(frozen=True)
 class ResponsesHTTPModel:
-    """Small synchronous provider implementing Chronicle's ``complete`` hook."""
+    """Small synchronous provider implementing Chronicle's ``complete`` hook.
+
+    ``timeout_seconds`` is the timeout for each HTTP attempt, not a shared
+    budget across all retries. This distinction is important for long-running
+    model requests: a transient connection failure that consumes one attempt's
+    timeout must not silently make ``max_attempts > 1`` ineffective.
+    """
 
     name: str
     endpoint: str
     api_key: str | None = None
     timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS
+    retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
+    text_format: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -131,58 +156,96 @@ class ResponsesHTTPModel:
             raise PersistenceError("model timeout must be positive")
         if self.max_response_bytes < 1:
             raise PersistenceError("model max_response_bytes must be positive")
+        if (
+            not isinstance(self.max_attempts, int)
+            or isinstance(self.max_attempts, bool)
+            or self.max_attempts < 1
+        ):
+            raise PersistenceError("model max_attempts must be a positive integer")
+        if self.retry_backoff_seconds < 0:
+            raise PersistenceError("model retry_backoff_seconds must be non-negative")
+        if self.text_format is not None and not isinstance(self.text_format, dict):
+            raise PersistenceError("model text_format must be a JSON object")
 
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
             raise ModelProviderError("model prompt must be a non-empty string")
 
+        payload: dict[str, Any] = {"model": self.name, "input": prompt}
+        if self.text_format is not None:
+            payload["text"] = {"format": self.text_format}
         body = json.dumps(
-            {"model": self.name, "input": prompt},
+            payload,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": MODEL_HTTP_USER_AGENT,
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        req = request.Request(
-            self.endpoint,
-            data=body,
-            headers=headers,
-            method="POST",
+
+        attempts_made = 0
+        last_transient = "transport failure"
+
+        for attempt in range(1, self.max_attempts + 1):
+            attempts_made += 1
+            req = request.Request(
+                self.endpoint,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+
+            try:
+                with request.urlopen(req, timeout=self.timeout_seconds) as response:
+                    content_length = response.headers.get("Content-Length")
+                    if content_length is not None:
+                        try:
+                            declared = int(content_length)
+                        except ValueError:
+                            declared = 0
+                        if declared > self.max_response_bytes:
+                            raise ModelProviderError(
+                                "model response exceeds configured size limit"
+                            )
+                    raw = response.read(self.max_response_bytes + 1)
+            except error.HTTPError as exc:
+                # Never echo a provider body: gateways may include request
+                # details, credentials, source text, or model output.
+                if exc.code not in TRANSIENT_HTTP_STATUSES:
+                    raise ModelProviderError(
+                        f"model endpoint returned HTTP {exc.code}"
+                    ) from exc
+                last_transient = f"HTTP {exc.code}"
+            except (error.URLError, TimeoutError, OSError):
+                last_transient = "transport failure"
+            else:
+                if len(raw) > self.max_response_bytes:
+                    raise ModelProviderError(
+                        "model response exceeds configured size limit"
+                    )
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ModelProviderError(
+                        "model endpoint returned invalid JSON"
+                    ) from exc
+                return _response_text(payload)
+
+            if attempt >= self.max_attempts:
+                break
+
+            backoff = self.retry_backoff_seconds * (2 ** (attempt - 1))
+            if backoff > 0:
+                time.sleep(backoff)
+
+        raise ModelProviderError(
+            "model endpoint transient failure after "
+            f"{attempts_made} attempt(s): {last_transient}"
         )
-
-        try:
-            with request.urlopen(req, timeout=self.timeout_seconds) as response:
-                content_length = response.headers.get("Content-Length")
-                if content_length is not None:
-                    try:
-                        declared = int(content_length)
-                    except ValueError:
-                        declared = 0
-                    if declared > self.max_response_bytes:
-                        raise ModelProviderError(
-                            "model response exceeds configured size limit"
-                        )
-                raw = response.read(self.max_response_bytes + 1)
-        except error.HTTPError as exc:
-            # Do not echo a response body: gateways may include request details,
-            # credentials, or source text in their diagnostics.
-            raise ModelProviderError(
-                f"model endpoint returned HTTP {exc.code}"
-            ) from exc
-        except (error.URLError, TimeoutError, OSError) as exc:
-            raise ModelProviderError("model endpoint request failed") from exc
-
-        if len(raw) > self.max_response_bytes:
-            raise ModelProviderError("model response exceeds configured size limit")
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ModelProviderError("model endpoint returned invalid JSON") from exc
-        return _response_text(payload)
 
 
 def _fixture_models_from_env() -> tuple[Any, Any] | None:
@@ -226,6 +289,9 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     explicit endpoint is required so a deployment can choose OpenAI, Luna
     through a compatible gateway, or a local Responses-compatible service
     without Chronicle guessing a vendor.
+
+    Each live model receives the strict structured-output constraint for its
+    own contract and is validated independently after generation.
     """
     fixture_models = _fixture_models_from_env()
     if fixture_models is not None:
@@ -245,7 +311,11 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     api_key = _nonempty_env("CHRONICLE_MODEL_API_KEY")
     timeout = _timeout_from_env()
 
-    def build(name: str | None) -> ResponsesHTTPModel | None:
+    def build(
+        name: str | None,
+        *,
+        text_format: dict[str, Any] | None = None,
+    ) -> ResponsesHTTPModel | None:
         if name is None:
             return None
         return ResponsesHTTPModel(
@@ -253,6 +323,10 @@ def models_from_env() -> tuple[Any | None, Any | None]:
             endpoint=endpoint,
             api_key=api_key,
             timeout_seconds=timeout,
+            text_format=text_format,
         )
 
-    return build(extraction_name), build(presentation_name)
+    return (
+        build(extraction_name, text_format=extraction_text_format()),
+        build(presentation_name, text_format=presentation_text_format()),
+    )

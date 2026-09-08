@@ -76,7 +76,7 @@ def context_input(
     inherited: list[dict] | None = None, surfaces: list[str] | None = None
 ) -> dict:
     return {
-        "version": "c1t5-ctx-v1",
+        "version": X.EXPECTED_CONTEXT_VERSION,
         "chunk_index": -1,
         "inherited_time": inherited or [],
         "active_entities": [
@@ -233,7 +233,7 @@ class RequestTests(unittest.TestCase):
         meta = request["request_meta"]
         self.assertEqual(meta["extraction_version"], "c1t6-v1")
         self.assertEqual(meta["contract_version"], "0.2")
-        self.assertEqual(meta["prompt_version"], "c1t6-prompt-v1")
+        self.assertEqual(meta["prompt_version"], "c1t6-prompt-v6")
         self.assertEqual(meta["locator"]["chunk_index"], 0)
         self.assertIn(CHUNK_0, request["prompt"])
         self.assertIn("建安十三年", request["prompt"])
@@ -273,6 +273,13 @@ class ValidationTests(unittest.TestCase):
         report = self.validate(bundle)
         self.assertTrue(report["passed"], X.flatten_validation_errors(report))
         self.assertEqual(report["contract_version"], "0.2")
+
+    def test_canonical_normalized_null_is_not_rejected_by_mechanical_validator(self) -> None:
+        bundle = valid_bundle(CHUNK_0, "劉表卒", time_original="建安十三年")
+        bundle["events"][0]["time"]["normalized"] = None
+        bundle["claims"][0]["time"]["normalized"] = None
+        report = self.validate(bundle)
+        self.assertTrue(report["passed"], X.flatten_validation_errors(report))
 
     def test_paraphrased_evidence_fails_grounding(self) -> None:
         bundle = valid_bundle(CHUNK_0, "刘表去世", time_original="建安十三年")

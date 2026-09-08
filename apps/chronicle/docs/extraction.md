@@ -56,6 +56,13 @@ ingestion_chunk_runs rows (one per model attempt, append-only)
   accepted checkpoint carries `authoritative: false`. Extraction
   confidence (`extraction.confidence`) stays separate from historical
   assessment (claims start `unassessed`).
+- **Occurrence assertions remain Claim-backed.** Prompt `c1t6-prompt-v6`
+  explicitly asks for source assertions about an occurrence, such as its
+  result, as top-level Claims referring to the Event. A browsing Event's
+  title and participants are not Claim evidence. This is initial extraction
+  guidance, not a new mandatory-field validator or a second coverage pass:
+  a Claim still requires exact source evidence and a faithful predicate;
+  unsupported assertions stay omitted or produce `ontology_gap`.
 - **Restart-safe.** Completed chunks are never re-run, so ordinary
   resume never duplicates a successful chunk. A chunk whose accepted
   run row committed but whose accepted layer/status did not (worker

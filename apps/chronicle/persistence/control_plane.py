@@ -962,7 +962,7 @@ def resume_job(conn, *, job_id: uuid.UUID) -> None:
         conn.execute(
             """
             UPDATE chronicle.ingestion_jobs
-            SET status = 'running',
+            SET status = 'running', error = NULL,
                 lease_owner = NULL, lease_expires_at = NULL,
                 updated_at = %s
             WHERE job_id = %s
@@ -972,7 +972,7 @@ def resume_job(conn, *, job_id: uuid.UUID) -> None:
         conn.execute(
             """
             UPDATE chronicle.ingestion_job_stages
-            SET status = 'running', updated_at = %s
+            SET status = 'running', error = NULL, updated_at = %s
             WHERE job_id = %s AND status = 'needs_review'
             """,
             (_utcnow(), job_id),

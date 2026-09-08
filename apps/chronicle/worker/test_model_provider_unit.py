@@ -40,7 +40,7 @@ class FakeResponse:
 
 
 class ResponsesHTTPModelTests(unittest.TestCase):
-    def test_posts_model_input_and_bearer_auth(self) -> None:
+    def test_posts_model_input_bearer_auth_and_product_user_agent(self) -> None:
         provider = model_provider.ResponsesHTTPModel(
             name="reader-v1",
             endpoint="https://gateway.example/v1/responses",
@@ -59,9 +59,42 @@ class ResponsesHTTPModelTests(unittest.TestCase):
             self.assertEqual("现代中文", provider.complete("原文"))
 
         self.assertEqual("https://gateway.example/v1/responses", captured["url"])
-        self.assertEqual(120.0, captured["timeout"])
+        self.assertEqual(600.0, captured["timeout"])
         self.assertEqual({"model": "reader-v1", "input": "原文"}, captured["body"])
         self.assertEqual("Bearer secret-token", captured["headers"]["Authorization"])
+        self.assertEqual(
+            model_provider.MODEL_HTTP_USER_AGENT,
+            captured["headers"]["User-agent"],
+        )
+        self.assertFalse(captured["headers"]["User-agent"].startswith("Python-urllib"))
+
+    def test_structured_text_format_is_sent_without_changing_text_boundary(self) -> None:
+        text_format = {
+            "type": "json_schema",
+            "name": "example",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["value"],
+                "properties": {"value": {"type": "string"}},
+            },
+            "strict": True,
+        }
+        provider = model_provider.ResponsesHTTPModel(
+            name="extract-v1",
+            endpoint="https://gateway.example/v1/responses",
+            text_format=text_format,
+        )
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"output_text": '{"value":"ok"}'})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual('{"value":"ok"}', provider.complete("source"))
+        self.assertEqual(text_format, captured["body"]["text"]["format"])
+        self.assertEqual("source", captured["body"]["input"])
 
     def test_nested_output_text_is_supported(self) -> None:
         provider = model_provider.ResponsesHTTPModel(
@@ -90,6 +123,10 @@ class ResponsesHTTPModelTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):
             model_provider.ResponsesHTTPModel(
                 name="x", endpoint="https://user:password@example.test/responses"
+            )
+        with self.assertRaises(PersistenceError):
+            model_provider.ResponsesHTTPModel(
+                name="x", endpoint="https://example.test/responses", text_format="bad"
             )
 
     def test_http_error_does_not_echo_body_or_key(self) -> None:
@@ -164,7 +201,6 @@ class EnvironmentTests(unittest.TestCase):
     }
 
     def clean_env(self, values: dict[str, str] | None = None):
-        env = {key: os.environ.get(key) for key in self.ENV_KEYS}
         patch = {key: "" for key in self.ENV_KEYS}
         if values:
             patch.update(values)
@@ -191,7 +227,42 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual("extract-model", extraction.name)
         self.assertEqual(45.5, extraction.timeout_seconds)
         self.assertEqual("token", extraction.api_key)
+        self.assertIsInstance(extraction.text_format, dict)
+        assert extraction.text_format is not None
+        self.assertEqual("json_schema", extraction.text_format["type"])
+        self.assertTrue(extraction.text_format["strict"])
+        self.assertEqual("0.1", extraction.text_format["schema"]["properties"]["schema_version"]["const"])
         self.assertIsNone(presentation)
+
+    def test_presentation_model_sends_its_own_strict_contract(self) -> None:
+        with self.clean_env(
+            {
+                "CHRONICLE_MODEL_ENDPOINT": "https://gateway.example/v1/responses",
+                "CHRONICLE_PRESENTATION_MODEL": "reader-model",
+            }
+        ):
+            extraction, presentation = model_provider.models_from_env()
+        self.assertIsNone(extraction)
+        self.assertIsNotNone(presentation)
+        assert presentation is not None
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"output_text": "{}"})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual("{}", presentation.complete("reader context"))
+        fmt = captured["body"]["text"]["format"]
+        self.assertEqual("reader-model", captured["body"]["model"])
+        self.assertEqual("json_schema", fmt["type"])
+        self.assertTrue(fmt["strict"])
+        self.assertEqual("chronicle.reader-presentation", fmt["schema"]["properties"]["schema"]["const"])
+        self.assertEqual(
+            {"schema", "version", "target_kind", "canonical_id", "language", "blocks"},
+            set(fmt["schema"]["required"]),
+        )
+        self.assertNotIn("schema_version", fmt["schema"]["properties"])
 
     def test_configured_model_requires_endpoint_and_valid_timeout(self) -> None:
         with self.clean_env({"CHRONICLE_PRESENTATION_MODEL": "reader"}):

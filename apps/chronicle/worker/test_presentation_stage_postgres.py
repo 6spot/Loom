@@ -302,6 +302,43 @@ class PresentationStagePostgresTests(unittest.TestCase):
                 "cancelled",
             )
 
+    def test_r20_missing_target_fails_without_projection_or_output(self) -> None:
+        job_id, _revision_id, canonical_id = self._seed_presentable_job()
+
+        class MissingTargetModel(GroundedPresentationModel):
+            def complete(self, prompt: str) -> str:
+                output = json.loads(super().complete(prompt))
+                del output["target_kind"]
+                return json.dumps(output)
+
+        model = MissingTargetModel()
+        runner = worker_mod.JobRunner(
+            self.database_url, worker=WORKER, presentation_model=model
+        )
+        self.assertEqual(runner.execute_job(job_id), "failed")
+        self.assertEqual(model.calls, 1)
+        with psycopg.connect(self.database_url) as conn:
+            detail = control_plane.get_job_detail(conn, job_id=job_id)
+            self.assertIn("target_kind must be 'entity', got None", detail["error"])
+            self.assertEqual(
+                conn.execute("SELECT count(*) FROM chronicle.reader_presentations").fetchone()[0],
+                0,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.ingestion_outputs WHERE artifact_type = %s",
+                    (presentation_stage.ARTIFACT_TYPE,),
+                ).fetchone()[0],
+                0,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT canonical_id::text FROM chronicle.canonical_entities WHERE canonical_id = %s::uuid",
+                    (canonical_id,),
+                ).fetchone()[0],
+                canonical_id,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

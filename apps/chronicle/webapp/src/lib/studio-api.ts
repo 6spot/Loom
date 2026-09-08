@@ -9,12 +9,14 @@
 export class StudioApiError extends Error {
   readonly code: string;
   readonly status: number;
+  readonly details?: CanonicalIdentityConflictDetails;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details?: CanonicalIdentityConflictDetails) {
     super(message);
     this.name = "StudioApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -181,6 +183,16 @@ export interface ReviewRef {
   ref: string;
 }
 
+export interface ReviewCandidateMember {
+  candidate_key: string;
+  resolution_sha256: string;
+  candidate_id: string;
+  link_kind: ReviewLinkKind;
+  left: ReviewRef;
+  right: ReviewRef;
+  signals: string[];
+}
+
 export interface ReviewSuggestion {
   decision: string | null;
   confidence: number | null;
@@ -188,10 +200,18 @@ export interface ReviewSuggestion {
   signals: unknown[];
 }
 
+export interface ReviewGroupDecisionInput {
+  review_group_id: string;
+  decision: ReviewDecision;
+  confidence: number;
+  rationale: string;
+}
+
 export interface ReviewChosenDecision {
   decision: ReviewDecision;
   confidence: number;
   rationale: string;
+  group_decisions?: ReviewGroupDecisionInput[];
 }
 
 export interface ReviewRecordContext {
@@ -212,6 +232,35 @@ export interface ReviewRecordContext {
   };
 }
 
+export interface ReviewGroupDetail {
+  review_group_id: string;
+  member_count: number;
+  signals: string[];
+  right_contexts: ReviewRecordContext[];
+}
+
+export interface CanonicalIdentityConflictDetails {
+  review_id: string;
+  canonical_ids: string[];
+  canonical_entities: Array<{
+    canonical_id: string;
+    names: string[];
+    contexts: ReviewRecordContext[];
+  }>;
+  review_group_ids: string[];
+  candidate_keys: string[];
+  proposed_candidate_keys: string[];
+  incoming_refs: ReviewRef[];
+  incoming_contexts: ReviewRecordContext[];
+  published_refs: Array<ReviewRef & { canonical_id: string }>;
+  review_groups: Array<{
+    review_group_id: string;
+    candidate_keys: string[];
+    incoming_refs: ReviewRef[];
+    right_contexts: ReviewRecordContext[];
+  }>;
+}
+
 export interface ReviewSummary {
   review_id: string;
   job_id: string;
@@ -225,12 +274,20 @@ export interface ReviewSummary {
   document: ReviewDocumentContext;
   scope: "resolution";
   link_kind: ReviewLinkKind;
+  review_subject_id?: string | null;
+  review_subject_version?: string | null;
+  member_count?: number;
+  group_count?: number;
+  groups?: unknown[];
+  members?: ReviewCandidateMember[];
   candidate_id: string;
   resolution_sha256: string;
   blocking: boolean;
   allowed_decisions: ReviewDecision[];
   left: ReviewRef;
   right: ReviewRef;
+  left_label?: string | null;
+  right_label?: string | null;
   suggestion: ReviewSuggestion;
   decision: ReviewChosenDecision | null;
 }
@@ -238,6 +295,9 @@ export interface ReviewSummary {
 export interface ReviewDetail extends ReviewSummary {
   left_context: ReviewRecordContext;
   right_context: ReviewRecordContext;
+  left_contexts?: ReviewRecordContext[];
+  right_contexts?: ReviewRecordContext[];
+  review_groups?: ReviewGroupDetail[];
   job_open_resolution_reviews: number;
 }
 
@@ -306,11 +366,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw new StudioApiError(response.status, "invalid_response", `Studio API returned HTTP ${response.status}`);
   }
   if (!response.ok) {
-    const error = (payload as { error?: { code?: string; message?: string } })?.error;
+    const error = (payload as { error?: {
+      code?: string; message?: string; details?: CanonicalIdentityConflictDetails;
+    } })?.error;
     throw new StudioApiError(
       response.status,
       error?.code ?? "request_failed",
       error?.message ?? `Studio API returned HTTP ${response.status}`,
+      error?.details,
     );
   }
   return payload as T;
@@ -431,13 +494,21 @@ export async function submitReviewDecision(
   decision: ReviewDecision,
   rationale: string,
   confidence = 0.5,
+  groupDecisions: ReviewGroupDecisionInput[] = [],
 ): Promise<ReviewDetail> {
   const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`;
+  const payload: {
+    decision: ReviewDecision;
+    rationale: string;
+    confidence: number;
+    group_decisions?: ReviewGroupDecisionInput[];
+  } = { decision, rationale, confidence };
+  if (groupDecisions.length) payload.group_decisions = groupDecisions;
   return (
     await studioRequest<ReviewResponse>(auth, path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, rationale, confidence }),
+      body: JSON.stringify(payload),
     })
   ).review;
 }
