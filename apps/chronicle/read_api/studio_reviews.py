@@ -11,22 +11,44 @@ server namespace.
 
 Routes:
 
-GET  /api/v1/studio/jobs/reviews[?status=open|resolved|dismissed|all&limit=&offset=]
+GET  /api/v1/studio/jobs/reviews[?status=open|resolved|dismissed|all&job_id=&link_kind=entity|event&limit=&cursor=]
 GET  /api/v1/studio/jobs/reviews/{review_id}
 POST /api/v1/studio/jobs/reviews/{review_id}/decision
      {"decision":"...","rationale":"...","confidence":0.0..1.0}
+
+The list endpoint is the C2-R1 review-workflow queue API
+(``chronicle.studio-review-page / 0.2``). It pages one ``resolution`` scope
+with a stable ``(created_at, review_id)`` keyset only: there is no offset
+mode, rows are never ordered by the mutable ``status``, and ``limit + 1``
+decides the next cursor. ``open_count`` is the whole-scope open total
+observed in the same read transaction, not a frozen denominator, so a late
+row inserted before an old cursor is found again by re-reading from the
+head of the same scope.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs
 
 STUDIO_REVIEWS_PREFIX = "/api/v1/studio/jobs/reviews"
 _ALLOWED_STATUSES = ("open", "resolved", "dismissed", "all")
+_ALLOWED_LINK_KINDS = ("entity", "event")
+_ALLOWED_LIST_PARAMS = frozenset({"status", "job_id", "link_kind", "limit", "cursor"})
+_DEFAULT_LIMIT = 50
+_MAX_LIMIT = 100
+_CURSOR_VERSION = 1
+# Fingerprint algorithm marker. The frozen-plan fields below follow
+# chapter-production §6 (version, job/revision, assembled/base-catalog
+# hashes when the plan carries them, sorted resolution/candidate/member/
+# group identity); mutable decision/status/resolved_at never enter it.
+_FINGERPRINT_ALGORITHM = "studio-review-page-fingerprint-v1"
+_LEGACY_PLAN_VERSION = "c1-frozen-review-plan-v1"
 
 
 class _BadRequest(Exception):
@@ -82,27 +104,131 @@ def _single(query: dict[str, list[str]], name: str) -> str | None:
     return values[0]
 
 
-def _parse_page(query: dict[str, list[str]]) -> tuple[str, int, int]:
+def _parse_uuid_param(raw: str | None, name: str) -> uuid.UUID | None:
+    if raw is None:
+        return None
+    try:
+        return uuid.UUID(raw)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise _BadRequest(f"{name} must be a UUID") from exc
+
+
+def _parse_page(query: dict[str, list[str]]) -> dict[str, Any]:
+    unknown = sorted(set(query) - _ALLOWED_LIST_PARAMS)
+    if unknown:
+        raise _BadRequest(f"unsupported query parameters: {unknown}")
     status = _single(query, "status") or "open"
     if status not in _ALLOWED_STATUSES:
         raise _BadRequest(f"status must be one of {list(_ALLOWED_STATUSES)}")
+    link_kind = _single(query, "link_kind")
+    if link_kind is not None and link_kind not in _ALLOWED_LINK_KINDS:
+        raise _BadRequest(f"link_kind must be one of {list(_ALLOWED_LINK_KINDS)}")
+    job_id = _parse_uuid_param(_single(query, "job_id"), "job_id")
     try:
-        limit = int(_single(query, "limit") or "100")
-        offset = int(_single(query, "offset") or "0")
+        limit = int(_single(query, "limit") or str(_DEFAULT_LIMIT))
     except ValueError as exc:
-        raise _BadRequest("limit and offset must be integers") from exc
-    if not 1 <= limit <= 200 or offset < 0:
-        raise _BadRequest("limit must be within 1..200 and offset must be non-negative")
-    return status, limit, offset
+        raise _BadRequest("limit must be an integer") from exc
+    if not 1 <= limit <= _MAX_LIMIT:
+        raise _BadRequest(f"limit must be within 1..{_MAX_LIMIT}")
+    cursor_raw = _single(query, "cursor")
+    cursor = _decode_cursor(cursor_raw) if cursor_raw is not None else None
+    if cursor is not None and (
+        cursor["status"] != status
+        or cursor["job_id"] != (str(job_id) if job_id is not None else None)
+        or cursor["link_kind"] != link_kind
+    ):
+        raise _BadRequest("cursor was issued for a different filter scope and cannot be reused")
+    return {
+        "status": status,
+        "job_id": job_id,
+        "link_kind": link_kind,
+        "limit": limit,
+        "cursor": cursor,
+    }
 
 
-def _review_rows(conn, *, status: str, limit: int, offset: int) -> list[tuple]:
-    where = "ri.payload->>'scope' = 'resolution'"
+def _encode_cursor(
+    *, status: str, job_id: uuid.UUID | None, link_kind: str | None,
+    created_at: Any, review_id: uuid.UUID,
+) -> str:
+    payload = {
+        "v": _CURSOR_VERSION,
+        "status": status,
+        "job_id": str(job_id) if job_id is not None else None,
+        "link_kind": link_kind,
+        "created_at": _iso(created_at),
+        "review_id": str(review_id),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_cursor(raw: str) -> dict[str, Any]:
+    try:
+        padded = raw + ("=" * (-len(raw) % 4))
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise _BadRequest(f"cursor is not a valid review-page cursor: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise _BadRequest("cursor is not a valid review-page cursor")
+    if payload.get("v") != _CURSOR_VERSION:
+        raise _BadRequest("cursor version is not supported")
+    if payload.get("status") not in _ALLOWED_STATUSES:
+        raise _BadRequest("cursor carries an unsupported status scope")
+    link_kind = payload.get("link_kind")
+    if link_kind is not None and link_kind not in _ALLOWED_LINK_KINDS:
+        raise _BadRequest("cursor carries an unsupported link_kind scope")
+    job_id_raw = payload.get("job_id")
+    job_id: str | None = None
+    if job_id_raw is not None:
+        try:
+            job_id = str(uuid.UUID(job_id_raw))
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise _BadRequest("cursor carries an invalid job_id scope") from exc
+    created_raw = payload.get("created_at")
+    if not isinstance(created_raw, str) or not created_raw:
+        raise _BadRequest("cursor carries an invalid sort key")
+    try:
+        review_id = uuid.UUID(payload.get("review_id"))
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise _BadRequest("cursor carries an invalid sort key") from exc
+    try:
+        created_at = datetime.fromisoformat(created_raw)
+    except ValueError as exc:
+        raise _BadRequest("cursor carries an invalid sort key") from exc
+    return {
+        "status": payload.get("status"),
+        "job_id": job_id,
+        "link_kind": link_kind,
+        "created_at": created_at,
+        "review_id": review_id,
+    }
+
+
+def _scope_filter(
+    spec: dict[str, Any], *, include_status: bool, alias: str = "ri",
+) -> tuple[str, list[Any]]:
+    where = f"{alias}.payload->>'scope' = 'resolution'"
     params: list[Any] = []
-    if status != "all":
-        where += " AND ri.status = %s"
-        params.append(status)
-    params.extend([limit, offset])
+    if include_status and spec["status"] != "all":
+        where += f" AND {alias}.status = %s"
+        params.append(spec["status"])
+    if spec["job_id"] is not None:
+        where += f" AND {alias}.job_id = %s"
+        params.append(spec["job_id"])
+    if spec["link_kind"] is not None:
+        where += f" AND {alias}.payload->>'link_kind' = %s"
+        params.append(spec["link_kind"])
+    return where, params
+
+
+def _review_rows(conn, *, spec: dict[str, Any]) -> list[tuple]:
+    where, params = _scope_filter(spec, include_status=True)
+    cursor = spec["cursor"]
+    if cursor is not None:
+        where += " AND (ri.created_at, ri.review_id) > (%s, %s)"
+        params.extend([cursor["created_at"], cursor["review_id"]])
+    params.append(spec["limit"] + 1)
     return conn.execute(
         f"""
         SELECT ri.review_id, ri.job_id, ri.chunk_id, ri.kind, ri.status, ri.payload,
@@ -115,12 +241,141 @@ def _review_rows(conn, *, status: str, limit: int, offset: int) -> list[tuple]:
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
         WHERE {where}
-        ORDER BY CASE ri.status WHEN 'open' THEN 0 ELSE 1 END,
-                 ri.created_at, ri.review_id
-        LIMIT %s OFFSET %s
+        ORDER BY ri.created_at, ri.review_id
+        LIMIT %s
         """,
         tuple(params),
     ).fetchall()
+
+
+def _scope_open_count(conn, *, spec: dict[str, Any]) -> int:
+    where, params = _scope_filter(spec, include_status=False)
+    row = conn.execute(
+        f"""
+        SELECT count(*) FROM chronicle.review_items ri
+        WHERE {where} AND ri.status = 'open'
+        """,
+        tuple(params),
+    ).fetchone()
+    return int(row[0])
+
+
+def _candidate_key_of(payload: dict[str, Any], index: int) -> str:
+    key = payload.get("candidate_key")
+    if isinstance(key, str) and key:
+        return key
+    resolution_sha = payload.get("resolution_sha256")
+    candidate_id = payload.get("candidate_id")
+    if isinstance(resolution_sha, str) and isinstance(candidate_id, str):
+        return f"{resolution_sha}:{candidate_id}"
+    return f"legacy-item-{index}"
+
+
+def _immutable_candidate_entry(payload: dict[str, Any], index: int) -> dict[str, Any]:
+    def _ref(value: Any) -> dict[str, str] | None:
+        if not isinstance(value, dict):
+            return None
+        bundle, ref = value.get("bundle"), value.get("ref")
+        if not isinstance(bundle, str) or not isinstance(ref, str):
+            return None
+        return {"bundle": bundle, "ref": ref}
+
+    members = payload.get("members") if isinstance(payload.get("members"), list) else []
+    member_keys: list[str] = []
+    member_refs: list[str] = []
+    for position, member in enumerate(members):
+        if not isinstance(member, dict):
+            continue
+        key = member.get("candidate_key")
+        if isinstance(key, str) and key:
+            member_keys.append(key)
+        else:
+            resolution_sha = member.get("resolution_sha256")
+            candidate_id = member.get("candidate_id")
+            if isinstance(resolution_sha, str) and isinstance(candidate_id, str):
+                member_keys.append(f"{resolution_sha}:{candidate_id}")
+        for side in (member.get("left"), member.get("right")):
+            ref = _ref(side)
+            if ref is not None:
+                member_refs.append(f"{ref['bundle']}:{ref['ref']}")
+    groups = payload.get("groups") if isinstance(payload.get("groups"), list) else []
+    group_ids = sorted(
+        str(group.get("review_group_id"))
+        for group in groups
+        if isinstance(group, dict) and isinstance(group.get("review_group_id"), str)
+    )
+    left, right = _ref(payload.get("left")), _ref(payload.get("right"))
+    return {
+        "candidate_key": _candidate_key_of(payload, index),
+        "link_kind": payload.get("link_kind"),
+        "left": left,
+        "right": right,
+        "review_subject_id": payload.get("review_subject_id"),
+        "review_subject_version": payload.get("review_subject_version"),
+        "plan_version": payload.get("plan_version"),
+        "member_keys": sorted(member_keys),
+        "member_refs": sorted(set(member_refs)),
+        "group_ids": group_ids,
+    }
+
+
+def _plan_fingerprint(
+    conn, *, spec: dict[str, Any],
+) -> str:
+    """Fingerprint the frozen plan behind one resolution scope.
+
+    Only immutable identity enters: fingerprint algorithm marker, observed
+    plan versions, job/revision ids, assembled/base-catalog hashes when the
+    plan carries them, and the sorted per-candidate identity above. The
+    persisted ``decision``, row ``status`` and ``resolved_at`` never enter,
+    so resolving items does not rotate the fingerprint that review drafts
+    use as their ``(review_id, plan_fingerprint)`` key. Existing C1 frozen
+    plans hash under the legacy marker; a ``c2r1-review-plan-v1`` payload
+    contributes its defined fields without any review_subjects change here.
+    """
+    where, params = _scope_filter(spec, include_status=False)
+    rows = conn.execute(
+        f"""
+        SELECT ri.payload, ri.job_id, j.revision_id
+        FROM chronicle.review_items ri
+        JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
+        WHERE {where}
+        ORDER BY ri.created_at, ri.review_id
+        """,
+        tuple(params),
+    ).fetchall()
+    plan_versions: set[str] = set()
+    assembled: set[str] = set()
+    base_catalog: set[str] = set()
+    candidates: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        payload = row[0] if isinstance(row[0], dict) else {}
+        version = payload.get("plan_version")
+        if isinstance(version, str) and version:
+            plan_versions.add(version)
+        elif isinstance(payload.get("review_subject_version"), str):
+            plan_versions.add(str(payload.get("review_subject_version")))
+        else:
+            plan_versions.add(_LEGACY_PLAN_VERSION)
+        for field, target in (
+            ("assembled_bundle_sha256", assembled),
+            ("base_catalog_sha256", base_catalog),
+        ):
+            value = payload.get(field)
+            if isinstance(value, str) and value:
+                target.add(value)
+        candidates.append(_immutable_candidate_entry(payload, index))
+    document = {
+        "algorithm": _FINGERPRINT_ALGORITHM,
+        "plan_versions": sorted(plan_versions),
+        "job_ids": sorted({str(row[1]) for row in rows}),
+        "revision_ids": sorted({str(row[2]) for row in rows}),
+        "assembled_bundle_sha256": sorted(assembled),
+        "base_catalog_sha256": sorted(base_catalog),
+        "candidates": sorted(candidates, key=lambda item: json.dumps(item, sort_keys=True)),
+    }
+    canonical = json.dumps(document, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _suggestion(conn, payload: dict[str, Any]) -> dict[str, Any]:
@@ -413,12 +668,12 @@ def _side_name(conn, side: Any, *, link_kind: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _summary(row: tuple, conn) -> dict[str, Any]:
+def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[str, Any]:
     payload = row[5] if isinstance(row[5], dict) else {}
     suggestion = _suggestion(conn, payload)
     decision = payload.get("decision") if isinstance(payload.get("decision"), dict) else None
     link_kind = str(payload.get("link_kind") or "")
-    return {
+    item = {
         "review_id": str(row[0]),
         "job_id": str(row[1]),
         "chunk_id": str(row[2]) if row[2] is not None else None,
@@ -456,6 +711,9 @@ def _summary(row: tuple, conn) -> dict[str, Any]:
         "suggestion": suggestion,
         "decision": decision,
     }
+    if plan_fingerprint is not None:
+        item["plan_fingerprint"] = plan_fingerprint
+    return item
 
 
 def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
@@ -640,10 +898,42 @@ def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, bod
     if path == STUDIO_REVIEWS_PREFIX:
         if method != "GET":
             raise _BadRequest(f"method {method} is not supported on {path}")
-        status, limit, offset = _parse_page(query)
-        reviews = [_summary(row, conn) for row in _review_rows(conn, status=status, limit=limit, offset=offset)]
+        spec = _parse_page(query)
+        # Items, scope-wide open count and plan fingerprint all come from
+        # this one read transaction, so a page never mixes snapshots.
+        raw_rows = _review_rows(conn, spec=spec)
+        has_more = len(raw_rows) > spec["limit"]
+        page_rows = raw_rows[: spec["limit"]]
+        fingerprint = _plan_fingerprint(conn, spec=spec)
+        observed_at = datetime.now(timezone.utc).isoformat()
+        items = [_summary(row, conn, plan_fingerprint=fingerprint) for row in page_rows]
+        if has_more:
+            last = page_rows[-1]
+            next_cursor = _encode_cursor(
+                status=spec["status"],
+                job_id=spec["job_id"],
+                link_kind=spec["link_kind"],
+                created_at=last[6],
+                review_id=last[0],
+            )
+        else:
+            next_cursor = None
         return 200, "application/json; charset=utf-8", _json_bytes(
-            {"schema": "chronicle.review-list", "version": "0.1", "reviews": reviews}
+            {
+                "schema": "chronicle.studio-review-page",
+                "version": "0.2",
+                "query": {
+                    "status": spec["status"],
+                    "job_id": str(spec["job_id"]) if spec["job_id"] is not None else None,
+                    "link_kind": spec["link_kind"],
+                    "limit": spec["limit"],
+                },
+                "items": items,
+                "next_cursor": next_cursor,
+                "open_count": _scope_open_count(conn, spec=spec),
+                "observed_at": observed_at,
+                "plan_fingerprint": fingerprint,
+            }
         )
 
     prefix = STUDIO_REVIEWS_PREFIX + "/"
