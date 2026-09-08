@@ -39,6 +39,14 @@ Implementation complete on branch `agent/executor/7ba68854ea09`, delivery PR pen
 - Same script with `--suite all` — PASS (adds the import-detail job-scope entry).
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check` — valid.
 
+Review fix 2026-09-09 (Reviewer CHANGES_REQUIRED on PR #597, deep-page advance): `findNextThroughServer` used id-index lookup from a fresh open list, so after a successful POST removed the current review, a deep-page item (absent from the list) restarted traversal at the head. Fixed by capturing the `(created_at, review_id)` sort anchor before the POST/skip and continuing strictly after it via new `findNextAfterAnchor`/`compareReviewSortKey` helpers (Postgres ASC NULLS LAST mirrored). Re-verified on the fix head:
+
+- `npm --prefix apps/chronicle/webapp test -- tests/review-session.test.ts tests/studio-reviews.test.ts tests/studio-entity-conflict.test.ts` — 3 files / 24 tests passed (4 new anchor regression tests incl. 450-item deep-page removal).
+- Full `npm test` — 16 files / 59 passed; `run build` OK; `run smoke:dist` PASS; rebuilt `web/dist` (same chunk names, no `static_assets.rs` change needed).
+- `cargo test --lib` in `apps/chronicle/server` — 23 passed.
+- Smoke `--suite queue` — PASS (24 checks, incl. new deep-page step: saving past page one lands on the anchor successor, not the head); `--suite all` — PASS.
+- Validator: reports only the pre-existing cross-task condition `dependency C2-R1-T09 is in_progress, not completed` (T09 code is merged on the default branch; its ledger reconciliation is owned outside T11 scope and was left untouched). No other violations.
+
 Acceptance coverage: queue page reads page-by-page via `listReviewPage` with server `open_count`/`observed_at` (no full-list wrapper consumer remains in pages); detail page fixes the reviewId-change draft reset, isolates drafts by `(review_id, plan_fingerprint)`, advances only after success, re-checks next-item server status (two-tab contention), handles late responses by original id, re-scans from head at the tail (late rows before old cursor), and reports only-skipped/empty end states without claiming import completion. Skip never POSTs. The `listReviews` export is kept deprecated (its traversal contract lives in `tests/studio-reviews.test.ts`, outside T11 file ownership) — UI removal only.
 
 Not verified: real-backend end-to-end (explicitly T18 scope; this task proves UI behavior with mocked HTTP per the Issue); 450-row live pagination (unit + paged-mock traversal cover the algorithm; the mocked queue pages 65 items across cursors). Post-merge reconciliation (`completion_pr`/`merge_sha`, README index, Issue close) is still required per `docs/development/task-completion.md` and must happen after the delivery PR merges.
@@ -47,3 +55,4 @@ Not verified: real-backend end-to-end (explicitly T18 scope; this task proves UI
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-09 — Implementation complete within T11 file ownership (session lib + tests, both review pages, job-scope entry, styles, smoke script, rebuilt dist, minimal static-asset registration). Evidence above; delivery PR pending, post-merge reconciliation still open.
+- 2026-09-09 — Reviewer CHANGES_REQUIRED addressed on the same PR: anchor-based deep-page advance + regression tests (unit + browser), re-verified per above; pushed to PR #597, awaiting re-review; merge + default-branch reconciliation still open.

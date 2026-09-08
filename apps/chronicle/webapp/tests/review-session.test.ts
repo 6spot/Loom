@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReviewSearch,
+  compareReviewSortKey,
   countStillOpenSkipped,
   draftKey,
   evaluateTailRescan,
+  findNextAfterAnchor,
   findNextOpenId,
   memoryStorage,
   parseReviewSearch,
@@ -138,5 +140,76 @@ describe("continuous traversal", () => {
   it("never counts handled-elsewhere skips toward the remaining total", () => {
     expect(countStillOpenSkipped(["r1", "r2", "r2"], new Set(["r2", "r3"]))).toBe(1);
     expect(countStillOpenSkipped([], new Set(["r1"]))).toBe(0);
+  });
+});
+
+describe("stable sort-anchor traversal (deep-page regression)", () => {
+  function deepQueue(size: number) {
+    // 450-item queue sharing a few created_at values, in server order.
+    const ordered: Array<{ reviewId: string; createdAt: string }> = [];
+    for (let i = 0; i < size; i += 1) {
+      ordered.push({
+        reviewId: `r-${String(i).padStart(4, "0")}`,
+        createdAt: `2026-09-0${1 + (i % 7)}T00:00:00+00:00`,
+      });
+    }
+    return ordered.sort(
+      (a, b) =>
+        compareReviewSortKey(
+          { createdAt: a.createdAt, reviewId: a.reviewId },
+          { createdAt: b.createdAt, reviewId: b.reviewId },
+        ),
+    );
+  }
+
+  it("continues after a deep-page item that left the open queue", () => {
+    const queue = deepQueue(450);
+    const deepIndex = 320;
+    const anchor = {
+      createdAt: queue[deepIndex].createdAt,
+      reviewId: queue[deepIndex].reviewId,
+    };
+    // Successful POST removed the current review from the open list.
+    const afterSubmit = queue.filter((entry) => entry.reviewId !== anchor.reviewId);
+    expect(
+      findNextAfterAnchor(afterSubmit, anchor, new Set()),
+    ).toBe(queue[deepIndex + 1].reviewId);
+  });
+
+  it("does not fall back to the head when the anchor id is absent", () => {
+    const queue = deepQueue(450);
+    const anchor = {
+      createdAt: queue[200].createdAt,
+      reviewId: queue[200].reviewId,
+    };
+    const afterSubmit = queue.filter((entry) => entry.reviewId !== anchor.reviewId);
+    expect(findNextAfterAnchor(afterSubmit, anchor, new Set())).not.toBe(queue[0].reviewId);
+  });
+
+  it("orders equal created_at by review_id and nulls last like Postgres", () => {
+    expect(
+      compareReviewSortKey(
+        { createdAt: "2026-09-01T00:00:00+00:00", reviewId: "r-b" },
+        { createdAt: "2026-09-01T00:00:00+00:00", reviewId: "r-a" },
+      ),
+    ).toBeGreaterThan(0);
+    expect(
+      compareReviewSortKey(
+        { createdAt: null, reviewId: "r-a" },
+        { createdAt: "2026-09-01T00:00:00+00:00", reviewId: "r-z" },
+      ),
+    ).toBeGreaterThan(0);
+  });
+
+  it("respects the skipped set and restarts from the head on a null anchor", () => {
+    const ordered = [
+      { reviewId: "r-1", createdAt: "2026-09-01T00:00:00+00:00" },
+      { reviewId: "r-2", createdAt: "2026-09-02T00:00:00+00:00" },
+    ];
+    const anchor = { createdAt: "2026-09-01T00:00:00+00:00", reviewId: "r-1" };
+    expect(findNextAfterAnchor(ordered, anchor, new Set(["r-2"]))).toBeNull();
+    expect(findNextAfterAnchor(ordered, null, new Set(["r-1"]))).toBe("r-2");
+    // A still-open current review is never selected via its own anchor.
+    expect(findNextAfterAnchor(ordered, anchor, new Set())).toBe("r-2");
   });
 });

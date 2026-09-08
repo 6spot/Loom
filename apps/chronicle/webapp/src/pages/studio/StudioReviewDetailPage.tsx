@@ -36,14 +36,14 @@ import {
   buildReviewSearch,
   countStillOpenSkipped,
   evaluateTailRescan,
-  findNextOpenId,
+  findNextAfterAnchor,
   parseReviewSearch,
   ReviewSessionStore,
   sanitizeDecision,
   sanitizeGroupOverrides,
   scopeKey,
 } from "../../lib/review-session";
-import type { ReviewScope } from "../../lib/review-session";
+import type { ReviewScope, ReviewSortAnchor } from "../../lib/review-session";
 
 function errorText(error: unknown): string {
   if (error instanceof StudioApiError) return `${error.code}: ${error.message}`;
@@ -272,7 +272,12 @@ export default function StudioReviewDetailPage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<string | null>(null);
   const advanceAfterRef = useRef(false);
-  const submittingRef = useRef<{ id: string; fingerprint: string | null; advance: boolean } | null>(null);
+  const submittingRef = useRef<{
+    id: string;
+    fingerprint: string | null;
+    advance: boolean;
+    anchor: ReviewSortAnchor;
+  } | null>(null);
   const currentIdRef = useRef(reviewId);
   currentIdRef.current = reviewId;
 
@@ -387,9 +392,12 @@ export default function StudioReviewDetailPage() {
     navigate(`/studio/review${buildReviewSearch(scope, reviewId)}`);
   };
 
-  const findNextThroughServer = async (fromId: string, extraSkipped?: ReadonlySet<string>): Promise<ReviewDetail | null> => {
+  const findNextThroughServer = async (
+    fromAnchor: ReviewSortAnchor | null,
+    extraSkipped?: ReadonlySet<string>,
+  ): Promise<ReviewDetail | null> => {
     const handledElsewhere = new Set<string>();
-    const collected: string[] = [];
+    const collected: Array<{ reviewId: string; createdAt: string | null }> = [];
     let cursor: string | null = null;
     let openCount = 0;
     let observedAt = "";
@@ -405,9 +413,17 @@ export default function StudioReviewDetailPage() {
       });
       openCount = pageResult.open_count;
       observedAt = pageResult.observed_at;
-      collected.push(...pageResult.items.map((entry) => entry.review_id));
+      collected.push(
+        ...pageResult.items.map((entry) => ({
+          reviewId: entry.review_id,
+          createdAt: entry.created_at,
+        })),
+      );
       const excluded = new Set([...excludedBase, ...handledElsewhere]);
-      const candidate = findNextOpenId(collected, fromId, excluded);
+      // Anchor comparison, not id lookup: the submitted review has left the
+      // open queue, so a deep-page current id is absent from `collected` and
+      // an index search would restart at the head.
+      const candidate = findNextAfterAnchor(collected, fromAnchor, excluded);
       if (candidate) {
         // Another tab may have handled the candidate first: re-check its
         // server status and continue instead of submitting over it.
@@ -426,7 +442,10 @@ export default function StudioReviewDetailPage() {
         // before the old cursor are found here. Handled-elsewhere ids are
         // excluded and reported instead of being submitted over.
         for (;;) {
-          const outcome = evaluateTailRescan(collected, new Set([...excludedBase, ...handledElsewhere]));
+          const outcome = evaluateTailRescan(
+            collected.map((entry) => entry.reviewId),
+            new Set([...excludedBase, ...handledElsewhere]),
+          );
           if (outcome.kind === "next" && outcome.nextId) {
             const detail = await getReview(authHeader, outcome.nextId);
             if (detail.status === "open") return detail;
@@ -451,19 +470,22 @@ export default function StudioReviewDetailPage() {
     }
     setEndState({
       kind: "refresh",
-      stillOpenSkipped: countStillOpenSkipped([...excludedBase], new Set(collected)),
+      stillOpenSkipped: countStillOpenSkipped(
+        [...excludedBase],
+        new Set(collected.map((entry) => entry.reviewId)),
+      ),
       openCount,
       observedAt,
     });
     return null;
   };
 
-  const advance = async (fromId: string, extraSkipped?: ReadonlySet<string>) => {
+  const advance = async (fromAnchor: ReviewSortAnchor | null, extraSkipped?: ReadonlySet<string>) => {
     if (advancing) return;
     setAdvancing(true);
     setAdvanceNote("正在寻找下一项…");
     try {
-      const next = await findNextThroughServer(fromId, extraSkipped);
+      const next = await findNextThroughServer(fromAnchor, extraSkipped);
       if (next) goToReview(next.review_id);
     } catch (error) {
       setAdvanceNote(`寻找下一项失败：${errorText(error)}。草稿已保留，可重试。`);
@@ -519,7 +541,7 @@ export default function StudioReviewDetailPage() {
         return;
       }
       if (submitted.advance) {
-        await advance(submitted.id);
+        await advance(submitted.anchor);
       }
     },
     onError: (error) => {
@@ -530,9 +552,16 @@ export default function StudioReviewDetailPage() {
   });
 
   const submit = (advanceAfter: boolean) => {
-    if (!canSubmit || decide.isPending || advancing) return;
+    if (!canSubmit || decide.isPending || advancing || !item) return;
     advanceAfterRef.current = advanceAfter;
-    submittingRef.current = { id: reviewId, fingerprint, advance: advanceAfter };
+    // Capture the sort anchor BEFORE the POST: success removes this review
+    // from the open queue, so the advance must continue after the anchor.
+    submittingRef.current = {
+      id: reviewId,
+      fingerprint,
+      advance: advanceAfter,
+      anchor: { createdAt: item.created_at, reviewId: item.review_id },
+    };
     decide.mutate();
   };
 
@@ -542,7 +571,7 @@ export default function StudioReviewDetailPage() {
     // must use it directly instead of the pre-click render's skipped set.
     const nextSkipped = new Set(store?.addSkipped(traverseScope, reviewId) ?? [reviewId]);
     setSkippedVersion((value) => value + 1);
-    await advance(reviewId, nextSkipped);
+    await advance({ createdAt: item.created_at, reviewId: item.review_id }, nextSkipped);
   };
 
   const verifyServerState = async () => {
@@ -909,7 +938,7 @@ export default function StudioReviewDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="studio-row-actions">
-              <Button variant="outline" onClick={() => { setEndState(null); void advance(reviewId); }}>重新从队首扫描</Button>
+              <Button variant="outline" onClick={() => { setEndState(null); void advance(null); }}>重新从队首扫描</Button>
               <Button variant="outline" onClick={backToQueue}>返回队列</Button>
             </div>
           </CardContent>

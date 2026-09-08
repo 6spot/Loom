@@ -303,6 +303,10 @@ export class ReviewSessionStore {
  * navigation-time skipped set. Returns null when the current page/round has
  * no further candidate (the caller then runs the tail re-scan from the head
  * of the scope, which also picks up rows inserted before the old cursor).
+ *
+ * NOTE: after a successful POST the submitted review has left the open
+ * queue, so index-based lookup from the current id restarts at the head on
+ * deep pages. Continuous advance must use findNextAfterAnchor instead.
  */
 export function findNextOpenId(
   orderedOpenIds: string[],
@@ -318,8 +322,7 @@ export function findNextOpenId(
   return null;
 }
 
-export type TailRescanOutcome =
-  | { kind: "next"; nextId: string; stillOpenSkipped: number }
+export type TailRescanOutcome =  | { kind: "next"; nextId: string; stillOpenSkipped: number }
   | { kind: "only-skipped"; nextId: null; stillOpenSkipped: number }
   | { kind: "empty"; nextId: null; stillOpenSkipped: 0 };
 
@@ -350,4 +353,61 @@ export function countStillOpenSkipped(
     if (openIds.has(id)) count += 1;
   }
   return count;
+}
+
+/**
+ * Stable sort anchor mirroring the server keyset `ORDER BY created_at,
+ * review_id` (review-workflow.md §2). A successful POST removes the current
+ * review from the open queue, so the advance must continue strictly after
+ * this anchor instead of looking the current id up in the fresh list.
+ */
+export interface ReviewSortAnchor {
+  createdAt: string | null;
+  reviewId: string;
+}
+
+function compareCreatedAt(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  // Postgres ASC default is NULLS LAST; mirror it so the browser walks the
+  // same order the server pages in.
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a < b ? -1 : 1;
+}
+
+export function compareReviewSortKey(
+  a: ReviewSortAnchor,
+  b: ReviewSortAnchor,
+): number {
+  const byTime = compareCreatedAt(a.createdAt, b.createdAt);
+  if (byTime !== 0) return byTime;
+  if (a.reviewId === b.reviewId) return 0;
+  return a.reviewId < b.reviewId ? -1 : 1;
+}
+
+/**
+ * First entry strictly after `anchor` in server order, skipping `excluded`.
+ * `ordered` must arrive in server page order; a null anchor restarts from
+ * the head of the scope. The current review needs no special case: once
+ * resolved its key is gone, and while still open its key is not after the
+ * anchor, so it is never selected.
+ */
+export function findNextAfterAnchor(
+  ordered: ReadonlyArray<{ reviewId: string; createdAt: string | null }>,
+  anchor: ReviewSortAnchor | null,
+  excluded: ReadonlySet<string>,
+): string | null {
+  for (const entry of ordered) {
+    if (excluded.has(entry.reviewId)) continue;
+    if (
+      anchor === null ||
+      compareReviewSortKey(
+        { createdAt: entry.createdAt, reviewId: entry.reviewId },
+        anchor,
+      ) > 0
+    ) {
+      return entry.reviewId;
+    }
+  }
+  return null;
 }

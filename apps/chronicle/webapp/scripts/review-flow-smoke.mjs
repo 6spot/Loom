@@ -116,11 +116,15 @@ const decisionPosts = [];
 function filteredItems(url) {
   const job = url.searchParams.get("job_id");
   const kind = url.searchParams.get("link_kind");
+  // Mirror the server keyset: ORDER BY (created_at, review_id).
   return ITEMS.filter((item) => {
     if (resolved.has(item.review_id)) return false;
     if (job && item.job_id !== job) return false;
     if (kind && item.link_kind !== kind) return false;
     return true;
+  }).sort((a, b) => {
+    if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+    return a.review_id < b.review_id ? -1 : a.review_id > b.review_id ? 1 : 0;
   });
 }
 
@@ -412,6 +416,31 @@ async function main() {
     await page.getByRole("button", { name: "返回队列" }).click();
     await page.getByText("人工审核队列").first().waitFor({ timeout: 15000 });
     check("back keeps scope", new URL(page.url()).pathname === "/studio/review");
+
+    // 7b. Deep-page regression: saving an item past page one must continue
+    // after its (created_at, review_id) anchor, not restart at the head.
+    const sortedOpen = [...ITEMS]
+      .filter((item) => !resolved.has(item.review_id))
+      .sort((a, b) => {
+        if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+        return a.review_id < b.review_id ? -1 : a.review_id > b.review_id ? 1 : 0;
+      });
+    const deepItem = sortedOpen.find((item) => {
+      const index = sortedOpen.indexOf(item);
+      return index >= 50 && item.status === "open" && !decisionPosts.some((post) => post.id === item.review_id);
+    });
+    const deepIndex = sortedOpen.indexOf(deepItem);
+    const deepExpected = sortedOpen.slice(deepIndex + 1).find(
+      (item) => item.review_id !== skipId && !decisionPosts.some((post) => post.id === item.review_id),
+    );
+    await page.goto(`${BASE_URL}/studio/review/${deepItem.review_id}?status=open`, { waitUntil: "networkidle" });
+    await page.getByRole("toolbar", { name: "连续审核操作" }).waitFor({ timeout: 15000 });
+    await page.getByLabel("判断依据").fill("smoke深页草稿");
+    await page.waitForTimeout(500);
+    await page.getByRole("button", { name: "保存并下一项" }).click();
+    await page.waitForURL((url) => url.pathname !== `/studio/review/${deepItem.review_id}`, { timeout: 15000 });
+    const deepNext = decodeURIComponent(page.url().split("/studio/review/")[1].split("?")[0]);
+    check("deep-page save continues after the anchor", deepNext === deepExpected.review_id);
 
     // 8. 409 conflict keeps the draft and the per-group work.
     await page.goto(`${BASE_URL}/studio/review/${CONFLICT_ID}?status=open`, { waitUntil: "networkidle" });
