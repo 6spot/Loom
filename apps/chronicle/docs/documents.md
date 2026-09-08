@@ -91,9 +91,13 @@ Each revision read carries a `locator`:
 }
 ```
 
-Future sections/chunks cite `(revision_id, source_sha256,
-[source_start, source_end))` sub-ranges of these exact bytes, so evidence
-always resolves to auditable source content.
+This revision-level locator uses raw byte offsets. Processing sections/chunks
+use the explicit `chars-normalized-utf8` coordinate system described in
+[`segmentation.md`](segmentation.md): normalize with `decode_source`, then
+locate Unicode code point ranges. These offsets are not byte sub-ranges and
+must not be applied directly to raw bytes or JavaScript UTF-16 strings.
+The original byte SHA remains the revision integrity check. The next chapter
+contract is defined in [`chapter-production.md`](chapter-production.md).
 
 ## Configuration
 

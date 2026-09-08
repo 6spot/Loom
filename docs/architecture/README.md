@@ -50,6 +50,7 @@ Accepted amendments are part of the current baseline from their merge point onwa
 - `amendments/0004-derived-resource-public-read-boundary.md` — narrow Runtime-mediated `QueryService` reads for semantic projections and exact blob references; no projection/blob mutation surface or Storage authority is exposed.
 - `amendments/0005-automatic-bounded-timeline-discovery.md` — bounded operational discovery of Scheduler Timeline targets after startup; Runtime retains logical-head, Work-claim, World-Time and semantic-commit authority.
 - `amendments/0006-application-owned-product-persistence.md` — separates Loom engine PostgreSQL authority from explicitly registered Application-owned product persistence; Chronicle is the first narrow registration and remains isolated from Loom Runtime/World/Timeline storage authority.
+- `amendments/0007-chronicle-resolution-review-subjects.md` — Chronicle proven review groups and operator batches retain candidate-level human decisions, frozen plan coverage and canonical publication constraints; display grouping creates no identity equivalence.
 
 A frozen document does not mean “never change.” It means changes are explicit, reviewable Amendments rather than silent edits that make history impossible to audit.
 
@@ -98,6 +99,7 @@ Before using a frozen baseline section as an implementation requirement, check t
 | `implementation.md` | §13.3 | Amendment 0001 §4 + Amendment 0005 §3.1–§3.4 — discovery precedes Runtime claim semantics and cannot add a reservation/skip path |
 | `implementation.md` | §19 | Amendment 0002 §4 — current required CI platform is Ubuntu; macOS is not currently mandatory |
 | `crates/loom-storage/sql/README.md` + storage SQL ownership enforcement | PostgreSQL ownership | Amendment 0006 §3–§6 — engine SQL remains `loom-storage`-exclusive; non-engine SQL is legal only inside explicitly registered Application product persistence roots, initially Chronicle |
+| Chronicle `apps/chronicle/docs/review-publication.md` | review organization / materialization / decision fan-out | Amendment 0007 §3–§8 — proven incoming groups and published canonical membership support operator batches; default/exception decisions fan out to exactly the frozen candidate set without creating identity from display grouping |
 
 Each accepted Amendment contains its own exact affected-clause index. If a row appears here, the frozen text is historical context, **not current executable acceptance criteria by itself**.
 

@@ -91,3 +91,9 @@ C1 focuses on:
 - Coverage, Historical Moment, and the first World/time-context public experience.
 
 World-history expansion, persisted multilingual presentation, semantic Q&A, map/territorial state, multi-admin RBAC, and a forced all-Rust rewrite are outside C1.
+
+## First delivery round after C1
+
+The [first-round ledger](first-round/README.md) tracks #548 and its 19 planned
+executable children. Chapter production, source-grounded review and complete
+modern-Chinese reading are scoped there; completed C1 history stays unchanged.

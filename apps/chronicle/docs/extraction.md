@@ -1,5 +1,7 @@
 # Chronicle context-aware chunk extraction (C1-T6)
 
+> 本页描述已实现的 C1 chunk 路径。本轮待实现的完整章联合翻译/抽取契约见 [chapter-production.md](chapter-production.md)；实施任务以该章节契约为目标，不把本文的小块处理规则扩大到新路径。
+
 Deterministic, versioned extraction of one persisted book chunk into
 schema-valid Entity/Event/Claim candidates with exact evidence and
 replayable model-attempt provenance. Pure request/validation/history

@@ -1,5 +1,7 @@
 # Chronicle source assembly and within-book resolution (C1-T7)
 
+> 本页保留 C1 组装基线。本轮章级输入、统一ref映射及来源内候选的目标契约见 [chapter-production.md](chapter-production.md)。
+
 Deterministic assembly of many validated chunk outputs from one
 immutable document revision into one revision-scoped source-owned
 staged bundle, with conservative within-document Entity/Event linking.

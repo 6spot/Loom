@@ -59,6 +59,11 @@ Chronicle application work is tracked under [`chronicle/README.md`](chronicle/RE
 
 The completed C1 Historical World / Book-to-Chronicle initiative is recorded in [`chronicle/C1-README.md`](chronicle/C1-README.md) under coordination Root #489 and executable leaf issues #490–#506. C1 uses a Root -> executable dependency graph -> serial final gate structure for Multica/agent coordination. Root #489 is coordination-only; READY eligibility comes from the canonical child task records on the default branch, not from Issue state. The user-accepted T17 run retains its original Reader findings for separate follow-up in #541.
 
+The next Chronicle delivery round is tracked in
+[`chronicle/first-round/README.md`](chronicle/first-round/README.md) under
+coordination Issue #548. Its new chapter-production/review tasks are separate
+from completed C1 and do not activate the later #549/#550 rounds.
+
 ## One task, one file
 
 Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.

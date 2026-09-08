@@ -1,5 +1,7 @@
 # Reader Presentation v0.1
 
+> 完整章白话文由 [chapter-production.md](chapter-production.md) 的独立章产物合同定义，尚未实现；不扩展本文 Entity/Event + Claim-only 介绍形状来冒充全文。
+
 Reader Presentation is Chronicle's application-owned, derived reader layer. It makes canonical Events and Entities understandable in modern Chinese without becoming a historical truth authority.
 
 ## Authority boundary

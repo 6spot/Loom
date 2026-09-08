@@ -1,5 +1,7 @@
 # Chronicle cross-source resolution, review, and publication (C1-T8)
 
+> 本页描述 C1 已实现的审核/发布。第一轮待实现的来源内候选与原子章发布见 [chapter-production.md](chapter-production.md)，队列和来源交互见 [review-workflow.md](review-workflow.md)。
+
 Connects a newly assembled source bundle to the existing C0
 staged/resolution/canonical path, routing genuine ambiguity through
 an explicit human-review workflow instead of auto-merging. Pure

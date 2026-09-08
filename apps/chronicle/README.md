@@ -21,6 +21,9 @@ Initial data may focus on a narrow period, but the product and data model must r
 
 ## Current design and implementation documents
 
+- [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — detailed #548 children, dependencies and shared-file ownership; planned, not implemented.
+- [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.
+- [`docs/review-workflow.md`](docs/review-workflow.md) — first-round review queue, source context and continuous review contract.
 - [`docs/product.md`](docs/product.md) — product definition and V0 surfaces.
 - [`docs/ui.md`](docs/ui.md) — broader interaction and UI design direction.
 - [`docs/browser-ui.md`](docs/browser-ui.md) — implemented C0-T11 Timeline/Event/Entity browser slice.

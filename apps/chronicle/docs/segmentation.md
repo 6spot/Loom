@@ -1,5 +1,7 @@
 # Chronicle structure, segmentation, and context state (C1-T5)
 
+> 本页是 C1 的 section/chunk 实现基线。本轮自然章/完整范围规则见 [chapter-production.md](chapter-production.md)；已有 section.source_end 不能直接当含小标题的完整章末尾。
+
 Deterministic, versioned preparation of one immutable document revision for
 model processing. Pure text computation lives in
 `apps/chronicle/persistence/segmentation.py` (no database, model, or
