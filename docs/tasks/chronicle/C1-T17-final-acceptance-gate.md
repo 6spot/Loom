@@ -1,13 +1,13 @@
 ---
 task: C1-T17
 issue: 506
-status: in_progress
+status: completed
 depends_on: [C1-T16]
 created_at: 2026-09-04
 started_at: 2026-09-05
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-08
+completion_pr: 535
+merge_sha: ec6841b1aee83721d10ca5a940ae611b571fc68d
 ---
 
 # Chronicle C1 Final Acceptance Gate
@@ -32,7 +32,7 @@ Prove the full Book-to-Chronicle -> readable historical world loop on the suppor
 - [x] real Debian + PostgreSQL 18 deployment passes end to end.
 - [x] exact-candidate Rust/Python/frontend/Chronicle CI and governance checks pass.
 - [x] every prior C1 task record is canonically reconciled before this task completes.
-- [ ] Root #489 can be reconciled and closed only after this task is completed on `main`.
+- [x] Root #489 can be reconciled and closed only after this task is completed on `main`.
 
 ## Current acceptance disposition
 
@@ -42,7 +42,14 @@ Prove the full Book-to-Chronicle -> readable historical world loop on the suppor
 
 The original automated harness remains PASS / exit 0; the original manual Reader inspection remains FAIL. The checked Reader acceptance item records the user's decision to accept this run with those findings deferred, not a claim that the prose defects were fixed or that the manual checks passed. [Follow-up #541](https://github.com/6spot/Loom/issues/541) retains the Sun Quan omitted actor, the unproven 张憙/张喜 alias, and the two Liu Bei block-support gaps for later development and verification. This decision does not require another ingestion run or repeated review submissions.
 
-The accepted runtime is `78e7741db1c3f118f8cd6ce57f63a2dca3d46606`; its four successful workflows and real-machine evidence are recorded below. C1-T1–T16 completion metadata, acceptance checklists and index agreement were reverified on default-branch SHA `dd0822c8c516020eeb681d23c1b12bdcbfebd56e`. Final delivery-head CI evidence is tracked in PR #535. Task status remains `in_progress` until delivery and the mandatory default-branch reconciliation provide the actual completion PR/merge evidence; #506 and #489 remain open for that sequence.
+The accepted runtime is `78e7741db1c3f118f8cd6ce57f63a2dca3d46606`; its four successful workflows and real-machine evidence are recorded below. C1-T1–T16 completion metadata, acceptance checklists and index agreement were reverified on default-branch SHA `dd0822c8c516020eeb681d23c1b12bdcbfebd56e`. The user authorized delivery and archival on 2026-09-08. PR #535 merged as `ec6841b1aee83721d10ca5a940ae611b571fc68d`; this post-merge reconciliation records C1-T17 and the C1 index as completed. Issue #506 and Root #489 closure follows confirmation of these records on `main` under the canonical task-completion procedure.
+
+## Completion evidence
+
+- Delivery PR: [#535](https://github.com/6spot/Loom/pull/535), merged 2026-09-08; actual merge commit `ec6841b1aee83721d10ca5a940ae611b571fc68d`.
+- Final delivery head: `8413e2eb94717fafe39b350e31b3a5a3e4e8efb2`. [Chronicle 34172047924](https://github.com/6spot/Loom/actions/runs/34172047924), [Docker 34172051755](https://github.com/6spot/Loom/actions/runs/34172051755), [Live Model 34172054972](https://github.com/6spot/Loom/actions/runs/34172054972), and [CI 34172058079](https://github.com/6spot/Loom/actions/runs/34172058079) all passed. Archived checkout logs confirm all ten jobs used that head; CI includes the repository Task Ledger/governance lane.
+- Acceptance and evidence: original R25 automated PASS / exit 0, original manual Reader FAIL, explicit user acceptance PASS with findings deferred to #541. The original 21 R25 evidence hashes were verified unchanged locally and on the Debian evidence host after the acceptance update; no source, canonical data or published prose was rewritten.
+- Durable archive: `/srv/loom-evidence/chronicle-c1-t17-r25-v7/`, including `user-acceptance-decision.json`, `user-acceptance-ci-summary.json` and `user-acceptance-original-evidence-verification.json`. The CI summary SHA-256 is `b0e85497bb04bb4453368d518223d8289d7e5415787b6d36f84c1a99d5644e4a`.
 
 ## Progress Log
 
@@ -77,3 +84,4 @@ The accepted runtime is `78e7741db1c3f118f8cd6ce57f63a2dca3d46606`; its four suc
 - 2026-09-08 — Audit erratum for the earlier v6 diagnostic narrative: the exact source continuation is `表於汉帝曰`, not the previously quoted `上言于汉帝曰`. The original diagnostic output/review files remain unchanged; `manual-review-source-quote-erratum.json` was appended under `/srv/chronicle-r24-remediation-v6-tg_601e8/evidence/` (SHA-256 `72fb4af901ca528de6f6e41dc93ae5c7f164d43c62e0b83490be683053e7cb9b`). 汉帝 remains the explicit memorial recipient, so that diagnostic FAIL remains valid.
 - 2026-09-08 — **User acceptance decision: PASS for R25, with concrete data verification deferred to later development.** The user stated: “我觉得本次验收通过吧，具体的数据我们后续根据开发再次进行核对修改验收”. This supersedes the earlier final acceptance disposition for this run while preserving the automated PASS, original manual FAIL and every finding as historical observations. Follow-up #541 retains the unresolved Reader actor/alias/support-scope findings. `user-acceptance-decision.json` was added to the R25 evidence archive (SHA-256 `0e47b4025d9e59c52960fd03673bfafb07793371878aba2bd7751a7e9e9a2d72`); the previous summary is preserved as `acceptance-summary-before-user-decision.md`. The satisfied acceptance items are now checked with the Reader deferral explicitly attributed above. No product code, source revision, canonical data or published prose was changed, and no review, resume or ingestion was repeated. Delivery PR #535 and default-branch Task Ledger reconciliation remain pending; completion fields stay empty and #506/#489 stay open.
 - 2026-09-08 — Acceptance-record verification passed: `git diff --check`, all 17 C1 metadata/index comparisons, completed-record evidence fields, C1 dependency statuses, the append-only T17 progress log, and all 21 original R25 evidence hashes. Only the T17 task record and C1 index changed in the tracked tree. The existing broad Chronicle parser limitation remains recorded; no broad-ledger PASS is claimed. Final delivery-head workflow results will be archived with PR #535 without another evidence-only commit.
+- 2026-09-08 — The user explicitly authorized merge and archival. Delivery PR #535 merged as `ec6841b1aee83721d10ca5a940ae611b571fc68d` after all four final-head workflows passed on `8413e2eb94717fafe39b350e31b3a5a3e4e8efb2`. The immediate post-merge reconciliation fills the real delivery metadata, checks the final completion prerequisite and aligns the C1/task indexes. Focused verification passed all 17 C1 completion records, acceptance checklists, direct dependency eligibility, index agreement, actual delivery merge metadata, append-only history and whitespace checks. The broader pre-existing C0 parser limitation is unchanged and no broad-ledger PASS is claimed. Issue #506 and Root #489 close only after this reconciliation reaches `main` and its canonical records are re-read; #541 remains the separate deferred data/Reader follow-up.

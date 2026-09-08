@@ -75,7 +75,7 @@ C0-T1 through C0-T12 now form a complete source-grounded vertical slice from ing
 
 ## C1 — Historical World / Book-to-Chronicle
 
-C1 is now planned under coordination Root #489. The canonical C1 dependency graph and executable task index are in [`C1-README.md`](C1-README.md).
+C1 is completed under coordination Root #489. The canonical C1 dependency graph and executable task index are in [`C1-README.md`](C1-README.md). The user accepted the T17 R25 run on 2026-09-08; delivery PR #535 merged as `ec6841b1aee83721d10ca5a940ae611b571fc68d`, and the post-merge ledger records its completion. Concrete data/Reader verification continues separately in [#541](https://github.com/6spot/Loom/issues/541), with the original inspection findings preserved.
 
 C1 is intentionally structured as Root -> executable leaves -> serial final gate for Multica/agent coordination. The Root itself is not executable. Every C1 leaf has its own Task Ledger record and GitHub Issue #490–#506. READY eligibility comes from canonical `depends_on` state on the default branch, not GitHub Issue open/closed state.
 
