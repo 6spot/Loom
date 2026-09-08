@@ -21,6 +21,9 @@ Initial data may focus on a narrow period, but the product and data model must r
 
 ## Current design and implementation documents
 
+- [Second-round task graph](../../docs/tasks/chronicle/second-round/README.md) — #549 children for continuous reading, narrative time and event navigation; planned, not implemented.
+- [`docs/continuous-reading.md`](docs/continuous-reading.md) — second-round chapter annotations, immutable streams, source time and snapshot APIs.
+- [`docs/reading-experience.md`](docs/reading-experience.md) — reading layout, current-fragment context, accessible previews and position restoration.
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — detailed #548 children, dependencies and shared-file ownership; planned, not implemented.
 - [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.
 - [`docs/review-workflow.md`](docs/review-workflow.md) — first-round review queue, source context and continuous review contract.

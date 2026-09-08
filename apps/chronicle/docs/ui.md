@@ -1,5 +1,7 @@
 # Chronicle UI / Product Surface V0
 
+> 第二轮连续阅读的具体布局、时间轴、事件预览和返回契约见 [reading-experience.md](reading-experience.md)，数据和阅读组织见 [continuous-reading.md](continuous-reading.md)。两者尚待 #549 子任务实现；下文长期多轨/世界状态/地图方向不扩大本轮验收。
+
 ## Design goal
 
 Chronicle should feel like entering a historical world, not browsing an encyclopedia.

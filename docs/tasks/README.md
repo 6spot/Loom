@@ -64,6 +64,11 @@ The next Chronicle delivery round is tracked in
 coordination Issue #548. Its new chapter-production/review tasks are separate
 from completed C1 and do not activate the later #549/#550 rounds.
 
+The second-round plan is now decomposed under
+[`chronicle/second-round/README.md`](chronicle/second-round/README.md), parent
+#549. Its 17 leaves have explicit first-round dependencies; recording this
+plan does not start implementation or activate third-round #550.
+
 ## One task, one file
 
 Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.

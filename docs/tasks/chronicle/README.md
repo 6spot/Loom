@@ -97,3 +97,11 @@ World-history expansion, persisted multilingual presentation, semantic Q&A, map/
 The [first-round ledger](first-round/README.md) tracks #548 and its 19 planned
 executable children. Chapter production, source-grounded review and complete
 modern-Chinese reading are scoped there; completed C1 history stays unchanged.
+
+## Second delivery round after C1
+
+The [second-round ledger](second-round/README.md) tracks #549 and 17 planned
+children for continuous reading, source-aware narrative time, event navigation
+and current-fragment entities. Early isolated modules may proceed only when
+their declared first-round dependencies are reconciled; production changes
+wait for C2-R1-T19. Third-round temporal identities/relationships remain #550.

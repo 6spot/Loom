@@ -72,6 +72,49 @@ Run the Task Ledger / governance checks applicable to the changed initiative. Fo
 
 A task is not complete while its canonical ledger fails a required governance check.
 
+### Dependencies across initiative directories
+
+Include the upstream records when checking a downstream initiative. Running
+the validator on only the downstream directory cannot prove cross-directory
+READY eligibility. Do not duplicate upstream task files or mark dependencies
+complete in a temporary copy.
+
+For several linked initiatives, compose the existing validator functions over
+the selected directories. Preserve paths relative to their common ledger root
+so completion evidence is read from the real canonical files. For example,
+Chronicle's first and second rounds use:
+
+```bash
+python3 - docs/tasks/chronicle first-round second-round <<'PY'
+import json
+import sys
+from dataclasses import replace
+from pathlib import Path
+from tools.validator_ready import discover_records, evaluate, validate_invariants
+
+root = Path(sys.argv[1])
+records = [
+    replace(record, path=f"{scope}/{record.path}")
+    for scope in sys.argv[2:]
+    for record in discover_records(root / scope)
+]
+snapshot = evaluate(records)
+violations = validate_invariants(records, root)
+missing = [
+    item for item in snapshot["blocked"]
+    if any("has no task metadata" in reason for reason in item["reasons"])
+]
+snapshot.update(valid=not violations and not missing, violations=violations)
+print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+raise SystemExit(0 if snapshot["valid"] else 1)
+PY
+```
+
+This uses the existing READY and completion rules. It does not change scope,
+skip a dependency, or certify implementation from a planning record. CI for
+the linked initiative must use the same complete record set. Unrelated
+historical directories need not be added to this check.
+
 ## Dependency eligibility
 
 Downstream READY eligibility must be computed from the reconciled canonical ledger, not from:

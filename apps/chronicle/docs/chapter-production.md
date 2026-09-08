@@ -2,6 +2,8 @@
 
 状态：**本轮实现契约，尚未实现**。协调 Issue [#548](https://github.com/6spot/Loom/issues/548)，执行图见 [第一轮 Task Ledger](../../../docs/tasks/chronicle/first-round/README.md)。本文固定实施选择，不把当前 C1 代码描述为已经具备这些能力。
 
+第二轮的 0.2 阅读注解、连续 stream 和事件位置扩展见 [continuous-reading.md](continuous-reading.md)，由 #549 的独立任务交付；本文的第一轮 0.1 验收不以第二轮实现为前提。
+
 ## 1. 结果与边界
 
 以自然章节为完整语义单元，在同一上下文中生成完整白话译文、人物／地点／政权／事件和原文依据；经过校验、关联审核和发布后，读者可以阅读全文，按需查看对应古文。展示分段不是独立翻译调用。
