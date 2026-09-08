@@ -46,10 +46,15 @@ except ImportError:  # pragma: no cover - package import path
     from .presentation_model_schema import presentation_text_format
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
-# Chapter-production §3 engineering envelope (T01 ChapterLimits): HTTP
-# response bytes default to 4 MiB. This is a transport bound, not a model
-# capability claim; larger payloads fail closed as oversize responses.
-DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+# Legacy C1 extraction/presentation transport bound. Kept at 2 MiB so the
+# existing providers constructed by ``models_from_env()`` keep their exact
+# historical accepted response size; T06 must not change their behavior.
+DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+# Chapter-production §3 engineering envelope (T01 ChapterLimits): the chapter
+# provider accepts up to 4 MiB HTTP response bytes. This is a transport
+# bound, not a model capability claim; larger payloads fail closed as
+# oversize responses. Applied only through ``build_chapter_model()``.
+DEFAULT_CHAPTER_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 # Chapter-production §3 provider output budget (T01 ChapterLimits
 # max_output_tokens). Sent as ``max_output_tokens`` on chapter requests so
 # the model receives an explicit output token limit alongside the strict
@@ -398,7 +403,7 @@ def build_chapter_model(
     *,
     api_key: str | None = None,
     timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
-    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+    max_response_bytes: int = DEFAULT_CHAPTER_MAX_RESPONSE_BYTES,
     max_output_tokens: int = DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS,
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS,
@@ -406,10 +411,11 @@ def build_chapter_model(
     """Build the chapter-production provider for one joint generation call.
 
     The request carries the chapter-candidate strict format (only
-    model-generatable fields) plus an explicit output token budget from
-    chapter-production §3. Acceptance still runs the T01 canonical
-    validator on the returned text; this factory only constrains
-    generation and transport.
+    model-generatable fields) plus the chapter-production §3 output token
+    budget and 4 MiB response byte cap. Acceptance still runs the T01
+    canonical validator on the returned text; this factory only constrains
+    generation and transport. Legacy extraction/presentation providers keep
+    their own 2 MiB default and are unaffected.
 
     Worker selection and environment wiring belong to C2-R1-T13/T16; this
     helper exists so that wiring can construct the provider without

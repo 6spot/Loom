@@ -280,13 +280,30 @@ class EnvironmentTests(unittest.TestCase):
 
 
 class ChapterProviderTests(unittest.TestCase):
-    def test_default_response_cap_is_4mib(self) -> None:
-        self.assertEqual(4 * 1024 * 1024, model_provider.DEFAULT_MAX_RESPONSE_BYTES)
+    def test_legacy_default_response_cap_stays_2mib(self) -> None:
+        self.assertEqual(2 * 1024 * 1024, model_provider.DEFAULT_MAX_RESPONSE_BYTES)
         provider = model_provider.ResponsesHTTPModel(
-            name="chapter", endpoint="https://gateway.example/v1/responses"
+            name="extract-v1", endpoint="https://gateway.example/v1/responses"
+        )
+        self.assertEqual(2 * 1024 * 1024, provider.max_response_bytes)
+        self.assertIsNone(provider.max_output_tokens)
+
+    def test_chapter_factory_applies_dedicated_4mib_cap(self) -> None:
+        self.assertEqual(
+            4 * 1024 * 1024, model_provider.DEFAULT_CHAPTER_MAX_RESPONSE_BYTES
+        )
+        provider = model_provider.build_chapter_model(
+            "chapter-live", "https://gateway.example/v1/responses"
         )
         self.assertEqual(4 * 1024 * 1024, provider.max_response_bytes)
-        self.assertIsNone(provider.max_output_tokens)
+        self.assertEqual(
+            model_provider.DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
+            provider.max_output_tokens,
+        )
+        legacy = model_provider.ResponsesHTTPModel(
+            name="extract-v1", endpoint="https://gateway.example/v1/responses"
+        )
+        self.assertEqual(2 * 1024 * 1024, legacy.max_response_bytes)
 
     def test_chapter_request_carries_joint_schema_and_output_budget(self) -> None:
         try:
