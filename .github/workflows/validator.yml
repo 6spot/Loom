@@ -19,21 +19,7 @@ on:
       - "tools/fixtures/validator-ready/**"
       - "docs/tasks/validator/**"
       - "docs/tasks/validator-recert/**"
-  pull_request:
-    paths:
-      - ".github/workflows/validator.yml"
-      - ".github/CODEOWNERS"
-      - "apps/loom-validator/**"
-      - "tools/test.sh"
-      - "tools/test_validator_ready.py"
-      - "tools/validator_ready.py"
-      - "tools/validator-authority-gate.sh"
-      - "tools/validator-certification-gate.py"
-      - "tools/validator-certification-gate.sh"
-      - "tools/validator-pg18-gate.sh"
-      - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/validator/**"
-      - "docs/tasks/validator-recert/**"
+  pull_request: {}
 
 permissions:
   contents: read
@@ -180,9 +166,34 @@ jobs:
       - name: T24 certification-tool regression
         run: python3 tools/validator-certification-gate.py --regression-check
 
+  validator-gate:
+    name: Validator Gate
+    if: always()
+    needs: [changes, ledger, validator]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require successful applicable checks
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          LEDGER: ${{ needs.ledger.result }}
+          VALIDATOR: ${{ needs.validator.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in "$CHANGES" "$LEDGER" "$VALIDATOR"; do
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "Required Validator job ended with: $result" >&2
+                exit 1
+                ;;
+            esac
+          done
+
   multica-wakeup:
     name: Notify Multica of CI failure
-    needs: [changes, ledger, validator]
+    needs: [validator-gate]
     if: >
       failure() && !cancelled() &&
       github.event_name == 'pull_request' &&
