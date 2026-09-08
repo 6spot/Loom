@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -8,12 +8,14 @@ import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
 import {
   getReview,
+  listReviewPage,
   mutateJob,
   StudioApiError,
   submitReviewDecision,
 } from "../../lib/studio-api";
 import type {
   ReviewDecision,
+  ReviewDetail,
   ReviewGroupDetail,
   ReviewGroupDecisionInput,
   ReviewRecordContext,
@@ -30,11 +32,28 @@ import {
   typeLabel,
 } from "../../lib/review-display";
 import type { HumanReviewContext } from "../../lib/review-display";
+import {
+  buildReviewSearch,
+  countStillOpenSkipped,
+  evaluateTailRescan,
+  findNextAfterAnchor,
+  parseReviewSearch,
+  ReviewSessionStore,
+  sanitizeDecision,
+  sanitizeGroupOverrides,
+  scopeKey,
+} from "../../lib/review-session";
+import type { ReviewScope, ReviewSortAnchor } from "../../lib/review-session";
 
 function errorText(error: unknown): string {
   if (error instanceof StudioApiError) return `${error.code}: ${error.message}`;
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function isNetworkFailure(error: unknown): boolean {
+  if (error instanceof StudioApiError) return false;
+  return error instanceof TypeError;
 }
 
 type GroupOverrideDraft = {
@@ -197,33 +216,137 @@ export function CanonicalIdentityConflictNotice({
   );
 }
 
+const ADVANCE_PAGE_LIMIT = 100;
+const ADVANCE_MAX_PAGES = 25;
+
+interface EndState {
+  kind: "only-skipped" | "empty" | "refresh";
+  stillOpenSkipped: number;
+  openCount: number;
+  observedAt: string;
+}
+
+function sessionStore(): ReviewSessionStore | null {
+  try {
+    if (typeof sessionStorage === "undefined") return null;
+    return new ReviewSessionStore(sessionStorage);
+  } catch {
+    return null;
+  }
+}
+
 export default function StudioReviewDetailPage() {
   const { reviewId = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const scope = useMemo<ReviewScope>(() => parseReviewSearch(searchParams.toString()), [searchParams]);
+  const traverseScope = useMemo<ReviewScope>(
+    () => ({ status: "open", jobId: scope.jobId, linkKind: scope.linkKind }),
+    [scope.jobId, scope.linkKind],
+  );
   const auth = useStudioAuth();
   const authHeader = auth.authHeader();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const store = useMemo(() => sessionStore(), []);
   const review = useQuery({
     queryKey: ["studio", "review", reviewId],
     queryFn: () => getReview(authHeader, reviewId),
     enabled: Boolean(reviewId),
   });
   const item = review.data;
-  const allowed = item?.allowed_decisions ?? [];
+  const allowed = useMemo(() => item?.allowed_decisions ?? [], [item?.allowed_decisions]);
+  const fingerprint = item?.plan_fingerprint ?? null;
   const [decision, setDecision] = useState<ReviewDecision | "">("");
   const [rationale, setRationale] = useState("");
   const [confidence, setConfidence] = useState("0.5");
   const [showExceptions, setShowExceptions] = useState(false);
   const [groupOverrides, setGroupOverrides] = useState<Record<string, GroupOverrideDraft>>({});
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [skippedVersion, setSkippedVersion] = useState(0);
+  const [advancing, setAdvancing] = useState(false);
+  const [advanceNote, setAdvanceNote] = useState("");
+  const [contended, setContended] = useState<Array<{ id: string; status: string }>>([]);
+  const [endState, setEndState] = useState<EndState | null>(null);
+  const [lateNotice, setLateNotice] = useState<string | null>(null);
+  const [unknownOutcome, setUnknownOutcome] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<string | null>(null);
+  const advanceAfterRef = useRef(false);
+  const submittingRef = useRef<{
+    id: string;
+    fingerprint: string | null;
+    advance: boolean;
+    anchor: ReviewSortAnchor;
+  } | null>(null);
+  const currentIdRef = useRef(reviewId);
+  currentIdRef.current = reviewId;
 
-  useEffect(() => {
-    if (!decision && allowed.length) setDecision(allowed[0]);
-  }, [allowed, decision]);
+  const formKey = `${reviewId}|${fingerprint ?? "-"}`;
 
+  // Hydrate this review's isolated draft. Switching reviewId resets the whole
+  // form (decision/rationale/confidence included), never just the group
+  // overrides; an Entity→Event move sanitizes illegal carried values.
   useEffect(() => {
-    setShowExceptions(false);
-    setGroupOverrides({});
-  }, [reviewId]);
+    if (!item) return;
+    const stored = store?.loadDraft(reviewId, fingerprint);
+    const allowedStrings = allowed as string[];
+    if (stored) {
+      const cleanOverrides = sanitizeGroupOverrides(stored.groupOverrides, allowedStrings);
+      const clean: Record<string, GroupOverrideDraft> = {};
+      for (const [groupId, draft] of Object.entries(cleanOverrides)) {
+        clean[groupId] = {
+          enabled: draft.enabled,
+          decision: (draft.decision && allowedStrings.includes(draft.decision)
+            ? draft.decision
+            : sanitizeDecision(stored.decision, allowedStrings)) as ReviewDecision | "",
+          rationale: draft.rationale,
+          confidence: draft.confidence,
+        };
+      }
+      setDecision(sanitizeDecision(stored.decision, allowedStrings) as ReviewDecision | "");
+      setRationale(stored.rationale);
+      setConfidence(stored.confidence);
+      setShowExceptions(stored.showExceptions);
+      setGroupOverrides(clean);
+    } else {
+      setDecision((allowedStrings[0] ?? "") as ReviewDecision | "");
+      setRationale("");
+      setConfidence("0.5");
+      setShowExceptions(false);
+      setGroupOverrides({});
+    }
+    setLoadedKey(formKey);
+    setEndState(null);
+    setLateNotice(null);
+    setUnknownOutcome(false);
+    setVerifyResult(null);
+    setContended([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, fingerprint, (allowed as string[]).join("|")]);
+
+  // Persist the draft on every change; only success clears it.
+  useEffect(() => {
+    if (!item || loadedKey !== formKey) return;
+    store?.saveDraft(reviewId, fingerprint, {
+      decision,
+      rationale,
+      confidence,
+      showExceptions,
+      groupOverrides: Object.fromEntries(
+        Object.entries(groupOverrides).map(([groupId, draft]) => [
+          groupId,
+          { enabled: draft.enabled, decision: draft.decision, rationale: draft.rationale, confidence: draft.confidence },
+        ]),
+      ),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decision, rationale, confidence, showExceptions, groupOverrides, loadedKey]);
+
+  const skipped = useMemo(
+    () => new Set(store?.loadSkipped(traverseScope) ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scopeKey(traverseScope), skippedVersion],
+  );
 
   const setGroupOverride = (groupId: string, patch: Partial<GroupOverrideDraft>) => {
     setGroupOverrides((current) => {
@@ -261,9 +384,120 @@ export default function StudioReviewDetailPage() {
     );
   }, [allowed, confidence, decision, groupOverrides, item?.status, rationale]);
 
+  const goToReview = (nextId: string) => {
+    navigate(`/studio/review/${encodeURIComponent(nextId)}${buildReviewSearch(scope, nextId)}`);
+  };
+
+  const backToQueue = () => {
+    navigate(`/studio/review${buildReviewSearch(scope, reviewId)}`);
+  };
+
+  const findNextThroughServer = async (
+    fromAnchor: ReviewSortAnchor | null,
+    extraSkipped?: ReadonlySet<string>,
+  ): Promise<ReviewDetail | null> => {
+    const handledElsewhere = new Set<string>();
+    const collected: Array<{ reviewId: string; createdAt: string | null }> = [];
+    let cursor: string | null = null;
+    let openCount = 0;
+    let observedAt = "";
+    const excludedBase = extraSkipped ? new Set([...skipped, ...extraSkipped]) : skipped;
+    for (let pageIndex = 0; pageIndex < ADVANCE_MAX_PAGES; pageIndex += 1) {
+      setAdvanceNote(`正在寻找下一项…第 ${pageIndex + 1} 页`);
+      const pageResult = await listReviewPage(authHeader, {
+        status: "open",
+        jobId: traverseScope.jobId,
+        linkKind: traverseScope.linkKind,
+        limit: ADVANCE_PAGE_LIMIT,
+        cursor,
+      });
+      openCount = pageResult.open_count;
+      observedAt = pageResult.observed_at;
+      collected.push(
+        ...pageResult.items.map((entry) => ({
+          reviewId: entry.review_id,
+          createdAt: entry.created_at,
+        })),
+      );
+      const excluded = new Set([...excludedBase, ...handledElsewhere]);
+      // Anchor comparison, not id lookup: the submitted review has left the
+      // open queue, so a deep-page current id is absent from `collected` and
+      // an index search would restart at the head.
+      const candidate = findNextAfterAnchor(collected, fromAnchor, excluded);
+      if (candidate) {
+        // Another tab may have handled the candidate first: re-check its
+        // server status and continue instead of submitting over it.
+        const detail = await getReview(authHeader, candidate);
+        if (detail.status === "open") {
+          store?.saveOpenCursor(traverseScope, pageResult.next_cursor);
+          return detail;
+        }
+        handledElsewhere.add(candidate);
+        setContended((current) => [...current, { id: candidate, status: detail.status }]);
+        continue;
+      }
+      if (!pageResult.next_cursor) {
+        store?.saveOpenCursor(traverseScope, null);
+        // Tail re-scan over the head-to-tail collection: late rows inserted
+        // before the old cursor are found here. Handled-elsewhere ids are
+        // excluded and reported instead of being submitted over.
+        for (;;) {
+          const outcome = evaluateTailRescan(
+            collected.map((entry) => entry.reviewId),
+            new Set([...excludedBase, ...handledElsewhere]),
+          );
+          if (outcome.kind === "next" && outcome.nextId) {
+            const detail = await getReview(authHeader, outcome.nextId);
+            if (detail.status === "open") return detail;
+            handledElsewhere.add(outcome.nextId);
+            setContended((current) => [...current, { id: outcome.nextId as string, status: detail.status }]);
+            continue;
+          }
+          if (outcome.kind === "only-skipped") {
+            setEndState({
+              kind: "only-skipped",
+              stillOpenSkipped: outcome.stillOpenSkipped,
+              openCount,
+              observedAt,
+            });
+          } else {
+            setEndState({ kind: "empty", stillOpenSkipped: 0, openCount, observedAt });
+          }
+          return null;
+        }
+      }
+      cursor = pageResult.next_cursor;
+    }
+    setEndState({
+      kind: "refresh",
+      stillOpenSkipped: countStillOpenSkipped(
+        [...excludedBase],
+        new Set(collected.map((entry) => entry.reviewId)),
+      ),
+      openCount,
+      observedAt,
+    });
+    return null;
+  };
+
+  const advance = async (fromAnchor: ReviewSortAnchor | null, extraSkipped?: ReadonlySet<string>) => {
+    if (advancing) return;
+    setAdvancing(true);
+    setAdvanceNote("正在寻找下一项…");
+    try {
+      const next = await findNextThroughServer(fromAnchor, extraSkipped);
+      if (next) goToReview(next.review_id);
+    } catch (error) {
+      setAdvanceNote(`寻找下一项失败：${errorText(error)}。草稿已保留，可重试。`);
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   const decide = useMutation({
     mutationFn: async () => {
-      if (!item || !decision) throw new Error("缺少审核判断");
+      const submitted = submittingRef.current;
+      if (!item || !decision || !submitted) throw new Error("缺少审核判断");
       if (!window.confirm(`确认提交“${decisionLabel(decision)}”？提交后该审核项将作为审计历史保留，不能静默改写。`)) {
         throw new Error("已取消提交");
       }
@@ -280,7 +514,7 @@ export default function StudioReviewDetailPage() {
       });
       return submitReviewDecision(
         authHeader,
-        item.review_id,
+        submitted.id,
         decision,
         rationale.trim(),
         Number(confidence),
@@ -288,13 +522,79 @@ export default function StudioReviewDetailPage() {
       );
     },
     onSuccess: async (updated) => {
+      const submitted = submittingRef.current;
+      submittingRef.current = null;
+      setUnknownOutcome(false);
+      if (submitted) store?.clearDraft(submitted.id, submitted.fingerprint);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["studio", "reviews"] }),
-        queryClient.invalidateQueries({ queryKey: ["studio", "review", reviewId] }),
+        queryClient.invalidateQueries({ queryKey: ["studio", "review", submitted?.id ?? reviewId] }),
         queryClient.invalidateQueries({ queryKey: ["studio", "job", updated.job_id] }),
       ]);
+      // Late responses apply to their original review id, never the current form.
+      if (!submitted || submitted.id !== currentIdRef.current) {
+        setLateNotice(
+          submitted
+            ? `迟到响应已按原审核项 ${submitted.id} 处理，当前表单未受影响。`
+            : "迟到响应已处理，当前表单未受影响。",
+        );
+        return;
+      }
+      if (submitted.advance) {
+        await advance(submitted.anchor);
+      }
+    },
+    onError: (error) => {
+      submittingRef.current = null;
+      // Every failure retains the draft (it is already persisted above).
+      if (isNetworkFailure(error)) setUnknownOutcome(true);
     },
   });
+
+  const submit = (advanceAfter: boolean) => {
+    if (!canSubmit || decide.isPending || advancing || !item) return;
+    advanceAfterRef.current = advanceAfter;
+    // Capture the sort anchor BEFORE the POST: success removes this review
+    // from the open queue, so the advance must continue after the anchor.
+    submittingRef.current = {
+      id: reviewId,
+      fingerprint,
+      advance: advanceAfter,
+      anchor: { createdAt: item.created_at, reviewId: item.review_id },
+    };
+    decide.mutate();
+  };
+
+  const skipCurrent = async () => {
+    if (!item || advancing || decide.isPending) return;
+    // addSkipped returns the updated list synchronously: the advance below
+    // must use it directly instead of the pre-click render's skipped set.
+    const nextSkipped = new Set(store?.addSkipped(traverseScope, reviewId) ?? [reviewId]);
+    setSkippedVersion((value) => value + 1);
+    await advance({ createdAt: item.created_at, reviewId: item.review_id }, nextSkipped);
+  };
+
+  const verifyServerState = async () => {
+    if (!reviewId || verifying) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      // Unknown transport outcome: ask the server instead of resubmitting.
+      const detail = await getReview(authHeader, reviewId);
+      await queryClient.invalidateQueries({ queryKey: ["studio", "review", reviewId] });
+      if (detail.status !== "open") {
+        store?.clearDraft(reviewId, fingerprint);
+        const decided = detail.decision ? `（${decisionLabel(detail.decision.decision)}）` : "";
+        setVerifyResult(`服务端显示该项已${statusLabel(detail.status)}${decided}；本地草稿已清理，可前往下一项。`);
+      } else {
+        setVerifyResult("服务端显示该项仍待处理；上次提交未生效，草稿已保留，可检查后重新提交。");
+      }
+    } catch (error) {
+      setVerifyResult(`核对失败：${errorText(error)}。草稿已保留。`);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const resume = useMutation({
     mutationFn: async () => {
@@ -336,9 +636,20 @@ export default function StudioReviewDetailPage() {
         <div className="studio-row-actions">
           <Badge>{statusLabel(item.status)}</Badge>
           <Badge>{statusLabel(item.job_status)}</Badge>
-          <Link className="studio-link-button" to="/studio/review">返回审核队列</Link>
+          <Link className="studio-link-button" to={`/studio/review${buildReviewSearch(scope, reviewId)}`}>返回审核队列</Link>
         </div>
       </div>
+
+      {item.status !== "open" ? (
+        <div className="studio-error-box studio-stack" role="status">
+          <strong>该审核项已{statusLabel(item.status)}，不能再提交判断。</strong>
+          {contended.length ? (
+            <p>另一会话已先处理了本轮中的 {contended.length} 项（{contended.map((entry) => `${entry.id.slice(0, 8)}…:${entry.status}`).join("、")}），已自动跳过它们。</p>
+          ) : null}
+          {item.decision ? <p>服务端决定：{decisionLabel(item.decision.decision)}。已有记录不会被覆盖。</p> : null}
+        </div>
+      ) : null}
+      {lateNotice ? <p className="studio-muted" role="status">{lateNotice}</p> : null}
 
       <Card>
         <CardHeader>
@@ -463,7 +774,7 @@ export default function StudioReviewDetailPage() {
                 className="studio-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (canSubmit) decide.mutate();
+                  submit(false);
                 }}
               >
                 <div>
@@ -583,19 +894,56 @@ export default function StudioReviewDetailPage() {
                   </div>
                 ) : null}
 
-                <Button type="submit" disabled={!canSubmit || decide.isPending}>
-                  {decide.isPending ? "提交中…" : "确认并提交判断"}
+                <Button type="submit" disabled={!canSubmit || decide.isPending || advancing}>
+                  {decide.isPending && !advanceAfterRef.current ? "提交中…" : "确认并提交判断"}
                 </Button>
               </form>
             )}
             {decide.error instanceof StudioApiError && decide.error.code === "canonical_identity_conflict" ? (
               <CanonicalIdentityConflictNotice error={decide.error} reviewGroups={reviewGroups} />
             ) : decide.error && errorText(decide.error) !== "已取消提交" ? (
-              <p className="studio-error">{errorText(decide.error)}</p>
+              <p className="studio-error">{errorText(decide.error)}草稿已保留，可修改后重新提交。</p>
             ) : null}
+            {unknownOutcome ? (
+              <div className="studio-error-box studio-stack" role="alert">
+                <strong>提交结果未知（网络中断或响应丢失）。</strong>
+                <p>草稿已保留，没有自动重发。请先向服务端核对该项状态，再决定是否重新提交，以免覆盖已有记录。</p>
+                <Button type="button" variant="outline" onClick={() => void verifyServerState()} disabled={verifying}>
+                  {verifying ? "核对中…" : "向服务端核对当前项状态"}
+                </Button>
+              </div>
+            ) : null}
+            {verifyResult ? <p className="studio-muted" role="status">{verifyResult}</p> : null}
           </CardContent>
         </Card>
       </div>
+
+      {endState ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {endState.kind === "only-skipped"
+                ? `本轮已查看，仍有 ${endState.stillOpenSkipped} 项暂时跳过`
+                : endState.kind === "empty"
+                  ? "当前范围暂无待审项"
+                  : "本轮仍在变化，请刷新后继续"}
+            </CardTitle>
+            <CardDescription>
+              {endState.kind === "only-skipped"
+                ? "跳过项仍为待审并继续阻塞作业恢复；从队首重新开始可恢复它们。已处理记录不会被覆盖。"
+                : endState.kind === "empty"
+                  ? `服务端待审计数为 ${endState.openCount}。不得据此宣称整个导入完成。`
+                  : `已翻页到上限仍未定位下一项（观察时间 ${endState.observedAt}）。并发范围持续变动时请刷新。`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="studio-row-actions">
+              <Button variant="outline" onClick={() => { setEndState(null); void advance(null); }}>重新从队首扫描</Button>
+              <Button variant="outline" onClick={backToQueue}>返回队列</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {item.status !== "open" && item.job_status === "needs_review" && item.job_open_resolution_reviews === 0 ? (
         <Card>
@@ -611,6 +959,33 @@ export default function StudioReviewDetailPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <div className="studio-review-actionbar" role="toolbar" aria-label="连续审核操作">
+        <div className="studio-review-actionbar-status">
+          {decide.isPending ? "提交中…" : advancing ? advanceNote || "正在寻找下一项…" : "草稿自动保存在本标签页"}
+          {skipped.size > 0 ? ` · 已跳过 ${skipped.size} 项` : ""}
+        </div>
+        <div className="studio-review-actionbar-buttons">
+          <Button
+            type="button"
+            disabled={!canSubmit || decide.isPending || advancing || item.status !== "open"}
+            onClick={() => submit(true)}
+          >
+            {decide.isPending && advanceAfterRef.current ? "提交中…" : "保存并下一项"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={advancing || decide.isPending || item.status !== "open"}
+            onClick={() => void skipCurrent()}
+          >
+            暂时跳过
+          </Button>
+          <Button type="button" variant="outline" onClick={backToQueue}>
+            返回队列
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

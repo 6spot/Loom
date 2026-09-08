@@ -102,9 +102,9 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioCoveragePage.js"
     ),
     asset!(
-        "/assets/review-display.js",
+        "/assets/review-session.js",
         "text/javascript; charset=utf-8",
-        "dist/assets/review-display.js"
+        "dist/assets/review-session.js"
     ),
     asset!(
         "/assets/studio-api.js",
@@ -270,7 +270,7 @@ mod tests {
             "/assets/StudioReviewDetailPage.js",
             "/assets/StudioSourcesPage.js",
             "/assets/StudioCoveragePage.js",
-            "/assets/review-display.js",
+            "/assets/review-session.js",
             "/assets/studio-api.js",
             "/assets/studio-i18n.js",
             "/assets/useMutation.js",
