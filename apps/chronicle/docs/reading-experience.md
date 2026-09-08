@@ -2,6 +2,8 @@
 
 状态：待实施；属于 [#549](https://github.com/6spot/Loom/issues/549)。数据含义、路由和发布边界以 [continuous-reading.md](continuous-reading.md) 为准。此文固定布局、交互和可观察结果；Task Ledger 只记录执行证据。
 
+新增背景设计见 [background-art.md](background-art.md)：按时代制作淡彩背景，AI 可建议位置，用户明确触发生成/上传并校验保存后才展示。仅页面背景，不插入正文；滚动和内容生产均不自动生成图片。技能/离线候选库由 D01 提供，产品上传、保存/关联和背景渲染另待拆分，当前没有可评阅的完整阅读页面原型。
+
 ## 1. 页面组织
 
 新增 `/read` 目录与 `/read/{stream_id}?catalog={sha}&at={unit_id}` 连续阅读页。`at` 可省略以从首段开始；入口解析后 URL 固定 catalog。第一轮篇章目录/详情保留，并提供连续阅读入口；已有 Timeline / Event Detail 提供“进入相关正文”。新的主体不是一串每段各带边框的事件卡片。

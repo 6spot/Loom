@@ -15,15 +15,17 @@ Initial data may focus on a narrow period, but the product and data model must r
 - `docs/` — Chronicle product, UX, data, read API, and browser UI documents.
 - `ingestion/` — schema-driven historical-data ingestion, resolution, and canonical publication prototypes/contracts.
 - `corpus/` — pinned historical source packs and development fixture tooling; [six retained biographies](corpus/c1-t13/sources/README.md).
+- `assets/backgrounds/` — retained background-art candidates, prompts and metadata; [archive entry](assets/backgrounds/README.md), not a public image-serving directory.
 - `persistence/` — Chronicle-owned PostgreSQL persistence for staged, Resolution, and canonical layers.
 - `read_api/` — deterministic Timeline/Event/Entity read contracts plus the same-origin HTTP host.
 - `web/` — zero-build Chronicle browser UI that consumes only the C0-T10 HTTP API.
 
 ## Current design and implementation documents
 
-- [Second-round task graph](../../docs/tasks/chronicle/second-round/README.md) — #549 children for continuous reading, narrative time and event navigation; planned, not implemented.
+- [Second-round task graph](../../docs/tasks/chronicle/second-round/README.md) — #549 reading implementation remains planned; D01 separately tracks reusable background-art design preparation.
 - [`docs/continuous-reading.md`](docs/continuous-reading.md) — second-round chapter annotations, immutable streams, source time and snapshot APIs.
 - [`docs/reading-experience.md`](docs/reading-experience.md) — reading layout, current-fragment context, accessible previews and position restoration.
+- [`docs/background-art.md`](docs/background-art.md) — era-aware background art, explicit generation/upload and human save-to-display workflow; product upload/display integration remains planned.
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — detailed #548 children, dependencies and shared-file ownership; planned, not implemented.
 - [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.
 - [`docs/review-workflow.md`](docs/review-workflow.md) — first-round review queue, source context and continuous review contract.

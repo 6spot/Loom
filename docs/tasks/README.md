@@ -66,8 +66,10 @@ from completed C1 and do not activate the later #549/#550 rounds.
 
 The second-round plan is now decomposed under
 [`chronicle/second-round/README.md`](chronicle/second-round/README.md), parent
-#549. Its 17 leaves have explicit first-round dependencies; recording this
-plan does not start implementation or activate third-round #550.
+#549. Its original 17 reading leaves retain their explicit first-round
+dependencies. Independent design-preparation D01/#588 adds the reusable
+background-art skill and candidate archive; it does not implement product
+image upload/display or activate the reading leaves or third-round #550.
 
 ## One task, one file
 
