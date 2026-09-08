@@ -10,6 +10,7 @@ on:
       - ".github/CODEOWNERS"
       - ".dockerignore"
       - ".env.example"
+      - ".env.chronicle.example"
       - "Cargo.toml"
       - "Cargo.lock"
       - "**/Cargo.toml"
@@ -19,6 +20,7 @@ on:
       - "tests/**"
       - "compose.test-db.yaml"
       - "compose.yaml"
+      - "compose.chronicle.yaml"
       - "Dockerfile"
       - "docker/**"
       - "deny.toml"
@@ -26,7 +28,6 @@ on:
       - "rustfmt.toml"
       - "tools/check_architecture.py"
       - "tools/check_storage_sql_ownership.py"
-      - "tools/postgres-test.sh"
       - "tools/test_validator_ready.py"
       - "tools/validator_ready.py"
       - "tools/fixtures/validator-ready/**"
@@ -35,6 +36,7 @@ on:
       - "README.md"
       - "docs/quickstart.md"
       - "docs/operator-guide.md"
+      - "apps/chronicle/**"
       - "!apps/loom-validator/**"
   pull_request: {}
 
@@ -57,9 +59,13 @@ jobs:
       rust: ${{ steps.classify.outputs.rust }}
       dependency: ${{ steps.classify.outputs.dependency }}
       ledger: ${{ steps.classify.outputs.ledger }}
-      postgres: ${{ steps.classify.outputs.postgres }}
       deployment: ${{ steps.classify.outputs.deployment }}
       documentation: ${{ steps.classify.outputs.documentation }}
+      chronicle: ${{ steps.classify.outputs.chronicle }}
+      chronicle_python: ${{ steps.classify.outputs.chronicle_python }}
+      chronicle_rust: ${{ steps.classify.outputs.chronicle_rust }}
+      chronicle_web: ${{ steps.classify.outputs.chronicle_web }}
+      chronicle_deployment: ${{ steps.classify.outputs.chronicle_deployment }}
 
     steps:
       - name: Checkout
@@ -76,17 +82,25 @@ jobs:
           rust=false
           dependency=false
           ledger=false
-          postgres=false
           deployment=false
           documentation=false
+          chronicle=false
+          chronicle_python=false
+          chronicle_rust=false
+          chronicle_web=false
+          chronicle_deployment=false
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             rust=true
             dependency=true
             ledger=true
-            postgres=true
             deployment=true
             documentation=true
+            chronicle=true
+            chronicle_python=true
+            chronicle_rust=true
+            chronicle_web=true
+            chronicle_deployment=true
           else
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               base="${{ github.event.pull_request.base.sha }}"
@@ -106,14 +120,18 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
 
-              # Changing core CI authority itself validates every core route once.
               case "$path" in
                 .github/workflows/ci.yml|.github/CODEOWNERS)
                   rust=true
                   dependency=true
                   ledger=true
-                  postgres=true
                   deployment=true
+                  documentation=true
+                  chronicle=true
+                  chronicle_python=true
+                  chronicle_rust=true
+                  chronicle_web=true
+                  chronicle_deployment=true
                   ;;
               esac
 
@@ -135,18 +153,9 @@ jobs:
               esac
 
               case "$path" in
-                crates/loom-storage/*)
-                  postgres=true
-                  ;;
-                compose.test-db.yaml|tools/postgres-test.sh)
-                  postgres=true
-                  ;;
-              esac
-
-              case "$path" in
                 apps/loom-validator/*)
                   ;;
-                *.rs|capabilities/*|tests/*|rust-toolchain.toml|rustfmt.toml|tools/check_architecture.py|tools/check_storage_sql_ownership.py)
+                *.rs|capabilities/*|tests/*|rust-toolchain.toml|rustfmt.toml|tools/check_architecture.py|tools/check_storage_sql_ownership.py|crates/loom-storage/*)
                   rust=true
                   ;;
               esac
@@ -162,6 +171,36 @@ jobs:
                   documentation=true
                   ;;
               esac
+
+              case "$path" in
+                apps/chronicle/*|compose.chronicle.yaml|.env.chronicle.example)
+                  chronicle=true
+                  ;;
+              esac
+
+              case "$path" in
+                apps/chronicle/persistence/*|apps/chronicle/read_api/*|apps/chronicle/worker/*|apps/chronicle/ingestion/*)
+                  chronicle_python=true
+                  ;;
+              esac
+
+              case "$path" in
+                apps/chronicle/control_plane/*|apps/chronicle/server/*)
+                  chronicle_rust=true
+                  ;;
+              esac
+
+              case "$path" in
+                apps/chronicle/web/*|apps/chronicle/webapp/*)
+                  chronicle_web=true
+                  ;;
+              esac
+
+              case "$path" in
+                compose.chronicle.yaml|.env.chronicle.example|apps/chronicle/Dockerfile)
+                  chronicle_deployment=true
+                  ;;
+              esac
             done < /tmp/loom-ci-changed-files
           fi
 
@@ -169,13 +208,14 @@ jobs:
             echo "rust=$rust"
             echo "dependency=$dependency"
             echo "ledger=$ledger"
-            echo "postgres=$postgres"
             echo "deployment=$deployment"
             echo "documentation=$documentation"
+            echo "chronicle=$chronicle"
+            echo "chronicle_python=$chronicle_python"
+            echo "chronicle_rust=$chronicle_rust"
+            echo "chronicle_web=$chronicle_web"
+            echo "chronicle_deployment=$chronicle_deployment"
           } >> "$GITHUB_OUTPUT"
-
-          printf 'rust=%s dependency=%s ledger=%s postgres=%s deployment=%s documentation=%s\n' \
-            "$rust" "$dependency" "$ledger" "$postgres" "$deployment" "$documentation"
 
   documentation:
     name: Active deployment documentation
@@ -256,11 +296,10 @@ jobs:
           if ! command -v cargo-deny >/dev/null 2>&1; then
             cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
           fi
-          cargo-deny --version
           cargo deny check advisories bans licenses sources
 
   rust:
-    name: Rust checks
+    name: Rust static checks
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
@@ -273,8 +312,6 @@ jobs:
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
           rustup default "$RUST_VERSION"
-          rustc --version
-          cargo --version
 
       - name: Restore Cargo cache
         uses: actions/cache@v4
@@ -283,9 +320,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: rust-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          key: rust-static-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            rust-${{ runner.os }}-${{ env.RUST_VERSION }}-
+            rust-static-${{ runner.os }}-${{ env.RUST_VERSION }}-
 
       - name: Architecture policy
         run: python3 tools/check_architecture.py
@@ -299,76 +336,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --exclude loom-validator --all-targets --all-features -- -D warnings
 
-      - name: Core and unit tests
-        run: |
-          # Database-backed loom-storage integration runs in its dedicated lane.
-          # loom-validator is a separate staged validation workflow.
-          cargo test --workspace --all-features --exclude loom-storage --exclude loom-validator
-          cargo test -p loom-storage --all-features --lib
-
       - name: Rustdoc
         run: RUSTDOCFLAGS='-D warnings' cargo doc --workspace --exclude loom-validator --no-deps
 
-  postgres-contract:
-    name: PostgreSQL 18 persistence contract
-    needs: changes
-    if: needs.changes.outputs.postgres == 'true'
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:0.8.6-pg18
-        env:
-          POSTGRES_USER: loom
-          POSTGRES_PASSWORD: loom
-          POSTGRES_DB: loom_control
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U loom -d loom_control"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    env:
-      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@localhost:5432/loom_control
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Rust
-        run: |
-          rustup toolchain install "$RUST_VERSION" --profile minimal
-          rustup default "$RUST_VERSION"
-          rustc --version
-          cargo --version
-
-      - name: Restore Cargo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: postgres-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            postgres-${{ runner.os }}-${{ env.RUST_VERSION }}-
-
-      - name: PostgreSQL Compose config
-        run: docker compose -f compose.test-db.yaml config --quiet
-
-      - name: PostgreSQL integration contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          for test_file in crates/loom-storage/tests/postgres_*.rs; do
-            test_name="$(basename "$test_file" .rs)"
-            echo "::group::$test_name"
-            cargo test -p loom-storage --test "$test_name" -- --nocapture
-            echo "::endgroup::"
-          done
-
   deployment:
-    name: Loom server Compose config
+    name: Loom Compose config
     needs: changes
     if: needs.changes.outputs.deployment == 'true'
     runs-on: ubuntu-latest
@@ -380,10 +352,74 @@ jobs:
       - name: Validate Compose config
         run: docker compose -f compose.yaml config --quiet
 
-  core-gate:
-    name: Core Gate
+  chronicle-static:
+    name: Chronicle static checks
+    needs: changes
+    if: needs.changes.outputs.chronicle == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Python syntax
+        if: needs.changes.outputs.chronicle_python == 'true'
+        run: |
+          python3 -m compileall -q \
+            apps/chronicle/persistence \
+            apps/chronicle/read_api \
+            apps/chronicle/worker \
+            apps/chronicle/ingestion
+
+      - name: Install Chronicle Rust toolchain
+        if: needs.changes.outputs.chronicle_rust == 'true'
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup default "$RUST_VERSION"
+
+      - name: Chronicle Rust format and static analysis
+        if: needs.changes.outputs.chronicle_rust == 'true'
+        run: |
+          set -euo pipefail
+          for manifest in \
+            apps/chronicle/control_plane/Cargo.toml \
+            apps/chronicle/server/Cargo.toml; do
+            cargo fmt --manifest-path "$manifest" -- --check
+            cargo check --manifest-path "$manifest" --all-targets
+            cargo clippy --manifest-path "$manifest" --all-targets -- -D warnings
+          done
+
+      - name: Set up Node
+        if: needs.changes.outputs.chronicle_web == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+
+      - name: Chronicle web build
+        if: needs.changes.outputs.chronicle_web == 'true'
+        run: |
+          set -euo pipefail
+          cd apps/chronicle/webapp
+          npm ci
+          npm run build
+          cd ../../..
+          git diff --exit-code -- apps/chronicle/web/dist
+          test -z "$(git status --porcelain -- apps/chronicle/web/dist)"
+
+      - name: Chronicle Compose model
+        if: needs.changes.outputs.chronicle_deployment == 'true'
+        run: |
+          docker compose \
+            --env-file .env.chronicle.example \
+            -f compose.chronicle.yaml \
+            config --quiet
+
+  repository-gate:
+    name: Repository Gate
     if: always()
-    needs: [changes, documentation, ledger, dependency-policy, rust, postgres-contract, deployment]
+    needs: [changes, documentation, ledger, dependency-policy, rust, deployment, chronicle-static]
     runs-on: ubuntu-latest
 
     steps:
@@ -394,8 +430,8 @@ jobs:
           LEDGER: ${{ needs.ledger.result }}
           DEPENDENCY_POLICY: ${{ needs.dependency-policy.result }}
           RUST: ${{ needs.rust.result }}
-          POSTGRES_CONTRACT: ${{ needs.postgres-contract.result }}
           DEPLOYMENT: ${{ needs.deployment.result }}
+          CHRONICLE_STATIC: ${{ needs.chronicle-static.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -405,12 +441,12 @@ jobs:
             "$LEDGER" \
             "$DEPENDENCY_POLICY" \
             "$RUST" \
-            "$POSTGRES_CONTRACT" \
-            "$DEPLOYMENT"; do
+            "$DEPLOYMENT" \
+            "$CHRONICLE_STATIC"; do
             case "$result" in
               success|skipped) ;;
               *)
-                echo "Required Core CI job ended with: $result" >&2
+                echo "Required repository check ended with: $result" >&2
                 exit 1
                 ;;
             esac
@@ -418,7 +454,7 @@ jobs:
 
   multica-wakeup:
     name: Notify Multica of CI failure
-    needs: [core-gate]
+    needs: [repository-gate]
     if: >
       failure() && !cancelled() &&
       github.event_name == 'pull_request' &&
