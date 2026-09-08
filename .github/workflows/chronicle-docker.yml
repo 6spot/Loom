@@ -169,3 +169,20 @@ jobs:
             -f compose.chronicle.yaml \
             down --remove-orphans || true
           sudo rm -rf "$CHRONICLE_DATA_DIR" || true
+
+  multica-wakeup:
+    name: Notify Multica of CI failure
+    needs: [compose]
+    if: >
+      failure() && !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.body, 'Multica-Issue:')
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/multica-ci-wakeup.yml
+    secrets:
+      MULTICA_URL: ${{ secrets.MULTICA_URL }}
+      MULTICA_PAT: ${{ secrets.MULTICA_PAT }}
+      MULTICA_WORKSPACE_ID: ${{ secrets.MULTICA_WORKSPACE_ID }}

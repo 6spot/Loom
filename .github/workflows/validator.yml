@@ -179,3 +179,20 @@ jobs:
 
       - name: T24 certification-tool regression
         run: python3 tools/validator-certification-gate.py --regression-check
+
+  multica-wakeup:
+    name: Notify Multica of CI failure
+    needs: [changes, ledger, validator]
+    if: >
+      failure() && !cancelled() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.body, 'Multica-Issue:')
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/multica-ci-wakeup.yml
+    secrets:
+      MULTICA_URL: ${{ secrets.MULTICA_URL }}
+      MULTICA_PAT: ${{ secrets.MULTICA_PAT }}
+      MULTICA_WORKSPACE_ID: ${{ secrets.MULTICA_WORKSPACE_ID }}

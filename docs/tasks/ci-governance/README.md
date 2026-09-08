@@ -12,6 +12,7 @@ Only dedicated CI/governance tasks may intentionally change `.github/workflows/*
 | CI-GOV-T02 | #431 | completed | CI-GOV-T01 | Stop generic `Cargo.lock` changes from triggering the PostgreSQL 18 persistence-contract lane. |
 | CI-GOV-T03 | #435 | completed | CI-GOV-T02 | Isolate Validator from routine core CI and move it to a dedicated staged validation workflow. |
 | CI-GOV-T04 | #543 | completed | CI-GOV-T03 | Retire completed Chronicle acceptance CI and disable stale Actions registrations while preserving historical evidence. |
+| CI-GOV-T05 | — | in_progress | CI-GOV-T04 | Call the reusable Multica wakeup only for opted-in PR failures, removing standalone completion-triggered runs. |
 
 ## Governance boundary
 

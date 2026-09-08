@@ -123,6 +123,19 @@ Choose verification based on the changed contract. A documentation-only edit sho
 
 The repository CI workflow remains the current source for CI path routing.
 
+Multica failure notifications are opt-in. Include a standalone
+`Multica-Issue: ME-123` line in the PR body before triggering PR CI. CI,
+Validator, Chronicle and Chronicle Docker call the shared
+`.github/workflows/multica-ci-wakeup.yml` only after a check fails on an
+uncancelled same-repository PR whose triggering payload contains the marker.
+The shared workflow re-reads the PR and requires a valid issue key, an open PR
+and the tested head before sending the notification.
+
+The shared workflow uses `workflow_call`, so it runs inside the original CI
+run instead of creating a separate Actions run after every completion. When
+adding a check job to one of these workflows, include it in that workflow's
+`multica-wakeup.needs` list so its failures are covered.
+
 ## 6. Public/API consumption
 
 Applications should consume Loom through the public API surface instead of importing concrete Runtime or Storage internals as feature dependencies.
