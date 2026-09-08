@@ -17,7 +17,7 @@ Playwright 配置会自行起停 `vite dev`（127.0.0.1:5193，仅承载本目�
 所用依赖（`@playwright/test`、chromium、vite、react-query）均为仓库已有，
 无新增 package/lock。
 
-## 覆盖（`harness.spec.ts`，6 用例）
+## 覆盖（`harness.spec.ts`，7 用例）
 
 1. 目录 cursor 分页＋进入章节：第一页 1 条 →“读下一页”→ 2 条＋“目录已读完”；
    点击条目进入单栏完整白话（含无引用段），默认无双栏。
@@ -27,7 +27,9 @@ Playwright 配置会自行起停 `vite dev`（127.0.0.1:5193，仅承载本目�
 4. 章节失败重试：错误卡 → 重试 → 整章呈现。
 5. 快速切换：在途慢响应下连切两章，旧响应不覆盖新视图；同章连切两引用，
    面板只呈现第二个 anchor。
-6. 恶意 HTML：`?panel=security` 直渲染含 `<img onerror>`/`<script>` 的
+6. 目录分页失败（`?failDirPage2Once=1`）：已加载条目保留，行内明确报错且
+   不误报“已读完”，load-more 变为“重试读下一页”，重试后追加成功并正常结束。
+7. 恶意 HTML：`?panel=security` 直渲染含 `<img onerror>`/`<script>` 的
    segments；断言无 script/img 元素生成、`__pwned` 未定义、文本转义呈现。
 
 ## DTO fixtures（全部源自 T01 冻结合同）

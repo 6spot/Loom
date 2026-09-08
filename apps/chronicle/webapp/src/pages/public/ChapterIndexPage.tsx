@@ -27,6 +27,9 @@ export default function ChapterIndexPage({
 }: ChapterIndexPageProps) {
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [items, setItems] = useState<ChapterDirectoryItem[]>([]);
+  // 最近一次成功页的 next_cursor：后续页失败时 query.data 为空，仍以此为准，
+  // 绝不把分页失败误报为“目录已读完”。
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const query = useQuery<ChapterDirectoryResponse>({
     queryKey: chapterReaderKeys.directory({ limit: 50, cursor }),
     queryFn: ({ signal }) => client.fetchDirectory({ limit: 50, cursor }, { signal }),
@@ -35,10 +38,14 @@ export default function ChapterIndexPage({
   useEffect(() => {
     setCursor(initialCursor);
     setItems([]);
+    setNextCursor(null);
   }, [initialCursor]);
 
   useEffect(() => {
-    if (query.data) setItems((previous) => mergeDirectoryPages(previous, query.data));
+    if (query.data) {
+      setItems((previous) => mergeDirectoryPages(previous, query.data as ChapterDirectoryResponse));
+      setNextCursor((query.data as ChapterDirectoryResponse).next_cursor);
+    }
   }, [query.data]);
 
   if (query.isPending && items.length === 0) {
@@ -62,12 +69,18 @@ export default function ChapterIndexPage({
       </section>
     );
   }
-  const nextCursor = query.data?.next_cursor ?? null;
+  // 后续页失败：保留已加载条目，行内报错并允许重试同一游标，不报“已读完”。
+  const pageError = query.isError && items.length > 0 ? classifyChapterError(query.error) : null;
   return (
     <ChapterIndexView
       data={{ items, next_cursor: nextCursor }}
       loadingMore={query.isFetching}
+      pageError={pageError}
       onLoadMore={() => {
+        if (pageError) {
+          void query.refetch();
+          return;
+        }
         if (nextCursor) setCursor(nextCursor);
       }}
       onSelectChapter={onSelectChapter}
@@ -79,12 +92,14 @@ export default function ChapterIndexPage({
 export function ChapterIndexView({
   data,
   loadingMore = false,
+  pageError = null,
   onLoadMore,
   onSelectChapter,
   hrefForPublicationId,
 }: {
   data: ChapterDirectoryResponse;
   loadingMore?: boolean;
+  pageError?: { code: string; message: string } | null;
   onLoadMore?: () => void;
   onSelectChapter?: (publicationId: string) => void;
   hrefForPublicationId?: (publicationId: string) => string;
@@ -116,24 +131,31 @@ export function ChapterIndexView({
           />
         ))}
       </ol>
-      {data.next_cursor || onLoadMore ? (
+      {data.next_cursor || onLoadMore || pageError ? (
         <div className="chr-index-more">
-          {data.next_cursor ? (
+          {data.next_cursor && !pageError ? (
             <p className="chr-muted" data-test="chapter-index-more" data-cursor={data.next_cursor}>
               还有更多篇章，游标 {data.next_cursor.slice(0, 12)}…
             </p>
           ) : null}
-          {onLoadMore && data.next_cursor ? (
+          {pageError ? (
+            <div className="chr-state-card" data-test="chapter-index-page-error" role="alert">
+              <p className="chr-eyebrow">{pageError.code}</p>
+              <p>下一页暂时读不出来，已加载的篇章不受影响。</p>
+              <p className="chr-muted">{pageError.message}</p>
+            </div>
+          ) : null}
+          {onLoadMore && (data.next_cursor || pageError) ? (
             <button
               type="button"
               data-test="chapter-index-more-button"
               disabled={loadingMore}
               onClick={onLoadMore}
             >
-              {loadingMore ? "正在读下一页…" : "读下一页"}
+              {loadingMore ? "正在读下一页…" : pageError ? "重试读下一页" : "读下一页"}
             </button>
           ) : null}
-          {!data.next_cursor && !loadingMore ? (
+          {!data.next_cursor && !pageError && !loadingMore ? (
             <p className="chr-muted" data-test="chapter-index-end">目录已读完。</p>
           ) : null}
         </div>

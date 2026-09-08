@@ -104,6 +104,21 @@ test("fast switch between publications never shows stale content", async ({ page
   await expect(page.getByTestId("chapter-source-segments")).toBeVisible({ timeout: 15000 });
 });
 
+test("directory page failure keeps loaded rows and retry recovers", async ({ page }) => {
+  await page.goto(`${PAGE}?failDirPage2Once=1`);
+  await expect(page.getByTestId("chapter-index-row")).toHaveCount(1);
+  await page.getByTestId("chapter-index-more-button").click();
+  // 后续页失败：已加载条目保留，明确报错且不误报“已读完”，load-more 变为重试入口
+  await expect(page.getByTestId("chapter-index-page-error")).toBeVisible();
+  await expect(page.getByTestId("chapter-index-page-error")).toContainText("下一页暂时读不出来");
+  await expect(page.getByTestId("chapter-index-row")).toHaveCount(1);
+  await expect(page.getByTestId("chapter-index-end")).toHaveCount(0);
+  await expect(page.getByTestId("chapter-index-more-button")).toContainText("重试读下一页");
+  await page.getByTestId("chapter-index-more-button").click();
+  await expect(page.getByTestId("chapter-index-row")).toHaveCount(2);
+  await expect(page.getByTestId("chapter-index-end")).toBeVisible();
+});
+
 test("malicious source html renders as inert text and never executes", async ({ page }) => {
   await page.goto(`${PAGE}?panel=security`);
   const panel = page.getByTestId("chapter-source-panel");

@@ -25,18 +25,25 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => { window.setTimeout(resolve, ms); });
 }
 
-const counters = { source: 0, detail: 0 };
+const counters = { source: 0, detail: 0, directoryPage2: 0 };
 
 export function resetMockCounters(): void {
   counters.source = 0;
   counters.detail = 0;
+  counters.directoryPage2 = 0;
 }
 
 export async function mockFetchDirectory(cursor: string | null | undefined): Promise<ChapterDirectoryResponse> {
   const slow = Number(flags().get("slowMs") ?? 0);
   if (slow > 0) await delay(slow);
-  const page = cursor ? directoryPage2 : directoryPage1;
-  return JSON.parse(JSON.stringify(page)) as ChapterDirectoryResponse;
+  if (cursor) {
+    counters.directoryPage2 += 1;
+    if (flags().get("failDirPage2Once") === "1" && counters.directoryPage2 === 1) {
+      throw new ChapterReaderApiError(503, "upstream_limited", "harness 注入的一次性目录分页失败");
+    }
+    return JSON.parse(JSON.stringify(directoryPage2)) as ChapterDirectoryResponse;
+  }
+  return JSON.parse(JSON.stringify(directoryPage1)) as ChapterDirectoryResponse;
 }
 
 export async function mockFetchDetail(publicationId: string): Promise<ChapterDetailResponse> {

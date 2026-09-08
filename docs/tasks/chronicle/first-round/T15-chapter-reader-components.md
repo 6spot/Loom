@@ -31,8 +31,8 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 Delivery branch evidence (2026-09-08, pre-merge; post-merge reconciliation still required per task-completion):
 
-- `npm --prefix apps/chronicle/webapp test -- tests/chapter-reader.test.ts` — 18/18 pass (fetch/SSR/contract/conformance + `mergeDirectoryPages` + navigation/load-more affordances).
-- `npx playwright test --config tests/fixtures/chapter-reader/harness/playwright.config.ts` — 6/6 pass: real mount/click/keyboard/async evidence (directory cursor pagination + directory→chapter navigation, on-demand source open/expand/paginate, Escape-close focus restore, source + chapter retry, fast-switch isolation across two publications and two anchors, malicious HTML inert).
+- `npm --prefix apps/chronicle/webapp test -- tests/chapter-reader.test.ts` — 19/19 pass (fetch/SSR/contract/conformance + `mergeDirectoryPages` + navigation/load-more affordances + later-page-failure keeps rows with retry).
+- `npx playwright test --config tests/fixtures/chapter-reader/harness/playwright.config.ts` — 7/7 pass: real mount/click/keyboard/async evidence (directory cursor pagination + directory→chapter navigation, on-demand source open/expand/paginate, Escape-close focus restore, source + chapter retry, directory page-failure keeps rows with inline error + load-more retry, fast-switch isolation across two publications and two anchors, malicious HTML inert).
 - `npm --prefix apps/chronicle/webapp test` (full webapp suite) — 61/61 pass, no regressions.
 - `npm --prefix apps/chronicle/webapp run lint` (`tsc --noEmit`) — clean.
 - `npm --prefix apps/chronicle/webapp run build` — succeeds; `git status` shows no change under `apps/chronicle/web/dist` (module not yet wired to App, T17 owns routing).
@@ -41,4 +41,4 @@ Delivery branch evidence (2026-09-08, pre-merge; post-merge reconciliation still
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
-- 2026-09-08 — Addressed Reviewer CHANGES_REQUIRED on the same delivery branch/PR: ChapterIndexPage now paginates by cursor with a load-more affordance and navigates via onSelectChapter/href callback (no App/router); added a runnable Playwright component-interaction harness (mount/click/Escape/retry/async, 6/6 pass) plus directory pagination fixtures. Still no App/router/global-CSS/dist changes. Awaiting re-review/merge; completion_pr/merge_sha reconciliation pending post-merge.
+- 2026-09-08 — Fixed the last Reviewer blocker on the same delivery branch/PR: later directory-page failures now keep loaded rows, show an inline `chapter-index-page-error` with the load-more button as retry (never misreported as finished); added Vitest + Playwright pagination-failure regression tests. Still no App/router/global-CSS/dist changes. Awaiting re-review/merge; completion_pr/merge_sha reconciliation pending post-merge.

@@ -344,6 +344,23 @@ describe("chapter-reader safe rendering", () => {
     ]);
   });
 
+  it("keeps loaded rows and offers retry when a later directory page fails", () => {
+    const html = renderToString(
+      React.createElement(ChapterIndexView, {
+        data: directoryFixture as unknown as ChapterDirectoryResponse,
+        pageError: { code: "upstream_limited", message: "harness 注入的分页失败" },
+        onLoadMore: () => {},
+      }),
+    );
+    // 已加载条目保留
+    expect(html).toContain("00000000-0000-7000-8000-000000000000");
+    // 明确错误 + 可重试的 load-more 入口，且不误报“已读完”
+    expect(html).toContain("chapter-index-page-error");
+    expect(html).toContain("下一页暂时读不出来");
+    expect(html).toContain("重试读下一页");
+    expect(html).not.toContain("chapter-index-end");
+  });
+
   it("renders chapter navigation entries and a load-more affordance", () => {
     const selected: string[] = [];
     const html = renderToString(
