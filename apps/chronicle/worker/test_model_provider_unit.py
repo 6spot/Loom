@@ -279,5 +279,151 @@ class EnvironmentTests(unittest.TestCase):
                 model_provider.models_from_env()
 
 
+class ChapterProviderTests(unittest.TestCase):
+    def test_default_response_cap_is_4mib(self) -> None:
+        self.assertEqual(4 * 1024 * 1024, model_provider.DEFAULT_MAX_RESPONSE_BYTES)
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter", endpoint="https://gateway.example/v1/responses"
+        )
+        self.assertEqual(4 * 1024 * 1024, provider.max_response_bytes)
+        self.assertIsNone(provider.max_output_tokens)
+
+    def test_chapter_request_carries_joint_schema_and_output_budget(self) -> None:
+        try:
+            from extraction_model_schema import chapter_candidate_text_format
+        except ImportError:
+            from .extraction_model_schema import (  # type: ignore[no-redef]
+                chapter_candidate_text_format,
+            )
+        provider = model_provider.build_chapter_model(
+            "chapter-live", "https://gateway.example/v1/responses"
+        )
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"status": "completed", "output_text": '{"ok":true}'})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual('{"ok":true}', provider.complete("chapter source"))
+
+        body = captured["body"]
+        self.assertEqual("chapter-live", body["model"])
+        self.assertEqual(65536, body["max_output_tokens"])
+        self.assertEqual(
+            model_provider.DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS, body["max_output_tokens"]
+        )
+        fmt = body["text"]["format"]
+        self.assertEqual("chronicle_chapter_candidate", fmt["name"])
+        self.assertTrue(fmt["strict"])
+        dumped = json.dumps(fmt["schema"])
+        self.assertIn("chronicle.chapter-candidate", dumped)
+        self.assertIn("translation", dumped)
+        self.assertIn("record_sources", dumped)
+        for forbidden in ("anchor_id", "canonical_id", "request_fingerprint", '"start"', '"end"'):
+            self.assertNotIn(forbidden, dumped)
+        self.assertEqual(fmt, chapter_candidate_text_format())
+
+    def test_legacy_request_shape_is_unchanged_without_output_budget(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="reader-v1", endpoint="https://gateway.example/v1/responses"
+        )
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResponse({"output_text": "ok"})
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fake_urlopen):
+            self.assertEqual("ok", provider.complete("prompt"))
+        self.assertNotIn("max_output_tokens", captured["body"])
+        self.assertNotIn("text", captured["body"])
+
+    def test_invalid_output_budget_fails_closed(self) -> None:
+        for bad in (0, -1, True, "65536"):
+            with self.subTest(budget=bad):
+                with self.assertRaises(PersistenceError):
+                    model_provider.ResponsesHTTPModel(
+                        name="chapter",
+                        endpoint="https://example.test/responses",
+                        max_output_tokens=bad,
+                    )
+
+    def test_incomplete_length_with_partial_text_is_not_completion(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter", endpoint="https://example.test/responses"
+        )
+        payload = {
+            "status": "incomplete",
+            "incomplete_details": {"reason": "length"},
+            "output_text": '{"schema":"chronicle.chapter-candidate"',
+        }
+        with mock.patch.object(
+            model_provider.request, "urlopen", return_value=FakeResponse(payload)
+        ):
+            with self.assertRaisesRegex(
+                model_provider.ModelProviderError, "did not complete"
+            ):
+                provider.complete("chapter source")
+
+    def test_max_output_tokens_reason_is_not_completion(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter", endpoint="https://example.test/responses"
+        )
+        payload = {
+            "status": "completed",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "output_text": '{"partial":true}',
+        }
+        with mock.patch.object(
+            model_provider.request, "urlopen", return_value=FakeResponse(payload)
+        ):
+            with self.assertRaisesRegex(
+                model_provider.ModelProviderError, "max_output_tokens"
+            ):
+                provider.complete("chapter source")
+
+    def test_failed_status_is_not_completion(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter", endpoint="https://example.test/responses"
+        )
+        payload = {"status": "failed", "output_text": '{"partial":true}'}
+        with mock.patch.object(
+            model_provider.request, "urlopen", return_value=FakeResponse(payload)
+        ):
+            with self.assertRaisesRegex(
+                model_provider.ModelProviderError, "did not complete"
+            ):
+                provider.complete("chapter source")
+
+    def test_response_level_refusal_is_rejected_without_leaking_prompt(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter",
+            endpoint="https://example.test/responses",
+            api_key="super-secret",
+        )
+        payload = {"refusal": "declined to generate"}
+        with mock.patch.object(
+            model_provider.request, "urlopen", return_value=FakeResponse(payload)
+        ):
+            with self.assertRaises(model_provider.ModelProviderError) as caught:
+                provider.complete("private chapter source text")
+        text = str(caught.exception)
+        self.assertIn("refused", text)
+        self.assertNotIn("super-secret", text)
+        self.assertNotIn("private chapter source text", text)
+        self.assertNotIn("declined to generate", text)
+
+    def test_completed_status_with_text_still_succeeds(self) -> None:
+        provider = model_provider.ResponsesHTTPModel(
+            name="chapter", endpoint="https://example.test/responses"
+        )
+        payload = {"status": "completed", "output_text": '{"ok":true}'}
+        with mock.patch.object(
+            model_provider.request, "urlopen", return_value=FakeResponse(payload)
+        ):
+            self.assertEqual('{"ok":true}', provider.complete("prompt"))
+
+
 if __name__ == "__main__":
     unittest.main()

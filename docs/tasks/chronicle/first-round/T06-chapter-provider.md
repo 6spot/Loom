@@ -3,10 +3,10 @@ task: C2-R1-T06
 issue: 556
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: [C2-R1-T01]
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-08
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,8 +29,17 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+2026-09-08 — Implementation on branch `agent/executor/d5cf2794fa51`, awaiting review/merge (delivery PR only; no completion claim yet):
+
+- `python3 -m unittest discover -s apps/chronicle/worker -p 'test_*model*_unit.py'` — **56 tests OK** (33 pre-existing + 23 new chapter/provider/fixture tests).
+- `python3 -m unittest discover -s apps/chronicle/worker -p 'test_fixture_model_unit.py'` — **16 tests OK**.
+- `python3 tools/check_architecture.py` — **OK** (includes storage SQL ownership gate).
+- `python3 tools/check_storage_sql_ownership.py` — **passed**.
+- `test_worker_model_wiring_unit.py` — **OK** (worker entry untouched).
+- `git diff --check` — **clean**.
+- No Postgres/DB tests: change is provider/schema/fixture pure functions + mocked HTTP only (no DB, migration, network). No UI change, so no test/build/smoke:dist applies.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-08 — Implemented chapter-candidate strict projection (`chapter_candidate_model_schema`/`chapter_candidate_text_format`, model-generatable fields only, T01 canonical validator remains acceptance authority), chapter provider envelope (`max_output_tokens` default 65536, 4 MiB default response cap, incomplete/length/refusal fail-closed, transport retry + credential isolation retained), and explicit chapter fixture pack/model (chapter_id + request-fingerprint binding, full translation/structure, no silent fallback). Only the six T06-owned worker files changed; worker entry/env/Compose left to T13/T16. T01 code dependency consumed from default branch merge 0b70308 (PR #590); T01 ledger reconciliation still pending, tracked by coordinator.

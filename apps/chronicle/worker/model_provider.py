@@ -33,14 +33,28 @@ from urllib import error, parse, request
 from common import PersistenceError
 
 try:
-    from extraction_model_schema import extraction_text_format
+    from extraction_model_schema import (
+        chapter_candidate_text_format,
+        extraction_text_format,
+    )
     from presentation_model_schema import presentation_text_format
 except ImportError:  # pragma: no cover - package import path
-    from .extraction_model_schema import extraction_text_format
+    from .extraction_model_schema import (
+        chapter_candidate_text_format,
+        extraction_text_format,
+    )
     from .presentation_model_schema import presentation_text_format
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
-DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+# Chapter-production §3 engineering envelope (T01 ChapterLimits): HTTP
+# response bytes default to 4 MiB. This is a transport bound, not a model
+# capability claim; larger payloads fail closed as oversize responses.
+DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+# Chapter-production §3 provider output budget (T01 ChapterLimits
+# max_output_tokens). Sent as ``max_output_tokens`` on chapter requests so
+# the model receives an explicit output token limit alongside the strict
+# structured-output schema.
+DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS = 65536
 DEFAULT_MODEL_MAX_ATTEMPTS = 3
 DEFAULT_MODEL_RETRY_BACKOFF_SECONDS = 1.0
 MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
@@ -92,13 +106,42 @@ def _timeout_from_env() -> float:
 
 
 def _response_text(payload: Any) -> str:
-    """Extract generated text from a Responses-style JSON object."""
+    """Extract generated text from a Responses-style JSON object.
+
+    Completion requires an explicit completed status when the endpoint
+    reports one: ``incomplete`` (e.g. ``max_output_tokens``/``length``),
+    ``failed``/``cancelled``, a non-empty ``incomplete_details`` reason, or
+    any refusal entry means the turn did not complete, even when a partial
+    ``output_text`` fragment is present. Partial content must never be
+    treated as a finished chapter candidate; content correction belongs to
+    the extraction stage (C2-R1-T05), not to this HTTP adapter, so this
+    function raises instead of repairing or re-writing model output.
+    """
     if not isinstance(payload, dict):
         raise ModelProviderError("model response must be a JSON object")
 
-    direct = payload.get("output_text")
-    if isinstance(direct, str) and direct.strip():
-        return direct
+    status = payload.get("status")
+    if isinstance(status, str) and status not in ("completed", "succeeded"):
+        raise ModelProviderError(
+            f"model response did not complete (status {status})"
+        )
+    incomplete = payload.get("incomplete_details")
+    if isinstance(incomplete, dict):
+        reason = incomplete.get("reason")
+        if isinstance(reason, str) and reason.strip():
+            raise ModelProviderError(
+                f"model response did not complete (reason {reason.strip()})"
+            )
+        if incomplete:
+            raise ModelProviderError("model response did not complete (incomplete)")
+    # Response-level refusal fails the turn. Nested per-block refusal
+    # entries inside ``output[].content`` keep the historical lenient
+    # behavior (ignored while other output_text blocks are used); only a
+    # top-level refusal, an explicit non-completed status, or a non-empty
+    # incomplete_details reason marks the whole turn incomplete.
+    refusal = payload.get("refusal")
+    if isinstance(refusal, str) and refusal.strip():
+        raise ModelProviderError("model response was refused")
 
     parts: list[str] = []
     output = payload.get("output")
@@ -121,6 +164,10 @@ def _response_text(payload: Any) -> str:
                 text = content_item.get("text")
                 if isinstance(text, str) and text:
                     parts.append(text)
+
+    direct = payload.get("output_text")
+    if isinstance(direct, str) and direct.strip():
+        return direct
 
     joined = "".join(parts)
     if joined.strip():
@@ -146,6 +193,11 @@ class ResponsesHTTPModel:
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
     text_format: dict[str, Any] | None = None
+    # Chapter output budget (chapter-production §3 / T01 ChapterLimits).
+    # ``None`` omits the field so legacy chunk/presentation providers keep
+    # their exact historical request shape; chapter providers set it
+    # (default 65536) so the request carries an explicit output token limit.
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -166,6 +218,12 @@ class ResponsesHTTPModel:
             raise PersistenceError("model retry_backoff_seconds must be non-negative")
         if self.text_format is not None and not isinstance(self.text_format, dict):
             raise PersistenceError("model text_format must be a JSON object")
+        if self.max_output_tokens is not None and (
+            not isinstance(self.max_output_tokens, int)
+            or isinstance(self.max_output_tokens, bool)
+            or self.max_output_tokens < 1
+        ):
+            raise PersistenceError("model max_output_tokens must be a positive integer")
 
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
@@ -174,6 +232,8 @@ class ResponsesHTTPModel:
         payload: dict[str, Any] = {"model": self.name, "input": prompt}
         if self.text_format is not None:
             payload["text"] = {"format": self.text_format}
+        if self.max_output_tokens is not None:
+            payload["max_output_tokens"] = self.max_output_tokens
         body = json.dumps(
             payload,
             ensure_ascii=False,
@@ -329,4 +389,40 @@ def models_from_env() -> tuple[Any | None, Any | None]:
     return (
         build(extraction_name, text_format=extraction_text_format()),
         build(presentation_name, text_format=presentation_text_format()),
+    )
+
+
+def build_chapter_model(
+    name: str,
+    endpoint: str,
+    *,
+    api_key: str | None = None,
+    timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+    max_output_tokens: int = DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
+    max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS,
+    retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS,
+) -> ResponsesHTTPModel:
+    """Build the chapter-production provider for one joint generation call.
+
+    The request carries the chapter-candidate strict format (only
+    model-generatable fields) plus an explicit output token budget from
+    chapter-production §3. Acceptance still runs the T01 canonical
+    validator on the returned text; this factory only constrains
+    generation and transport.
+
+    Worker selection and environment wiring belong to C2-R1-T13/T16; this
+    helper exists so that wiring can construct the provider without
+    duplicating the chapter envelope.
+    """
+    return ResponsesHTTPModel(
+        name=name,
+        endpoint=endpoint,
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+        max_response_bytes=max_response_bytes,
+        max_attempts=max_attempts,
+        retry_backoff_seconds=retry_backoff_seconds,
+        text_format=chapter_candidate_text_format(),
+        max_output_tokens=max_output_tokens,
     )
