@@ -31,7 +31,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 2026-09-08 — Implementation delivered on branch `agent/executor/597a5c7340ec`, awaiting review/merge (delivery PR only; no completion claim yet):
 
-- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v` — **39 tests OK** (new file `test_chapter_contract_unit.py`; 28 initial + 11 Reviewer-finding regressions).
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v` — **42 tests OK** (new file `test_chapter_contract_unit.py`; 28 initial + 11 first-review regressions + 3 second-review regressions).
 - `python3 tools/check_architecture.py` — **OK** (includes storage SQL ownership gate).
 - `python3 tools/check_storage_sql_ownership.py` — **passed**.
 - `git diff --check` — **clean**.
@@ -42,3 +42,4 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-08 — Implemented candidate/artifact/resolution-0.2 schemas, `chapter_contract.py` (ChapterLimits, validate/accept, anchors, resolution v0.2), `c2r1-contract` fixtures, and 28 unit tests. Focused checks listed under Verification all pass locally. Delivery PR pending review; merge_sha/completion_pr reconciliation still required post-merge per task-completion.
 - 2026-09-08 — Addressed all six Reviewer findings on PR #590 (fail-closed accept binding, malformed-type guards, global temp_id uniqueness+prefixes, cross_source distinct bundles, translation ordering, contract-complete DTO builders/validators+fixtures). Suite extended 28 → 39 tests, all passing locally; same focused checks re-run green. Pushed to the existing PR; merge/reconciliation still pending.
+- 2026-09-08 — Addressed the three remaining Reviewer findings (fail-closed `_model_list` guards on every model-controlled collection/value incl. malformed request limits, `src_` prefix enforcement on source.temp_id, required `job_id` in source descriptors/builders/fixtures/validators). Suite extended 39 → 42 tests, all passing locally; same focused checks re-run green. Pushed to the existing PR; merge/reconciliation still pending.

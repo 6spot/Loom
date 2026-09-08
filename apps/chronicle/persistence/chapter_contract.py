@@ -401,6 +401,21 @@ def _schema_errors(candidate: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _model_list(value: Any, owner: str, field: str, errors: list[str]) -> list[Any]:
+    """Return a model-controlled collection fail-closed.
+
+    Non-array values (objects, strings, numbers) are recorded as errors
+    and treated as empty so validation always returns a failed report
+    instead of raising ``TypeError``.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        errors.append(f"{owner} {field} must be an array")
+        return []
+    return value
+
+
 def validate_chapter_candidate(
     request: dict[str, Any], candidate: dict[str, Any]
 ) -> dict[str, Any]:
@@ -447,8 +462,12 @@ def validate_chapter_candidate(
         if sha256_text(text) != request["normalized_sha256"]:
             identity.append("normalized_sha256 does not match normalized_text (hash drift)")
     if isinstance(text, str):
-        limits = ChapterLimits.from_dict(request.get("limits"))
-        if len(text) > limits.max_source_chars:
+        try:
+            limits = ChapterLimits.from_dict(request.get("limits"))
+        except PersistenceError as exc:
+            identity.append(f"request limits: {exc}")
+            limits = None
+        if limits is not None and len(text) > limits.max_source_chars:
             identity.append(
                 f"chapter text ({len(text)} chars) exceeds "
                 f"max_source_chars ({limits.max_source_chars})"
@@ -473,8 +492,11 @@ def validate_chapter_candidate(
     # prefix of its record type. Non-string temp_ids fail closed here
     # (schema_validation reports them too) instead of raising TypeError.
     seen_temp_ids: dict[str, str] = {}
-    if isinstance(source.get("temp_id"), str):
-        seen_temp_ids[source["temp_id"]] = "source"
+    source_temp_id = source.get("temp_id")
+    if isinstance(source_temp_id, str):
+        if not source_temp_id.startswith("src_"):
+            references.append("source temp_id must carry the 'src_' prefix")
+        seen_temp_ids[source_temp_id] = "source"
     for collection_name, collection, prefix in (
         ("entities", entities, "ent_"),
         ("events", events, "evt_"),
@@ -559,7 +581,9 @@ def validate_chapter_candidate(
                 else:
                     covered_source_blocks.add(source_block_id)
                     source_order.append(source_block_id)
-        for ref in (block.get("entity_refs") or []) + (block.get("event_refs") or []):
+        for ref in _model_list(
+            block.get("entity_refs"), owner, "entity_refs", references
+        ) + _model_list(block.get("event_refs"), owner, "event_refs", references):
             if not isinstance(ref, dict):
                 references.append(f"{owner} has a malformed typed reference")
                 continue
@@ -580,14 +604,16 @@ def validate_chapter_candidate(
         if not isinstance(event, dict):
             continue
         owner = str(event.get("temp_id") or "event") if isinstance(event.get("temp_id"), str) else "event"
-        for participant in event.get("participants") or []:
+        for participant in _model_list(
+            event.get("participants"), owner, "participants", references
+        ):
             if not isinstance(participant, dict):
                 references.append(f"{owner} has a malformed participant")
                 continue
             entity_ref = participant.get("entity_ref")
             if not isinstance(entity_ref, str) or entity_ref not in entity_ids:
                 references.append(f"{owner} references missing entity {entity_ref!r}")
-        for place in event.get("places") or []:
+        for place in _model_list(event.get("places"), owner, "places", references):
             if not isinstance(place, str) or place not in entity_ids:
                 references.append(f"{owner} references missing place entity {place!r}")
         parent = event.get("parent_event_ref")
@@ -620,7 +646,9 @@ def validate_chapter_candidate(
     # record_sources: every Entity/Event/Claim resolves to non-empty
     # selections; Claim evidence text must equal its first selection quote.
     by_record: dict[str, dict[str, Any]] = {}
-    for entry in candidate.get("record_sources") or []:
+    for entry in _model_list(
+        candidate.get("record_sources"), "candidate", "record_sources", record_sources
+    ):
         if not isinstance(entry, dict):
             record_sources.append("record_sources entry must be an object")
             continue
@@ -667,7 +695,7 @@ def validate_chapter_candidate(
 
     # Mentions: status discipline + surface==quote + resolvable anchors.
     seen_mentions: set[str] = set()
-    for mention in candidate.get("mentions") or []:
+    for mention in _model_list(candidate.get("mentions"), "candidate", "mentions", mentions):
         if not isinstance(mention, dict):
             mentions.append("mention entry must be an object")
             continue
@@ -697,10 +725,14 @@ def validate_chapter_candidate(
             if not isinstance(ref, str) or ref not in entity_ids:
                 mentions.append(f"{owner} references missing entity {ref!r}")
         selection = mention.get("selection")
-        if isinstance(selection, dict) and selection.get("quote") != mention.get("surface"):
-            mentions.append(f"{owner} surface must equal selection.quote")
-        if not mention.get("contextual") and mention.get("surface") in CONTEXTUAL_ONLY_SURFACES:
-            mentions.append(f"{owner} surface {mention.get('surface')!r} must stay contextual")
+        surface = mention.get("surface")
+        if not isinstance(surface, str) or not surface:
+            mentions.append(f"{owner} surface must be a non-empty string")
+        else:
+            if isinstance(selection, dict) and selection.get("quote") != surface:
+                mentions.append(f"{owner} surface must equal selection.quote")
+            if not mention.get("contextual") and surface in CONTEXTUAL_ONLY_SURFACES:
+                mentions.append(f"{owner} surface {surface!r} must stay contextual")
         if blocks_by_id and isinstance(selection, dict):
             _anchor, error = resolve_selection(
                 selection, request=request, blocks_by_id=blocks_by_id, owner=owner
@@ -776,11 +808,13 @@ def validate_chapter_candidate(
     for entity in entities:
         if not isinstance(entity, dict):
             continue
-        owner = str(entity.get("temp_id"))
-        for alias in entity.get("aliases") or []:
-            if alias in CONTEXTUAL_ONLY_SURFACES:
+        owner = str(entity.get("temp_id")) if isinstance(entity.get("temp_id"), str) else "entity"
+        for alias in _model_list(entity.get("aliases"), owner, "aliases", aliases):
+            if not isinstance(alias, str) or not alias:
+                aliases.append(f"{owner} alias must be a non-empty string")
+            elif alias in CONTEXTUAL_ONLY_SURFACES:
                 aliases.append(f"{owner} alias {alias!r} must not become a global alias")
-            elif isinstance(text, str) and isinstance(alias, str) and alias and alias not in text:
+            elif isinstance(text, str) and alias not in text:
                 aliases.append(f"{owner} alias {alias!r} has no chapter-text support")
 
     return _report(
@@ -839,23 +873,35 @@ def collect_anchors(
     anchors: list[dict[str, Any]] = []
     seen: set[str] = set()
     selections: list[tuple[str, dict[str, Any]]] = []
-    for mention in candidate.get("mentions") or []:
+    mentions_value = candidate.get("mentions")
+    for mention in mentions_value if isinstance(mentions_value, list) else []:
         if isinstance(mention, dict) and isinstance(mention.get("selection"), dict):
             selections.append((f"mention {mention.get('mention_id')!r}", mention["selection"]))
-    for entry in candidate.get("record_sources") or []:
+    record_sources_value = candidate.get("record_sources")
+    for entry in record_sources_value if isinstance(record_sources_value, list) else []:
         if not isinstance(entry, dict):
             continue
-        for position, selection in enumerate(entry.get("selections") or [], 1):
+        selections_value = entry.get("selections")
+        for position, selection in enumerate(
+            selections_value if isinstance(selections_value, list) else [], 1
+        ):
             if isinstance(selection, dict):
                 selections.append(
                     (f"record_sources {entry.get('record_ref')!r}[{position}]", selection)
                 )
     # Translation source blocks map to whole-block-range anchors.
     text: str = request["normalized_text"]
-    for block in candidate.get("translation", {}).get("blocks", []) or []:
+    translation_value = candidate.get("translation")
+    translation_blocks = (
+        translation_value.get("blocks")
+        if isinstance(translation_value, dict)
+        else None
+    )
+    for block in translation_blocks if isinstance(translation_blocks, list) else []:
         if not isinstance(block, dict):
             continue
-        for source_block_id in block.get("source_block_ids") or []:
+        source_ids = block.get("source_block_ids")
+        for source_block_id in source_ids if isinstance(source_ids, list) else []:
             if not isinstance(source_block_id, str):
                 continue
             info = blocks_by_id.get(source_block_id)
@@ -1092,6 +1138,7 @@ def example_source_descriptor(
     bundle: str,
     bundle_sha256: str,
     record_ref: str,
+    job_id: str,
     revision_id: str,
     chapter_id: str,
     artifact_sha256: str,
@@ -1102,11 +1149,14 @@ def example_source_descriptor(
     evidence_kind: str = "record_source",
 ) -> dict[str, Any]:
     """Build one review SourceContext descriptor (review-workflow.md §4)."""
+    if not isinstance(job_id, str) or not job_id:
+        raise PersistenceError("source descriptor job_id must be a non-empty string")
     return {
         "context_id": context_id,
         "bundle": bundle,
         "bundle_sha256": bundle_sha256,
         "record_ref": record_ref,
+        "job_id": job_id,
         "revision_id": revision_id,
         "chapter_id": chapter_id,
         "artifact_sha256": artifact_sha256,
@@ -1128,6 +1178,7 @@ def validate_source_descriptor(descriptor: dict[str, Any]) -> list[str]:
         "bundle",
         "bundle_sha256",
         "record_ref",
+        "job_id",
         "revision_id",
         "chapter_id",
         "artifact_sha256",
@@ -1139,6 +1190,10 @@ def validate_source_descriptor(descriptor: dict[str, Any]) -> list[str]:
     ):
         if field not in descriptor:
             errors.append(f"source descriptor is missing {field!r}")
+    if "job_id" in descriptor and (
+        not isinstance(descriptor["job_id"], str) or not descriptor["job_id"]
+    ):
+        errors.append("source descriptor job_id must be a non-empty string")
     if descriptor.get("evidence_kind") not in EVIDENCE_KINDS:
         errors.append(
             f"source descriptor evidence_kind must be one of {list(EVIDENCE_KINDS)}"

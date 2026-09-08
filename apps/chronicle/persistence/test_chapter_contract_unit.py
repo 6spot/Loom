@@ -300,6 +300,27 @@ class TimeAndSchemaTests(unittest.TestCase):
         bad_pair = copy.deepcopy(pair)
         del bad_pair["left"]["evidence_kind"]
         self.assertTrue(C.validate_chapter_pair_context(bad_pair))
+        bad_job = copy.deepcopy(pair)
+        del bad_job["right"]["job_id"]
+        self.assertTrue(
+            any("job_id" in message for message in C.validate_chapter_pair_context(bad_job)),
+            json.dumps(C.validate_chapter_pair_context(bad_job), ensure_ascii=False),
+        )
+
+    def test_source_descriptor_requires_job_id(self) -> None:
+        with self.assertRaises(PersistenceError):
+            C.example_source_descriptor(
+                context_id="ctx",
+                bundle="b",
+                bundle_sha256="s",
+                record_ref="ent_001",
+                job_id="",
+                revision_id="r",
+                chapter_id="c",
+                artifact_sha256="a",
+                source_title="t",
+                chapter_title="ch",
+            )
 
 
 class ForgedReportTests(unittest.TestCase):
@@ -352,6 +373,35 @@ class FailClosedTypeTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertGreater(report["count"], 0)
 
+    def test_malformed_collections_fail_closed_without_exception(self) -> None:
+        cases = [
+            ("entity_refs_as_object", lambda c: c["translation"]["blocks"][0].update(entity_refs={})),
+            ("event_refs_as_string", lambda c: c["translation"]["blocks"][0].update(event_refs="evt_001")),
+            ("participants_as_object", lambda c: c["bundle"]["events"][0].update(participants={})),
+            ("places_as_string", lambda c: c["bundle"]["events"][0].update(places="ent_003")),
+            ("aliases_as_string", lambda c: c["bundle"]["entities"][0].update(aliases="操")),
+            ("alias_item_as_object", lambda c: c["bundle"]["entities"][0].update(aliases=[{}])),
+            ("surface_as_array", lambda c: c["mentions"][0].update(surface=["曹操"])),
+            ("mentions_as_object", lambda c: c.update(mentions={})),
+            ("record_sources_as_string", lambda c: c.update(record_sources="x")),
+            ("limits_as_string", None),
+        ]
+        request, _ = base()
+        for name, mutate in cases:
+            with self.subTest(case=name):
+                req = copy.deepcopy(request)
+                _, candidate = base()
+                if name == "limits_as_string":
+                    req["limits"] = "unlimited"
+                else:
+                    assert mutate is not None
+                    mutate(candidate)
+                try:
+                    report = C.validate_chapter_candidate(req, candidate)
+                except (TypeError, AttributeError) as exc:
+                    self.fail(f"case {name} raised {type(exc).__name__}: {exc}")
+                self.assertFalse(report["passed"], f"case {name} unexpectedly passed")
+
 
 class TempIdUniquenessTests(unittest.TestCase):
     def test_duplicate_temp_id_across_entities_rejected(self) -> None:
@@ -363,6 +413,17 @@ class TempIdUniquenessTests(unittest.TestCase):
         request, candidate = base()
         candidate["bundle"]["entities"][0]["temp_id"] = "evt_001"
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "references")
+
+    def test_wrong_source_prefix_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["source"]["temp_id"] = "ent_999"
+        candidate["bundle"]["claims"][0]["evidence"]["source_ref"] = "ent_999"
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        self.assertTrue(
+            any("src_" in message for message in report["errors"]["references"]),
+            json.dumps(report["errors"]["references"], ensure_ascii=False),
+        )
 
 
 class ResolutionScopeTests(unittest.TestCase):
