@@ -1,7 +1,7 @@
 # Chronicle C1 — Historical World
 
 Root Issue: #489
-Status: in_progress
+Status: completed
 
 C1 turns the completed C0 source-grounded vertical slice into a repeatable Book-to-Chronicle production system and then uses that system to build the first high-density late-Han / early-Three-Kingdoms Historical World experience.
 
@@ -27,7 +27,7 @@ The Root Issue is coordination-only. Only the executable C1-T1 through C1-T17 re
 | C1-T14 | #503 | completed | C1-T13 | corpus Coverage model/visibility |
 | C1-T15 | #504 | completed | C1-T13, C1-T14 | Historical Moment projection/API |
 | C1-T16 | #505 | completed | C1-T9, C1-T12, C1-T15 | World page + global historical time context |
-| C1-T17 | #506 | in_progress | C1-T16 | final real Debian Book-to-Chronicle/Historical World gate |
+| C1-T17 | #506 | completed | C1-T16 | final real Debian Book-to-Chronicle/Historical World gate |
 
 ## Execution spine
 
@@ -71,7 +71,7 @@ Transitive dependencies mean C1-T17 is the serial final gate over the complete C
 
 GitHub Issue state is collaboration state, not READY authority. Multica/agents must read this index plus the child task record and calculate readiness from the canonical default-branch Task Ledger. A delivery PR merge alone does not complete a task; `docs/development/task-completion.md` post-merge reconciliation remains mandatory.
 
-After the C1-T16 reconciliation reaches the default branch, the current READY leaf is **C1-T17 / #506**. Its hard dependency C1-T16 is completed. C1-T17 is the serial final gate over the complete C1 graph; no other C1 implementation leaf remains behind it.
+All C1-T1 through C1-T17 records are completed. No C1 executable leaf remains READY. The deferred data/Reader findings in #541 are a separate follow-up tracker and do not activate another C1 implementation task.
 
 ## Governance repair note
 
@@ -79,7 +79,7 @@ C1-T1/T2/T3/T5/T6/T7/T8/T9 delivery PRs were merged and their GitHub Issues were
 
 ## Final completion
 
-C1-T17 R25 was **accepted by the user on 2026-09-08**, with concrete data verification deferred to later development. The automated run passed; the original manual Reader findings remain preserved and tracked in [#541](https://github.com/6spot/Loom/issues/541). The task record distinguishes this acceptance decision from the historical inspection result. C1-T17 and this initiative remain `in_progress` pending PR #535 delivery and default-branch Task Ledger reconciliation; #506 and Root #489 remain open until that sequence completes.
+C1-T17 R25 was **accepted by the user on 2026-09-08**, with concrete data verification deferred to later development. The automated run passed; the original manual Reader findings remain preserved and tracked in [#541](https://github.com/6spot/Loom/issues/541). The task record distinguishes this acceptance decision from the historical inspection result. Delivery PR #535 merged as `ec6841b1aee83721d10ca5a940ae611b571fc68d` after all four final-head workflows passed. The post-merge reconciliation records C1-T17 and this initiative as `completed`; #506 and Root #489 close only after the reconciled default-branch records are confirmed.
 
 C1 closes only after C1-T17 is canonically completed and #489 is reconciled. The final gate must prove the real Studio upload -> durable job -> segmentation/context -> extraction -> review/resolution -> canonical publication -> zh-CN Reader Presentation -> expanded corpus -> Historical Moment/World flow on the supported Debian/PostgreSQL 18 deployment, including restart/retry and source-revision supersession evidence.
 
