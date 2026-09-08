@@ -67,8 +67,46 @@ jobs:
 
           echo "key=$ISSUE_KEY" >> "$GITHUB_OUTPUT"
 
-      - name: Wake Multica Squad Leader
+      - name: Check Multica issue state
+        id: multica_state
         if: steps.multica_issue.outputs.key != ''
+        env:
+          MULTICA_URL: ${{ secrets.MULTICA_URL }}
+          MULTICA_PAT: ${{ secrets.MULTICA_PAT }}
+          MULTICA_WORKSPACE_ID: ${{ secrets.MULTICA_WORKSPACE_ID }}
+          ISSUE_KEY: ${{ steps.multica_issue.outputs.key }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MULTICA_URL="${MULTICA_URL%/}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            -H "Authorization: Bearer ${MULTICA_PAT}" \
+            -H "X-Workspace-ID: ${MULTICA_WORKSPACE_ID}" \
+            -H "Accept: application/json" \
+            "${MULTICA_URL}/api/issues/${ISSUE_KEY}" \
+            > "$RUNNER_TEMP/multica-issue.json"
+
+          ISSUE_STATUS="$(jq -r '.status // empty' "$RUNNER_TEMP/multica-issue.json")"
+
+          if [ "$ISSUE_STATUS" != "in_review" ]; then
+            echo "Multica issue ${ISSUE_KEY} is ${ISSUE_STATUS:-unknown}, not in_review; no wake needed."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Wake Multica Squad Leader
+        if: >
+          steps.multica_issue.outputs.key != '' &&
+          steps.multica_state.outputs.eligible == 'true'
         env:
           MULTICA_URL: ${{ secrets.MULTICA_URL }}
           MULTICA_PAT: ${{ secrets.MULTICA_PAT }}
