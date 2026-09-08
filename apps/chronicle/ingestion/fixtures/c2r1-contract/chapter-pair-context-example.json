@@ -1,0 +1,13 @@
+{
+  "review_mode": "chapter_pair",
+  "left": {
+    "bundle": "a",
+    "ref": "ent_001",
+    "chapter": 0
+  },
+  "right": {
+    "bundle": "b",
+    "ref": "ent_002",
+    "chapter": 1
+  }
+}

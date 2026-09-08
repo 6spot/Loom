@@ -1,0 +1,45 @@
+{
+  "publication_id": "00000000-0000-7000-8000-000000000000",
+  "chapter_id": "ch_756922e9af0d759d29d7475f",
+  "revision_id": "rev_c2r1_demo_001",
+  "translation_blocks": [
+    {
+      "block_id": "t_001",
+      "text": "建安十三年曹操屯兵江陵，又在赤壁閱兵；周瑜在赤壁擊敗曹操。",
+      "source_block_ids": [
+        "b_001",
+        "b_002"
+      ],
+      "entity_refs": [
+        {
+          "kind": "entity",
+          "ref": "ent_001"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_002"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_003"
+        }
+      ],
+      "event_refs": [
+        {
+          "kind": "event",
+          "ref": "evt_001"
+        }
+      ]
+    },
+    {
+      "block_id": "t_002",
+      "text": "其人聽聞後君王下令退兵。",
+      "source_block_ids": [
+        "b_003"
+      ],
+      "entity_refs": [],
+      "event_refs": []
+    }
+  ],
+  "note": "contract fixture example, not a historical answer"
+}

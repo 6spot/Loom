@@ -1,0 +1,17 @@
+{
+  "schema": "chronicle.studio-review-page",
+  "version": "0.2",
+  "query": {
+    "status": "open",
+    "limit": 50
+  },
+  "items": [
+    {
+      "review_id": "r1",
+      "status": "open",
+      "plan_fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "next_cursor": null,
+  "open_count": 1
+}

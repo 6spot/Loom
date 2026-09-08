@@ -3,10 +3,10 @@ task: C2-R1-T01
 issue: 551
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: []
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-08
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,8 +29,15 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are recorded in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+2026-09-08 — Implementation delivered on branch `agent/executor/597a5c7340ec`, awaiting review/merge (delivery PR only; no completion claim yet):
+
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v` — **28 tests OK** (new file `test_chapter_contract_unit.py`).
+- `python3 tools/check_architecture.py` — **OK** (includes storage SQL ownership gate).
+- `python3 tools/check_storage_sql_ownership.py` — **passed**.
+- `git diff --check` — **clean**.
+- No Postgres/DB tests: change is pure functions only (no DB, network, or model calls); no migration touched. No UI change, so no test/build/smoke:dist applies.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-08 — Implemented candidate/artifact/resolution-0.2 schemas, `chapter_contract.py` (ChapterLimits, validate/accept, anchors, resolution v0.2), `c2r1-contract` fixtures, and 28 unit tests. Focused checks listed under Verification all pass locally. Delivery PR pending review; merge_sha/completion_pr reconciliation still required post-merge per task-completion.

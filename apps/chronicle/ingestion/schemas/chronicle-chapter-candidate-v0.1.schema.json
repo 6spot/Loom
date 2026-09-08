@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.1.schema.json",
+  "title": "Chronicle Chapter Candidate v0.1 (model-generated part only)",
+  "description": "Machine contract for chronicle.chapter-candidate / 0.1. Only this shape may be model-generated. Program-bound hashes, offsets, producing runs and canonical IDs must never appear here; they are added by accept_chapter_candidate into the artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "chapter_id", "bundle", "translation", "mentions", "record_sources", "warnings"],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-candidate"},
+    "version": {"const": "0.1"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "bundle": {"$ref": "#/$defs/staged_bundle"},
+    "translation": {"$ref": "#/$defs/translation"},
+    "mentions": {"type": "array", "items": {"$ref": "#/$defs/mention"}},
+    "record_sources": {"type": "array", "items": {"$ref": "#/$defs/record_source"}},
+    "warnings": {"type": "array", "items": {"$ref": "#/$defs/warning"}}
+  },
+  "$defs": {
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["first_block_id", "last_block_id", "quote", "occurrence"],
+      "properties": {
+        "first_block_id": {"type": "string", "minLength": 1},
+        "last_block_id": {"type": "string", "minLength": 1},
+        "quote": {"type": "string", "minLength": 1},
+        "occurrence": {"type": "integer", "minimum": 1}
+      }
+    },
+    "temp_identity": {
+      "type": "object",
+      "required": ["temp_id"],
+      "properties": {
+        "temp_id": {"type": "string", "pattern": "^(src|ent|evt|clm)_[0-9]{3,}$"}
+      },
+      "not": {"required": ["id"]}
+    },
+    "extraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method"],
+      "properties": {
+        "method": {"enum": ["human_gold", "model", "parser"]},
+        "job_id": {"type": ["string", "null"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {"enum": ["entity", "event"]},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "source_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "work": {"type": ["string", "null"]},
+        "section": {"type": ["string", "null"]},
+        "chapter": {"type": ["string", "null"]},
+        "volume": {"type": ["string", "null"]},
+        "paragraph": {"type": ["string", "null"]},
+        "fixture": {"type": ["string", "null"]}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "source_ref", "locator"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "locator": {"$ref": "#/$defs/source_locator"}
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["original_text", "source_calendar", "normalized"],
+      "properties": {
+        "original_text": {"type": "string", "minLength": 1},
+        "source_calendar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["system"],
+          "properties": {
+            "system": {"enum": ["chinese_lunisolar_regnal", "proleptic_gregorian", "unknown"]},
+            "era": {"type": ["string", "null"]},
+            "era_year": {"type": ["integer", "null"], "minimum": 1},
+            "season": {"enum": ["spring", "summer", "autumn", "winter", null]},
+            "month": {"type": ["integer", "null"], "minimum": 1, "maximum": 12},
+            "day": {"type": ["integer", "string", "null"]},
+            "inherited_fields": {
+              "type": "array",
+              "items": {"enum": ["era", "era_year", "season", "month", "day"]},
+              "uniqueItems": true
+            }
+          }
+        },
+        "normalized": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["calendar", "year", "precision", "conversion_status"],
+          "properties": {
+            "calendar": {"const": "proleptic_gregorian"},
+            "year": {"type": ["integer", "null"]},
+            "month": {"type": ["integer", "null"], "minimum": 1, "maximum": 12},
+            "day": {"type": ["integer", "null"], "minimum": 1, "maximum": 31},
+            "precision": {"enum": ["day", "month", "year", "range", "unknown"]},
+            "conversion_status": {"enum": ["exact", "year_only", "partial", "unresolved"]},
+            "approximate": {"type": "boolean", "default": false}
+          }
+        }
+      }
+    },
+    "staged_source": {
+      "allOf": [
+        {"$ref": "#/$defs/temp_identity"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source_type", "title", "language", "extraction"],
+          "properties": {
+            "temp_id": {"type": "string"},
+            "kind": {"const": "source"},
+            "source_type": {"enum": ["book", "article", "web", "dataset", "manuscript", "other"]},
+            "title": {"type": "string", "minLength": 1},
+            "author": {"type": ["string", "null"]},
+            "language": {"type": "string", "minLength": 1},
+            "edition": {"type": ["string", "null"]},
+            "citation": {"type": ["string", "null"]},
+            "url": {"type": ["string", "null"]},
+            "metadata": {"type": "object"},
+            "extraction": {"$ref": "#/$defs/extraction"}
+          }
+        }
+      ]
+    },
+    "staged_mention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "contextual": {"type": "boolean", "default": false}
+      }
+    },
+    "staged_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["unresolved", "new", "ambiguous"]},
+        "canonical_id": {"type": "null"},
+        "candidate_ids": {"type": "array", "maxItems": 0}
+      }
+    },
+    "staged_entity": {
+      "allOf": [
+        {"$ref": "#/$defs/temp_identity"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "type", "canonical_name", "aliases", "mentions", "resolution", "extraction"],
+          "properties": {
+            "temp_id": {"type": "string"},
+            "kind": {"const": "entity"},
+            "type": {"enum": ["person", "place", "polity", "organization", "army", "office", "group", "other"]},
+            "canonical_name": {"type": "string", "minLength": 1},
+            "aliases": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+            "mentions": {"type": "array", "items": {"$ref": "#/$defs/staged_mention"}},
+            "description": {"type": ["string", "null"]},
+            "attributes": {"type": "object"},
+            "resolution": {"$ref": "#/$defs/staged_resolution"},
+            "extraction": {"$ref": "#/$defs/extraction"}
+          }
+        }
+      ]
+    },
+    "participant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_ref", "role"],
+      "properties": {
+        "entity_ref": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      }
+    },
+    "staged_event": {
+      "allOf": [
+        {"$ref": "#/$defs/temp_identity"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "type", "title", "time", "participants", "places", "extraction"],
+          "properties": {
+            "temp_id": {"type": "string"},
+            "kind": {"const": "event"},
+            "type": {"enum": ["political", "administrative", "military", "battle", "movement", "retreat", "death", "birth", "succession", "appointment", "surrender", "diplomatic", "epidemic", "territorial_change", "economic", "cultural", "other"]},
+            "title": {"type": "string", "minLength": 1},
+            "summary": {"type": ["string", "null"]},
+            "time": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
+            "participants": {"type": "array", "items": {"$ref": "#/$defs/participant"}},
+            "places": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "parent_event_ref": {"type": ["string", "null"]},
+            "extraction": {"$ref": "#/$defs/extraction"}
+          }
+        }
+      ]
+    },
+    "claim_object": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/reference"}, {"$ref": "#/$defs/literal_ref"}]
+    },
+    "literal_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"const": "literal"},
+        "value": {}
+      }
+    },
+    "staged_claim": {
+      "allOf": [
+        {"$ref": "#/$defs/temp_identity"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "subject", "predicate", "object", "evidence", "assessment", "extraction"],
+          "properties": {
+            "temp_id": {"type": "string"},
+            "kind": {"const": "claim"},
+            "subject": {"$ref": "#/$defs/reference"},
+            "predicate": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+            "object": {"$ref": "#/$defs/claim_object"},
+            "time": {"anyOf": [{"$ref": "#/$defs/time"}, {"type": "null"}]},
+            "evidence": {"$ref": "#/$defs/evidence"},
+            "assessment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status"],
+              "properties": {
+                "status": {"const": "unassessed"},
+                "note": {"type": ["string", "null"]}
+              }
+            },
+            "extraction": {"$ref": "#/$defs/extraction"}
+          }
+        }
+      ]
+    },
+    "staged_bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "source", "entities", "events", "claims", "warnings"],
+      "properties": {
+        "schema_version": {"const": "0.1"},
+        "source": {"$ref": "#/$defs/staged_source"},
+        "entities": {"type": "array", "items": {"$ref": "#/$defs/staged_entity"}},
+        "events": {"type": "array", "items": {"$ref": "#/$defs/staged_event"}},
+        "claims": {"type": "array", "items": {"$ref": "#/$defs/staged_claim"}},
+        "warnings": {"type": "array", "items": {"$ref": "#/$defs/warning"}}
+      }
+    },
+    "translation_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["block_id", "text", "source_block_ids", "entity_refs", "event_refs"],
+      "properties": {
+        "block_id": {"type": "string", "minLength": 1},
+        "text": {"type": "string", "minLength": 1},
+        "source_block_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "entity_refs": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+        "event_refs": {"type": "array", "items": {"$ref": "#/$defs/reference"}}
+      }
+    },
+    "translation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "blocks"],
+      "properties": {
+        "language": {"const": "zh-CN"},
+        "blocks": {"type": "array", "items": {"$ref": "#/$defs/translation_block"}, "minItems": 1}
+      }
+    },
+    "mention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mention_id", "surface", "contextual", "status", "target_ref", "candidate_refs", "selection"],
+      "properties": {
+        "mention_id": {"type": "string", "pattern": "^m_[0-9]{3,}$"},
+        "surface": {"type": "string", "minLength": 1},
+        "contextual": {"type": "boolean"},
+        "status": {"enum": ["resolved", "ambiguous", "unresolved"]},
+        "target_ref": {"type": ["string", "null"], "minLength": 1},
+        "candidate_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "selection": {"$ref": "#/$defs/selection"}
+      }
+    },
+    "record_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_ref", "record_kind", "selections"],
+      "properties": {
+        "record_ref": {"type": "string", "minLength": 1},
+        "record_kind": {"enum": ["entity", "event", "claim"]},
+        "selections": {"type": "array", "items": {"$ref": "#/$defs/selection"}, "minItems": 1}
+      }
+    },
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "severity", "message"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["info", "warning", "error"]},
+        "message": {"type": "string", "minLength": 1},
+        "refs": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
