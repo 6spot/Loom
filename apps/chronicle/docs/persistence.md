@@ -154,6 +154,80 @@ Because accepted payloads and canonical UUIDs are persisted rather than regenera
 
 Do not restore Chronicle tables into Loom-owned schemas, and do not use Loom database backup/repair procedures as Chronicle application migrations.
 
+## Chapter artifacts and publications (C2-R1-T04)
+
+The sixth migration (`0006_chronicle_chapters.sql`, owned by C2-R1-T04)
+adds the chapter layer from `chapter-production.md` sections 5/7 without
+touching Loom authority or the 0005 Reader Presentation Claim-only
+support constraint:
+
+- `chronicle.chapter_artifacts` — one immutable accepted joint product
+  per `(job_id, chapter_id)`: `artifact_sha256` PK, job/revision/
+  document/chapter/chunk/producing-run bindings, `request_fingerprint`,
+  `candidate_sha256`, and the full `chronicle.chapter-artifact / 0.1`
+  payload. The complete product (translation + extraction +
+  record_sources) is accepted only through the chapter-store write
+  entry; partial products are never persisted. Binding triggers reject
+  cross-job revision/chunk/run references at the database (D-1 style),
+  independent of worker code.
+- `chronicle.chapter_publications` — one immutable public reading
+  version per chapter: UUIDv7 `publication_id` PK, `artifact_sha256`,
+  `catalog_sha256`, `assembled_bundle_sha256`, job/revision/document/
+  chapter bindings, publication payload, and `published_at`. The same
+  `(artifact, catalog, assembled-bundle)` triple with identical bytes is
+  idempotent; the same triple with different bytes is a conflict.
+- `chronicle.resolution_artifacts.scope` plus the
+  `resolution_artifacts_bundle_scope_valid` envelope: same-bundle
+  artifacts are allowed only for `chronicle.resolution-links / 0.2`
+  with `scope = 'within_revision'`. v0.1 and `cross_source` keep the
+  original distinct-bundle requirement; foreign keys and decision enums
+  are unchanged. Whether a same-bundle candidate spans different
+  chapters is validated by T08, not here.
+- `resolution_entity_links` / `resolution_event_links` gain
+  `*_no_self_ref` checks: the two ends `(bundle, ref)` of one link must
+  differ.
+- `chronicle.canonical_catalogs.publication_sequence` — unique
+  increasing identity column, structure only. The unified advisory lock,
+  the locked write path, and the latest-catalog read migration off
+  `imported_at` belong to T13, which must reuse this column.
+
+`apps/chronicle/persistence/chapter_store.py` holds the new chapter
+tables; catalogs stay owned by `canonical_store.py`. All mutating
+entries take the caller-owned connection plus `(job_id, worker)` and
+fence on the job lease inside one short transaction (model waits never
+hold a transaction):
+
+- `record_accepted_chapter_fenced(conn, *, job_id, chunk_id, worker,
+  request, candidate, producing_run)` — re-validates the exact
+  request/candidate pair through the T01 contract, checks
+  job/revision/chunk/producing-run/fingerprint consistency, then commits
+  the artifact row, the chunk accepted pointer
+  (`checkpoint.accepted_chapter_artifact`), and the chunk `completed`
+  status atomically. A committed producing run is adopted via full
+  re-validation, never re-executed. Cancelled/failed/completed jobs and
+  lost leases (`LeaseLost`) cannot write.
+- `read_accepted_chapters` / `read_accepted_chapter` — read-only resume
+  path: an interrupted worker reads the accepted complete results
+  without creating another chapter queue/run.
+- `persist_chapter_publication(conn, *, job_id, worker,
+  artifact_sha256, catalog_sha256, assembled_bundle_sha256,
+  publication)` — records one public reading version (no worker wiring;
+  the atomic multi-chapter publish belongs to T13).
+- `list_published_chapters` / `read_published_chapter` — public
+  visibility gate: only published chapters appear; accepted-but-
+  unpublished chapters stay invisible.
+
+```bash
+python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_store_postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_control_plane_postgres.py' -v
+python3 tools/check_storage_sql_ownership.py
+```
+
+When `LOOM_TEST_POSTGRES_URL` is unset, the tests follow the
+repository-local default `postgresql://loom:loom@127.0.0.1:15432/loom_control`
+and start/reuse `tools/postgres-test.sh up` if needed.
+
 ## Boundary to C0-T10
 
 C0-T10 may read these Chronicle-owned tables through a Chronicle repository/read-model module. It must preserve the same three-layer distinction when assembling Timeline, Event Detail, and Entity Detail responses. C0-T10 must not turn persistence rows into synthetic historical truth or collapse unresolved Resolution decisions.
