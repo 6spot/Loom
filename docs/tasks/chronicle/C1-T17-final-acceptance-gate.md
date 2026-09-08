@@ -22,17 +22,27 @@ Prove the full Book-to-Chronicle -> readable historical world loop on the suppor
 
 ## Acceptance
 
-- [ ] a previously unprocessed complete text reaches Chronicle through actual Studio ingestion without hand-built staged fixtures.
-- [ ] worker restart/retry resumes from durable checkpoints.
-- [ ] real review workflow resolves required ambiguity without weakening uncertainty rules.
-- [ ] publication preserves C0 identity/provenance invariants.
-- [ ] zh-CN Reader Presentation is readable and Claim/source traceable.
-- [ ] expanded corpus supports useful Historical Moment / World browsing.
-- [ ] source replacement creates an auditable superseding revision.
-- [ ] real Debian + PostgreSQL 18 deployment passes end to end.
-- [ ] exact-candidate Rust/Python/frontend/Chronicle CI and governance checks pass.
-- [ ] every prior C1 task record is canonically reconciled before this task completes.
+- [x] a previously unprocessed complete text reaches Chronicle through actual Studio ingestion without hand-built staged fixtures.
+- [x] worker restart/retry resumes from durable checkpoints.
+- [x] real review workflow resolves required ambiguity without weakening uncertainty rules.
+- [x] publication preserves C0 identity/provenance invariants.
+- [x] zh-CN Reader Presentation is readable and Claim/source traceable.
+- [x] expanded corpus supports useful Historical Moment / World browsing.
+- [x] source replacement creates an auditable superseding revision.
+- [x] real Debian + PostgreSQL 18 deployment passes end to end.
+- [x] exact-candidate Rust/Python/frontend/Chronicle CI and governance checks pass.
+- [x] every prior C1 task record is canonically reconciled before this task completes.
 - [ ] Root #489 can be reconciled and closed only after this task is completed on `main`.
+
+## Current acceptance disposition
+
+**PASS — the user accepted R25 on 2026-09-08, with concrete data verification deferred to later development:**
+
+> 我觉得本次验收通过吧，具体的数据我们后续根据开发再次进行核对修改验收
+
+The original automated harness remains PASS / exit 0; the original manual Reader inspection remains FAIL. The checked Reader acceptance item records the user's decision to accept this run with those findings deferred, not a claim that the prose defects were fixed or that the manual checks passed. [Follow-up #541](https://github.com/6spot/Loom/issues/541) retains the Sun Quan omitted actor, the unproven 张憙/张喜 alias, and the two Liu Bei block-support gaps for later development and verification. This decision does not require another ingestion run or repeated review submissions.
+
+The accepted runtime is `78e7741db1c3f118f8cd6ce57f63a2dca3d46606`; its four successful workflows and real-machine evidence are recorded below. C1-T1–T16 completion metadata, acceptance checklists and index agreement were reverified on default-branch SHA `dd0822c8c516020eeb681d23c1b12bdcbfebd56e`. Final delivery-head CI evidence is tracked in PR #535. Task status remains `in_progress` until delivery and the mandatory default-branch reconciliation provide the actual completion PR/merge evidence; #506 and #489 remain open for that sequence.
 
 ## Progress Log
 
@@ -65,3 +75,5 @@ Prove the full Book-to-Chronicle -> readable historical world loop on the suppor
 - 2026-09-08 — Fresh R25 on `78e7741` completed the original Debian/PostgreSQL 18.6 harness at 2026-09-07 17:23:09 UTC with PASS / exit 0. Job `9205eff9-500a-41e8-a36b-336c5619593f` proved fault/retry and worker-A SIGKILL -> worker-B takeover; all four extraction chunks passed their first model attempt. Under standing user delegation, the assistant inspected and resolved 25 batches / 37 groups / 49 candidate links: 18 `same_entity`, 1 `same_occurrence`, 1 `related_occurrence`, 5 `uncertain`. API submissions retained assistant attribution and per-group source rationale. Zero reviews remain open. The original harness resumed once; attempt 3 -> 4, stale job/stage errors cleared, and completed stages/chunks/run history remained byte-equivalent in their API projections. Publication increased Entities 66 -> 200, Events 45 -> 130 and Claims 50 -> 91; all 45 prior 208 Event IDs remained. Revision 2 `b8fc9d5d-874d-43a6-b7ae-d2d1fcee06c7` supersedes revision 1 `d8901360-0db3-4469-a564-84c31338e73d`, whose bytes remain exact. Changed catalog, revision-bound Red Cliffs Claim `c1rev-d89013600db3:clm_001002` and original Chromium World/Timeline/Search/Event/Entity/evidence navigation passed.
 - 2026-09-08 — **R25 final content acceptance is FAIL.** All 59 actual presentations / 103 blocks / 132 support bindings were inspected; all 81 used Claim refs matched exact source text, and contracts, fingerprints and content hashes passed. Sun Quan presentation `c8146833-e322-46f3-8d6f-a2b2ff897451` block `b005` nevertheless supplies 孙权 as the omitted actor of `留凌统以拒仁`, repeating R24. Cao Cao presentation `9563c3b5-b71f-467f-afe3-da18cdaaef8b` block `b008` introduces `张憙（张喜）` although the inspected quotes establish no alias and the persisted entities remain separate with no Resolution Link. Two additional Liu Bei blocks fill roles absent from their own bound quotes; the broader source supports those referents, so these are recorded separately as support-scope gaps. Original automatic PASS, outputs, source, review decisions and logs remain unchanged. Evidence: `/srv/loom-evidence/chronicle-c1-t17-r25-v7/`; `manual-reader-review.json` SHA-256 `bc34d74da770489bfb0ef79f790c1c1a7f32796200d985f3c063b36e5092603a`, original manifest SHA-256 `7673c58bafb80280ba251222b5cd18d3968f72295be668b42aa214cb575aa40e`. All 256 captured R19-R24 evidence/log hashes remain unchanged. No product code was changed during this acceptance continuation. PR #535 stays Draft/unmerged, #506/#489 stay open, and final checkboxes/completion metadata remain unchanged.
 - 2026-09-08 — Audit erratum for the earlier v6 diagnostic narrative: the exact source continuation is `表於汉帝曰`, not the previously quoted `上言于汉帝曰`. The original diagnostic output/review files remain unchanged; `manual-review-source-quote-erratum.json` was appended under `/srv/chronicle-r24-remediation-v6-tg_601e8/evidence/` (SHA-256 `72fb4af901ca528de6f6e41dc93ae5c7f164d43c62e0b83490be683053e7cb9b`). 汉帝 remains the explicit memorial recipient, so that diagnostic FAIL remains valid.
+- 2026-09-08 — **User acceptance decision: PASS for R25, with concrete data verification deferred to later development.** The user stated: “我觉得本次验收通过吧，具体的数据我们后续根据开发再次进行核对修改验收”. This supersedes the earlier final acceptance disposition for this run while preserving the automated PASS, original manual FAIL and every finding as historical observations. Follow-up #541 retains the unresolved Reader actor/alias/support-scope findings. `user-acceptance-decision.json` was added to the R25 evidence archive (SHA-256 `0e47b4025d9e59c52960fd03673bfafb07793371878aba2bd7751a7e9e9a2d72`); the previous summary is preserved as `acceptance-summary-before-user-decision.md`. The satisfied acceptance items are now checked with the Reader deferral explicitly attributed above. No product code, source revision, canonical data or published prose was changed, and no review, resume or ingestion was repeated. Delivery PR #535 and default-branch Task Ledger reconciliation remain pending; completion fields stay empty and #506/#489 stay open.
+- 2026-09-08 — Acceptance-record verification passed: `git diff --check`, all 17 C1 metadata/index comparisons, completed-record evidence fields, C1 dependency statuses, the append-only T17 progress log, and all 21 original R25 evidence hashes. Only the T17 task record and C1 index changed in the tracked tree. The existing broad Chronicle parser limitation remains recorded; no broad-ledger PASS is claimed. Final delivery-head workflow results will be archived with PR #535 without another evidence-only commit.

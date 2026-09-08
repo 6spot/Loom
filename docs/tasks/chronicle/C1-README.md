@@ -79,6 +79,8 @@ C1-T1/T2/T3/T5/T6/T7/T8/T9 delivery PRs were merged and their GitHub Issues were
 
 ## Final completion
 
+C1-T17 R25 was **accepted by the user on 2026-09-08**, with concrete data verification deferred to later development. The automated run passed; the original manual Reader findings remain preserved and tracked in [#541](https://github.com/6spot/Loom/issues/541). The task record distinguishes this acceptance decision from the historical inspection result. C1-T17 and this initiative remain `in_progress` pending PR #535 delivery and default-branch Task Ledger reconciliation; #506 and Root #489 remain open until that sequence completes.
+
 C1 closes only after C1-T17 is canonically completed and #489 is reconciled. The final gate must prove the real Studio upload -> durable job -> segmentation/context -> extraction -> review/resolution -> canonical publication -> zh-CN Reader Presentation -> expanded corpus -> Historical Moment/World flow on the supported Debian/PostgreSQL 18 deployment, including restart/retry and source-revision supersession evidence.
 
 If any child discovers a new Loom semantic/authority decision, stop that child and use the Architecture Amendment process.
