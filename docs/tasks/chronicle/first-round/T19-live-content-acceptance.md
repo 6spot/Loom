@@ -58,6 +58,12 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Best runs reach 4→1 and 9→2 errors; the stubborn remainder is anchor misattribution (real quote/wrong block; invented quote such as 先主留張飛守下邳 with 0 chapter hits) — validator correctly fail-closed every time. Jobs `75f34121` (needs_review) and `db2980b9` (failed, 1 retry left) preserved; server evidence at `/srv/loom-t19-evidence/ffc58aa/`.
 - Still open: 通鑑 second book, Studio human review, publish, Reader reading, restart/takeover evidence, 13-case independent conclusions (all `pending`). PR #614 updated; awaiting independent review, not marked PASSED.
 
+2026-09-09 — Live rounds on `0410b15` → `26eb34c` → `9902a37` → `23da90b` (test server, model `gpt-5.6-luna`; still NOT_PASSED, no completion claim):
+
+- Rebased onto origin/main (merged upstream `#615` GitHub-Issue support with this branch's `Multica-No-Close` opt-out); PR #614 is MERGEABLE again with all CI green and no `Closes` intent in body. Each round uses a fresh candidate, fresh compose project (ports 8081→8084), fresh data dir, fresh evidence dir `/srv/loom-t19-evidence/<SHORT>/`; old failed runs/jobs preserved untouched.
+- Owning-layer fixes driven by real failures (focused tests each; contracts only tightened): equality diagnostics carry both values (`chapter_contract.py`, prompt stays); prompt v4 pins entity `resolution:{status:"unresolved"}` in guide + validator fail-fast (was: model invented `'new'`, passed validation, died at assemble); prompt v5 adds verbatim script-consistency (was: Simplified surfaces/quotes vs Traditional source); prompt v6 (pushed `558c4bd`, not yet live) defines surface as occurrence-text copy with examples.
+- Real outcomes: 26eb34c1 SG chunks 0/1 pass initial-5→correction-0; 9902a374 通鑑卷65 completes all 8 stages and publishes (publication `01a086d0`, full 14362-char translation verified head/tail via Reader API, SHAs archived) — first full single-chapter loop; SG chunk 0 (先主傳) resists across 3+1 (v4) and 3 (v5) runs with shrinking-but-varying misses (surface class eliminated by v5, stubborn anchors remain), all fail-closed; two supervised chunk_failure resolve+resume cycles executed with recorded operator rationales (return-path evidence). 13 cases stay `pending`; cross-chapter pair review, restart/takeover, and browser Reader checks still open.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

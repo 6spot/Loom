@@ -137,3 +137,39 @@
   （如“先主留張飛守下邳”全章 0 命中，多次复现）——validator 均正确 fail-closed。
 - 本轮结论：NOT_PASSED。13 案仍全部 `pending`；第二书（通鑑）尚未开始；
   Studio 人工 review、发布、Reader 阅读、13 案独立核对均未执行。
+
+## 8. 真实验证轮次 0410b15d → 26eb34c1 → 9902a374 → 23da90b1（进行中，verdict 仍为 NOT_PASSED）
+
+- 候选链（分支 `agent/executor/7dfa2567b43d`，每次修复均有 focused tests，契约只收紧不放宽）：
+  - `0410b15`：rebase 到 origin/main（`#615` GitHub-Issue 支持＋本分支
+    `Multica-No-Close` opt-out 合并），PR #614 恢复 MERGEABLE。旧失败保留，
+    新 project `chronicle-t19-0410b15d`（端口 8081）＋新证据目录重跑。
+  - `26eb34c`：相等诊断携带双方值（`surface 'X' must equal selection.quote 'Y'`；
+    `chapter_contract.py`＋4 个新单测）。此前 value-free 诊断使整轮修正作废。
+  - `9902a37`（prompt v4）：`resolution:{status}` 未钉值致模型编造 `'new'`，
+    校验放行、assemble 才炸；在 prompt 钉死 `"unresolved"` 并在校验层前置
+    同规则失败（entities only，与 assembler 一致），prompt v3→v4。
+  - `23da90b`（prompt v5）：VERBATIM 加 `(d)` 繁简不转换（通鑑 run 曾出简体
+    surface/quote；v5 起 runs 已全为繁体）。
+  - `558c4bd`（prompt v6，已 push 未 live）：surface 定义为 occurrence 原文拷贝
+    （`曹公征徐州` 取 surface `曹公征徐州` 非 `曹公`；`備` 取 `備` 非 `劉備`）。
+- 服务器证据目录（测试机本地，不进仓库）：`/srv/loom-t19-evidence/<SHORT>/`
+  （preflight manifest、job 终态快照、operator decision 记录）。
+- 关键真实结果（模型 `gpt-5.6-luna`，来源 SHA 与冻结包一致 `a5dc345f`/`b9831c28`）：
+  - 26eb34c1 三國志 chunk 0/1：初次 5 errors → 修正 0 errors，一次通过；
+    chunk 2 后 job 倒在 assemble（`ent_001 resolution status 'new'`），驱动 v4 修复。
+  - 9902a374 通鑑卷65（10715 字整章）：run 1 初次空 bundle、修正 17 errors
+    （简体 surface 等，诊断已携带双方值）→ Studio bounded retry → run 2 通过；
+    全 8 阶段 completed 并 publish，publication `01a086d0`，Reader 目录可查、
+    全文 14362 字（首建安十一年正月，尾新都郡賀齊太守），artifact/bundle/catalog
+    SHA 已归档。这是本轮第一个完整闭环证据（单章）。
+  - 9902a374 三國志 chunk 0：3 次 bounded attempts＋1 次 supervised resume
+    （chunk_failure review `f210a2cf` operator resolve＋resume，返回路径真实证据）
+    仍未通过（10→1→10 errors，采样方差＋顽固 anchor），第二 review 保持 open
+    作 terminal 证据，job 保留 needs_review。
+  - 23da90b1 三國志 chunk 0：run 1 transport 空回包（provider 侧，非语义）；
+    run 2 收敛到 3 errors；run 3 surface 类消失、剩 4 anchor miss；
+    已做第二次 supervised resume（review `dc360d41` resolve＋resume），进行中。
+- 仍 NOT_PASSED：三國志三章未完成 assemble/resolve/publish；跨章 pair review、
+  第二来源 batch、重启/接管、13 案独立结论（仍全部 `pending`）、四章 Reader
+  浏览器验证均未完成。
