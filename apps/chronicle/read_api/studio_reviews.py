@@ -68,6 +68,10 @@ class _Conflict(Exception):
         self.code = code
 
 
+class _MethodNotAllowed(Exception):
+    pass
+
+
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
         "utf-8"
@@ -902,6 +906,76 @@ def _review_identity(conn, review_id: uuid.UUID) -> dict[str, Any]:
     }
 
 
+class _SourceRequestCache:
+    """Per-request source caches (no cross-request staleness).
+
+    Holds bundle owners resolved through the worker's ``source-bundle``
+    ingestion outputs, one chapter lookup per owner job, and the exact
+    revision storage rows those owners point at. Loading once per request
+    avoids rescanning whole bundles for every group/member.
+    """
+
+    def __init__(self, conn) -> None:
+        self.conn = conn
+        self.lookups: dict[str, Any] = {}
+        self.bundles: dict[str, tuple[str | None, str | None]] = {}
+        self.owners: dict[str, dict[str, Any] | None] = {}
+        self.revisions: dict[str, dict[str, Any] | None] = {}
+
+    def owner_of(self, bundle: str) -> dict[str, Any] | None:
+        if bundle not in self.owners:
+            self.owners[bundle] = _source_context.resolve_bundle_owner(
+                self.conn, bundle
+            )
+        return self.owners[bundle]
+
+    def lookup_for(self, job_id: Any) -> dict[str, Any]:
+        key = str(job_id)
+        cached = self.lookups.get(key)
+        if cached is None:
+            cached = _source_context.load_chapter_lookup(self.conn, job_id=job_id)
+            self.lookups[key] = cached
+        return cached
+
+    def revision_source(self, revision_id: Any) -> dict[str, Any] | None:
+        key = str(revision_id)
+        if key not in self.revisions:
+            row = self.conn.execute(
+                """
+                SELECT storage_key, source_sha256
+                FROM chronicle.document_revisions WHERE revision_id = %s
+                """,
+                (revision_id,),
+            ).fetchone()
+            self.revisions[key] = (
+                {"storage_key": row[0], "source_sha256": row[1]}
+                if row is not None
+                else None
+            )
+        return self.revisions[key]
+
+    def member_origin(self, bundle: str) -> dict[str, Any] | None:
+        """Resolve the exact (job, revision, storage, lookup) behind a bundle.
+
+        Returns None when no worker output recorded the bundle (legacy
+        fixtures stay ``unavailable`` instead of being guessed onto the
+        reading review's job).
+        """
+        owner = self.owner_of(bundle)
+        if owner is None:
+            return None
+        revision = self.revision_source(owner["revision_id"])
+        if revision is None:
+            return None
+        return {
+            "job_id": owner["job_id"],
+            "revision_id": owner["revision_id"],
+            "storage_key": revision["storage_key"],
+            "source_sha256": revision["source_sha256"],
+            "lookup": self.lookup_for(owner["job_id"]),
+        }
+
+
 def _chapter_lookup_cached(conn, *, job_id: Any) -> dict[str, Any]:
     # Loaded once per request and reused for every group/member in that
     # request (no cross-request staleness when later artifacts land).
@@ -1026,23 +1100,33 @@ def _describe_context(
     bundle: str,
     ref: str,
     bundle_cache: dict[str, tuple[str | None, str | None]] | None = None,
+    request_cache: _SourceRequestCache | None = None,
 ) -> dict[str, Any]:
     payload = identity["payload"]
     link_kind = str(payload.get("link_kind") or "")
     bundle_sha, bundle_title = _bundle_sha_and_title(conn, bundle, cache=bundle_cache)
-    chapter_info = (lookup.get("by_ref") or {}).get(ref, {})
-    anchors = list((lookup.get("anchors_by_record") or {}).get(ref, []))
+    if request_cache is not None:
+        origin = request_cache.member_origin(bundle)
+    else:  # pragma: no cover - compatibility path, callers pass a cache
+        origin = None
+    if origin is not None:
+        lookup = origin["lookup"]
+    chapter_info = (lookup.get("by_ref") or {}).get(ref, {}) if origin is not None else {}
+    anchors = list((lookup.get("anchors_by_record") or {}).get(ref, [])) if origin is not None else []
     evidence_kinds, _direct = _evidence_for_ref(
         conn, bundle=bundle, ref=ref, link_kind=link_kind, lookup=lookup
     )
-    if not anchors:
+    if origin is None:
         available = False
-        reason: str | None = (
+        reason: str | None = "bundle_without_provenance"
+    elif not anchors:
+        available = False
+        reason = (
             "no_chapter_anchor"
             if chapter_info
             else "legacy_fixture_without_location"
         )
-    elif identity.get("storage_key") is None:
+    elif origin.get("storage_key") is None:
         available = False
         reason = "revision_without_storage"
     else:
@@ -1066,14 +1150,18 @@ def _describe_context(
         "bundle_sha256": bundle_sha,
         "record_ref": ref,
         "link_kind": link_kind,
-        "job_id": str(identity["job_id"]),
-        "revision_id": str(identity["revision_id"]),
+        "job_id": str(origin["job_id"]) if origin is not None else str(identity["job_id"]),
+        "revision_id": str(origin["revision_id"])
+        if origin is not None
+        else str(identity["revision_id"]),
         "chapter_id": chapter_info.get("chapter_id"),
         "chapter_index": chapter_info.get("chapter_index"),
         "chapter_title": chapter_info.get("chapter_title"),
         "artifact_sha256": chapter_info.get("artifact_sha256"),
         "source_title": chapter_info.get("source_title") or bundle_title,
-        "source_sha256": chapter_info.get("source_sha256") or identity.get("source_sha256"),
+        "source_sha256": (origin.get("source_sha256") if origin is not None else None)
+        or chapter_info.get("source_sha256")
+        or identity.get("source_sha256"),
         "evidence_kinds": evidence_kinds,
         "available": available,
         "unavailable_reason": reason,
@@ -1140,13 +1228,14 @@ def _handle_contexts(
             raise _BadRequest(str(exc)) from exc
     if offset > len(refs):
         raise _BadRequest("context cursor is past the end of this group")
+    request_cache = _SourceRequestCache(conn)
     lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
-    bundle_cache: dict[str, tuple[str | None, str | None]] = {}
     page_refs = refs[offset : offset + spec["limit"]]
     items = [
         _describe_context(
             conn, identity, lookup, bundle=item["bundle"], ref=item["ref"],
-            bundle_cache=bundle_cache,
+            bundle_cache=request_cache.bundles,
+            request_cache=request_cache,
         )
         for item in page_refs
     ]
@@ -1206,39 +1295,50 @@ def _handle_source(
     identity = _review_identity(conn, review_id)
     payload = identity["payload"]
     frozen = {(item["bundle"], item["ref"]) for item in _source_context.frozen_member_refs(payload)}
-    lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
-    anchor = (lookup.get("anchors_by_id") or {}).get(anchor_id)
-    if anchor is None or not isinstance(anchor, dict):
-        raise _NotFound(f"unknown source anchor {anchor_id!r} for this review")
-    owners = set((lookup.get("anchor_records") or {}).get(anchor_id, []))
-    if not owners:
-        # Anchor exists in a chapter artifact but was not bound to any
-        # record selection: treat it as outside the frozen member set.
+    request_cache = _SourceRequestCache(conn)
+    # Resolve the anchor through each frozen (bundle, ref) owner's exact
+    # provenance: the bundle's worker output decides the owning job and
+    # revision, and the anchor must be bound to that member's record in
+    # the owner's chapter lookup. Bundle attribution is kept end to end,
+    # so the same ref in another bundle can never authorize this anchor.
+    candidates: list[dict[str, Any]] = []
+    anchor_missing_everywhere = True
+    for bundle, ref in sorted(frozen):
+        origin = request_cache.member_origin(bundle)
+        if origin is None:
+            continue
+        lookup = origin["lookup"]
+        anchor = (lookup.get("anchors_by_id") or {}).get(anchor_id)
+        if anchor is None or not isinstance(anchor, dict):
+            continue
+        anchor_missing_everywhere = False
+        if ref not in set((lookup.get("anchor_records") or {}).get(anchor_id, [])):
+            continue
+        candidates.append({"bundle": bundle, "ref": ref, "origin": origin, "anchor": anchor})
+    if not candidates:
+        if anchor_missing_everywhere:
+            raise _NotFound(f"unknown source anchor {anchor_id!r} for this review")
         raise _NotFound(f"source anchor {anchor_id!r} is not part of this review")
-    owner_refs = set()
-    for owner in owners:
-        # owners are revision refs; map them back to (bundle, ref) by
-        # matching the ref suffix within this review's frozen bundles.
-        for bundle, ref in frozen:
-            if ref == owner:
-                owner_refs.add((bundle, ref))
-    if not owner_refs:
-        raise _NotFound(f"source anchor {anchor_id!r} is not part of this review")
-    # Exact artifact/revision/hash match: the anchor must come from the
-    # same revision and source hash as the review job.
-    if str(anchor.get("revision_id") or "") != str(identity["revision_id"]):
+    # Deterministic pick when two jobs share one revision: frozen bundle order.
+    match = sorted(candidates, key=lambda item: (item["bundle"], item["ref"]))[0]
+    origin, anchor = match["origin"], match["anchor"]
+    lookup = origin["lookup"]
+    # Exact artifact/revision/hash match against the owning revision, never
+    # the reading review's job: same text at another location or revision
+    # is never substituted.
+    if str(anchor.get("revision_id") or "") != str(origin["revision_id"]):
         raise _Conflict(
             "source_mismatch",
-            "anchor revision does not match this review revision; "
+            "anchor revision does not match the owning revision; "
             "refusing to substitute another version",
         )
-    expected_sha = str(identity.get("source_sha256") or "")
+    expected_sha = str(origin.get("source_sha256") or "")
     if str(anchor.get("source_sha256") or "") != expected_sha:
         raise _Conflict(
             "source_mismatch",
-            "anchor source hash does not match this review revision",
+            "anchor source hash does not match the owning revision",
         )
-    storage_key = identity.get("storage_key")
+    storage_key = origin.get("storage_key")
     if not isinstance(storage_key, str) or not storage_key:
         raise _Conflict("source_unavailable", "revision source is not configured")
     try:
@@ -1247,15 +1347,33 @@ def _handle_source(
         raise _Conflict("source_unavailable", str(exc)) from exc
     except _source_context.SourceMismatch as exc:
         raise _Conflict("source_mismatch", str(exc)) from exc
+    # Anchors are chapter-relative (chapter_plan.build_chapter_request):
+    # re-base through the exact recorded chapter boundary and page only
+    # that chapter.
+    chapter_id = anchor.get("chapter_id")
+    if not isinstance(chapter_id, str) or not chapter_id:
+        raise _Conflict("source_unavailable", "anchor has no chapter binding")
     try:
-        _source_context.verify_anchor(anchor, text)
+        bounds = _source_context.chapter_bounds(lookup, chapter_id)
+    except _source_context.SourceUnavailable as exc:
+        raise _Conflict("source_unavailable", str(exc)) from exc
+    chapter_start, chapter_end = bounds
+    if not (0 <= chapter_start < chapter_end <= len(text)):
+        raise _Conflict(
+            "source_mismatch",
+            "recorded chapter boundary is outside this revision text",
+        )
+    chapter_text = text[chapter_start:chapter_end]
+    try:
+        _source_context.verify_anchor_in_chapter(anchor, chapter_text)
     except _source_context.SourceMismatch as exc:
         raise _Conflict("source_mismatch", str(exc)) from exc
-    start, end = int(anchor["start"]), int(anchor["end"])
+    anchor_start, anchor_end = int(anchor["start"]), int(anchor["end"])
+    rev_start, rev_end = chapter_start + anchor_start, chapter_start + anchor_end
     if view == "window":
         if cursor_raw is not None:
             raise _BadRequest("cursor is only supported for view=chapter")
-        window = _source_context.window_for(text, start, end)
+        window = _source_context.window_in_chapter(chapter_text, anchor_start, anchor_end)
         return 200, "application/json; charset=utf-8", _json_bytes(
             {
                 "schema": "chronicle.review-source",
@@ -1263,17 +1381,22 @@ def _handle_source(
                 "review_id": str(review_id),
                 "anchor_id": anchor_id,
                 "view": "window",
-                "revision_id": str(identity["revision_id"]),
+                "revision_id": str(origin["revision_id"]),
                 "source_sha256": expected_sha,
-                "chapter_id": anchor.get("chapter_id"),
+                "chapter_id": chapter_id,
+                "bundle": match["bundle"],
+                "record_ref": match["ref"],
                 "bounds": {
-                    "start": start,
-                    "end": end,
-                    "slice_start": window["slice_start"],
-                    "slice_end": window["slice_end"],
-                    "chapter_length": len(text),
+                    "start": rev_start,
+                    "end": rev_end,
+                    "slice_start": chapter_start + window["slice_start"],
+                    "slice_end": chapter_start + window["slice_end"],
+                    "chapter_start": chapter_start,
+                    "chapter_end": chapter_end,
+                    "chapter_length": len(chapter_text),
                 },
                 "source_hash": _source_context.sha256_text(text),
+                "chapter_hash": _source_context.sha256_text(chapter_text),
                 "text": window["text"],
                 "segments": window["segments"],
                 "has_more": False,
@@ -1288,8 +1411,12 @@ def _handle_source(
             )
         except _source_context.BadCursor as exc:
             raise _BadRequest(str(exc)) from exc
+    if offset > len(chapter_text):
+        raise _BadRequest("chapter cursor is past the end of this chapter")
     try:
-        page = _source_context.chapter_page_for(text, offset, limit=limit, anchor=anchor)
+        page = _source_context.chapter_page_for(
+            chapter_text, offset, limit=limit, anchor=anchor
+        )
     except _source_context.BadCursor as exc:
         raise _BadRequest(str(exc)) from exc
     next_cursor = (
@@ -1309,17 +1436,22 @@ def _handle_source(
             "review_id": str(review_id),
             "anchor_id": anchor_id,
             "view": "chapter",
-            "revision_id": str(identity["revision_id"]),
+            "revision_id": str(origin["revision_id"]),
             "source_sha256": expected_sha,
-            "chapter_id": anchor.get("chapter_id"),
+            "chapter_id": chapter_id,
+            "bundle": match["bundle"],
+            "record_ref": match["ref"],
             "bounds": {
-                "start": start,
-                "end": end,
-                "slice_start": page["slice_start"],
-                "slice_end": page["slice_end"],
-                "chapter_length": len(text),
+                "start": rev_start,
+                "end": rev_end,
+                "slice_start": chapter_start + page["slice_start"],
+                "slice_end": chapter_start + page["slice_end"],
+                "chapter_start": chapter_start,
+                "chapter_end": chapter_end,
+                "chapter_length": len(chapter_text),
             },
             "source_hash": _source_context.sha256_text(text),
+            "chapter_hash": _source_context.sha256_text(chapter_text),
             "text": page["text"],
             "segments": page["segments"],
             "has_more": page["has_more"],
@@ -1355,6 +1487,8 @@ def dispatch_reviews(
         return _error(400, "bad_request", str(exc))
     except _NotFound as exc:
         return _error(404, "not_found", str(exc))
+    except _MethodNotAllowed as exc:
+        return _error(405, "method_not_allowed", str(exc))
     except _Conflict as exc:
         return _error(409, exc.code, str(exc))
     except CanonicalIdentityConflict as exc:
@@ -1382,18 +1516,19 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
         identity = _review_identity(conn, review_id)
     except _NotFound:
         return item
+    request_cache = _SourceRequestCache(conn)
     lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
     refs = _source_context.frozen_member_refs(
         identity["payload"] if isinstance(identity.get("payload"), dict) else {}
     )
-    bundle_cache: dict[str, tuple[str | None, str | None]] = {}
     contexts: list[dict[str, Any]] = []
     for entry in refs:
         try:
             contexts.append(
                 _describe_context(
                     conn, identity, lookup, bundle=entry["bundle"], ref=entry["ref"],
-                    bundle_cache=bundle_cache,
+                    bundle_cache=request_cache.bundles,
+                    request_cache=request_cache,
                 )
             )
         except Exception:
@@ -1478,12 +1613,12 @@ def _route(
     if len(parts) == 2 and parts[0] and parts[1] == "contexts":
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":
-            raise _BadRequest(f"method {method} is not supported on {path}")
+            raise _MethodNotAllowed(f"method {method} is not supported on {path}")
         return _handle_contexts(conn, review_id, raw_query=raw_query)
     if len(parts) == 3 and parts[0] and parts[1] == "sources" and parts[2]:
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":
-            raise _BadRequest(f"method {method} is not supported on {path}")
+            raise _MethodNotAllowed(f"method {method} is not supported on {path}")
         return _handle_source(
             conn, review_id, parts[2], raw_query=raw_query, source_dir=source_dir
         )

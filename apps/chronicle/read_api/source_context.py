@@ -31,7 +31,13 @@ from typing import Any
 WINDOW_RADIUS = 400
 CHAPTER_PAGE_MAX = 16000
 CONTEXT_CURSOR_VERSION = 1
-SOURCE_CURSOR_VERSION = 1
+#: Source cursor v2: ``offset`` is chapter-relative (chapter view pages
+#: only the anchor's chapter). v1 absolute-revision offsets are rejected.
+SOURCE_CURSOR_VERSION = 2
+
+#: ingestion_outputs artifact type that binds (job, revision) to the
+#: staged bundle label it assembled (written by the worker resolve path).
+BUNDLE_OUTPUT_TYPE = "source-bundle"
 
 
 class SourceUnavailable(Exception):
@@ -367,29 +373,147 @@ def group_member_refs(
     return None
 
 
+def resolve_bundle_owner(conn, bundle_label: str) -> dict[str, Any] | None:
+    """Resolve which (job, revision) assembled one staged bundle label.
+
+    The worker resolve path records one ``source-bundle`` ingestion output
+    per assembled bundle, so a frozen member's bundle resolves to its exact
+    producing job/revision instead of the reading review's job. Returns
+    ``{"job_id", "revision_id"}`` or None when nothing recorded it (legacy
+    fixtures stay ``unavailable`` rather than guessed).
+    """
+    if not isinstance(bundle_label, str) or not bundle_label:
+        return None
+    row = conn.execute(
+        """
+        SELECT job_id, revision_id
+        FROM chronicle.ingestion_outputs
+        WHERE artifact_type = %s AND payload->>'bundle_label' = %s
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (BUNDLE_OUTPUT_TYPE, bundle_label),
+    ).fetchone()
+    if row is None:
+        return None
+    return {"job_id": row[0], "revision_id": row[1]}
+
+
+def chapter_bounds(lookup: dict[str, Any], chapter_id: str) -> tuple[int, int]:
+    """Return the absolute ``(start, end)`` revision range of one chapter.
+
+    Raises :class:`SourceUnavailable` when the chapter boundary was never
+    recorded (fail explicit instead of paging the whole revision).
+    """
+    chapters = lookup.get("chapters") or {}
+    info = chapters.get(chapter_id)
+    if not isinstance(info, dict):
+        raise SourceUnavailable(f"chapter {chapter_id!r} has no recorded boundary")
+    try:
+        start, end = int(info["chapter_start"]), int(info["chapter_end"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SourceUnavailable(
+            f"chapter {chapter_id!r} has no recorded boundary"
+        ) from exc
+    if isinstance(start, bool) or isinstance(end, bool) or not (0 <= start < end):
+        raise SourceUnavailable(f"chapter {chapter_id!r} has no recorded boundary")
+    return start, end
+
+
+def anchor_revision_range(
+    anchor: dict[str, Any], bounds: tuple[int, int]
+) -> tuple[int, int]:
+    """Re-base a chapter-relative anchor to absolute revision coordinates."""
+    chapter_start, chapter_end = bounds
+    try:
+        start, end = int(anchor["start"]), int(anchor["end"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SourceMismatch("anchor has no integer start/end") from exc
+    if isinstance(start, bool) or isinstance(end, bool):
+        raise SourceMismatch("anchor has no integer start/end")
+    chapter_len = chapter_end - chapter_start
+    if not (0 <= start < end <= chapter_len):
+        raise SourceMismatch(
+            f"anchor range [{start},{end}) is outside its chapter "
+            f"({chapter_len} chars)"
+        )
+    return chapter_start + start, chapter_start + end
+
+
+def verify_anchor_in_chapter(anchor: dict[str, Any], chapter_text: str) -> None:
+    """Verify a chapter-relative anchor against its chapter slice."""
+    verify_anchor(anchor, chapter_text)
+
+
+def window_in_chapter(
+    chapter_text: str,
+    start: int,
+    end: int,
+    *,
+    radius: int = WINDOW_RADIUS,
+) -> dict[str, Any]:
+    """Window slice clamped to the chapter (never leaks adjacent chapters)."""
+    if radius < 0:
+        raise BadCursor("window radius must be non-negative")
+    slice_start = max(0, start - radius)
+    slice_end = min(len(chapter_text), end + radius)
+    return {
+        "slice_start": slice_start,
+        "slice_end": slice_end,
+        "text": chapter_text[slice_start:slice_end],
+        "segments": highlight_segments(
+            chapter_text, slice_start, slice_end, start, end
+        ),
+    }
+
+
 def load_chapter_lookup(conn, *, job_id: Any) -> dict[str, Any]:
     """Index accepted chapter artifacts of one job for evidence lookup.
 
-    Returns ``{"by_ref": ..., "anchors_by_record": ..., "anchors_by_id": ...}``
-    where ``by_ref[revision_ref]`` carries chapter/artifact/revision/source
-    provenance and ``anchors_by_record[revision_ref]`` lists the exact
-    anchors bound to that record (record_sources + mention + translation
-    selections, deduped by anchor_id). Empty when the job predates
+    Returns ``{"by_ref": ..., "anchors_by_record": ..., "anchors_by_id": ...,
+    "chapters": ...}`` where ``by_ref[revision_ref]`` carries
+    chapter/artifact/revision/source provenance,
+    ``anchors_by_record[revision_ref]`` lists the exact anchors bound to
+    that record (record_sources + mention + translation selections, deduped
+    by anchor_id), and ``chapters[chapter_id]`` carries the absolute
+    revision range ``(chapter_start, chapter_end)`` re-based from the
+    chapter's chunk row (anchors are chapter-relative per
+    ``chapter_plan.build_chapter_request``). Empty when the job predates
     chapter artifacts (old partial fixtures stay ``unavailable``).
     """
     rows = conn.execute(
         """
-        SELECT artifact_sha256, chapter_id, chapter_index, payload
+        SELECT artifact_sha256, chapter_id, chapter_index, chunk_id, payload
         FROM chronicle.chapter_artifacts
         WHERE job_id = %s
         ORDER BY chapter_index, chapter_id
         """,
         (job_id,),
     ).fetchall()
+    chunk_bounds: dict[Any, tuple[int, int]] = {}
+    chunk_ids = [row[3] for row in rows if row[3] is not None]
+    if chunk_ids:
+        for chunk_id, source_start, source_end in conn.execute(
+            """
+            SELECT chunk_id, source_start, source_end
+            FROM chronicle.ingestion_chunks
+            WHERE chunk_id = ANY(%s)
+            """,
+            (chunk_ids,),
+        ).fetchall():
+            try:
+                start, end = int(source_start), int(source_end)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(start, bool) or isinstance(end, bool):
+                continue
+            if 0 <= start < end:
+                chunk_bounds[chunk_id] = (start, end)
     by_ref: dict[str, dict[str, Any]] = {}
     anchors_by_record: dict[str, list[dict[str, Any]]] = {}
     anchors_by_id: dict[str, dict[str, Any]] = {}
     anchor_records: dict[str, set[str]] = {}
+    chapters: dict[str, dict[str, Any]] = {}
 
     def _attach_anchor(revision_ref: str, anchor: dict[str, Any]) -> None:
         if not isinstance(anchor, dict):
@@ -403,7 +527,7 @@ def load_chapter_lookup(conn, *, job_id: Any) -> dict[str, Any]:
         anchors_by_id.setdefault(anchor_id, anchor)
         anchor_records.setdefault(anchor_id, set()).add(revision_ref)
 
-    for artifact_sha256, chapter_id, chapter_index, payload in rows:
+    for artifact_sha256, chapter_id, chapter_index, chunk_id, payload in rows:
         artifact = payload if isinstance(payload, dict) else {}
         candidate = artifact.get("candidate") if isinstance(artifact, dict) else {}
         if not isinstance(candidate, dict):
@@ -412,6 +536,15 @@ def load_chapter_lookup(conn, *, job_id: Any) -> dict[str, Any]:
             chapter_index_int = int(chapter_index)
         except (TypeError, ValueError):
             continue
+        bounds = chunk_bounds.get(chunk_id)
+        if bounds is not None and isinstance(chapter_id, str) and chapter_id:
+            chapters[chapter_id] = {
+                "chapter_id": chapter_id,
+                "chapter_index": chapter_index_int,
+                "chapter_start": bounds[0],
+                "chapter_end": bounds[1],
+                "artifact_sha256": artifact_sha256,
+            }
         bundle = candidate.get("bundle") if isinstance(candidate.get("bundle"), dict) else {}
         source_title = bundle.get("source", {}).get("title") if isinstance(bundle.get("source"), dict) else None
         revision_id = artifact.get("revision_id")
@@ -565,10 +698,12 @@ def load_chapter_lookup(conn, *, job_id: Any) -> dict[str, Any]:
             )
         )
     return {
+        "job_id": job_id,
         "by_ref": by_ref,
         "anchors_by_record": anchors_by_record,
         "anchors_by_id": anchors_by_id,
         "anchor_records": {key: sorted(value) for key, value in anchor_records.items()},
+        "chapters": chapters,
     }
 
 

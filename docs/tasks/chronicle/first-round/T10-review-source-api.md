@@ -39,6 +39,13 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `git diff --check` — **clean**。
 - Dependency reconciliation: T04/T07/T08/T09代码均已在本 stacked branch（含 #595/#603/#607/#591），但默认分支Task Ledger尚未全部对账完成；按Issue要求，本任务关闭须等依赖在默认分支完成对账。No UI change, so no test/build/smoke:dist applies. No new migration.
 
+2026-09-09 — Reviewer CHANGES_REQUIRED on PR #608 addressed on the same branch (3 blockers):
+
+- 章节rebasing：anchor按`chapter_plan.build_chapter_request`视为章相对坐标，经`ingestion_chunks`记录的精确章边界转为revision坐标；window钳制在本章内，`view=chapter`仅分页该章（游标offset改为章相对，source cursor版本升至v2，旧v1游标400）。PG fixture改用真实chunk范围（ch_A `[0,lenA)`、ch_B `[lenA,len)`）与章相对anchor；此前两章均用`source_start=0`，非首章边界无覆盖。
+- 跨revision归属：冻结`(bundle,ref)`经worker `source-bundle` ingestion outputs解析其 producing (job, revision, storage)，anchor须在该owner的chapter lookup中绑定同一成员记录才授权；同ref异bundle不再互认。PG fixture新增第二revision/job（published侧自有文本、存储与章产物）及`record_output`行，旧局部料改用无output的`legacy-left/right` bundle（`bundle_without_provenance`）。
+- 405：新路由（contexts/sources）错误方法返回405 `method_not_allowed`（既有list/detail/decision行为不动）；PG新增POST/DELETE 405覆盖。
+- 复测（均为真实运行）：`test_review_source_context*.py` — **35 tests OK**（24 unit + 11 PG，含非首章rebase、章内分页、published自有revision读取、同ref跨bundle 404、405）；`test_studio_reviews_postgres.py` — **13 OK**；R15 — **PASS**；R19 — **2 OK**；`server_integration` — **21 passed**；`git diff --check` — **clean**。
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

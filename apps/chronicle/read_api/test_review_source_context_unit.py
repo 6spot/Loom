@@ -159,6 +159,60 @@ class PagingTests(unittest.TestCase):
             SC.chapter_page_for("短", 99)
 
 
+class ChapterRebaseTests(unittest.TestCase):
+    TEXT = PART_A = "曹操字孟德。\n" + "與曹公戰於赤壁。\n"
+    LEN_A = len("曹操字孟德。\n")
+
+    def _lookup(self) -> dict:
+        return {
+            "chapters": {
+                "ch_A": {"chapter_start": 0, "chapter_end": self.LEN_A},
+                "ch_B": {"chapter_start": self.LEN_A, "chapter_end": len(self.TEXT)},
+            }
+        }
+
+    def test_anchor_rebased_through_recorded_boundary(self) -> None:
+        anchor = {"anchor_id": "anc_b", "start": 1, "end": 3,
+                  "quote": "曹公", "quote_sha256": _sha_text("曹公")}
+        bounds = SC.chapter_bounds(self._lookup(), "ch_B")
+        self.assertEqual(bounds, (self.LEN_A, len(self.TEXT)))
+        rev_start, rev_end = SC.anchor_revision_range(anchor, bounds)
+        self.assertEqual((rev_start, rev_end), (self.LEN_A + 1, self.LEN_A + 3))
+        SC.verify_anchor_in_chapter(anchor, self.TEXT[bounds[0]:bounds[1]])
+
+    def test_anchor_outside_chapter_is_mismatch(self) -> None:
+        anchor = {"anchor_id": "anc_x", "start": 0, "end": 99,
+                  "quote": "x", "quote_sha256": _sha_text("x")}
+        bounds = SC.chapter_bounds(self._lookup(), "ch_A")
+        with self.assertRaises(SC.SourceMismatch):
+            SC.anchor_revision_range(anchor, bounds)
+
+    def test_missing_chapter_boundary_is_unavailable(self) -> None:
+        with self.assertRaises(SC.SourceUnavailable):
+            SC.chapter_bounds({"chapters": {}}, "ch_missing")
+
+    def test_window_never_leaks_into_adjacent_chapter(self) -> None:
+        chapter_text = self.TEXT[self.LEN_A:]
+        window = SC.window_in_chapter(chapter_text, 1, 3, radius=400)
+        self.assertEqual(window["text"], chapter_text)
+        self.assertNotIn("孟德", window["text"])
+
+    def test_chapter_cursor_v1_is_rejected(self) -> None:
+        import base64
+        import json
+
+        raw = base64.urlsafe_b64encode(
+            json.dumps(
+                {"v": 1, "review_id": "r1", "anchor_id": "a",
+                 "view": "chapter", "offset": 0}
+            ).encode()
+        ).decode().rstrip("=")
+        with self.assertRaises(SC.BadCursor):
+            SC.decode_source_cursor(
+                raw, review_id="r1", anchor_id="a", view="chapter"
+            )
+
+
 class CursorTests(unittest.TestCase):
     def test_context_cursor_binds_review_and_group(self) -> None:
         token = SC.encode_context_cursor(review_id="r1", group_id="g1", offset=50)
