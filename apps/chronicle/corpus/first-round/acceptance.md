@@ -202,3 +202,23 @@
   不放宽 bound；job 2 作 terminal 证据保留，已开 job 3（`24fe7e6c`，同一定 revision）。
 - 本轮结论：NOT_PASSED。待 job 3 三块→新 pair review 重裁→publish（基线 v1）→
   三章 Reader（含真实浏览器）→13 案独立结论→台账对账。
+
+## 10. 发布排序与 staged label 冲突（真实观察，verdict 仍为 NOT_PASSED）
+
+- SG job 1 publish-stale 后开 job 2（同 revision `d594c4b6`）：chunks 0/1 通过、
+  chunk 2 差 4 miss；claims 用尽（含重启验证消耗的一次）后 retry 按设计拒绝
+  （`attempt 3 >= max_attempts 3`，不放宽）。job 2 作 terminal 证据保留。
+- SG job 3（同 revision）：三块全部提取＋装配通过，但 resolve fail-closed：
+  `bundle label 'c1rev-d594c4b69c74' already exists with different content`
+  （库中 job 1 的 bundle `9110...` vs job 3 的 `05ec...`）。根因：
+  staged store 按 revision label first-writer-wins（`staged_store.py`），
+  同 revision 第二个模型产物永不能 resolve；同字节重传回 `duplicate=True`
+  同一 revision（无新 label）。未删改 staged 行、未放宽 bound、未重设计
+  label 语义（属持久层架构决策，超出本任务范围，已如实上报 reviewer 定夺）。
+- 恢复路径（operator 决定，有记录）：新的三國志 document＋revision
+  （`7c324401`，同冻结字节，SHA `a5dc345f` 重新验证，`duplicate=False`）
+  ＋ job 4（`e76081d3`），作为独立导入事件记录；jobs 1–3 全部保留为
+  terminal 证据。job 4 的 resolve 将以 catalog v1（含已发布通鑑）为基线，
+  预期出现跨书 batch 候选（第二来源覆盖）。
+- 本轮结论：NOT_PASSED。待 job 4 三块→pair（＋可能 batch）review 裁决→
+  publish→三章 Reader（含真实浏览器）→13 案独立结论→台账对账。
