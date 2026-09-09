@@ -38,7 +38,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check --format json` — still reports `task C2-R1 has no status` (pre-existing root-level issue recorded by T16, fix outside this task's file ownership).
 - NOT run (blocked, no fabrication): real provider calls, Studio interactive reviews, restart/takeover, publish/public reading, two-revision pinning, browser observations, independent per-chapter content conclusions (13 cases stay `pending`), usage/timing budgets. Verdict `not_passed`; see `apps/chronicle/corpus/first-round/acceptance.md` §4–§6 for the blocker list and the live rerun checklist.
 
-2026-09-09 — Production wiring fix (live READY reached, real execution found the worker never receives `CHRONICLE_CHAPTER_MODEL`; Issue stays `blocked`, no PASS/completion claim):
+2026-09-09 — Production wiring fix (live READY reached, real execution found the worker never receives `CHRONICLE_CHAPTER_MODEL`; Issue stays `in_progress`, no PASS/completion claim):
 
 - `compose.chronicle.yaml`: pass `CHRONICLE_CHAPTER_MODEL: ${CHRONICLE_CHAPTER_MODEL:-}` into `chronicle-worker` (same fail-soft convention as extraction/presentation; worker fails closed at startup without it).
 - `.env.chronicle.example`: document `CHRONICLE_CHAPTER_MODEL` alongside the other two model entries.

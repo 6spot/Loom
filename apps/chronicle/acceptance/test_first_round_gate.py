@@ -82,6 +82,59 @@ def live_env(directory: Path, extra: str = "") -> Path:
     )
 
 
+def _compose_service_environment(path: Path, service: str) -> dict[str, str]:
+    """Read one service's ``environment:`` mapping without PyYAML.
+
+    Minimal indentation scan for the compose layout used here
+    (``services:`` → two-space service → four-space ``environment:``
+    → six-space ``KEY: value``). Raises ``AssertionError`` when the
+    service or its environment block is missing, so a structural
+    drift fails the test instead of passing silently.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_services = False
+    in_service = False
+    in_environment = False
+    found_service = False
+    found_environment = False
+    env: dict[str, str] = {}
+    for raw in lines:
+        if not raw.strip() or raw.strip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        key = raw.strip()
+        if indent == 0 and key == "services:":
+            in_services = True
+            continue
+        if not in_services:
+            continue
+        if indent == 2 and key.endswith(":"):
+            in_service = key[:-1] == service
+            in_environment = False
+            if in_service:
+                found_service = True
+            continue
+        if not in_service:
+            continue
+        if indent == 4 and key == "environment:":
+            in_environment = True
+            found_environment = True
+            continue
+        if indent == 4:
+            in_environment = False
+            continue
+        if in_environment and indent == 6 and ":" in key:
+            name, value = key.split(":", 1)
+            env[name.strip()] = value.strip()
+    if not found_service:
+        raise AssertionError(f"compose service missing: {service}")
+    if not found_environment:
+        raise AssertionError(
+            f"compose service {service!r} carries no environment block"
+        )
+    return env
+
+
 def tiny_plan() -> tuple[dict, str]:
     locator = {
         "revision_id": G.revision_id_for("unit"),
@@ -285,17 +338,14 @@ class LiveModeTests(unittest.TestCase):
         # chronicle-worker container must receive CHRONICLE_CHAPTER_MODEL
         # from the host env, otherwise chapter_model_from_env() inside
         # the container sees nothing and the joint chapter pipeline
-        # cannot execute.
-        import yaml
-
-        compose = yaml.safe_load(
-            (REPO / "compose.chronicle.yaml").read_text(encoding="utf-8")
+        # cannot execute. Stdlib-only: CI Python carries no PyYAML.
+        worker_env = _compose_service_environment(
+            REPO / "compose.chronicle.yaml", "chronicle-worker"
         )
-        worker_env = compose["services"]["chronicle-worker"]["environment"]
         self.assertIn("CHRONICLE_CHAPTER_MODEL", worker_env)
         self.assertIn(
             "CHRONICLE_CHAPTER_MODEL",
-            str(worker_env["CHRONICLE_CHAPTER_MODEL"]),
+            worker_env["CHRONICLE_CHAPTER_MODEL"],
         )
 
 
