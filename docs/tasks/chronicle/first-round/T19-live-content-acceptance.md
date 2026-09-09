@@ -64,6 +64,13 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Owning-layer fixes driven by real failures (focused tests each; contracts only tightened): equality diagnostics carry both values (`chapter_contract.py`, prompt stays); prompt v4 pins entity `resolution:{status:"unresolved"}` in guide + validator fail-fast (was: model invented `'new'`, passed validation, died at assemble); prompt v5 adds verbatim script-consistency (was: Simplified surfaces/quotes vs Traditional source); prompt v6 (pushed `558c4bd`, not yet live) defines surface as occurrence-text copy with examples.
 - Real outcomes: 26eb34c1 SG chunks 0/1 pass initial-5→correction-0; 9902a374 通鑑卷65 completes all 8 stages and publishes (publication `01a086d0`, full 14362-char translation verified head/tail via Reader API, SHAs archived) — first full single-chapter loop; SG chunk 0 (先主傳) resists across 3+1 (v4) and 3 (v5) runs with shrinking-but-varying misses (surface class eliminated by v5, stubborn anchors remain), all fail-closed; two supervised chunk_failure resolve+resume cycles executed with recorded operator rationales (return-path evidence). 13 cases stay `pending`; cross-chapter pair review, restart/takeover, and browser Reader checks still open.
 
+2026-09-09/10 — Live round on `855a1dc` (prompt v6 + anchor-miss fork hints; still NOT_PASSED):
+
+- 通鑑卷65 republished as `01a08753` (64 translation blocks, 14984 chars, head/tail complete) and verified in a REAL headless-chromium render (DOM 17413 chars, 64 segments, revision-pinned, per-block 原文 links; screenshot archived). Reader API + browser both green for the second book.
+- SG job 1: all 3 chunks extracted+assembled; 7 same-revision cross-chapter entity pair reviews opened, all decided `same_entity` by the operator against 原文 (5 defaults + 2 script-variant exceptions with recorded rationales), resolve completed; publish then failed closed with `publication_plan_stale` (ZZ had published first — frozen plans never rebase by design, verified in code). Job kept as terminal evidence; SG job 2 opened on the same pinned revision.
+- Live worker restart/takeover: SIGTERM graceful (`signal 15; finishing current step`), new instance reclaimed the 300s lease, job continued — log archived. Cost: one job-claim consumed from the 3-claim bounded budget.
+- SG job 2: chunks 0+1 passed, chunk 2 missed by 4 anchor/alias cases; claims exhausted → Studio retry refused by design (`attempt 3 >= max_attempts 3`, bounds not loosened). SG job 3 opened on the same revision; 13 cases stay `pending`.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

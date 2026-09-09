@@ -173,3 +173,32 @@
 - 仍 NOT_PASSED：三國志三章未完成 assemble/resolve/publish；跨章 pair review、
   第二来源 batch、重启/接管、13 案独立结论（仍全部 `pending`）、四章 Reader
   浏览器验证均未完成。
+
+## 9. 真实验证轮次 855a1dc0（prompt v6＋anchor-hint，进行中，verdict 仍为 NOT_PASSED）
+
+- 候选：`855a1dc`（prompt v6：surface 定义为 occurrence 原文拷贝并举例；
+  validator：anchor 零命中诊断区分“配错块”（给全章计数＋首个所在块，
+  如 `ent_0002 b_009→b_011` 即首轮“曹公征徐州”旧案）与“全章虚构”（明确要求换引文），
+  契约不变）。新 project（端口 8085）＋新证据目录＋新数据目录；旧失败全保留。
+- 三國志 job 1（`443136b6`）：chunk 0 run 2 初次空 bundle、修正 0 errors 通过；
+  三块全过 assemble；resolve 开出 7 个同 revision 跨章 entity pair review，
+  operator 已按原文逐条裁决（5 default `same_entity`＋2 简繁例外 `same_entity`，
+  决定与 rationale 存 `operator-pair-decisions.json`），7/7 resolved 后 resume，
+  resolve completed；但 publish fail-closed：`publication_plan_stale`
+  （冻结基线 null vs 通鑑先发布形成的 catalog v1）。经查设计如此
+  （`resolve_publish.py`＋`chapter_stage.py`：冻结计划永不 rebase），非 bug；
+  job 1 作 terminal 证据保留，已开同 revision 新 job 重走 resolve（基线 v1）。
+- 通鑑 job（`c1c487cb`）：attempt 2 通过并完成 8 阶段，publication `01a08753`
+ （catalog `fe0bd3de` 即 v1），Reader API 全文 14984 字 64 块、首尾完整；
+  真实 chromium headless 渲染 DOM 17413 字、首尾标题齐全，截图已归档
+  （`reader-zztj.png`）。这是第二书完整闭环。
+- 生产重启/接管真实证据：SG job 2 运行中 `docker restart` worker；
+  日志 `signal 15; finishing current step...` 后新实例
+  `claiming ... (lease 300s)` 接管，job 继续运行（`worker-restart-takeover.log`）。
+  代价：一次 claim 消耗被计入 job 3/3 bounded budget（见下）。
+- 三國志 job 2（`d3eba4a3`）：chunks 0/1 通过、chunk 2 差 4 anchor/alias miss；
+  job claims 用尽（重启一次＋重试两次）后 Studio retry 按设计拒绝
+  （`exhausted its bounded retries (attempt 3 >= max_attempts 3)`），
+  不放宽 bound；job 2 作 terminal 证据保留，已开 job 3（`24fe7e6c`，同一定 revision）。
+- 本轮结论：NOT_PASSED。待 job 3 三块→新 pair review 重裁→publish（基线 v1）→
+  三章 Reader（含真实浏览器）→13 案独立结论→台账对账。
