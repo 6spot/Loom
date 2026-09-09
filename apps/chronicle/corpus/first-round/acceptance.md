@@ -99,3 +99,41 @@
 4. 修复回相应拥有层，用新 candidate 重新跑受影响门；只有实际验收通过后，
    再按 task-completion 流程完成 T19 及本轮索引默认分支对账，同步 #548 验收和关闭。
    #549/#550 保持未启动。
+
+## 7. 真实验证轮次 ffc58aa（进行中，verdict 仍为 NOT_PASSED）
+
+- 候选：`ffc58aa`（分支 `agent/executor/7dfa2567b43d`），镜像 `loom-chronicle:t19-ffc58aa`，
+  模型 `gpt-5.6-luna`，prompt v1→v2→v3 均经真实调用验证。
+- 服务器证据目录（测试机本地，不进仓库）：`/srv/loom-t19-evidence/ffc58aa/`
+  （manifest、两 job 终态快照、worker `chapter_failed` 真实错误行）。
+- 旧失败 job `75f34121`（三國志 revision）原样保留：3 次 extract 失败后
+  `needs_review`；新 job `db2980b9`（同一 revision）已跑 2 次 extract，均 fail-closed。
+- 5 次真实 extract runs（先主传 chunk 0，每次初次＋1 次整章修正）：
+  - v1：29→4（anchors×2＋time×2）。
+  - v2：bundle-only→22（含 claim literal 5 误报，已定位为 T01 schema/检查自矛盾，见下）。
+  - v2 retry：4→1（修正轮空 bundle 退化）。
+  - v3 新 job：9→2（anchors×2）；v3 retry：bundle-only→9。
+- 由此落地的拥有层修复（ dochter wire 无关，全部有 focused tests）：
+  1. 修正轮 diagnostics 保留记录 temp id（此前 `ent_*` 掩码使不同记录坍缩去重，
+     模型无法定位；`chapter_prompt.py`，prompt v2）。
+  2. VERBATIM GROUNDING PROCEDURE：quote 逐字复制、block 范围核对、
+     `time.original_text` 不得写入继承年月（此前模型屡次前补“二年/三年”；v2）。
+  3. claim object 形状指引 `{kind,ref}|{kind:literal,value}`（v3）。
+  4. T01 自矛盾对齐：candidate schema＋API text_format＋C0 LITERAL 均为
+     `{kind:literal,value}`，唯 python references 检查要求 `ref`，致任何 literal
+     都无法同时通过两门；已按 schema 一侧对齐（`chapter_contract.py`），
+     未放宽任何 grounding 要求。真实 attempt-2 候选复跑验证：22→17 错误，
+     5 个 claim 误报消除，无新增错误。
+  5. `chapter_failed` 日志携带真实错误（此前恒为 None；`chapter_stage.py`，
+     生产日志已验证）。
+  6. `CHRONICLE_MODEL_TIMEOUT_SECONDS` 进入 joint chapter provider
+     （此前恒为 600s 默认；`model_provider.py`＋`chapter_stage.py`）。
+  7. 每次模型调用记录 `latency_ms`（`chapter_extraction.py`）。
+- 实测用量（先主传 chunk 0，gpt-5.6-luna）：prompt 约 39k→78k chars（含修正轮），
+  单次调用耗时约 147s→422s，无 transport error（transport 内部重试在成功路径
+  不可见，属已知证据缺口，未虚构数字）。
+- 顽固剩余错误类（verbatim 程序已覆盖仍偶发，属模型采样方差）：
+  真实 quote 配错 block（如“曹公征徐州”在 b_011 却标 b_009）、虚构 quote
+  （如“先主留張飛守下邳”全章 0 命中，多次复现）——validator 均正确 fail-closed。
+- 本轮结论：NOT_PASSED。13 案仍全部 `pending`；第二书（通鑑）尚未开始；
+  Studio 人工 review、发布、Reader 阅读、13 案独立核对均未执行。

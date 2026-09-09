@@ -48,6 +48,16 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Verification on this branch: 15 gate tests OK; fixture gate PASS (2 works/10 faults, non-live); `docker compose --profile worker config` renders the model value when set and `""` when unset; 16 worker wiring/budget tests OK; `git diff --check` clean; `validator_ready.py` still only the known pre-existing root `C2-R1 has no status`.
 - After merge, T19 freezes a new candidate and reruns live acceptance; 13 cases stay `pending` until independent review.
 
+2026-09-09 — Live verification round on `ffc58aa` (test server, model `gpt-5.6-luna`; still NOT_PASSED, no completion claim):
+
+- Root causes from the real 先主传 chunk-0 failure evidence (5 extract runs, prompts v1→v3, all fail-closed, old runs preserved):
+  diagnostics masked record ids (`ent_*` collapse); model prepended inherited years into `time.original_text`; claim object shape untaught; T01 schema-vs-check literal self-contradiction; `chapter_failed` logged `error: None`; chapter provider ignored `CHRONICLE_MODEL_TIMEOUT_SECONDS`; no per-call latency.
+- Owning-layer fixes (346 persistence + 105 worker + 15 gate unit tests OK; `git diff --check` clean; replay of the real attempt-2 candidate: 22→17 errors, 5 claim false positives gone, fail-closed retained):
+  `chapter_prompt.py` (ids kept, VERBATIM GROUNDING PROCEDURE, claim shape, v3), `chapter_contract.py` (literal aligned to schema `{kind,value}`), `chapter_extraction.py` (`latency_ms`), `chapter_stage.py` (real `chapter_failed` error — verified in production logs; timeout passthrough), `model_provider.py` (`timeout_from_env`), focused tests incl. `test_chapter_stage_wiring_unit.py` and claim-shape pins.
+- Live usage (chunk 0): prompts ~39k→78k chars, ~147–422s per call, zero transport errors (successful-path internal transport retries not instrumented — recorded gap, no numbers invented).
+- Best runs reach 4→1 and 9→2 errors; the stubborn remainder is anchor misattribution (real quote/wrong block; invented quote such as 先主留張飛守下邳 with 0 chapter hits) — validator correctly fail-closed every time. Jobs `75f34121` (needs_review) and `db2980b9` (failed, 1 retry left) preserved; server evidence at `/srv/loom-t19-evidence/ffc58aa/`.
+- Still open: 通鑑 second book, Studio human review, publish, Reader reading, restart/takeover evidence, 13-case independent conclusions (all `pending`). PR #614 updated; awaiting independent review, not marked PASSED.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
