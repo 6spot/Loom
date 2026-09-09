@@ -222,3 +222,19 @@
   预期出现跨书 batch 候选（第二来源覆盖）。
 - 本轮结论：NOT_PASSED。待 job 4 三块→pair（＋可能 batch）review 裁决→
   publish→三章 Reader（含真实浏览器）→13 案独立结论→台账对账。
+
+## 11. Job 4/5 与 claim-budget 边界（真实观察，verdict 仍为 NOT_PASSED）
+
+- Job 4（`e76081d3`，revision `7c324401`）：chunk 0 经 5 次人工门控运行通过
+  （run1 transport 空回包；run2 surface `曹公/曹公征徐州`；run3 顽固 anchor；
+  run4 全员 hedge 违规；run5 通过），chunk 1 通过，chunk 2 差标点 `。`
+  evidence miss＋anchor hints（均可修复类）；但 job claims 到 5/3，
+  Studio retry 按设计拒绝、resume 要求 needs_review（job 为 failed）——
+  chunk 级仍有 retries 也无 operator 恢复路径。job 4 作 terminal 证据保留。
+- Claim-budget 教训（上报 round owner，不自行放宽）：bounded job claims（3）
+  在逐块模型方差下烧完，而 chunk 级 retries 仍在；`failed`＋claims 用尽是死局，
+  只有 `needs_review` 才有 supervised resume 出路。失败界本身工作正常。
+- Revision `7c324401` 的 label 空闲（job 4 未到 resolve，无 staging），
+  job 5（`0634b3c8`，同 revision）resolve 路径干净，已排队。jobs 1–4 全保留。
+- 本轮结论：NOT_PASSED。待 job 5 三块→review 裁决→publish→三章 Reader
+  （含真实浏览器）→13 案独立结论→台账对账。
