@@ -38,6 +38,16 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check --format json` — still reports `task C2-R1 has no status` (pre-existing root-level issue recorded by T16, fix outside this task's file ownership).
 - NOT run (blocked, no fabrication): real provider calls, Studio interactive reviews, restart/takeover, publish/public reading, two-revision pinning, browser observations, independent per-chapter content conclusions (13 cases stay `pending`), usage/timing budgets. Verdict `not_passed`; see `apps/chronicle/corpus/first-round/acceptance.md` §4–§6 for the blocker list and the live rerun checklist.
 
+2026-09-09 — Production wiring fix (live READY reached, real execution found the worker never receives `CHRONICLE_CHAPTER_MODEL`; Issue stays `blocked`, no PASS/completion claim):
+
+- `compose.chronicle.yaml`: pass `CHRONICLE_CHAPTER_MODEL: ${CHRONICLE_CHAPTER_MODEL:-}` into `chronicle-worker` (same fail-soft convention as extraction/presentation; worker fails closed at startup without it).
+- `.env.chronicle.example`: document `CHRONICLE_CHAPTER_MODEL` alongside the other two model entries.
+- `apps/chronicle/acceptance/first_round_gate.py`: live preflight now requires `CHRONICLE_CHAPTER_MODEL` and records `provider.chapter_model`; READY can no longer be issued for a deployment that cannot execute the joint chapter pipeline.
+- `apps/chronicle/docs/chapter-acceptance.md` §2: live env fill-in list now includes `CHRONICLE_CHAPTER_MODEL`.
+- Focused tests (`test_first_round_gate.py`, 12→15): missing chapter model fails preflight; READY records the chapter model identity; compose YAML parses with the worker passthrough present.
+- Verification on this branch: 15 gate tests OK; fixture gate PASS (2 works/10 faults, non-live); `docker compose --profile worker config` renders the model value when set and `""` when unset; 16 worker wiring/budget tests OK; `git diff --check` clean; `validator_ready.py` still only the known pre-existing root `C2-R1 has no status`.
+- After merge, T19 freezes a new candidate and reruns live acceptance; 13 cases stay `pending` until independent review.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
