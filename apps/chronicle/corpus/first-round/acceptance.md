@@ -36,15 +36,21 @@
 - `python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v`
   —— 12 tests OK（与 T18 记录一致的 fixture 端到端断言、live 七类拒绝、
   READY 零 provider 调用、无直写 DB、合成文本装配与故障闭环）。
-- `python3 apps/chronicle/acceptance/first_round_gate.py --mode fixture ... --allow-dirty`
+- `python3 apps/chronicle/acceptance/first_round_gate.py --mode fixture --env-file /tmp/chronicle-first-round-test.env --source-pack apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /tmp/chronicle-first-round-offline --allow-dirty`
   —— PASS：2 works（三國志 3 章＋通鑑 1 章，plan/切片绑定/接受/装配全经真实入口），
   10 故障注入全部 fail-closed，pair 初始 uncertain 且阻塞、batch 默认 uncertain。
   **该 PASS 明确标注 `fixture_only`，不是 live 内容证明。**
+  （`--allow-dirty` 仅本地迭代使用；CI 运行严格干净检出。测试 env 文件内容见
+  `chapter-acceptance.md` §1，不含秘密。）
 - live 探针（非交互 stdin，如实拒绝）：
-  `python3 apps/chronicle/acceptance/first_round_gate.py --mode live ... < /dev/null`
+  `python3 apps/chronicle/acceptance/first_round_gate.py --mode live --env-file /tmp/chronicle-live-probe.env --source-pack apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /tmp/chronicle-first-round-live-probe < /dev/null`
   —— FAIL（符合预期）：`live mode requires an interactive terminal: stdin is not a TTY,
   so no operator could resolve blocking reviews in Studio`。
   证明 live 入口在无人值守环境下 fail-closed，不会静默自动审核。
+  （探针 env 仅为占位值：`CHRONICLE_MODEL_ENDPOINT=https://example.invalid/v1` 加
+  非秘密哑值，无真实凭据。真实 live 运行的 canonical 命令见
+  `chapter-acceptance.md` §2：`--env-file .env.chronicle` 须填入真实
+  provider 配置，且必须在交互式终端执行。）
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check --format json`
   —— 仍报 `task C2-R1 has no status`（T16 已记录的根级问题，修复超出本任务文件所有权，未改）。
 - 本目录新增 JSON 已做解析与引用存在性检查（见 T19 台账 Verification），
@@ -75,7 +81,7 @@
 ## 5. 内容 verdict
 
 - 已知关键内容错误：**未知**（未做独立核对，不能宣称“无已知错误”）。
-- 12 定位案例独立结论：**0/13**（全部 pending，不伪造结论）。
+- 13 个真实定位案例独立结论：**0/13**（全部 pending，不伪造结论）。
 - 模型输出预算满足性：**未测量**。
 - 闭环可追溯证据：**无**（fixture manifest 仅为编排证据，已存 `/tmp` 临时目录，不作为交付物）。
 - 本记录 verdict：**NOT_PASSED**。后续拥有者用新 candidate 重跑受影响门时，
