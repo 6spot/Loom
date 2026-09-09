@@ -11,15 +11,6 @@ created_at: 2026-09-08
 
 父协调 Issue [#549](https://github.com/6spot/Loom/issues/549)，总讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮负责连续阅读、来源感知叙事时间、事件导航和当前片段上下文；第三轮 #550 仍是独立阶段。
 
-## 执行权威
-
-本文件描述设计依赖、文件边界和交付拆分，不承担运行时调度。
-
-- Multica Issue 的 dependency / parent-child / Stage 是当前执行顺序的权威。
-- 第一轮和第二轮 task 文件中的 `status` / `depends_on` 等字段是文档上下文，不要求默认分支 Task Ledger 对账后才可启动。
-- 跨轮依赖仍代表真实设计前置，但其是否已经满足由当前 Multica 图和实际已交付代码/合同决定，不由 Markdown 状态字段单独判定。
-- 不做 delivery merge 后的 ledger-only reconciliation 流程。
-
 ## 已固定的结果
 
 - 同一上传 revision 的完整章按原叙事顺序连续阅读；侧边轴按叙事时间分组。跨来源通过已确认事件明确切换并可返回，不在前端按年份拆散/混编正文。
@@ -31,7 +22,7 @@ created_at: 2026-09-08
 
 ## 任务图
 
-表中依赖是设计图；实际 READY 由 Multica 当前状态决定。
+表中依赖描述设计顺序和接口前置。
 
 | Task | Issue | Depends on | 交付 |
 | --- | --- | --- | --- |
@@ -101,7 +92,7 @@ flowchart LR
 
 ## 并行与文件所有权
 
-按 Multica 依赖/Stage 和实际文件边界并行。多个任务不得同时抢写同一共享入口。
+并行实现同时遵守任务依赖和实际文件边界，避免多个任务同时修改同一共享入口。
 
 - 新 0.2 schemas、`reading_contract.py`、`reading-types.ts`、c2r2-contract fixtures：T01。
 - corpus/second-round 样例、Vite 基座、reading-component-smoke：T02。
@@ -123,6 +114,6 @@ flowchart LR
 
 ## 交付
 
-每个 Leaf 以对应 Issue、实现、验证和 PR 交付。任务文档可以保存有价值的设计/evidence，但不要求 post-merge Task Ledger 对账。
+每个 Leaf 以对应 Issue、实现、验证和 PR 交付。任务文档按需要保存有价值的设计说明和验证证据。
 
 仓库交付完成规则见 [`../../../development/task-completion.md`](../../../development/task-completion.md)。
