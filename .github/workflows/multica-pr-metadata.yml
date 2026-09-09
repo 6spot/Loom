@@ -1,0 +1,82 @@
+name: Multica PR Metadata
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  normalize:
+    name: Normalize Multica PR metadata
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.body || '', 'Multica-Issue:')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure Multica close intent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+          body = event["pull_request"].get("body") or ""
+
+          marker_re = re.compile(
+              r"(?mi)^\s*Multica-Issue:\s*([A-Za-z][A-Za-z0-9]*-\d+)\s*$"
+          )
+          markers = marker_re.findall(body)
+          unique_markers = list(dict.fromkeys(markers))
+
+          if not unique_markers:
+              raise SystemExit("Multica-Issue marker is present but not in a supported standalone format")
+          if len(unique_markers) != 1:
+              raise SystemExit(
+                  "Expected exactly one Multica issue identifier, found: "
+                  + ", ".join(unique_markers)
+              )
+
+          issue_key = unique_markers[0]
+          close_re = re.compile(
+              rf"(?mi)^\s*Closes\s+{re.escape(issue_key)}\s*$"
+          )
+
+          if close_re.search(body):
+              print(f"PR already contains canonical close intent for {issue_key}")
+              raise SystemExit(0)
+
+          normalized_body = body.rstrip()
+          if normalized_body:
+              normalized_body += "\n\n"
+          normalized_body += f"Closes {issue_key}\n"
+
+          payload = Path("/tmp/multica-pr-body.json")
+          payload.write_text(json.dumps({"body": normalized_body}))
+
+          subprocess.run(
+              [
+                  "gh",
+                  "api",
+                  "--method",
+                  "PATCH",
+                  f"repos/{os.environ['REPOSITORY']}/pulls/{os.environ['PR_NUMBER']}",
+                  "--input",
+                  str(payload),
+              ],
+              check=True,
+          )
+          print(f"Added canonical close intent: Closes {issue_key}")
+          PY
