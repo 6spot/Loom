@@ -238,3 +238,40 @@
   job 5（`0634b3c8`，同 revision）resolve 路径干净，已排队。jobs 1–4 全保留。
 - 本轮结论：NOT_PASSED。待 job 5 三块→review 裁决→publish→三章 Reader
   （含真实浏览器）→13 案独立结论→台账对账。
+
+## 12. T02 十三案 operator 草稿结论（人工逐条核对，非最终 PASS）
+
+> 方法：executor 人工对照原文与真实模型产物逐条核对（非模型自证）。
+> 通鑑依据已发布产物（publication `01a08753`，artifact `b1aaf568`）；
+> 三國志依据 job 1 accepted-but-unpublished artifacts（三块 47/48/38KB，
+> 翻译与 bundle 均已落盘 `sg-job1-chunk*-translation.txt`）。
+> `manual-content-review.json` 保持全部 `pending`，以下为草稿结论，
+> 须独立 reviewer 确认后方可转正；总体 verdict 仍为 NOT_PASSED。
+
+| 案 | 译文侧 | bundle 侧 | 草稿 |
+| --- | --- | --- | --- |
+| C01 先主/備 | 開篇先主姓刘名备；先主124×一贯 | SG1 備→ent_005；SG0 两 mention unresolved；ch0↔ch1↔ch2 pair 均 same_entity | PASS（记 SG0 内链缺口） |
+| C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | PASS |
+| C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity | PASS |
+| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | SG1 赤壁 place；ZZ evt_004 赤壁之戰；事件跨章未裁决 | PASS（记事件未裁决） |
+| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 跨書 batch 从未开出（ZZ 单发，SG 未发布） | PASS（记跨書未裁决） |
+| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 人名职事对象一致；跨書未裁决 | PASS（记用词漂移＋未裁决） |
+| C07 南郡/江陵 | 追至南郡／守卫江陵分明 | 无南郡 entity、无合并（uncertain 平凡成立）；南郡未建模记 recall 观察 | PASS（记 recall 观察） |
+| C08 典略注 | 3×《典略》说/又记载，位置正确 | 注无伪造归属 | PASS |
+| C09 江表傳注 | 7×《江表传》说，位置正确 | 同上 | PASS |
+| C10 馬超背景 | 周瑜演说内背景铺陈完整 | 无馬超 entity/event/claim | PASS |
+| C11 首部完整 | 四章開篇俱全 | — | PASS |
+| C12 尾部完整 | 先主傳惠陵＋神仙傳注；通鑑賀齊太守（与原文末一致） | — | PASS |
+| C13 習鑿齒論曰 | “习凿齿评论说”＋位置正确（劉備遗言后、王威前） | 无習鑿齒 entity（未误作同期言论） | PASS |
+
+关键负发现（阻止转正，必须先解决或由 owner 定夺）：
+
+1. **SG chunk 0 骨架 bundle**：12591 字先主傳只产出 1 entity（刘备）＋1 event
+   （永安宮去世）＋1 claim＋2 unresolved mentions，而译文含曹操37×/孫權19×/
+   諸葛亮17×/关羽14×。validator 只量结构（禁空 bundle），不量召回；
+   修正轮“修好唯一报错”激励最小修复。这是 T19 “身份关联、来源核对可用”
+   对先主傳不成立的直接证据。修召回下限属契约语义决策，未擅改，上报定夺。
+2. **ch0 canonical 简体**：先主傳 entity 名用简体「刘备」（通鑑章 15 entities
+   全繁体）。身份无误，内容质量观察项。
+3. **SG 未发布**：以上 SG 结论基于 accepted-but-unpublished artifacts；
+   四章 Reader、发布闭环、13 案转正均待 SG  Booker 发布后由独立 reviewer 定夺。
