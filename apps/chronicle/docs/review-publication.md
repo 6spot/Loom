@@ -125,3 +125,39 @@ R.resolve_resolution_review(
 After every open item is resolved or dismissed, resume through the
 existing Studio operation (`needs_review` -> `running`), and the
 next worker claim finalizes and publishes deterministically.
+
+## Chapter review plan: mixed chapter_pair and published_batch (C2-R1-T08)
+
+The chapter path freezes one review plan (`c2r1-review-plan-v1`) over
+the persisted non-public assembled bundle and all initial v0.2
+resolutions. Every candidate key is covered exactly once:
+
+- `chapter_pair`: one within-revision candidate, both ends staged. The
+  item shows and stores exactly that candidate's decision (no batching,
+  no group overrides, never grouped by name).
+- `published_batch`: the Amendment 0007 batch (proven groups,
+  default plus per-group overrides) for incoming-vs-published
+  candidates. Grouping still uses only proven canonical/within-book
+  same-links.
+
+Both modes coexist in one job; legacy candidate items never mix with
+either mode. ReviewItem kind stays `stage_gate`, scope stays
+`resolution`; the mode lives on `payload.review_mode`.
+
+The plan fingerprint binds version, job, revision, assembled bundle
+hash, base catalog hash, and all sorted resolution/candidate/member/
+group IDs (canonical JSON SHA-256, excluding decisions, statuses and
+timestamps). Recovery revalidates the fingerprint exactly and never
+re-materializes the plan.
+
+The decision graph is keyed by `(bundle, ref)`: staged same-links join
+the same connected-component check as published membership, so a
+cross-chapter same chain bridging two already-published IDs is
+rejected (`canonical_identity_conflict`); `not_same` /
+`related_occurrence` / `uncertain` never merge. Event
+`related_occurrence` provenance keeps the persisted original
+resolution hash.
+
+Latest-catalog reads in the review path order by
+`publication_sequence` (T04 structure column), not `imported_at`. The
+remaining publish read paths belong to T13.

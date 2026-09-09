@@ -16,6 +16,16 @@ from model_v0 import ModelProvider, ModelV0Error, parse_model_response
 
 RESOLUTION_VERSION = "0.1"
 
+#: Resolution-links v0.2 for the C2-R1 chapter path (chapter-production §6).
+#: Reuses the v0.1 candidate vocabulary; only the scope envelope is new.
+RESOLUTION_V02_VERSION = "0.2"
+
+#: Valid v0.2 scopes. ``within_revision`` is the same-bundle cross-chapter
+#: envelope; ``cross_source`` keeps the distinct-bundle requirement.
+SCOPE_WITHIN_REVISION = "within_revision"
+SCOPE_CROSS_SOURCE = "cross_source"
+VALID_V02_SCOPES = frozenset({SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE})
+
 
 class ResolutionV0Error(ModelV0Error):
     pass
@@ -322,6 +332,258 @@ def event_candidates(
     return candidates
 
 
+def _entity_pair_blocked(left: dict[str, Any], right: dict[str, Any]) -> list[str] | None:
+    """Return candidate signals when an Entity pair blocks, else None."""
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return None
+    if left.get("type") != right.get("type"):
+        return None
+    left_surfaces = _stable_entity_surfaces(left)
+    if not left_surfaces:
+        return None
+    shared = sorted(left_surfaces & _stable_entity_surfaces(right))
+    if not shared:
+        return None
+    signals = [f"same entity type: {left.get('type')}"]
+    left_name = left.get("canonical_name")
+    right_name = right.get("canonical_name")
+    if left_name == right_name and isinstance(left_name, str):
+        signals.append(f"exact canonical surface: {left_name}")
+    else:
+        signals.append("shared stable surface: " + ", ".join(shared))
+    return signals
+
+
+def _event_pair_blocked(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    left_names: dict[str, str],
+    right_names: dict[str, str],
+) -> tuple[int, list[str]] | None:
+    """Return (score, signals) when an Event pair blocks, else None."""
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return None
+    if not _time_compatible(left, right):
+        return None
+    lp = _event_participants(left, left_names)
+    rp = _event_participants(right, right_names)
+    lplaces = _event_places(left, left_names)
+    rplaces = _event_places(right, right_names)
+    participant_overlap = sorted(lp & rp)
+    place_overlap = sorted(lplaces & rplaces)
+    left_type = left.get("type")
+    right_type = right.get("type")
+    same_type = left_type == right_type and isinstance(left_type, str)
+    type_compatible = _event_type_compatible(left_type, right_type)
+    narrow_same_type = (
+        same_type
+        and left_type in _LOW_AMBIGUITY_EVENT_TYPES
+        and bool(participant_overlap)
+    )
+    anchored_broad_match = (
+        type_compatible and bool(participant_overlap) and bool(place_overlap)
+    )
+    if not (narrow_same_type or anchored_broad_match):
+        return None
+    score = 0
+    signals: list[str] = []
+    if type_compatible:
+        score += 3
+        signals.append(f"compatible event types: {left_type} / {right_type}")
+    if narrow_same_type:
+        score += 2
+        signals.append(f"low-ambiguity same event type: {left_type}")
+    if participant_overlap:
+        score += 2 * len(participant_overlap)
+        signals.append("shared participants: " + ", ".join(participant_overlap))
+    if place_overlap:
+        score += 3 * len(place_overlap)
+        signals.append("shared places: " + ", ".join(place_overlap))
+    lt = _event_time(left)
+    rt = _event_time(right)
+    if lt["normalized_year"] is not None and lt["normalized_year"] == rt["normalized_year"]:
+        score += 1
+        signals.append(f"same normalized year: {lt['normalized_year']}")
+    return score, signals
+
+
+def build_within_bundle_candidate_set(
+    bundle: dict[str, Any],
+    bundle_label: str,
+    chapter_by_ref: dict[str, str],
+    max_candidates: int = 64,
+) -> dict[str, Any]:
+    """Generate conservative within-bundle cross-chapter candidates (v0.2).
+
+    Reuses the existing Entity/Event blocking, but only pairs records from
+    different chapters with different refs. Ordering is deterministic on
+    ``(chapter, ref)``: the smaller end is left, self-pairs and symmetric
+    duplicates are never emitted. The returned set carries candidates only;
+    initial ``uncertain`` decisions are applied by the persistence layer.
+    """
+    if not isinstance(bundle, dict):
+        raise ResolutionV0Error("within-bundle candidate input must be a bundle object")
+    if not isinstance(bundle_label, str) or not bundle_label:
+        raise ResolutionV0Error("within-bundle bundle label must be a non-empty string")
+    if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
+        raise ResolutionV0Error("within-bundle chapter_by_ref must be a non-empty mapping")
+
+    entities = bundle.get("entities") or []
+    events = bundle.get("events") or []
+    if not isinstance(entities, list) or not isinstance(events, list):
+        raise ResolutionV0Error("within-bundle bundle entities/events must be arrays")
+
+    def _chapter_of(ref: str) -> str | None:
+        chapter = chapter_by_ref.get(ref)
+        return chapter if isinstance(chapter, str) and chapter else None
+
+    entity_by_ref: dict[str, dict[str, Any]] = {}
+    for record in entities:
+        if not isinstance(record, dict):
+            continue
+        ref = record.get("temp_id") or record.get("id")
+        if isinstance(ref, str) and ref and _chapter_of(ref) is not None:
+            entity_by_ref.setdefault(ref, record)
+    event_by_ref: dict[str, dict[str, Any]] = {}
+    for record in events:
+        if not isinstance(record, dict):
+            continue
+        ref = record.get("temp_id") or record.get("id")
+        if isinstance(ref, str) and ref and _chapter_of(ref) is not None:
+            event_by_ref.setdefault(ref, record)
+
+    entity_candidates: list[dict[str, Any]] = []
+    for left_ref, right_ref in _ordered_ref_pairs(entity_by_ref, _chapter_of):
+        assert isinstance(left_ref, str) and isinstance(right_ref, str)
+        left, right = entity_by_ref[left_ref], entity_by_ref[right_ref]
+        signals = _entity_pair_blocked(left, right)
+        if signals is None:
+            continue
+        entity_candidates.append(
+            {
+                "left": {"bundle": bundle_label, "ref": left_ref},
+                "right": {"bundle": bundle_label, "ref": right_ref},
+                "signals": signals,
+                "left_record": _entity_snapshot(left),
+                "right_record": _entity_snapshot(right),
+            }
+        )
+    entity_candidates.sort(key=lambda c: (c["left"]["ref"], c["right"]["ref"]))
+    for index, candidate in enumerate(entity_candidates, 1):
+        candidate["candidate_id"] = f"ec_{index:03d}"
+
+    names = _entity_name_map(bundle)
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for left_ref, right_ref in _ordered_ref_pairs(event_by_ref, _chapter_of):
+        assert isinstance(left_ref, str) and isinstance(right_ref, str)
+        left, right = event_by_ref[left_ref], event_by_ref[right_ref]
+        blocked = _event_pair_blocked(left, right, names, names)
+        if blocked is None:
+            continue
+        score, signals = blocked
+        ranked.append(
+            (
+                score,
+                {
+                    "left": {"bundle": bundle_label, "ref": left_ref},
+                    "right": {"bundle": bundle_label, "ref": right_ref},
+                    "signals": signals,
+                    "left_record": _event_snapshot(left, names),
+                    "right_record": _event_snapshot(right, names),
+                },
+            )
+        )
+    ranked.sort(
+        key=lambda item: (
+            -item[0],
+            item[1]["left"]["ref"],
+            item[1]["right"]["ref"],
+        )
+    )
+    event_candidates = [item[1] for item in ranked[:max_candidates]]
+    for index, candidate in enumerate(event_candidates, 1):
+        candidate["candidate_id"] = f"vc_{index:03d}"
+
+    bundle_ref = _bundle_ref(bundle, bundle_label)
+    return {
+        "schema": "chronicle.resolution-candidates",
+        "version": RESOLUTION_V02_VERSION,
+        "scope": SCOPE_WITHIN_REVISION,
+        "left_bundle": dict(bundle_ref),
+        "right_bundle": dict(bundle_ref),
+        "entity_candidates": entity_candidates,
+        "event_candidates": event_candidates,
+    }
+
+
+def _ordered_ref_pairs(
+    by_ref: dict[str, dict[str, Any]],
+    chapter_of,  # callable(ref) -> chapter | None
+) -> list[tuple[str, str]]:
+    """Return deterministic cross-chapter ref pairs (smaller end first)."""
+    refs = sorted(by_ref)
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for left_pos in range(len(refs)):
+        for right_pos in range(left_pos + 1, len(refs)):
+            first, second = refs[left_pos], refs[right_pos]
+            if first == second:
+                continue
+            left_chapter, right_chapter = chapter_of(first), chapter_of(second)
+            if left_chapter is None or right_chapter is None:
+                continue
+            if left_chapter == right_chapter:
+                continue
+            left_key = (left_chapter, first)
+            right_key = (right_chapter, second)
+            if right_key < left_key:
+                first, second = second, first
+            key = (first, second)
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append(key)
+    pairs.sort(key=lambda pair: ((chapter_of(pair[0]), pair[0]), (chapter_of(pair[1]), pair[1])))
+    # Re-derive canonical left/right order from the sorted chapter/ref keys.
+    ordered: list[tuple[str, str]] = []
+    for first, second in pairs:
+        left_key = (chapter_of(first), first)
+        right_key = (chapter_of(second), second)
+        if right_key < left_key:
+            first, second = second, first
+        ordered.append((first, second))
+    return ordered
+
+
+def build_cross_source_candidate_set_v02(
+    left_bundle: dict[str, Any],
+    left_label: str,
+    right_bundle: dict[str, Any],
+    right_label: str,
+) -> dict[str, Any]:
+    """Generate cross-source candidates under the v0.2 envelope.
+
+    Same blocking as :func:`build_candidate_set`; the distinct-bundle
+    requirement is kept. New chapter-path code uses this envelope so a
+    frozen plan never mixes old-generation artifacts.
+    """
+    if left_label == right_label:
+        raise ResolutionV0Error("left and right bundle labels must be distinct")
+    return {
+        "schema": "chronicle.resolution-candidates",
+        "version": RESOLUTION_V02_VERSION,
+        "scope": SCOPE_CROSS_SOURCE,
+        "left_bundle": _bundle_ref(left_bundle, left_label),
+        "right_bundle": _bundle_ref(right_bundle, right_label),
+        "entity_candidates": entity_candidates(
+            left_bundle, left_label, right_bundle, right_label
+        ),
+        "event_candidates": event_candidates(
+            left_bundle, left_label, right_bundle, right_label
+        ),
+    }
+
+
 def build_candidate_set(
     left_bundle: dict[str, Any],
     left_label: str,
@@ -486,15 +748,23 @@ def apply_resolution_decisions(
                 }
             )
 
-    return {
+    result = {
         "schema": "chronicle.resolution-links",
-        "version": RESOLUTION_VERSION,
+        "version": candidates.get("version") or RESOLUTION_VERSION,
         "left_bundle": candidates["left_bundle"],
         "right_bundle": candidates["right_bundle"],
         "entity_links": entity_links,
         "event_links": event_links,
         "warnings": warnings,
     }
+    scope = candidates.get("scope")
+    if isinstance(scope, str) and scope:
+        if scope not in VALID_V02_SCOPES:
+            raise ResolutionV0Error(f"resolution candidate scope {scope!r} is invalid")
+        if result["version"] != RESOLUTION_V02_VERSION:
+            raise ResolutionV0Error("scoped resolution candidates require version 0.2")
+        result["scope"] = scope
+    return result
 
 
 def resolve_with_provider(

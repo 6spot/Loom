@@ -3,10 +3,10 @@ task: C2-R1-T08
 issue: 558
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: [C2-R1-T04, C2-R1-T07]
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-09
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,8 +29,17 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+2026-09-09 — Implementation on branch `agent/executor/c8ce89c3b323` (delivery PR pending; no completion claim):
+
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_resolve_publish_unit.py' -v` — **33 tests OK** (was 24; +9 chapter-path tests: within-bundle blocking/uncertainty, mixed plan exact-once coverage, mode/group/duplicate rejection, fingerprint stability + tamper evidence, union merge vs uncertain-distinct, downgrade refusal, self-link ban).
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*review*_unit.py' -v` — **35 tests OK** (was 24; +11 new `test_review_subjects_chapter_unit.py`: per-candidate pair subjects, pair-only fan-out, mixed coexistence, legacy-mix rejection, bridge rejection via `canonical_identity_conflict`, not_same bridge break).
+- `python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_v0.py' -v` — **7 tests OK**; `-p 'test_publication_v0.py'` — **11 tests OK** (legacy envelopes unchanged).
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_store_postgres.py'` — **17 tests OK** (regression: 0006 envelope + Reader constraint untouched).
+- Live PG18 scope check (isolated database, migrations applied): `0.2`/`within_revision` persists with scope stored, legacy `0.1` cross-source persists with NULL scope, `0.1` same-bundle rejected — **passed**.
+- `git diff --check` — **clean**.
+- Dependency reconciliation: C2-R1-T04 ledger is `in_progress` and C2-R1-T07 ledger is `planned` on the default branch (`main` contains neither merge); both code merges exist only on the stacked branch. Per the Issue, this task **cannot close** until T04/T07 reconcile to `completed` on the default branch. No UI change, so no test/build/smoke:dist applies. No new migration; `ingestion_worker.py` untouched.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-09 — Implementation started per Leader dispatch on `agent/executor/c8ce89c3b323`. Dependency note: C2-R1-T04/T07 code is present on the stacked branch but neither Task Ledger is `completed` on the default branch, so close-out remains blocked on their reconciliation; this task consumes only their contract code, not their completion status.

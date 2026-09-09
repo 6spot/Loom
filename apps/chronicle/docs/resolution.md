@@ -1,4 +1,4 @@
-# Chronicle Resolution v0.1
+# Chronicle Resolution v0.1 / v0.2
 
 Chronicle extraction is source-owned. Resolution is a later derived layer that relates records across independently ingested sources without rewriting either source bundle.
 
@@ -107,3 +107,25 @@ A later publication layer may consume accepted resolution links to decide whethe
 - preserve ambiguity for later review.
 
 The source bundles and source Claims remain intact regardless of that later decision.
+
+## Resolution v0.2: same-book cross-chapter candidates (C2-R1-T08)
+
+V0.2 reuses the v0.1 candidate vocabulary and blocking; only the scope
+envelope is new (`scope: within_revision | cross_source`).
+
+- `within_revision`: one assembled bundle, both ends share the bundle
+  label. `build_within_bundle_candidate_set(bundle, bundle_label,
+  chapter_by_ref)` pairs only records from **different chapters** with
+  **different refs**, ordered deterministically on `(chapter, ref)`.
+  Self-pairs and symmetric duplicates are never emitted. Same-name
+  records across chapters stay `uncertain` until a human decides.
+- `cross_source`: keeps the distinct-bundle requirement
+  (`build_cross_source_candidate_set_v02`). The legacy v0.1 builder is
+  unchanged for old jobs; a frozen chapter plan never mixes generations.
+- Initial decisions are all `uncertain` in both scopes.
+- The publisher accepts `0.1` (legacy, no scope) and validated
+  `0.2`/`scope` artifacts with unchanged union/negative-constraint/UUID
+  rules, plus a self-link ban on identical `(bundle, ref)` ends. A v0.2
+  artifact is never downgraded to 0.1.
+- The resolution store persists the scope column: same-bundle rows are
+  only valid as `0.2`/`within_revision`; v0.1 same-bundle is rejected.

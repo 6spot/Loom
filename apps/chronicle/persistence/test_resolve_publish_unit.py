@@ -559,5 +559,338 @@ class PublicationTests(unittest.TestCase):
             )
 
 
+def _chapter_bundle() -> tuple[dict, dict[str, str]]:
+    """One assembled bundle with 曹操 in chapters A/B and 刘备 in B."""
+    bundle = _bundle(
+        "三國志（兩章合裝）",
+        [
+            _entity("ent_000001", "曹操"),
+            _entity("ent_001001", "曹操"),
+            _entity("ent_001002", "劉備"),
+        ],
+        [],
+    )
+    chapters = {
+        "ent_000001": "ch_A",
+        "ent_001001": "ch_B",
+        "ent_001002": "ch_B",
+    }
+    return bundle, chapters
+
+
+def _chapter_uuid7(n: int) -> str:
+    return f"019535d9-3df7-7{n:03x}-8000-00000000000{n:x}"
+
+
+class WithinBundleInitialTests(unittest.TestCase):
+    def test_cross_chapter_same_name_blocks_but_same_chapter_does_not(self) -> None:
+        bundle, chapters = _chapter_bundle()
+        initial = R.build_within_bundle_initial_resolution(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+        )
+        assert initial is not None
+        self.assertEqual(initial["version"], "0.2")
+        self.assertEqual(initial["scope"], "within_revision")
+        self.assertEqual(initial["left_bundle"]["label"], "bund")
+        self.assertEqual(initial["right_bundle"]["label"], "bund")
+        pairs = {
+            (link["left"]["ref"], link["right"]["ref"])
+            for link in initial["entity_links"]
+        }
+        # Only the A/B 曹操 pair blocks; same-chapter B/B never pairs.
+        self.assertEqual(pairs, {("ent_000001", "ent_001001")})
+        self.assertTrue(
+            all(link["decision"] == "uncertain" for link in initial["entity_links"])
+        )
+
+    def test_same_chapter_pairs_never_block(self) -> None:
+        bundle, _ = _chapter_bundle()
+        # All same chapter: no candidates at all, hence no artifacts.
+        self.assertEqual(
+            R.build_chapter_initial_resolutions(
+                bundle=bundle,
+                bundle_label="bund",
+                chapter_by_ref={
+                    "ent_000001": "ch_A",
+                    "ent_001001": "ch_A",
+                    "ent_001002": "ch_A",
+                },
+            ),
+            [],
+        )
+
+    def test_cross_source_builder_still_forbids_same_bundle(self) -> None:
+        import resolution_v0
+
+        bundle, _ = _chapter_bundle()
+        with self.assertRaises(resolution_v0.ResolutionV0Error):
+            resolution_v0.build_cross_source_candidate_set_v02(
+                bundle, "bund", bundle, "bund"
+            )
+
+    def test_self_link_initial_is_rejected(self) -> None:
+        import resolution_store
+
+        bundle, chapters = _chapter_bundle()
+        initial = R.build_within_bundle_initial_resolution(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+        )
+        assert initial is not None
+        poisoned = copy.deepcopy(initial)
+        poisoned["entity_links"].append(
+            {
+                "candidate_id": "ec_999",
+                "left": {"bundle": "bund", "ref": "ent_000001"},
+                "right": {"bundle": "bund", "ref": "ent_000001"},
+                "decision": "uncertain",
+                "confidence": 0.5,
+                "rationale": "self probe",
+                "signals": [],
+            }
+        )
+        with self.assertRaises(PersistenceError):
+            resolution_store.validate_resolution_envelope(poisoned)
+        # The publisher fails closed on the same self-link (wrapped boundary).
+        with self.assertRaises(PersistenceError):
+            R.publish_with_decisions(
+                bundles={"bund": bundle},
+                resolutions=[poisoned],
+                existing_catalog=None,
+            )
+
+
+class ChapterReviewPlanTests(unittest.TestCase):
+    def _plan_world(self):
+        bundle, chapters = _chapter_bundle()
+        published = _bundle("舊刊", [_entity("ent_900", "曹操")], [])
+        corpus = {"old": published}
+        initials = R.build_chapter_initial_resolutions(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus=corpus
+        )
+        catalog, _ = R.publish_with_decisions(
+            bundles={"old": published}, resolutions=[], existing_catalog=None
+        )
+        return bundle, chapters, published, initials, catalog
+
+    def test_mixed_pair_and_batch_cover_each_candidate_once(self) -> None:
+        bundle, chapters, _published, initials, catalog = self._plan_world()
+        scopes = sorted(item.get("scope") for item in initials)
+        self.assertEqual(scopes, ["cross_source", "within_revision"])
+        job_id, revision_id = uuid.uuid4(), uuid.uuid4()
+        from common import sha256_json
+
+        assembled_sha = sha256_json(bundle)
+        base_sha = sha256_json(catalog)
+        plan = R.create_chapter_review_plan(
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256=assembled_sha,
+            base_catalog_sha256=base_sha,
+            initial_resolutions=initials,
+            catalog=catalog,
+            chapter_by_ref=chapters,
+        )
+        self.assertEqual(plan["version"], "c2r1-review-plan-v1")
+        self.assertEqual(len(plan["pair_payloads"]), 1)
+        self.assertEqual(plan["pair_payloads"][0]["review_mode"], "chapter_pair")
+        self.assertEqual(len(plan["batch_payloads"]), 1)
+        self.assertEqual(plan["batch_payloads"][0]["review_mode"], "published_batch")
+        self.assertEqual(
+            plan["pair_payloads"][0]["allowed_decisions"],
+            ["same_entity", "not_same", "uncertain"],
+        )
+        # Exact-once coverage across both modes.
+        from review_subjects import _payload_candidate_keys
+
+        covered = sorted(
+            key
+            for payload in plan["pair_payloads"] + plan["batch_payloads"]
+            for key in _payload_candidate_keys(payload)
+        )
+        from review_subjects import _candidate_members
+
+        expected = sorted(
+            item["candidate_key"]
+            for item in _candidate_members(initials)
+        )
+        self.assertEqual(covered, expected)
+        # Fingerprint restores exactly; tampered inputs fail closed.
+        fingerprint = R.validate_chapter_review_plan(
+            plan,
+            initials,
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256=assembled_sha,
+            base_catalog_sha256=base_sha,
+        )
+        self.assertEqual(fingerprint, plan["plan_fingerprint"])
+        from common import PersistenceConflict
+
+        with self.assertRaises(PersistenceConflict):
+            R.validate_chapter_review_plan(
+                plan,
+                initials,
+                job_id=job_id,
+                revision_id=revision_id,
+                assembled_bundle_sha256="0" * 64,
+                base_catalog_sha256=base_sha,
+            )
+        # Reordered inputs yield the same fingerprint (no re-materialization).
+        plan2 = R.create_chapter_review_plan(
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256=assembled_sha,
+            base_catalog_sha256=base_sha,
+            initial_resolutions=list(reversed(initials)),
+            catalog=catalog,
+            chapter_by_ref=chapters,
+        )
+        self.assertEqual(plan2["plan_fingerprint"], plan["plan_fingerprint"])
+
+    def test_wrong_mode_group_or_duplicate_candidates_rejected(self) -> None:
+        import review_subjects
+        from common import PersistenceConflict
+
+        bundle, chapters, _published, initials, catalog = self._plan_world()
+        job_id, revision_id = uuid.uuid4(), uuid.uuid4()
+        from common import sha256_json
+
+        plan = R.create_chapter_review_plan(
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256=sha256_json(bundle),
+            base_catalog_sha256=sha256_json(catalog),
+            initial_resolutions=initials,
+            catalog=catalog,
+            chapter_by_ref=chapters,
+        )
+        pair_payload = plan["pair_payloads"][0]
+        # chapter_pair accepts no group overrides.
+        with self.assertRaises(PersistenceError):
+            review_subjects.normalize_group_decisions(
+                pair_payload,
+                [
+                    {
+                        "review_group_id": "rg_missing",
+                        "decision": "not_same",
+                        "confidence": 0.9,
+                        "rationale": "例外探針",
+                    }
+                ],
+            )
+        # Unknown batch group override fails closed.
+        batch_payload = copy.deepcopy(plan["batch_payloads"][0])
+        batch_payload["decision"] = {
+            "decision": "same_entity",
+            "confidence": 0.9,
+            "rationale": "默認判斷",
+            "group_decisions": [
+                {
+                    "review_group_id": "rg_missing",
+                    "decision": "not_same",
+                    "confidence": 0.9,
+                    "rationale": "未知組",
+                }
+            ],
+        }
+        with self.assertRaises(PersistenceError):
+            review_subjects.decision_entries_for_payload(batch_payload, status="resolved")
+        # Duplicate candidate keys across the plan fail closed.
+        dup = copy.deepcopy(initials)
+        dup.append(copy.deepcopy(initials[0]))
+        with self.assertRaises(PersistenceConflict):
+            R.create_chapter_review_plan(
+                job_id=job_id,
+                revision_id=revision_id,
+                assembled_bundle_sha256=sha256_json(bundle),
+                base_catalog_sha256=sha256_json(catalog),
+                initial_resolutions=dup,
+                catalog=catalog,
+                chapter_by_ref=chapters,
+            )
+
+
+class ChapterPublishTests(unittest.TestCase):
+    def test_accepted_cross_chapter_same_merges_under_original_union(self) -> None:
+        bundle, chapters = _chapter_bundle()
+        initials = R.build_chapter_initial_resolutions(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+        )
+        self.assertEqual(len(initials), 1)
+        sha = R.initial_artifact_sha(initials[0])
+        key = f"{sha}:ec_001"
+        final = R.build_final_chapter_resolutions(
+            initials,
+            {
+                key: {
+                    "decision": "same_entity",
+                    "confidence": 0.9,
+                    "rationale": "兩章同名且第二共有表字證據",
+                }
+            },
+        )
+        self.assertEqual(final[0]["version"], "0.2")
+        catalog, report = R.publish_with_decisions(
+            bundles={"bund": bundle}, resolutions=final, existing_catalog=None
+        )
+        self.assertEqual(len(catalog["canonical_entities"]), 2)
+        merged = [
+            record
+            for record in catalog["canonical_entities"]
+            if len(record["representations"]) == 2
+        ]
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(
+            merged[0]["representations"],
+            [
+                {"bundle": "bund", "ref": "ent_000001"},
+                {"bundle": "bund", "ref": "ent_001001"},
+            ],
+        )
+        self.assertEqual(report["decisions"]["entities"], {"same_entity": 1})
+
+    def test_uncertain_without_evidence_stays_distinct(self) -> None:
+        bundle, chapters = _chapter_bundle()
+        initials = R.build_chapter_initial_resolutions(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+        )
+        sha = R.initial_artifact_sha(initials[0])
+        final = R.build_final_chapter_resolutions(
+            initials,
+            {
+                f"{sha}:ec_001": {
+                    "decision": "uncertain",
+                    "confidence": 0.5,
+                    "rationale": "同名無充分依據",
+                }
+            },
+        )
+        catalog, _ = R.publish_with_decisions(
+            bundles={"bund": bundle}, resolutions=final, existing_catalog=None
+        )
+        self.assertEqual(len(catalog["canonical_entities"]), 3)
+
+    def test_final_downgrade_to_01_is_refused(self) -> None:
+        bundle, chapters = _chapter_bundle()
+        initials = R.build_chapter_initial_resolutions(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+        )
+        downgraded = copy.deepcopy(initials)
+        downgraded[0]["version"] = "0.1"
+        downgraded[0].pop("scope", None)
+        sha = R.initial_artifact_sha(initials[0])
+        with self.assertRaises(PersistenceError):
+            R.build_final_chapter_resolutions(
+                downgraded,
+                {
+                    f"{sha}:ec_001": {
+                        "decision": "same_entity",
+                        "confidence": 0.9,
+                        "rationale": "降版探針",
+                    }
+                },
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
