@@ -411,8 +411,8 @@ def build_within_bundle_candidate_set(
     bundle: dict[str, Any],
     bundle_label: str,
     chapter_by_ref: dict[str, str],
+    chapter_index_by_id: dict[str, int],
     max_candidates: int = 64,
-    chapter_index_by_id: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Generate conservative within-bundle cross-chapter candidates (v0.2).
 
@@ -421,11 +421,10 @@ def build_within_bundle_candidate_set(
     ``(chapter_index, ref)``: the smaller end is left, self-pairs and
     symmetric duplicates are never emitted. ``chapter_by_ref`` carries the
     revision refs' chapter ids (hashes, unordered); the real order comes
-    from ``chapter_index_by_id`` (assembly plan chapters). When the index
-    map is absent every ref's chapter still differs by id, but callers
-    needing the contract order must pass it. The returned set carries
-    candidates only; initial ``uncertain`` decisions are applied by the
-    persistence layer.
+    from the required ``chapter_index_by_id`` (assembly plan chapters) —
+    there is no fallback ordering, so a missing map fails closed instead
+    of silently sorting by ref. The returned set carries candidates only;
+    initial ``uncertain`` decisions are applied by the persistence layer.
     """
     if not isinstance(bundle, dict):
         raise ResolutionV0Error("within-bundle candidate input must be a bundle object")
@@ -433,16 +432,18 @@ def build_within_bundle_candidate_set(
         raise ResolutionV0Error("within-bundle bundle label must be a non-empty string")
     if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
         raise ResolutionV0Error("within-bundle chapter_by_ref must be a non-empty mapping")
-    if chapter_index_by_id is not None:
-        if not isinstance(chapter_index_by_id, dict) or not chapter_index_by_id:
-            raise ResolutionV0Error("chapter_index_by_id must be a non-empty mapping")
-        for chapter_id, index in chapter_index_by_id.items():
-            if not isinstance(chapter_id, str) or not chapter_id:
-                raise ResolutionV0Error("chapter_index_by_id keys must be chapter ids")
-            if not isinstance(index, int) or isinstance(index, bool) or index < 0:
-                raise ResolutionV0Error(
-                    f"chapter_index_by_id[{chapter_id!r}] must be a non-negative integer"
-                )
+    if not isinstance(chapter_index_by_id, dict) or not chapter_index_by_id:
+        raise ResolutionV0Error(
+            "within-bundle chapter_index_by_id is required: pass the assembly "
+            "plan chapter order instead of sorting by ref"
+        )
+    for chapter_id, index in chapter_index_by_id.items():
+        if not isinstance(chapter_id, str) or not chapter_id:
+            raise ResolutionV0Error("chapter_index_by_id keys must be chapter ids")
+        if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+            raise ResolutionV0Error(
+                f"chapter_index_by_id[{chapter_id!r}] must be a non-negative integer"
+            )
 
     entities = bundle.get("entities") or []
     events = bundle.get("events") or []
@@ -456,17 +457,13 @@ def build_within_bundle_candidate_set(
     def _order_key(ref: str) -> tuple[int, str]:
         chapter = _chapter_of(ref)
         assert chapter is not None
-        if chapter_index_by_id is not None:
-            try:
-                index = chapter_index_by_id[chapter]
-            except KeyError as exc:
-                raise ResolutionV0Error(
-                    f"chapter {chapter!r} of ref {ref!r} is missing from chapter_index_by_id"
-                ) from exc
-            return (index, ref)
-        # No index map: order by ref alone (chapter ids are unordered
-        # hashes; their string order proves nothing about chapter order).
-        return (0, ref)
+        try:
+            index = chapter_index_by_id[chapter]
+        except KeyError as exc:
+            raise ResolutionV0Error(
+                f"chapter {chapter!r} of ref {ref!r} is missing from chapter_index_by_id"
+            ) from exc
+        return (index, ref)
 
     entity_by_ref: dict[str, dict[str, Any]] = {}
     for record in entities:

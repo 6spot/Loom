@@ -578,6 +578,11 @@ def _chapter_bundle() -> tuple[dict, dict[str, str]]:
     return bundle, chapters
 
 
+def _chapter_index() -> dict[str, int]:
+    """Assembly plan chapter order for the `_chapter_bundle` fixture."""
+    return {"ch_A": 0, "ch_B": 1}
+
+
 def _chapter_uuid7(n: int) -> str:
     return f"019535d9-3df7-7{n:03x}-8000-00000000000{n:x}"
 
@@ -586,7 +591,10 @@ class WithinBundleInitialTests(unittest.TestCase):
     def test_cross_chapter_same_name_blocks_but_same_chapter_does_not(self) -> None:
         bundle, chapters = _chapter_bundle()
         initial = R.build_within_bundle_initial_resolution(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
         )
         assert initial is not None
         self.assertEqual(initial["version"], "0.2")
@@ -615,6 +623,7 @@ class WithinBundleInitialTests(unittest.TestCase):
                     "ent_001001": "ch_A",
                     "ent_001002": "ch_A",
                 },
+                chapter_index_by_id={"ch_A": 0},
             ),
             [],
         )
@@ -633,7 +642,10 @@ class WithinBundleInitialTests(unittest.TestCase):
 
         bundle, chapters = _chapter_bundle()
         initial = R.build_within_bundle_initial_resolution(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
         )
         assert initial is not None
         poisoned = copy.deepcopy(initial)
@@ -665,7 +677,11 @@ class ChapterReviewPlanTests(unittest.TestCase):
         published = _bundle("舊刊", [_entity("ent_900", "曹操")], [])
         corpus = {"old": published}
         initials = R.build_chapter_initial_resolutions(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus=corpus
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
+            corpus=corpus,
         )
         catalog, _ = R.publish_with_decisions(
             bundles={"old": published}, resolutions=[], existing_catalog=None
@@ -814,7 +830,11 @@ class ChapterPublishTests(unittest.TestCase):
     def test_accepted_cross_chapter_same_merges_under_original_union(self) -> None:
         bundle, chapters = _chapter_bundle()
         initials = R.build_chapter_initial_resolutions(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
+            corpus={},
         )
         self.assertEqual(len(initials), 1)
         sha = R.initial_artifact_sha(initials[0])
@@ -852,7 +872,11 @@ class ChapterPublishTests(unittest.TestCase):
     def test_uncertain_without_evidence_stays_distinct(self) -> None:
         bundle, chapters = _chapter_bundle()
         initials = R.build_chapter_initial_resolutions(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
+            corpus={},
         )
         sha = R.initial_artifact_sha(initials[0])
         final = R.build_final_chapter_resolutions(
@@ -873,7 +897,11 @@ class ChapterPublishTests(unittest.TestCase):
     def test_final_downgrade_to_01_is_refused(self) -> None:
         bundle, chapters = _chapter_bundle()
         initials = R.build_chapter_initial_resolutions(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters, corpus={}
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
+            corpus={},
         )
         downgraded = copy.deepcopy(initials)
         downgraded[0]["version"] = "0.1"
@@ -946,10 +974,39 @@ class IllegalScopeCombinationTests(unittest.TestCase):
     def _within(self) -> dict:
         bundle, chapters = _chapter_bundle()
         initial = R.build_within_bundle_initial_resolution(
-            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=_chapter_index(),
         )
         assert initial is not None
         return initial
+
+    def test_missing_chapter_index_map_fails_closed(self) -> None:
+        import resolution_v0
+
+        bundle, chapters = _chapter_bundle()
+        # Omitted map is a loud TypeError; an explicit None is a
+        # PersistenceError: neither silently sorts by ref.
+        with self.assertRaises(TypeError):
+            R.build_within_bundle_initial_resolution(
+                bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+            )  # type: ignore[call-arg]
+        with self.assertRaises(PersistenceError):
+            R.build_within_bundle_initial_resolution(
+                bundle=bundle,
+                bundle_label="bund",
+                chapter_by_ref=chapters,
+                chapter_index_by_id=None,  # type: ignore[arg-type]
+            )
+        with self.assertRaises(TypeError):
+            R.build_chapter_initial_resolutions(
+                bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+            )  # type: ignore[call-arg]
+        with self.assertRaises(resolution_v0.ResolutionV0Error):
+            resolution_v0.build_within_bundle_candidate_set(
+                bundle, "bund", chapters, None  # type: ignore[arg-type]
+            )
 
     def test_within_revision_with_two_bundles_is_rejected(self) -> None:
         import publication_v0

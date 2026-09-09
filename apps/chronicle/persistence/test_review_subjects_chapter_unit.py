@@ -10,6 +10,7 @@ cross-chapter same chain would join two published canonical IDs.
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import unittest
 import unittest.mock
@@ -388,65 +389,90 @@ class FrozenPlanTamperTests(unittest.TestCase):
         plan = S.build_chapter_review_plan(**params)
         return plan, params, [_within_resolution(), cross]
 
+    def _persisted(self, plan: dict) -> dict:
+        """Simulate a persistence round-trip like the restore path sees."""
+        return json.loads(json.dumps(plan))
+
+    def _validate(self, plan, params, resolutions) -> str:
+        return S.validate_chapter_review_plan(
+            plan,
+            resolutions,
+            job_id=params["job_id"],
+            revision_id=params["revision_id"],
+            assembled_bundle_sha256=params["assembled_bundle_sha256"],
+            base_catalog_sha256=params["base_catalog_sha256"],
+        )
+
     def test_deleted_pair_payload_fails_restore(self) -> None:
         plan, params, resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         del tampered["pair_payloads"][0]
         with self.assertRaises(PersistenceConflict):
-            S.validate_chapter_review_plan(
-                tampered,
-                resolutions,
-                job_id=params["job_id"],
-                revision_id=params["revision_id"],
-                assembled_bundle_sha256=params["assembled_bundle_sha256"],
-                base_catalog_sha256=params["base_catalog_sha256"],
-            )
+            self._validate(tampered, params, resolutions)
 
     def test_tampered_pair_candidate_id_fails_restore(self) -> None:
         plan, params, resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["candidate_id"] = "ec_999"
         with self.assertRaises(PersistenceConflict):
-            S.validate_chapter_review_plan(
-                tampered,
-                resolutions,
-                job_id=params["job_id"],
-                revision_id=params["revision_id"],
-                assembled_bundle_sha256=params["assembled_bundle_sha256"],
-                base_catalog_sha256=params["base_catalog_sha256"],
-            )
+            self._validate(tampered, params, resolutions)
 
     def test_tampered_pair_left_ref_fails_restore(self) -> None:
         plan, params, resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["left"] = {"bundle": "bund", "ref": "ent_b1"}
         with self.assertRaises(PersistenceConflict):
-            S.validate_chapter_review_plan(
-                tampered,
-                resolutions,
-                job_id=params["job_id"],
-                revision_id=params["revision_id"],
-                assembled_bundle_sha256=params["assembled_bundle_sha256"],
-                base_catalog_sha256=params["base_catalog_sha256"],
-            )
+            self._validate(tampered, params, resolutions)
+
+    def test_tampered_pair_member_endpoint_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["pair_payloads"][0]["members"][0]["left"]["ref"] = "tampered"
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_tampered_pair_subject_id_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["pair_payloads"][0]["review_subject_id"] = "rp_tampered"
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_tampered_batch_group_member_endpoint_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["batch_payloads"][0]["groups"][0]["members"][0]["left"][
+            "ref"
+        ] = "tampered"
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_tampered_batch_subject_member_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["published_batch_subjects"][0]["members"][0]["left"][
+            "ref"
+        ] = "tampered"
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_tampered_batch_signals_fail_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["batch_payloads"][0]["signals"] = ["forged evidence"]
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
 
     def test_deleted_batch_payload_fails_restore(self) -> None:
         plan, params, resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         del tampered["batch_payloads"][0]
         with self.assertRaises(PersistenceConflict):
-            S.validate_chapter_review_plan(
-                tampered,
-                resolutions,
-                job_id=params["job_id"],
-                revision_id=params["revision_id"],
-                assembled_bundle_sha256=params["assembled_bundle_sha256"],
-                base_catalog_sha256=params["base_catalog_sha256"],
-            )
+            self._validate(tampered, params, resolutions)
 
     def test_open_rejects_plan_missing_its_pair(self) -> None:
         plan, _params, _resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         del tampered["pair_payloads"][0]
         conn = unittest.mock.MagicMock()
         with self.assertRaises(PersistenceConflict):
@@ -456,8 +482,40 @@ class FrozenPlanTamperTests(unittest.TestCase):
 
     def test_open_rejects_tampered_pair_fingerprint(self) -> None:
         plan, _params, _resolutions = self._mixed_plan()
-        tampered = copy.deepcopy(plan)
+        tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["plan_fingerprint"] = "0" * 64
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
+            )
+
+    def test_open_rejects_tampered_pair_member_endpoint(self) -> None:
+        plan, _params, _resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["pair_payloads"][0]["members"][0]["left"]["ref"] = "tampered"
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
+            )
+
+    def test_open_rejects_tampered_batch_group_member(self) -> None:
+        plan, _params, _resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["batch_payloads"][0]["groups"][0]["members"][0]["left"][
+            "ref"
+        ] = "tampered"
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
+            )
+
+    def test_open_rejects_tampered_pair_subject_id(self) -> None:
+        plan, _params, _resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["pair_payloads"][0]["review_subject_id"] = "rp_tampered"
         conn = unittest.mock.MagicMock()
         with self.assertRaises(PersistenceConflict):
             S.open_chapter_review_plan(

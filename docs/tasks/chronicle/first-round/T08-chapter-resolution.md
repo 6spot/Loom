@@ -47,6 +47,12 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 复测（均为真实运行）：`test_resolve_publish_unit.py` — **40 tests OK**（+7）；`test_*review*_unit.py` — **41 tests OK**（+6）；`test_resolution_v0.py` — **7 OK**；`test_publication_v0.py` — **11 OK**；`test_chapter_store_postgres.py` — **17 OK**（回归）；`git diff --check` — **clean**。
 
+2026-09-09 — Reviewer 第二轮 CHANGES_REQUIRED（head `a248205`）在原 PR 同分支修复：
+
+- 冻结全部字段逐项对照：fingerprint 新增 `chapter_by_ref` 与冻结构体哈希（`subjects_sha256`）绑定，计划持久化 `chapter_by_ref`；新增 `_check_plan_internal_consistency`——每个存储 payload 必须与冻结构体重建的期望 payload 完全相等（含 `members`、`review_subject_id`、groups、signals），并恰好覆盖 `candidate_keys`；`validate_chapter_review_plan` 在此之外把 pair subjects 与 within 候选重建对照、batch subject 成员与 cross 候选逐项对照、重验章差异规则；`open_chapter_review_plan` 开库前强制执行同一完整内部校验。8 个新篡改测试（batch/pair 成员端点、`review_subject_id`、batch signals/subject 成员，覆盖 validate 与 open）在修复前代码上实测失败 8 项，修复后全部通过。
+- 章序强制：`chapter_index_by_id` 在 `build_within_bundle_candidate_set` 与章路径 wrappers 改为必填，无映射（缺参 TypeError、显式 None PersistenceError/ResolutionV0Error）fail-closed，不再回退按引用排序。新增缺映射拒绝测试。
+- 复测（均为真实运行）：`test_resolve_publish_unit.py` — **41 tests OK**（+1）；`test_*review*_unit.py` — **49 tests OK**（+8）；`test_resolution_v0.py` — **7 OK**；`test_publication_v0.py` — **11 OK**；`test_chapter_store_postgres.py` — **17 OK**（回归）；`git diff --check` — **clean**。
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
