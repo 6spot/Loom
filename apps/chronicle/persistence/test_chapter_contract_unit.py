@@ -231,6 +231,45 @@ class AliasMentionTests(unittest.TestCase):
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "aliases")
 
 
+class EqualityDiagnosticTests(unittest.TestCase):
+    def test_mention_surface_mismatch_shows_both_values(self) -> None:
+        # Live regression (C2-R1-T19, candidate 0410b15d): a value-free
+        # "surface must equal selection.quote" left the model unable to see
+        # which side to copy, and all 10 mentions of a correction round
+        # failed at once. The contract is unchanged; the diagnostic now
+        # carries both sides.
+        request, candidate = base()
+        candidate["mentions"][0]["surface"] = "曹公"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "mentions")
+        messages = report["errors"]["mentions"]
+        self.assertTrue(
+            any("m_001" in m and "曹公" in m and "曹操" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_claim_evidence_mismatch_shows_both_values(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["evidence"]["text"] = "曹操屯江陵矣"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "record_sources")
+        messages = report["errors"]["record_sources"]
+        self.assertTrue(
+            any("曹操屯江陵矣" in m and "曹操屯江陵" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_long_values_truncated_in_diagnostic(self) -> None:
+        rendered = C._diagnostic_value("x" * 500)
+        self.assertIn("…", rendered)
+        self.assertLessEqual(len(rendered), C._DIAGNOSTIC_VALUE_CHARS + 3)
+
+    def test_matching_values_still_pass(self) -> None:
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+
 class ClaimObjectShapeTests(unittest.TestCase):
     def test_literal_object_carries_value(self) -> None:
         # Frozen shape across the candidate schema, the API-enforced

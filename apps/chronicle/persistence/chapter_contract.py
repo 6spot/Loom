@@ -58,6 +58,27 @@ OFFSET_UNIT = "chars-normalized-utf8"
 #: Surfaces that must stay contextual mentions, never stable aliases.
 CONTEXTUAL_ONLY_SURFACES = {"公", "王"}
 
+#: Max characters of each compared value rendered into a repair diagnostic.
+#: Equality diagnostics must show both sides so the correction re-ask can
+#: copy the verbatim value; the per-diagnostic char budget in
+#: chapter_prompt.compact_validation_errors still bounds the total.
+_DIAGNOSTIC_VALUE_CHARS = 60
+
+
+def _diagnostic_value(value: Any) -> str:
+    """Render one compared value for a model-facing repair diagnostic.
+
+    Live evidence (C2-R1-T19, candidate 0410b15d): every mention of a
+    corrected chapter failed ``surface must equal selection.quote`` with a
+    value-free message, so the model could not see which side to copy and
+    the whole correction round was wasted. The contract is unchanged —
+    only the diagnostic carries both sides, truncated.
+    """
+    text = value if isinstance(value, str) else repr(value)
+    if len(text) > _DIAGNOSTIC_VALUE_CHARS:
+        text = text[: _DIAGNOSTIC_VALUE_CHARS - 1] + "…"
+    return repr(text)
+
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "ingestion" / "schemas"
 CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.1.schema.json"
 ARTIFACT_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.1.schema.json"
@@ -701,7 +722,8 @@ def validate_chapter_candidate(
             first = entry["selections"][0]
             if isinstance(first, dict) and first.get("quote") != evidence.get("text"):
                 record_sources.append(
-                    f"{owner} evidence text must equal first selection quote"
+                    f"{owner} evidence text {_diagnostic_value(evidence.get('text'))} "
+                    f"must equal first selection quote {_diagnostic_value(first.get('quote'))}"
                 )
 
     # Mentions: status discipline + surface==quote + resolvable anchors.
@@ -741,7 +763,10 @@ def validate_chapter_candidate(
             mentions.append(f"{owner} surface must be a non-empty string")
         else:
             if isinstance(selection, dict) and selection.get("quote") != surface:
-                mentions.append(f"{owner} surface must equal selection.quote")
+                mentions.append(
+                    f"{owner} surface {_diagnostic_value(surface)} must equal "
+                    f"selection.quote {_diagnostic_value(selection.get('quote'))}"
+                )
             if not mention.get("contextual") and surface in CONTEXTUAL_ONLY_SURFACES:
                 mentions.append(f"{owner} surface {surface!r} must stay contextual")
         if blocks_by_id and isinstance(selection, dict):
