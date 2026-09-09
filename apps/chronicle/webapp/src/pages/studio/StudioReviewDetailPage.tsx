@@ -20,6 +20,7 @@ import type {
   ReviewGroupDecisionInput,
   ReviewRecordContext,
 } from "../../lib/studio-api";
+import { ReviewEvidenceSection } from "../../components/studio/ReviewEvidencePanel";
 import {
   comparisonRows,
   decisionHelp,
@@ -28,6 +29,7 @@ import {
   formatReviewTime,
   roleLabel,
   signalLabel,
+  stagedSideLabel,
   statusLabel,
   typeLabel,
 } from "../../lib/review-display";
@@ -610,6 +612,31 @@ export default function StudioReviewDetailPage() {
     },
   });
 
+  const reviewMode = (item?.review_mode ?? null) as string | null;
+  // Frozen record lookup for the evidence layers: every staged record the
+  // detail projects is addressable by (bundle, ref). The evidence panels
+  // reuse these objects and never build a second draft or queue. This hook
+  // must stay above the early returns so the hook order never changes.
+  const evidenceRecords = useMemo(() => {
+    const map = new Map<string, HumanReviewContext>();
+    const push = (context: unknown) => {
+      const candidate = context as HumanReviewContext;
+      if (candidate && typeof candidate.bundle === "string" && typeof candidate.ref === "string") {
+        map.set(`${candidate.bundle}:${candidate.ref}`, candidate);
+      }
+    };
+    if (item) {
+      for (const context of [...(item.left_contexts ?? []), ...(item.right_contexts ?? []), item.left_context, item.right_context]) {
+        push(context);
+      }
+      for (const group of item.review_groups ?? []) {
+        for (const context of group.right_contexts ?? []) push(context);
+      }
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.review_id, item?.plan_fingerprint]);
+
   if (review.isLoading) return <p className="studio-muted">正在读取审核项…</p>;
   if (review.error) return <p className="studio-error">{errorText(review.error)}</p>;
   if (!item) return <p className="studio-muted">审核项不存在。</p>;
@@ -711,15 +738,24 @@ export default function StudioReviewDetailPage() {
         </CardContent>
       </Card>
 
+      <ReviewEvidenceSection
+        auth={authHeader}
+        reviewId={reviewId}
+        planFingerprint={fingerprint}
+        title="审核证据与来源"
+        description={`该审核项共 ${item.source_contexts?.total ?? memberCount} 个候选来源。无直接事实声明、chapter_pair 两端与已发布批次的全部候选来源都在此逐一检查；译文仅供辅助参考。`}
+        records={evidenceRecords}
+      />
+
       <div className="studio-grid studio-grid-wide">
         <div className="studio-stack">
           {leftContexts.map((context, index) => (
-            <RecordCard key={`${context.bundle}:${context.ref}`} label={leftContexts.length > 1 ? `已发布侧记录 ${index + 1}` : "已发布侧记录"} context={context} />
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={leftContexts.length > 1 ? `${stagedSideLabel(reviewMode, "left")} ${index + 1}` : stagedSideLabel(reviewMode, "left")} context={context} />
           ))}
         </div>
         <div className="studio-stack">
           {rightContexts.map((context, index) => (
-            <RecordCard key={`${context.bundle}:${context.ref}`} label={rightContexts.length > 1 ? `本次来源记录 ${index + 1}` : "本次来源记录"} context={context} />
+            <RecordCard key={`${context.bundle}:${context.ref}`} label={rightContexts.length > 1 ? `${stagedSideLabel(reviewMode, "right")} ${index + 1}` : stagedSideLabel(reviewMode, "right")} context={context} />
           ))}
         </div>
       </div>
@@ -842,6 +878,15 @@ export default function StudioReviewDetailPage() {
                             {group.right_contexts.map((context) => (
                               <EvidenceList key={`${group.review_group_id}:${context.bundle}:${context.ref}`} context={context as HumanReviewContext} />
                             ))}
+                            <ReviewEvidenceSection
+                              auth={authHeader}
+                              reviewId={reviewId}
+                              planFingerprint={fingerprint}
+                              groupId={group.review_group_id}
+                              title={`候选组 ${index + 1} 的逐组来源`}
+                              description="该组全部成员的原文与分层证据；只看代表记录不能当作整组证明。"
+                              records={evidenceRecords}
+                            />
                             <Button
                               type="button"
                               variant={draft.enabled ? "default" : "outline"}

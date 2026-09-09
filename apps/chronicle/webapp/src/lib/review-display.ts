@@ -1,4 +1,11 @@
-import type { ReviewDecision, ReviewLinkKind, ReviewRecordContext } from "./studio-api";
+import type {
+  ReviewDecision,
+  ReviewLinkKind,
+  ReviewRecordContext,
+  ReviewSourceSegment,
+  SourceContextDescriptor,
+  SourceEvidenceKind,
+} from "./studio-api";
 
 export interface ReviewDisplayTime {
   original_text?: string | null;
@@ -301,4 +308,93 @@ export function decisionHelp(decision: ReviewDecision): string {
 
 export function displayEvidenceCount(display: ReviewRecordDisplay | undefined): number {
   return display?.evidence?.length ?? 0;
+}
+
+// ---- C2-R1-T12 review evidence helpers --------------------------------------
+// Contract owner: apps/chronicle/docs/review-workflow.md §§4–5. These are
+// pure label/format helpers for ReviewEvidencePanel; fetching stays in
+// studio-api.ts and draft/queue ownership stays in review-session.ts.
+
+const EVIDENCE_KIND_LABELS: Record<SourceEvidenceKind, string> = {
+  direct_claim: "直接引用的事实声明",
+  mention: "对象在原文中的出现",
+  record_source: "记录来源原文",
+  event_context: "参与事件背景",
+  translation: "白话译文（辅助参考）",
+};
+
+export function evidenceKindLabel(kind: string | null | undefined): string {
+  if (!kind) return "其他来源";
+  return (EVIDENCE_KIND_LABELS as Record<string, string>)[kind] ?? "其他来源";
+}
+
+export function evidenceKindsLabel(kinds: ReadonlyArray<string> | null | undefined): string {
+  if (!kinds || kinds.length === 0) return "暂无来源分类";
+  return kinds.map((kind) => evidenceKindLabel(kind)).join("、");
+}
+
+const UNAVAILABLE_REASONS: Record<string, string> = {
+  bundle_without_provenance: "该来源没有记录生产出处，无法定位原文；原有直接引用证据不受影响。",
+  no_chapter_anchor: "该记录暂无章节定位锚点，无法展开原文；原有直接引用证据不受影响。",
+  legacy_fixture_without_location: "旧材料没有定位信息，无法展开原文；原有直接引用证据不受影响。",
+  revision_without_storage: "该版本没有配置原文存储，无法展开原文；原有直接引用证据不受影响。",
+};
+
+export function unavailableReasonLabel(reason: string | null | undefined): string {
+  if (!reason) return "来源暂不可用";
+  return UNAVAILABLE_REASONS[reason] ?? `来源暂不可用（${reason}）`;
+}
+
+export function sourceFailureLabel(code: string | null | undefined): string {
+  if (code === "source_mismatch") return "原文已变化，定位不再匹配该版本（source_mismatch）。已保留表单和已读材料，可重试。";
+  if (code === "source_unavailable") return "原文暂不可用（source_unavailable）。已保留表单和已读材料，可重试。";
+  return "原文加载失败。已保留表单和已读材料，可重试。";
+}
+
+/** Chapter title preferred; never fall back to an internal id as a title. */
+export function evidenceChapterTitle(context: SourceContextDescriptor): string {
+  if (context.chapter_title && context.chapter_title.trim()) return context.chapter_title;
+  if (context.source_title && context.source_title.trim()) return context.source_title;
+  return "未知章节";
+}
+
+/** Revision-scoped identity line: same text at another revision stays distinct. */
+export function evidenceRevisionLine(context: SourceContextDescriptor): string {
+  const short = (value: string | null) => (value ? `${value.slice(0, 12)}…` : "未知");
+  return `版本 ${short(context.revision_id)} · 来源 ${short(context.source_sha256)}`;
+}
+
+/**
+ * Whether a server highlight segment list is safe to render as plain text.
+ * The panel always renders segments as React text nodes (never
+ * dangerouslySetInnerHTML), so this only guards shape, not content.
+ */
+export function isRenderableSegments(
+  segments: unknown,
+): segments is ReviewSourceSegment[] {
+  if (!Array.isArray(segments)) return false;
+  return segments.every(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as { text?: unknown }).text === "string" &&
+      typeof (item as { highlight?: unknown }).highlight === "boolean",
+  );
+}
+
+/**
+ * Staged identity for chapter_pair ends: both sides are unpublished chapter
+ * material, never a published canonical. The backend review_mode decides;
+ * without it the panel still shows per-context staged provenance.
+ */
+export function stagedSideLabel(reviewMode: string | null | undefined, side: "left" | "right"): string {
+  if (reviewMode === "chapter_pair") {
+    return side === "left" ? "左侧待发布章节（staged）" : "右侧待发布章节（staged）";
+  }
+  return side === "left" ? "已发布侧记录" : "本次来源记录";
+}
+
+/** A record without direct Claim evidence still has checkable material. */
+export function hasDirectClaimEvidence(context: HumanReviewContext): boolean {
+  return (context.display?.evidence?.length ?? 0) > 0;
 }
