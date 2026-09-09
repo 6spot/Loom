@@ -36,7 +36,12 @@ proven C0 server is kept, not deleted. Studio routes
 (`/api/v1/studio/*`) require the environment-configured administrator;
 see [`server.md`](server.md).
 
-`chronicle-init` waits for PostgreSQL, applies Chronicle migrations, and imports the retained accepted 武帝纪 + 吴主传 staged / resolution / canonical artifacts. Re-running the same deployment is safe because Chronicle persistence is idempotent for identical accepted artifacts.
+`chronicle-init` waits for PostgreSQL, applies Chronicle schema migrations
+(`--migrate-only`), and imports nothing. A fresh data directory therefore
+starts with an empty database: schema tables exist, but there are no staged,
+resolution, or canonical rows and no sample artifacts. Re-running the same
+deployment is safe because migration is idempotent — recorded migration
+versions are reused and no sample data is ever re-seeded.
 
 ## Server prerequisites
 
@@ -113,7 +118,7 @@ The expected steady state is:
 - `chronicle-read` — running / healthy (internal C0 read sidecar);
 - `chronicle-web` — running / healthy.
 
-Inspect the one-shot import result:
+Inspect the one-shot migration result:
 
 ```bash
 docker compose \
@@ -122,11 +127,37 @@ docker compose \
   logs chronicle-init
 ```
 
-The retained current dataset should report:
+A fresh start should report only the schema result:
 
 ```text
-chronicle persistence: PASS ... bundles=2 entities=66 events=45 relations=2
+chronicle migrate: PASS migrations=N versions=[...]
 ```
+
+### Empty database behavior
+
+With no canonical catalog published yet, public reads return their empty
+state (empty directories/listings, not seeded history), while Studio routes
+keep their authentication behavior: with `CHRONICLE_ADMIN_USER` /
+`CHRONICLE_ADMIN_PASSWORD` set, Studio requires those credentials; with
+both unset, Studio stays fail-closed (503) and public reads keep working.
+Content reaches the deployment exclusively through Studio uploads and the
+chapter pipeline — never through a default seed.
+
+### Explicit C0 fixture regression
+
+The retained C0-T7 acceptance dataset (武帝纪 + 吴主传, 66 entities /
+45 events) is not seeded by default. It is covered by the isolated
+PostgreSQL regression suite, which loads the fixtures explicitly into a
+throwaway test database:
+
+```bash
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_real_dataset_postgres.py' -v
+```
+
+Run database-backed suites per
+[`docs/development/postgres-tests.md`](../../../development/postgres-tests.md)
+(PG18 control service, isolated test databases). Do not reintroduce a
+default seed to make the deployment "look populated".
 
 ## Access
 
@@ -179,7 +210,33 @@ docker compose \
   up -d --build
 ```
 
-The init container runs again. Identical accepted data imports are no-ops; schema migration checksum drift or immutable-data conflicts fail explicitly rather than overwriting historical records.
+The init container runs again. It repeats only the idempotent schema
+migration; identical migration versions are no-ops and no sample data is
+imported. Schema migration checksum drift fails explicitly rather than
+overwriting historical records.
+
+## Fresh directory example
+
+Starting from a completely empty host directory:
+
+```bash
+sudo mkdir -p /srv/loom-data/chronicle-fresh/postgres /srv/loom-data/chronicle-fresh/sources
+sudo chown 10001:10001 /srv/loom-data/chronicle-fresh/sources
+```
+
+```text
+CHRONICLE_DATA_DIR=/srv/loom-data/chronicle-fresh
+```
+
+After `up -d --build`, `chronicle-init` exits 0 with the
+`chronicle migrate: PASS` line, `sources/` stays empty, and the database
+holds no canonical rows. Restarting (`down` + `up -d`) repeats only the
+migration with the same result.
+
+Never point a new `CHRONICLE_DATA_DIR` at an existing populated directory
+to "reset" it, and never `rm -rf` a data directory that a deployment still
+uses — destroying the Chronicle database is a deliberate, separately
+confirmed operator action, not part of start/restart/upgrade.
 
 ## Logs
 

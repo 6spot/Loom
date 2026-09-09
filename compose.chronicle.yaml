@@ -50,6 +50,12 @@ services:
         chown -R 10001:10001 "$$CHRONICLE_SOURCE_DIR"
     restart: "no"
 
+  # Canonical migration runner (C2-R1-T16). The default stack starts from an
+  # empty data directory: init applies only Chronicle schema migrations and
+  # imports no sample artifacts. Re-running (restart/redeploy) repeats the
+  # idempotent migration and never re-seeds data. Explicit C0 fixture
+  # regression lives in the isolated PostgreSQL test suite
+  # (apps/chronicle/persistence/test_real_dataset_postgres.py), never here.
   chronicle-init:
     <<: *chronicle-image
     environment:
@@ -60,16 +66,9 @@ services:
     command:
       - python3
       - apps/chronicle/persistence/chronicle_persist.py
-      - --bundle
-      - wudi=apps/chronicle/.artifacts/c0-t7/wudi/final.json
-      - --bundle
-      - wuzhu=apps/chronicle/.artifacts/c0-t7/wuzhu/final.json
-      - --resolution
-      - apps/chronicle/.artifacts/c0-t7/resolution/links.json
-      - --catalog
-      - apps/chronicle/.artifacts/c0-t7/publication/catalog.json
+      - --migrate-only
       - --report
-      - /tmp/chronicle-persistence-report.json
+      - /tmp/chronicle-migration-report.json
     restart: "no"
 
   chronicle-web:
@@ -181,6 +180,16 @@ services:
       CHRONICLE_MODEL_INPUT_BUDGET_CHARS: ${CHRONICLE_MODEL_INPUT_BUDGET_CHARS:-16384}
       CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
       CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
+      # C2-R1-T16: chapter-production §3 engineering envelope. These bounds
+      # enter the chapter request fingerprint (ChapterLimits.from_env); they
+      # are resource-protection limits, not a claim that the configured
+      # provider supports the full 64k output scale. Empty values fall back
+      # to the contract defaults documented in .env.chronicle.example.
+      CHRONICLE_CHAPTER_MAX_SOURCE_CHARS: ${CHRONICLE_CHAPTER_MAX_SOURCE_CHARS:-}
+      CHRONICLE_CHAPTER_MAX_PROMPT_CHARS: ${CHRONICLE_CHAPTER_MAX_PROMPT_CHARS:-}
+      CHRONICLE_CHAPTER_MAX_RESPONSE_CHARS: ${CHRONICLE_CHAPTER_MAX_RESPONSE_CHARS:-}
+      CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES: ${CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES:-}
+      CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS: ${CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS:-}
     volumes:
       - type: bind
         source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources

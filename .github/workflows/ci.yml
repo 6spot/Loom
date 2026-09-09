@@ -33,6 +33,7 @@ on:
       - "tools/fixtures/validator-ready/**"
       - "docs/tasks/scheduler-discovery/**"
       - "docs/tasks/ci-governance/**"
+      - "docs/tasks/chronicle/first-round/**"
       - "README.md"
       - "docs/quickstart.md"
       - "docs/operator-guide.md"
@@ -66,6 +67,10 @@ jobs:
       chronicle_rust: ${{ steps.classify.outputs.chronicle_rust }}
       chronicle_web: ${{ steps.classify.outputs.chronicle_web }}
       chronicle_deployment: ${{ steps.classify.outputs.chronicle_deployment }}
+      chronicle_corpus: ${{ steps.classify.outputs.chronicle_corpus }}
+      chronicle_contract: ${{ steps.classify.outputs.chronicle_contract }}
+      chronicle_first_round: ${{ steps.classify.outputs.chronicle_first_round }}
+      first_round_notes: ${{ steps.classify.outputs.first_round_notes }}
 
     steps:
       - name: Checkout
@@ -89,6 +94,10 @@ jobs:
           chronicle_rust=false
           chronicle_web=false
           chronicle_deployment=false
+          chronicle_corpus=false
+          chronicle_contract=false
+          chronicle_first_round=false
+          first_round_notes=""
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             rust=true
@@ -101,6 +110,9 @@ jobs:
             chronicle_rust=true
             chronicle_web=true
             chronicle_deployment=true
+            chronicle_corpus=true
+            chronicle_contract=true
+            chronicle_first_round=true
           else
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               base="${{ github.event.pull_request.base.sha }}"
@@ -201,6 +213,25 @@ jobs:
                   chronicle_deployment=true
                   ;;
               esac
+
+              case "$path" in
+                apps/chronicle/corpus/*)
+                  chronicle_corpus=true
+                  ;;
+              esac
+
+              case "$path" in
+                apps/chronicle/persistence/chronicle_persist.py|apps/chronicle/persistence/test_migrate_only_unit.py|apps/chronicle/persistence/migrations/*|apps/chronicle/ingestion/schemas/*|apps/chronicle/persistence/chapter_contract.py)
+                  chronicle_contract=true
+                  ;;
+              esac
+
+              case "$path" in
+                docs/tasks/chronicle/first-round/*.md)
+                  chronicle_first_round=true
+                  first_round_notes="${first_round_notes} ${path}"
+                  ;;
+              esac
             done < /tmp/loom-ci-changed-files
           fi
 
@@ -215,6 +246,10 @@ jobs:
             echo "chronicle_rust=$chronicle_rust"
             echo "chronicle_web=$chronicle_web"
             echo "chronicle_deployment=$chronicle_deployment"
+            echo "chronicle_corpus=$chronicle_corpus"
+            echo "chronicle_contract=$chronicle_contract"
+            echo "chronicle_first_round=$chronicle_first_round"
+            echo "first_round_notes=$first_round_notes"
           } >> "$GITHUB_OUTPUT"
 
   documentation:
@@ -416,10 +451,71 @@ jobs:
             -f compose.chronicle.yaml \
             config --quiet
 
+  chronicle-first-round:
+    name: Chronicle first-round checks
+    needs: changes
+    if: needs.changes.outputs.chronicle_corpus == 'true' || needs.changes.outputs.chronicle_contract == 'true' || needs.changes.outputs.chronicle_first_round == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: First-round acceptance corpus tests
+        if: needs.changes.outputs.chronicle_corpus == 'true'
+        run: |
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_first_round_pack.py' -v
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_source_pack_unit.py' -v
+
+      - name: Install persistence test dependencies
+        if: needs.changes.outputs.chronicle_contract == 'true'
+        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Migration-only and chapter contract tests
+        if: needs.changes.outputs.chronicle_contract == 'true'
+        run: |
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_migrate_only_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v
+
+      - name: First-round note front-matter check
+        if: needs.changes.outputs.chronicle_first_round == 'true'
+        env:
+          FIRST_ROUND_NOTES: ${{ needs.changes.outputs.first_round_notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ledger-only changes must trigger a real scoped check without
+          # pulling the Rust/Postgres matrix: every touched first-round note
+          # keeps machine-readable task/issue/kind front matter whose task
+          # key matches the Txx filename.
+          for note in $FIRST_ROUND_NOTES; do
+            [[ "$note" == docs/tasks/chronicle/first-round/*.md ]] || continue
+            python3 - "$note" <<'EOF'
+          import re
+          import sys
+          from pathlib import Path
+          note = Path(sys.argv[1])
+          text = note.read_text(encoding="utf-8")
+          match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
+          if not match:
+              sys.exit(f"{note}: missing YAML front matter")
+          front = match.group(1)
+          for key in ("task: ", "issue: ", "kind: "):
+              if key not in front:
+                  sys.exit(f"{note}: front matter missing {key.strip()}")
+          task = re.search(r"^task:\s*(\S+)", front, re.MULTILINE).group(1)
+          if note.stem.startswith("T"):
+              expected = "C2-R1-" + note.stem.split("-", 1)[0]
+              if task != expected:
+                  sys.exit(f"{note}: task {task} does not match filename ({expected})")
+          print(f"{note}: front matter OK ({task})")
+          EOF
+          done
+
   repository-gate:
     name: Repository Gate
     if: always()
-    needs: [changes, documentation, ledger, dependency-policy, rust, deployment, chronicle-static]
+    needs: [changes, documentation, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round]
     runs-on: ubuntu-latest
 
     steps:
@@ -432,6 +528,7 @@ jobs:
           RUST: ${{ needs.rust.result }}
           DEPLOYMENT: ${{ needs.deployment.result }}
           CHRONICLE_STATIC: ${{ needs.chronicle-static.result }}
+          CHRONICLE_FIRST_ROUND: ${{ needs.chronicle-first-round.result }}
         shell: bash
         run: |
           set -euo pipefail
@@ -442,7 +539,8 @@ jobs:
             "$DEPENDENCY_POLICY" \
             "$RUST" \
             "$DEPLOYMENT" \
-            "$CHRONICLE_STATIC"; do
+            "$CHRONICLE_STATIC" \
+            "$CHRONICLE_FIRST_ROUND"; do
             case "$result" in
               success|skipped) ;;
               *)
