@@ -85,11 +85,14 @@ from common import (  # noqa: E402
 )
 from psycopg.types.json import Jsonb  # noqa: E402
 
+import canonical_store  # noqa: E402
+import chapter_store as chapter_store  # noqa: E402
 import publication_v0  # noqa: E402
 import resolution_v0  # noqa: E402
 import resolution_store  # noqa: E402
 import review_subjects  # noqa: E402
 from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
+import staged_store  # noqa: E402
 
 #: Version of this resolve/review/publish pipeline step.
 RESOLVE_PUBLISH_VERSION = "c2r1t8-v1"
@@ -155,12 +158,68 @@ def new_bundle_label(revision_id: uuid.UUID | str) -> str:
     return f"c1rev-{parsed.hex[:12]}"
 
 
+#: Fixed database key for the unified canonical-publish advisory lock.
+#: Every catalog write entry takes this transaction-scoped lock, so two
+#: publishers serialize on the lock instead of racing on ``imported_at``.
+PUBLISH_ADVISORY_LOCK_KEY = "chronicle.catalog-publish"
+
+#: Error code surfaced when the frozen review baseline moved under a job.
+PUBLICATION_PLAN_STALE = "publication_plan_stale"
+
+
+class PublicationPlanStale(PersistenceConflict):
+    """The frozen review baseline moved: a newer catalog now exists.
+
+    The old frozen plan is kept untouched and nothing is auto-passed or
+    rebuilt. A follow-up job must replan; it is never a success-resume
+    of the stale plan.
+    """
+
+
+def acquire_publish_lock(conn) -> None:
+    """Take the unified publish advisory lock (transaction-scoped).
+
+    The lock is held until the surrounding transaction commits or rolls
+    back (``pg_advisory_xact_lock``), so catalog reads, candidate
+    re-verification, and every public write below serialize against all
+    other locked catalog writers.
+    """
+    conn.execute(
+        "SELECT pg_advisory_xact_lock(hashtext(%s))",
+        (PUBLISH_ADVISORY_LOCK_KEY,),
+    )
+
+
 def read_latest_catalog(conn) -> dict[str, Any] | None:
-    """Read the latest persisted canonical catalog payload, if any."""
+    """Read the latest persisted canonical catalog payload, if any.
+
+    The newest catalog is defined by the unique increasing
+    ``publication_sequence`` identity column, never by the transaction
+    start time ``imported_at``: two waiting publishers cannot misorder
+    catalogs that committed while they were queued.
+    """
     row = conn.execute(
-        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
+        """
+        SELECT payload FROM chronicle.canonical_catalogs
+        ORDER BY publication_sequence DESC NULLS LAST,
+                 imported_at DESC, artifact_sha256 DESC
+        LIMIT 1
+        """
     ).fetchone()
     return row[0] if row is not None else None
+
+
+def read_latest_catalog_sha(conn) -> str | None:
+    """Return the content hash of the latest catalog, if any."""
+    row = conn.execute(
+        """
+        SELECT artifact_sha256 FROM chronicle.canonical_catalogs
+        ORDER BY publication_sequence DESC NULLS LAST,
+                 imported_at DESC, artifact_sha256 DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return str(row[0]) if row is not None else None
 
 
 def published_bundle_labels(catalog: dict[str, Any] | None) -> set[str]:
@@ -950,4 +1009,293 @@ def publication_report(
         },
         "decisions": decisions,
         "catalog_sha256": sha256_json(catalog),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Atomic chapter publication (C2-R1-T13): catalog + publications in one txn
+# ---------------------------------------------------------------------------
+
+
+def build_chapter_publication(
+    *,
+    artifact_entry: dict[str, Any],
+    catalog_sha256: str,
+    assembled_bundle_sha256: str,
+) -> dict[str, Any]:
+    """Build the immutable public reading payload for one accepted chapter.
+
+    The payload carries the complete ordered translation blocks plus the
+    already-remapped references, source anchors, and unresolved mentions
+    from the accepted artifact. It never substitutes a summary or a
+    person/event blurb for the full text; ``present`` re-checks exactly
+    this before serving.
+    """
+    artifact = artifact_entry.get("artifact")
+    if not isinstance(artifact, dict):
+        raise PersistenceError("accepted chapter entry carries no artifact")
+    candidate = artifact.get("candidate")
+    if not isinstance(candidate, dict):
+        raise PersistenceError("accepted chapter artifact carries no candidate")
+    translation = candidate.get("translation") or {}
+    blocks = translation.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise PersistenceError(
+            f"chapter {artifact_entry.get('chapter_id')!r} candidate carries "
+            "no complete translation blocks; refusing to publish a partial"
+        )
+    ordered = sorted(
+        blocks,
+        key=lambda block: (
+            block.get("chapter_index", artifact_entry.get("chapter_index", 0)),
+            str(block.get("block_id")),
+        ),
+    )
+    return {
+        "schema": "chronicle.chapter-publication",
+        "version": "0.1",
+        "chapter_id": artifact_entry.get("chapter_id"),
+        "chapter_index": artifact_entry.get("chapter_index"),
+        "revision_id": artifact.get("revision_id"),
+        "artifact_sha256": artifact_entry.get("artifact_sha256"),
+        "catalog_sha256": catalog_sha256,
+        "assembled_bundle_sha256": assembled_bundle_sha256,
+        "translation_blocks": ordered,
+        "mentions": list(candidate.get("mentions") or []),
+        "record_sources": list(candidate.get("record_sources") or []),
+        "anchors": list(artifact.get("anchors") or []),
+    }
+
+
+def publish_chapters(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    worker: str,
+) -> dict[str, Any]:
+    """Atomically publish every accepted chapter of a job (one transaction).
+
+    Holds the unified transaction advisory lock, re-reads the latest
+    catalog by ``publication_sequence``, re-verifies the lease (a lock
+    wait never extends an expired lease), reuses the frozen review plan
+    exactly (never rebuilding or re-ranking it), and requires every
+    candidate to carry a terminal human decision with zero open reviews.
+    One missing/invalid chapter, one open review, or one wrong frozen
+    plan fails the whole publish: no partial catalog or translation can
+    ever become public.
+
+    In the same transaction this writes the catalog, every chapter
+    publication, the canonical membership maps (via
+    :mod:`canonical_store`), the catalog output, and the publish
+    checkpoint/completed status — any fault rolls back all public
+    content. When the frozen baseline moved (a newer catalog exists),
+    raises :class:`PublicationPlanStale` and writes nothing: the old
+    plan and its evidence are kept, nothing is auto-passed.
+    """
+    if not isinstance(worker, str) or not worker:
+        raise PersistenceError("worker must be a non-empty string")
+    try:
+        job_id = job_id if isinstance(job_id, uuid.UUID) else uuid.UUID(str(job_id))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise PersistenceError(f"job_id must be a UUID, got {job_id!r}") from exc
+
+    with conn.transaction():
+        acquire_publish_lock(conn)
+        # Re-verify the lease under the lock: waiting for the lock never
+        # extends a lease that expired while queued.
+        control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
+
+        job_row = conn.execute(
+            """
+            SELECT revision_id, status FROM chronicle.ingestion_jobs
+            WHERE job_id = %s
+            """,
+            (job_id,),
+        ).fetchone()
+        if job_row is None:
+            raise PersistenceError(f"unknown job {job_id}")
+        revision_id, job_status = job_row[0], job_row[1]
+        if job_status in ("cancelled", "failed", "completed"):
+            raise PersistenceConflict(
+                f"job {job_id} is {job_status!r}; refusing publication"
+            )
+
+        accepted = chapter_store.read_accepted_chapters(conn, job_id=job_id)
+        if not accepted:
+            raise PersistenceError(
+                f"job {job_id} has no accepted chapters; refusing to "
+                "publish an empty catalog"
+            )
+
+        assembled_row = conn.execute(
+            """
+            SELECT payload FROM chronicle.ingestion_outputs
+            WHERE job_id = %s AND artifact_type = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (job_id, "assembled-source-bundle"),
+        ).fetchone()
+        if assembled_row is None or not isinstance(assembled_row[0], dict):
+            raise PersistenceError(
+                f"job {job_id} has no assembled chapter bundle output"
+            )
+        bundle = assembled_row[0].get("bundle")
+        if not isinstance(bundle, dict):
+            raise PersistenceError(
+                f"job {job_id} assembled output carries no source bundle"
+            )
+        assembled_sha256 = sha256_json(bundle)
+
+        plan_row = conn.execute(
+            """
+            SELECT payload FROM chronicle.ingestion_outputs
+            WHERE job_id = %s AND artifact_type = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (job_id, "chapter-review-plan"),
+        ).fetchone()
+        if plan_row is None or not isinstance(plan_row[0], dict):
+            raise PersistenceError(
+                f"job {job_id} has no frozen chapter review plan; "
+                "refusing to publish without human review (run resolve first)"
+            )
+        frozen_plan = (plan_row[0].get("plan") or {})
+        base_catalog_sha256 = plan_row[0].get("base_catalog_sha256")
+        initial_shas = plan_row[0].get("initial_shas") or []
+        if not isinstance(frozen_plan, dict) or not frozen_plan:
+            raise PersistenceError(
+                f"job {job_id} frozen chapter review plan is missing"
+            )
+        if plan_row[0].get("assembled_bundle_sha256") != assembled_sha256:
+            raise PersistenceError(
+                f"job {job_id} frozen plan binds a different assembled "
+                "bundle; refusing publication from conflicting bytes"
+            )
+
+        initials: list[dict[str, Any]] = []
+        if initial_shas:
+            fetched = conn.execute(
+                """
+                SELECT artifact_sha256, payload
+                FROM chronicle.resolution_artifacts
+                WHERE artifact_sha256 = ANY(%s)
+                """,
+                (sorted({str(sha) for sha in initial_shas}),),
+            ).fetchall()
+            by_sha = {row[0]: row[1] for row in fetched}
+            for sha in initial_shas:
+                payload = by_sha.get(str(sha))
+                if not isinstance(payload, dict):
+                    raise PersistenceError(
+                        f"job {job_id} frozen initial resolution {sha!r} "
+                        "is not persisted; refusing publication"
+                    )
+                initials.append(payload)
+        # Re-validate the frozen plan exactly: no rebuild, no re-rank.
+        validate_chapter_review_plan(
+            frozen_plan, initials, job_id=job_id, revision_id=revision_id,
+            assembled_bundle_sha256=assembled_sha256,
+            base_catalog_sha256=base_catalog_sha256,
+        )
+
+        open_count = open_resolution_review_count(conn, job_id=job_id)
+        if open_count > 0:
+            raise PersistenceError(
+                f"job {job_id} has {open_count} open resolution review(s); "
+                "refusing to publish a partially reviewed graph"
+            )
+        decisions = collect_chapter_decisions(conn, job_id=job_id)
+        # Every candidate must carry a terminal decision: missing
+        # coverage fails closed instead of publishing a partial graph.
+        final = build_final_chapter_resolutions(
+            initials, decisions, require_complete=True
+        )
+
+        latest = read_latest_catalog(conn)
+        latest_sha = sha256_json(latest) if latest is not None else sha256_json(None)
+        if latest_sha != base_catalog_sha256:
+            raise PublicationPlanStale(
+                f"{PUBLICATION_PLAN_STALE}: job {job_id} frozen baseline "
+                f"{base_catalog_sha256} is no longer latest ({latest_sha}); "
+                "keeping the frozen plan and its evidence, refusing to "
+                "auto-pass or rebuild"
+            )
+
+        new_label = new_bundle_label(revision_id)
+        # Idempotent reuse: the staged bundle and the final resolutions
+        # persist as no-ops when their exact bytes already exist.
+        staged_store.persist_bundle(conn, new_label, bundle)
+        for resolution in final:
+            resolution_store.persist_resolution(conn, resolution)
+
+        bundles = read_published_corpus_bundles(conn, latest)
+        bundles[new_label] = bundle
+        prior = read_corpus_resolutions(conn)
+        resolutions = list(prior)
+        prior_shas = {sha256_json(item) for item in prior}
+        resolutions.extend(
+            item for item in final if sha256_json(item) not in prior_shas
+        )
+        try:
+            catalog, report = publish_with_decisions(
+                bundles=bundles, resolutions=resolutions,
+                existing_catalog=latest,
+            )
+        except publication_v0.PublicationConflict as exc:
+            raise PersistenceError(
+                f"chapter publication failed closed: {exc}"
+            ) from exc
+        catalog_sha256 = sha256_json(catalog)
+
+        # One atomic public commit: catalog, canonical maps, every
+        # chapter publication, the catalog output, and the publish
+        # checkpoint/completed status. Any fault rolls back all of it.
+        canonical_store.persist_catalog(conn, catalog)
+        publication_ids: list[str] = []
+        for entry in accepted:
+            publication = build_chapter_publication(
+                artifact_entry=entry, catalog_sha256=catalog_sha256,
+                assembled_bundle_sha256=assembled_sha256,
+            )
+            publication_id = chapter_store.insert_chapter_publication_in_txn(
+                conn, job_id=job_id, artifact_sha256=entry["artifact_sha256"],
+                catalog_sha256=catalog_sha256,
+                assembled_bundle_sha256=assembled_sha256,
+                publication=publication,
+            )
+            publication_ids.append(str(publication_id))
+        control_plane.record_output_fenced(
+            conn, job_id=job_id, revision_id=revision_id,
+            worker=worker,
+            artifact_type=CATALOG_ARTIFACT_TYPE,
+            artifact_sha256=catalog_sha256,
+            payload={
+                "catalog_sha256": catalog_sha256,
+                "report": report,
+                "catalog": catalog,
+                "counts": report["counts"],
+                "publication_ids": sorted(publication_ids),
+                "chapter_count": len(accepted),
+            },
+        )
+        control_plane.write_stage_checkpoint_fenced(
+            conn, job_id=job_id, stage="publish", worker=worker,
+            checkpoint={
+                "resolve_publish_version": RESOLVE_PUBLISH_VERSION,
+                "catalog_sha256": catalog_sha256,
+                "assembled_bundle_sha256": assembled_sha256,
+                "publication_ids": sorted(publication_ids),
+                "counts": report["counts"],
+                "authoritative": False,
+            },
+        )
+        control_plane.advance_stage_fenced(
+            conn, job_id=job_id, stage="publish", status="completed",
+            worker=worker,
+        )
+    return {
+        "catalog_sha256": catalog_sha256,
+        "publication_ids": sorted(publication_ids),
+        "chapter_count": len(accepted),
+        "counts": report["counts"],
     }

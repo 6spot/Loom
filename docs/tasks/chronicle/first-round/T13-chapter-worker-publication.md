@@ -3,10 +3,10 @@ task: C2-R1-T13
 issue: 563
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: [C2-R1-T03, C2-R1-T04, C2-R1-T05, C2-R1-T06, C2-R1-T07, C2-R1-T08]
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-09
 completed_at:
 completion_pr:
 merge_sha:
@@ -30,8 +30,30 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+Implemented and verified against local PostgreSQL 18 + pgvector
+(`tools/postgres-test.sh` service, isolated databases per test):
+
+- `worker/test_chapter_pipeline_postgres.py` (new, 7 tests): full
+  extract→assemble→review→publish→present, review-gated resume,
+  accepted-run adoption with zero model calls, takeover without
+  writes, moved-baseline `publication_plan_stale` with no public
+  content, sequence-ordered second publisher, same-revision
+  `immutable_artifact_conflict`. All pass.
+- `worker/test_*postgres.py` (53 incl. the new 7), worker unit (94
+  incl. chapter entry), persistence unit (338) and postgres (56),
+  read_api postgres (53 incl. coverage): all pass.
+- Cross-task fixes required for wiring (reported for T03/T07
+  owners): `build_chapter_request` binds the chapter slice hash
+  (T01 identity check), assembly checks per-chapter content binding;
+  test-local adapter bridges the T05 prompt / T06 fixture
+  `CHAPTER_REQUEST` envelope drift.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-09 — Implementation in progress: sole wiring in
+  `ingestion_worker.py` via new `worker/chapter_stage.py`; atomic
+  `resolve_publish.publish_chapters` under the unified advisory lock
+  with `publication_sequence` latest-catalog reads (`coverage.py`
+  aligned, legacy publish writes locked); production chapter entry
+  in `production_worker.py`; docs updated in `worker.md`.

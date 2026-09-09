@@ -21,6 +21,7 @@ import threading
 from typing import Mapping
 
 import ingestion_worker as worker
+import chapter_stage as chapter_stage
 from common import PersistenceError
 
 DEFAULT_MODEL_INPUT_BUDGET_CHARS = 16384
@@ -130,6 +131,24 @@ def production_configs(
     return segmentation_config, extraction_config
 
 
+def chapter_configs(
+    env: Mapping[str, str] | None = None,
+) -> tuple[chapter_stage.chapter_contract.ChapterLimits, object | None]:
+    """Select the C2-R1 joint chapter schema/provider/limits entry.
+
+    Returns ``(limits, chapter_model)``. Limits honor the documented
+    ``CHRONICLE_CHAPTER_*`` overrides; the provider follows the formal
+    chapter entry (live ``CHRONICLE_CHAPTER_MODEL`` or explicit
+    ``CHRONICLE_CHAPTER_FIXTURE_PACK`` test injection). A missing
+    provider is returned as ``None`` so the worker fails closed instead
+    of faking chapters.
+    """
+    plain = dict(env) if env is not None else None
+    limits = chapter_stage.chapter_limits_from_env(plain)
+    model = chapter_stage.chapter_model_from_env(plain)
+    return limits, model
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the normal durable worker with budget-coupled production configs."""
     args = worker.build_parser().parse_args(argv)
@@ -149,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     extraction_model, presentation_model = worker.model_provider.models_from_env()
     segmentation_config, extraction_config = production_configs()
+    chapter_limits, chapter_model = chapter_configs()
 
     stop = threading.Event()
     worker.install_shutdown_handlers(stop)
@@ -185,6 +205,15 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
 
+    if chapter_model is not None:
+        print(
+            "chronicle-worker: joint chapter pipeline enabled "
+            f"(chapter_model={getattr(chapter_model, 'name', 'off')}, "
+            f"max_source_chars={chapter_limits.max_source_chars}, "
+            f"max_prompt_chars={chapter_limits.max_prompt_chars})",
+            flush=True,
+        )
+
     tally = worker.run_forever(
         database_url,
         worker=worker_id,
@@ -198,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
         chunk_model=extraction_model,
         presentation_model=presentation_model,
         extraction_config=extraction_config,
+        chapter_model=chapter_model,
+        chapter_limits=chapter_limits,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

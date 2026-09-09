@@ -101,5 +101,55 @@ class ProductionWorkerBudgetTests(unittest.TestCase):
                     )
 
 
+class ChapterEntryTests(unittest.TestCase):
+    def test_chapter_defaults_match_chapter_production_section3(self) -> None:
+        limits, model = P.chapter_configs({})
+
+        self.assertIsNone(model)
+        self.assertEqual(32768, limits.max_source_chars)
+        self.assertEqual(262144, limits.max_prompt_chars)
+        self.assertEqual(524288, limits.max_response_chars)
+        self.assertEqual(4 * 1024 * 1024, limits.max_response_bytes)
+        self.assertEqual(65536, limits.max_output_tokens)
+        self.assertEqual(1, limits.max_correction_rounds)
+
+    def test_chapter_env_overrides_are_honored(self) -> None:
+        limits, _ = P.chapter_configs(
+            {
+                "CHRONICLE_CHAPTER_MAX_SOURCE_CHARS": "4096",
+                "CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS": "1024",
+            }
+        )
+
+        self.assertEqual(4096, limits.max_source_chars)
+        self.assertEqual(1024, limits.max_output_tokens)
+        self.assertEqual(262144, limits.max_prompt_chars)
+
+    def test_chapter_invalid_env_is_rejected(self) -> None:
+        with self.assertRaises(P.PersistenceError):
+            P.chapter_configs({"CHRONICLE_CHAPTER_MAX_SOURCE_CHARS": "0"})
+        with self.assertRaises(P.PersistenceError):
+            P.chapter_configs({"CHRONICLE_CHAPTER_MAX_PROMPT_CHARS": "not-an-int"})
+
+    def test_chapter_model_without_endpoint_fails_closed(self) -> None:
+        with self.assertRaisesRegex(P.PersistenceError, "CHRONICLE_MODEL_ENDPOINT"):
+            P.chapter_configs({"CHRONICLE_CHAPTER_MODEL": "loom-chapter"})
+
+    def test_chapter_fixture_pack_missing_file_fails_closed(self) -> None:
+        with self.assertRaises(P.PersistenceError):
+            P.chapter_configs(
+                {"CHRONICLE_CHAPTER_FIXTURE_PACK": "/nonexistent/pack.json"}
+            )
+
+    def test_chapter_fixture_pack_conflicts_with_live_model(self) -> None:
+        with self.assertRaises(P.PersistenceError):
+            P.chapter_configs(
+                {
+                    "CHRONICLE_CHAPTER_FIXTURE_PACK": "/tmp/pack.json",
+                    "CHRONICLE_CHAPTER_MODEL": "loom-chapter",
+                }
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

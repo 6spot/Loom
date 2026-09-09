@@ -427,6 +427,131 @@ def read_accepted_chapter(
     }
 
 
+def insert_chapter_publication_in_txn(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    artifact_sha256: str,
+    catalog_sha256: str,
+    assembled_bundle_sha256: str,
+    publication: dict[str, Any],
+) -> uuid.UUID:
+    """Insert one chapter publication inside the caller's transaction.
+
+    Assumes the caller already holds the transaction (and, for worker
+    writes, the job lease plus the unified publish advisory lock): no
+    transaction is opened here so the atomic T13 publish can commit the
+    catalog, every chapter publication, and the publish checkpoint
+    together. The same ``(artifact, catalog, assembled-bundle)`` triple
+    with identical bytes is idempotent; different bytes raise
+    ``PersistenceConflict``.
+    """
+    import re
+
+    job_id = _require_uuid(job_id, "job_id")
+    sha_re = re.compile(r"^[0-9a-f]{64}$")
+    for value, description in (
+        (artifact_sha256, "artifact_sha256"),
+        (catalog_sha256, "catalog_sha256"),
+        (assembled_bundle_sha256, "assembled_bundle_sha256"),
+    ):
+        if not isinstance(value, str) or not sha_re.match(value):
+            raise PersistenceError(f"{description} must be a lowercase hex SHA-256 string")
+    if not isinstance(publication, dict):
+        raise PersistenceError("publication payload must be a JSON object")
+
+    artifact_row = conn.execute(
+        """
+        SELECT job_id, revision_id, document_id, chapter_id, payload
+        FROM chronicle.chapter_artifacts WHERE artifact_sha256 = %s
+        """,
+        (artifact_sha256,),
+    ).fetchone()
+    if artifact_row is None:
+        raise PersistenceConflict(
+            f"chapter artifact {artifact_sha256} is not accepted; "
+            "publish only accepted chapters"
+        )
+    if artifact_row[0] != job_id:
+        raise PersistenceConflict(
+            f"chapter artifact {artifact_sha256} belongs to job {artifact_row[0]}, "
+            f"not job {job_id}"
+        )
+    if (
+        isinstance(publication.get("chapter_id"), str)
+        and publication["chapter_id"] != artifact_row[3]
+    ):
+        raise PersistenceConflict(
+            f"publication chapter {publication['chapter_id']!r} does not match "
+            f"artifact chapter {artifact_row[3]!r}"
+        )
+
+    existing = conn.execute(
+        """
+        SELECT publication_id, payload
+        FROM chronicle.chapter_publications
+        WHERE artifact_sha256 = %s AND catalog_sha256 = %s
+          AND assembled_bundle_sha256 = %s
+        """,
+        (artifact_sha256, catalog_sha256, assembled_bundle_sha256),
+    ).fetchone()
+    if existing is not None:
+        if existing[1] != publication:
+            raise PersistenceConflict(
+                f"chapter publication for artifact {artifact_sha256} conflicts: "
+                "same (artifact, catalog, bundle) triple carries different bytes"
+            )
+        return existing[0]
+
+    publication_id = _new_publication_id()
+    try:
+        # As above, the race insert is savepoint-scoped so a
+        # concurrent identical publication stays idempotent instead
+        # of aborting the fenced transaction.
+        with conn.transaction(savepoint_name="chapter_publication_insert"):
+            conn.execute(
+                """
+                INSERT INTO chronicle.chapter_publications(
+                    publication_id, artifact_sha256, catalog_sha256,
+                    assembled_bundle_sha256, document_id, revision_id, job_id,
+                    chapter_id, payload
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    publication_id,
+                    artifact_sha256,
+                    catalog_sha256,
+                    assembled_bundle_sha256,
+                    artifact_row[2],
+                    artifact_row[1],
+                    job_id,
+                    artifact_row[3],
+                    Jsonb(publication),
+                ),
+            )
+    except Exception as exc:
+        from psycopg import errors as _errors
+
+        if isinstance(exc, _errors.UniqueViolation):
+            row = conn.execute(
+                """
+                SELECT publication_id, payload
+                FROM chronicle.chapter_publications
+                WHERE artifact_sha256 = %s AND catalog_sha256 = %s
+                  AND assembled_bundle_sha256 = %s
+                """,
+                (artifact_sha256, catalog_sha256, assembled_bundle_sha256),
+            ).fetchone()
+            if row is not None and row[1] == publication:
+                return row[0]
+            raise PersistenceConflict(
+                f"chapter publication for artifact {artifact_sha256} conflicts"
+            ) from exc
+        raise
+    parse_uuid7(str(publication_id), "publication_id")
+    return publication_id
+
+
 def persist_chapter_publication(
     conn,
     *,
@@ -445,115 +570,20 @@ def persist_chapter_publication(
     ``PersistenceConflict``. This helper performs no worker wiring: the
     atomic multi-chapter publish transaction belongs to T13.
     """
-    import re
-
     job_id = _require_uuid(job_id, "job_id")
     if not isinstance(worker, str) or not worker:
         raise PersistenceError("worker must be a non-empty string")
-    sha_re = re.compile(r"^[0-9a-f]{64}$")
-    for value, description in (
-        (artifact_sha256, "artifact_sha256"),
-        (catalog_sha256, "catalog_sha256"),
-        (assembled_bundle_sha256, "assembled_bundle_sha256"),
-    ):
-        if not isinstance(value, str) or not sha_re.match(value):
-            raise PersistenceError(f"{description} must be a lowercase hex SHA-256 string")
     if not isinstance(publication, dict):
         raise PersistenceError("publication payload must be a JSON object")
 
     with conn.transaction():
         control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
-
-        artifact_row = conn.execute(
-            """
-            SELECT job_id, revision_id, document_id, chapter_id, payload
-            FROM chronicle.chapter_artifacts WHERE artifact_sha256 = %s
-            """,
-            (artifact_sha256,),
-        ).fetchone()
-        if artifact_row is None:
-            raise PersistenceConflict(
-                f"chapter artifact {artifact_sha256} is not accepted; "
-                "publish only accepted chapters"
-            )
-        if artifact_row[0] != job_id:
-            raise PersistenceConflict(
-                f"chapter artifact {artifact_sha256} belongs to job {artifact_row[0]}, "
-                f"not job {job_id}"
-            )
-        if (
-            isinstance(publication.get("chapter_id"), str)
-            and publication["chapter_id"] != artifact_row[3]
-        ):
-            raise PersistenceConflict(
-                f"publication chapter {publication['chapter_id']!r} does not match "
-                f"artifact chapter {artifact_row[3]!r}"
-            )
-
-        existing = conn.execute(
-            """
-            SELECT publication_id, payload
-            FROM chronicle.chapter_publications
-            WHERE artifact_sha256 = %s AND catalog_sha256 = %s
-              AND assembled_bundle_sha256 = %s
-            """,
-            (artifact_sha256, catalog_sha256, assembled_bundle_sha256),
-        ).fetchone()
-        if existing is not None:
-            if existing[1] != publication:
-                raise PersistenceConflict(
-                    f"chapter publication for artifact {artifact_sha256} conflicts: "
-                    "same (artifact, catalog, bundle) triple carries different bytes"
-                )
-            return existing[0]
-
-        publication_id = _new_publication_id()
-        try:
-            # As above, the race insert is savepoint-scoped so a
-            # concurrent identical publication stays idempotent instead
-            # of aborting the fenced transaction.
-            with conn.transaction(savepoint_name="chapter_publication_insert"):
-                conn.execute(
-                    """
-                    INSERT INTO chronicle.chapter_publications(
-                        publication_id, artifact_sha256, catalog_sha256,
-                        assembled_bundle_sha256, document_id, revision_id, job_id,
-                        chapter_id, payload
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        publication_id,
-                        artifact_sha256,
-                        catalog_sha256,
-                        assembled_bundle_sha256,
-                        artifact_row[2],
-                        artifact_row[1],
-                        job_id,
-                        artifact_row[3],
-                        Jsonb(publication),
-                    ),
-                )
-        except Exception as exc:
-            from psycopg import errors as _errors
-
-            if isinstance(exc, _errors.UniqueViolation):
-                row = conn.execute(
-                    """
-                    SELECT publication_id, payload
-                    FROM chronicle.chapter_publications
-                    WHERE artifact_sha256 = %s AND catalog_sha256 = %s
-                      AND assembled_bundle_sha256 = %s
-                    """,
-                    (artifact_sha256, catalog_sha256, assembled_bundle_sha256),
-                ).fetchone()
-                if row is not None and row[1] == publication:
-                    return row[0]
-                raise PersistenceConflict(
-                    f"chapter publication for artifact {artifact_sha256} conflicts"
-                ) from exc
-            raise
-    parse_uuid7(str(publication_id), "publication_id")
-    return publication_id
+        return insert_chapter_publication_in_txn(
+            conn, job_id=job_id, artifact_sha256=artifact_sha256,
+            catalog_sha256=catalog_sha256,
+            assembled_bundle_sha256=assembled_bundle_sha256,
+            publication=publication,
+        )
 
 
 def list_published_chapters(

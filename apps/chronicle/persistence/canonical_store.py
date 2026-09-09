@@ -67,6 +67,41 @@ def _ensure_membership(
     return False
 
 
+def read_latest_catalog_sha256(conn) -> str | None:
+    """Return the content hash of the latest catalog, if any.
+
+    The newest catalog is defined by the unique increasing
+    ``publication_sequence`` identity column, never by the transaction
+    start time ``imported_at`` (C2-R1-T13).
+    """
+    row = conn.execute(
+        """
+        SELECT artifact_sha256 FROM chronicle.canonical_catalogs
+        ORDER BY publication_sequence DESC NULLS LAST,
+                 imported_at DESC, artifact_sha256 DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return str(row[0]) if row is not None else None
+
+
+def persist_catalog_locked(conn, catalog: dict[str, Any]) -> tuple[str, dict[str, int]]:
+    """Persist a catalog holding the unified publish advisory lock.
+
+    Every catalog write entry takes the same transaction-scoped lock
+    (``resolve_publish.acquire_publish_lock``), so concurrent
+    publishers serialize on the lock and the ``publication_sequence``
+    order — never on ``imported_at``. Callers already inside the
+    locked T13 publish transaction must use :func:`persist_catalog`
+    directly instead (the lock is already held).
+    """
+    import resolve_publish as resolve_publish  # noqa: E402
+
+    with conn.transaction():
+        resolve_publish.acquire_publish_lock(conn)
+        return persist_catalog(conn, catalog)
+
+
 def persist_catalog(conn, catalog: dict[str, Any]) -> tuple[str, dict[str, int]]:
     catalog_sha = sha256_json(catalog)
     schema_name = catalog.get("schema")

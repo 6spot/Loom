@@ -530,6 +530,13 @@ def build_chapter_request(
     by ``chapter_contract.validate_chapter_candidate`` (absolute plan
     coordinates are never handed to the model contract). The normalized
     hash binding is re-verified; any drift fails closed.
+
+    ``normalized_sha256`` binds the chapter slice (it must hash to
+    ``normalized_text`` per the T01 identity check), while
+    ``revision_id`` / ``source_sha256`` / ``chapter_id`` keep the
+    revision-level binding. The full-revision hash stays on the plan
+    and on each plan chapter's ``content_sha256`` for the assembly
+    cross-check.
     """
     if not isinstance(plan, dict) or not isinstance(plan.get("chapters"), list):
         raise PersistenceError(
@@ -581,6 +588,13 @@ def build_chapter_request(
                 "not match the supplied text"
             )
         blocks.append(relative)
+    chapter_text = text[start:end]
+    chapter_sha256 = sha256_text(chapter_text)
+    if chapter_sha256 != chapter.get("content_sha256"):
+        raise PersistenceError(  # pragma: no cover - defensive
+            f"{CODE_HASH_DRIFT}: chapter {chapter_index} content hash does "
+            "not match the supplied text"
+        )
     return {
         "chapter_id": chapter["chapter_id"],
         "chapter_index": chapter["chapter_index"],
@@ -588,8 +602,8 @@ def build_chapter_request(
         "revision_id": plan["revision_id"],
         "document_id": plan.get("document_id"),
         "source_sha256": plan["source_sha256"],
-        "normalized_sha256": plan["normalized_sha256"],
-        "normalized_text": text[start:end],
+        "normalized_sha256": chapter_sha256,
+        "normalized_text": chapter_text,
         "blocks": blocks,
         "required_block_ids": list(chapter["required_block_ids"]),
         "plan_version": PLAN_VERSION,
