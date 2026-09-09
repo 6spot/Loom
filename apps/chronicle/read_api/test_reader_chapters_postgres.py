@@ -910,6 +910,95 @@ class ReaderChaptersPostgresTests(unittest.TestCase):
             self.assertEqual(200, status)
         self.assertEqual(before, self._output_counts())
 
+    def test_old_publication_ignores_newer_assembled_output(self) -> None:
+        # Same job, second assembled output with divergent titles/names:
+        # the already-published chapters must keep reading the exact
+        # bundle they were published against, never the newest row.
+        items = self._walk_directory()
+        r1a = [i for i in items if i["revision_no"] == 1 and i["chapter_index"] == 0][0]
+        status, old_detail = self._request(
+            "GET", f"/v0/chapters/{r1a['publication_id']}"
+        )
+        self.assertEqual(200, status, old_detail)
+        old_name = old_detail["references"]["entities"][0]["name"]
+        old_canonical = old_detail["references"]["entities"][0]["canonical_id"]
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                "SELECT payload FROM chronicle.ingestion_outputs "
+                "WHERE job_id = %s AND artifact_type = %s",
+                (self.job_r1, "assembled-source-bundle"),
+            ).fetchone()
+            divergent = json.loads(json.dumps(row[0]))
+            divergent["bundle"]["entities"][0]["canonical_name"] = "劉玄德"
+            for chapter in divergent["report"]["plan"]["chapters"]:
+                if chapter["chapter_id"] == "ch_A":
+                    chapter["title"] = "先主傳改"
+            new_sha = sha256_json(divergent["bundle"])
+            divergent["bundle_sha256"] = new_sha
+            self.assertNotEqual(
+                row[0]["bundle_sha256"], new_sha,
+                "divergent bundle must hash differently",
+            )
+            control_plane.record_output(
+                conn, job_id=self.job_r1, revision_id=self.revision_r1,
+                artifact_type="assembled-source-bundle",
+                artifact_sha256=new_sha,
+                payload=divergent,
+            )
+            count = conn.execute(
+                "SELECT count(*) FROM chronicle.ingestion_outputs "
+                "WHERE job_id = %s AND artifact_type = %s",
+                (self.job_r1, "assembled-source-bundle"),
+            ).fetchone()[0]
+            self.assertEqual(2, count)
+            conn.commit()
+        items = self._walk_directory()
+        r1a = [i for i in items if i["revision_no"] == 1 and i["chapter_index"] == 0][0]
+        self.assertEqual("先主傳", r1a["chapter_title"])
+        status, detail = self._request(
+            "GET", f"/v0/chapters/{r1a['publication_id']}"
+        )
+        self.assertEqual(200, status, detail)
+        self.assertEqual("先主傳", detail["chapter_title"])
+        self.assertEqual("先主傳", detail["source_overview"]["chapter_title"])
+        self.assertEqual(old_name, detail["references"]["entities"][0]["name"])
+        self.assertEqual(
+            old_canonical, detail["references"]["entities"][0]["canonical_id"]
+        )
+        anchor = f"anc_a_ent_{str(self.revision_r1)[:8]}"
+        status, window = self._request(
+            "GET", f"/v0/chapters/{r1a['publication_id']}/sources/{anchor}"
+        )
+        self.assertEqual(200, status, window)
+        self.assertIn("玄德", window["text"])
+
+    def test_tampered_assembled_payload_fails_explicitly(self) -> None:
+        # Stored payload that no longer hashes to the publication's bundle
+        # must 409, never mix versions silently.
+        items = self._walk_directory()
+        r1a = [i for i in items if i["revision_no"] == 1 and i["chapter_index"] == 0][0]
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                "SELECT output_id, payload FROM chronicle.ingestion_outputs "
+                "WHERE job_id = %s AND artifact_type = %s",
+                (self.job_r1, "assembled-source-bundle"),
+            ).fetchone()
+            tampered = json.loads(json.dumps(row[1]))
+            tampered["bundle"]["warnings"].append({"note": "forged"})
+            conn.execute(
+                "UPDATE chronicle.ingestion_outputs SET payload = %s WHERE output_id = %s",
+                (Jsonb(tampered), row[0]),
+            )
+            conn.commit()
+        status, payload = self._request(
+            "GET", f"/v0/chapters/{r1a['publication_id']}"
+        )
+        self.assertEqual(409, status, payload)
+        self.assertEqual("reference_unavailable", payload["error"]["code"])
+        status, payload = self._request("GET", "/v0/chapters?limit=50")
+        self.assertEqual(409, status, payload)
+        self.assertEqual("reference_unavailable", payload["error"]["code"])
+
     def test_unmapped_reference_fails_explicitly(self) -> None:
         # A translation ref with no assembled revision mapping must 409,
         # never resolve by guessing another object.

@@ -49,6 +49,7 @@ if str(_PERSISTENCE_DIR) not in sys.path:
 import chapter_contract as _chapter_contract  # noqa: E402
 import chapter_store as _chapter_store  # noqa: E402
 from common import PersistenceError as _PersistenceError  # noqa: E402
+from common import sha256_json as _sha256_json  # noqa: E402
 
 #: Rust forwarding cap mirrored here: oversized full texts fail
 #: explicitly instead of being truncated mid-response.
@@ -261,14 +262,23 @@ def _load_publication(conn, publication_id: uuid.UUID) -> dict[str, Any]:
     }
 
 
-def _load_assembled_output(conn, *, job_id: Any) -> dict[str, Any]:
+def _load_assembled_output(
+    conn, *, job_id: Any, assembled_bundle_sha256: str
+) -> dict[str, Any]:
+    """Load the exact assembled output one publication was built against.
+
+    A job may hold several ``assembled-source-bundle`` outputs (retries /
+    rebuilds); the read path must bind the publication's own
+    ``assembled_bundle_sha256`` instead of the newest row, and must verify
+    the stored payload still hashes to it. Anything else fails explicitly
+    instead of mixing an old translation with a newer object mapping.
+    """
     row = conn.execute(
         """
         SELECT payload FROM chronicle.ingestion_outputs
-        WHERE job_id = %s AND artifact_type = %s
-        ORDER BY created_at DESC LIMIT 1
+        WHERE job_id = %s AND artifact_type = %s AND artifact_sha256 = %s
         """,
-        (job_id, "assembled-source-bundle"),
+        (job_id, "assembled-source-bundle", assembled_bundle_sha256),
     ).fetchone()
     if row is None or not isinstance(row[0], dict):
         raise _Conflict(
@@ -276,7 +286,32 @@ def _load_assembled_output(conn, *, job_id: Any) -> dict[str, Any]:
             "assembled chapter bundle for this publication is not persisted; "
             "refusing to guess reference mappings",
         )
-    return row[0]
+    payload = row[0]
+    bundle = payload.get("bundle")
+    if not isinstance(bundle, dict):
+        raise _Conflict(
+            "reference_unavailable",
+            "assembled output for this publication carries no bundle; "
+            "refusing to guess reference mappings",
+        )
+    if _sha256_json(bundle) != assembled_bundle_sha256:
+        raise _Conflict(
+            "reference_unavailable",
+            "assembled output payload no longer hashes to this "
+            "publication's bundle; refusing to mix versions",
+        )
+    declared = payload.get("bundle_sha256")
+    if (
+        isinstance(declared, str)
+        and declared
+        and declared != assembled_bundle_sha256
+    ):
+        raise _Conflict(
+            "reference_unavailable",
+            "assembled output declares a different bundle hash than this "
+            "publication; refusing to mix versions",
+        )
+    return payload
 
 
 def _chapter_title_from_assembled(
@@ -446,6 +481,7 @@ def handle_directory(conn, *, raw_query: str) -> dict[str, Any]:
     rows = conn.execute(
         f"""
         SELECT p.publication_id, p.artifact_sha256, p.catalog_sha256,
+               p.assembled_bundle_sha256,
                p.document_id, d.title, p.revision_id, r.revision_no,
                p.job_id, p.chapter_id, a.chapter_index, p.published_at
         FROM chronicle.chapter_publications p
@@ -468,6 +504,7 @@ def handle_directory(conn, *, raw_query: str) -> dict[str, Any]:
             publication_id,
             artifact_sha256,
             catalog_sha256,
+            assembled_bundle_sha256,
             document_id,
             document_title,
             revision_id,
@@ -476,12 +513,21 @@ def handle_directory(conn, *, raw_query: str) -> dict[str, Any]:
             chapter_id,
             chapter_index,
             published_at,
-        ) = row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]
-        job_key = str(job_id)
-        assembled = assembled_cache.get(job_key)
+        ) = (
+            row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7],
+            row[8], row[9], row[10], row[11],
+        )
+        # Exact per-publication binding: the same job may hold newer
+        # assembled outputs that an old publication must never read.
+        cache_key = f"{job_id}:{assembled_bundle_sha256}"
+        assembled = assembled_cache.get(cache_key)
         if assembled is None:
-            assembled = _load_assembled_output(conn, job_id=job_id)
-            assembled_cache[job_key] = assembled
+            assembled = _load_assembled_output(
+                conn,
+                job_id=job_id,
+                assembled_bundle_sha256=assembled_bundle_sha256,
+            )
+            assembled_cache[cache_key] = assembled
         items.append(
             {
                 "publication_id": str(publication_id),
@@ -504,9 +550,9 @@ def handle_directory(conn, *, raw_query: str) -> dict[str, Any]:
     if has_more and page:
         last = page[-1]
         next_cursor = encode_directory_cursor(
-            document_id=str(last[3]),
-            revision_no=int(last[6]),
-            chapter_index=int(last[9]),
+            document_id=str(last[4]),
+            revision_no=int(last[7]),
+            chapter_index=int(last[10]),
             publication_id=str(last[0]),
         )
     return {
@@ -545,7 +591,11 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
                 f"publication {publication_id} block #{index} is not a "
                 "complete translation block",
             )
-    assembled = _load_assembled_output(conn, job_id=full["job_id"])
+    assembled = _load_assembled_output(
+        conn,
+        job_id=full["job_id"],
+        assembled_bundle_sha256=str(full["assembled_bundle_sha256"]),
+    )
     chapter_index = int(full["chapter_index"])
     chapter_id = str(full["chapter_id"])
     chapter_title = _chapter_title_from_assembled(assembled, chapter_id=chapter_id)

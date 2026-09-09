@@ -229,11 +229,12 @@ Error codes beyond the shared ones above:
 - `409 response_too_large` — the complete response exceeds the 8 MiB
   forwarding cap (explicit failure, never truncated).
 
-Tests: `test_reader_chapters_postgres.py` (12 PG18 integration tests:
+Tests: `test_reader_chapters_postgres.py` (14 PG18 integration tests:
 two revisions pinning old links, claim-less blocks, many-to-many ref
 positions, drift/unavailable 409s, exact chapter paging, read-only +
-no-model-call proof) and `test_reader_chapters_unit.py` (cursor
-scope binding, size cap, method/route codes).
+no-model-call proof, same-job second assembled output isolation,
+tampered-bundle explicit failure) and `test_reader_chapters_unit.py`
+(cursor scope binding, size cap, method/route codes).
 
 ## Verification dataset
 
