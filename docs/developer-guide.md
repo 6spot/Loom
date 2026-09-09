@@ -56,27 +56,20 @@ Do not maintain a copied list of accepted Amendments here. The Architecture Inde
 
 A task note under `docs/tasks/` cannot introduce a new semantic or authority decision by itself.
 
-## 3. Task context and execution state
+## 3. Task planning and delivery
 
-`docs/tasks/` contains planning/audit material. GitHub Issues remain the collaboration surface, and the active orchestrator owns execution state and dependency scheduling.
-
-When Multica coordinates work:
-
-- Multica Issue state is the execution-state authority;
-- Multica dependencies and Stage relationships decide readiness/order;
-- task-note `status` / `depends_on` fields are documentary context only;
-- stale Task Ledger metadata must not block a Multica-ready task.
+`docs/tasks/` contains repository-local planning and implementation history. GitHub Issues remain the collaboration surface for active work.
 
 Before implementing task-backed work:
 
 1. read the active Issue/task context;
-2. read the initiative/task note when it contains relevant scope, ownership or contract links;
+2. read the initiative/task note when it contains relevant scope, dependency, ownership or contract links;
 3. confirm the planned scope still matches current architecture authority;
-4. inspect current code/tests before editing.
+4. inspect current code and tests before editing.
+
+Task-note metadata is descriptive context. For an assigned task, use the linked notes to understand prerequisites and boundaries rather than treating historical metadata as a separate startup procedure.
 
 For repository delivery completion, follow `docs/development/task-completion.md`.
-
-Do not create a second post-merge workflow solely to reconcile Markdown with PR number, merge SHA or external status.
 
 ## 4. Cargo dependency and public-exposure governance
 
@@ -132,7 +125,7 @@ Multica failure notifications are opt-in. Include a standalone
 `.github/workflows/multica-ci-wakeup.yml` re-reads the PR and validates the open
 PR/current-head Issue mapping before sending a failure notification.
 
-PR lifecycle close intent is normalized by the repository's Multica PR metadata workflow; agents should not create a second manual bookkeeping flow around that metadata.
+PR lifecycle close intent is normalized by the repository's Multica PR metadata workflow.
 
 ## 6. Public/API consumption
 
@@ -160,7 +153,7 @@ Use `docs/README.md` as the documentation category index.
 | Development/testing | `docs/development/` | how to build, test and verify the implementation |
 | Deployment/runbooks | `docs/deployment/` | install, configure, operate, back up and troubleshoot Loom |
 | Public/operator guidance | `docs/quickstart.md`, `docs/operator-guide.md` | consume and inspect the running engine |
-| Implementation planning/history | `docs/tasks/` | optional task scope, dependency diagrams and evidence; not workflow-state authority |
+| Implementation planning/history | `docs/tasks/` | task scope, dependency diagrams, ownership and implementation evidence |
 
 Application-specific Agent instructions belong under that application (for example `apps/<name>/AGENTS.md`) rather than in a second repository-wide Agent guide tree.
 
