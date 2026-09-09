@@ -125,8 +125,12 @@ python3 apps/chronicle/worker/production_worker.py \
 ```
 
 A joint chapter model without a revision source fails the job before
-any stage runs (no silent fake completion); a real source without any
-model keeps the explicit extract failure instead of falling back.
+any stage runs (no silent fake completion). A production entry
+pointed at a source directory without any model refuses to start at
+all; the composable library runner stays available for explicit test
+injection (the pinned C1 segmentation/extraction tests rely on that),
+while a real source without models keeps the explicit extract failure
+instead of falling back.
 
 ## How durability works
 

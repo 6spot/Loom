@@ -33,24 +33,34 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 Implemented and verified against local PostgreSQL 18 + pgvector
 (`tools/postgres-test.sh` service, isolated databases per test):
 
-- `worker/test_chapter_pipeline_postgres.py` (new, 11 tests): full
+- `worker/test_chapter_pipeline_postgres.py` (new, 12 tests): full
   extract→assemble→review→publish→present, review-gated resume,
   accepted-run adoption with zero model calls, takeover without
   writes, moved-baseline `publication_plan_stale` with no public
   content, sequence-ordered second publisher, same-revision
-  `immutable_artifact_conflict`, chapter-model-without-source
-  fail-closed, expired-lease publish fence, exact T05 header
-  envelope, and required per-chapter assembly content hash. All pass.
-- `worker/test_*postgres.py` (57 incl. the new file), worker unit
-  (94 incl. chapter entry), persistence unit (338) and postgres (56),
-  read_api postgres (53 incl. coverage): all pass.
-- Review round (CHANGES_REQUIRED → addressed): `chapter_plan.py`
-  reverted — the chapter-slice hash rebinding now lives in the
-  T13-owned wiring layer; `assembly.py` keeps the minimal
-  per-chapter content binding the review requires (synthetic T07
-  fixtures aligned, flagged for the T07 owner); the T05/T06 envelope
-  drift is pinned from the test side and flagged for the T06 owner;
-  the legacy `postgres_v0` catalog writer now uses the shared lock.
+  `immutable_artifact_conflict`, chapter-model-without-source and
+  source-without-model fail-closed before any branching,
+  expired-lease publish fence, exact T05 header envelope, required
+  per-chapter assembly content hash, and direct real-fixture T05
+  answers (no test adapter). All pass.
+- `worker/test_*postgres.py` (incl. the new file and the updated
+  source fail-closed test), worker unit (incl. chapter entry and
+  fixture envelope), persistence unit and postgres, read_api
+  postgres (incl. coverage): all pass.
+- Review rounds (CHANGES_REQUIRED → addressed): `chapter_plan.py`
+  reverted — the chapter-slice hash rebinding lives in the T13-owned
+  wiring layer; `assembly.py` keeps the minimal per-chapter content
+  binding the review requires (synthetic T07 fixtures aligned);
+  the T05/T06 envelope is unified in `fixture_model.py` (legacy
+  envelope preserved, all T06 unit tests green); the legacy
+  `postgres_v0` catalog writer now uses the shared lock.
+- Ownership coordination: T07-side `assembly.py` /
+  `test_assembly_unit.py` changes cannot be moved into T13 files
+  (the old triple check rejects every real multi-chapter artifact)
+  nor reverted without breaking acceptance; explicit owner review
+  requested at
+  https://github.com/6spot/Loom/issues/557#issuecomment-5595488741
+  (minimal hunk, C1 path untouched, revert/adopt notes included).
 
 ## Progress Log
 
@@ -66,3 +76,18 @@ Implemented and verified against local PostgreSQL 18 + pgvector
   missing-model fail-closed at job start, exact envelope parsing,
   mandatory content-hash validation, expiry-aware publish fence
   with regression tests, remaining catalog writer locked.
+- 2026-09-09 — Second review round on PR #609: T07 coordination
+  requested explicitly on issue #557 with revert/adopt notes;
+  T05/T06 envelope unified in the fixture (legacy path preserved,
+  test-only adapter deleted, real-fixture coverage added);
+  source-without-chapter-model now rejected at job start before any
+  legacy/fake branching (C1 fail-closed test updated to the new
+  expectation).
+- 2026-09-09 — Third review round on PR #609: fail-closed moved to
+  the production entry (`require_production_entry` refuses a sourced
+  worker without models before claiming; library composability for
+  explicit injection preserved with the pinned C1 tests green);
+  fixture accepts both the legacy and the production T05 envelopes
+  (T06 unit tests green, adapter deleted); T07 coordination recorded
+  at
+  https://github.com/6spot/Loom/issues/557#issuecomment-5595488741.

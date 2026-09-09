@@ -151,5 +151,36 @@ class ChapterEntryTests(unittest.TestCase):
             )
 
 
+class ProductionEntryTests(unittest.TestCase):
+    def test_source_without_any_model_refuses_to_start(self) -> None:
+        with self.assertRaisesRegex(P.PersistenceError, "requires an explicit model"):
+            P.chapter_stage.require_production_entry(
+                source_dir="/data/sources",
+                extraction_model=None,
+                chapter_model=None,
+            )
+
+    def test_source_with_chapter_model_is_accepted(self) -> None:
+        P.chapter_stage.require_production_entry(
+            source_dir="/data/sources",
+            extraction_model=None,
+            chapter_model=object(),
+        )
+
+    def test_source_with_extraction_model_is_accepted(self) -> None:
+        P.chapter_stage.require_production_entry(
+            source_dir="/data/sources",
+            extraction_model=object(),
+            chapter_model=None,
+        )
+
+    def test_no_source_needs_no_model(self) -> None:
+        P.chapter_stage.require_production_entry(
+            source_dir=None,
+            extraction_model=None,
+            chapter_model=None,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

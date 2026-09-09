@@ -1720,15 +1720,16 @@ class JobRunner:
         )
 
     def _chapter_config_error(self) -> str | None:
-        """Fail closed on partial chapter production configuration.
+        """Fail closed when a joint chapter model has no revision source.
 
-        A configured joint chapter model without a revision source
-        would otherwise fall through to the deterministic fake stages
-        and fake-complete: that silent success is refused here before
-        any stage runs. (A real source without any model keeps the
-        pinned C1 behavior — real structure/segment, then an explicit
-        extract failure — and the all-fake topology stays reserved for
-        explicit test injection.)
+        A configured chapter model without a source would otherwise
+        fall through to the deterministic fake stages and
+        fake-complete: that silent success is refused here before any
+        stage runs. All other combinations keep their pinned behavior:
+        the C1 library path stays composable for explicit injection
+        (revision source plus explicit models or test executors), and
+        the production entry enforces its own no-fallback rule in
+        ``main`` before claiming anything.
         """
         if self.chapter_model is not None and self.revision_source is None:
             return (
@@ -2598,6 +2599,11 @@ def main(argv: list[str] | None = None) -> int:
     extraction_model, presentation_model = model_provider.models_from_env()
     chapter_model = chapter_stage.chapter_model_from_env()
     chapter_limits = chapter_stage.chapter_limits_from_env()
+    chapter_stage.require_production_entry(
+        source_dir=source_dir,
+        extraction_model=extraction_model,
+        chapter_model=chapter_model,
+    )
     stop = threading.Event()
     install_shutdown_handlers(stop)
     if chapter_model is not None and source_dir is not None:

@@ -236,36 +236,6 @@ def _parse_chapter_request_header(prompt: str) -> dict:
     return header
 
 
-class ChapterFixtureAdapter:
-    """Test-local bridge over the T06 chapter fixture model.
-
-    The request is resolved through the exact T05 ``CHAPTER REQUEST``
-    header envelope parsed from the production prompt, then candidate
-    construction is delegated to the fixture so the T01 validator
-    still checks every fixture byte.
-    """
-
-    def __init__(self, fixture_model, requests: list[dict]) -> None:
-        self._model = fixture_model
-        self.name = f"{fixture_model.name}:t13-adapter"
-        self._by_chapter = {
-            request["chapter_id"]: request for request in requests
-        }
-        self.calls = 0
-
-    def complete(self, prompt: str) -> str:
-        self.calls += 1
-        header = _parse_chapter_request_header(prompt)
-        chapter_id = str(header["chapter_id"])
-        request = self._by_chapter.get(chapter_id)
-        if request is None:
-            raise PersistenceError(
-                f"chapter {chapter_id!r} is not part of this test job"
-            )
-        candidate = self._model.build_for_request(request)
-        return json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
-
-
 class ExplodingModel:
     """Joint model that fails if ever called (adoption must need no calls)."""
 
@@ -293,6 +263,22 @@ class ChapterContractRegressionTests(unittest.TestCase):
         self.assertEqual(request["revision_id"], header["revision_id"])
         self.assertEqual(request["source_sha256"], header["source_sha256"])
         self.assertEqual(request["limits"], header["limits"])
+
+    def test_real_fixture_answers_t05_prompt_directly(self) -> None:
+        text = TEXT_DISTINCT
+        revision_id = uuid.uuid4()
+        plan = _plan_for(text, revision_id, _sha256(text))
+        pack = _pack_payload(plan, revision_id, _distinct_specs())
+        fixture = _load_fixture_model(pack)
+        request = chapter_plan.build_chapter_request(
+            plan, 1, text, limits=chapter_contract.ChapterLimits()
+        )
+        request["normalized_sha256"] = _sha256(request["normalized_text"])
+        prompt = chapter_prompt.render_chapter_prompt(request)
+        candidate = json.loads(fixture.complete(prompt))
+        self.assertEqual(request["chapter_id"], candidate["chapter_id"])
+        report = chapter_contract.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"])
 
     def test_assembly_requires_per_chapter_content_hash(self) -> None:
         fixtures = HERE.parent / "ingestion" / "fixtures" / "c2r1-contract"
@@ -411,20 +397,12 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
         )
 
     def _prepare_model(self, text, revision_id, source_sha, specs):
+        # The real T06 fixture path: the pack only binds chapter_ids;
+        # every prompt is a production T05 render parsed by the fixture
+        # itself, with no test-only adapter in between.
         plan = _plan_for(text, revision_id, source_sha)
         pack = _pack_payload(plan, revision_id, specs)
-        fixture = _load_fixture_model(pack)
-        # The adapter resolves chapters through the production prompt
-        # header and only borrows chapter_id/blocks/text from these
-        # copies; hash binding always comes from the wiring layer.
-        requests = [
-            chapter_plan.build_chapter_request(
-                plan, index, text,
-                limits=chapter_contract.ChapterLimits(),
-            )
-            for index in range(plan["chapter_count"])
-        ]
-        return ChapterFixtureAdapter(fixture, requests), plan
+        return _load_fixture_model(pack), plan
 
     def _planned_requests(self, text, job_id, source_sha):
         """Build production-identical requests via the T13 wiring layer."""

@@ -149,6 +149,31 @@ def chapter_limits_from_env(
     return chapter_contract.ChapterLimits.from_env(dict(env))
 
 
+def require_production_entry(
+    *,
+    source_dir: Any | None,
+    extraction_model: Any | None,
+    chapter_model: Any | None,
+) -> None:
+    """Enforce the production entry's explicit model rule (fail closed).
+
+    A production worker pointed at a real source directory must have
+    an explicit extraction capability — either the joint chapter
+    model or a chunk extraction model. Without either, the entry
+    refuses to start instead of falling through to legacy/fake
+    branching. This is the production-entry rule; the library runner
+    stays composable for explicit test injection (pinned C1
+    segmentation/extraction tests rely on that).
+    """
+    if source_dir is not None and extraction_model is None and chapter_model is None:
+        raise PersistenceError(
+            "a production worker with --source-dir/CHRONICLE_SOURCE_DIR "
+            "requires an explicit model (CHRONICLE_CHAPTER_MODEL for the "
+            "joint chapter pipeline or CHRONICLE_EXTRACTION_MODEL for "
+            "chunk extraction); refusing to start without one"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Planning: revision binding, plan, and program-owned requests
 # ---------------------------------------------------------------------------

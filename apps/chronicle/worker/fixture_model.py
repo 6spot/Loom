@@ -20,6 +20,7 @@ no silent fallback to development output.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -452,6 +453,26 @@ CHAPTER_REQUEST_END = "\n---END CHAPTER_REQUEST---"
 
 _CHAPTER_ID_PATTERN = re.compile(r"ch_[0-9a-f]{24}")
 
+# Production T05 prompt sections (chapter-production.md section 3): the
+# joint renderer carries the whole chapter verbatim plus a JSON request
+# header, so a development provider can rebuild the exact program-owned
+# request without a second envelope.
+_CHAPTER_T05_HEADER_MARKER = "CHAPTER REQUEST\n"
+_CHAPTER_T05_REQUIRED_MARKER = (
+    "REQUIRED BLOCKS (every listed block must be covered "
+    "by translation source_block_ids)\n"
+)
+_CHAPTER_T05_BLOCKS_MARKER = "CHAPTER BLOCKS"
+_CHAPTER_T05_TEXT_MARKER = "FULL CHAPTER TEXT"
+_CHAPTER_T05_TEXT_START = "---BEGIN CHAPTER---\n"
+_CHAPTER_T05_TEXT_END = "\n---END CHAPTER---"
+_CHAPTER_T05_BLOCK_RE = re.compile(
+    r"\[(?P<block_id>[^\s\]]+) kind=(?P<kind>[^\s\]]+)"
+    r" range=(?P<start>\d+):(?P<end>\d+)[^\]]*\]\n"
+    r"(?P<content>.*?)\n---END (?P=block_id)---",
+    re.DOTALL,
+)
+
 _CONTEXTUAL_ONLY_SURFACES = frozenset({"公", "王"})
 
 _CHAPTER_ENTITY_TYPES = frozenset(
@@ -851,6 +872,145 @@ def build_chapter_candidate(
     }
 
 
+def _chapter_header_lines(prompt: str, marker: str, description: str) -> str:
+    """Return the JSON paragraph following a production prompt marker."""
+    start = prompt.find(marker)
+    if start < 0:
+        raise PersistenceError(
+            f"fixture chapter prompt is missing {description}"
+        )
+    rest = prompt[start + len(marker):]
+    lines: list[str] = []
+    for line in rest.splitlines():
+        if not line.strip():
+            break
+        lines.append(line)
+    if not lines:
+        raise PersistenceError(
+            f"fixture chapter prompt carries no {description} JSON"
+        )
+    return "\n".join(lines)
+
+
+def _chapter_request_from_t05_prompt(prompt: str) -> dict[str, Any]:
+    """Rebuild the program-owned chapter request from a T05 prompt.
+
+    Parses only the renderer's exact machine-readable sections — the
+    ``CHAPTER REQUEST`` header JSON, the ``REQUIRED BLOCKS`` JSON
+    array, the ``CHAPTER BLOCKS`` ranges, and the verbatim
+    ``FULL CHAPTER TEXT`` — and re-verifies every binding (text hash,
+    block ranges, required coverage) fail-closed. The rebuilt request
+    is byte-equivalent to the program-owned one for candidate
+    construction; unknown layouts are refused, never guessed.
+    """
+    try:
+        header = json.loads(
+            _chapter_header_lines(
+                prompt, _CHAPTER_T05_HEADER_MARKER, "CHAPTER REQUEST header"
+            )
+        )
+    except json.JSONDecodeError as exc:
+        raise PersistenceError(
+            "fixture chapter CHAPTER REQUEST header is invalid JSON"
+        ) from exc
+    if not isinstance(header, dict):
+        raise PersistenceError("fixture chapter CHAPTER REQUEST header must be an object")
+    for key in (
+        "chapter_id", "revision_id", "source_sha256",
+        "normalized_sha256", "limits",
+    ):
+        if header.get(key) in (None, ""):
+            raise PersistenceError(
+                f"fixture chapter CHAPTER REQUEST header is missing {key!r}"
+            )
+    required_at = prompt.find(_CHAPTER_T05_REQUIRED_MARKER)
+    if required_at < 0:
+        raise PersistenceError(
+            "fixture chapter prompt is missing REQUIRED BLOCKS"
+        )
+    try:
+        required = json.loads(
+            _chapter_header_lines(
+                prompt[required_at:], _CHAPTER_T05_REQUIRED_MARKER,
+                "REQUIRED BLOCKS",
+            )
+        )
+    except json.JSONDecodeError as exc:
+        raise PersistenceError(
+            "fixture chapter REQUIRED BLOCKS is invalid JSON"
+        ) from exc
+    if (
+        not isinstance(required, list)
+        or not required
+        or any(not isinstance(item, str) or not item for item in required)
+    ):
+        raise PersistenceError(
+            "fixture chapter REQUIRED BLOCKS must be a non-empty string array"
+        )
+    text = _between(
+        prompt, _CHAPTER_T05_TEXT_START, _CHAPTER_T05_TEXT_END, "CHAPTER SOURCE TEXT"
+    )
+    if not text:
+        raise PersistenceError("fixture chapter FULL CHAPTER TEXT is empty")
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() != header["normalized_sha256"]:
+        raise PersistenceError(
+            "fixture chapter FULL CHAPTER TEXT does not match the "
+            "CHAPTER REQUEST hash; refusing a drifted reconstruction"
+        )
+    blocks_at = prompt.find(_CHAPTER_T05_BLOCKS_MARKER)
+    text_at = prompt.find(_CHAPTER_T05_TEXT_MARKER)
+    if blocks_at < 0 or text_at < 0 or text_at < blocks_at:
+        raise PersistenceError(
+            "fixture chapter prompt is missing CHAPTER BLOCKS coverage"
+        )
+    section = prompt[blocks_at:text_at]
+    blocks: list[dict[str, Any]] = []
+    for match in _CHAPTER_T05_BLOCK_RE.finditer(section):
+        start, end = int(match.group("start")), int(match.group("end"))
+        content = match.group("content")
+        if not (0 <= start < end <= len(text)) or text[start:end] != content:
+            raise PersistenceError(
+                f"fixture chapter block {match.group('block_id')!r} range "
+                f"[{start},{end}) does not match the chapter text; "
+                "refusing a drifted reconstruction"
+            )
+        blocks.append(
+            {
+                "block_id": match.group("block_id"),
+                "kind": match.group("kind"),
+                "start": start,
+                "end": end,
+                "content_sha256": hashlib.sha256(
+                    content.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    if not blocks:
+        raise PersistenceError("fixture chapter CHAPTER BLOCKS carries no blocks")
+    covered = {block["block_id"] for block in blocks}
+    missing = [item for item in required if item not in covered]
+    if missing:
+        raise PersistenceError(
+            f"fixture chapter REQUIRED BLOCKS {missing} are not rendered "
+            "in CHAPTER BLOCKS; refusing a partial reconstruction"
+        )
+    return {
+        "chapter_id": header["chapter_id"],
+        "chapter_index": header.get("chapter_index"),
+        "title": header.get("title"),
+        "revision_id": header["revision_id"],
+        "document_id": header.get("document_id"),
+        "source_sha256": header["source_sha256"],
+        "normalized_sha256": header["normalized_sha256"],
+        "normalized_text": text,
+        "blocks": blocks,
+        "required_block_ids": list(required),
+        "plan_version": header.get("plan_version"),
+        "limits": header["limits"],
+        "schema_versions": header.get("schema_versions"),
+    }
+
+
 @dataclass(frozen=True)
 class FixtureChapterModel:
     """Deterministic joint chapter-candidate provider for development."""
@@ -881,27 +1041,40 @@ class FixtureChapterModel:
     def complete(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt:
             raise PersistenceError("fixture chapter prompt must be non-empty text")
-        if CHAPTER_REQUEST_START not in prompt or CHAPTER_REQUEST_END not in prompt:
+        if (
+            CHAPTER_REQUEST_START in prompt
+            and CHAPTER_REQUEST_END in prompt
+        ):
+            raw = _between(
+                prompt,
+                CHAPTER_REQUEST_START.strip(),
+                CHAPTER_REQUEST_END.strip(),
+                "CHAPTER_REQUEST",
+            )
+            try:
+                request = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise PersistenceError(
+                    "fixture chapter CHAPTER_REQUEST is invalid JSON"
+                ) from exc
+            if not isinstance(request, dict):
+                raise PersistenceError(
+                    "fixture chapter CHAPTER_REQUEST must be an object"
+                )
+        elif _CHAPTER_T05_HEADER_MARKER in prompt:
+            # Production T05 envelope: rebuild the exact program-owned
+            # request from the renderer's machine-readable sections
+            # (header, required blocks, block ranges, verbatim chapter
+            # text), verified fail-closed. Anything else is refused.
+            request = _chapter_request_from_t05_prompt(prompt)
+        else:
             found = _CHAPTER_ID_PATTERN.search(prompt)
             hint = f" (saw chapter {found.group(0)!r})" if found else ""
             raise PersistenceError(
-                "fixture chapter prompt is missing the CHAPTER_REQUEST envelope"
+                "fixture chapter prompt is missing the CHAPTER_REQUEST envelope "
+                "and carries no T05 CHAPTER REQUEST header"
                 f"{hint}; refusing to guess the chapter request"
             )
-        raw = _between(
-            prompt,
-            CHAPTER_REQUEST_START.strip(),
-            CHAPTER_REQUEST_END.strip(),
-            "CHAPTER_REQUEST",
-        )
-        try:
-            request = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise PersistenceError(
-                "fixture chapter CHAPTER_REQUEST is invalid JSON"
-            ) from exc
-        if not isinstance(request, dict):
-            raise PersistenceError("fixture chapter CHAPTER_REQUEST must be an object")
         candidate = self.build_for_request(request)
         return json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
 

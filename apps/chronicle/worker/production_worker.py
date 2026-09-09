@@ -169,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
     extraction_model, presentation_model = worker.model_provider.models_from_env()
     segmentation_config, extraction_config = production_configs()
     chapter_limits, chapter_model = chapter_configs()
+    chapter_stage.require_production_entry(
+        source_dir=source_dir,
+        extraction_model=extraction_model,
+        chapter_model=chapter_model,
+    )
 
     stop = threading.Event()
     worker.install_shutdown_handlers(stop)
