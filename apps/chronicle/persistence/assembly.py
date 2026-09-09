@@ -72,6 +72,27 @@ except ImportError:  # pragma: no cover - standalone import without sibling
 #: Version of this source-assembly pipeline step.
 ASSEMBLY_VERSION = "c1t7-v1"
 
+#: Version of the chapter-assembly pipeline step (C2-R1-T07).
+CHAPTER_ASSEMBLY_VERSION = "c2r1-assembly-v1"
+
+#: Chapter plan version consumed by chapter assembly (T03 output).
+CHAPTER_PLAN_VERSION = "c2r1-chapters-v1"
+
+#: Schema marker for the chapter-assembly report emitted beside the bundle.
+CHAPTER_REPORT_SCHEMA = "chronicle.chapter-assembly-report"
+CHAPTER_REPORT_VERSION = "0.1"
+
+#: Accepted chapter artifact marker (T01 output, the sole accepted input).
+CHAPTER_ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
+CHAPTER_ARTIFACT_VERSION = "0.1"
+
+#: Model-generatable chapter candidate marker (embedded in artifacts).
+CHAPTER_CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
+CHAPTER_CANDIDATE_VERSION = "0.1"
+
+_T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
+_MENTION_ID_RE = re.compile(r"^m_(\d+)$")
+
 #: Reused C0 contract-first extraction contract (contract_v0 / repair_v0).
 CONTRACT_VERSION = "0.2"
 
@@ -1153,4 +1174,726 @@ def validate_assembled_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "passed": True,
         "count": 0,
         "errors": [],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Chapter assembly (C2-R1-T07)
+# ---------------------------------------------------------------------------
+
+
+def _remapped_chapter_id(prefix: str, chapter_index: int, local: str) -> str:
+    """Deterministic revision-scoped temp ID for one chapter record.
+
+    Reuses the original namespace rule: ``(chapter_index, local_ref)`` maps
+    into ``{prefix}_{chapter_index:03d}{number:03d}`` so ``ent_001`` in
+    chapter 0 (``ent_000001``) can never collide with ``ent_001`` in
+    chapter 1 (``ent_001001``). Satisfies the C0 temp-ID pattern.
+    """
+    match = _TEMP_ID_RE.match(local)
+    if match and match.group(1) == prefix:
+        number = int(match.group(2))
+    else:
+        number = 0
+    if chapter_index > 999 or number > 999:
+        raise PersistenceError(
+            f"chapter {chapter_index} record {local!r} exceeds the revision-scoped ID space"
+        )
+    return f"{prefix}_{chapter_index:03d}{number:03d}"
+
+
+def _remapped_translation_block_id(chapter_index: int, local: str, position: int) -> str:
+    match = _T_BLOCK_ID_RE.match(local) if isinstance(local, str) else None
+    number = int(match.group(1)) if match else (position + 1)
+    if chapter_index > 999 or number > 999:
+        raise PersistenceError(
+            f"chapter {chapter_index} translation block {local!r} exceeds the ID space"
+        )
+    return f"t_{chapter_index:03d}{number:03d}"
+
+
+def _remapped_mention_id(chapter_index: int, local: str, position: int) -> str:
+    match = _MENTION_ID_RE.match(local) if isinstance(local, str) else None
+    number = int(match.group(1)) if match else (position + 1)
+    if chapter_index > 999 or number > 999:
+        raise PersistenceError(
+            f"chapter {chapter_index} mention {local!r} exceeds the ID space"
+        )
+    return f"m_{chapter_index:03d}{number:03d}"
+
+
+def _chapter_inputs(value: Any, description: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise PersistenceError(f"{description} must be a non-empty array")
+    for item in value:
+        if not isinstance(item, dict):
+            raise PersistenceError(f"{description} must hold JSON objects")
+    return list(value)
+
+
+def _validate_chapter_plan(chapter_plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Validate the T03 plan shape; return chapters sorted by chapter_index."""
+    if not isinstance(chapter_plan, dict):
+        raise PersistenceError("chapter_plan must be a JSON object")
+    if chapter_plan.get("version", CHAPTER_PLAN_VERSION) != CHAPTER_PLAN_VERSION:
+        raise PersistenceError(
+            f"chapter plan version must be {CHAPTER_PLAN_VERSION!r}, "
+            f"got {chapter_plan.get('version')!r}"
+        )
+    for key in ("revision_id", "source_sha256", "normalized_sha256"):
+        if not isinstance(chapter_plan.get(key), str) or not chapter_plan.get(key):
+            raise PersistenceError(f"chapter_plan is missing {key!r}")
+    chapters = chapter_plan.get("chapters")
+    if not isinstance(chapters, list) or not chapters:
+        raise PersistenceError("chapter_plan chapters must be a non-empty array")
+    for chapter in chapters:
+        if not isinstance(chapter, dict):
+            raise PersistenceError("chapter_plan chapters must hold JSON objects")
+        if not isinstance(chapter.get("chapter_id"), str) or not chapter.get("chapter_id"):
+            raise PersistenceError("chapter_plan chapter requires a chapter_id")
+        index = chapter.get("chapter_index")
+        if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+            raise PersistenceError(
+                f"chapter {chapter.get('chapter_id')!r} chapter_index must be a non-negative integer"
+            )
+    ordered = sorted(chapters, key=lambda c: c["chapter_index"])
+    indexes = [c["chapter_index"] for c in ordered]
+    if len(set(indexes)) != len(indexes):
+        raise PersistenceError(f"chapter_plan chapter indexes are not unique: {indexes}")
+    if indexes != list(range(len(ordered))):
+        raise PersistenceError(
+            f"chapter_plan chapter indexes must be contiguous 0..{len(ordered) - 1}, got {indexes}"
+        )
+    ids = [c["chapter_id"] for c in ordered]
+    if len(set(ids)) != len(ids):
+        raise PersistenceError(f"chapter_plan chapter ids are not unique: {ids}")
+    return ordered
+
+
+def _validate_accepted_chapter_artifact(
+    artifact: dict[str, Any], *, position: int
+) -> dict[str, Any]:
+    """Structural fail-closed check for one T01 accepted artifact."""
+    owner = f"accepted_artifacts[{position}]"
+    if not isinstance(artifact, dict):
+        raise PersistenceError(f"{owner} must be a JSON object")
+    if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or artifact.get("version") != CHAPTER_ARTIFACT_VERSION:
+        raise PersistenceError(
+            f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/{CHAPTER_ARTIFACT_VERSION}; "
+            "unaccepted or wrong-generation products are rejected"
+        )
+    for key in ("chapter_id", "revision_id", "source_sha256", "normalized_sha256",
+                "candidate_sha256", "request_fingerprint"):
+        if not isinstance(artifact.get(key), str) or not artifact.get(key):
+            raise PersistenceError(f"{owner} is missing {key!r}")
+    candidate = artifact.get("candidate")
+    if not isinstance(candidate, dict):
+        raise PersistenceError(f"{owner} is missing its accepted candidate")
+    if candidate.get("schema") != CHAPTER_CANDIDATE_SCHEMA or candidate.get("version") != CHAPTER_CANDIDATE_VERSION:
+        raise PersistenceError(
+            f"{owner} candidate must be {CHAPTER_CANDIDATE_SCHEMA}/{CHAPTER_CANDIDATE_VERSION}"
+        )
+    if sha256_json(candidate) != artifact["candidate_sha256"]:
+        raise PersistenceError(
+            f"{owner} candidate bytes do not match candidate_sha256; "
+            "tampered or unaccepted products are rejected"
+        )
+    if candidate.get("chapter_id") != artifact["chapter_id"]:
+        raise PersistenceError(
+            f"{owner} candidate chapter {candidate.get('chapter_id')!r} does not match "
+            f"artifact chapter {artifact['chapter_id']!r}"
+        )
+    bundle = candidate.get("bundle")
+    if not isinstance(bundle, dict):
+        raise PersistenceError(f"{owner} candidate is missing its bundle")
+    if bundle.get("schema_version") != SCHEMA_VERSION:
+        raise PersistenceError(
+            f"{owner} bundle schema_version must be {SCHEMA_VERSION!r}"
+        )
+    source = bundle.get("source")
+    if not isinstance(source, dict):
+        raise PersistenceError(f"{owner} bundle is missing its source")
+    entities = bundle.get("entities")
+    events = bundle.get("events")
+    claims = bundle.get("claims")
+    for name, collection in (("entities", entities), ("events", events), ("claims", claims)):
+        if not isinstance(collection, list):
+            raise PersistenceError(f"{owner} bundle {name} must be an array")
+        for record in collection:
+            if not isinstance(record, dict):
+                raise PersistenceError(f"{owner} bundle {name} must hold JSON objects")
+    translation = candidate.get("translation")
+    if not isinstance(translation, dict) or not isinstance(translation.get("blocks"), list):
+        raise PersistenceError(f"{owner} candidate is missing translation.blocks")
+    for name in ("mentions", "record_sources", "anchors"):
+        collection = candidate.get(name) if name != "anchors" else artifact.get(name)
+        if not isinstance(collection, list):
+            raise PersistenceError(f"{owner} is missing {name!r} array")
+            # anchors live on the artifact; mentions/record_sources on the candidate.
+    # Canonical-identity discipline: nothing accepted may carry canonical IDs.
+    # (T01 already enforces this; re-check fail-closed so a forged artifact
+    # can never leak direct canonical assignment into the staged bundle.)
+    bundle_records: list[tuple[str, dict[str, Any]]] = []
+    for collection_name, collection in (("entities", entities), ("events", events), ("claims", claims)):
+        for record in collection:
+            bundle_records.append((collection_name, record))
+    seen: set[str] = set()
+    source_temp = source.get("temp_id")
+    if not isinstance(source_temp, str) or not source_temp.startswith("src_"):
+        raise PersistenceError(f"{owner} source temp_id must carry the 'src_' prefix")
+    seen.add(source_temp)
+    for collection_name, record in bundle_records:
+        prefix = {"entities": "ent_", "events": "evt_", "claims": "clm_"}[collection_name]
+        temp_id = record.get("temp_id")
+        if not isinstance(temp_id, str) or not temp_id:
+            raise PersistenceError(f"{owner} {collection_name} record requires a string temp_id")
+        if not temp_id.startswith(prefix):
+            raise PersistenceError(
+                f"{owner} {temp_id!r} temp_id must carry the {prefix!r} {collection_name} prefix"
+            )
+        if temp_id in seen:
+            raise PersistenceError(f"{owner} carries duplicate temp_id {temp_id!r}")
+        seen.add(temp_id)
+        if "id" in record:
+            raise PersistenceError(
+                f"{owner} {collection_name} record {temp_id!r} must not carry canonical identity"
+            )
+        resolution = record.get("resolution")
+        if isinstance(resolution, dict):
+            if resolution.get("canonical_id") is not None:
+                raise PersistenceError(
+                    f"{owner} {collection_name} record {temp_id!r} carries a nested canonical ID"
+                )
+            candidates = resolution.get("candidate_ids")
+            if candidates is not None and candidates != []:
+                raise PersistenceError(
+                    f"{owner} {collection_name} record {temp_id!r} carries nested candidate IDs"
+                )
+            if collection_name == "entities" and resolution.get("status") != "unresolved":
+                raise PersistenceError(
+                    f"{owner} entity record {temp_id!r} has resolution status "
+                    f"{resolution.get('status')!r}; assembly input must be unresolved/temp-ID-only"
+                )
+    return {
+        "chapter_id": artifact["chapter_id"],
+        "revision_id": artifact["revision_id"],
+        "source_sha256": artifact["source_sha256"],
+        "normalized_sha256": artifact["normalized_sha256"],
+        "candidate": candidate,
+        "bundle": bundle,
+        "source": source,
+        "entities": list(entities),
+        "events": list(events),
+        "claims": list(claims),
+        "translation": translation,
+        "mentions": list(candidate["mentions"]),
+        "record_sources": list(candidate["record_sources"]),
+        "anchors": list(artifact["anchors"]),
+        "candidate_sha256": artifact["candidate_sha256"],
+        "request_fingerprint": artifact["request_fingerprint"],
+        "artifact_sha256": sha256_json(artifact),
+    }
+
+
+def assemble_chapters(
+    *,
+    accepted_artifacts: list[dict[str, Any]],
+    chapter_plan: dict[str, Any],
+) -> dict[str, Any]:
+    """Assemble accepted chapter artifacts into one revision-staged bundle.
+
+    Inputs are the T01 accepted artifacts (``chronicle.chapter-artifact /
+    0.1``) plus the T03 chapter plan. Every expected chapter must have
+    exactly one accepted artifact: missing chapters, extra chapters,
+    duplicate chapters, mixed revisions, or unaccepted/tampered products
+    fail closed instead of producing a partial book bundle.
+
+    Each ``(chapter_index, local temp_id)`` maps into one revision-scoped
+    ref reusing the original namespace rule, and every reference — C0
+    claim/event fields, translation entity/event refs, mentions, and
+    record_sources — is rewritten through that same mapping. Translation
+    blocks without a Claim are preserved. One revision keeps exactly one
+    ``src_001`` source; per-record ``chapter_by_ref`` plus exact artifact
+    provenance serves T08 candidacy and T10 evidence lookup.
+
+    Unlike the chunk path, no boundary-duplicate suppression and no
+    automatic same-link run here: different chapters may describe the
+    same occurrence, but this stage keeps them as distinct pending
+    records and never merges by name.
+
+    Returns ``{"bundle", "translation_blocks", "mentions",
+    "record_sources", "anchors", "report"}``. Deterministic: unchanged
+    inputs yield byte-identical canonical JSON. No model calls, no worker
+    changes, no source-candidate mutation.
+    """
+    plan_chapters = _validate_chapter_plan(chapter_plan)
+    if not isinstance(accepted_artifacts, list) or not accepted_artifacts:
+        raise PersistenceError("assemble_chapters requires at least one accepted artifact")
+    normalized = [
+        _validate_accepted_chapter_artifact(artifact, position=position)
+        for position, artifact in enumerate(accepted_artifacts)
+    ]
+
+    plan_revision = (
+        chapter_plan["revision_id"],
+        chapter_plan["source_sha256"],
+        chapter_plan["normalized_sha256"],
+    )
+    for item in normalized:
+        triple = (item["revision_id"], item["source_sha256"], item["normalized_sha256"])
+        if triple != plan_revision:
+            raise PersistenceError(
+                f"artifact chapter {item['chapter_id']!r} revision triple {triple!r} does not match "
+                f"chapter plan triple {plan_revision!r}; refusing to mix revisions in one source bundle"
+            )
+    if len({(item["revision_id"], item["source_sha256"]) for item in normalized}) != 1:
+        raise PersistenceError("assembly artifacts span multiple revisions/source hashes (fail closed)")
+
+    expected_ids = [c["chapter_id"] for c in plan_chapters]
+    seen_ids: set[str] = set()
+    for item in normalized:
+        if item["chapter_id"] in seen_ids:
+            raise PersistenceError(
+                f"duplicate accepted artifact for chapter {item['chapter_id']!r}"
+            )
+        seen_ids.add(item["chapter_id"])
+    missing = [cid for cid in expected_ids if cid not in seen_ids]
+    if missing:
+        raise PersistenceError(
+            f"missing accepted artifacts for chapters {missing}; "
+            "refusing to present a finished subset as the whole book"
+        )
+    extra = sorted(seen_ids - set(expected_ids))
+    if extra:
+        raise PersistenceError(
+            f"unexpected accepted artifacts for chapters {extra}; "
+            "refusing to assemble chapters outside the plan"
+        )
+
+    plan_by_id = {c["chapter_id"]: c for c in plan_chapters}
+    ordered = sorted(normalized, key=lambda item: plan_by_id[item["chapter_id"]]["chapter_index"])
+
+    revision_id, source_sha256, normalized_sha256 = plan_revision
+    id_map: dict[tuple[int, str], str] = {}
+    chapter_by_ref: dict[str, str] = {}
+    local_to_revision: dict[str, str] = {}
+    provenance: dict[str, dict[str, Any]] = {}
+    chapter_artifacts: dict[str, str] = {}
+
+    def _register(chapter_index: int, prefix: str, records: list[dict[str, Any]]) -> None:
+        for position, record in enumerate(records):
+            old = record.get("temp_id")
+            if not isinstance(old, str) or not old:
+                raise PersistenceError(
+                    f"chapter {chapter_index} {prefix} record requires a temp_id"
+                )
+            match = _TEMP_ID_RE.match(old)
+            local = old if (match and match.group(1) == prefix) else f"{prefix}_{position + 1:03d}"
+            new = _remapped_chapter_id(prefix, chapter_index, local)
+            key = (chapter_index, old)
+            if key in id_map and id_map[key] != new:
+                raise PersistenceError(f"remapped ID conflict at {key!r} (fail closed)")
+            id_map[key] = new
+
+    for item in ordered:
+        chapter_index = plan_by_id[item["chapter_id"]]["chapter_index"]
+        _register(chapter_index, "ent", item["entities"])
+        _register(chapter_index, "evt", item["events"])
+        _register(chapter_index, "clm", item["claims"])
+
+    for (chapter_index, local), new in id_map.items():
+        chapter_id = next(
+            item["chapter_id"] for item in ordered
+            if plan_by_id[item["chapter_id"]]["chapter_index"] == chapter_index
+        )
+        chapter_by_ref[new] = chapter_id
+        local_to_revision[f"({chapter_index},{local})"] = new
+
+    # -- single revision source ------------------------------------------------
+    titles: list[str] = []
+    for item in ordered:
+        title = item["source"].get("title")
+        if isinstance(title, str) and title and title not in titles:
+            titles.append(title)
+    if not titles:
+        raise PersistenceError("assembled source requires a title")
+    merged_source = copy.deepcopy(ordered[0]["source"])
+    merged_source["temp_id"] = "src_001"
+    merged_source["title"] = titles[0]
+
+    entity_ids: set[str] = set()
+    event_ids: set[str] = set()
+    final_entities: list[dict[str, Any]] = []
+    final_events: list[dict[str, Any]] = []
+    final_claims: list[dict[str, Any]] = []
+
+    for item in ordered:
+        chapter_id = item["chapter_id"]
+        chapter_index = plan_by_id[chapter_id]["chapter_index"]
+
+        def _map(local: Any) -> Any:
+            if isinstance(local, str) and (chapter_index, local) in id_map:
+                return id_map[(chapter_index, local)]
+            return local
+
+        for entity in item["entities"]:
+            record = copy.deepcopy(entity)
+            record["temp_id"] = id_map[(chapter_index, entity["temp_id"])]
+            entity_ids.add(record["temp_id"])
+            final_entities.append(record)
+        for event in item["events"]:
+            record = copy.deepcopy(event)
+            record["temp_id"] = id_map[(chapter_index, event["temp_id"])]
+            participants = []
+            for participant in record.get("participants") or []:
+                if isinstance(participant, dict):
+                    participant = dict(participant)
+                    participant["entity_ref"] = _map(participant.get("entity_ref"))
+                participants.append(participant)
+            record["participants"] = participants
+            record["places"] = [_map(ref) for ref in record.get("places") or []]
+            if record.get("parent_event_ref") is not None:
+                record["parent_event_ref"] = _map(record.get("parent_event_ref"))
+            event_ids.add(record["temp_id"])
+            final_events.append(record)
+        for claim in item["claims"]:
+            record = copy.deepcopy(claim)
+            record["temp_id"] = id_map[(chapter_index, claim["temp_id"])]
+            for field in ("subject", "object"):
+                ref = record.get(field)
+                # Chapter candidates use kind entity/event; the shared unit
+                # helpers use entity_ref/event_ref. Accept both vocabularies
+                # and preserve the original kind string when rewriting.
+                if isinstance(ref, dict) and ref.get("kind") in (
+                    "entity", "entity_ref", "event", "event_ref",
+                ):
+                    ref = dict(ref)
+                    ref["ref"] = _map(ref.get("ref"))
+                    record[field] = ref
+            evidence = dict(record.get("evidence") or {})
+            evidence["source_ref"] = "src_001"
+            record["evidence"] = evidence
+            final_claims.append(record)
+
+    # -- translation / mentions / record_sources through the same mapping -----
+    translation_blocks: list[dict[str, Any]] = []
+    out_mentions: list[dict[str, Any]] = []
+    out_record_sources: list[dict[str, Any]] = []
+    merged_anchors: list[dict[str, Any]] = []
+
+    for item in ordered:
+        chapter_id = item["chapter_id"]
+        chapter_index = plan_by_id[chapter_id]["chapter_index"]
+
+        def _map(local: Any) -> Any:
+            if isinstance(local, str) and (chapter_index, local) in id_map:
+                return id_map[(chapter_index, local)]
+            return local
+
+        for position, block in enumerate(item["translation"].get("blocks") or []):
+            if not isinstance(block, dict):
+                raise PersistenceError(
+                    f"chapter {chapter_index} translation block must be a JSON object"
+                )
+            local_block = block.get("block_id")
+            out = copy.deepcopy(block)
+            out["block_id"] = _remapped_translation_block_id(chapter_index, local_block, position)
+            out["chapter_id"] = chapter_id
+            out["chapter_index"] = chapter_index
+            entity_refs = []
+            for ref in block.get("entity_refs") or []:
+                if not isinstance(ref, dict) or ref.get("kind") != "entity":
+                    raise PersistenceError(
+                        f"chapter {chapter_index} translation block has invalid entity ref"
+                    )
+                ref = dict(ref)
+                ref["ref"] = _map(ref.get("ref"))
+                entity_refs.append(ref)
+            event_refs = []
+            for ref in block.get("event_refs") or []:
+                if not isinstance(ref, dict) or ref.get("kind") != "event":
+                    raise PersistenceError(
+                        f"chapter {chapter_index} translation block has invalid event ref"
+                    )
+                ref = dict(ref)
+                ref["ref"] = _map(ref.get("ref"))
+                event_refs.append(ref)
+            out["entity_refs"] = entity_refs
+            out["event_refs"] = event_refs
+            # source_block_ids stay chapter-local (chapter-production §4):
+            # they address the chapter request blocks, never revision refs.
+            translation_blocks.append(out)
+
+        for position, mention in enumerate(item["mentions"]):
+            if not isinstance(mention, dict):
+                raise PersistenceError(f"chapter {chapter_index} mention must be a JSON object")
+            out = copy.deepcopy(mention)
+            out["mention_id"] = _remapped_mention_id(chapter_index, mention.get("mention_id"), position)
+            out["chapter_id"] = chapter_id
+            out["chapter_index"] = chapter_index
+            target = mention.get("target_ref")
+            out["target_ref"] = _map(target) if target is not None else None
+            out["candidate_refs"] = [_map(ref) for ref in mention.get("candidate_refs") or []]
+            out_mentions.append(out)
+
+        for entry in item["record_sources"]:
+            if not isinstance(entry, dict):
+                raise PersistenceError(f"chapter {chapter_index} record_sources entry must be an object")
+            local_ref = entry.get("record_ref")
+            mapped = _map(local_ref)
+            if mapped == local_ref or not isinstance(mapped, str):
+                raise PersistenceError(
+                    f"chapter {chapter_index} record_sources entry references unknown record {local_ref!r}"
+                )
+            out = copy.deepcopy(entry)
+            out["record_ref"] = mapped
+            out["chapter_id"] = chapter_id
+            out["chapter_index"] = chapter_index
+            out_record_sources.append(out)
+
+        for anchor in item["anchors"]:
+            if not isinstance(anchor, dict):
+                raise PersistenceError(f"chapter {chapter_index} anchor must be a JSON object")
+            if anchor.get("chapter_id") != chapter_id:
+                raise PersistenceError(
+                    f"chapter {chapter_index} anchor {anchor.get('anchor_id')!r} belongs to "
+                    f"{anchor.get('chapter_id')!r}; refusing cross-chapter anchors"
+                )
+            if anchor.get("revision_id") != revision_id:
+                raise PersistenceError(
+                    f"chapter {chapter_index} anchor revision mismatch (fail closed)"
+                )
+            merged_anchors.append(copy.deepcopy(anchor))
+
+    translation_blocks.sort(key=lambda b: (b["chapter_index"], b["block_id"]))
+    out_mentions.sort(key=lambda m: (m["chapter_index"], m["mention_id"]))
+    out_record_sources.sort(key=lambda e: (e["record_ref"], e["chapter_index"]))
+    merged_anchors.sort(
+        key=lambda a: (str(a.get("chapter_id")), int(a.get("start", 0)), int(a.get("end", 0)), str(a.get("anchor_id")))
+    )
+
+    # -- closed references across types (fail closed) ---------------------------
+    for block in translation_blocks:
+        for ref in block.get("entity_refs") or []:
+            if ref.get("ref") not in entity_ids:
+                raise PersistenceError(
+                    f"translation block {block['block_id']!r} references missing entity {ref.get('ref')!r}"
+                )
+        for ref in block.get("event_refs") or []:
+            if ref.get("ref") not in event_ids:
+                raise PersistenceError(
+                    f"translation block {block['block_id']!r} references missing event {ref.get('ref')!r}"
+                )
+    for mention in out_mentions:
+        for ref in ([mention.get("target_ref")] if mention.get("target_ref") else []) + list(
+            mention.get("candidate_refs") or []
+        ):
+            if ref not in entity_ids:
+                raise PersistenceError(
+                    f"mention {mention['mention_id']!r} references missing entity {ref!r}"
+                )
+    for event in final_events:
+        for participant in event.get("participants") or []:
+            if isinstance(participant, dict) and participant.get("entity_ref") not in entity_ids:
+                raise PersistenceError(
+                    f"event {event['temp_id']!r} references missing entity {participant.get('entity_ref')!r}"
+                )
+        for ref in event.get("places") or []:
+            if ref not in entity_ids:
+                raise PersistenceError(
+                    f"event {event['temp_id']!r} references missing place entity {ref!r}"
+                )
+        parent = event.get("parent_event_ref")
+        if parent is not None and parent not in event_ids:
+            raise PersistenceError(
+                f"event {event['temp_id']!r} references missing parent event {parent!r}"
+            )
+    for claim in final_claims:
+        for field in ("subject", "object"):
+            ref = claim.get(field)
+            if isinstance(ref, dict):
+                kind, target = ref.get("kind"), ref.get("ref")
+                if kind in ("entity", "entity_ref") and target not in entity_ids:
+                    raise PersistenceError(
+                        f"claim {claim['temp_id']!r}.{field} references missing entity {target!r}"
+                    )
+                if kind in ("event", "event_ref") and target not in event_ids:
+                    raise PersistenceError(
+                        f"claim {claim['temp_id']!r}.{field} references missing event {target!r}"
+                    )
+    surviving = {r["temp_id"] for r in [*final_entities, *final_events, *final_claims]}
+    for entry in out_record_sources:
+        if entry["record_ref"] not in surviving:
+            raise PersistenceError(
+                f"record_sources entry references unknown record {entry['record_ref']!r}"
+            )
+
+    # -- warnings: bundle + candidate warnings, refs remapped, deduplicated ----
+    warnings: list[dict[str, Any]] = []
+    seen_warnings: set[str] = set()
+
+    def _warn(warning: dict[str, Any], chapter_index: int) -> None:
+        warning = copy.deepcopy(warning)
+        refs = []
+        for ref in warning.get("refs") or []:
+            mapped = id_map.get((chapter_index, ref))
+            if mapped is not None:
+                refs.append(mapped)
+        if refs or "refs" not in warning:
+            if refs:
+                warning["refs"] = refs
+            elif "refs" in warning:
+                del warning["refs"]
+        elif "refs" in warning:
+            del warning["refs"]
+        key = canonical_json_bytes(warning).decode("utf-8")
+        if key not in seen_warnings:
+            seen_warnings.add(key)
+            warnings.append(warning)
+
+    for item in ordered:
+        chapter_index = plan_by_id[item["chapter_id"]]["chapter_index"]
+        for warning in (item["bundle"].get("warnings") or []):
+            if isinstance(warning, dict):
+                _warn(warning, chapter_index)
+        for warning in (item["candidate"].get("warnings") or []):
+            if isinstance(warning, dict):
+                _warn(warning, chapter_index)
+    warnings.sort(
+        key=lambda w: (
+            str(w.get("type") or ""),
+            str(w.get("message") or ""),
+            canonical_json_bytes(w.get("refs") or []).decode("utf-8"),
+        )
+    )
+
+    bundle = {
+        "schema_version": SCHEMA_VERSION,
+        "source": merged_source,
+        "entities": final_entities,
+        "events": final_events,
+        "claims": final_claims,
+        "warnings": warnings,
+    }
+    validate_assembled_bundle(bundle)
+
+    for item in ordered:
+        chapter_id = item["chapter_id"]
+        chapter_index = plan_by_id[chapter_id]["chapter_index"]
+        chapter_artifacts[chapter_id] = item["artifact_sha256"]
+        for record in [item["source"], *item["entities"], *item["events"], *item["claims"]]:
+            old = record.get("temp_id")
+            new = id_map.get((chapter_index, old)) if isinstance(old, str) else None
+            if new is None or new == "src_001":
+                continue
+            provenance[new] = {
+                "chapter_id": chapter_id,
+                "chapter_index": chapter_index,
+                "chapter_temp_id": old,
+                "artifact_sha256": item["artifact_sha256"],
+                "candidate_sha256": item["candidate_sha256"],
+                "request_fingerprint": item["request_fingerprint"],
+                "revision_id": revision_id,
+                "source_sha256": source_sha256,
+            }
+    provenance["src_001"] = {
+        "chapter_id": None,
+        "chapter_index": None,
+        "chapter_temp_id": None,
+        "artifact_sha256": None,
+        "candidate_sha256": None,
+        "request_fingerprint": None,
+        "revision_id": revision_id,
+        "source_sha256": source_sha256,
+        "merged_from_chapters": sorted(plan_by_id[c]["chapter_index"] for c in expected_ids),
+        "merged_source_titles": titles,
+    }
+
+    counts_in = {
+        "chapters": len(ordered),
+        "entities": sum(len(item["entities"]) for item in ordered),
+        "events": sum(len(item["events"]) for item in ordered),
+        "claims": sum(len(item["claims"]) for item in ordered),
+        "translation_blocks": sum(len(item["translation"].get("blocks") or []) for item in ordered),
+        "mentions": sum(len(item["mentions"]) for item in ordered),
+        "record_sources": sum(len(item["record_sources"]) for item in ordered),
+        "anchors": sum(len(item["anchors"]) for item in ordered),
+    }
+    report = {
+        "schema": CHAPTER_REPORT_SCHEMA,
+        "version": CHAPTER_REPORT_VERSION,
+        "assembly_version": CHAPTER_ASSEMBLY_VERSION,
+        "contract_version": CONTRACT_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "candidate_schema": CHAPTER_CANDIDATE_SCHEMA,
+        "candidate_version": CHAPTER_CANDIDATE_VERSION,
+        "plan_version": CHAPTER_PLAN_VERSION,
+        "revision": {
+            "revision_id": revision_id,
+            "source_sha256": source_sha256,
+            "normalized_sha256": normalized_sha256,
+        },
+        "plan": {
+            "plan_sha256": chapter_plan.get("plan_sha256"),
+            "chapter_count": len(plan_chapters),
+            "chapters": [
+                {
+                    "chapter_id": c["chapter_id"],
+                    "chapter_index": c["chapter_index"],
+                    "title": c.get("title"),
+                    "start": c.get("start"),
+                    "end": c.get("end"),
+                }
+                for c in plan_chapters
+            ],
+        },
+        "inputs": [
+            {
+                "chapter_id": item["chapter_id"],
+                "chapter_index": plan_by_id[item["chapter_id"]]["chapter_index"],
+                "artifact_sha256": item["artifact_sha256"],
+                "candidate_sha256": item["candidate_sha256"],
+                "request_fingerprint": item["request_fingerprint"],
+                "counts": {
+                    "entities": len(item["entities"]),
+                    "events": len(item["events"]),
+                    "claims": len(item["claims"]),
+                    "translation_blocks": len(item["translation"].get("blocks") or []),
+                    "mentions": len(item["mentions"]),
+                    "record_sources": len(item["record_sources"]),
+                    "anchors": len(item["anchors"]),
+                },
+            }
+            for item in ordered
+        ],
+        "counts": {
+            "in": counts_in,
+            "out": {
+                "entities": len(final_entities),
+                "events": len(final_events),
+                "claims": len(final_claims),
+                "translation_blocks": len(translation_blocks),
+                "mentions": len(out_mentions),
+                "record_sources": len(out_record_sources),
+                "anchors": len(merged_anchors),
+                "warnings": len(warnings),
+            },
+        },
+        "chapter_by_ref": dict(sorted(chapter_by_ref.items())),
+        "local_to_revision": dict(sorted(local_to_revision.items())),
+        "chapter_artifacts": dict(sorted(chapter_artifacts.items())),
+        "record_provenance": dict(sorted(provenance.items())),
+        "merged_source_titles": titles,
+        "bundle_sha256": sha256_json(bundle),
+        "authoritative": False,
+        "authority_note": NON_AUTHORITATIVE_NOTE,
+    }
+
+    return {
+        "bundle": bundle,
+        "translation_blocks": translation_blocks,
+        "mentions": out_mentions,
+        "record_sources": out_record_sources,
+        "anchors": merged_anchors,
+        "report": report,
     }

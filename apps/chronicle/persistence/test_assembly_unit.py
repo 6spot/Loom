@@ -497,5 +497,390 @@ class AssemblyFailureTests(unittest.TestCase):
             _assemble(chunk)
 
 
+# ---------------------------------------------------------------------------
+# Chapter assembly (C2-R1-T07): assemble_chapters(accepted_artifacts, plan)
+# ---------------------------------------------------------------------------
+
+_CHAPTER_REVISION = "rev-chapters-1"
+_CHAPTER_SOURCE_SHA = "a" * 64
+_CHAPTER_NORMALIZED_SHA = "a" * 64
+
+
+def _chapter_plan(chapter_ids: list[str] | None = None) -> dict:
+    ids = chapter_ids if chapter_ids is not None else ["ch_000", "ch_001"]
+    chapters = [
+        {
+            "chapter_id": chapter_id,
+            "chapter_index": index,
+            "title": f"Chapter {index}",
+            "start": index * 10,
+            "end": (index + 1) * 10,
+        }
+        for index, chapter_id in enumerate(ids)
+    ]
+    return {
+        "version": "c2r1-chapters-v1",
+        "plan_sha256": "p" * 64,
+        "revision_id": _CHAPTER_REVISION,
+        "source_sha256": _CHAPTER_SOURCE_SHA,
+        "normalized_sha256": _CHAPTER_NORMALIZED_SHA,
+        "chapters": chapters,
+    }
+
+
+def _chapter_source(title: str) -> dict:
+    source = _source(title=title)
+    source["language"] = "zh-CN"
+    return source
+
+
+def _chapter_translation(
+    *,
+    block_id: str = "t_001",
+    text: str = "白話譯文",
+    entity_refs: list[str] | None = None,
+    event_refs: list[str] | None = None,
+) -> dict:
+    return {
+        "language": "zh-CN",
+        "blocks": [
+            {
+                "block_id": block_id,
+                "text": text,
+                "source_block_ids": ["b_001"],
+                "entity_refs": [{"kind": "entity", "ref": ref} for ref in (entity_refs or [])],
+                "event_refs": [{"kind": "event", "ref": ref} for ref in (event_refs or [])],
+            }
+        ],
+    }
+
+
+def _chapter_mentions(targets: list[str] | None = None) -> list[dict]:
+    mentions = []
+    for position, target in enumerate(targets or []):
+        mentions.append(
+            {
+                "mention_id": f"m_{position + 1:03d}",
+                "surface": "曹操",
+                "contextual": False,
+                "status": "resolved",
+                "target_ref": target,
+                "candidate_refs": [],
+                "selection": {
+                    "first_block_id": "b_001",
+                    "last_block_id": "b_001",
+                    "quote": "曹操",
+                    "occurrence": 1,
+                },
+            }
+        )
+    return mentions
+
+
+def _chapter_record_sources(refs: list[tuple[str, str]]) -> list[dict]:
+    return [
+        {
+            "record_ref": ref,
+            "record_kind": kind,
+            "selections": [
+                {
+                    "first_block_id": "b_001",
+                    "last_block_id": "b_001",
+                    "quote": "曹操",
+                    "occurrence": 1,
+                }
+            ],
+        }
+        for ref, kind in refs
+    ]
+
+
+def _chapter_anchors(chapter_id: str, *, count: int = 1) -> list[dict]:
+    return [
+        {
+            "anchor_id": f"anc_{chapter_id}_{position}",
+            "revision_id": _CHAPTER_REVISION,
+            "chapter_id": chapter_id,
+            "source_sha256": _CHAPTER_SOURCE_SHA,
+            "normalized_sha256": _CHAPTER_NORMALIZED_SHA,
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "曹操",
+            "quote_sha256": "q" * 64,
+            "occurrence": 1,
+            "start": position,
+            "end": position + 2,
+        }
+        for position in range(count)
+    ]
+
+
+def _chapter_artifact(
+    chapter_id: str,
+    chapter_index: int,
+    *,
+    entities: list[dict] | None = None,
+    events: list[dict] | None = None,
+    claims: list[dict] | None = None,
+    translation: dict | None = None,
+    mentions: list[dict] | None = None,
+    record_sources: list[dict] | None = None,
+    revision_id: str = _CHAPTER_REVISION,
+    title: str | None = None,
+) -> dict:
+    entities = entities if entities is not None else [_entity("ent_001", "曹操")]
+    events = events if events is not None else []
+    claims = claims if claims is not None else []
+    default_refs = [(e["temp_id"], "entity") for e in entities]
+    default_refs += [(e["temp_id"], "event") for e in events]
+    default_refs += [(c["temp_id"], "claim") for c in claims]
+    if translation is None:
+        translation = _chapter_translation(
+            entity_refs=[e["temp_id"] for e in entities],
+            event_refs=[e["temp_id"] for e in events],
+        )
+    if mentions is None:
+        mentions = _chapter_mentions([entities[0]["temp_id"]] if entities else [])
+    if record_sources is None:
+        record_sources = _chapter_record_sources(default_refs)
+    candidate = {
+        "schema": "chronicle.chapter-candidate",
+        "version": "0.1",
+        "chapter_id": chapter_id,
+        "bundle": {
+            "schema_version": "0.1",
+            "source": _chapter_source(title or f"Title {chapter_index}"),
+            "entities": entities,
+            "events": events,
+            "claims": claims,
+            "warnings": [],
+        },
+        "translation": translation,
+        "mentions": mentions,
+        "record_sources": record_sources,
+        "warnings": [],
+    }
+    from common import sha256_json as _sha256_json
+
+    return {
+        "schema": "chronicle.chapter-artifact",
+        "version": "0.1",
+        "chapter_id": chapter_id,
+        "revision_id": revision_id,
+        "source_sha256": _CHAPTER_SOURCE_SHA,
+        "normalized_sha256": _CHAPTER_NORMALIZED_SHA,
+        "candidate": candidate,
+        "candidate_sha256": _sha256_json(candidate),
+        "anchors": _chapter_anchors(chapter_id, count=max(len(default_refs), 1)),
+        "request_fingerprint": f"fp-{chapter_id}",
+        "producing_run": {"run_id": f"run-{chapter_id}", "model": "m", "prompt_schema_version": "v"},
+    }
+
+
+def _assemble_chapters(*artifacts: dict, plan: dict | None = None) -> dict:
+    ids = [a["chapter_id"] for a in artifacts]
+    return A.assemble_chapters(
+        accepted_artifacts=list(artifacts),
+        chapter_plan=plan if plan is not None else _chapter_plan(ids),
+    )
+
+
+class ChapterAssemblyBundleTests(unittest.TestCase):
+    def test_same_local_ids_never_collide_and_refs_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        first = _chapter_artifact(
+            "ch_000", 0,
+            entities=[_entity("ent_001", "曹操")],
+            claims=[_claim("clm_001", "ent_001", "died", "操薨")],
+        )
+        second = _chapter_artifact(
+            "ch_001", 1,
+            entities=[_entity("ent_001", "孫權")],
+            claims=[_claim("clm_001", "ent_001", "appointed", "命瑜督")],
+        )
+        result = _assemble_chapters(first, second, plan=plan)
+        bundle = result["bundle"]
+        self.assertEqual("src_001", bundle["source"]["temp_id"])
+        self.assertEqual(2, len(bundle["entities"]))
+        self.assertEqual(2, len(bundle["claims"]))
+        refs = [r["temp_id"] for r in bundle["entities"] + bundle["claims"]]
+        self.assertEqual(len(set(refs)), len(refs))
+        # Revision-scoped IDs keep chapter namespaces apart.
+        self.assertEqual("ent_000001", bundle["entities"][0]["temp_id"])
+        self.assertEqual("ent_001001", bundle["entities"][1]["temp_id"])
+        # Cross-type refs stay closed after the same mapping.
+        entity_set = {e["temp_id"] for e in bundle["entities"]}
+        for claim in bundle["claims"]:
+            self.assertIn(claim["subject"]["ref"], entity_set)
+            self.assertEqual("src_001", claim["evidence"]["source_ref"])
+        from jsonschema import Draft202012Validator, FormatChecker
+
+        errors = list(Draft202012Validator(SCHEMA, format_checker=FormatChecker()).iter_errors(bundle))
+        self.assertEqual([], errors)
+        for record in [bundle["source"], *bundle["entities"], *bundle["claims"]]:
+            self.assertNotIn("id", record)
+
+    def test_translation_and_mentions_point_to_correct_chapter_objects(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        result = _assemble_chapters(
+            _chapter_artifact("ch_000", 0, entities=[_entity("ent_001", "曹操")]),
+            _chapter_artifact("ch_001", 1, entities=[_entity("ent_001", "孫權")]),
+            plan=plan,
+        )
+        blocks = result["translation_blocks"]
+        self.assertEqual(2, len(blocks))
+        self.assertEqual("ch_000", blocks[0]["chapter_id"])
+        self.assertEqual("ent_000001", blocks[0]["entity_refs"][0]["ref"])
+        self.assertEqual("ch_001", blocks[1]["chapter_id"])
+        self.assertEqual("ent_001001", blocks[1]["entity_refs"][0]["ref"])
+        mentions = result["mentions"]
+        self.assertEqual(2, len(mentions))
+        by_chapter = {m["chapter_id"]: m for m in mentions}
+        self.assertEqual("ent_000001", by_chapter["ch_000"]["target_ref"])
+        self.assertEqual("ent_001001", by_chapter["ch_001"]["target_ref"])
+        # Anchors never cross chapters.
+        for anchor in result["anchors"]:
+            self.assertEqual(anchor["chapter_id"] in ("ch_000", "ch_001"), True)
+        ch0_anchors = [a for a in result["anchors"] if a["chapter_id"] == "ch_000"]
+        ch1_anchors = [a for a in result["anchors"] if a["chapter_id"] == "ch_001"]
+        self.assertTrue(ch0_anchors and ch1_anchors)
+        # chapter_by_ref / local_to_revision serve T08/T10 lookup.
+        report = result["report"]
+        self.assertEqual("ch_000", report["chapter_by_ref"]["ent_000001"])
+        self.assertEqual("ch_001", report["chapter_by_ref"]["ent_001001"])
+        self.assertEqual("ent_000001", report["local_to_revision"]["(0,ent_001)"])
+        self.assertEqual("ent_001001", report["local_to_revision"]["(1,ent_001)"])
+        self.assertIn("ch_000", report["chapter_artifacts"])
+        self.assertIn("ch_001", report["chapter_artifacts"])
+        self.assertIn("ent_000001", report["record_provenance"])
+        self.assertIn("src_001", report["record_provenance"])
+
+    def test_translation_without_claim_is_preserved(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        first = _chapter_artifact("ch_000", 0, entities=[_entity("ent_001", "曹操")], claims=[])
+        first["candidate"]["record_sources"] = _chapter_record_sources([("ent_001", "entity")])
+        from common import sha256_json as _sha256_json
+
+        first["candidate_sha256"] = _sha256_json(first["candidate"])
+        result = _assemble_chapters(
+            first,
+            _chapter_artifact("ch_001", 1, entities=[_entity("ent_001", "孫權")], claims=[]),
+            plan=plan,
+        )
+        # No claims anywhere, but both translation blocks survive.
+        self.assertEqual(0, len(result["bundle"]["claims"]))
+        self.assertEqual(2, len(result["translation_blocks"]))
+        texts = sorted(b["text"] for b in result["translation_blocks"])
+        self.assertEqual(["白話譯文", "白話譯文"], texts)
+
+    def test_intra_chapter_shared_object_not_split(self) -> None:
+        plan = _chapter_plan(["ch_000"])
+        artifact = _chapter_artifact(
+            "ch_000", 0,
+            entities=[_entity("ent_001", "曹操")],
+            claims=[
+                _claim("clm_001", "ent_001", "died", "操薨"),
+                _claim("clm_002", "ent_001", "ruled", "操領兗州"),
+            ],
+        )
+        result = _assemble_chapters(artifact, plan=plan)
+        self.assertEqual(1, len(result["bundle"]["entities"]))
+        self.assertEqual(2, len(result["bundle"]["claims"]))
+        entity_ref = result["bundle"]["entities"][0]["temp_id"]
+        for claim in result["bundle"]["claims"]:
+            self.assertEqual(entity_ref, claim["subject"]["ref"])
+
+    def test_cross_chapter_same_name_stays_independent_single_source(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        result = _assemble_chapters(
+            _chapter_artifact("ch_000", 0, entities=[_entity("ent_001", "曹操")]),
+            _chapter_artifact("ch_001", 1, entities=[_entity("ent_001", "曹操")]),
+            plan=plan,
+        )
+        # Same surface across chapters: two independent revision refs, no
+        # automatic merge at this stage (T08 decides candidacy later).
+        self.assertEqual(2, len(result["bundle"]["entities"]))
+        refs = [e["temp_id"] for e in result["bundle"]["entities"]]
+        self.assertNotEqual(refs[0], refs[1])
+        # One revision keeps exactly one source bundle.
+        self.assertEqual("src_001", result["bundle"]["source"]["temp_id"])
+        sources = [r for r in [result["bundle"]["source"]] if r["temp_id"] == "src_001"]
+        self.assertEqual(1, len(sources))
+
+    def test_rerun_is_byte_deterministic_regardless_of_input_order(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        first = _chapter_artifact("ch_000", 0, entities=[_entity("ent_001", "曹操")])
+        second = _chapter_artifact("ch_001", 1, entities=[_entity("ent_001", "孫權")])
+        forward = _assemble_chapters(first, second, plan=plan)
+        backward = _assemble_chapters(second, first, plan=plan)
+        repeated = _assemble_chapters(copy.deepcopy(first), copy.deepcopy(second), plan=copy.deepcopy(plan))
+        self.assertEqual(canonical_json_bytes(forward), canonical_json_bytes(backward))
+        self.assertEqual(canonical_json_bytes(forward), canonical_json_bytes(repeated))
+
+
+class ChapterAssemblyFailureTests(unittest.TestCase):
+    def test_missing_chapter_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(_chapter_artifact("ch_000", 0), plan=plan)
+
+    def test_extra_chapter_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000"])
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(
+                _chapter_artifact("ch_000", 0),
+                _chapter_artifact("ch_001", 1),
+                plan=plan,
+            )
+
+    def test_duplicate_chapter_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(
+                _chapter_artifact("ch_000", 0),
+                _chapter_artifact("ch_000", 0),
+                plan=plan,
+            )
+
+    def test_mixed_revision_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(
+                _chapter_artifact("ch_000", 0),
+                _chapter_artifact("ch_001", 1, revision_id="rev-other"),
+                plan=plan,
+            )
+
+    def test_unaccepted_product_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        bad = _chapter_artifact("ch_000", 0)
+        bad["schema"] = "chronicle.chapter-candidate"
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(bad, _chapter_artifact("ch_001", 1), plan=plan)
+
+    def test_tampered_candidate_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        bad = _chapter_artifact("ch_000", 0)
+        bad["candidate"]["translation"]["blocks"][0]["text"] = "纂改後的譯文"
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(bad, _chapter_artifact("ch_001", 1), plan=plan)
+
+    def test_cross_chapter_anchor_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000", "ch_001"])
+        bad = _chapter_artifact("ch_000", 0)
+        bad["anchors"][0]["chapter_id"] = "ch_001"
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(bad, _chapter_artifact("ch_001", 1), plan=plan)
+
+    def test_dangling_translation_ref_fails_closed(self) -> None:
+        plan = _chapter_plan(["ch_000"])
+        artifact = _chapter_artifact("ch_000", 0, entities=[_entity("ent_001", "曹操")])
+        artifact["candidate"]["translation"]["blocks"][0]["entity_refs"] = [
+            {"kind": "entity", "ref": "ent_999"}
+        ]
+        with self.assertRaises(PersistenceError):
+            _assemble_chapters(artifact, plan=plan)
+
+
 if __name__ == "__main__":
     unittest.main()
