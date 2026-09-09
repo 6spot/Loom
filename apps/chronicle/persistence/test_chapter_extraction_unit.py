@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v3", prompt)
+        self.assertIn("c2r1-chapter-prompt-v4", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -178,6 +178,16 @@ class PromptRenderingTests(unittest.TestCase):
         prompt = P.render_chapter_prompt(request)
         self.assertIn("object:{kind,ref}|{kind:literal,value}", prompt)
         self.assertIn("subject must not be a literal", prompt)
+
+    def test_prompt_pins_entity_resolution_unresolved(self) -> None:
+        # Live regression (C2-R1-T19, candidate 26eb34c1): the guide said
+        # resolution:{status} without pinning the value, the model emitted
+        # status 'new', validation passed it, and the whole job died one
+        # stage later at assemble. The guide now pins the only legal value.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn('resolution:{status:"unresolved"}', prompt)
+        self.assertIn("Studio review", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -443,7 +453,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v3")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v4")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

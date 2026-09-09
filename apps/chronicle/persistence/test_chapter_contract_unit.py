@@ -269,6 +269,34 @@ class EqualityDiagnosticTests(unittest.TestCase):
         report = C.validate_chapter_candidate(request, candidate)
         self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
 
+    def test_entity_resolution_new_rejected_with_actionable_message(self) -> None:
+        # Live regression (C2-R1-T19, candidate 26eb34c1): status 'new'
+        # sailed through validation and killed the job at assemble.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["resolution"] = {"status": "new"}
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "references")
+        messages = report["errors"]["references"]
+        self.assertTrue(
+            any("ent_001" in m and "new" in m and "unresolved" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_entity_resolution_unresolved_passes_missing_is_schema_error(self) -> None:
+        # The candidate schema already requires resolution on entities, so
+        # a missing object fails at schema_validation; the new references
+        # check only fires on a present-but-wrong status, mirroring the
+        # assembler's entities-only rule.
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        candidate2 = base()[1]
+        del candidate2["bundle"]["entities"][0]["resolution"]
+        report2 = C.validate_chapter_candidate(request, candidate2)
+        self.assertFalse(report2["passed"])
+        self.assertTrue(report2["errors"]["schema_validation"])
+        self.assertFalse(report2["errors"]["references"])
+
 
 class ClaimObjectShapeTests(unittest.TestCase):
     def test_literal_object_carries_value(self) -> None:

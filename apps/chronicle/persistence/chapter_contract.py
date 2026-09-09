@@ -567,6 +567,23 @@ def validate_chapter_candidate(
                 references.append(f"{owner} must not carry canonical_id")
             if resolution.get("candidate_ids"):
                 references.append(f"{owner} must not carry candidate_ids")
+            if (
+                collection_name == "entities"
+                and isinstance(record.get("resolution"), dict)
+                and resolution.get("status") != "unresolved"
+            ):
+                # Live regression (C2-R1-T19, candidate 26eb34c1): the guide
+                # said resolution:{status} without pinning the value, the
+                # model emitted status 'new', validation passed it, and the
+                # whole job died one stage later at assemble. Fail fast here
+                # with both sides shown, mirroring the assembler's
+                # entities-only status rule (the candidate schema already
+                # requires the resolution object itself).
+                references.append(
+                    f"{owner} resolution status {_diagnostic_value(resolution.get('status'))} "
+                    'must be "unresolved"; identity is decided in Studio review, '
+                    "never in this chapter product"
+                )
 
     # Reference closure + kinds for translation refs, claim refs, participants.
     # Every membership test is type-guarded: schema-invalid model output

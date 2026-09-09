@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v3"
+PROMPT_VERSION = "c2r1-chapter-prompt-v4"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -44,7 +44,7 @@ Use temp_id only (src_*/ent_*/evt_*/clm_*); NEVER emit canonical `id`,
 canonical_id, or candidate_ids.
 source: {temp_id:"src_*", kind:"source", source_type, title, language, extraction}.
 entity: {temp_id:"ent_*", kind:"entity", type, canonical_name, aliases[], mentions:[{text}],
-  resolution:{status}, extraction}.
+  resolution:{status:"unresolved"}, extraction}.
 event: {temp_id:"evt_*", kind:"event", type, title, time, participants:[{entity_ref,role}],
   places:[entity-temp-id,...], parent_event_ref, extraction}.
 claim: {temp_id:"clm_*", kind:"claim", subject:{kind,ref}, predicate,
@@ -87,7 +87,11 @@ REFERENCE_RULES = r'''SAME-CHAPTER REFERENCE RULES
   candidate_refs. Never force an uncertain surface onto the most familiar person.
 - Contextual forms such as 公 / 王 stay contextual mentions; they must not become
   stable global aliases of any Entity.
-- Every mention surface must equal its selection.quote exactly.'''
+- Every mention surface must equal its selection.quote exactly.
+- Entity resolution stays unresolved in this product: emit
+  resolution:{status:"unresolved"} on every entity. Never invent
+  canonical_id, candidate_ids, or another status value such as "new";
+  identity is decided later in Studio review, never in this chapter product.'''
 
 TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
 - Translate the WHOLE chapter body text and every embedded annotation that exists
