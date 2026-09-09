@@ -231,6 +231,45 @@ class AliasMentionTests(unittest.TestCase):
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "aliases")
 
 
+class ClaimObjectShapeTests(unittest.TestCase):
+    def test_literal_object_carries_value(self) -> None:
+        # Frozen shape across the candidate schema, the API-enforced
+        # text_format, and the C0 LITERAL convention: a literal claim
+        # object is {"kind": "literal", "value": <text>}. Live regression
+        # (C2-R1-T19): the references check demanded a ref key while the
+        # schema demanded value, so no literal could pass both gates.
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["object"] = {
+            "kind": "literal", "value": "白帝城",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+    def test_literal_object_without_value_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["object"] = {
+            "kind": "literal",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("malformed reference" in message for message in report["errors"]["references"]),
+            json.dumps(report["errors"]["references"], ensure_ascii=False),
+        )
+
+    def test_literal_subject_still_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["subject"] = {
+            "kind": "literal", "value": "白帝城",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("must not be a literal" in message for message in report["errors"]["references"]),
+            json.dumps(report["errors"]["references"], ensure_ascii=False),
+        )
+
+
 class TimeAndSchemaTests(unittest.TestCase):
     def test_time_source_fields_retained(self) -> None:
         _, candidate = base()

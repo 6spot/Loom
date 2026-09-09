@@ -627,7 +627,20 @@ def validate_chapter_candidate(
             ref = claim.get(field)
             if ref is None or not isinstance(ref, dict):
                 continue
-            kind, target = ref.get("kind"), ref.get("ref")
+            kind = ref.get("kind")
+            if kind == "literal":
+                # Literal shape follows the frozen candidate schema and the
+                # C0 LITERAL convention ({"kind": "literal", "value": ...}).
+                # Live evidence (C2-R1-T19) proved the API-enforced schema
+                # guides the model to value-shape while this check demanded
+                # ref-shape, so no literal object could ever pass both
+                # gates. Subjects still must not be literals.
+                if field == "subject":
+                    references.append(f"{owner}.subject must not be a literal")
+                elif "value" not in ref:
+                    references.append(f"{owner}.{field} has a malformed reference")
+                continue
+            target = ref.get("ref")
             if not isinstance(target, str):
                 references.append(f"{owner}.{field} has a malformed reference")
                 continue
@@ -635,9 +648,7 @@ def validate_chapter_candidate(
                 references.append(f"{owner}.{field} references missing entity {target!r}")
             elif kind == "event" and target not in event_ids:
                 references.append(f"{owner}.{field} references missing event {target!r}")
-            elif kind == "literal" and field == "subject":
-                references.append(f"{owner}.subject must not be a literal")
-            elif kind not in ("entity", "event", "literal"):
+            elif kind not in ("entity", "event"):
                 references.append(f"{owner}.{field} has invalid ref kind {kind!r}")
         evidence = claim.get("evidence") if isinstance(claim.get("evidence"), dict) else {}
         if evidence.get("source_ref") != source_id:

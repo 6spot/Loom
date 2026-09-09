@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v2", prompt)
+        self.assertIn("c2r1-chapter-prompt-v3", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -168,6 +168,16 @@ class PromptRenderingTests(unittest.TestCase):
         self.assertIn("VERBATIM GROUNDING PROCEDURE", prompt)
         self.assertIn("character-for-character", prompt)
         self.assertIn("inherited_fields", prompt)
+
+    def test_prompt_states_claim_reference_shape(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0, attempt 2): the guide
+        # left the claim object shape implicit, so the model had to guess
+        # between the schema-blessed {kind:literal,value} and a ref key.
+        # The guide now pins both shapes explicitly.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("object:{kind,ref}|{kind:literal,value}", prompt)
+        self.assertIn("subject must not be a literal", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -433,7 +443,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v2")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v3")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

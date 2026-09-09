@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v2"
+PROMPT_VERSION = "c2r1-chapter-prompt-v3"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -47,8 +47,13 @@ entity: {temp_id:"ent_*", kind:"entity", type, canonical_name, aliases[], mentio
   resolution:{status}, extraction}.
 event: {temp_id:"evt_*", kind:"event", type, title, time, participants:[{entity_ref,role}],
   places:[entity-temp-id,...], parent_event_ref, extraction}.
-claim: {temp_id:"clm_*", kind:"claim", subject:{kind,ref}, predicate, object, time,
+claim: {temp_id:"clm_*", kind:"claim", subject:{kind,ref}, predicate,
+  object:{kind,ref}|{kind:literal,value}, time,
   evidence:{text,source_ref,locator}, assessment:{status:"unassessed"}, extraction}.
+  subject/object entity|event references are {kind,ref} naming an existing
+  temp_id; a non-entity/event claim object is {kind:literal,value} with the
+  literal text in value (never a ref key, never a bare string).
+  subject must not be a literal.
 translation: {language:"zh-CN", blocks:[{block_id, text, source_block_ids[],
   entity_refs:[{kind:"entity",ref}], event_refs:[{kind:"event",ref}]}]}.
 Every translation block needs a unique block_id, non-empty text, and a non-empty
