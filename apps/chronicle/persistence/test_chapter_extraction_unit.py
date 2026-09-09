@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v5", prompt)
+        self.assertIn("c2r1-chapter-prompt-v6", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -198,6 +198,16 @@ class PromptRenderingTests(unittest.TestCase):
         prompt = P.render_chapter_prompt(request)
         self.assertIn("never convert script forms", prompt)
         self.assertIn("Traditional", prompt)
+
+    def test_prompt_defines_surface_as_occurrence_copy(self) -> None:
+        # Live regression (C2-R1-T19, candidates 9902a374/23da90b1): the
+        # model repeatedly used surface as the entity display name (曹公
+        # for quote 曹公征徐州; 劉備 for quote 備) instead of copying the
+        # occurrence text. surface-as-copy is now explicit with examples.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("never the entity display name", prompt)
+        self.assertIn("曹公征徐州", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -463,7 +473,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v5")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v6")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

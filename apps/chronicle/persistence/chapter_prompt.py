@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v5"
+PROMPT_VERSION = "c2r1-chapter-prompt-v6"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -88,6 +88,11 @@ REFERENCE_RULES = r'''SAME-CHAPTER REFERENCE RULES
 - Contextual forms such as 公 / 王 stay contextual mentions; they must not become
   stable global aliases of any Entity.
 - Every mention surface must equal its selection.quote exactly.
+  surface is the mention occurrence text, never the entity display name:
+  copy selection.quote character-for-character into surface (a quote
+  '曹公征徐州' takes surface '曹公征徐州', not '曹公'; a quote '備' takes
+  surface '備', not '劉備'). A shortened, expanded, or normalized surface
+  is a grounding failure even when it names the right person.
 - Entity resolution stays unresolved in this product: emit
   resolution:{status:"unresolved"} on every entity. Never invent
   canonical_id, candidate_ids, or another status value such as "new";
