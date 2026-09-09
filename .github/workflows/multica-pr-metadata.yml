@@ -10,14 +10,15 @@ permissions:
 
 jobs:
   normalize:
-    name: Normalize Multica PR metadata
+    name: Normalize PR lifecycle metadata
     if: >
       github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(github.event.pull_request.body || '', 'Multica-Issue:')
+      (contains(github.event.pull_request.body || '', 'Multica-Issue:') ||
+       contains(github.event.pull_request.body || '', 'GitHub-Issue:'))
     runs-on: ubuntu-latest
 
     steps:
-      - name: Ensure Multica close intent
+      - name: Ensure close intents
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -35,36 +36,52 @@ jobs:
           event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
           body = event["pull_request"].get("body") or ""
 
-          marker_re = re.compile(
+          additions = []
+
+          multica_marker_re = re.compile(
               r"(?mi)^\s*Multica-Issue:\s*([A-Za-z][A-Za-z0-9]*-\d+)\s*$"
           )
-          markers = marker_re.findall(body)
-          unique_markers = list(dict.fromkeys(markers))
-
-          if not unique_markers:
-              print("No standalone Multica-Issue marker; nothing to normalize")
-              raise SystemExit(0)
-          if len(unique_markers) != 1:
+          multica_markers = list(dict.fromkeys(multica_marker_re.findall(body)))
+          if len(multica_markers) > 1:
               raise SystemExit(
-                  "Expected exactly one Multica issue identifier, found: "
-                  + ", ".join(unique_markers)
+                  "Expected at most one Multica issue identifier, found: "
+                  + ", ".join(multica_markers)
               )
+          if multica_markers:
+              issue_key = multica_markers[0]
+              close_re = re.compile(
+                  rf"(?mi)^\s*(?:Closes|Fixes|Resolves)\s+{re.escape(issue_key)}\s*$"
+              )
+              if not close_re.search(body):
+                  additions.append(f"Closes {issue_key}")
 
-          issue_key = unique_markers[0]
-          close_re = re.compile(
-              rf"(?mi)^\s*Closes\s+{re.escape(issue_key)}\s*$"
+          github_marker_re = re.compile(
+              r"(?mi)^\s*GitHub-Issue:\s*#?(\d+)\s*$"
           )
+          github_markers = list(dict.fromkeys(github_marker_re.findall(body)))
+          if len(github_markers) > 1:
+              raise SystemExit(
+                  "Expected at most one GitHub issue number, found: "
+                  + ", ".join(f"#{number}" for number in github_markers)
+              )
+          if github_markers:
+              issue_number = github_markers[0]
+              close_re = re.compile(
+                  rf"(?mi)^\s*(?:Closes|Fixes|Resolves)\s+#{re.escape(issue_number)}\s*$"
+              )
+              if not close_re.search(body):
+                  additions.append(f"Closes #{issue_number}")
 
-          if close_re.search(body):
-              print(f"PR already contains canonical close intent for {issue_key}")
+          if not additions:
+              print("PR lifecycle metadata already normalized")
               raise SystemExit(0)
 
           normalized_body = body.rstrip()
           if normalized_body:
               normalized_body += "\n\n"
-          normalized_body += f"Closes {issue_key}\n"
+          normalized_body += "\n".join(additions) + "\n"
 
-          payload = Path("/tmp/multica-pr-body.json")
+          payload = Path("/tmp/pr-body.json")
           payload.write_text(json.dumps({"body": normalized_body}))
 
           subprocess.run(
@@ -79,5 +96,5 @@ jobs:
               ],
               check=True,
           )
-          print(f"Added canonical close intent: Closes {issue_key}")
+          print("Added close intent(s): " + ", ".join(additions))
           PY
