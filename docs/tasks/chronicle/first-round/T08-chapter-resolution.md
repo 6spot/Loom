@@ -53,6 +53,12 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - 章序强制：`chapter_index_by_id` 在 `build_within_bundle_candidate_set` 与章路径 wrappers 改为必填，无映射（缺参 TypeError、显式 None PersistenceError/ResolutionV0Error）fail-closed，不再回退按引用排序。新增缺映射拒绝测试。
 - 复测（均为真实运行）：`test_resolve_publish_unit.py` — **41 tests OK**（+1）；`test_*review*_unit.py` — **49 tests OK**（+8）；`test_resolution_v0.py` — **7 OK**；`test_publication_v0.py` — **11 OK**；`test_chapter_store_postgres.py` — **17 OK**（回归）；`git diff --check` — **clean**。
 
+2026-09-09 — Reviewer 第三轮 CHANGES_REQUIRED（head `138cec8`）在原 PR 同分支修复：
+
+- open 路径完整冻结校验：`open_chapter_review_plan` 改为必填冻输入（`initial_resolutions`/`revision_id`/`assembled_bundle_sha256`/`base_catalog_sha256`），开库前调用与恢复路径完全相同的 `validate_chapter_review_plan`（内部 payload/subject 一致性、subjects 哈希、指纹按冻输入重算、全部冻结对象落地核对）；`_check_plan_internal_consistency` 显式重算 `subjects_sha256`。subjects+payload 一致篡改、仅 `chapter_by_ref` 篡改在修复前代码上实测被 open 接受（bug 复现），修复后拒绝。
+- 零候选计划：空 `candidate_keys`/空 payload/subject 为合法计划，build/validate/open（返回 `[]`，无人值守通过）全链通过；修复前 validate/open 报 `missing its candidate list`（回归复现），修复后通过。`resolve_publish.open_chapter_reviews` 同步新签名。
+- 新增 5 个 open/空计划测试（含 JSON 往返与 MagicMock 未读库断言）；复测：`test_resolve_publish_unit.py` — **41 OK**；`test_*review*_unit.py` — **54 OK**（+5）；`test_resolution_v0.py` — **7 OK**；`test_publication_v0.py` — **11 OK**；`test_chapter_store_postgres.py` — **17 OK**（回归）；`git diff --check` — **clean**。
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

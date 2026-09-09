@@ -621,9 +621,30 @@ def validate_chapter_review_plan(
     )
 
 
-def open_chapter_reviews(conn, *, job_id: uuid.UUID, plan: dict[str, Any]) -> list[uuid.UUID]:
-    """Open/adopt one ReviewItem per frozen chapter plan unit."""
-    return review_subjects.open_chapter_review_plan(conn, job_id=job_id, plan=plan)
+def open_chapter_reviews(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    initial_resolutions: list[dict[str, Any]],
+    revision_id: uuid.UUID,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+) -> list[uuid.UUID]:
+    """Open/adopt one ReviewItem per frozen chapter plan unit.
+
+    Fully revalidates the frozen plan against the frozen initials
+    before any database read; an empty plan returns ``[]``.
+    """
+    return review_subjects.open_chapter_review_plan(
+        conn,
+        job_id=job_id,
+        plan=plan,
+        initial_resolutions=initial_resolutions,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+    )
 
 
 def collect_chapter_decisions(

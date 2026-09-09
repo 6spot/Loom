@@ -147,7 +147,7 @@ class ChapterPairSubjectTests(unittest.TestCase):
         self.assertEqual(list(entries), [subject["candidate_key"]])
         self.assertEqual(entries[subject["candidate_key"]]["decision"], "same_entity")
 
-    def test_pair_rejects_group_overrides_and_unknown_mode(self) -> None:
+    def test_pair_rejects_group_overrides(self) -> None:
         subject = S.build_chapter_pair_subjects(
             [_within_resolution()], chapter_by_ref=_chapters()
         )[0]
@@ -163,20 +163,6 @@ class ChapterPairSubjectTests(unittest.TestCase):
                         "rationale": "例外探針",
                     }
                 ],
-            )
-        bad = dict(payload)
-        bad["review_mode"] = "legacy_mixed"
-        with self.assertRaises(PersistenceConflict):
-            S.open_chapter_review_plan(
-                __import__("unittest.mock", fromlist=["MagicMock"]).MagicMock(),
-                job_id=uuid.uuid4(),
-                plan={
-                    "version": S.REVIEW_PLAN_VERSION,
-                    "job_id": str(uuid.uuid4()),
-                    "plan_fingerprint": "f" * 64,
-                    "pair_payloads": [bad],
-                    "batch_payloads": [],
-                },
             )
 
     def test_dismissed_pair_collects_as_uncertain(self) -> None:
@@ -470,57 +456,133 @@ class FrozenPlanTamperTests(unittest.TestCase):
         with self.assertRaises(PersistenceConflict):
             self._validate(tampered, params, resolutions)
 
+    def _open(self, plan, params, resolutions):
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn,
+                job_id=params["job_id"],
+                plan=plan,
+                initial_resolutions=resolutions,
+                revision_id=params["revision_id"],
+                assembled_bundle_sha256=params["assembled_bundle_sha256"],
+                base_catalog_sha256=params["base_catalog_sha256"],
+            )
+        conn.execute.assert_not_called()
+
     def test_open_rejects_plan_missing_its_pair(self) -> None:
-        plan, _params, _resolutions = self._mixed_plan()
+        plan, params, resolutions = self._mixed_plan()
         tampered = self._persisted(plan)
         del tampered["pair_payloads"][0]
-        conn = unittest.mock.MagicMock()
-        with self.assertRaises(PersistenceConflict):
-            S.open_chapter_review_plan(
-                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
-            )
+        self._open(tampered, params, resolutions)
 
     def test_open_rejects_tampered_pair_fingerprint(self) -> None:
-        plan, _params, _resolutions = self._mixed_plan()
+        plan, params, resolutions = self._mixed_plan()
         tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["plan_fingerprint"] = "0" * 64
-        conn = unittest.mock.MagicMock()
-        with self.assertRaises(PersistenceConflict):
-            S.open_chapter_review_plan(
-                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
-            )
+        self._open(tampered, params, resolutions)
 
     def test_open_rejects_tampered_pair_member_endpoint(self) -> None:
-        plan, _params, _resolutions = self._mixed_plan()
+        plan, params, resolutions = self._mixed_plan()
         tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["members"][0]["left"]["ref"] = "tampered"
-        conn = unittest.mock.MagicMock()
-        with self.assertRaises(PersistenceConflict):
-            S.open_chapter_review_plan(
-                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
-            )
+        self._open(tampered, params, resolutions)
 
     def test_open_rejects_tampered_batch_group_member(self) -> None:
-        plan, _params, _resolutions = self._mixed_plan()
+        plan, params, resolutions = self._mixed_plan()
         tampered = self._persisted(plan)
         tampered["batch_payloads"][0]["groups"][0]["members"][0]["left"][
             "ref"
         ] = "tampered"
-        conn = unittest.mock.MagicMock()
-        with self.assertRaises(PersistenceConflict):
-            S.open_chapter_review_plan(
-                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
-            )
+        self._open(tampered, params, resolutions)
 
     def test_open_rejects_tampered_pair_subject_id(self) -> None:
-        plan, _params, _resolutions = self._mixed_plan()
+        plan, params, resolutions = self._mixed_plan()
         tampered = self._persisted(plan)
         tampered["pair_payloads"][0]["review_subject_id"] = "rp_tampered"
-        conn = unittest.mock.MagicMock()
+        self._open(tampered, params, resolutions)
+
+    def test_open_rejects_unknown_review_mode(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["pair_payloads"][0]["review_mode"] = "legacy_mixed"
+        self._open(tampered, params, resolutions)
+
+    def test_open_rejects_consistent_subject_and_payload_tamper(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["chapter_pair_subjects"][0]["members"][0]["left"]["ref"] = "tampered"
+        tampered["chapter_pair_subjects"][0]["left"]["ref"] = "tampered"
+        tampered["pair_payloads"][0]["members"][0]["left"]["ref"] = "tampered"
+        tampered["pair_payloads"][0]["left"]["ref"] = "tampered"
+        self._open(tampered, params, resolutions)
         with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_open_rejects_chapter_map_only_tamper(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["chapter_by_ref"]["ent_zzz"] = "ch_C"
+        self._open(tampered, params, resolutions)
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+    def test_open_rejects_consistent_batch_subject_and_payload_tamper(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = self._persisted(plan)
+        tampered["published_batch_subjects"][0]["members"][0]["signals"] = ["forged"]
+        tampered["published_batch_subjects"][0]["signals"] = ["forged"]
+        tampered["batch_payloads"][0]["members"][0]["signals"] = ["forged"]
+        tampered["batch_payloads"][0]["signals"] = ["forged"]
+        for group in tampered["published_batch_subjects"][0]["groups"]:
+            for member in group["members"]:
+                member["signals"] = ["forged"]
+        for group in tampered["batch_payloads"][0]["groups"]:
+            for member in group["members"]:
+                member["signals"] = ["forged"]
+        self._open(tampered, params, resolutions)
+        with self.assertRaises(PersistenceConflict):
+            self._validate(tampered, params, resolutions)
+
+
+class EmptyPlanTests(unittest.TestCase):
+    def test_zero_candidate_plan_passes_build_validate_and_open(self) -> None:
+        job_id, revision_id = uuid.uuid4(), uuid.uuid4()
+        plan = S.build_chapter_review_plan(
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256="a" * 64,
+            base_catalog_sha256="b" * 64,
+            resolutions=[],
+            catalog=None,
+            chapter_by_ref={},
+        )
+        self.assertEqual(plan["candidate_keys"], [])
+        self.assertEqual(plan["pair_payloads"], [])
+        self.assertEqual(plan["batch_payloads"], [])
+        fingerprint = S.validate_chapter_review_plan(
+            json.loads(json.dumps(plan)),
+            [],
+            job_id=job_id,
+            revision_id=revision_id,
+            assembled_bundle_sha256="a" * 64,
+            base_catalog_sha256="b" * 64,
+        )
+        self.assertEqual(fingerprint, plan["plan_fingerprint"])
+        conn = unittest.mock.MagicMock()
+        conn.execute.return_value.fetchall.return_value = []
+        self.assertEqual(
             S.open_chapter_review_plan(
-                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
-            )
+                conn,
+                job_id=job_id,
+                plan=json.loads(json.dumps(plan)),
+                initial_resolutions=[],
+                revision_id=revision_id,
+                assembled_bundle_sha256="a" * 64,
+                base_catalog_sha256="b" * 64,
+            ),
+            [],
+        )
 
 
 if __name__ == "__main__":

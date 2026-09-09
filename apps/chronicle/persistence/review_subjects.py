@@ -555,9 +555,12 @@ def _check_plan_internal_consistency(plan: dict[str, Any]) -> str:
     """Check stored payloads against stored subjects without resolutions.
 
     Rebuilds every expected payload from the frozen subjects and
-    requires exact equality: tampering with any frozen payload field —
-    member endpoints, ``review_subject_id``, groups, signals — fails
-    closed here, before any database read. Returns the fingerprint.
+    requires exact equality, and recomputes the frozen subjects hash:
+    tampering with any frozen payload/subject field — member endpoints,
+    ``review_subject_id``, groups, signals, the chapter map — fails
+    closed here, before any database read. An empty plan (zero
+    candidates, no payloads or subjects) passes as the legitimate
+    unattended path. Returns the fingerprint.
     """
     fingerprint = plan.get("plan_fingerprint")
     if not isinstance(fingerprint, str) or not fingerprint:
@@ -565,7 +568,6 @@ def _check_plan_internal_consistency(plan: dict[str, Any]) -> str:
     frozen_keys = plan.get("candidate_keys")
     if (
         not isinstance(frozen_keys, list)
-        or not frozen_keys
         or not all(isinstance(key, str) and key for key in frozen_keys)
         or len(frozen_keys) != len(set(frozen_keys))
     ):
@@ -584,6 +586,16 @@ def _check_plan_internal_consistency(plan: dict[str, Any]) -> str:
             isinstance(item, dict) for item in value
         ):
             raise PersistenceConflict(f"chapter review plan {name} must hold objects")
+    if not frozen_keys:
+        if pair_payloads or batch_payloads or pair_subjects or batch_subjects:
+            raise PersistenceConflict(
+                "empty chapter review plan must carry no payloads or subjects"
+            )
+        return fingerprint
+    if _subjects_sha256(pair_subjects, batch_subjects) != plan.get("subjects_sha256"):
+        raise PersistenceConflict(
+            "chapter review plan subjects no longer match the frozen subjects hash"
+        )
     if len(pair_payloads) != len(pair_subjects):
         raise PersistenceConflict(
             "chapter review plan pair payloads no longer match frozen pair subjects"
@@ -1310,20 +1322,32 @@ def open_review_subjects(
 
 
 def open_chapter_review_plan(
-    conn, *, job_id: uuid.UUID, plan: dict[str, Any]
+    conn,
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    initial_resolutions: list[dict[str, Any]],
+    revision_id: Any,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
 ) -> list[uuid.UUID]:
     """Persist a frozen chapter review plan (adopt-or-create, exact match).
 
-    Runs the full internal frozen check first: stored payloads must
-    equal the payloads rebuilt from the frozen subjects, cover the
-    frozen candidate list exactly once, and carry the plan fingerprint.
-    Tampered payloads or subjects fail closed before any database read.
+    Runs the complete frozen validation first — internal payload/subject
+    consistency, subjects hash, fingerprint recomputed from the frozen
+    initial resolutions, and full grounding of every frozen object —
+    before any database read. A tampered plan (subjects, chapter map,
+    payloads, or fingerprint) fails closed here; an empty plan for a
+    zero-candidate job returns ``[]`` so it proceeds unattended.
     """
-    if not isinstance(plan, dict) or plan.get("version") != REVIEW_PLAN_VERSION:
-        raise PersistenceConflict("unknown chapter review plan version")
-    if str(plan.get("job_id")) != str(job_id):
-        raise PersistenceConflict("chapter review plan job mismatch")
-    fingerprint = _check_plan_internal_consistency(plan)
+    fingerprint = validate_chapter_review_plan(
+        plan,
+        initial_resolutions,
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+    )
     payloads = list(plan.get("pair_payloads") or []) + list(
         plan.get("batch_payloads") or []
     )
