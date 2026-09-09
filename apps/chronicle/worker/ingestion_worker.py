@@ -1719,6 +1719,25 @@ class JobRunner:
             self.revision_source is not None and self.chapter_model is not None
         )
 
+    def _chapter_config_error(self) -> str | None:
+        """Fail closed on partial chapter production configuration.
+
+        A configured joint chapter model without a revision source
+        would otherwise fall through to the deterministic fake stages
+        and fake-complete: that silent success is refused here before
+        any stage runs. (A real source without any model keeps the
+        pinned C1 behavior — real structure/segment, then an explicit
+        extract failure — and the all-fake topology stays reserved for
+        explicit test injection.)
+        """
+        if self.chapter_model is not None and self.revision_source is None:
+            return (
+                "chapter model is configured without a revision source; "
+                "refusing to fake chapter output "
+                "(set --source-dir/CHRONICLE_SOURCE_DIR)"
+            )
+        return None
+
     def _load_chapter_inputs(
         self, job_id: uuid.UUID
     ) -> tuple[str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
@@ -1888,6 +1907,15 @@ class JobRunner:
         halt = self.check_halt(job_id)
         if halt is not None:
             return halt
+        config_error = self._chapter_config_error()
+        if config_error is not None:
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="failed",
+                    worker=self.worker, error=config_error,
+                )
+            self._emit("job_failed", {"job_id": str(job_id), "error": config_error})
+            return "failed"
         real_unset: Any = object()
         real: Any = real_unset
         for stage in control_plane.STAGE_NAMES:

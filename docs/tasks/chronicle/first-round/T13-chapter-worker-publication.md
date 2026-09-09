@@ -33,20 +33,24 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 Implemented and verified against local PostgreSQL 18 + pgvector
 (`tools/postgres-test.sh` service, isolated databases per test):
 
-- `worker/test_chapter_pipeline_postgres.py` (new, 7 tests): full
+- `worker/test_chapter_pipeline_postgres.py` (new, 11 tests): full
   extract→assemble→review→publish→present, review-gated resume,
   accepted-run adoption with zero model calls, takeover without
   writes, moved-baseline `publication_plan_stale` with no public
   content, sequence-ordered second publisher, same-revision
-  `immutable_artifact_conflict`. All pass.
-- `worker/test_*postgres.py` (53 incl. the new 7), worker unit (94
-  incl. chapter entry), persistence unit (338) and postgres (56),
+  `immutable_artifact_conflict`, chapter-model-without-source
+  fail-closed, expired-lease publish fence, exact T05 header
+  envelope, and required per-chapter assembly content hash. All pass.
+- `worker/test_*postgres.py` (57 incl. the new file), worker unit
+  (94 incl. chapter entry), persistence unit (338) and postgres (56),
   read_api postgres (53 incl. coverage): all pass.
-- Cross-task fixes required for wiring (reported for T03/T07
-  owners): `build_chapter_request` binds the chapter slice hash
-  (T01 identity check), assembly checks per-chapter content binding;
-  test-local adapter bridges the T05 prompt / T06 fixture
-  `CHAPTER_REQUEST` envelope drift.
+- Review round (CHANGES_REQUIRED → addressed): `chapter_plan.py`
+  reverted — the chapter-slice hash rebinding now lives in the
+  T13-owned wiring layer; `assembly.py` keeps the minimal
+  per-chapter content binding the review requires (synthetic T07
+  fixtures aligned, flagged for the T07 owner); the T05/T06 envelope
+  drift is pinned from the test side and flagged for the T06 owner;
+  the legacy `postgres_v0` catalog writer now uses the shared lock.
 
 ## Progress Log
 
@@ -57,3 +61,8 @@ Implemented and verified against local PostgreSQL 18 + pgvector
   with `publication_sequence` latest-catalog reads (`coverage.py`
   aligned, legacy publish writes locked); production chapter entry
   in `production_worker.py`; docs updated in `worker.md`.
+- 2026-09-09 — Review findings addressed on PR #609: ownership
+  restored (T03 revert, T07 change minimized + flagged),
+  missing-model fail-closed at job start, exact envelope parsing,
+  mandatory content-hash validation, expiry-aware publish fence
+  with regression tests, remaining catalog writer locked.

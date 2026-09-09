@@ -8,7 +8,7 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
-from canonical_store import persist_catalog
+from canonical_store import persist_catalog_locked
 from common import PersistenceConflict, PersistenceError, import_key
 from migrations import apply_migrations
 from resolution_store import persist_resolution
@@ -78,7 +78,10 @@ def persist_dataset(
             resolution_hashes.append(artifact_sha)
             resolution_inserted.append(inserted)
 
-        catalog_hash, catalog_inserted = persist_catalog(conn, catalog)
+        # Every catalog write entry takes the unified publish lock
+        # (C2-R1-T13): the transaction-scoped lock is held until this
+        # outer transaction commits.
+        catalog_hash, catalog_inserted = persist_catalog_locked(conn, catalog)
         key = import_key(bundle_hashes, resolution_hashes, catalog_hash)
         bundle_artifacts = [
             {"label": label, "sha256": bundle_hashes[label]}

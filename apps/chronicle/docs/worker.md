@@ -93,12 +93,15 @@ unchanged. Thin orchestration lives in
   transaction under the unified advisory lock: latest catalog by
   `publication_sequence` (never `imported_at`), lease re-verified
   under the lock, frozen plan re-validated exactly, terminal decision
-  required for every candidate. Catalog, every chapter publication,
+  required for every candidate. The lease check is expiry-aware: a
+  lock wait that outlives `lease_expires_at` fails closed even
+  without a takeover. Catalog, every chapter publication,
   canonical maps, catalog output, and publish checkpoint/completed
   commit together; any fault rolls back all public content. A moved
   baseline raises `publication_plan_stale`: the frozen plan and its
   evidence are kept, nothing is auto-passed or rebuilt (a follow-up
-  job must replan).
+  job must replan). All catalog writers (chapter publish, legacy
+  publish, dataset import) take the same lock.
 - `present` only verifies the published complete translation blocks;
   it never re-translates and never substitutes a blurb for the full
   text.
@@ -120,6 +123,10 @@ export CHRONICLE_CHAPTER_MODEL=...
 python3 apps/chronicle/worker/production_worker.py \
   --worker-id worker-01 --source-dir /data/chronicle-sources
 ```
+
+A joint chapter model without a revision source fails the job before
+any stage runs (no silent fake completion); a real source without any
+model keeps the explicit extract failure instead of falling back.
 
 ## How durability works
 

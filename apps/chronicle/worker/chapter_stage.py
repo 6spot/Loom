@@ -192,6 +192,14 @@ def plan_job_chapters(
     Pure compute (no database, no model): the T03 plan plus one T01
     request per chapter in plan order. Hash drift between the supplied
     text and the immutable revision binding fails closed.
+
+    The T01 identity check requires ``normalized_sha256`` to hash to
+    the request's chapter ``normalized_text``; the T03 builder carries
+    the revision-level hash there instead. This wiring layer rebinds
+    each request to its chapter slice hash and cross-checks it against
+    the plan chapter's ``content_sha256`` (fail closed on any drift),
+    without changing the T03 helper itself. ``revision_id`` /
+    ``source_sha256`` / ``chapter_id`` keep the revision-level binding.
     """
     normalized_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
     locator = {
@@ -204,10 +212,27 @@ def plan_job_chapters(
     plan = chapter_plan.plan_chapters(
         text, locator, binding["filename"], limits=limits
     )
-    requests = [
-        chapter_plan.build_chapter_request(plan, index, text, limits=limits)
-        for index in range(plan["chapter_count"])
-    ]
+    content_by_id = {
+        str(chapter["chapter_id"]): chapter.get("content_sha256")
+        for chapter in plan.get("chapters") or []
+    }
+    requests = []
+    for index in range(plan["chapter_count"]):
+        request = chapter_plan.build_chapter_request(
+            plan, index, text, limits=limits
+        )
+        slice_sha256 = hashlib.sha256(
+            request["normalized_text"].encode("utf-8")
+        ).hexdigest()
+        expected = content_by_id.get(str(request["chapter_id"]))
+        if not isinstance(expected, str) or slice_sha256 != expected:
+            raise PersistenceError(
+                f"chapter {index} slice hash does not match the planned "
+                "chapter content hash; refusing to extract bytes outside "
+                "the plan"
+            )
+        request["normalized_sha256"] = slice_sha256
+        requests.append(request)
     return plan, requests
 
 

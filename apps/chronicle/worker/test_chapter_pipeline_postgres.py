@@ -21,7 +21,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -41,11 +40,13 @@ for path in (str(HERE), str(PERSISTENCE)):
 import control_plane  # noqa: E402
 import chapter_contract  # noqa: E402
 import chapter_plan  # noqa: E402
+import chapter_prompt  # noqa: E402
 import chapter_store  # noqa: E402
 from common import PersistenceConflict, PersistenceError  # noqa: E402
 from common import LeaseLost  # noqa: E402
 from migrations import apply_migrations  # noqa: E402
 
+import assembly as chapter_assembly  # noqa: E402
 import chapter_stage as stage  # noqa: E402
 import ingestion_worker as worker  # noqa: E402
 import resolve_publish  # noqa: E402
@@ -192,15 +193,56 @@ def _shared_specs() -> list[dict]:
     ]
 
 
+def _parse_chapter_request_header(prompt: str) -> dict:
+    """Parse the exact T05 ``CHAPTER REQUEST`` header envelope.
+
+    The production prompt carries the program-owned request header as
+    one JSON object on the lines between ``CHAPTER REQUEST`` and the
+    next blank line. This parses that exact envelope (no chapter-id
+    guessing): the T06 fixture still needs a ``CHAPTER_REQUEST``
+    envelope it does not emit, which is flagged for the T06 owner —
+    the adapter below only bridges it inside this test.
+    """
+    if not isinstance(prompt, str) or not prompt:
+        raise PersistenceError("chapter prompt must be non-empty text")
+    marker = "CHAPTER REQUEST\n"
+    start = prompt.find(marker)
+    if start < 0:
+        raise PersistenceError(
+            "chapter prompt carries no CHAPTER REQUEST envelope"
+        )
+    rest = prompt[start + len(marker):]
+    lines: list[str] = []
+    for line in rest.splitlines():
+        if not line.strip():
+            break
+        lines.append(line)
+    try:
+        header = json.loads("\n".join(lines))
+    except json.JSONDecodeError as exc:
+        raise PersistenceError(
+            "CHAPTER REQUEST header is not parseable JSON"
+        ) from exc
+    if not isinstance(header, dict):
+        raise PersistenceError("CHAPTER REQUEST header must be an object")
+    for key in (
+        "chapter_id", "revision_id", "source_sha256",
+        "normalized_sha256", "limits", "prompt_version",
+    ):
+        if header.get(key) in (None, ""):
+            raise PersistenceError(
+                f"CHAPTER REQUEST header is missing {key!r}"
+            )
+    return header
+
+
 class ChapterFixtureAdapter:
     """Test-local bridge over the T06 chapter fixture model.
 
-    The T06 fixture parses a ``CHAPTER_REQUEST`` envelope that the T05
-    prompt renderer does not emit verbatim (envelope drift across the
-    two tasks; reported, not reworked here). The adapter recovers the
-    program-owned request for the chapter named in the prompt and
-    delegates candidate construction to the fixture, so the T01
-    validator still checks every fixture byte.
+    The request is resolved through the exact T05 ``CHAPTER REQUEST``
+    header envelope parsed from the production prompt, then candidate
+    construction is delegated to the fixture so the T01 validator
+    still checks every fixture byte.
     """
 
     def __init__(self, fixture_model, requests: list[dict]) -> None:
@@ -213,17 +255,12 @@ class ChapterFixtureAdapter:
 
     def complete(self, prompt: str) -> str:
         self.calls += 1
-        if not isinstance(prompt, str) or not prompt:
-            raise PersistenceError("chapter prompt must be non-empty text")
-        match = re.search(r"ch_[0-9a-f]{24}", prompt)
-        if match is None:
-            raise PersistenceError(
-                "chapter prompt names no chapter; refusing to guess"
-            )
-        request = self._by_chapter.get(match.group(0))
+        header = _parse_chapter_request_header(prompt)
+        chapter_id = str(header["chapter_id"])
+        request = self._by_chapter.get(chapter_id)
         if request is None:
             raise PersistenceError(
-                f"chapter {match.group(0)!r} is not part of this test job"
+                f"chapter {chapter_id!r} is not part of this test job"
             )
         candidate = self._model.build_for_request(request)
         return json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
@@ -238,6 +275,81 @@ class ExplodingModel:
     def complete(self, prompt: str) -> str:
         self.calls += 1
         raise AssertionError("model must not be called during adoption")
+
+
+class ChapterContractRegressionTests(unittest.TestCase):
+    """Pure regression tests for the wired T01/T03/T05/T07 contracts."""
+
+    def test_chapter_request_header_envelope_is_exact(self) -> None:
+        text = TEXT_DISTINCT
+        revision_id = uuid.uuid4()
+        plan = _plan_for(text, revision_id, _sha256(text))
+        request = chapter_plan.build_chapter_request(
+            plan, 0, text, limits=chapter_contract.ChapterLimits()
+        )
+        prompt = chapter_prompt.render_chapter_prompt(request)
+        header = _parse_chapter_request_header(prompt)
+        self.assertEqual(request["chapter_id"], header["chapter_id"])
+        self.assertEqual(request["revision_id"], header["revision_id"])
+        self.assertEqual(request["source_sha256"], header["source_sha256"])
+        self.assertEqual(request["limits"], header["limits"])
+
+    def test_assembly_requires_per_chapter_content_hash(self) -> None:
+        fixtures = HERE.parent / "ingestion" / "fixtures" / "c2r1-contract"
+        request = json.loads((fixtures / "request.json").read_text(encoding="utf-8"))
+        candidate = json.loads(
+            (fixtures / "candidate-valid.json").read_text(encoding="utf-8")
+        )
+        artifact = chapter_contract.accept_chapter_candidate(
+            request, candidate,
+            producing_run={
+                "run_id": "run-regression",
+                "model": "m",
+                "prompt_schema_version": "v",
+            },
+        )
+        base_chapter = {
+            "chapter_id": request["chapter_id"],
+            "chapter_index": 0,
+            "title": "e2e",
+            "start": 0,
+            "end": len(request["normalized_text"]),
+        }
+        base_plan = {
+            "version": "c2r1-chapters-v1",
+            "plan_sha256": "e" * 64,
+            "revision_id": request["revision_id"],
+            "source_sha256": request["source_sha256"],
+            "normalized_sha256": request["normalized_sha256"],
+        }
+        # A plan without the per-chapter content hash is rejected even
+        # for a real accepted artifact.
+        missing = dict(base_plan, chapters=[dict(base_chapter)])
+        with self.assertRaises(PersistenceError):
+            chapter_assembly.assemble_chapters(
+                accepted_artifacts=[artifact], chapter_plan=missing
+            )
+        # A wrong content hash is rejected just as loudly.
+        wrong = dict(
+            base_plan,
+            chapters=[dict(base_chapter, content_sha256="0" * 64)],
+        )
+        with self.assertRaises(PersistenceError):
+            chapter_assembly.assemble_chapters(
+                accepted_artifacts=[artifact], chapter_plan=wrong
+            )
+        # The matching content hash assembles (single-chapter fixture:
+        # the request hash already binds the whole slice).
+        good = dict(
+            base_plan,
+            chapters=[
+                dict(base_chapter, content_sha256=request["normalized_sha256"])
+            ],
+        )
+        result = chapter_assembly.assemble_chapters(
+            accepted_artifacts=[artifact], chapter_plan=good
+        )
+        self.assertIn("bundle", result)
 
 
 class ChapterPipelinePostgresTests(unittest.TestCase):
@@ -302,6 +414,9 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
         plan = _plan_for(text, revision_id, source_sha)
         pack = _pack_payload(plan, revision_id, specs)
         fixture = _load_fixture_model(pack)
+        # The adapter resolves chapters through the production prompt
+        # header and only borrows chapter_id/blocks/text from these
+        # copies; hash binding always comes from the wiring layer.
         requests = [
             chapter_plan.build_chapter_request(
                 plan, index, text,
@@ -310,6 +425,18 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
             for index in range(plan["chapter_count"])
         ]
         return ChapterFixtureAdapter(fixture, requests), plan
+
+    def _planned_requests(self, text, job_id, source_sha):
+        """Build production-identical requests via the T13 wiring layer."""
+        with psycopg.connect(self.database_url) as conn:
+            binding = stage.read_revision_binding(conn, job_id=job_id)
+        assert binding["source_sha256"] == source_sha
+        _, _, plan, requests = stage.load_chapter_inputs(
+            self.database_url, job_id=job_id,
+            revision_source=lambda _job: (text, source_sha),
+            limits=chapter_contract.ChapterLimits(),
+        )
+        return plan, requests
 
     def _open_reviews(self, job_id):
         with psycopg.connect(self.database_url) as conn:
@@ -462,9 +589,10 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
     def test_accepted_run_adoption_needs_zero_model_calls(self) -> None:
         text = TEXT_DISTINCT
         job_id, revision_id, source_sha = self._queue_job(text)
-        model, plan = self._prepare_model(
+        model, _ = self._prepare_model(
             text, revision_id, source_sha, _distinct_specs()
         )
+        plan, requests = self._planned_requests(text, job_id, source_sha)
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(
                 conn, worker="worker-t13", lease_seconds=300, job_id=job_id
@@ -479,13 +607,6 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
                 plan=plan, text=text, lease_seconds=300,
             ),
         )
-        requests = [
-            chapter_plan.build_chapter_request(
-                plan, index, text,
-                limits=chapter_contract.ChapterLimits(),
-            )
-            for index in range(plan["chapter_count"])
-        ]
         self.assertEqual(
             "ok",
             stage.execute_chapter_segment(
@@ -544,9 +665,10 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
     def test_takeover_during_extract_writes_nothing(self) -> None:
         text = TEXT_DISTINCT
         job_id, revision_id, source_sha = self._queue_job(text)
-        model, plan = self._prepare_model(
+        model, _ = self._prepare_model(
             text, revision_id, source_sha, _distinct_specs()
         )
+        plan, requests = self._planned_requests(text, job_id, source_sha)
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(
                 conn, worker="worker-t13", lease_seconds=300, job_id=job_id
@@ -560,13 +682,6 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
                 plan=plan, text=text, lease_seconds=300,
             ),
         )
-        requests = [
-            chapter_plan.build_chapter_request(
-                plan, index, text,
-                limits=chapter_contract.ChapterLimits(),
-            )
-            for index in range(plan["chapter_count"])
-        ]
         self.assertEqual(
             "ok",
             stage.execute_chapter_segment(
@@ -726,9 +841,10 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
     def test_same_revision_changed_content_is_rejected(self) -> None:
         text = TEXT_DISTINCT
         job_id, revision_id, source_sha = self._queue_job(text)
-        model, plan = self._prepare_model(
+        model, _ = self._prepare_model(
             text, revision_id, source_sha, _distinct_specs()
         )
+        plan, requests = self._planned_requests(text, job_id, source_sha)
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(
                 conn, worker="worker-t13", lease_seconds=300, job_id=job_id
@@ -742,13 +858,6 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
                 plan=plan, text=text, lease_seconds=300,
             ),
         )
-        requests = [
-            chapter_plan.build_chapter_request(
-                plan, index, text,
-                limits=chapter_contract.ChapterLimits(),
-            )
-            for index in range(plan["chapter_count"])
-        ]
         self.assertEqual(
             "ok",
             stage.execute_chapter_segment(
@@ -807,6 +916,136 @@ class ChapterPipelinePostgresTests(unittest.TestCase):
             )
             self.assertEqual(
                 entry["artifact_sha256"], entries_after[0]["artifact_sha256"]
+            )
+
+
+    # -- fail closed: chapter model without a revision source -----------
+
+    def test_chapter_model_without_source_fails_before_any_stage(self) -> None:
+        text = TEXT_DISTINCT
+        job_id, _, _ = self._queue_job(text)
+
+        class _StubModel:
+            name = "stub-chapter-model"
+
+            def complete(self, prompt: str) -> str:  # pragma: no cover
+                raise AssertionError("must never be called")
+
+        result = worker.run_once(
+            self.database_url, worker="worker-t13",
+            chapter_model=_StubModel(),
+            chapter_limits=chapter_contract.ChapterLimits(),
+            job_id=job_id,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual("failed", result[1])
+        with psycopg.connect(self.database_url) as conn:
+            status, error = conn.execute(
+                "SELECT status, error FROM chronicle.ingestion_jobs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()
+            self.assertEqual("failed", status)
+            self.assertIn("without a revision source", error)
+            # No stage ran and no fake output was invented.
+            stages = dict(
+                conn.execute(
+                    "SELECT stage, status FROM chronicle.ingestion_job_stages "
+                    "WHERE job_id = %s",
+                    (job_id,),
+                ).fetchall()
+            )
+            self.assertTrue(all(value == "pending" for value in stages.values()))
+            self.assertEqual(
+                0,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.ingestion_chunks WHERE job_id = %s",
+                    (job_id,),
+                ).fetchone()[0],
+            )
+            self.assertEqual(
+                0,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.ingestion_outputs WHERE job_id = %s",
+                    (job_id,),
+                ).fetchone()[0],
+            )
+
+    # -- publish fence: an expired lease cannot publish after lock wait ----
+
+    def test_publish_rejects_expired_lease_without_writes(self) -> None:
+        text = TEXT_DISTINCT
+        job_id, revision_id, source_sha = self._queue_job(text)
+        model, _ = self._prepare_model(
+            text, revision_id, source_sha, _distinct_specs()
+        )
+        plan, requests = self._planned_requests(text, job_id, source_sha)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.claim_job(
+                conn, worker="worker-t13", lease_seconds=300, job_id=job_id
+            )
+            conn.commit()
+        self._advance_running(
+            job_id, "structure", "segment", "extract", "assemble", "resolve",
+            "publish",
+        )
+        for fn, kwargs, kind in (
+            (
+                stage.execute_chapter_structure,
+                {"plan": plan, "text": text},
+                "ok",
+            ),
+            (
+                stage.execute_chapter_segment,
+                {"plan": plan, "requests": requests},
+                "ok",
+            ),
+            (
+                stage.execute_chapter_extract,
+                {
+                    "plan": plan, "requests": requests, "model": model,
+                    "limits": chapter_contract.ChapterLimits(),
+                },
+                "ok",
+            ),
+            (stage.execute_chapter_assemble, {"plan": plan}, "assembled"),
+            (stage.execute_chapter_resolve, {"plan": plan}, "ok"),
+        ):
+            result = fn(
+                self.database_url, job_id=job_id, worker="worker-t13",
+                lease_seconds=300, **kwargs,
+            )
+            if kind == "assembled":
+                self.assertIsInstance(result, tuple)
+                self.assertIn("bundle", result[0])
+            else:
+                self.assertEqual(kind, result)
+        # The lock wait outlives the lease without any takeover: the
+        # owner is unchanged but the expiry already passed.
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute(
+                "UPDATE chronicle.ingestion_jobs "
+                "SET lease_expires_at = now() - interval '1 second' "
+                "WHERE job_id = %s",
+                (job_id,),
+            )
+            conn.commit()
+        with psycopg.connect(self.database_url) as conn:
+            with self.assertRaises(LeaseLost):
+                resolve_publish.publish_chapters(
+                    conn, job_id=job_id, worker="worker-t13"
+                )
+            conn.rollback()
+            self.assertEqual(
+                0,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.canonical_catalogs"
+                ).fetchone()[0],
+            )
+            self.assertEqual(
+                0,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.chapter_publications"
+                ).fetchone()[0],
             )
 
 

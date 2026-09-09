@@ -78,6 +78,7 @@ if str(_INGESTION_PROTOTYPE) not in sys.path:
 
 import control_plane  # noqa: E402
 from common import (  # noqa: E402
+    LeaseLost,
     PersistenceConflict,
     PersistenceError,
     canonical_json_bytes,
@@ -1102,8 +1103,28 @@ def publish_chapters(
     with conn.transaction():
         acquire_publish_lock(conn)
         # Re-verify the lease under the lock: waiting for the lock never
-        # extends a lease that expired while queued.
+        # extends a lease that expired while queued. Ownership alone is
+        # not enough (`require_job_lease` ignores expiry by contract),
+        # so an expired lease fails closed here even without a takeover.
         control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
+        lease_row = conn.execute(
+            """
+            SELECT lease_expires_at FROM chronicle.ingestion_jobs
+            WHERE job_id = %s
+            """,
+            (job_id,),
+        ).fetchone()
+        now = conn.execute("SELECT now()").fetchone()[0]
+        if (
+            lease_row is None
+            or lease_row[0] is None
+            or lease_row[0] <= now
+        ):
+            raise LeaseLost(
+                f"worker {worker!r} holds no unexpired lease for job "
+                f"{job_id}; refusing to publish after the lock wait "
+                "(renew and re-enter instead of using a stale lease)"
+            )
 
         job_row = conn.execute(
             """
