@@ -11,17 +11,6 @@ created_at: 2026-09-08
 
 父协调 Issue：[#548](https://github.com/6spot/Loom/issues/548)，上层讨论 [#547](https://github.com/6spot/Loom/issues/547)。本轮把完整自然章 → 联合翻译/提取 → 有原文上下文的关联审核 → 已发布完整白话 → 按需原文拆成 19 个有界交付。
 
-## 执行权威
-
-本文件描述任务图、文件所有权和长期合同，不承担运行时状态机职责。
-
-- GitHub Issue 保存任务目标和验收上下文。
-- Multica Issue 的 dependency / parent-child / Stage 状态决定当前哪些任务可执行。
-- 本目录 task 文件中的 `status`、`depends_on`、`completion_pr`、`merge_sha` 等仅作计划/历史记录，不独立阻塞 Multica 已经调度的任务。
-- 不要求在 delivery PR merge 后再创建 ledger-only PR 做状态对账。
-
-若本文中的历史状态描述与当前 Multica 状态冲突，以 Multica 的当前执行图为准；架构/文件所有权约束仍以仓库当前文档为准。
-
 ## 已固定的合同
 
 - [chapter-production.md](../../../../apps/chronicle/docs/chapter-production.md)：受控 txt 单章/md 自然章、完整上下文一次生成+最多一次整章修正、联合产物、精确来源、来源内 Resolution 0.2、原子发布及 Reader API。
@@ -31,7 +20,7 @@ created_at: 2026-09-08
 
 ## 任务图
 
-表中的依赖描述设计顺序；实际 READY/Stage 推进由 Multica 当前 Issue 图决定。
+表中的依赖描述设计顺序和接口前置。
 
 | Task | GitHub | Depends on | 交付 |
 | --- | --- | --- | --- |
@@ -94,7 +83,7 @@ flowchart LR
 
 ## 共享文件所有权
 
-并行资格除了 Multica 的依赖/Stage 外，还必须尊重真实文件所有权。不要让多个任务同时写同一入口。
+并行实现同时遵守任务依赖和真实文件所有权，避免多个任务同时修改同一共享入口。
 
 | 文件/资源 | 修改顺序或唯一 owner |
 | --- | --- |
@@ -125,6 +114,6 @@ flowchart LR
 
 ## 交付
 
-每个 Leaf 以自己的 Issue、代码、验证和 PR 交付。任务文档可在交付中记录有价值的范围/证据，但不要求合并后再做 Task Ledger 对账。
+每个 Leaf 以自己的 Issue、代码、验证和 PR 交付。任务文档按需要记录有价值的范围、设计说明和验证证据。
 
 仓库交付完成规则见 [`../../../development/task-completion.md`](../../../development/task-completion.md)。
