@@ -24,9 +24,19 @@ describe("studio code is route-split from public navigation", () => {
     expect(app.includes("lazy(")).toBe(true);
   });
 
+  it("App.tsx wires the public chapter routes without eager Studio imports", () => {
+    const root = new URL("..", import.meta.url).pathname;
+    const app = readFileSync(`${root}src/App.tsx`, "utf-8");
+    expect(app).toContain('to="/chapters"');
+    expect(app).toContain('path="/chapters"');
+    expect(app).toContain('path="/chapters/:publicationId"');
+    expect(app).toContain("./pages/public/ChapterIndexPage");
+    expect(app).toContain("./pages/public/ChapterPage");
+  });
+
   it("public pages never import the shadcn studio foundation", () => {
     const root = new URL("..", import.meta.url).pathname;
-    const publicPages = ["TimelinePage.tsx", "EventPage.tsx", "EntityPage.tsx", "SearchPage.tsx"];
+    const publicPages = ["TimelinePage.tsx", "EventPage.tsx", "EntityPage.tsx", "SearchPage.tsx", "ChapterIndexPage.tsx", "ChapterPage.tsx"];
     for (const page of publicPages) {
       const content = readFileSync(`${root}src/pages/public/${page}`, "utf-8");
       expect(content).not.toContain("components/ui");

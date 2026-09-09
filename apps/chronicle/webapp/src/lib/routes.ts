@@ -33,6 +33,8 @@ export type PublicRoute =
   | { view: "event"; id: string }
   | { view: "entity"; id: string }
   | { view: "search"; id: null }
+  | { view: "chapters"; id: null }
+  | { view: "chapter"; id: string }
   | { view: "not_found"; id: null };
 
 export function routeFor(pathname: string): PublicRoute {
@@ -40,6 +42,9 @@ export function routeFor(pathname: string): PublicRoute {
   if (path === "/" || path === "/world") return { view: "world", id: null };
   if (path === "/timeline") return { view: "timeline", id: null };
   if (path === "/search") return { view: "search", id: null };
+  if (path === "/chapters") return { view: "chapters", id: null };
+  const chapter = path.match(/^\/chapters\/([^/]+)$/);
+  if (chapter) return { view: "chapter", id: decodeURIComponent(chapter[1]) };
   const event = path.match(/^\/events\/([^/]+)$/);
   if (event) return { view: "event", id: decodeURIComponent(event[1]) };
   const entity = path.match(/^\/entities\/([^/]+)$/);
@@ -57,4 +62,14 @@ export function safeRouteFor(pathname: string): PublicRoute {
 
 export function isStudioPath(pathname: string): boolean {
   return pathname === "/studio" || pathname.startsWith("/studio/");
+}
+
+/// Public reader hrefs (C2-R1-T17). Chapter identity is always the immutable
+/// publication_id; unknown or unpublished versions resolve to a 404 view.
+export function chaptersPath(): string {
+  return "/chapters";
+}
+
+export function chapterPath(publicationId: string): string {
+  return `/chapters/${encodeURIComponent(publicationId)}`;
 }

@@ -377,13 +377,19 @@ describe("chapter-reader safe rendering", () => {
 });
 
 describe("chapter-reader ownership boundary", () => {
-  it("stays out of App, routes and global styles so the build leaves dist alone", () => {
+  it("is wired into App and routes exactly once (T17) without leaking global styles", () => {
     const app = readFileSync(`${webappRoot}src/App.tsx`, "utf-8");
     const routes = readFileSync(`${webappRoot}src/lib/routes.ts`, "utf-8");
+    // T17 integration: public nav + /chapters routes own the reader entry.
+    expect(app).toContain("./pages/public/ChapterIndexPage");
+    expect(app).toContain("./pages/public/ChapterPage");
+    expect(app).toContain('path="/chapters"');
+    expect(app).toContain('path="/chapters/:publicationId"');
+    expect(routes).toContain('"chapters"');
+    expect(routes).toContain('"chapter"');
+    expect(routes).toContain("/chapters");
+    // The reader still owns no Studio surface and no global style reset.
     for (const source of [app, routes]) {
-      expect(source).not.toContain("chapter-reader");
-      expect(source).not.toContain("ChapterPage");
-      expect(source).not.toContain("ChapterIndexPage");
       expect(source).not.toContain("ChapterSourceReference");
     }
     const css = readFileSync(`${webappRoot}src/styles/chapter-reader.css`, "utf-8");

@@ -181,6 +181,14 @@ fn is_spa_path(path: &str) -> bool {
     if path == "/search" || path == "/search/" {
         return true;
     }
+    // Public chapter reader (C2-R1-T17): directory plus one immutable
+    // publication detail. Deeper nesting is not a reader route.
+    if path == "/chapters" || path == "/chapters/" {
+        return true;
+    }
+    if let Some(rest) = path.strip_prefix("/chapters/") {
+        return is_single_segment(rest);
+    }
     // The Studio shell itself is public because it carries no privileged
     // data; every Studio API is authenticated server-side. Nested detail
     // routes are still shell-only navigation and never bypass API auth.
@@ -234,6 +242,10 @@ mod tests {
             "/timeline",
             "/timeline/",
             "/search",
+            "/chapters",
+            "/chapters/",
+            "/chapters/00000000-0000-7000-8000-000000000000",
+            "/chapters/00000000-0000-7000-8000-000000000000/",
             "/events/some-id",
             "/events/some-id/",
             "/entities/some-id",
@@ -342,10 +354,14 @@ mod tests {
     fn non_web_paths_do_not_resolve() {
         for path in [
             "/api/v1/public/timeline",
+            "/api/v1/public/chapters",
+            "/api/v1/public/chapters/some-id",
             "/v0/timeline",
+            "/v0/chapters",
             "/healthz",
             "/events/a/b",
             "/entities/",
+            "/chapters/a/b",
             "/etc/passwd",
             "/../web/index.html",
             "/app.mjs.map",

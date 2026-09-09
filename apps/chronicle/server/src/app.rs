@@ -47,10 +47,21 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/public/search", any(public_search))
         .route("/api/v1/public/events/{id}", any(public_event))
         .route("/api/v1/public/entities/{id}", any(public_entity))
+        .route("/api/v1/public/chapters", any(public_chapters))
+        .route(
+            "/api/v1/public/chapters/{publication_id}",
+            any(public_chapter_detail),
+        )
+        .route(
+            "/api/v1/public/chapters/{publication_id}/sources/{anchor_id}",
+            any(public_chapter_source),
+        )
         .route("/v0/timeline", any(legacy_proxy))
         .route("/v0/search", any(legacy_proxy))
         .route("/v0/events/{id}", any(legacy_proxy))
         .route("/v0/entities/{id}", any(legacy_proxy))
+        .route("/v0/chapters", any(legacy_proxy))
+        .route("/v0/chapters/{*rest}", any(legacy_proxy))
         .nest("/api/v1/studio", studio)
         .fallback(fallback)
         // The 2 MiB default body cap is lifted so Studio uploads can reach
@@ -144,6 +155,65 @@ async fn public_entity(
             .await
         }
         None => TypedError::not_found("route not found").into_response(),
+    }
+}
+
+/// Public chapter directory (C2-R1-T17): anonymous read of published
+/// chapters only. Unpublished or unknown versions are a JSON 404 from the
+/// sidecar, never an HTML shell.
+async fn public_chapters(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    request: axum::http::Request<Body>,
+) -> Response {
+    proxy_public(
+        &state,
+        request.method().clone(),
+        "/v0/chapters".to_string(),
+        uri.query().map(str::to_string),
+    )
+    .await
+}
+
+/// Public full chapter translation, pinned to one immutable publication.
+async fn public_chapter_detail(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    Path(publication_id): Path<String>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match validated_id(&publication_id) {
+        Some(valid) => {
+            proxy_public(
+                &state,
+                request.method().clone(),
+                format!("/v0/chapters/{valid}"),
+                uri.query().map(str::to_string),
+            )
+            .await
+        }
+        None => TypedError::not_found("route not found").into_response(),
+    }
+}
+
+/// Public pinned source excerpt for one anchor of one publication.
+async fn public_chapter_source(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    Path((publication_id, anchor_id)): Path<(String, String)>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match (validated_id(&publication_id), validated_id(&anchor_id)) {
+        (Some(publication), Some(anchor)) => {
+            proxy_public(
+                &state,
+                request.method().clone(),
+                format!("/v0/chapters/{publication}/sources/{anchor}"),
+                uri.query().map(str::to_string),
+            )
+            .await
+        }
+        _ => TypedError::not_found("route not found").into_response(),
     }
 }
 

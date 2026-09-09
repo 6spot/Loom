@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, formatYear, isStudioPath, safeRouteFor } from "../src/lib/routes";
+import { chapterPath, chaptersPath, formatTime, formatYear, isStudioPath, safeRouteFor } from "../src/lib/routes";
 
 describe("public routes", () => {
   it("maps World/Timeline/Event/Entity/Search URLs", () => {
@@ -10,6 +10,27 @@ describe("public routes", () => {
     expect(safeRouteFor("/entities/abc")).toEqual({ view: "entity", id: "abc" });
     expect(safeRouteFor("/search")).toEqual({ view: "search", id: null });
     expect(safeRouteFor("/unknown")).toEqual({ view: "not_found", id: null });
+  });
+
+  it("maps the chapter directory and publication detail URLs", () => {
+    expect(safeRouteFor("/chapters")).toEqual({ view: "chapters", id: null });
+    expect(safeRouteFor("/chapters/")).toEqual({ view: "chapters", id: null });
+    expect(safeRouteFor("/chapters/00000000-0000-7000-8000-000000000000")).toEqual({
+      view: "chapter",
+      id: "00000000-0000-7000-8000-000000000000",
+    });
+    expect(safeRouteFor("/chapters/00000000-0000-7000-8000-000000000000/")).toEqual({
+      view: "chapter",
+      id: "00000000-0000-7000-8000-000000000000",
+    });
+    expect(safeRouteFor("/chapters/a/b")).toEqual({ view: "not_found", id: null });
+  });
+
+  it("builds stable chapter hrefs pinned to the publication id", () => {
+    expect(chaptersPath()).toBe("/chapters");
+    expect(chapterPath("00000000-0000-7000-8000-000000000000")).toBe(
+      "/chapters/00000000-0000-7000-8000-000000000000",
+    );
   });
 
   it("treats malformed encodings as not found", () => {

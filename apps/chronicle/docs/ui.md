@@ -28,6 +28,17 @@ Primary navigation:
 
 A global search / question box is always available.
 
+In the current React front the public nav is 世界 / 时间线 / 搜索 / 篇章 /
+Studio. 篇章 (`/chapters`) lists published immutable reading versions;
+`/chapters/{publication_id}` renders the complete single-column vernacular
+text with on-demand source references (see chapter-production §§7–8).
+Direct open and refresh of both paths serve the SPA shell from the Rust
+front; API failures stay typed JSON and never fall back to the shell.
+Reader states: loading, empty directory, 404 for unpublished or unknown
+versions, request error with retry, source panel (window → chapter-wide)
+with close restoring the reading position. Second-round timeline/event
+hover/figure-tense surfaces remain out of scope.
+
 Contextual surfaces can expose:
 
 - Events
