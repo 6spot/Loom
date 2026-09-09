@@ -518,6 +518,10 @@ def _chapter_plan(chapter_ids: list[str] | None = None) -> dict:
             "title": f"Chapter {index}",
             "start": index * 10,
             "end": (index + 1) * 10,
+            # Synthetic content binding: matches the synthetic
+            # artifact hash so these fixtures exercise the required
+            # per-chapter content check with consistent bytes.
+            "content_sha256": _CHAPTER_NORMALIZED_SHA,
         }
         for index, chapter_id in enumerate(ids)
     ]
@@ -909,6 +913,9 @@ def _real_t01_artifact(*, object_override: Any = "__keep__") -> tuple[dict, dict
                 "title": "e2e",
                 "start": 0,
                 "end": len(request["normalized_text"]),
+                # Single-chapter fixture: the request hash already binds
+                # the whole chapter slice.
+                "content_sha256": request["normalized_sha256"],
             }
         ],
     }

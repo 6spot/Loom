@@ -1262,6 +1262,14 @@ def _validate_chapter_plan(chapter_plan: dict[str, Any]) -> list[dict[str, Any]]
             raise PersistenceError("chapter_plan chapters must hold JSON objects")
         if not isinstance(chapter.get("chapter_id"), str) or not chapter.get("chapter_id"):
             raise PersistenceError("chapter_plan chapter requires a chapter_id")
+        if not isinstance(chapter.get("content_sha256"), str) or not chapter.get(
+            "content_sha256"
+        ):
+            raise PersistenceError(
+                f"chapter_plan chapter {chapter.get('chapter_id')!r} requires "
+                "its content_sha256 chapter hash; a plan without "
+                "per-chapter content binding cannot enter assembly"
+            )
         index = chapter.get("chapter_index")
         if not isinstance(index, int) or isinstance(index, bool) or index < 0:
             raise PersistenceError(
@@ -1448,14 +1456,27 @@ def assemble_chapters(
     plan_revision = (
         chapter_plan["revision_id"],
         chapter_plan["source_sha256"],
-        chapter_plan["normalized_sha256"],
     )
+    plan_content_by_id = {
+        c["chapter_id"]: c.get("content_sha256") for c in plan_chapters
+    }
     for item in normalized:
-        triple = (item["revision_id"], item["source_sha256"], item["normalized_sha256"])
-        if triple != plan_revision:
+        pair = (item["revision_id"], item["source_sha256"])
+        if pair != plan_revision:
             raise PersistenceError(
-                f"artifact chapter {item['chapter_id']!r} revision triple {triple!r} does not match "
-                f"chapter plan triple {plan_revision!r}; refusing to mix revisions in one source bundle"
+                f"artifact chapter {item['chapter_id']!r} revision pair {pair!r} does not match "
+                f"chapter plan pair {plan_revision!r}; refusing to mix revisions in one source bundle"
+            )
+        # Chapter-granularity binding: the artifact's normalized hash is
+        # the chapter slice hash (T01 identity check), so it must equal
+        # the plan chapter's required content hash — never the
+        # full-revision hash, and never unchecked.
+        expected_content = plan_content_by_id.get(item["chapter_id"])
+        if item["normalized_sha256"] != expected_content:
+            raise PersistenceError(
+                f"artifact chapter {item['chapter_id']!r} normalized hash "
+                f"{item['normalized_sha256']!r} does not match the planned "
+                "chapter content hash; refusing bytes outside the plan"
             )
     if len({(item["revision_id"], item["source_sha256"]) for item in normalized}) != 1:
         raise PersistenceError("assembly artifacts span multiple revisions/source hashes (fail closed)")
@@ -1484,7 +1505,8 @@ def assemble_chapters(
     plan_by_id = {c["chapter_id"]: c for c in plan_chapters}
     ordered = sorted(normalized, key=lambda item: plan_by_id[item["chapter_id"]]["chapter_index"])
 
-    revision_id, source_sha256, normalized_sha256 = plan_revision
+    revision_id, source_sha256 = plan_revision
+    normalized_sha256 = chapter_plan["normalized_sha256"]
     id_map: dict[tuple[int, str], str] = {}
     chapter_by_ref: dict[str, str] = {}
     local_to_revision: dict[str, str] = {}

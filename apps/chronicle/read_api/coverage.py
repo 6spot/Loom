@@ -48,11 +48,16 @@ def _validate_range(from_year: int | None, to_year: int | None) -> None:
 
 
 def _latest_catalog_sha(conn) -> str | None:
+    # The newest catalog is defined by the unique increasing
+    # publication_sequence identity column, never by the transaction
+    # start time imported_at (C2-R1-T13): two publishers committing in
+    # either order still resolve to the same latest catalog.
     row = conn.execute(
         """
         SELECT artifact_sha256
         FROM chronicle.canonical_catalogs
-        ORDER BY imported_at DESC, artifact_sha256 DESC
+        ORDER BY publication_sequence DESC NULLS LAST,
+                 imported_at DESC, artifact_sha256 DESC
         LIMIT 1
         """
     ).fetchone()

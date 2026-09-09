@@ -1,4 +1,4 @@
-# Chronicle durable ingestion worker (C1-T4)
+# Chronicle durable ingestion worker (C1-T4, C2-R1-T13 chapter pipeline)
 
 Standalone, restart-safe execution for long-running book ingestion. The
 worker is a plain Python process
@@ -60,6 +60,77 @@ own contracts: extraction uses the staged-bundle projection and presentation
 uses the [Reader Presentation candidate shape](reader-presentation.md). The
 presentation prompt supplies the exact canonical target; the output validator
 still rejects a missing or mismatched target instead of filling it in.
+
+### Joint natural-chapter pipeline (C2-R1-T13)
+
+When a revision source (`--source-dir` / `CHRONICLE_SOURCE_DIR`) and a
+joint chapter model are both configured, every content stage runs the
+natural-chapter pipeline instead of the C1 chunk path; `prepare` keeps
+the deterministic fake executor so the frozen 8-stage authority is
+unchanged. Thin orchestration lives in
+`apps/chronicle/worker/chapter_stage.py` (the sole wiring owner is
+`ingestion_worker.py`):
+
+- `structure` / `segment` persist the T03 plan with exactly one work
+  chunk per natural chapter (absolute chapter coordinates, content
+  hashes, request fingerprints in chunk checkpoints).
+- `extract` runs one whole-chapter joint call plus at most one
+  whole-chapter correction per chapter (T05/T06; never the old
+  independent chunk prompt). The lease is renewed before and after
+  each model wait while no DB transaction is ever held across a call;
+  every durable write is lease-fenced. Accepting re-validates the
+  exact request/candidate pair and the producing-run fingerprint; an
+  accepted run whose checkpoint commit never landed is adopted from
+  its complete stored request/response with zero new model calls.
+- `assemble` requires every expected accepted chapter (T07; partial
+  books fail closed) and records one revision bundle output.
+- `resolve` freezes the mixed review plan (`chapter_pair` +
+  `published_batch`, T08) as a job output; resume reuses that exact
+  plan (never rebuilding or re-ranking it) and parks in
+  `needs_review` while any candidate is open. Zero candidates proceed
+  unattended.
+- `publish` runs `resolve_publish.publish_chapters` in one short
+  transaction under the unified advisory lock: latest catalog by
+  `publication_sequence` (never `imported_at`), lease re-verified
+  under the lock, frozen plan re-validated exactly, terminal decision
+  required for every candidate. The lease check is expiry-aware: a
+  lock wait that outlives `lease_expires_at` fails closed even
+  without a takeover. Catalog, every chapter publication,
+  canonical maps, catalog output, and publish checkpoint/completed
+  commit together; any fault rolls back all public content. A moved
+  baseline raises `publication_plan_stale`: the frozen plan and its
+  evidence are kept, nothing is auto-passed or rebuilt (a follow-up
+  job must replan). All catalog writers (chapter publish, legacy
+  publish, dataset import) take the same lock.
+- `present` only verifies the published complete translation blocks;
+  it never re-translates and never substitutes a blurb for the full
+  text.
+
+### Production chapter schema / provider / limits entry
+
+`production_worker.py` selects the formal chapter entry
+(`chapter_configs`): `ChapterLimits` from the documented
+`CHRONICLE_CHAPTER_*` overrides plus the provider from
+`CHRONICLE_CHAPTER_MODEL` + `CHRONICLE_MODEL_ENDPOINT`
+(`CHRONICLE_MODEL_API_KEY` for credentials), or the explicit
+`CHRONICLE_CHAPTER_FIXTURE_PACK` test injection. A real source
+without a chapter model fails closed; the old fake executor is never
+an implicit fallback for new chapters.
+
+```bash
+export CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses
+export CHRONICLE_CHAPTER_MODEL=...
+python3 apps/chronicle/worker/production_worker.py \
+  --worker-id worker-01 --source-dir /data/chronicle-sources
+```
+
+A joint chapter model without a revision source fails the job before
+any stage runs (no silent fake completion). A production entry
+pointed at a source directory without any model refuses to start at
+all; the composable library runner stays available for explicit test
+injection (the pinned C1 segmentation/extraction tests rely on that),
+while a real source without models keeps the explicit extract failure
+instead of falling back.
 
 ## How durability works
 
@@ -192,6 +263,10 @@ staged/resolution/canonical historical-knowledge path.
 ## Verification
 
 ```bash
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_chapter_pipeline_postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_*postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_worker_budget_unit.py' -v
+python3 -m unittest discover -s apps/chronicle/read_api -p 'test_coverage*.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs*.py' -v
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*.py'

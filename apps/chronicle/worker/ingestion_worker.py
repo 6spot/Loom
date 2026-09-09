@@ -60,6 +60,9 @@ from typing import Any, Callable
 _PERSISTENCE_DIR = Path(__file__).resolve().parent.parent / "persistence"
 if str(_PERSISTENCE_DIR) not in sys.path:
     sys.path.insert(0, str(_PERSISTENCE_DIR))
+_WORKER_DIR = Path(__file__).resolve().parent
+if str(_WORKER_DIR) not in sys.path:
+    sys.path.insert(0, str(_WORKER_DIR))
 
 import control_plane  # noqa: E402
 from common import (  # noqa: E402
@@ -71,6 +74,7 @@ from common import (  # noqa: E402
 
 import assembly  # noqa: E402
 import canonical_store  # noqa: E402
+import chapter_stage  # noqa: E402
 import documents  # noqa: E402
 import extraction  # noqa: E402
 import model_provider  # noqa: E402
@@ -321,9 +325,21 @@ class JobRunner:
     a supplied dict must equal it exactly (anything else fails closed);
     ``allowed_predicates`` tightens validation when supplied; ``document_meta``
     supplies document-level extraction metadata (e.g. a verified
-    normalized year) over the database title. ``presentation_model`` is a
+    normalized year) over the database title.     ``presentation_model`` is a
     separate opt-in provider for the C1-T12 derived ``present`` stage; it is
     never reused as the extraction model and never changes historical authority.
+
+    ``chapter_model`` is the C2-R1-T13 opt-in joint provider (an object
+    with ``complete(prompt)->str`` and a non-empty string ``name``,
+    selected through :mod:`chapter_stage`). When set *and*
+    ``revision_source`` supplies the revision text, every content stage
+    runs the natural-chapter pipeline — T03 planning, whole-chapter
+    joint extraction (T05/T06), T07 assembly, the T08 frozen chapter
+    review plan, atomic chapter publication, and verify-only present —
+    instead of the C1 2000-char chunk path. When ``revision_source`` is
+    set but ``chapter_model`` is not, content stages fail closed rather
+    than silently falling back to fake checkpoints. ``chapter_limits``
+    pins the T01 engineering envelope (defaults to ``ChapterLimits()``).
     """
 
     def __init__(
@@ -344,6 +360,8 @@ class JobRunner:
         allowed_predicates: list[str] | None = None,
         document_meta: dict[str, Any] | None = None,
         allow_fake_after_real_source: bool = False,
+        chapter_model: Any | None = None,
+        chapter_limits: Any | None = None,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
@@ -359,6 +377,20 @@ class JobRunner:
         if not isinstance(allow_fake_after_real_source, bool):
             raise PersistenceError(
                 "allow_fake_after_real_source must be a boolean"
+            )
+        if chapter_model is not None and (
+            not callable(getattr(chapter_model, "complete", None))
+            or not isinstance(getattr(chapter_model, "name", None), str)
+            or not getattr(chapter_model, "name", "")
+        ):
+            raise PersistenceError(
+                "chapter_model must expose complete(prompt)->str and a non-empty string name"
+            )
+        if chapter_limits is not None and not isinstance(
+            chapter_limits, chapter_stage.chapter_contract.ChapterLimits
+        ):
+            raise PersistenceError(
+                "chapter_limits must be a chapter_contract.ChapterLimits"
             )
         if presentation_model is not None and (
             not callable(getattr(presentation_model, "complete", None))
@@ -383,6 +415,14 @@ class JobRunner:
         self.allowed_predicates = allowed_predicates
         self.document_meta = dict(document_meta or {})
         self.allow_fake_after_real_source = allow_fake_after_real_source
+        self.chapter_model = chapter_model
+        self.chapter_limits = (
+            chapter_limits or chapter_stage.chapter_contract.ChapterLimits()
+        )
+        self._chapter_inputs_cache: dict[
+            uuid.UUID,
+            tuple[str, dict[str, Any], dict[str, Any], list[dict[str, Any]]],
+        ] = {}
 
     # -- single-transaction steps --------------------------------------
 
@@ -1518,7 +1558,9 @@ class JobRunner:
                     f"job {job_id} catalog output carries no catalog"
                 )
             with psycopg.connect(self.database_url) as conn:
-                canonical_store.persist_catalog(conn, catalog)
+                # All catalog write entries take the unified publish lock
+                # (C2-R1-T13): latest-catalog order stays sequence-defined.
+                canonical_store.persist_catalog_locked(conn, catalog)
                 conn.commit()
             halt = self.check_halt(job_id)
             if halt is not None:
@@ -1626,7 +1668,7 @@ class JobRunner:
                 resolution_store.persist_resolution(conn, resolution)
                 conn.commit()
         with psycopg.connect(self.database_url) as conn:
-            canonical_store.persist_catalog(conn, catalog)
+            canonical_store.persist_catalog_locked(conn, catalog)
             conn.commit()
         halt = self.check_halt(job_id)
         if halt is not None:
@@ -1662,6 +1704,123 @@ class JobRunner:
             )
         self._emit("stage_completed", {"stage": REAL_PUBLISH_STAGE})
         return "ok"
+
+    # -- C2-R1-T13 natural-chapter pipeline (sole wiring owner) --------
+
+    def _chapter_mode_active(self) -> bool:
+        """Whether the joint natural-chapter pipeline owns content stages.
+
+        True exactly when the revision source and the joint chapter
+        model are both configured. A real immutable source without a
+        chapter model fails closed in the extract branch below; new
+        chapters never run the old independent chunk prompt.
+        """
+        return (
+            self.revision_source is not None and self.chapter_model is not None
+        )
+
+    def _chapter_config_error(self) -> str | None:
+        """Fail closed when a joint chapter model has no revision source.
+
+        A configured chapter model without a source would otherwise
+        fall through to the deterministic fake stages and
+        fake-complete: that silent success is refused here before any
+        stage runs. All other combinations keep their pinned behavior:
+        the C1 library path stays composable for explicit injection
+        (revision source plus explicit models or test executors), and
+        the production entry enforces its own no-fallback rule in
+        ``main`` before claiming anything.
+        """
+        if self.chapter_model is not None and self.revision_source is None:
+            return (
+                "chapter model is configured without a revision source; "
+                "refusing to fake chapter output "
+                "(set --source-dir/CHRONICLE_SOURCE_DIR)"
+            )
+        return None
+
+    def _load_chapter_inputs(
+        self, job_id: uuid.UUID
+    ) -> tuple[str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+        """Load (text, binding, plan, requests), cached per job.
+
+        Deterministic in the immutable revision bytes: every stage of
+        one job execution shares the identical plan object.
+        """
+        cached = self._chapter_inputs_cache.get(job_id)
+        if cached is not None:
+            return cached
+        if self.revision_source is None or self.chapter_model is None:
+            raise PersistenceError(
+                "chapter production requires both revision_source and "
+                "chapter_model; refusing to fake chapter output"
+            )
+        loaded = chapter_stage.load_chapter_inputs(
+            self.database_url, job_id=job_id,
+            revision_source=self.revision_source,
+            limits=self.chapter_limits,
+        )
+        self._chapter_inputs_cache[job_id] = loaded
+        return loaded
+
+    def _execute_chapter_stage(self, job_id: uuid.UUID, stage: str) -> str:
+        """Execute one chapter content stage; returns the outcome string.
+
+        Outcomes: 'ok', 'failed', 'needs_review', 'cancelled',
+        'stopped'. Raises :class:`LeaseLost` when this worker no longer
+        holds the lease. Stage-internal checkpoints and completions are
+        written by :mod:`chapter_stage`; extract completion parking is
+        owned by the caller like the C1 path.
+        """
+        text, _binding, plan, requests = self._load_chapter_inputs(job_id)
+        if stage == "structure":
+            return chapter_stage.execute_chapter_structure(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, text=text, lease_seconds=self.lease_seconds,
+                on_event=self._emit,
+            )
+        if stage == "segment":
+            return chapter_stage.execute_chapter_segment(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, requests=requests,
+                lease_seconds=self.lease_seconds, on_event=self._emit,
+            )
+        if stage == CHUNK_BEARING_STAGE:
+            return chapter_stage.execute_chapter_extract(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, requests=requests, model=self.chapter_model,
+                limits=self.chapter_limits,
+                lease_seconds=self.lease_seconds, on_event=self._emit,
+                halt=self.check_halt,
+            )
+        if stage == REAL_ASSEMBLE_STAGE:
+            chapter_stage.execute_chapter_assemble(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, lease_seconds=self.lease_seconds,
+                on_event=self._emit,
+            )
+            return "ok"
+        if stage == REAL_RESOLVE_STAGE:
+            return chapter_stage.execute_chapter_resolve(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, lease_seconds=self.lease_seconds,
+                on_event=self._emit,
+            )
+        if stage == REAL_PUBLISH_STAGE:
+            return chapter_stage.execute_chapter_publish(
+                self.database_url, job_id=job_id, worker=self.worker,
+                lease_seconds=self.lease_seconds, on_event=self._emit,
+            )
+        if stage == REAL_PRESENT_STAGE:
+            chapter_stage.execute_chapter_present(
+                self.database_url, job_id=job_id, worker=self.worker,
+                plan=plan, lease_seconds=self.lease_seconds,
+                on_event=self._emit,
+            )
+            return "ok"
+        raise PersistenceError(
+            f"chapter pipeline owns no executor for stage {stage!r}"
+        )
 
     # -- chunk + stage execution ----------------------------------------
 
@@ -1749,6 +1908,15 @@ class JobRunner:
         halt = self.check_halt(job_id)
         if halt is not None:
             return halt
+        config_error = self._chapter_config_error()
+        if config_error is not None:
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.set_job_status_fenced(
+                    conn, job_id=job_id, status="failed",
+                    worker=self.worker, error=config_error,
+                )
+            self._emit("job_failed", {"job_id": str(job_id), "error": config_error})
+            return "failed"
         real_unset: Any = object()
         real: Any = real_unset
         for stage in control_plane.STAGE_NAMES:
@@ -1767,6 +1935,83 @@ class JobRunner:
             # A `running` stage is re-entry after a crash: checkpointed
             # state is authoritative, so execution resumes in place.
             self._heartbeat(job_id)
+            if self._chapter_mode_active() and stage != "prepare":
+                # C2-R1-T13: the joint natural-chapter pipeline owns every
+                # content stage. `prepare` keeps the deterministic fake
+                # executor so the frozen 8-stage authority is unchanged.
+                try:
+                    outcome = self._execute_chapter_stage(job_id, stage)
+                except LeaseLost:
+                    raise
+                except Exception as exc:
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage,
+                            status="failed", worker=self.worker,
+                            error=f"chapter {stage} failed: {exc}",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker,
+                            error=f"chapter {stage} failed: {exc}",
+                        )
+                    self._emit("stage_failed", {"stage": stage, "error": str(exc)})
+                    return "failed"
+                if outcome == "ok":
+                    if stage == CHUNK_BEARING_STAGE:
+                        with psycopg.connect(self.database_url) as conn:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="completed", worker=self.worker,
+                            )
+                        self._emit("stage_completed", {"stage": stage})
+                    continue
+                if outcome == "failed":
+                    with psycopg.connect(self.database_url) as conn:
+                        control_plane.advance_stage_fenced(
+                            conn, job_id=job_id, stage=stage, status="failed",
+                            worker=self.worker,
+                            error="chapter extraction failed closed (bounded retry via Studio)",
+                        )
+                        control_plane.set_job_status_fenced(
+                            conn, job_id=job_id, status="failed",
+                            worker=self.worker,
+                            error="chapter extraction failed closed (bounded retry via Studio)",
+                        )
+                    return "failed"
+                if outcome == "needs_review":
+                    with psycopg.connect(self.database_url) as conn:
+                        if stage == CHUNK_BEARING_STAGE:
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="needs_review", worker=self.worker,
+                                error="chapter attempts exhausted; awaiting review",
+                            )
+                            control_plane.open_review_item(
+                                conn, job_id=job_id, kind="chunk_failure",
+                                payload={"stage": stage, "worker": self.worker},
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="needs_review",
+                                worker=self.worker,
+                                error="chapter attempts exhausted; awaiting review",
+                            )
+                        else:
+                            # Resolve already opened its review items
+                            # durably; parking stage and job is the only
+                            # remaining step.
+                            control_plane.advance_stage_fenced(
+                                conn, job_id=job_id, stage=stage,
+                                status="needs_review", worker=self.worker,
+                                error="chapter resolution review pending; awaiting human decisions",
+                            )
+                            control_plane.set_job_status_fenced(
+                                conn, job_id=job_id, status="needs_review",
+                                worker=self.worker,
+                                error="chapter resolution review pending; awaiting human decisions",
+                            )
+                    return "needs_review"
+                return outcome  # cancelled / stopped: checkpoints stay as written
             if stage in REAL_SEGMENT_STAGES:
                 if real is real_unset:
                     try:
@@ -2163,6 +2408,8 @@ def run_once(
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
     allow_fake_after_real_source: bool = False,
+    chapter_model: Any | None = None,
+    chapter_limits: Any | None = None,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
@@ -2174,6 +2421,9 @@ def run_once(
     ``chunk_model`` additionally enables the C1-T6 real extract path;
     without it the extract stage keeps the fake chunk executor. A distinct
     ``presentation_model`` enables the C1-T12 offline derived present stage.
+    ``chapter_model`` additionally enables the C2-R1-T13 joint
+    natural-chapter pipeline for every content stage; a real source
+    without it fails closed instead of faking chapters.
     """
     stop = stop or threading.Event()
     with psycopg.connect(database_url) as conn:
@@ -2194,6 +2444,8 @@ def run_once(
         allowed_predicates=allowed_predicates,
         document_meta=document_meta,
         allow_fake_after_real_source=allow_fake_after_real_source,
+        chapter_model=chapter_model,
+        chapter_limits=chapter_limits,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -2217,6 +2469,8 @@ def run_forever(
     allowed_predicates: list[str] | None = None,
     document_meta: dict[str, Any] | None = None,
     allow_fake_after_real_source: bool = False,
+    chapter_model: Any | None = None,
+    chapter_limits: Any | None = None,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -2237,6 +2491,8 @@ def run_forever(
                 allowed_predicates=allowed_predicates,
                 document_meta=document_meta,
                 allow_fake_after_real_source=allow_fake_after_real_source,
+                chapter_model=chapter_model,
+                chapter_limits=chapter_limits,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.
@@ -2341,9 +2597,24 @@ def main(argv: list[str] | None = None) -> int:
         else None
     )
     extraction_model, presentation_model = model_provider.models_from_env()
+    chapter_model = chapter_stage.chapter_model_from_env()
+    chapter_limits = chapter_stage.chapter_limits_from_env()
+    chapter_stage.require_production_entry(
+        source_dir=source_dir,
+        extraction_model=extraction_model,
+        chapter_model=chapter_model,
+    )
     stop = threading.Event()
     install_shutdown_handlers(stop)
-    if source_dir is not None:
+    if chapter_model is not None and source_dir is not None:
+        print(
+            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
+            f"(lease {args.lease_seconds}s) with the C2-R1 joint chapter "
+            f"pipeline from {source_dir} "
+            f"(chapter_model={getattr(chapter_model, 'name', 'off')})",
+            flush=True,
+        )
+    elif source_dir is not None:
         print(
             f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
             f"(lease {args.lease_seconds}s) with real C1-T5 segmentation "
@@ -2372,6 +2643,8 @@ def main(argv: list[str] | None = None) -> int:
         revision_source=revision_source,
         chunk_model=extraction_model,
         presentation_model=presentation_model,
+        chapter_model=chapter_model,
+        chapter_limits=chapter_limits,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),
