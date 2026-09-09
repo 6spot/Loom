@@ -695,6 +695,34 @@ export function evidenceRequestKey(
   return `${reviewId}|${planFingerprint ?? "-"}|${contextId}|${anchorId}`;
 }
 
+// C2-R1-T12 stale-response guard (review-workflow §§4–5: a late response
+// must never mix materials across anchors, groups or reviews).
+//
+// A panel/section issues one token per flight and invalidates the guard on
+// every identity transition (anchor/context/review/group change). Only the
+// token that is still current when its response lands may write state.
+export interface EvidenceRequestGuard {
+  issue(): number;
+  invalidate(): void;
+  isCurrent(token: number): boolean;
+}
+
+export function createEvidenceRequestGuard(): EvidenceRequestGuard {
+  let epoch = 0;
+  return {
+    issue() {
+      epoch += 1;
+      return epoch;
+    },
+    invalidate() {
+      epoch += 1;
+    },
+    isCurrent(token: number) {
+      return token === epoch;
+    },
+  };
+}
+
 export async function submitReviewDecision(
   auth: string | null,
   reviewId: string,

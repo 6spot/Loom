@@ -12,12 +12,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import {
+  createEvidenceRequestGuard,
   evidenceRequestKey,
   getReviewSourceChapterPage,
   getReviewSourceWindow,
   listReviewContexts,
   StudioApiError,
 } from "../../lib/studio-api";
+import type { EvidenceRequestGuard } from "../../lib/studio-api";
 import type {
   ReviewSourceResponse,
   ReviewSourceSegment,
@@ -112,22 +114,40 @@ export function ReviewEvidencePanel({
   const [chapterExhausted, setChapterExhausted] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const savedScroll = useRef(0);
-  // Monotonic request sequence: a late response from a closed or switched
-  // panel may never overwrite the current material.
-  const requestSeq = useRef(0);
+  // Stale-response guard: a late chapter page from a closed anchor, context
+  // or review may never append under the current header. Every identity
+  // transition invalidates outstanding flights; only the current token
+  // writes state.
+  const guardRef = useRef<EvidenceRequestGuard | null>(null);
+  if (guardRef.current === null) guardRef.current = createEvidenceRequestGuard();
+  const guard = guardRef.current;
 
   const currentKey = evidenceRequestKey(reviewId, planFingerprint, descriptor.context_id, anchorId);
 
   // Switching review/plan/context/anchor resets chapter pagination so the
-  // previous chapter's pages can never appear under the new header.
+  // previous chapter's pages can never appear under the new header, and
+  // invalidates any flight that is still in the air for the old identity.
   useEffect(() => {
+    guard.invalidate();
     setChapterPages([]);
     setChapterCursor(null);
     setChapterError(null);
     setChapterExhausted(false);
+    // A stale flight's finally-block must not own this flag afterwards: the
+    // new identity starts idle so its own loads are never blocked.
+    setChapterLoading(false);
     setView("window");
     setAnchorId(descriptor.anchors[0]?.anchor_id ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId, planFingerprint, descriptor.context_id, descriptor.anchors]);
+
+  // Anchor switches invalidate outstanding chapter flights as well: the
+  // select handler below also invalidates synchronously to close the gap
+  // between the state update and this effect.
+  useEffect(() => {
+    guard.invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorId]);
 
   const windowQuery = useQuery({
     queryKey: ["studio", "review-source", currentKey, "window"],
@@ -157,24 +177,27 @@ export function ReviewEvidencePanel({
 
   const loadChapterPage = async (cursor: string | null) => {
     if (chapterLoading || !anchorId) return;
-    const seq = requestSeq.current + 1;
-    requestSeq.current = seq;
+    // The token binds this flight to the current anchor/context/review: any
+    // identity transition invalidates the guard first, so a late page for
+    // the old anchor can never append under the new one.
+    const token = guard.issue();
+    const anchorAtIssue = anchorId;
     setChapterLoading(true);
     setChapterError(null);
     try {
-      const page = await getReviewSourceChapterPage(auth, reviewId, anchorId, { cursor });
+      const page = await getReviewSourceChapterPage(auth, reviewId, anchorAtIssue, { cursor });
       // Drop the response when the panel moved on while it was in flight.
-      if (requestSeq.current !== seq) return;
+      if (!guard.isCurrent(token)) return;
       if (!isRenderableSegments(page.segments)) throw new Error("服务端返回的原文片段形状无效");
       setChapterPages((current) => [...current, page]);
       setChapterCursor(page.next_cursor);
       setChapterExhausted(!page.has_more);
       if (view !== "chapter") setView("chapter");
     } catch (error) {
-      if (requestSeq.current !== seq) return;
+      if (!guard.isCurrent(token)) return;
       setChapterError(error);
     } finally {
-      if (requestSeq.current === seq) setChapterLoading(false);
+      if (guard.isCurrent(token)) setChapterLoading(false);
     }
   };
 
@@ -217,11 +240,16 @@ export function ReviewEvidencePanel({
                 className="studio-select"
                 value={anchorId}
                 onChange={(event) => {
+                  // Invalidate synchronously: a chapter flight for the old
+                  // anchor must not survive the switch even before the
+                  // anchorId effect above runs. The new anchor starts idle.
+                  guard.invalidate();
                   setAnchorId(event.target.value);
                   setChapterPages([]);
                   setChapterCursor(null);
                   setChapterError(null);
                   setChapterExhausted(false);
+                  setChapterLoading(false);
                 }}
               >
                 {descriptor.anchors.map((anchor) => (
@@ -371,18 +399,31 @@ export function ReviewEvidenceSection({
     setExhausted(firstPage.data ? !firstPage.data.has_more : false);
   }, [firstPage.data]);
 
-  useEffect(() => {
-    setCursor(null);
-    setItems([]);
-    setTotal(null);
-    setExhausted(false);
-  }, [groupKey]);
+  const sectionGuardRef = useRef<EvidenceRequestGuard | null>(null);
+  if (sectionGuardRef.current === null) sectionGuardRef.current = createEvidenceRequestGuard();
+  const sectionGuard = sectionGuardRef.current;
 
   const [expanding, setExpanding] = useState(false);
   const [expandError, setExpandError] = useState<unknown>(null);
 
+  useEffect(() => {
+    // A group/review transition drops the previous group's state and
+    // invalidates its in-flight pagination: old members may never append
+    // into the new group's list. The new group starts idle.
+    sectionGuard.invalidate();
+    setCursor(null);
+    setItems([]);
+    setTotal(null);
+    setExhausted(false);
+    setExpanding(false);
+    setExpandError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupKey]);
+
   const expandAll = async () => {
     if (expanding || exhausted) return;
+    // Bind this pagination run to the group/review that started it.
+    const token = sectionGuard.issue();
     setExpanding(true);
     setExpandError(null);
     try {
@@ -392,15 +433,20 @@ export function ReviewEvidenceSection({
       const extra: SourceContextDescriptor[] = [];
       while (next) {
         const page = await listReviewContexts(auth, reviewId, { groupId, limit: 50, cursor: next });
+        if (!sectionGuard.isCurrent(token)) return;
         extra.push(...page.items);
         next = page.has_more ? page.next_cursor : null;
       }
+      if (!sectionGuard.isCurrent(token)) return;
       setItems((current) => [...current, ...extra]);
       setCursor(null);
       setExhausted(true);
     } catch (error) {
+      if (!sectionGuard.isCurrent(token)) return;
       setExpandError(error);
     } finally {
+      // The busy flag carries no group data, so clearing it is safe even
+      // for a stale run; only the member writes above are guarded.
       setExpanding(false);
     }
   };

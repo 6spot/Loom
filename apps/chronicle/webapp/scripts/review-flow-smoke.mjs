@@ -94,6 +94,7 @@ const EVIDENCE_LONG_ID = "r-evidence-long";
 const EVIDENCE_GROUPS_ID = "r-evidence-groups";
 const EVIDENCE_NOCLAIM_ID = "r-evidence-noclaim";
 const EVIDENCE_FAIL_ID = "r-evidence-fail";
+const EVIDENCE_RACE_ID = "r-evidence-race";
 const LONG_CHAPTER_TEXT = "列传文字。".repeat(4000);
 const LONG_ANCHOR_START = 8000;
 const LONG_ANCHOR_END = 8012;
@@ -152,6 +153,15 @@ function contextsPayload(reviewId, url) {
     all = [evidenceDescriptor(reviewId, "incoming", "fail-1", {
       anchors: [{ anchor_id: FAIL_ANCHOR, chapter_id: "ch-smoke-1", start: 0, end: 4, quote_sha256: "q" }],
     })];
+  } else if (reviewId === EVIDENCE_RACE_ID) {
+    all = [evidenceDescriptor(reviewId, "incoming", "race-1", {
+      chapter_id: "ch-race",
+      chapter_title: " smoke 竞态章",
+      anchors: [
+        { anchor_id: "anc-race-a", chapter_id: "ch-race", start: 0, end: 4, quote_sha256: "qa" },
+        { anchor_id: "anc-race-b", chapter_id: "ch-race", start: 10, end: 14, quote_sha256: "qb" },
+      ],
+    })];
   } else {
     all = [evidenceDescriptor(reviewId, "incoming", `right-${reviewId}`)];
   }
@@ -184,7 +194,42 @@ function contextsPayload(reviewId, url) {
   };
 }
 
-function sourcePayload(reviewId, anchorId, url) {
+async function sourcePayload(reviewId, anchorId, url) {
+  // T12 race probe: anchor A's chapter page is slow; switching to anchor B
+  // must invalidate A's flight so its late text never lands under B.
+  if (anchorId === "anc-race-a" || anchorId === "anc-race-b") {
+    const view = url.searchParams.get("view") || "window";
+    if (view === "window") {
+      const text = "前后文片段。";
+      return {
+        status: 200,
+        body: {
+          schema: "chronicle.review-source", version: "0.1", review_id: reviewId, anchor_id: anchorId,
+          view: "window", revision_id: "rev-smoke", source_sha256: "s".repeat(64), chapter_id: "ch-race",
+          bundle: "incoming", record_ref: "race-1",
+          bounds: { start: 0, end: 4, slice_start: 0, slice_end: text.length, chapter_start: 0, chapter_end: text.length, chapter_length: text.length },
+          source_hash: "h", chapter_hash: "h", text,
+          segments: [{ text, highlight: false }],
+          has_more: false, next_cursor: null,
+        },
+      };
+    }
+    const marker = anchorId === "anc-race-a" ? "RACE-A-MARKER" : "RACE-B-MARKER";
+    if (anchorId === "anc-race-a") await new Promise((done) => setTimeout(done, 2500));
+    const text = `${marker}：整章分页正文。`;
+    return {
+      status: 200,
+      body: {
+        schema: "chronicle.review-source", version: "0.1", review_id: reviewId, anchor_id: anchorId,
+        view: "chapter", revision_id: "rev-smoke", source_sha256: "s".repeat(64), chapter_id: "ch-race",
+        bundle: "incoming", record_ref: "race-1",
+        bounds: { start: 0, end: 4, slice_start: 0, slice_end: text.length, chapter_start: 0, chapter_end: text.length, chapter_length: text.length },
+        source_hash: "h", chapter_hash: "h", text,
+        segments: [{ text, highlight: false }],
+        has_more: false, next_cursor: null,
+      },
+    };
+  }
   if (anchorId === FAIL_ANCHOR) {
     const seen = failAttempts.get(anchorId) || 0;
     failAttempts.set(anchorId, seen + 1);
@@ -266,6 +311,7 @@ for (const [id, title] of [
   [EVIDENCE_GROUPS_ID, " smoke 同名多组"],
   [EVIDENCE_NOCLAIM_ID, " smoke 无Claim"],
   [EVIDENCE_FAIL_ID, " smoke 失败重试"],
+  [EVIDENCE_RACE_ID, " smoke 锚点竞态"],
 ]) {
   ITEMS.push({
     review_id: id,
@@ -515,7 +561,7 @@ async function main() {
       }
       const source = path.match(/^\/api\/v1\/studio\/jobs\/reviews\/([^/]+)\/sources\/([^/]+)$/);
       if (source && req.method() === "GET") {
-        const payload = sourcePayload(decodeURIComponent(source[1]), decodeURIComponent(source[2]), url);
+        const payload = await sourcePayload(decodeURIComponent(source[1]), decodeURIComponent(source[2]), url);
         return route.fulfill({ status: payload.status, contentType: "application/json", body: JSON.stringify(payload.body) });
       }
       const detail = path.match(/^\/api\/v1\/studio\/jobs\/reviews\/([^/]+)$/);
@@ -751,6 +797,20 @@ async function main() {
       await page.getByRole("button", { name: "重试加载原文" }).first().click();
       await page.locator(".evidence-text").first().waitFor({ timeout: 15000 });
       check("retry recovers the source", true);
+
+      // 17. Anchor race: a slow chapter page for anchor A must not land
+      // under anchor B after the reviewer switches anchors mid-flight.
+      await page.goto(`${BASE_URL}/studio/review/${EVIDENCE_RACE_ID}?status=open`, { waitUntil: "networkidle" });
+      await page.getByText("审核证据与来源").first().waitFor({ timeout: 15000 });
+      await page.getByRole("button", { name: "展开原文" }).first().click();
+      await page.getByRole("button", { name: "整章阅读" }).first().click();
+      await page.getByLabel("定位锚点（同组多个出现位置分别可查）").selectOption("anc-race-b");
+      await page.getByRole("button", { name: "整章阅读" }).first().click();
+      await page.getByText("RACE-B-MARKER").first().waitFor({ timeout: 15000 });
+      check("new anchor chapter loads", true);
+      await page.waitForTimeout(3500);
+      check("stale anchor response dropped", (await page.getByText("RACE-A-MARKER").count()) === 0);
+      check("decision draft untouched by the race", (await page.getByLabel("判断依据").inputValue()) === "");
     }
 
     console.log(`review-flow smoke (${SUITE}, mocked-api): PASS`);

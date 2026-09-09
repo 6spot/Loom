@@ -3,14 +3,14 @@ task: C2-R1-T12
 issue: 562
 kind: leaf
 parent: C2-R1
- status: in_progress
- depends_on: [C2-R1-T10, C2-R1-T11]
- created_at: 2026-09-08
- started_at: 2026-09-09
- completed_at:
- completion_pr:
- merge_sha:
- ---
+status: in_progress
+depends_on: [C2-R1-T10, C2-R1-T11]
+created_at: 2026-09-08
+started_at: 2026-09-09
+completed_at:
+completion_pr:
+merge_sha:
+---
 
 # 审核证据展开、逐组来源与整章阅读界面
 
@@ -39,9 +39,21 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
  Acceptance coverage: `ReviewEvidencePanel`/`ReviewEvidenceSection` take frozen descriptors plus the T11-isolated record objects (no second form or queue); layers are 原文 / 直接Claim / 对象出现 / 事件背景 / 辅助译文 with 章名/来源 header and revision line; internal IDs stay in audit `<details>`; chapter_pair ends render staged via `stagedSideLabel` (backend `review_mode` passthrough, per-context staged provenance without it); group/member cursors expand explicitly with outstanding counts; request keys bind review/plan/context/artifact with a sequence guard; collapse restores trigger focus and scroll without touching drafts; text renders only from server segments as plain nodes. Review fixes during implementation: hook-order crash (evidence lookup moved above early returns) and 409 auto-retry masking (window query `retry: false`).
 
- Not verified: real-backend end-to-end (explicitly T18 scope; this task proves UI behavior with mocked HTTP per the Issue). Post-merge reconciliation (`completion_pr`/`merge_sha`, Issue close) is still required per `docs/development/task-completion.md` and must happen after the delivery PR merges.
+  Not verified: real-backend end-to-end (explicitly T18 scope; this task proves UI behavior with mocked HTTP per the Issue). Post-merge reconciliation (`completion_pr`/`merge_sha`, Issue close) is still required per `docs/development/task-completion.md` and must happen after the delivery PR merges.
 
- ## Progress Log
+  Review fix 2026-09-09 (Reviewer CHANGES_REQUIRED on PR #611):
+
+  - Task Ledger front matter had indented YAML fields/closing delimiter from the delivery edit, failing `Chronicle first-round checks` (`missing YAML front matter`). Restored unindented delimiters/fields; verified with a YAML parse of the file head.
+  - `ReviewEvidencePanel` anchor switches cleared chapter pages but never invalidated the in-flight flight: added a `createEvidenceRequestGuard()` helper (`studio-api.ts`, pure and unit-tested) and wired it so review/plan/context/anchor transitions invalidate outstanding chapter loads; only the current token writes pages, errors or the busy flag. Identity transitions also reset the busy flag so a stale flight's `finally` can neither clobber the new anchor nor leave it stuck.
+  - `ReviewEvidenceSection.expandAll` now issues a guard token for the pagination run and drops the whole result when the group/review key moved mid-flight; the groupKey transition effect invalidates and resets the new group to idle.
+  - Re-verified on the fix head:
+    - `npm --prefix apps/chronicle/webapp test -- tests/review-evidence.test.ts tests/studio-review-human-display.test.ts tests/studio-entity-conflict.test.ts` — 3 files / 21 tests passed (3 new guard race tests).
+    - Full `npm test` — 18 files / 92 passed; `run build` OK; `run smoke:dist` PASS; rebuilt `web/dist` (same chunk names, no `static_assets.rs` change needed).
+    - `cargo test --lib static_assets` in `apps/chronicle/server` — 7 passed.
+    - Smoke `--suite all` — PASS with 3 new race checks (slow anchor-A chapter page vs. immediate anchor-B switch: B loads, A dropped, draft untouched). Negative control: the same script against the pre-fix panel fails at the race step, proving sensitivity.
+
+  ## Progress Log
 
  - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
  - 2026-09-09 — Implementation complete within T12 file ownership (evidence panel + CSS, studio-api/review-display extensions, detail-page wiring, unit tests, smoke evidence scenarios, rebuilt dist). Evidence above; delivery PR pending, post-merge reconciliation still open.
+ - 2026-09-09 — Reviewer CHANGES_REQUIRED addressed on the same PR: valid ledger front matter, request-guard invalidation on anchor/context/review/group transitions, busy-flag resets, race coverage (unit + browser incl. negative control), re-verified per above; pushed to PR #611, awaiting re-review; merge + default-branch reconciliation still open.

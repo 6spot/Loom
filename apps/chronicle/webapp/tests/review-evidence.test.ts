@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { evidenceRequestKey } from "../src/lib/studio-api";
+import { createEvidenceRequestGuard, evidenceRequestKey } from "../src/lib/studio-api";
 import type { SourceContextDescriptor } from "../src/lib/studio-api";
 import {
   evidenceChapterTitle,
@@ -90,6 +90,47 @@ describe("T12 review evidence display", () => {
     expect(evidenceRequestKey("r1", "fp2", "ctx_a", "anc_a")).not.toBe(first);
     expect(evidenceRequestKey("r1", "fp1", "ctx_b", "anc_a")).not.toBe(first);
     expect(evidenceRequestKey("r1", "fp1", "ctx_a", "anc_b")).not.toBe(first);
+  });
+
+  it("keeps only the current flight writable across anchor switches", () => {
+    const guard = createEvidenceRequestGuard();
+    // Panel loads a chapter page for anchor A…
+    const flightA = guard.issue();
+    expect(guard.isCurrent(flightA)).toBe(true);
+    // …the reviewer switches to anchor B before A lands.
+    guard.invalidate();
+    const flightB = guard.issue();
+    // A's late response must be dropped; B's may write.
+    expect(guard.isCurrent(flightA)).toBe(false);
+    expect(guard.isCurrent(flightB)).toBe(true);
+  });
+
+  it("drops a whole group pagination run when the group/review moves on", () => {
+    const guard = createEvidenceRequestGuard();
+    // Section starts expand-all for group A (first page already shown).
+    const runA = guard.issue();
+    // Navigation switches the section to group B mid-flight.
+    guard.invalidate();
+    // Every page that lands afterwards belongs to the old run…
+    expect(guard.isCurrent(runA)).toBe(false);
+    // …while B's own run starts from a fresh token.
+    const runB = guard.issue();
+    expect(guard.isCurrent(runB)).toBe(true);
+    expect(guard.isCurrent(runA)).toBe(false);
+  });
+
+  it("never confuses tokens across repeated switch-and-load cycles", () => {
+    const guard = createEvidenceRequestGuard();
+    const seen: number[] = [];
+    for (let round = 0; round < 5; round += 1) {
+      const token = guard.issue();
+      guard.invalidate(); // identity transition before the response lands
+      seen.push(token);
+      expect(guard.isCurrent(token)).toBe(false);
+    }
+    const live = guard.issue();
+    expect(guard.isCurrent(live)).toBe(true);
+    for (const stale of seen) expect(guard.isCurrent(stale)).toBe(false);
   });
 
   it("rejects malformed highlight segments before render", () => {
