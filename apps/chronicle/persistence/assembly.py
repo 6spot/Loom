@@ -93,6 +93,17 @@ CHAPTER_CANDIDATE_VERSION = "0.1"
 _T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
 _MENTION_ID_RE = re.compile(r"^m_(\d+)$")
 
+#: Chapter-candidate Claim reference kinds normalized to the C0 bundle
+#: vocabulary at the assembly output boundary. The T01 candidate contract
+#: uses ``entity``/``event`` while ``chronicle-v0.1`` requires
+#: ``entity_ref``/``event_ref``. ``literal``/null objects are preserved.
+_CLAIM_KIND_TO_C0 = {
+    "entity": "entity_ref",
+    "entity_ref": "entity_ref",
+    "event": "event_ref",
+    "event_ref": "event_ref",
+}
+
 #: Reused C0 contract-first extraction contract (contract_v0 / repair_v0).
 CONTRACT_VERSION = "0.2"
 
@@ -1561,13 +1572,18 @@ def assemble_chapters(
             record["temp_id"] = id_map[(chapter_index, claim["temp_id"])]
             for field in ("subject", "object"):
                 ref = record.get(field)
-                # Chapter candidates use kind entity/event; the shared unit
-                # helpers use entity_ref/event_ref. Accept both vocabularies
-                # and preserve the original kind string when rewriting.
-                if isinstance(ref, dict) and ref.get("kind") in (
-                    "entity", "entity_ref", "event", "event_ref",
-                ):
+                # Output boundary: normalize the chapter-candidate
+                # entity/event vocabulary to the C0 bundle vocabulary
+                # (entity_ref/event_ref). literal/null objects carry no
+                # revision ref and are preserved verbatim.
+                if ref is None:
+                    continue
+                if not isinstance(ref, dict):
+                    continue
+                kind = ref.get("kind")
+                if kind in _CLAIM_KIND_TO_C0:
                     ref = dict(ref)
+                    ref["kind"] = _CLAIM_KIND_TO_C0[kind]
                     ref["ref"] = _map(ref.get("ref"))
                     record[field] = ref
             evidence = dict(record.get("evidence") or {})
@@ -1711,6 +1727,8 @@ def assemble_chapters(
     for claim in final_claims:
         for field in ("subject", "object"):
             ref = claim.get(field)
+            if ref is None:
+                continue
             if isinstance(ref, dict):
                 kind, target = ref.get("kind"), ref.get("ref")
                 if kind in ("entity", "entity_ref") and target not in entity_ids:

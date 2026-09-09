@@ -115,10 +115,13 @@ Key contracts:
   chapter 0 → `ent_000001`, in chapter 1 → `ent_001001`). C0 claim/event
   fields, translation `entity_refs`/`event_refs`, mention
   `target_ref`/`candidate_refs`, and `record_sources` all use that same
-  mapping. Translation blocks without a Claim are preserved.
+  mapping. Translation blocks without a Claim are preserved. Claim
+  `subject`/`object` kinds are normalized at the output boundary from
+  the chapter-candidate vocabulary (`entity`/`event`) to the C0 bundle
+  vocabulary (`entity_ref`/`event_ref`); `literal`/`null` objects are
+  preserved verbatim.
 - **One revision, one source.** All chapters merge into a single
-  `src_001`; per-record `chapter_by_ref` (`revision_ref → chapter_id`)
-  plus exact artifact provenance (`artifact_sha256`,
+  `src_001`; per-record `chapter_by_ref` (`revision_ref → chapter_id`)  plus exact artifact provenance (`artifact_sha256`,
   `candidate_sha256`, `request_fingerprint`) serve T08 candidacy and T10
   evidence lookup. Anchors keep their chapter binding; a cross-chapter
   anchor fails closed.

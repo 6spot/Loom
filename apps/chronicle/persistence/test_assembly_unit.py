@@ -21,6 +21,7 @@ for path in (str(HERE),):
         sys.path.insert(0, path)
 
 import assembly as A  # noqa: E402
+import chapter_contract as C2R1  # noqa: E402
 from common import PersistenceError, canonical_json_bytes  # noqa: E402
 
 SCHEMA = json.loads(
@@ -28,6 +29,8 @@ SCHEMA = json.loads(
         encoding="utf-8"
     )
 )
+
+C2R1_FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r1-contract"
 
 
 def _meta() -> dict:
@@ -880,6 +883,122 @@ class ChapterAssemblyFailureTests(unittest.TestCase):
         ]
         with self.assertRaises(PersistenceError):
             _assemble_chapters(artifact, plan=plan)
+
+
+def _real_t01_artifact(*, object_override: Any = "__keep__") -> tuple[dict, dict, dict]:
+    """Accept the T01 contract fixture into a real chapter artifact + plan."""
+    request = json.loads((C2R1_FIXTURES / "request.json").read_text(encoding="utf-8"))
+    candidate = json.loads((C2R1_FIXTURES / "candidate-valid.json").read_text(encoding="utf-8"))
+    if object_override != "__keep__":
+        candidate["bundle"]["claims"][0]["object"] = copy.deepcopy(object_override)
+    artifact = C2R1.accept_chapter_candidate(
+        request,
+        candidate,
+        producing_run={"run_id": "run-e2e", "model": "m", "prompt_schema_version": "v"},
+    )
+    plan = {
+        "version": "c2r1-chapters-v1",
+        "plan_sha256": "e" * 64,
+        "revision_id": request["revision_id"],
+        "source_sha256": request["source_sha256"],
+        "normalized_sha256": request["normalized_sha256"],
+        "chapters": [
+            {
+                "chapter_id": request["chapter_id"],
+                "chapter_index": 0,
+                "title": "e2e",
+                "start": 0,
+                "end": len(request["normalized_text"]),
+            }
+        ],
+    }
+    return request, artifact, plan
+
+
+class ChapterAssemblyEndToEndTests(unittest.TestCase):
+    def test_real_t01_accepted_artifact_with_claim_assembles(self) -> None:
+        request, artifact, plan = _real_t01_artifact()
+        before = copy.deepcopy(artifact)
+        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=plan)
+        bundle = result["bundle"]
+        # The source candidate is never mutated by assembly.
+        self.assertEqual(before, artifact)
+        self.assertEqual(
+            "entity",
+            artifact["candidate"]["bundle"]["claims"][0]["subject"]["kind"],
+        )
+        # Output boundary speaks the C0 bundle vocabulary.
+        claim = bundle["claims"][0]
+        self.assertEqual("entity_ref", claim["subject"]["kind"])
+        self.assertEqual("entity_ref", claim["object"]["kind"])
+        self.assertRegex(claim["subject"]["ref"], r"^ent_[0-9]{6}$")
+        self.assertRegex(claim["object"]["ref"], r"^ent_[0-9]{6}$")
+        self.assertNotEqual(
+            artifact["candidate"]["bundle"]["claims"][0]["subject"]["ref"],
+            claim["subject"]["ref"],
+        )
+        self.assertEqual("src_001", claim["evidence"]["source_ref"])
+        # Canonical C0 schema accepts the assembled bundle.
+        from jsonschema import Draft202012Validator, FormatChecker
+
+        errors = list(Draft202012Validator(SCHEMA, format_checker=FormatChecker()).iter_errors(bundle))
+        self.assertEqual([], errors)
+        # Translation/mentions/record_sources stay closed on the same mapping.
+        entity_set = {e["temp_id"] for e in bundle["entities"]}
+        for block in result["translation_blocks"]:
+            for ref in block.get("entity_refs") or []:
+                self.assertIn(ref["ref"], entity_set)
+        for mention in result["mentions"]:
+            if mention.get("target_ref"):
+                self.assertIn(mention["target_ref"], entity_set)
+        surviving = {r["temp_id"] for r in bundle["entities"] + bundle["events"] + bundle["claims"]}
+        for entry in result["record_sources"]:
+            self.assertIn(entry["record_ref"], surviving)
+        self.assertEqual(
+            request["chapter_id"],
+            result["report"]["chapter_by_ref"][claim["subject"]["ref"]],
+        )
+        # Deterministic rerun over the real artifact.
+        again = A.assemble_chapters(
+            accepted_artifacts=[copy.deepcopy(artifact)], chapter_plan=copy.deepcopy(plan)
+        )
+        self.assertEqual(canonical_json_bytes(result), canonical_json_bytes(again))
+
+    def test_literal_and_null_objects_preserved(self) -> None:
+        # Null objects pass real T01 acceptance and must survive assembly.
+        _, null_artifact, null_plan = _real_t01_artifact(object_override=None)
+        null_out = A.assemble_chapters(accepted_artifacts=[null_artifact], chapter_plan=null_plan)
+        null_claim = null_out["bundle"]["claims"][0]
+        self.assertEqual("entity_ref", null_claim["subject"]["kind"])
+        self.assertIsNone(null_claim["object"])
+        from jsonschema import Draft202012Validator, FormatChecker
+
+        errors = list(
+            Draft202012Validator(SCHEMA, format_checker=FormatChecker()).iter_errors(
+                null_out["bundle"]
+            )
+        )
+        self.assertEqual([], errors)
+        # Literal objects carry no revision ref: the assembly boundary
+        # preserves them verbatim (synthetic chapter input, since the T01
+        # fixture corpus carries no literal-object case).
+        literal_claim_in = _claim("clm_001", "ent_001", "died", "操薨", obj=None)
+        literal_claim_in["object"] = {"kind": "literal", "value": "赤壁"}
+        plan = _chapter_plan(["ch_000"])
+        artifact = _chapter_artifact(
+            "ch_000",
+            0,
+            entities=[_entity("ent_001", "曹操")],
+            claims=[literal_claim_in],
+        )
+        out = _assemble_chapters(artifact, plan=plan)
+        claim = out["bundle"]["claims"][0]
+        self.assertEqual("entity_ref", claim["subject"]["kind"])
+        self.assertEqual({"kind": "literal", "value": "赤壁"}, claim["object"])
+        errors = list(
+            Draft202012Validator(SCHEMA, format_checker=FormatChecker()).iter_errors(out["bundle"])
+        )
+        self.assertEqual([], errors)
 
 
 if __name__ == "__main__":
