@@ -3,13 +3,8 @@ task: C2-R2-T07
 issue: 576
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T04, C2-R2-T05]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 连续正文分页、侧轴区段与精确 locate 查询
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 同 group 跨页 ID/continuation 一致；换 scope/snapshot/方向的 cursor 拒绝。
 - [ ] 旧快照不漂移，未知/未发布/跨 stream unit 不可见，GET 无写入。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

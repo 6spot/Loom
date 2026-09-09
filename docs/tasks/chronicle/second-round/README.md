@@ -114,6 +114,6 @@ flowchart LR
 
 ## 交付
 
-每个 Leaf 以对应 Issue、实现、验证和 PR 交付。任务文档按需要保存有价值的设计说明和验证证据。
+每个 Leaf 以对应 Issue、实现、验证和 PR 交付。任务状态由当前任务管理工具维护；任务文档记录需求、接口前置、文件归属和验收标准，并按需要保存有价值的设计说明和验证证据。
 
 仓库交付完成规则见 [`../../../development/task-completion.md`](../../../development/task-completion.md)。

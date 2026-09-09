@@ -3,13 +3,8 @@ task: C2-R2-T17
 issue: 586
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T16, C2-R2-D01]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 真实章节阅读、事件定位与第二轮独立验收
@@ -26,11 +21,11 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 至少12个真实核对点证明时间、回溯、事件和人物地点对应；未知保留，未来头衔不被带入。
 - [ ] 事件/其他来源/原文探索能返回原 unit 与叙事时间，桌面与窄屏流程有实际证据。
 - [ ] 所有自动门与独立内容审核通过，未验证项如实记录且不能被当成已验收。
-- [ ] 所有叶的 completion_pr/merge_sha/验收/CI及父索引在默认分支一致，随后才完成父任务。
+- [ ] 本轮所有子任务满足各自验收要求，相关 CI 与独立内容核对证据完整。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

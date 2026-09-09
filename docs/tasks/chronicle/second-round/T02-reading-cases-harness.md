@@ -3,13 +3,8 @@ task: C2-R2-T02
 issue: 571
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R1-T02]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 真实阅读样例与独立组件浏览器基座
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] harness suite 在真实 Chromium 打开 fixture 页面并操作成功；缺失组件 suite 不会假 PASS。
 - [ ] 基座不挂接生产路径、不引入新 package、不修改 dist，其他任务可各写独立 scene/spec。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

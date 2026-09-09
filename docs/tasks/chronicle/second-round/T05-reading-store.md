@@ -3,13 +3,8 @@ task: C2-R2-T05
 issue: 574
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T01, C2-R1-T19]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 阅读 stream、区段和事件位置的持久化
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 读取旧 catalog 不混入未来新增 representation/stream，同 canonical ID 也不越过快照。
 - [ ] 按 stream ordinal 与 event 反查有索引支持，无读出全库正文再分页的 helper。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 
