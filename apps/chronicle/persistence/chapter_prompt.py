@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v4"
+PROMPT_VERSION = "c2r1-chapter-prompt-v5"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -117,7 +117,11 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   the source: do NOT prepend or append era, year, season, month, day, or 干支
   from surrounding context. Context-derived fields belong ONLY in
   source_calendar (era/era_year/month/day) and inherited_fields; anything not
-  verbatim must not appear in original_text.'''
+  verbatim must not appear in original_text.
+  (d) never convert script forms: the chapter source is Traditional; every
+  quote, mention surface, alias, and time.original_text must reuse the exact
+  source characters. A Simplified character where the source has Traditional
+  (or vice versa) is a grounding failure, not a spelling variant.'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800

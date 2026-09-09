@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v4", prompt)
+        self.assertIn("c2r1-chapter-prompt-v5", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -188,6 +188,16 @@ class PromptRenderingTests(unittest.TestCase):
         prompt = P.render_chapter_prompt(request)
         self.assertIn('resolution:{status:"unresolved"}', prompt)
         self.assertIn("Studio review", prompt)
+
+    def test_prompt_forbids_script_conversion(self) -> None:
+        # Live regression (C2-R1-T19, candidate 9902a374): the 通鑑 run
+        # emitted Simplified surfaces/quotes against a Traditional source
+        # (刘备 vs 劉備說劉表襲許, 进 vs 進). Copying exact source characters
+        # is now an explicit grounding rule, not an implied nicety.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("never convert script forms", prompt)
+        self.assertIn("Traditional", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -453,7 +463,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v4")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v5")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(
