@@ -27,6 +27,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
@@ -190,8 +191,10 @@ class LiveModeTests(unittest.TestCase):
         prechecks: list[str] = []
         real_commit = G.candidate_commit
         real_compose = G.compose_config_check
+        real_stdin = sys.stdin
         G.candidate_commit = lambda _repo: {"commit": "0" * 40, "git_clean": True}  # type: ignore[assignment]
         G.compose_config_check = lambda _env: prechecks.append("compose") or {"checked": False, "reason": "unit"}  # type: ignore[assignment]
+        G.sys.stdin = mock.Mock(isatty=lambda: True)  # type: ignore[assignment]
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 evidence = Path(tmp) / "evidence"
@@ -207,11 +210,41 @@ class LiveModeTests(unittest.TestCase):
         finally:
             G.candidate_commit = real_commit  # type: ignore[assignment]
             G.compose_config_check = real_compose  # type: ignore[assignment]
+            G.sys.stdin = real_stdin  # type: ignore[assignment]
         self.assertEqual(manifest["result"], "READY")
         self.assertEqual(manifest["t19_handoff"]["provider_calls_by_t18"], 0)
         # Only the local compose precheck ran; no provider/model call exists
         # on this path (run_live contains no model invocation at all).
         self.assertEqual(prechecks, ["compose"])
+
+    def test_live_requires_interactive_stdin(self) -> None:
+        G.sys.stdin = mock.Mock(isatty=lambda: True)  # type: ignore[assignment]
+        try:
+            self.assertTrue(G.require_interactive_stdin())
+        finally:
+            G.sys.stdin = sys.stdin  # type: ignore[assignment]
+        G.sys.stdin = mock.Mock(isatty=lambda: False)  # type: ignore[assignment]
+        try:
+            with self.assertRaises(G.GateError) as ctx:
+                G.require_interactive_stdin()
+        finally:
+            G.sys.stdin = sys.stdin  # type: ignore[assignment]
+        self.assertIn("interactive terminal", str(ctx.exception))
+
+    def test_live_subprocess_refuses_non_tty_stdin(self) -> None:
+        # Actual non-TTY condition: stdin is a pipe, not only the
+        # --non-interactive flag. Placed before the clean-checkout guard
+        # so the TTY refusal is observable in any tree state.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_gate(
+                "--mode", "live",
+                "--env-file", str(live_env(Path(tmp))),
+                "--source-pack", str(SOURCE_PACK),
+                "--evidence-dir", str(Path(tmp) / "evidence"),
+                stdin_data="",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("interactive terminal", result.stderr)
 
 
 class NoDirectDbTests(unittest.TestCase):

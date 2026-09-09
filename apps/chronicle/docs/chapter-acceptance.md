@@ -74,7 +74,8 @@ python3 apps/chronicle/acceptance/first_round_gate.py --mode live --env-file .en
 ```
 
 live 前置拒绝项：fixture pack 互斥、provider/model 缺失或不完整、
-endpoint 内嵌凭据、`--auto-decide`、`--non-interactive`、`--execute`
+endpoint 内嵌凭据、`--auto-decide`、`--non-interactive`、非 TTY stdin、
+`--execute`
 （执行属于 T19）。阻塞性审核需交互式在 Studio 完成；脚本在非交互
 环境下拒绝继续。T19 在 READY 基础上执行真实上传 → 后台处理 →
 人工审核 → 发布 → 浏览器阅读与原文核对，并独立记录内容核对证据。

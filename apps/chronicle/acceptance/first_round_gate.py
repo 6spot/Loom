@@ -1113,6 +1113,24 @@ def compose_config_check(env_file: Path) -> dict[str, Any]:
     return {"checked": True}
 
 
+def require_interactive_stdin() -> bool:
+    """Fail closed unless stdin is an interactive terminal.
+
+    Blocking resolution reviews pause for a human operator in Studio;
+    a live handoff started without an interactive terminal could never
+    satisfy that pause, so it is refused before any precheck evidence
+    is written.
+    """
+    interactive = sys.stdin.isatty()
+    if not interactive:
+        raise GateError(
+            "live mode requires an interactive terminal: stdin is not a "
+            "TTY, so no operator could resolve blocking reviews in "
+            "Studio; re-run from an interactive shell"
+        )
+    return True
+
+
 def run_live(
     env_file: Path,
     pack_path: Path,
@@ -1137,6 +1155,7 @@ def run_live(
             "T18 never executes live provider calls; the READY handoff "
             "below is owned for execution by T19"
         )
+    require_interactive_stdin()
     evidence_dir.mkdir(parents=True, exist_ok=True)
     evidence: dict[str, Any] = {
         "schema": GATE_SCHEMA,

@@ -35,9 +35,9 @@ T19 执行（T18 不调用真实 provider），故首框留待 T19 内容验收�
 
 ## Verification
 
-- `python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v` — 10 tests OK (fixture 端到端 PASS 断言、live 六类拒绝、READY 零 provider 调用、无直写 DB、合成文本装配与故障闭环）。
+- `python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v` — 12 tests OK (fixture 端到端 PASS 断言、live 七类拒绝含真实非 TTY stdin 回归、READY 零 provider 调用、无直写 DB、合成文本装配与故障闭环）。
 - `python3 apps/chronicle/acceptance/first_round_gate.py --mode fixture --env-file /tmp/chronicle-first-round-test.env --source-pack apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /tmp/chronicle-first-round-offline --allow-dirty` — PASS：2 works（三国志 3 章 + 通鑑 1 章，plan/切片绑定/接受/装配全经真实入口），10 故障注入全部 fail-closed，pair 初始 uncertain 且阻塞、batch 默认 uncertain，manifest 明确 fixture 非 live。`--allow-dirty` 仅本地迭代使用；CI 运行严格干净检出。
-- live 拒绝路径已逐项验证：fixture pack 互斥、provider 缺失、endpoint 内嵌凭据、`--auto-decide`、`--non-interactive`、`--execute` 全部 FAIL；READY 移交记录 `provider_calls_by_t18=0`。
+- live 拒绝路径已逐项验证：fixture pack 互斥、provider 缺失、endpoint 内嵌凭据、`--auto-decide`、`--non-interactive`、真实非 TTY stdin（`require_interactive_stdin`，Reviewer 回合追加）、`--execute` 全部 FAIL；READY 移交记录 `provider_calls_by_t18=0`。
 - `git diff --check` clean；`.github/workflows/chronicle.yml` YAML 解析通过。
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check --format json` — 仍报 `task C2-R1 has no status`（T16 已记录的根级问题，修复 `tools/validator_ready.py` 超出本任务文件所有权，未改）。
 - 依赖对账：T17 交付 PR #612 已合入默认分支（`ad13925` 即 origin/main  HEAD，含 Reader 路由与 `chapter-reader-smoke.mjs`）；T17 台账自身的 `merge_sha` 回填归 T17 所有，本任务不碰其他任务台账。
