@@ -18,6 +18,19 @@ PUBLICATION_VERSION = "0.1"
 Representation = tuple[str, str]
 IdFactory = Callable[[], str]
 
+#: Accepted resolution-links versions. ``0.1`` is the legacy C0/C1
+#: envelope (no scope field); ``0.2`` is the chapter path envelope
+#: (chapter-production §6) and must carry a valid scope. A 0.2 artifact
+#: must never be downgraded to 0.1: relation provenance keeps the
+#: persisted original resolution hash.
+RESOLUTION_V01_VERSION = "0.1"
+RESOLUTION_V02_VERSION = "0.2"
+RESOLUTION_SCOPE_WITHIN_REVISION = "within_revision"
+RESOLUTION_SCOPE_CROSS_SOURCE = "cross_source"
+VALID_RESOLUTION_V02_SCOPES = frozenset(
+    {RESOLUTION_SCOPE_WITHIN_REVISION, RESOLUTION_SCOPE_CROSS_SOURCE}
+)
+
 
 class PublicationV0Error(RuntimeError):
     pass
@@ -194,6 +207,69 @@ def _existing_membership(
     return by_rep, by_id
 
 
+def _resolution_bundle_label(resolution: dict[str, Any], side: str) -> str | None:
+    raw = resolution.get(f"{side}_bundle")
+    if not isinstance(raw, dict):
+        return None
+    label = raw.get("label")
+    return label if isinstance(label, str) and label else None
+
+
+def _require_resolution_version_scope(resolution: dict[str, Any], resolution_index: int) -> str | None:
+    """Validate the narrow version/scope gate (union rules unchanged).
+
+    - ``0.1`` is the legacy envelope: it carries no scope and never
+      spans a single bundle twice. Any scope on 0.1, or identical
+      left/right labels, is rejected.
+    - ``0.2`` must carry a valid scope with matching bundle geometry:
+      ``within_revision`` requires identical labels, ``cross_source``
+      requires distinct labels.
+    """
+    version = resolution.get("version")
+    left_label = _resolution_bundle_label(resolution, "left")
+    right_label = _resolution_bundle_label(resolution, "right")
+    if version == RESOLUTION_V01_VERSION:
+        if resolution.get("scope") is not None:
+            raise PublicationV0Error(
+                f"resolution[{resolution_index}] version 0.1 must not carry a scope"
+            )
+        if (
+            left_label is not None
+            and right_label is not None
+            and left_label == right_label
+        ):
+            raise PublicationV0Error(
+                f"resolution[{resolution_index}] version 0.1 requires distinct bundles"
+            )
+        return None
+    if version != RESOLUTION_V02_VERSION:
+        raise PublicationV0Error(f"resolution[{resolution_index}] has unsupported version")
+    scope = resolution.get("scope")
+    if scope not in VALID_RESOLUTION_V02_SCOPES:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] has invalid v0.2 scope {scope!r}"
+        )
+    if scope == RESOLUTION_SCOPE_WITHIN_REVISION and left_label != right_label:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] within_revision requires identical bundle labels"
+        )
+    if scope == RESOLUTION_SCOPE_CROSS_SOURCE and left_label == right_label:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] cross_source requires distinct bundle labels"
+        )
+    return str(scope)
+
+
+def _require_distinct_link_ends(
+    left: Representation, right: Representation, resolution_index: int, label: str
+) -> None:
+    if left == right:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] {label} links a record to itself: "
+            f"{left[0]}:{left[1]}"
+        )
+
+
 def _validate_resolution_bundle_ref(
     resolution: dict[str, Any],
     side: str,
@@ -366,8 +442,7 @@ def publish_catalog(
             raise PublicationV0Error(f"resolution[{resolution_index}] must be an object")
         if resolution.get("schema") != "chronicle.resolution-links":
             raise PublicationV0Error(f"resolution[{resolution_index}] has unexpected schema")
-        if resolution.get("version") != "0.1":
-            raise PublicationV0Error(f"resolution[{resolution_index}] has unsupported version")
+        _require_resolution_version_scope(resolution, resolution_index)
         _validate_resolution_bundle_ref(resolution, "left", bundles, resolution_index)
         _validate_resolution_bundle_ref(resolution, "right", bundles, resolution_index)
 
@@ -377,6 +452,7 @@ def publish_catalog(
     for resolution_index, link in entity_links:
         left = _representation(link.get("left"), f"resolution[{resolution_index}] entity link left")
         right = _representation(link.get("right"), f"resolution[{resolution_index}] entity link right")
+        _require_distinct_link_ends(left, right, resolution_index, "entity link")
         if left not in entity_current or right not in entity_current:
             raise PublicationV0Error(
                 f"resolution[{resolution_index}] entity link references unknown Entity representation"
@@ -392,6 +468,7 @@ def publish_catalog(
     for resolution_index, link in event_links:
         left = _representation(link.get("left"), f"resolution[{resolution_index}] event link left")
         right = _representation(link.get("right"), f"resolution[{resolution_index}] event link right")
+        _require_distinct_link_ends(left, right, resolution_index, "event link")
         if left not in event_current or right not in event_current:
             raise PublicationV0Error(
                 f"resolution[{resolution_index}] event link references unknown Event representation"

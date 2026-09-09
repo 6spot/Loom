@@ -8,6 +8,84 @@ from psycopg.types.json import Jsonb
 
 from common import PersistenceConflict, PersistenceError, sha256_json
 
+#: Resolution-links versions accepted by the store. ``0.1`` is the legacy
+#: C0/C1 envelope; ``0.2`` is the chapter envelope (T08) and must carry a
+#: valid scope. Same-bundle artifacts are only valid as
+#: ``0.2``/``within_revision`` (0006 envelope); business cross-chapter
+#: validation belongs to T08, never auto-derived here.
+RESOLUTION_V01 = "0.1"
+RESOLUTION_V02 = "0.2"
+SCOPE_WITHIN_REVISION = "within_revision"
+SCOPE_CROSS_SOURCE = "cross_source"
+VALID_V02_SCOPES = frozenset({SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE})
+
+
+def _resolution_scope(resolution: dict[str, Any]) -> str | None:
+    scope = resolution.get("scope")
+    return scope if isinstance(scope, str) and scope else None
+
+
+def validate_resolution_envelope(resolution: dict[str, Any]) -> str | None:
+    """Validate the version/scope envelope; return the scope (if any)."""
+    if not isinstance(resolution, dict):
+        raise PersistenceError("resolution must be a JSON object")
+    if resolution.get("schema") != "chronicle.resolution-links":
+        raise PersistenceError("resolution has unexpected schema")
+    version = resolution.get("version")
+    scope = _resolution_scope(resolution)
+    left = resolution.get("left_bundle")
+    right = resolution.get("right_bundle")
+    left_label = left.get("label") if isinstance(left, dict) else None
+    right_label = right.get("label") if isinstance(right, dict) else None
+    same_bundle = (
+        isinstance(left_label, str)
+        and isinstance(right_label, str)
+        and left_label == right_label
+    )
+    if same_bundle:
+        if version != RESOLUTION_V02 or scope != SCOPE_WITHIN_REVISION:
+            raise PersistenceError(
+                "same-bundle resolution requires "
+                "chronicle.resolution-links/0.2 within_revision"
+            )
+    elif version == RESOLUTION_V02:
+        if scope not in VALID_V02_SCOPES:
+            raise PersistenceError(
+                f"resolution v0.2 scope must be one of {sorted(VALID_V02_SCOPES)}"
+            )
+        if scope == SCOPE_WITHIN_REVISION:
+            raise PersistenceError(
+                "within_revision resolution requires identical bundle labels"
+            )
+        if scope == SCOPE_CROSS_SOURCE and left_label == right_label:
+            raise PersistenceError(
+                "cross_source resolution requires distinct bundle labels"
+            )
+    elif version == RESOLUTION_V01:
+        if resolution.get("scope") is not None:
+            raise PersistenceError("resolution version 0.1 must not carry a scope")
+    else:
+        raise PersistenceError(f"resolution has unsupported version {version!r}")
+    for field, prefix in (("entity_links", "ec_"), ("event_links", "vc_")):
+        for link in resolution.get(field) or []:
+            if not isinstance(link, dict):
+                raise PersistenceError(f"resolution {field} contains a non-object")
+            left_end, right_end = link.get("left"), link.get("right")
+            for end in (left_end, right_end):
+                if not isinstance(end, dict) or not end.get("bundle") or not end.get("ref"):
+                    raise PersistenceError(
+                        f"resolution {field} link is missing bundle/ref provenance"
+                    )
+            if (
+                left_end.get("bundle") == right_end.get("bundle")
+                and left_end.get("ref") == right_end.get("ref")
+            ):
+                raise PersistenceError(
+                    f"resolution {field} link {link.get('candidate_id')!r} "
+                    "links a record to itself"
+                )
+    return scope
+
 
 def _bundle_label(value: Any, side: str) -> str:
     if not isinstance(value, dict):
@@ -83,6 +161,7 @@ def read_effective_resolutions(conn) -> list[dict[str, Any]]:
 
 def persist_resolution(conn, resolution: dict[str, Any]) -> tuple[str, dict[str, int]]:
     artifact_sha = sha256_json(resolution)
+    scope = validate_resolution_envelope(resolution)
     left_bundle = resolution.get("left_bundle")
     right_bundle = resolution.get("right_bundle")
     if not isinstance(left_bundle, dict) or not isinstance(right_bundle, dict):
@@ -98,11 +177,11 @@ def persist_resolution(conn, resolution: dict[str, Any]) -> tuple[str, dict[str,
         """
         INSERT INTO chronicle.resolution_artifacts(
             artifact_sha256, schema_name, schema_version,
-            left_bundle_label, right_bundle_label, payload
-        ) VALUES (%s, %s, %s, %s, %s, %s)
+            left_bundle_label, right_bundle_label, scope, payload
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (artifact_sha256) DO NOTHING
         """,
-        (artifact_sha, schema_name, version, left_label, right_label, Jsonb(resolution)),
+        (artifact_sha, schema_name, version, left_label, right_label, scope, Jsonb(resolution)),
     ).rowcount == 1
     if not created:
         row = conn.execute(

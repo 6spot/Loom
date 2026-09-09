@@ -92,10 +92,21 @@ import review_subjects  # noqa: E402
 from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
 
 #: Version of this resolve/review/publish pipeline step.
-RESOLVE_PUBLISH_VERSION = "c1t8-v3"
+RESOLVE_PUBLISH_VERSION = "c2r1t8-v1"
 
 #: Reused C0 resolution contract (candidates + link decisions).
 RESOLUTION_VERSION = resolution_v0.RESOLUTION_VERSION
+
+#: Chapter-path resolution-links version/scope (chapter-production §6).
+RESOLUTION_V02_VERSION = resolution_v0.RESOLUTION_V02_VERSION
+SCOPE_WITHIN_REVISION = resolution_v0.SCOPE_WITHIN_REVISION
+SCOPE_CROSS_SOURCE = resolution_v0.SCOPE_CROSS_SOURCE
+
+#: Frozen chapter review plan version and modes (ReviewItem kind stays
+#: stage_gate, scope stays resolution; no new database kind).
+REVIEW_PLAN_VERSION = review_subjects.REVIEW_PLAN_VERSION
+REVIEW_MODE_CHAPTER_PAIR = review_subjects.REVIEW_MODE_CHAPTER_PAIR
+REVIEW_MODE_PUBLISHED_BATCH = review_subjects.REVIEW_MODE_PUBLISHED_BATCH
 
 #: Reused C0 canonical publication contract.
 PUBLICATION_VERSION = publication_v0.PUBLICATION_VERSION
@@ -396,6 +407,274 @@ def count_candidates(resolutions: list[dict[str, Any]]) -> dict[str, int]:
     entities = sum(len(item.get("entity_links") or []) for item in resolutions)
     events = sum(len(item.get("event_links") or []) for item in resolutions)
     return {"artifacts": len(resolutions), "entities": entities, "events": events}
+
+
+# ---------------------------------------------------------------------------
+# Chapter path: within-bundle initials + frozen mixed review plan (C2-R1-T08)
+# ---------------------------------------------------------------------------
+
+
+def _initial_resolution_v02(
+    candidates: dict[str, Any],
+    entity_candidates: list[dict[str, Any]],
+    event_candidates: list[dict[str, Any]],
+    *,
+    left_ref: dict[str, str],
+    right_ref: dict[str, str],
+    scope: str,
+) -> dict[str, Any]:
+    """Wrap v0.2 candidates with all-uncertain initial decisions."""
+    if scope not in (SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE):
+        raise PersistenceError(f"chapter initial resolution scope {scope!r} is invalid")
+    artifact = _initial_resolution(
+        candidates,
+        entity_candidates,
+        event_candidates,
+        left_ref=left_ref,
+        right_ref=right_ref,
+    )
+    artifact["version"] = RESOLUTION_V02_VERSION
+    artifact["scope"] = scope
+    return artifact
+
+
+def build_within_bundle_initial_resolution(
+    *,
+    bundle: dict[str, Any],
+    bundle_label: str,
+    chapter_by_ref: dict[str, str],
+    chapter_index_by_id: dict[str, int],
+) -> dict[str, Any] | None:
+    """Build the within-bundle initial (v0.2 within_revision) artifact.
+
+    Returns None when no cross-chapter candidate blocks. Different
+    chapters sharing only a name stay ``uncertain`` here; a shared name
+    alone never proves identity. Ends order on ``(chapter_index, ref)``
+    via the required ``chapter_index_by_id`` (assembly plan chapters);
+    a missing map fails closed.
+    """
+    if not isinstance(bundle, dict):
+        raise PersistenceError("assembled source bundle must be a JSON object")
+    if not isinstance(bundle_label, str) or not bundle_label:
+        raise PersistenceError("assembled bundle label must be a non-empty string")
+    if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
+        raise PersistenceError("chapter_by_ref must be a non-empty mapping")
+    if not isinstance(chapter_index_by_id, dict) or not chapter_index_by_id:
+        raise PersistenceError(
+            "chapter_index_by_id is required: pass the assembly "
+            "plan chapter order instead of sorting by ref"
+        )
+    candidates = resolution_v0.build_within_bundle_candidate_set(
+        bundle,
+        bundle_label,
+        chapter_by_ref,
+        chapter_index_by_id,
+    )
+    entity_candidates = candidates.get("entity_candidates") or []
+    event_candidates = candidates.get("event_candidates") or []
+    if not entity_candidates and not event_candidates:
+        return None
+    ref = _bundle_ref(bundle, bundle_label)
+    return _initial_resolution_v02(
+        candidates,
+        entity_candidates,
+        event_candidates,
+        left_ref=dict(ref),
+        right_ref=dict(ref),
+        scope=SCOPE_WITHIN_REVISION,
+    )
+
+
+def build_chapter_cross_initial_resolutions(
+    *,
+    new_bundle: dict[str, Any],
+    new_label: str,
+    corpus: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build v0.2 cross_source initials against the published corpus."""
+    if not isinstance(new_bundle, dict):
+        raise PersistenceError("new source bundle must be a JSON object")
+    if not isinstance(new_label, str) or not new_label:
+        raise PersistenceError("new bundle label must be a non-empty string")
+    new_ref = _bundle_ref(new_bundle, new_label)
+    resolutions: list[dict[str, Any]] = []
+    for label in sorted(corpus):
+        if label == new_label:
+            continue
+        bundle = corpus[label]
+        if not isinstance(bundle, dict):
+            raise PersistenceError(f"corpus bundle {label!r} must be a JSON object")
+        candidates = resolution_v0.build_cross_source_candidate_set_v02(
+            bundle, label, new_bundle, new_label
+        )
+        entity_candidates = candidates.get("entity_candidates") or []
+        event_candidates = candidates.get("event_candidates") or []
+        if not entity_candidates and not event_candidates:
+            continue
+        resolutions.append(
+            _initial_resolution_v02(
+                candidates,
+                entity_candidates,
+                event_candidates,
+                left_ref=_bundle_ref(bundle, label),
+                right_ref=new_ref,
+                scope=SCOPE_CROSS_SOURCE,
+            )
+        )
+    resolutions.sort(key=lambda item: sha256_json(item))
+    return resolutions
+
+
+def build_chapter_initial_resolutions(
+    *,
+    bundle: dict[str, Any],
+    bundle_label: str,
+    chapter_by_ref: dict[str, str],
+    chapter_index_by_id: dict[str, int],
+    corpus: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build all chapter initials: within-bundle plus published-corpus pairs."""
+    resolutions: list[dict[str, Any]] = []
+    within = build_within_bundle_initial_resolution(
+        bundle=bundle,
+        bundle_label=bundle_label,
+        chapter_by_ref=chapter_by_ref,
+        chapter_index_by_id=chapter_index_by_id,
+    )
+    if within is not None:
+        resolutions.append(within)
+    resolutions.extend(
+        build_chapter_cross_initial_resolutions(
+            new_bundle=bundle, new_label=bundle_label, corpus=dict(corpus or {})
+        )
+    )
+    resolutions.sort(key=lambda item: sha256_json(item))
+    return resolutions
+
+
+def persist_chapter_initial_resolutions(conn, resolutions: list[dict[str, Any]]) -> list[str]:
+    """Validate the v0.2 envelope and persist chapter initial artifacts."""
+    if not isinstance(resolutions, list):
+        raise PersistenceError("chapter initial resolutions must be an array")
+    shas: list[str] = []
+    for resolution in resolutions:
+        if not isinstance(resolution, dict):
+            raise PersistenceError("chapter initial resolution must be an object")
+        if resolution.get("version") != RESOLUTION_V02_VERSION:
+            raise PersistenceError(
+                "chapter initials must be chronicle.resolution-links/0.2 "
+                "(refusing to downgrade to 0.1)"
+            )
+        scope = resolution.get("scope")
+        if scope not in (SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE):
+            raise PersistenceError(
+                f"chapter initial resolution scope {scope!r} is invalid"
+            )
+        sha, _ = resolution_store.persist_resolution(conn, resolution)
+        if sha256_json(resolution) != sha:
+            raise PersistenceError("chapter initial resolution hash drifted")
+        shas.append(sha)
+    return sorted(shas)
+
+
+def create_chapter_review_plan(
+    *,
+    job_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+    initial_resolutions: list[dict[str, Any]],
+    catalog: dict[str, Any] | None,
+    within_book_links: dict[str, Any] | None = None,
+    chapter_by_ref: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Create the frozen mixed review plan (chapter_pair + published_batch)."""
+    return review_subjects.build_chapter_review_plan(
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+        resolutions=initial_resolutions,
+        catalog=catalog,
+        within_book_links=within_book_links,
+        chapter_by_ref=chapter_by_ref,
+    )
+
+
+def validate_chapter_review_plan(
+    plan: dict[str, Any],
+    initial_resolutions: list[dict[str, Any]],
+    *,
+    job_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+) -> str:
+    """Revalidate a frozen plan exactly without re-materializing it."""
+    return review_subjects.validate_chapter_review_plan(
+        plan,
+        initial_resolutions,
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+    )
+
+
+def open_chapter_reviews(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    initial_resolutions: list[dict[str, Any]],
+    revision_id: uuid.UUID,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+) -> list[uuid.UUID]:
+    """Open/adopt one ReviewItem per frozen chapter plan unit.
+
+    Fully revalidates the frozen plan against the frozen initials
+    before any database read; an empty plan returns ``[]``.
+    """
+    return review_subjects.open_chapter_review_plan(
+        conn,
+        job_id=job_id,
+        plan=plan,
+        initial_resolutions=initial_resolutions,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+    )
+
+
+def collect_chapter_decisions(
+    conn, *, job_id: uuid.UUID
+) -> dict[str, dict[str, Any]]:
+    """Collect terminal chapter reviews fanned out to C0 candidate keys."""
+    return review_subjects.collect_review_subject_decisions(conn, job_id=job_id)
+
+
+def build_final_chapter_resolutions(
+    initial: list[dict[str, Any]],
+    decisions: dict[str, dict[str, Any]],
+    *,
+    require_complete: bool = True,
+) -> list[dict[str, Any]]:
+    """Apply durable chapter decisions (v0.2 scope preserved, no downgrade)."""
+    for artifact in initial:
+        if not isinstance(artifact, dict):
+            raise PersistenceError("chapter initial resolution must be an object")
+        if artifact.get("version") != RESOLUTION_V02_VERSION:
+            raise PersistenceError(
+                "chapter finals must stay chronicle.resolution-links/0.2"
+            )
+        if artifact.get("scope") not in (SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE):
+            raise PersistenceError("chapter final resolution scope is invalid")
+    final = build_final_resolutions(initial, decisions, require_complete=require_complete)
+    for artifact in final:
+        if artifact.get("version") != RESOLUTION_V02_VERSION:
+            raise PersistenceError("chapter final downgraded below 0.2 (fail closed)")
+    return final
 
 
 # ---------------------------------------------------------------------------

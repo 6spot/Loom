@@ -26,6 +26,20 @@ REVIEW_SCOPE = "resolution"
 REVIEW_KIND = "stage_gate"
 REVIEW_SUBJECT_VERSION = "0.2"
 SUPPORTED_REVIEW_SUBJECT_VERSIONS = frozenset({"0.1", "0.2"})
+#: Frozen chapter review plan version (chapter-production §6). A plan may
+#: mix both review modes; it must never mix old-generation artifacts.
+REVIEW_PLAN_VERSION = "c2r1-review-plan-v1"
+#: Review modes stored on the ReviewItem payload (not a database kind).
+REVIEW_MODE_CHAPTER_PAIR = "chapter_pair"
+REVIEW_MODE_PUBLISHED_BATCH = "published_batch"
+SUPPORTED_REVIEW_MODES = frozenset(
+    {REVIEW_MODE_CHAPTER_PAIR, REVIEW_MODE_PUBLISHED_BATCH}
+)
+#: Resolution versions/scopes understood by the chapter review path.
+RESOLUTION_V01 = "0.1"
+RESOLUTION_V02 = "0.2"
+SCOPE_WITHIN_REVISION = "within_revision"
+SCOPE_CROSS_SOURCE = "cross_source"
 ASSEMBLY_ARTIFACT_TYPE = "assembled-source-bundle"
 CONFIDENCE_INITIAL_UNCERTAIN = 0.5
 ENTITY_DECISIONS = ("same_entity", "not_same", "uncertain")
@@ -130,6 +144,602 @@ def _candidate_members(resolutions: list[dict[str, Any]]) -> list[dict[str, Any]
     if len(keys) != len(set(keys)):
         raise PersistenceConflict("resolution review input contains duplicate candidate keys")
     return members
+
+
+def _resolution_scope(resolution: dict[str, Any]) -> str | None:
+    scope = resolution.get("scope")
+    return scope if isinstance(scope, str) and scope else None
+
+
+def _is_within_revision(resolution: dict[str, Any]) -> bool:
+    return (
+        resolution.get("version") == RESOLUTION_V02
+        and _resolution_scope(resolution) == SCOPE_WITHIN_REVISION
+    )
+
+
+def _is_legacy_resolution(resolution: dict[str, Any]) -> bool:
+    return resolution.get("version") in (None, RESOLUTION_V01) and _resolution_scope(
+        resolution
+    ) is None
+
+
+def _check_no_self_links(resolutions: list[dict[str, Any]]) -> None:
+    for resolution in resolutions:
+        if not isinstance(resolution, dict):
+            continue
+        resolution_sha = sha256_json(resolution)
+        for field in ("entity_links", "event_links"):
+            for link in resolution.get(field) or []:
+                if not isinstance(link, dict):
+                    continue
+                left, right = link.get("left"), link.get("right")
+                if (
+                    isinstance(left, dict)
+                    and isinstance(right, dict)
+                    and left.get("bundle") == right.get("bundle")
+                    and left.get("ref") == right.get("ref")
+                ):
+                    raise PersistenceError(
+                        f"resolution {resolution_sha} link "
+                        f"{link.get('candidate_id')!r} links a record to itself"
+                    )
+
+
+def _check_within_revision_chapters(
+    resolutions: list[dict[str, Any]],
+    chapter_by_ref: dict[str, str] | None,
+) -> None:
+    """Reject same-chapter or same-ref pairs inside within_revision artifacts."""
+    if chapter_by_ref is None:
+        return
+    for resolution in resolutions:
+        if not _is_within_revision(resolution):
+            continue
+        resolution_sha = sha256_json(resolution)
+        for field in ("entity_links", "event_links"):
+            for link in resolution.get(field) or []:
+                if not isinstance(link, dict):
+                    continue
+                left, right = link.get("left"), link.get("right")
+                if not isinstance(left, dict) or not isinstance(right, dict):
+                    continue
+                if left.get("bundle") != right.get("bundle"):
+                    raise PersistenceError(
+                        f"resolution {resolution_sha} within_revision link "
+                        f"{link.get('candidate_id')!r} spans bundles"
+                    )
+                left_chapter = chapter_by_ref.get(str(left.get("ref")))
+                right_chapter = chapter_by_ref.get(str(right.get("ref")))
+                if left_chapter is None or right_chapter is None:
+                    raise PersistenceError(
+                        f"resolution {resolution_sha} link "
+                        f"{link.get('candidate_id')!r} is missing chapter provenance"
+                    )
+                if left_chapter == right_chapter or left.get("ref") == right.get("ref"):
+                    raise PersistenceError(
+                        f"resolution {resolution_sha} link "
+                        f"{link.get('candidate_id')!r} is not cross-chapter"
+                    )
+
+
+def build_chapter_pair_subjects(
+    resolutions: list[dict[str, Any]],
+    *,
+    chapter_by_ref: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Build one chapter_pair subject per within_revision candidate.
+
+    Both ends are staged: the subject shows and stores exactly that
+    candidate's decision (no batching, no name-based grouping). Members
+    keep full (bundle, ref) provenance so the decision graph stays keyed
+    by (bundle, ref).
+    """
+    within = [item for item in resolutions if _is_within_revision(item)]
+    if not within:
+        return []
+    _check_no_self_links(within)
+    _check_within_revision_chapters(within, chapter_by_ref)
+    members = _candidate_members(within)
+    subjects: list[dict[str, Any]] = []
+    for member in members:
+        identity = {
+            "version": REVIEW_SUBJECT_VERSION,
+            "review_mode": REVIEW_MODE_CHAPTER_PAIR,
+            "link_kind": member["link_kind"],
+            "candidate_key": member["candidate_key"],
+        }
+        subjects.append(
+            {
+                "review_subject_id": "rp_" + sha256_json(identity)[:24],
+                "review_subject_version": REVIEW_SUBJECT_VERSION,
+                "review_mode": REVIEW_MODE_CHAPTER_PAIR,
+                "link_kind": member["link_kind"],
+                "candidate_key": member["candidate_key"],
+                "resolution_sha256": member["resolution_sha256"],
+                "candidate_id": member["candidate_id"],
+                "left": dict(member["left"]),
+                "right": dict(member["right"]),
+                "members": [dict(member)],
+                "member_count": 1,
+                "signals": list(member.get("signals") or []),
+            }
+        )
+    subjects.sort(key=lambda item: item["review_subject_id"])
+    return subjects
+
+
+def chapter_pair_payload(
+    subject: dict[str, Any], *, plan_fingerprint: str | None = None
+) -> dict[str, Any]:
+    """Build the durable ReviewItem payload for one chapter_pair subject."""
+    members = subject.get("members") or []
+    if not isinstance(members, list) or len(members) != 1:
+        raise PersistenceError("chapter_pair subject requires exactly one candidate member")
+    member = members[0]
+    if not isinstance(member, dict):
+        raise PersistenceError("chapter_pair member must be an object")
+    link_kind = subject.get("link_kind")
+    if link_kind not in ("entity", "event"):
+        raise PersistenceError(f"unknown chapter_pair link kind {link_kind!r}")
+    payload: dict[str, Any] = {
+        "scope": REVIEW_SCOPE,
+        "review_subject_id": subject["review_subject_id"],
+        "review_subject_version": REVIEW_SUBJECT_VERSION,
+        "review_mode": REVIEW_MODE_CHAPTER_PAIR,
+        "link_kind": link_kind,
+        "candidate_id": member["candidate_id"],
+        "resolution_sha256": member["resolution_sha256"],
+        "left": dict(member["left"]),
+        "right": dict(member["right"]),
+        "members": members,
+        "member_count": 1,
+        "signals": list(subject.get("signals") or []),
+        "initial_decision": "uncertain",
+        "blocking": True,
+        "allowed_decisions": list(
+            ENTITY_DECISIONS if link_kind == "entity" else EVENT_DECISIONS
+        ),
+        "decision": None,
+    }
+    if plan_fingerprint is not None:
+        payload["plan_fingerprint"] = plan_fingerprint
+        payload["plan_version"] = REVIEW_PLAN_VERSION
+    return payload
+
+
+def plan_fingerprint(
+    *,
+    job_id: Any,
+    revision_id: Any,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+    resolutions: list[dict[str, Any]],
+    groups: list[dict[str, Any]] | None = None,
+    pair_keys: list[str] | None = None,
+    chapter_by_ref: dict[str, str] | None = None,
+    subjects_sha256: str | None = None,
+) -> str:
+    """Compute the frozen review plan fingerprint (no decision/status/time).
+
+    Besides version/job/revision/assembled/base-catalog/resolution/
+    candidate/member/group bindings, the fingerprint pins the frozen
+    ``chapter_by_ref`` map and the canonical bytes of the frozen
+    subjects, so tampering with stored subjects or the chapter map
+    breaks the fingerprint even when candidate keys are untouched.
+    """
+    members = _candidate_members(resolutions)
+    ends: set[str] = set()
+    for member in members:
+        ends.add(f"{member['left']['bundle']}\x00{member['left']['ref']}")
+        ends.add(f"{member['right']['bundle']}\x00{member['right']['ref']}")
+    group_ids = sorted(
+        str(group.get("review_group_id"))
+        for group in (groups or [])
+        if isinstance(group, dict) and group.get("review_group_id")
+    )
+    if pair_keys is None:
+        within_shas = {
+            sha256_json(item) for item in resolutions if _is_within_revision(item)
+        }
+        pair_keys = sorted(
+            item["candidate_key"] for item in members if item["resolution_sha256"] in within_shas
+        )
+    if chapter_by_ref is not None:
+        if not isinstance(chapter_by_ref, dict):
+            raise PersistenceError("chapter_by_ref fingerprint input must be a mapping")
+        chapter_binding: list[list[Any]] | None = sorted(
+            [chapter_id, chapter_by_ref[chapter_id]]
+            for chapter_id in chapter_by_ref
+        )
+    else:
+        chapter_binding = None
+    identity = {
+        "version": REVIEW_PLAN_VERSION,
+        "job_id": str(job_id),
+        "revision_id": str(revision_id),
+        "assembled_bundle_sha256": assembled_bundle_sha256,
+        "base_catalog_sha256": base_catalog_sha256,
+        "resolution_sha256s": sorted(sha256_json(item) for item in resolutions),
+        "candidate_keys": sorted(item["candidate_key"] for item in members),
+        "pair_candidate_keys": sorted(pair_keys),
+        "member_refs": sorted(ends),
+        "review_group_ids": group_ids,
+        "chapter_by_ref": chapter_binding,
+        "subjects_sha256": subjects_sha256,
+    }
+    return sha256_json(identity)
+
+
+def _subjects_sha256(
+    pair_subjects: list[dict[str, Any]], batch_subjects: list[dict[str, Any]]
+) -> str:
+    return sha256_json(
+        {"chapter_pair_subjects": pair_subjects, "published_batch_subjects": batch_subjects}
+    )
+
+
+def build_chapter_review_plan(
+    *,
+    job_id: Any,
+    revision_id: Any,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+    resolutions: list[dict[str, Any]],
+    catalog: dict[str, Any] | None,
+    within_book_links: dict[str, Any] | None = None,
+    chapter_by_ref: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build the frozen mixed plan: chapter_pair + published_batch subjects.
+
+    Every candidate key is covered exactly once. A plan never mixes
+    old-generation (legacy) artifacts with v0.2 ones, and batch grouping
+    never uses names — only proven canonical/ within-book same-links.
+    """
+    if not isinstance(assembled_bundle_sha256, str) or not assembled_bundle_sha256:
+        raise PersistenceError("chapter review plan requires assembled_bundle_sha256")
+    if not isinstance(base_catalog_sha256, str) or not base_catalog_sha256:
+        raise PersistenceError("chapter review plan requires base_catalog_sha256")
+    legacy = [item for item in resolutions if _is_legacy_resolution(item)]
+    if legacy and len(legacy) != 0:
+        raise PersistenceConflict(
+            "chapter review plan cannot mix legacy and v0.2 resolutions"
+        )
+    _check_no_self_links(resolutions)
+    _check_within_revision_chapters(resolutions, chapter_by_ref)
+    within = [item for item in resolutions if _is_within_revision(item)]
+    cross = [item for item in resolutions if item not in within]
+    for item in cross:
+        if item.get("version") != RESOLUTION_V02 or _resolution_scope(item) not in (
+            SCOPE_CROSS_SOURCE,
+        ):
+            raise PersistenceConflict(
+                "chapter review plan cross-bundle resolutions must be v0.2 cross_source"
+            )
+    pair_subjects = build_chapter_pair_subjects(
+        within, chapter_by_ref=chapter_by_ref
+    )
+    batch_subjects: list[dict[str, Any]] = []
+    if cross:
+        if catalog is None:
+            raise PersistenceError(
+                "chapter review plan cross_source candidates require the base catalog"
+            )
+        batch_subjects = build_review_subjects(
+            cross, catalog=catalog, within_book_links=within_book_links
+        )
+    groups = [group for subject in batch_subjects for group in subject.get("groups") or []]
+    subjects_sha = _subjects_sha256(pair_subjects, batch_subjects)
+    fingerprint = plan_fingerprint(
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+        resolutions=resolutions,
+        groups=groups,
+        chapter_by_ref=dict(chapter_by_ref) if chapter_by_ref is not None else None,
+        subjects_sha256=subjects_sha,
+    )
+    pair_payloads = [
+        chapter_pair_payload(subject, plan_fingerprint=fingerprint)
+        for subject in pair_subjects
+    ]
+    batch_payloads = [
+        {**subject_payload(subject), "review_mode": REVIEW_MODE_PUBLISHED_BATCH,
+         "plan_fingerprint": fingerprint, "plan_version": REVIEW_PLAN_VERSION}
+        for subject in batch_subjects
+    ]
+    covered = [
+        key
+        for payload in [*pair_payloads, *batch_payloads]
+        for key in _payload_candidate_keys(payload)
+    ]
+    expected = [item["candidate_key"] for item in _candidate_members(resolutions)]
+    if sorted(covered) != sorted(expected) or len(covered) != len(set(covered)):
+        raise PersistenceConflict(
+            "chapter review plan did not preserve one-to-one candidate coverage"
+        )
+    pair_keys = sorted(
+        key for payload in pair_payloads for key in _payload_candidate_keys(payload)
+    )
+    if sorted(pair_keys) != sorted(
+        item["candidate_key"]
+        for item in _candidate_members(within)
+    ):
+        raise PersistenceConflict(
+            "chapter review plan pair payloads do not match within_revision candidates"
+        )
+    return {
+        "version": REVIEW_PLAN_VERSION,
+        "job_id": str(job_id),
+        "revision_id": str(revision_id),
+        "assembled_bundle_sha256": assembled_bundle_sha256,
+        "base_catalog_sha256": base_catalog_sha256,
+        "plan_fingerprint": fingerprint,
+        "candidate_keys": sorted(expected),
+        "chapter_by_ref": dict(chapter_by_ref) if chapter_by_ref is not None else None,
+        "subjects_sha256": subjects_sha,
+        "chapter_pair_subjects": pair_subjects,
+        "published_batch_subjects": batch_subjects,
+        "pair_payloads": pair_payloads,
+        "batch_payloads": batch_payloads,
+    }
+
+
+def _check_plan_pair_payload(
+    payload: dict[str, Any], member: dict[str, Any], fingerprint: str
+) -> None:
+    """Verify one frozen chapter_pair payload against its candidate member."""
+    if payload.get("scope") != REVIEW_SCOPE:
+        raise PersistenceConflict("chapter_pair payload scope must be resolution")
+    if payload.get("review_mode") != REVIEW_MODE_CHAPTER_PAIR:
+        raise PersistenceConflict("chapter_pair payload has wrong review mode")
+    if payload.get("plan_fingerprint") != fingerprint:
+        raise PersistenceConflict("chapter_pair payload fingerprint mismatch")
+    if payload.get("member_count") != 1:
+        raise PersistenceConflict("chapter_pair payload must cover exactly one candidate")
+    keys = _payload_candidate_keys(payload)
+    if keys != [member["candidate_key"]]:
+        raise PersistenceConflict("chapter_pair payload candidate mismatch")
+    for field in ("resolution_sha256", "candidate_id", "link_kind", "left", "right"):
+        if payload.get(field) != member[field]:
+            raise PersistenceConflict(
+                f"chapter_pair payload {field} no longer matches the frozen candidate"
+            )
+    if sorted(str(value) for value in (payload.get("signals") or [])) != list(
+        member.get("signals") or []
+    ):
+        raise PersistenceConflict(
+            "chapter_pair payload signals no longer match the frozen candidate"
+        )
+    if payload.get("link_kind") == "entity":
+        allowed = list(ENTITY_DECISIONS)
+    elif payload.get("link_kind") == "event":
+        allowed = list(EVENT_DECISIONS)
+    else:
+        raise PersistenceConflict("chapter_pair payload has unknown link kind")
+    if payload.get("allowed_decisions") != allowed:
+        raise PersistenceConflict("chapter_pair payload vocabulary mismatch")
+
+
+def _check_plan_batch_payload(
+    payload: dict[str, Any],
+    cross_keys: set[str],
+    fingerprint: str,
+    seen: set[str],
+) -> None:
+    """Verify one frozen published_batch payload covers only frozen candidates."""
+    if payload.get("scope") != REVIEW_SCOPE:
+        raise PersistenceConflict("published_batch payload scope must be resolution")
+    if payload.get("review_mode") != REVIEW_MODE_PUBLISHED_BATCH:
+        raise PersistenceConflict("published_batch payload has wrong review mode")
+    if payload.get("plan_fingerprint") != fingerprint:
+        raise PersistenceConflict("published_batch payload fingerprint mismatch")
+    keys = _payload_candidate_keys(payload)
+    if not keys:
+        raise PersistenceConflict("published_batch payload covers no candidate")
+    for key in keys:
+        if key not in cross_keys:
+            raise PersistenceConflict(
+                f"published_batch payload covers unknown candidate {key}"
+            )
+        if key in seen:
+            raise PersistenceConflict(f"candidate {key} is covered twice in the frozen plan")
+        seen.add(key)
+    # Group/member consistency (one-to-one fan-out) is re-checked here;
+    # overrides themselves are validated at decision time.
+    _payload_groups(payload)
+
+
+def _check_plan_internal_consistency(plan: dict[str, Any]) -> str:
+    """Check stored payloads against stored subjects without resolutions.
+
+    Rebuilds every expected payload from the frozen subjects and
+    requires exact equality, and recomputes the frozen subjects hash:
+    tampering with any frozen payload/subject field — member endpoints,
+    ``review_subject_id``, groups, signals, the chapter map — fails
+    closed here, before any database read. An empty plan (zero
+    candidates, no payloads or subjects) passes as the legitimate
+    unattended path. Returns the fingerprint.
+    """
+    fingerprint = plan.get("plan_fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        raise PersistenceConflict("chapter review plan is missing its fingerprint")
+    frozen_keys = plan.get("candidate_keys")
+    if (
+        not isinstance(frozen_keys, list)
+        or not all(isinstance(key, str) and key for key in frozen_keys)
+        or len(frozen_keys) != len(set(frozen_keys))
+    ):
+        raise PersistenceConflict("chapter review plan is missing its candidate list")
+    pair_payloads = plan.get("pair_payloads")
+    batch_payloads = plan.get("batch_payloads")
+    pair_subjects = plan.get("chapter_pair_subjects")
+    batch_subjects = plan.get("published_batch_subjects")
+    for name, value in (
+        ("pair_payloads", pair_payloads),
+        ("batch_payloads", batch_payloads),
+        ("chapter_pair_subjects", pair_subjects),
+        ("published_batch_subjects", batch_subjects),
+    ):
+        if not isinstance(value, list) or not all(
+            isinstance(item, dict) for item in value
+        ):
+            raise PersistenceConflict(f"chapter review plan {name} must hold objects")
+    if not frozen_keys:
+        if pair_payloads or batch_payloads or pair_subjects or batch_subjects:
+            raise PersistenceConflict(
+                "empty chapter review plan must carry no payloads or subjects"
+            )
+        return fingerprint
+    if _subjects_sha256(pair_subjects, batch_subjects) != plan.get("subjects_sha256"):
+        raise PersistenceConflict(
+            "chapter review plan subjects no longer match the frozen subjects hash"
+        )
+    if len(pair_payloads) != len(pair_subjects):
+        raise PersistenceConflict(
+            "chapter review plan pair payloads no longer match frozen pair subjects"
+        )
+    expected_pairs = {
+        subject["review_subject_id"]: chapter_pair_payload(
+            subject, plan_fingerprint=fingerprint
+        )
+        for subject in pair_subjects
+    }
+    for payload in pair_payloads:
+        subject_id = payload.get("review_subject_id")
+        expected = expected_pairs.get(subject_id) if isinstance(payload, dict) else None
+        if expected is None or payload != expected:
+            raise PersistenceConflict(
+                "chapter_pair payload no longer matches its frozen subject"
+            )
+    expected_batches = {
+        subject["review_subject_id"]: {
+            **subject_payload(subject),
+            "review_mode": REVIEW_MODE_PUBLISHED_BATCH,
+            "plan_fingerprint": fingerprint,
+            "plan_version": REVIEW_PLAN_VERSION,
+        }
+        for subject in batch_subjects
+    }
+    for payload in batch_payloads:
+        subject_id = payload.get("review_subject_id")
+        expected = expected_batches.get(subject_id) if isinstance(payload, dict) else None
+        if expected is None or payload != expected:
+            raise PersistenceConflict(
+                "published_batch payload no longer matches its frozen subject"
+            )
+        # Group/member fan-out consistency inside the frozen payload.
+        _payload_groups(payload)
+    covered = [
+        key
+        for payload in [*pair_payloads, *batch_payloads]
+        for key in _payload_candidate_keys(payload)
+    ]
+    if sorted(covered) != sorted(frozen_keys) or len(covered) != len(set(covered)):
+        raise PersistenceConflict(
+            "chapter review plan payloads no longer cover every frozen candidate exactly once"
+        )
+    return fingerprint
+
+
+def validate_chapter_review_plan(
+    plan: dict[str, Any],
+    resolutions: list[dict[str, Any]],
+    *,
+    job_id: Any,
+    revision_id: Any,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+) -> str:
+    """Revalidate a frozen plan exactly (no re-materialization).
+
+    Runs the full internal check (stored payloads against stored
+    subjects, exact coverage) and then grounds every frozen object in
+    the frozen resolutions: fingerprint with the stored chapter map and
+    subjects hash, pair subjects rebuilt from the within candidates,
+    batch subject members against the cross candidates. Deleted or
+    tampered payloads, subjects, or maps fail closed.
+    """
+    if not isinstance(plan, dict) or plan.get("version") != REVIEW_PLAN_VERSION:
+        raise PersistenceConflict("unknown chapter review plan version")
+    if str(plan.get("job_id")) != str(job_id):
+        raise PersistenceConflict("chapter review plan job mismatch")
+    if str(plan.get("revision_id")) != str(revision_id):
+        raise PersistenceConflict("chapter review plan revision mismatch")
+    if plan.get("assembled_bundle_sha256") != assembled_bundle_sha256:
+        raise PersistenceConflict("chapter review plan assembled bundle mismatch")
+    if plan.get("base_catalog_sha256") != base_catalog_sha256:
+        raise PersistenceConflict("chapter review plan base catalog mismatch")
+    fingerprint = _check_plan_internal_consistency(plan)
+    stored_map = plan.get("chapter_by_ref")
+    if stored_map is not None and not isinstance(stored_map, dict):
+        raise PersistenceConflict("chapter review plan chapter map must be an object")
+    _check_within_revision_chapters(resolutions, stored_map)
+    within = [item for item in resolutions if _is_within_revision(item)]
+    expected_pairs = build_chapter_pair_subjects(within, chapter_by_ref=stored_map)
+    if expected_pairs != list(plan.get("chapter_pair_subjects") or []):
+        raise PersistenceConflict(
+            "chapter review plan pair subjects no longer match the frozen candidates"
+        )
+    groups = [
+        group
+        for subject in plan.get("published_batch_subjects") or []
+        if isinstance(subject, dict)
+        for group in subject.get("groups") or []
+    ]
+    expected = plan_fingerprint(
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+        resolutions=resolutions,
+        groups=groups,
+        chapter_by_ref=dict(stored_map) if stored_map is not None else None,
+        subjects_sha256=_subjects_sha256(
+            list(plan.get("chapter_pair_subjects") or []),
+            list(plan.get("published_batch_subjects") or []),
+        ),
+    )
+    if fingerprint != expected:
+        raise PersistenceConflict("chapter review plan fingerprint mismatch")
+    members = {item["candidate_key"]: item for item in _candidate_members(resolutions)}
+    if sorted(plan.get("candidate_keys") or []) != sorted(members):
+        raise PersistenceConflict("chapter review plan candidate list mismatch")
+    within_members = {item["candidate_key"]: item for item in _candidate_members(within)}
+    seen: set[str] = set()
+    for payload in plan.get("pair_payloads") or []:
+        keys = _payload_candidate_keys(payload)
+        if len(keys) != 1 or keys[0] not in within_members:
+            raise PersistenceConflict(
+                "chapter review plan pair payload covers an unknown candidate"
+            )
+        if keys[0] in seen:
+            raise PersistenceConflict(
+                f"candidate {keys[0]} is covered twice in the frozen plan"
+            )
+        seen.add(keys[0])
+        _check_plan_pair_payload(payload, within_members[keys[0]], fingerprint)
+    cross_members = {
+        key: member for key, member in members.items() if key not in within_members
+    }
+    for subject in plan.get("published_batch_subjects") or []:
+        for member in subject.get("members") or []:
+            if not isinstance(member, dict):
+                raise PersistenceConflict("frozen batch subject member must be an object")
+            key = member.get("candidate_key")
+            if key not in cross_members or member != cross_members[key]:
+                raise PersistenceConflict(
+                    "frozen batch subject member no longer matches the frozen candidate"
+                )
+    cross_keys = set(cross_members)
+    for payload in plan.get("batch_payloads") or []:
+        _check_plan_batch_payload(payload, cross_keys, fingerprint, seen)
+    if sorted(seen) != sorted(members) or len(seen) != len(members):
+        raise PersistenceConflict(
+            "chapter review plan no longer covers every candidate exactly once"
+        )
+    return fingerprint
 
 
 def _catalog_membership(
@@ -382,6 +992,7 @@ def subject_payload(subject: dict[str, Any]) -> dict[str, Any]:
         "scope": REVIEW_SCOPE,
         "review_subject_id": subject["review_subject_id"],
         "review_subject_version": REVIEW_SUBJECT_VERSION,
+        "review_mode": REVIEW_MODE_PUBLISHED_BATCH,
         "link_kind": link_kind,
         "candidate_id": representative["candidate_id"],
         "resolution_sha256": representative["resolution_sha256"],
@@ -478,6 +1089,8 @@ def _group_candidate_keys(group: dict[str, Any]) -> list[str]:
 
 
 def _payload_groups(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if payload.get("review_mode") == REVIEW_MODE_CHAPTER_PAIR:
+        return []
     if payload.get("review_subject_version") != REVIEW_SUBJECT_VERSION:
         return []
     groups = payload.get("groups")
@@ -537,7 +1150,8 @@ def _load_subject_inputs(
     if assembly_row is None or not isinstance(assembly_row[0], dict):
         return None, None
     catalog_row = conn.execute(
-        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
+        "SELECT payload FROM chronicle.canonical_catalogs "
+        "ORDER BY publication_sequence DESC NULLS LAST, imported_at DESC LIMIT 1"
     ).fetchone()
     catalog = catalog_row[0] if catalog_row is not None else None
     if catalog is not None and not isinstance(catalog, dict):
@@ -578,47 +1192,194 @@ def _open_legacy(
 
 
 def open_review_subjects(
-    conn, *, job_id: uuid.UUID, resolutions: list[dict[str, Any]]
+    conn,
+    *,
+    job_id: uuid.UUID,
+    resolutions: list[dict[str, Any]],
+    chapter_by_ref: dict[str, str] | None = None,
+    plan_fingerprint: str | None = None,
+    plan_version: str | None = None,
 ) -> list[uuid.UUID]:
-    """Open/adopt one durable ReviewItem per frozen review plan unit."""
+    """Open/adopt one durable ReviewItem per frozen review plan unit.
+
+    Legacy candidate plans, v0.2 published batches, and v0.2 chapter
+    pairs share this entry. A job never mixes legacy items with new-mode
+    items; chapter_pair and published_batch modes may coexist in one job
+    and each candidate key is covered exactly once.
+    """
     members = _candidate_members(resolutions)
+    _check_no_self_links(resolutions)
+    _check_within_revision_chapters(resolutions, chapter_by_ref)
     existing_rows = _scoped_review_rows(conn, job_id)
     if existing_rows:
-        subject_flags = [
-            bool(payload.get("review_subject_version")) for _, _, payload in existing_rows
-        ]
-        if any(subject_flags) and not all(subject_flags):
+        modes = [payload.get("review_mode") for _, _, payload in existing_rows]
+        has_legacy = any(
+            not payload.get("review_subject_version") and not payload.get("review_mode")
+            for _, _, payload in existing_rows
+        )
+        has_new = any(
+            payload.get("review_subject_version") or payload.get("review_mode")
+            for _, _, payload in existing_rows
+        )
+        if has_legacy and has_new:
             raise PersistenceConflict(
                 "resolution review plan mixes legacy and review-subject items"
             )
-        if all(subject_flags):
-            expected = sorted(item["candidate_key"] for item in members)
-            covered: list[str] = []
-            for _review_id, _status, payload in existing_rows:
-                covered.extend(_payload_candidate_keys(payload))
-            if sorted(covered) != expected or len(covered) != len(set(covered)):
+        if has_legacy:
+            if any(_is_within_revision(item) for item in resolutions):
                 raise PersistenceConflict(
-                    "persisted review-subject plan no longer matches initial resolution candidates"
+                    "cannot mix legacy candidate reviews with chapter_pair items"
                 )
-            return [row[0] for row in existing_rows]
-        return _open_legacy(
-            conn, job_id=job_id, members=members, existing_rows=existing_rows
-        )
+            for mode in modes:
+                if mode is not None:
+                    raise PersistenceConflict(
+                        "resolution review plan mixes legacy and review-subject items"
+                    )
+            return _open_legacy(
+                conn, job_id=job_id, members=members, existing_rows=existing_rows
+            )
+        for mode in modes:
+            if mode is not None and mode not in SUPPORTED_REVIEW_MODES:
+                raise PersistenceConflict(f"unknown review mode {mode!r}")
+        expected = sorted(item["candidate_key"] for item in members)
+        covered: list[str] = []
+        fingerprints: set[str] = set()
+        for _review_id, _status, payload in existing_rows:
+            covered.extend(_payload_candidate_keys(payload))
+            if isinstance(payload.get("plan_fingerprint"), str):
+                fingerprints.add(payload["plan_fingerprint"])
+        if sorted(covered) != expected or len(covered) != len(set(covered)):
+            raise PersistenceConflict(
+                "persisted review-subject plan no longer matches initial resolution candidates"
+            )
+        if len(fingerprints) > 1:
+            raise PersistenceConflict("persisted review plan carries conflicting fingerprints")
+        if plan_fingerprint is not None and fingerprints and plan_fingerprint not in fingerprints:
+            raise PersistenceConflict("persisted review plan fingerprint mismatch")
+        return [row[0] for row in existing_rows]
 
     if not members:
         return []
-    catalog, within_book_links = _load_subject_inputs(conn, job_id)
-    if catalog is None:
-        return _open_legacy(conn, job_id=job_id, members=members, existing_rows=[])
 
-    subjects = build_review_subjects(
-        resolutions, catalog=catalog, within_book_links=within_book_links
-    )
+    within = [item for item in resolutions if _is_within_revision(item)]
+    cross = [item for item in resolutions if item not in within]
+    if within and any(_is_legacy_resolution(item) for item in cross):
+        raise PersistenceConflict(
+            "cannot mix legacy candidate reviews with chapter_pair items"
+        )
+
+    pair_subjects = build_chapter_pair_subjects(within, chapter_by_ref=chapter_by_ref)
+    payloads: list[dict[str, Any]] = []
+    for subject in pair_subjects:
+        payload = chapter_pair_payload(subject)
+        if plan_fingerprint is not None:
+            payload["plan_fingerprint"] = plan_fingerprint
+            payload["plan_version"] = plan_version or REVIEW_PLAN_VERSION
+        payloads.append(payload)
+
+    if cross:
+        catalog, within_book_links = _load_subject_inputs(conn, job_id)
+        if catalog is None:
+            if any(
+                item.get("version") == RESOLUTION_V02 for item in cross
+            ):
+                raise PersistenceError(
+                    "v0.2 cross_source candidates require the base catalog"
+                )
+            legacy_members = _candidate_members(cross)
+            ordered: list[uuid.UUID] = []
+            for member in legacy_members:
+                ordered.append(
+                    control_plane.open_review_item(
+                        conn, job_id=job_id, kind=REVIEW_KIND, payload=_legacy_payload(member)
+                    )
+                )
+            for payload in payloads:
+                ordered.append(
+                    control_plane.open_review_item(
+                        conn, job_id=job_id, kind=REVIEW_KIND, payload=payload
+                    )
+                )
+            return ordered
+        subjects = build_review_subjects(
+            cross, catalog=catalog, within_book_links=within_book_links
+        )
+        for subject in subjects:
+            payload = subject_payload(subject)
+            if plan_fingerprint is not None:
+                payload["plan_fingerprint"] = plan_fingerprint
+                payload["plan_version"] = plan_version or REVIEW_PLAN_VERSION
+            payloads.append(payload)
+
     ordered: list[uuid.UUID] = []
-    for subject in subjects:
+    for payload in payloads:
         ordered.append(
             control_plane.open_review_item(
-                conn, job_id=job_id, kind=REVIEW_KIND, payload=subject_payload(subject)
+                conn, job_id=job_id, kind=REVIEW_KIND, payload=payload
+            )
+        )
+    return ordered
+
+
+def open_chapter_review_plan(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    initial_resolutions: list[dict[str, Any]],
+    revision_id: Any,
+    assembled_bundle_sha256: str,
+    base_catalog_sha256: str,
+) -> list[uuid.UUID]:
+    """Persist a frozen chapter review plan (adopt-or-create, exact match).
+
+    Runs the complete frozen validation first — internal payload/subject
+    consistency, subjects hash, fingerprint recomputed from the frozen
+    initial resolutions, and full grounding of every frozen object —
+    before any database read. A tampered plan (subjects, chapter map,
+    payloads, or fingerprint) fails closed here; an empty plan for a
+    zero-candidate job returns ``[]`` so it proceeds unattended.
+    """
+    fingerprint = validate_chapter_review_plan(
+        plan,
+        initial_resolutions,
+        job_id=job_id,
+        revision_id=revision_id,
+        assembled_bundle_sha256=assembled_bundle_sha256,
+        base_catalog_sha256=base_catalog_sha256,
+    )
+    payloads = list(plan.get("pair_payloads") or []) + list(
+        plan.get("batch_payloads") or []
+    )
+    covered = [
+        key for payload in payloads for key in _payload_candidate_keys(payload)
+    ]
+    existing_rows = _scoped_review_rows(conn, job_id)
+    if existing_rows:
+        existing_covered = [
+            key
+            for _, _, payload in existing_rows
+            for key in _payload_candidate_keys(payload)
+        ]
+        if sorted(existing_covered) != sorted(covered) or len(existing_covered) != len(
+            set(existing_covered)
+        ):
+            raise PersistenceConflict(
+                "persisted chapter review plan no longer matches the frozen plan"
+            )
+        existing_prints = {
+            payload.get("plan_fingerprint")
+            for _, _, payload in existing_rows
+            if isinstance(payload.get("plan_fingerprint"), str)
+        }
+        if existing_prints and existing_prints != {fingerprint}:
+            raise PersistenceConflict("persisted chapter review plan fingerprint mismatch")
+        return [row[0] for row in existing_rows]
+    ordered: list[uuid.UUID] = []
+    for payload in payloads:
+        ordered.append(
+            control_plane.open_review_item(
+                conn, job_id=job_id, kind=REVIEW_KIND, payload=dict(payload)
             )
         )
     return ordered
@@ -660,6 +1421,8 @@ def normalize_group_decisions(
     """Validate operator exceptions against the frozen v0.2 review groups."""
     if group_decisions in (None, []):
         return []
+    if payload.get("review_mode") == REVIEW_MODE_CHAPTER_PAIR:
+        raise PersistenceError("chapter_pair reviews accept no group overrides")
     if payload.get("review_subject_version") != REVIEW_SUBJECT_VERSION:
         raise PersistenceError("group decision overrides require a v0.2 review batch")
     if not isinstance(group_decisions, list):
@@ -713,6 +1476,14 @@ def decision_entries_for_payload(
 
     if payload.get("review_subject_version") != REVIEW_SUBJECT_VERSION:
         return {key: dict(default_decision) for key in keys}
+
+    if payload.get("review_mode") == REVIEW_MODE_CHAPTER_PAIR:
+        if len(keys) != 1:
+            raise PersistenceConflict("chapter_pair payload must cover exactly one candidate")
+        overrides = normalize_group_decisions(payload, raw.get("group_decisions") or [])
+        if overrides:
+            raise PersistenceError("chapter_pair reviews accept no group overrides")
+        return {keys[0]: dict(default_decision)}
 
     overrides = normalize_group_decisions(payload, raw.get("group_decisions") or [])
     by_group = {item["review_group_id"]: item for item in overrides}
@@ -951,7 +1722,8 @@ def validate_proposed_entity_review(conn, *, job_id: uuid.UUID, review_id: uuid.
     # Legacy candidate plans may have no assembly output, but published
     # membership still applies to their human decisions.
     catalog_row = conn.execute(
-        "SELECT payload FROM chronicle.canonical_catalogs ORDER BY imported_at DESC LIMIT 1"
+        "SELECT payload FROM chronicle.canonical_catalogs "
+        "ORDER BY publication_sequence DESC NULLS LAST, imported_at DESC LIMIT 1"
     ).fetchone()
     validate_entity_review_decision_graph(
         resolutions=[row[1] for row in rows], reviews=reviews,
