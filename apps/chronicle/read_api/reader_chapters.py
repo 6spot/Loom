@@ -17,6 +17,12 @@ Contract summary:
   references. It returns the full text or fails explicitly; it never
   serves a summary/first-paragraph/blurb as the full text and never
   guesses a missing reference mapping.
+- Each served block additionally carries the server-owned
+  `source_anchor_ids` (anchors whose first/last source block touches the
+  block's `source_block_ids`) and each block-level ref carries the
+  remapped `revision_ref` joining it to `references[]`; the source `ref`
+  is preserved. This is the T17 reader seam: the browser opens sources
+  and detail links from these fields without guessing.
 - Sources first verify that the anchor belongs to the addressed
   publication (same publication/artifact/revision), then reuse the
   unique T10 ``source_context`` reader. Old pages stay pinned to the
@@ -675,6 +681,59 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
 
     anchors = publication.get("anchors")
     anchor_list = anchors if isinstance(anchors, list) else []
+    # T17 reader seam: every translation block carries the server-owned
+    # `source_anchor_ids` so the browser can open an anchor's pinned source
+    # without guessing. An anchor belongs to a block when the anchor's
+    # first/last source block touches one of the block's source_block_ids
+    # (whole-block anchors match exactly; selection anchors attach to their
+    # boundary blocks). Block-level entity/event refs keep their source
+    # `ref` and additionally carry the remapped `revision_ref` that joins
+    # them to `references[]` (whose `ref` is the revision namespaced id).
+    served_blocks: list[dict[str, Any]] = []
+    for block in blocks:
+        served = dict(block)
+        source_ids = served.get("source_block_ids")
+        owned_source_ids = (
+            [str(item) for item in source_ids if isinstance(item, str)]
+            if isinstance(source_ids, list)
+            else []
+        )
+        anchor_ids: list[str] = []
+        for anchor in anchor_list:
+            if not isinstance(anchor, dict):
+                continue
+            anchor_id = anchor.get("anchor_id")
+            if not isinstance(anchor_id, str) or not anchor_id:
+                continue
+            first = anchor.get("first_block_id")
+            last = anchor.get("last_block_id")
+            if (isinstance(first, str) and first in owned_source_ids) or (
+                isinstance(last, str) and last in owned_source_ids
+            ):
+                if anchor_id not in anchor_ids:
+                    anchor_ids.append(anchor_id)
+        anchor_ids.sort()
+        served["source_anchor_ids"] = anchor_ids
+        for refs_key in ("entity_refs", "event_refs"):
+            entries = served.get(refs_key)
+            if not isinstance(entries, list):
+                continue
+            annotated: list[Any] = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    annotated.append(entry)
+                    continue
+                local_ref = entry.get("ref")
+                revision_ref = (
+                    local_map.get(f"({chapter_index},{local_ref})")
+                    if isinstance(local_ref, str) and local_ref
+                    else None
+                )
+                annotated_entry = dict(entry)
+                annotated_entry["revision_ref"] = revision_ref
+                annotated.append(annotated_entry)
+            served[refs_key] = annotated
+        served_blocks.append(served)
     response = {
         "schema": "chronicle.public-chapter",
         "version": "0.1",
@@ -691,7 +750,7 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
         "catalog_sha256": str(full["catalog_sha256"]),
         "assembled_bundle_sha256": str(full["assembled_bundle_sha256"]),
         "published_at": full["published_at"],
-        "translation_blocks": blocks,
+        "translation_blocks": served_blocks,
         "source_overview": {
             "source_title": full["document_title"],
             "chapter_title": chapter_title,

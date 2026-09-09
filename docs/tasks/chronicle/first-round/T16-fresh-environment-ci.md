@@ -3,13 +3,13 @@ task: C2-R1-T16
 issue: 566
 kind: leaf
 parent: C2-R1
-status: planned
+status: completed
 depends_on: [C2-R1-T02, C2-R1-T04, C2-R1-T06]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-09-09
+completed_at: 2026-09-09
+completion_pr: 606
+merge_sha: d5cd8b88c3b95f3adf7a27aa390f58012a44e496
 ---
 
 # 空语料初始化、配置与第一轮CI路径覆盖
@@ -22,10 +22,10 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Acceptance
 
-- [ ] 新空目录启动后无旧C0 canonical数据，迁移/重复启动成功，public空态和Studio鉴权正常。
-- [ ] 显式C0回归仍可独立运行；migration-only与artifact导入互斥/参数错误明确。
-- [ ] provider预算配置从env传到现worker服务，没有秘密写进仓库。
-- [ ] corpus-only/ledger-only/schema-only变更触发正确检查，新测试确实运行；退休工作流不复活。
+- [x] 新空目录启动后无旧C0 canonical数据，迁移/重复启动成功，public空态和Studio鉴权正常。
+- [x] 显式C0回归仍可独立运行；migration-only与artifact导入互斥/参数错误明确。
+- [x] provider预算配置从env传到现worker服务，没有秘密写进仓库。
+- [x] corpus-only/ledger-only/schema-only变更触发正确检查，新测试确实运行；退休工作流不复活。
 
 ## Verification
 
@@ -37,7 +37,10 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `python3 tools/validator_ready.py --root docs/tasks/chronicle/first-round --check --format json` — currently errors on this root (`task C2-R1 has no status` after the Task Ledger non-authoritative normalization); not wired as a CI gate. Fixing `tools/validator_ready.py` is outside this task's file ownership — flagged in the delivery PR.
 - DB-backed C0 regression (`test_real_dataset_postgres.py`) not re-run here: it requires the PG18 control service and is untouched by this change (still loads `.artifacts/c0-t7` explicitly into an isolated test database).
 
+2026-09-09 — Post-merge reconciliation (delivery PR #606 MERGED as `d5cd8b88c3b95f3adf7a27aa390f58012a44e496` on 2026-09-09): front matter now carries actual start/completion_pr/merge_sha and all acceptance boxes are checked against the delivery evidence above. Post-merge spot checks on the T17 integration head: `docker compose --env-file .env.chronicle.example -f compose.chronicle.yaml config -q` — validates OK; `.github/workflows/ci.yml` first-round ledger routing (`chronicle_first-round` classify outputs) present; `git diff --check` — clean. Transitive note: T04/T06 ledger completion remains owned by their own deliveries (both code-merged on the default branch).
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-09 — Implemented: `--migrate-only` in `chronicle_persist.py` (+ `test_migrate_only_unit.py`); Compose init switched to migration-only; five `CHRONICLE_CHAPTER_*` budget envs passed through the worker service and documented in `.env.chronicle.example`; `deployment.md` rewritten for the fresh empty-state flow with an explicit C0 regression pointer; `ci.yml` gained first-round ledger routing plus a lightweight `chronicle-first-round` job (corpus/contract/note checks, no Rust/Postgres matrix). Retired C1 workflows not restored. `chronicle_persist.py`'s import path is backward compatible (`--catalog` still required without `--migrate-only`).
+- 2026-09-09 — Reconciled post-merge (see Verification): PR #606 merged, acceptance checked.

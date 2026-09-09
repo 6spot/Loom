@@ -1,18 +1,22 @@
 import { Suspense, lazy } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import HistoricalTimeBar from "./components/HistoricalTimeBar";
 import { StudioAuthProvider, useStudioAuth } from "./lib/studio-auth";
 import { withHistoricalTime, worldPathFromSearch } from "./lib/historical-time";
+import { chapterPath } from "./lib/routes";
 import EntityPage from "./pages/public/EntityPage";
 import EventPage from "./pages/public/EventPage";
 import SearchPage from "./pages/public/SearchPage";
 import TimelinePage from "./pages/public/TimelinePage";
 import WorldPage from "./pages/public/WorldPage";
+import ChapterIndexPage from "./pages/public/ChapterIndexPage";
+import ChapterPage from "./pages/public/ChapterPage";
 import { NotFoundState } from "./components/shared";
 import "./styles/chronicle.css";
 import "./styles/world.css";
 import "./styles/studio.css";
 import "./styles/review-evidence.css";
+import "./styles/chapter-reader.css";
 
 const StudioLayout = lazy(() => import("./pages/studio/StudioLayout"));
 const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));
@@ -46,6 +50,7 @@ function PublicChrome({ children }: { children: React.ReactNode }) {
           <Link to={worldHref}>世界</Link>
           <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link>
           <Link to={withHistoricalTime("/search", location.search)}>搜索</Link>
+          <Link to="/chapters">篇章</Link>
           <Link to="/studio">Studio</Link>
         </nav>
         <form
@@ -76,6 +81,22 @@ function StudioFallback() {
   return <div className="studio-shell" data-view="studio-loading"><p className="studio-muted">正在加载 Studio…</p></div>;
 }
 
+function ChapterIndexRoute() {
+  const navigate = useNavigate();
+  return (
+    <ChapterIndexPage
+      hrefForPublicationId={(publicationId) => chapterPath(publicationId)}
+      onSelectChapter={(publicationId) => navigate(chapterPath(publicationId))}
+    />
+  );
+}
+
+function ChapterDetailRoute() {
+  const { publicationId } = useParams();
+  if (!publicationId) return <NotFoundState />;
+  return <ChapterPage key={publicationId} publicationId={publicationId} />;
+}
+
 export default function App() {
   return (
     <StudioAuthProvider>
@@ -96,6 +117,8 @@ export default function App() {
         <Route path="/search" element={<PublicChrome><SearchPage /></PublicChrome>} />
         <Route path="/events/:id" element={<PublicChrome><EventPage /></PublicChrome>} />
         <Route path="/entities/:id" element={<PublicChrome><EntityPage /></PublicChrome>} />
+        <Route path="/chapters" element={<PublicChrome><ChapterIndexRoute /></PublicChrome>} />
+        <Route path="/chapters/:publicationId" element={<PublicChrome><ChapterDetailRoute /></PublicChrome>} />
         <Route path="*" element={<PublicChrome><NotFoundState /></PublicChrome>} />
       </Routes>
     </StudioAuthProvider>
