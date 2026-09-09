@@ -33,8 +33,11 @@ import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
+
+import source_context as _source_context
 
 STUDIO_REVIEWS_PREFIX = "/api/v1/studio/jobs/reviews"
 _ALLOWED_STATUSES = ("open", "resolved", "dismissed", "all")
@@ -57,6 +60,12 @@ class _BadRequest(Exception):
 
 class _NotFound(Exception):
     pass
+
+
+class _Conflict(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -855,6 +864,470 @@ def _identity_conflict_details(conn, details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _clear_source_context_cache() -> None:
+    """Test hook: kept for compatibility; lookups are per-request (no staleness)."""
+
+
+def _review_identity(conn, review_id: uuid.UUID) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT ri.review_id, ri.job_id, ri.payload,
+               j.revision_id,
+               d.document_id, d.title,
+               r.revision_no, r.filename, r.source_sha256, r.storage_key,
+               r.language, r.source_label
+        FROM chronicle.review_items ri
+        JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
+        JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
+        JOIN chronicle.documents d ON d.document_id = r.document_id
+        WHERE ri.review_id = %s AND ri.payload->>'scope' = 'resolution'
+        """,
+        (review_id,),
+    ).fetchone()
+    if row is None:
+        raise _NotFound(f"unknown resolution review {review_id}")
+    return {
+        "review_id": row[0],
+        "job_id": row[1],
+        "payload": row[2] if isinstance(row[2], dict) else {},
+        "revision_id": row[3],
+        "document_id": row[4],
+        "document_title": row[5],
+        "revision_no": row[6],
+        "filename": row[7],
+        "source_sha256": row[8],
+        "storage_key": row[9],
+        "language": row[10],
+        "source_label": row[11],
+    }
+
+
+def _chapter_lookup_cached(conn, *, job_id: Any) -> dict[str, Any]:
+    # Loaded once per request and reused for every group/member in that
+    # request (no cross-request staleness when later artifacts land).
+    return _source_context.load_chapter_lookup(conn, job_id=job_id)
+
+
+def _bundle_sha_and_title(
+    conn, bundle: str, *, cache: dict[str, tuple[str | None, str | None]] | None = None
+) -> tuple[str | None, str | None]:
+    if cache is not None and bundle in cache:
+        return cache[bundle]
+    row = conn.execute(
+        """
+        SELECT bundle_payload, source_title
+        FROM chronicle.source_bundles WHERE bundle_label = %s
+        """,
+        (bundle,),
+    ).fetchone()
+    if row is None:
+        result = (None, None)
+        if cache is not None:
+            cache[bundle] = result
+        return result
+    from common import sha256_json as _sha256_json
+
+    try:
+        sha = _sha256_json(row[0]) if isinstance(row[0], dict) else None
+    except Exception:
+        sha = None
+    result = (sha, row[1])
+    if cache is not None:
+        cache[bundle] = result
+    return result
+
+
+def _evidence_for_ref(
+    conn, *, bundle: str, ref: str, link_kind: str, lookup: dict[str, Any]
+) -> tuple[list[str], list[dict[str, Any]]]:
+    kinds: list[str] = []
+
+    def _add(kind: str) -> None:
+        if kind not in kinds:
+            kinds.append(kind)
+
+    table = "chronicle.staged_entities" if link_kind == "entity" else "chronicle.staged_events"
+    try:
+        record_row = conn.execute(
+            f"SELECT payload FROM {table} WHERE bundle_label = %s AND record_ref = %s",
+            (bundle, ref),
+        ).fetchone()
+    except Exception:
+        record_row = None
+    record = record_row[0] if record_row is not None and isinstance(record_row[0], dict) else {}
+    # Direct Claim evidence (exact record reference only, never title match).
+    claim_rows = conn.execute(
+        """
+        SELECT record_ref, payload FROM chronicle.staged_claims
+        WHERE bundle_label = %s ORDER BY record_ref
+        """,
+        (bundle,),
+    ).fetchall()
+    direct = _claim_evidence_from_rows(claim_rows, ref)
+    if direct:
+        _add("direct_claim")
+    # Mention surfaces on the staged record or the chapter mention map.
+    mentions = record.get("mentions") if isinstance(record, dict) else None
+    if isinstance(mentions, list) and any(
+        isinstance(item, dict) and isinstance(item.get("text"), str) for item in mentions
+    ):
+        _add("mention")
+    anchors = (lookup.get("anchors_by_record") or {}).get(ref, [])
+    by_ref = (lookup.get("by_ref") or {}).get(ref)
+    if by_ref is not None:
+        # Chapter mention/translation anchors also count as mention evidence.
+        if anchors:
+            _add("mention")
+        _add("record_source")
+    # Event participation: an entity named by an event that itself has
+    # Claim evidence reads as event_context, never as direct_claim.
+    if link_kind == "entity":
+        try:
+            event_rows = conn.execute(
+                """
+                SELECT payload FROM chronicle.staged_events
+                WHERE bundle_label = %s
+                """,
+                (bundle,),
+            ).fetchall()
+        except Exception:
+            event_rows = []
+        for (event_payload,) in event_rows:
+            if not isinstance(event_payload, dict):
+                continue
+            participants = [
+                part.get("entity_ref")
+                for part in (event_payload.get("participants") or [])
+                if isinstance(part, dict)
+            ]
+            places = [
+                place for place in (event_payload.get("places") or [])
+                if isinstance(place, str)
+            ]
+            if ref in participants or ref in places:
+                _add("event_context")
+                break
+    # Translation blocks referencing this record.
+    if by_ref is not None and anchors:
+        _add("translation")
+    if not kinds:
+        # No staged evidence at all: mandatory record_sources (or the
+        # unavailable marker below) still give the reviewer something.
+        _add("record_source")
+    kinds.sort()
+    return kinds, direct
+
+
+def _describe_context(
+    conn,
+    identity: dict[str, Any],
+    lookup: dict[str, Any],
+    *,
+    bundle: str,
+    ref: str,
+    bundle_cache: dict[str, tuple[str | None, str | None]] | None = None,
+) -> dict[str, Any]:
+    payload = identity["payload"]
+    link_kind = str(payload.get("link_kind") or "")
+    bundle_sha, bundle_title = _bundle_sha_and_title(conn, bundle, cache=bundle_cache)
+    chapter_info = (lookup.get("by_ref") or {}).get(ref, {})
+    anchors = list((lookup.get("anchors_by_record") or {}).get(ref, []))
+    evidence_kinds, _direct = _evidence_for_ref(
+        conn, bundle=bundle, ref=ref, link_kind=link_kind, lookup=lookup
+    )
+    if not anchors:
+        available = False
+        reason: str | None = (
+            "no_chapter_anchor"
+            if chapter_info
+            else "legacy_fixture_without_location"
+        )
+    elif identity.get("storage_key") is None:
+        available = False
+        reason = "revision_without_storage"
+    else:
+        available = True
+        reason = None
+    anchor_summary = [
+        {
+            "anchor_id": item.get("anchor_id"),
+            "chapter_id": item.get("chapter_id"),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "quote_sha256": item.get("quote_sha256"),
+        }
+        for item in anchors[:10]
+    ]
+    return {
+        "context_id": _source_context.context_id_for(
+            str(identity["review_id"]), bundle, ref
+        ),
+        "bundle": bundle,
+        "bundle_sha256": bundle_sha,
+        "record_ref": ref,
+        "link_kind": link_kind,
+        "job_id": str(identity["job_id"]),
+        "revision_id": str(identity["revision_id"]),
+        "chapter_id": chapter_info.get("chapter_id"),
+        "chapter_index": chapter_info.get("chapter_index"),
+        "chapter_title": chapter_info.get("chapter_title"),
+        "artifact_sha256": chapter_info.get("artifact_sha256"),
+        "source_title": chapter_info.get("source_title") or bundle_title,
+        "source_sha256": chapter_info.get("source_sha256") or identity.get("source_sha256"),
+        "evidence_kinds": evidence_kinds,
+        "available": available,
+        "unavailable_reason": reason,
+        "anchor_count": len(anchors),
+        "anchors": anchor_summary,
+    }
+
+
+def _ordered_context_refs(
+    payload: dict[str, Any], *, group_id: str | None
+) -> tuple[list[dict[str, str]], str | None]:
+    """Resolve the paged ref list for one contexts request.
+
+    Returns (refs, resolved_group_id). Raises _BadRequest/_NotFound on
+    scope errors so group cursors cannot be replayed elsewhere.
+    """
+    mode = payload.get("review_mode")
+    if group_id is not None:
+        group_refs = _source_context.group_member_refs(payload, group_id)
+        if group_refs is None:
+            raise _NotFound(f"unknown review group {group_id!r} for this review")
+        return group_refs, group_id
+    if mode == "chapter_pair" or not isinstance(payload.get("groups"), list) or not payload.get("groups"):
+        return _source_context.frozen_member_refs(payload), None
+    # Batch without a group filter: every frozen member, deduplicated.
+    return _source_context.frozen_member_refs(payload), None
+
+
+def _parse_context_list(query: dict[str, list[str]]) -> dict[str, Any]:
+    allowed = frozenset({"group_id", "limit", "cursor"})
+    unknown = sorted(set(query) - allowed)
+    if unknown:
+        raise _BadRequest(f"unsupported query parameters: {unknown}")
+    group_id = _single(query, "group_id")
+    try:
+        limit = int(_single(query, "limit") or "50")
+    except ValueError as exc:
+        raise _BadRequest("limit must be an integer") from exc
+    if not 1 <= limit <= 100:
+        raise _BadRequest("limit must be within 1..100")
+    cursor_raw = _single(query, "cursor")
+    return {"group_id": group_id, "limit": limit, "cursor_raw": cursor_raw}
+
+
+def _handle_contexts(
+    conn,
+    review_id: uuid.UUID,
+    *,
+    raw_query: str,
+) -> tuple[int, str, bytes]:
+    identity = _review_identity(conn, review_id)
+    payload = identity["payload"]
+    spec = _parse_context_list(parse_qs(raw_query, keep_blank_values=True))
+    refs, resolved_group = _ordered_context_refs(payload, group_id=spec["group_id"])
+    offset = 0
+    if spec["cursor_raw"] is not None:
+        try:
+            offset = _source_context.decode_context_cursor(
+                spec["cursor_raw"],
+                review_id=str(review_id),
+                group_id=resolved_group,
+            )
+        except _source_context.BadCursor as exc:
+            raise _BadRequest(str(exc)) from exc
+    if offset > len(refs):
+        raise _BadRequest("context cursor is past the end of this group")
+    lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
+    bundle_cache: dict[str, tuple[str | None, str | None]] = {}
+    page_refs = refs[offset : offset + spec["limit"]]
+    items = [
+        _describe_context(
+            conn, identity, lookup, bundle=item["bundle"], ref=item["ref"],
+            bundle_cache=bundle_cache,
+        )
+        for item in page_refs
+    ]
+    next_offset = offset + len(page_refs)
+    has_more = next_offset < len(refs)
+    next_cursor = (
+        _source_context.encode_context_cursor(
+            review_id=str(review_id), group_id=resolved_group, offset=next_offset
+        )
+        if has_more
+        else None
+    )
+    return 200, "application/json; charset=utf-8", _json_bytes(
+        {
+            "schema": "chronicle.review-source-contexts",
+            "version": "0.1",
+            "review_id": str(review_id),
+            "group_id": resolved_group,
+            "total": len(refs),
+            "items": items,
+            "has_more": has_more,
+            "next_cursor": next_cursor,
+        }
+    )
+
+
+def _handle_source(
+    conn,
+    review_id: uuid.UUID,
+    anchor_id: str,
+    *,
+    raw_query: str,
+    source_dir: Path | str | None,
+) -> tuple[int, str, bytes]:
+    query = parse_qs(raw_query, keep_blank_values=True)
+    allowed = frozenset({"view", "cursor", "limit"})
+    unknown = sorted(set(query) - allowed)
+    if unknown:
+        raise _BadRequest(f"unsupported query parameters: {unknown}")
+    view = _single(query, "view") or "window"
+    if view not in ("window", "chapter"):
+        raise _BadRequest("view must be window|chapter")
+    cursor_raw = _single(query, "cursor")
+    limit_raw = _single(query, "limit")
+    limit = _source_context.CHAPTER_PAGE_MAX
+    if limit_raw is not None:
+        try:
+            limit = int(limit_raw)
+        except ValueError as exc:
+            raise _BadRequest("limit must be an integer") from exc
+        if view != "chapter":
+            raise _BadRequest("limit is only supported for view=chapter")
+        if not 1 <= limit <= _source_context.CHAPTER_PAGE_MAX:
+            raise _BadRequest(
+                f"limit must be within 1..{_source_context.CHAPTER_PAGE_MAX}"
+            )
+    identity = _review_identity(conn, review_id)
+    payload = identity["payload"]
+    frozen = {(item["bundle"], item["ref"]) for item in _source_context.frozen_member_refs(payload)}
+    lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
+    anchor = (lookup.get("anchors_by_id") or {}).get(anchor_id)
+    if anchor is None or not isinstance(anchor, dict):
+        raise _NotFound(f"unknown source anchor {anchor_id!r} for this review")
+    owners = set((lookup.get("anchor_records") or {}).get(anchor_id, []))
+    if not owners:
+        # Anchor exists in a chapter artifact but was not bound to any
+        # record selection: treat it as outside the frozen member set.
+        raise _NotFound(f"source anchor {anchor_id!r} is not part of this review")
+    owner_refs = set()
+    for owner in owners:
+        # owners are revision refs; map them back to (bundle, ref) by
+        # matching the ref suffix within this review's frozen bundles.
+        for bundle, ref in frozen:
+            if ref == owner:
+                owner_refs.add((bundle, ref))
+    if not owner_refs:
+        raise _NotFound(f"source anchor {anchor_id!r} is not part of this review")
+    # Exact artifact/revision/hash match: the anchor must come from the
+    # same revision and source hash as the review job.
+    if str(anchor.get("revision_id") or "") != str(identity["revision_id"]):
+        raise _Conflict(
+            "source_mismatch",
+            "anchor revision does not match this review revision; "
+            "refusing to substitute another version",
+        )
+    expected_sha = str(identity.get("source_sha256") or "")
+    if str(anchor.get("source_sha256") or "") != expected_sha:
+        raise _Conflict(
+            "source_mismatch",
+            "anchor source hash does not match this review revision",
+        )
+    storage_key = identity.get("storage_key")
+    if not isinstance(storage_key, str) or not storage_key:
+        raise _Conflict("source_unavailable", "revision source is not configured")
+    try:
+        text = _source_context.read_revision_text(source_dir, storage_key, expected_sha)
+    except _source_context.SourceUnavailable as exc:
+        raise _Conflict("source_unavailable", str(exc)) from exc
+    except _source_context.SourceMismatch as exc:
+        raise _Conflict("source_mismatch", str(exc)) from exc
+    try:
+        _source_context.verify_anchor(anchor, text)
+    except _source_context.SourceMismatch as exc:
+        raise _Conflict("source_mismatch", str(exc)) from exc
+    start, end = int(anchor["start"]), int(anchor["end"])
+    if view == "window":
+        if cursor_raw is not None:
+            raise _BadRequest("cursor is only supported for view=chapter")
+        window = _source_context.window_for(text, start, end)
+        return 200, "application/json; charset=utf-8", _json_bytes(
+            {
+                "schema": "chronicle.review-source",
+                "version": "0.1",
+                "review_id": str(review_id),
+                "anchor_id": anchor_id,
+                "view": "window",
+                "revision_id": str(identity["revision_id"]),
+                "source_sha256": expected_sha,
+                "chapter_id": anchor.get("chapter_id"),
+                "bounds": {
+                    "start": start,
+                    "end": end,
+                    "slice_start": window["slice_start"],
+                    "slice_end": window["slice_end"],
+                    "chapter_length": len(text),
+                },
+                "source_hash": _source_context.sha256_text(text),
+                "text": window["text"],
+                "segments": window["segments"],
+                "has_more": False,
+                "next_cursor": None,
+            }
+        )
+    offset = 0
+    if cursor_raw is not None:
+        try:
+            offset = _source_context.decode_source_cursor(
+                cursor_raw, review_id=str(review_id), anchor_id=anchor_id, view=view
+            )
+        except _source_context.BadCursor as exc:
+            raise _BadRequest(str(exc)) from exc
+    try:
+        page = _source_context.chapter_page_for(text, offset, limit=limit, anchor=anchor)
+    except _source_context.BadCursor as exc:
+        raise _BadRequest(str(exc)) from exc
+    next_cursor = (
+        _source_context.encode_source_cursor(
+            review_id=str(review_id),
+            anchor_id=anchor_id,
+            view=view,
+            offset=page["slice_end"],
+        )
+        if page["has_more"]
+        else None
+    )
+    return 200, "application/json; charset=utf-8", _json_bytes(
+        {
+            "schema": "chronicle.review-source",
+            "version": "0.1",
+            "review_id": str(review_id),
+            "anchor_id": anchor_id,
+            "view": "chapter",
+            "revision_id": str(identity["revision_id"]),
+            "source_sha256": expected_sha,
+            "chapter_id": anchor.get("chapter_id"),
+            "bounds": {
+                "start": start,
+                "end": end,
+                "slice_start": page["slice_start"],
+                "slice_end": page["slice_end"],
+                "chapter_length": len(text),
+            },
+            "source_hash": _source_context.sha256_text(text),
+            "text": page["text"],
+            "segments": page["segments"],
+            "has_more": page["has_more"],
+            "next_cursor": next_cursor,
+        }
+    )
+
+
 def dispatch_reviews(
     conn,
     resolve_publish,
@@ -863,6 +1336,7 @@ def dispatch_reviews(
     path: str,
     raw_query: str = "",
     body: bytes = b"",
+    source_dir: Path | str | None = None,
 ) -> tuple[int, str, bytes]:
     from common import PersistenceConflict, PersistenceError
     from review_subjects import CanonicalIdentityConflict
@@ -875,11 +1349,14 @@ def dispatch_reviews(
             path=path,
             raw_query=raw_query,
             body=body,
+            source_dir=source_dir,
         )
     except _BadRequest as exc:
         return _error(400, "bad_request", str(exc))
     except _NotFound as exc:
         return _error(404, "not_found", str(exc))
+    except _Conflict as exc:
+        return _error(409, exc.code, str(exc))
     except CanonicalIdentityConflict as exc:
         return _error(
             409, exc.code, str(exc), details=_identity_conflict_details(conn, exc.details),
@@ -893,7 +1370,58 @@ def dispatch_reviews(
         return _error(400, "bad_request", message)
 
 
-def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, body: bytes):
+def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
+    """Detail plus lightweight source/chapter descriptors and context entry.
+
+    Only adds readable source/chapter provenance and the contexts entry;
+    full chapter text is never inlined (one request caches
+    (bundle_sha, ref) and the revision read via the lookup helpers).
+    """
+    item = _detail(conn, review_id)
+    try:
+        identity = _review_identity(conn, review_id)
+    except _NotFound:
+        return item
+    lookup = _chapter_lookup_cached(conn, job_id=identity["job_id"])
+    refs = _source_context.frozen_member_refs(
+        identity["payload"] if isinstance(identity.get("payload"), dict) else {}
+    )
+    bundle_cache: dict[str, tuple[str | None, str | None]] = {}
+    contexts: list[dict[str, Any]] = []
+    for entry in refs:
+        try:
+            contexts.append(
+                _describe_context(
+                    conn, identity, lookup, bundle=entry["bundle"], ref=entry["ref"],
+                    bundle_cache=bundle_cache,
+                )
+            )
+        except Exception:
+            continue
+    item["source_contexts"] = {
+        "total": len(refs),
+        "href": f"{STUDIO_REVIEWS_PREFIX}/{review_id}/contexts",
+        "items": contexts,
+    }
+    item["source_entry"] = {
+        "contexts_href": f"{STUDIO_REVIEWS_PREFIX}/{review_id}/contexts",
+        "source_href_template": f"{STUDIO_REVIEWS_PREFIX}/{review_id}/sources/{{anchor_id}}",
+        "revision_id": str(identity["revision_id"]),
+        "source_sha256": identity.get("source_sha256"),
+    }
+    return item
+
+
+def _route(
+    conn,
+    resolve_publish,
+    *,
+    method: str,
+    path: str,
+    raw_query: str,
+    body: bytes,
+    source_dir: Path | str | None = None,
+):
     query = parse_qs(raw_query, keep_blank_values=True)
     if path == STUDIO_REVIEWS_PREFIX:
         if method != "GET":
@@ -945,7 +1473,19 @@ def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, bod
         if method != "GET":
             raise _BadRequest(f"method {method} is not supported on {path}")
         return 200, "application/json; charset=utf-8", _json_bytes(
-            {"schema": "chronicle.review", "version": "0.1", "review": _detail(conn, review_id)}
+            {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
+        )
+    if len(parts) == 2 and parts[0] and parts[1] == "contexts":
+        review_id = _require_uuid(parts[0], "review")
+        if method != "GET":
+            raise _BadRequest(f"method {method} is not supported on {path}")
+        return _handle_contexts(conn, review_id, raw_query=raw_query)
+    if len(parts) == 3 and parts[0] and parts[1] == "sources" and parts[2]:
+        review_id = _require_uuid(parts[0], "review")
+        if method != "GET":
+            raise _BadRequest(f"method {method} is not supported on {path}")
+        return _handle_source(
+            conn, review_id, parts[2], raw_query=raw_query, source_dir=source_dir
         )
     if len(parts) == 2 and parts[0] and parts[1] == "decision":
         review_id = _require_uuid(parts[0], "review")
@@ -976,6 +1516,6 @@ def _route(conn, resolve_publish, *, method: str, path: str, raw_query: str, bod
             group_decisions=group_decisions,
         )
         return 200, "application/json; charset=utf-8", _json_bytes(
-            {"schema": "chronicle.review", "version": "0.1", "review": _detail(conn, review_id)}
+            {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
         )
     raise _NotFound("route not found")
