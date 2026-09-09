@@ -103,3 +103,66 @@ later chunks inherit it verbatim with the verified normalized year
 The unit suite (`persistence/test_extraction_unit.py`) and the
 PostgreSQL extract suite (`worker/test_extraction_postgres.py`)
 consume it.
+
+## Whole-chapter joint translation/extraction (C2-R1-T05)
+
+> 本节描述 C2-R1 完整章联合路径（Issue #555，Task C2-R1-T05）。权威契约见
+> [chapter-production.md](chapter-production.md) §§3–4；本节只说明纯函数落点，
+> 不复制规范。上文 C1 小块路径保持不变。
+
+Deterministic, versioned joint translation/extraction of one complete
+natural chapter into a `chronicle.chapter-candidate / 0.1` joint product
+(full faithful translation plus the staged bundle, mentions, and
+record_sources), validated by the T01 contract validator. Pure
+prompt/execution logic lives in
+`apps/chronicle/persistence/chapter_prompt.py` (`c2r1-chapter-prompt-v1`)
+and `apps/chronicle/persistence/chapter_extraction.py`
+(`c2r1-extraction-v1`): no database, model transport, network, or worker
+changes. Transport retries belong to T06; the T13 worker owns run
+identity, persistence, and atomic publication.
+
+```text
+program-owned chapter request (T03 build_chapter_request)
+        │
+        ▼
+render_chapter_prompt → whole chapter + schema + source/plan metadata
+        │
+        ▼
+extract_chapter → initial attempt → T01 validate → [one whole-chapter correction] → accepted artifact | typed failure
+        │
+        ▼
+accepted chronicle.chapter-artifact / 0.1 (candidate, anchors, fingerprints, producing run) handed to T13
+```
+
+Key contracts:
+
+- **Whole chapter in every call.** The initial prompt and the single
+  correction prompt both carry all blocks, the required-block list, and
+  the full normalized text verbatim, including the tail. A correction
+  regenerates one complete chapter product from full context plus a
+  bounded diagnostic list; failed segments are never translated alone
+  and spliced back.
+- **T01 validator reused, not duplicated.** Acceptance is
+  `validate_chapter_candidate` plus `accept_chapter_candidate` only. No
+  weaker parallel checks exist in this path.
+- **One correction, then fail closed.** At most two model calls
+  (initial + one correction). Missing model, oversized source/prompt/
+  response, transport errors, and a second still-invalid product all
+  return typed failures (`missing_model`, `source_over_limit`,
+  `prompt_over_limit`, `response_over_limit_*`,
+  `model_transport_error`, `validation_failed`); nothing is truncated
+  and there is no chunk fallback. Transport failures are recorded, not
+  retried here, so correction rounds stay distinguishable from provider
+  transport retries.
+- **Full audit trail.** Every attempt stores prompt, sizes/hashes, raw
+  response, validation report, and candidate verbatim, plus the
+  limits/model/schema/source/plan fingerprints. `verify_history`
+  re-parses and re-validates stored pairs; disagreement fails closed.
+- **Mechanical evidence only.** A passing validation report proves
+  contract shape (coverage, reference closure, anchors, time precision,
+  same-chapter alias discipline such as 曹操/操 sharing one temp_id
+  while 公/王 stay contextual). It is never presented as
+  content-accuracy evidence; real-corpus review belongs to T19.
+
+Unit suite: `persistence/test_chapter_extraction_unit.py` (fake
+`complete(prompt)->str` callable covering all branches).

@@ -3,10 +3,10 @@ task: C2-R1-T05
 issue: 555
 kind: leaf
 parent: C2-R1
-status: planned
+status: in_progress
 depends_on: [C2-R1-T01, C2-R1-T03]
 created_at: 2026-09-08
-started_at:
+started_at: 2026-09-09
 completed_at:
 completion_pr:
 merge_sha:
@@ -29,8 +29,16 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 ## Verification
 
-Not run. Implementation has not started; commands and required scenarios are in the linked Issue. Record actual commit/CI/test results here during delivery, including any unverified checks and reasons.
+2026-09-09 — Implemented on branch `agent/executor/1451f4a574ff` (delivery PR only; no completion claim yet):
+
+- Dependency reconciliation on the default branch: T01 `completed` (PR #590 / `0b70308`), T03 `completed` (PR #594 / `88f3dbc`); validator lists T05 READY.
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_extraction_unit.py' -v` — **24 tests OK** (new files `chapter_prompt.py`, `chapter_extraction.py`, `test_chapter_extraction_unit.py`; fake `complete(prompt)->str` covers all branches).
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_extraction_unit.py' -v` — **32 tests OK, no regression** (C1 module untouched).
+- `python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py'` — **42 tests OK**; `test_chapter_plan_unit.py` — **30 tests OK** (T01/T03 consumers unaffected).
+- `python3 tools/check_architecture.py` — **OK**; `python3 tools/check_storage_sql_ownership.py` — **passed**; `git diff --check` — **clean**.
+- No Postgres/DB tests: change is pure functions only (no DB, network, or model calls); no migration touched. No UI change, so no test/build/smoke:dist applies.
 
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
+- 2026-09-09 — Started implementation. Dependencies T01/T03 verified `completed` on the default branch (ledger reconciliation, not just PR/Issue state). Implemented `chapter_prompt.py` (`c2r1-chapter-prompt-v1`: whole-chapter rendering with tail, C0 rules, bounded diagnostics), `chapter_extraction.py` (`c2r1-extraction-v1`: initial + at most one whole-chapter correction via T01 validator, typed failures, replayable history), 24 unit tests, and the `extraction.md` whole-chapter section. Own task record only; shared index left to the coordinator. Delivery PR pending review; merge_sha/completion_pr reconciliation still required post-merge per task-completion.
