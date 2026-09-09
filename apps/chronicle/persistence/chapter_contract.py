@@ -333,6 +333,50 @@ def _find_occurrences(haystack: str, needle: str) -> list[int]:
         start = found + max(len(needle), 1)
 
 
+def _anchor_miss_hint(
+    text: str,
+    quote: str,
+    blocks_by_id: dict[str, dict[str, Any]],
+    *,
+    first: str,
+    last: str,
+) -> str:
+    """Explain a 0-hit anchor as misattribution or fabrication.
+
+    Returns a short model-facing suffix: when the quote occurs elsewhere
+    in the chapter, name the chapter-wide count and the first enclosing
+    block so the correction can re-point first/last_block_id and recount;
+    when it occurs nowhere, say so explicitly so the correction replaces
+    the quote instead of shuffling block ids. Pure hint — the contract
+    decision is unchanged.
+    """
+    try:
+        total = _find_occurrences(text, quote)
+    except (TypeError, ValueError):
+        return ""
+    if not total:
+        return "; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+    offset = total[0]
+    holder = ""
+    for block_id, block in blocks_by_id.items():
+        try:
+            start, end = block["start"], block["end"]
+        except (KeyError, TypeError):
+            continue
+        if (
+            isinstance(start, int)
+            and isinstance(end, int)
+            and start <= offset < end
+        ):
+            holder = block_id
+            break
+    where = f" first in block {holder!r}" if holder else ""
+    return (
+        f"; quote occurs {len(total)} time(s) chapter-wide,"
+        f"{where}: re-point first/last_block_id to the enclosing block(s) and recount"
+    )
+
+
 def resolve_selection(
     selection: dict[str, Any],
     *,
@@ -373,9 +417,18 @@ def resolve_selection(
     window = text[window_start:window_end]
     positions = _find_occurrences(window, quote)
     if len(positions) < occurrence:
+        # Live regression (C2-R1-T19, 先主传 chunk 0 across v4/v5): every
+        # surviving correction error is a 0-hit anchor, but the diagnostic
+        # never says whether the quote exists elsewhere (re-point the
+        # blocks) or nowhere in the chapter (replace the quote). The
+        # contract is unchanged; the diagnostic now carries that fork.
+        hint = _anchor_miss_hint(
+            text, quote, blocks_by_id, first=first, last=last,
+        )
         return None, (
             f"{owner} quote occurs {len(positions)} time(s) in "
             f"[{first!r}..{last!r}] but occurrence={occurrence} was requested"
+            f"{hint}"
         )
     start = window_start + positions[occurrence - 1]
     end = start + len(quote)

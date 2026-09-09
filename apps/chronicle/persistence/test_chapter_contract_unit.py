@@ -160,6 +160,42 @@ class AnchorCoordinateTests(unittest.TestCase):
         candidate = load("candidate-bad-occurrence.json")
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "anchors")
 
+    def test_anchor_miss_hint_points_to_holding_block(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0): 0-hit anchors never
+        # said whether the quote exists elsewhere. A misattributed quote
+        # must name its chapter-wide count and holding block.
+        request, _ = base()
+        text = request["normalized_text"]
+        blocks = request["blocks"]
+        by_id = {b["block_id"]: {"start": b["start"], "end": b["end"]} for b in blocks}
+        home = blocks[2]
+        quote = text[home["start"]:home["start"] + 6]
+        other = blocks[0]["block_id"]
+        assert other != home["block_id"]
+        _anchor, error = C.resolve_selection(
+            {"first_block_id": other, "last_block_id": other, "quote": quote, "occurrence": 1},
+            request=request, blocks_by_id=by_id, owner="test",
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("chapter-wide", error)
+        self.assertIn(home["block_id"], error)
+        self.assertIn("re-point", error)
+
+    def test_anchor_miss_hint_flags_fabricated_quote(self) -> None:
+        # A quote occurring nowhere in the chapter must say so explicitly
+        # so the correction replaces it instead of shuffling block ids.
+        request, _ = base()
+        by_id = {b["block_id"]: {"start": b["start"], "end": b["end"]} for b in request["blocks"]}
+        _anchor, error = C.resolve_selection(
+            {"first_block_id": "b_001", "last_block_id": "b_001", "quote": "子虛烏有先生曰", "occurrence": 1},
+            request=request, blocks_by_id=by_id, owner="test",
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("not found anywhere in chapter text", error)
+        self.assertIn("replace it", error)
+
     def test_cross_block_quote_resolves(self) -> None:
         request, candidate = base()
         text = request["normalized_text"]
