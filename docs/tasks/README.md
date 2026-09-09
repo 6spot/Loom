@@ -1,155 +1,102 @@
-# Loom Task Ledger
+# Loom task notes
 
-This directory is the repository-level audit trail for Loom implementation work.
+`docs/tasks/` preserves durable planning, scope, ownership and implementation evidence next to the code it describes.
 
-GitHub issues remain the collaboration surface for discussion, assignment and checklists. Task files preserve durable implementation status and completion evidence next to the code and architecture they describe.
+It is not Loom's workflow engine.
 
-The canonical operational procedure for finishing an executable task is [`../development/task-completion.md`](../development/task-completion.md). This file defines the Task Ledger state model and invariants; the development guide defines the required completion sequence.
+GitHub Issues remain the collaboration surface. When an external orchestrator such as Multica coordinates execution, that orchestrator owns task state, dependency readiness, parent/child relationships and Stage scheduling. GitHub PRs and required checks own repository delivery/merge facts.
 
-## V0 implementation history and current certification
+The repository completion procedure is [`../development/task-completion.md`](../development/task-completion.md).
 
-The post-Amendment V0 roadmap is [`v0-roadmap.md`](v0-roadmap.md), covering the M4–M13 implementation history and GitHub issues #136–#203. It is an audit record of that delivery history, not a current certification claim.
+## What belongs here
 
-Milestones 1–3 remain historical completed implementation baselines. The old unmerged M4–M13 planning in issues #60–#134 / draft PR #135 is superseded and must not be used as the current execution plan.
+Task notes are useful for work that benefits from durable repository-local context, for example:
 
-Current-main V0 re-certification is tracked separately in the [`validator-recert/README.md`](validator-recert/README.md) initiative. It includes the post-M13 authority-fix history and current Stage-3 gates; re-certification remains in progress and pending until T25. The repository must not be described as V0 re-certified or as having a complete recertification root before T25.
+- bounded scope and file ownership;
+- architecture or contract references;
+- dependency/design diagrams;
+- acceptance examples;
+- verification evidence;
+- historical implementation decisions.
 
-Actual current `main` and the current T20 evidence baseline are
-`103a75e96cd9f7b9e495a39bb6608316c47b76e6`, the PR #384 merge. The post-
-rollback lineage is PR #382 merge `a898e5be6e33f5f448992c7ddb642af7336bc8f8`,
-PR #383 merge `7e92033c5b3a14ea30ad8b18bbc68f73145866bb`, then PR #384; T20
-records 10/10 trusted PostgreSQL 18 rows on this baseline. T22's existing
-manifest is under parallel current-main re-review, while T23/T24/T25 have no
-current-main evidence on `103a75e…` yet. The former PR #381 reconciliation,
-candidate `4efb1d346c926f2ee10654c3bc24cd92af351881`, snapshot/base
-`6da9989eb9298aa9739a6aa681fbdb8cd9dcde4d`, prior actual-main
-`ef281f886480663a94193f738179d14933040a12` and their T20/T22/T23/T24 results
-remain historical/superseded. T19 remains a historical 32-ID registry
-snapshot; prior CV gaps and `31 Pass / 9 Unavailable` /
-`gate_passes: false` records remain historical. None of these records
-certifies V0; re-certification remains pending until T25.
+Do not create or update a task note merely because every executable Issue is expected to have a Markdown mirror.
 
-## Cross-cutting validator initiative
+## Task metadata
 
-The first-party public-consumer validator is tracked in the
-[`validator/README.md`](validator/README.md) initiative index. Its individual
-implementation tasks continue to follow the same one-task/one-file audit rule;
-the initiative index does not replace a task record. That historical Validator
-ledger remains separate from the current-main `validator-recert` initiative and
-is not marked complete by the existence of the latter.
-
-Before implementing any planned task:
-
-1. read `docs/architecture/README.md`;
-2. resolve the reverse supersession table for every architecture clause used by the task;
-3. read the task file and linked GitHub Issue;
-4. if the implementation would require a new authority/semantic decision, stop and create an Architecture Amendment rather than deciding it inside the implementation task.
-
-## Automatic Scheduler discovery initiative
-
-The automatic Scheduler discovery initiative is tracked in the
-[`scheduler-discovery/README.md`](scheduler-discovery/README.md) ledger. It
-records the executable leaves for GitHub issues #403–#423 after the accepted
-Architecture Amendment 0005. The root issue #398 and stage trackers #399–#402
-are coordination records; only the leaf records in that ledger are executable.
-
-## Chronicle application initiative
-
-Chronicle application work is tracked under [`chronicle/README.md`](chronicle/README.md). The completed C0 source-grounded vertical slice is preserved there as implementation history.
-
-The completed C1 Historical World / Book-to-Chronicle initiative is recorded in [`chronicle/C1-README.md`](chronicle/C1-README.md) under coordination Root #489 and executable leaf issues #490–#506. C1 uses a Root -> executable dependency graph -> serial final gate structure for Multica/agent coordination. Root #489 is coordination-only; READY eligibility comes from the canonical child task records on the default branch, not from Issue state. The user-accepted T17 run retains its original Reader findings for separate follow-up in #541.
-
-The next Chronicle delivery round is tracked in
-[`chronicle/first-round/README.md`](chronicle/first-round/README.md) under
-coordination Issue #548. Its new chapter-production/review tasks are separate
-from completed C1 and do not activate the later #549/#550 rounds.
-
-The second-round plan is now decomposed under
-[`chronicle/second-round/README.md`](chronicle/second-round/README.md), parent
-#549. Its original 17 reading leaves retain their explicit first-round
-dependencies. Independent design-preparation D01/#588 adds the reusable
-background-art skill and candidate archive; it does not implement product
-image upload/display or activate the reading leaves or third-round #550.
-
-## One task, one file
-
-Every implementation task must have one Markdown file under `docs/tasks/<milestone>/`.
-
-Use stable task slugs rather than branch names so the record survives rebases, PR closure and future tooling changes.
-
-## Status values
-
-Each task file begins with metadata containing exactly one of these statuses:
-
-- `planned` — accepted work that has not started;
-- `in_progress` — implementation or review is active;
-- `blocked` — work cannot proceed; the file must explain the blocker;
-- `completed` — acceptance criteria passed and completion evidence is recorded;
-- `cancelled` — intentionally stopped; the file must explain why and reference the superseding decision/task when applicable.
-
-## Required metadata
+Existing task records may contain metadata such as:
 
 ```yaml
 ---
-task: M4-T1
-issue: 146
-status: planned
-depends_on: []
-created_at: 2026-08-22
-started_at:
+task: C2-R1-T04
+issue: 554
+kind: leaf
+status: in_progress
+depends_on: [C2-R1-T01]
+started_at: 2026-09-09
 completed_at:
 completion_pr:
 merge_sha:
 ---
 ```
 
-Dates use `YYYY-MM-DD`. `completion_pr` is the GitHub PR number. `merge_sha` is the commit on the integration branch that contains the completed work.
+These fields remain valid historical/contextual metadata, but they are not repository-wide workflow authority.
 
-## State transition rules
+In particular:
 
-### Starting work
+- `status` does not override the active Issue/orchestrator state;
+- `depends_on` documents intended sequencing but does not independently decide READY eligibility;
+- `completion_pr` and `merge_sha` are optional evidence, not mandatory post-merge reconciliation fields;
+- stale metadata must not block work that the active orchestrator has made ready.
 
-When implementation begins, update the task file in the implementation branch/PR:
+New task notes should include only metadata that materially helps the task. Do not add fields merely to duplicate state already owned by GitHub or Multica.
 
-- `status: in_progress`;
-- set `started_at`;
-- append a short Progress Log entry describing the chosen implementation scope if it differs from the original plan.
+## Dependency diagrams and initiative indexes
 
-### Blocking work
+Initiative and milestone READMEs may describe dependency graphs and shared-file ordering. Treat those graphs as design/coordination context.
 
-When work is materially blocked:
+Runtime scheduling comes from the active orchestrator. When Multica is used, its Issue dependency and Stage graph is authoritative for deciding which task runs next.
 
-- set `status: blocked`;
-- add the blocker, owner/dependency and what would unblock it to the Progress Log;
-- keep the GitHub issue open unless the work is explicitly cancelled or superseded.
+Legacy initiative text that says READY must be derived from `status: completed` on the default branch is superseded by this repository-wide rule.
 
-### Completing work
+File ownership, architecture boundaries and explicit sequencing constraints remain real constraints even when task-state metadata is non-authoritative.
 
-A task is not complete merely because code was merged or an issue was closed. Completion requires all of the following:
+## Completion and evidence
 
-1. acceptance checklist in the task file is satisfied;
-2. `status: completed`;
-3. `completed_at` is set;
-4. `completion_pr` is recorded;
-5. `merge_sha` is recorded from the actual integration/default-branch merge;
-6. verification evidence records the relevant architecture/build/test/CI gates;
-7. the initiative or milestone index agrees with the task record where such an index exists;
-8. the GitHub issue is closed as completed and its checklist agrees with the task file.
+A repository delivery is complete when the implementation has the required focused verification/review/CI and its delivery PR merges, subject to any task-specific product acceptance that is actually part of the Issue.
 
-The canonical record on the repository default branch is authoritative for completion and dependency eligibility. A merged delivery PR, closed GitHub Issue, agent claim, external workflow state, or task record that exists only on a feature branch does not satisfy this invariant.
+Do not require a second PR solely to write:
 
-Follow [`../development/task-completion.md`](../development/task-completion.md) for the required post-merge reconciliation sequence. Prefer updating the task record in the completion PR when the final evidence is already known. If the final merge SHA only exists after merge, add it immediately in a small follow-up audit commit/PR, merge that reconciliation to the default branch, run the applicable ledger/governance checks, and re-read the canonical record before treating the task as complete.
+```yaml
+status: completed
+completion_pr: ...
+merge_sha: ...
+```
 
-### Cancellation / duplication
+after the delivery has already merged.
 
-Do not mark cancelled or duplicate work as completed. Record why it stopped and identify the replacement task/issue.
+If a task note is part of the delivery, update useful acceptance/evidence in that same PR when practical. Historical reconciliation records do not need to be removed or rewritten.
 
-For a superseded planning task, close the GitHub Issue as `not_planned` and either mark a merged task file `cancelled` with its replacement reference or, when the task file never reached `main`, keep the supersession record in the current roadmap/Issue history rather than importing obsolete task files merely to cancel them.
+## Architecture authority
 
-## Progress log
+Task notes never replace architecture authority.
 
-Task files are audit records, not scratchpads. Keep a short append-only Progress Log for material transitions, architecture decisions, blockers and completion evidence. Do not rewrite earlier entries merely to make the history look cleaner.
+Before architecture-sensitive implementation:
 
-## Milestone index
+1. read `docs/architecture/README.md`;
+2. resolve the current canonical source and reverse supersession entries;
+3. read every relevant accepted Amendment;
+4. stop and use the Amendment process if the task requires a new semantic or authority decision.
 
-Each milestone directory contains a `README.md` that lists every task, dependency and status. The milestone index and child task files must agree before the milestone parent issue can close.
+A task note may reference an architecture decision; it may not create one by itself.
+
+## Current initiative indexes
+
+Current and historical task material remains organized under this directory, including:
+
+- [`chronicle/README.md`](chronicle/README.md) and its delivery-round indexes;
+- [`scheduler-discovery/README.md`](scheduler-discovery/README.md);
+- [`validator/README.md`](validator/README.md);
+- [`validator-recert/README.md`](validator-recert/README.md);
+- [`v0-roadmap.md`](v0-roadmap.md).
+
+These records preserve useful implementation history. Their status tables are documentary snapshots unless the active Issue explicitly makes a specific record part of product acceptance.

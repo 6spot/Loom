@@ -6,9 +6,9 @@ This directory contains the current operational procedures for developing and te
 
 - [`../quickstart.md`](../quickstart.md) — V0 public quickstart from a clean checkout using only `loom-server` / `loom-client` / `loom-cli` (no Runtime/Storage imports, no direct DB).
 - [`../operator-guide.md`](../operator-guide.md) — V0 operator reference: Installed vs Binding vs Assembly, World Time vs Platform Time, logical Work vs lease, head/quiescence/budget, missing implementation/terminalization, Revision/Session provenance, replay vs rerun, fork ancestry, Agent visibility/CAS resample.
-- [`../developer-guide.md`](../developer-guide.md) — V0 developer reference: Architecture Index supersession lookup, Amendment gate, task-ledger workflow, Cargo DAG and verification.
+- [`../developer-guide.md`](../developer-guide.md) — V0 developer reference: Architecture Index supersession lookup, Amendment gate, task-context usage, Cargo DAG and verification.
 - [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity envelope from M11 (`loom-bench`); larger-scale claims marked unproven/deferred.
-- [`task-completion.md`](task-completion.md) — canonical executable-task completion workflow: review/CI, delivery merge, post-merge Task Ledger reconciliation on the default branch, ledger governance, GitHub Issue closure and final external status.
+- [`task-completion.md`](task-completion.md) — repository delivery completion: focused verification/review/CI and delivery merge, without a mandatory post-merge Task Ledger reconciliation cycle.
 - [`postgres-tests.md`](postgres-tests.md) — local PostgreSQL 18 + pgvector integration-test service, environment and test commands.
 - [`runtime-worker.md`](runtime-worker.md) — v0 worker/executor topology and deterministic stress/restart evidence.
 

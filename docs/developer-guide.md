@@ -54,25 +54,29 @@ code
 
 Do not maintain a copied list of accepted Amendments here. The Architecture Index is the current source.
 
-An implementation task under `docs/tasks/` cannot introduce a new semantic or authority decision by itself.
+A task note under `docs/tasks/` cannot introduce a new semantic or authority decision by itself.
 
-## 3. Task Ledger workflow
+## 3. Task context and execution state
 
-`docs/tasks/README.md` owns the Task Ledger state model. GitHub Issues remain the collaboration surface; task files are the durable repository audit record.
+`docs/tasks/` contains planning/audit material. GitHub Issues remain the collaboration surface, and the active orchestrator owns execution state and dependency scheduling.
+
+When Multica coordinates work:
+
+- Multica Issue state is the execution-state authority;
+- Multica dependencies and Stage relationships decide readiness/order;
+- task-note `status` / `depends_on` fields are documentary context only;
+- stale Task Ledger metadata must not block a Multica-ready task.
 
 Before implementing task-backed work:
 
-1. read `docs/tasks/README.md`;
-2. read the active initiative/milestone index when one exists;
-3. read the concrete task file and linked Issue;
-4. verify dependency eligibility on the default branch;
-5. confirm the planned scope still matches current architecture authority.
+1. read the active Issue/task context;
+2. read the initiative/task note when it contains relevant scope, ownership or contract links;
+3. confirm the planned scope still matches current architecture authority;
+4. inspect current code/tests before editing.
 
-For task completion, follow `docs/development/task-completion.md`.
+For repository delivery completion, follow `docs/development/task-completion.md`.
 
-A delivery PR merge is not by itself task completion. Required completion evidence must be reconciled into the canonical task record on the default branch before dependent work or external completion state advances.
-
-Task files are audit records, not alternate architecture specifications or long-lived runbooks.
+Do not create a second post-merge workflow solely to reconcile Markdown with PR number, merge SHA or external status.
 
 ## 4. Cargo dependency and public-exposure governance
 
@@ -117,24 +121,18 @@ Important focused procedures include:
 
 - `docs/development/postgres-tests.md` — PostgreSQL 18 + pgvector integration-test environment;
 - `docs/development/runtime-worker.md` — worker/executor verification;
-- `docs/development/task-completion.md` — task completion/reconciliation workflow.
+- `docs/development/task-completion.md` — repository delivery completion.
 
 Choose verification based on the changed contract. A documentation-only edit should not automatically require every Rust/PostgreSQL lane, while Storage/SQL changes require PostgreSQL-aware verification.
 
 The repository CI workflow remains the current source for CI path routing.
 
 Multica failure notifications are opt-in. Include a standalone
-`Multica-Issue: ME-123` line in the PR body before triggering PR CI. CI,
-Validator, Chronicle and Chronicle Docker call the shared
-`.github/workflows/multica-ci-wakeup.yml` only after a check fails on an
-uncancelled same-repository PR whose triggering payload contains the marker.
-The shared workflow re-reads the PR and requires a valid issue key, an open PR
-and the tested head before sending the notification.
+`Multica-Issue: ME-123` line in the PR body before triggering PR CI. The shared
+`.github/workflows/multica-ci-wakeup.yml` re-reads the PR and validates the open
+PR/current-head Issue mapping before sending a failure notification.
 
-The shared workflow uses `workflow_call`, so it runs inside the original CI
-run instead of creating a separate Actions run after every completion. When
-adding a check job to one of these workflows, include it in that workflow's
-`multica-wakeup.needs` list so its failures are covered.
+PR lifecycle close intent is normalized by the repository's Multica PR metadata workflow; agents should not create a second manual bookkeeping flow around that metadata.
 
 ## 6. Public/API consumption
 
@@ -162,7 +160,7 @@ Use `docs/README.md` as the documentation category index.
 | Development/testing | `docs/development/` | how to build, test and verify the implementation |
 | Deployment/runbooks | `docs/deployment/` | install, configure, operate, back up and troubleshoot Loom |
 | Public/operator guidance | `docs/quickstart.md`, `docs/operator-guide.md` | consume and inspect the running engine |
-| Implementation audit trail | `docs/tasks/` | task scope, dependency, status and evidence |
+| Implementation planning/history | `docs/tasks/` | optional task scope, dependency diagrams and evidence; not workflow-state authority |
 
 Application-specific Agent instructions belong under that application (for example `apps/<name>/AGENTS.md`) rather than in a second repository-wide Agent guide tree.
 
