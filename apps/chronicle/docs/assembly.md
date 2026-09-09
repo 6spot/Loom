@@ -1,6 +1,6 @@
 # Chronicle source assembly and within-book resolution (C1-T7)
 
-> 本页保留 C1 组装基线。本轮章级输入、统一ref映射及来源内候选的目标契约见 [chapter-production.md](chapter-production.md)。
+> 本页保留 C1 组装基线；C2-R1-T07 章级组装见下文“Chapter assembly”一节。本轮章级输入、统一ref映射及来源内候选的目标契约见 [chapter-production.md](chapter-production.md)。
 
 Deterministic assembly of many validated chunk outputs from one
 immutable document revision into one revision-scoped source-owned
@@ -82,3 +82,63 @@ The deployed worker runs real assembly at the `assemble` stage
 whenever real extraction ran (`chunk_model` plus `revision_source`
 set); otherwise the stage keeps the deterministic fake executor.
 No additional configuration is needed.
+
+## Chapter assembly (C2-R1-T07)
+
+`assemble_chapters(accepted_artifacts, chapter_plan)` in
+`apps/chronicle/persistence/assembly.py` is the chapter-path entry point
+(chapter-production.md §5). It consumes only T01 accepted artifacts
+(`chronicle.chapter-artifact / 0.1`) plus the T03 chapter plan
+(`c2r1-chapters-v1`); it never calls the model, never mutates the source
+candidate, and never touches the worker.
+
+```text
+accepted chapter artifacts (one per planned chapter, one revision)
++ chapter plan (expected chapter set, revision triple)
+        │
+        ▼
+assemble_chapters → verify full chapter coverage → remap (chapter_index, local_ref)
+        │             → rewrite C0 + translation/mentions/record_sources → single src_001
+        ▼
+assembled-source-bundle (bundle + translation_blocks + mentions + record_sources + anchors + report)
+```
+
+Key contracts:
+
+- **Full coverage, stable order.** Every planned chapter must have
+  exactly one accepted artifact with a matching revision/source/plan and
+  model contract version, sorted by `chapter_index`. Missing, extra,
+  duplicate, mixed-revision, or unaccepted/tampered products fail
+  closed; a finished subset can never pass as the whole book.
+- **One mapping for every ref.** `(chapter_index, local temp_id)` maps
+  to revision refs reusing the original namespace rule (`ent_001` in
+  chapter 0 → `ent_000001`, in chapter 1 → `ent_001001`). C0 claim/event
+  fields, translation `entity_refs`/`event_refs`, mention
+  `target_ref`/`candidate_refs`, and `record_sources` all use that same
+  mapping. Translation blocks without a Claim are preserved. Claim
+  `subject`/`object` kinds are normalized at the output boundary from
+  the chapter-candidate vocabulary (`entity`/`event`) to the C0 bundle
+  vocabulary (`entity_ref`/`event_ref`); `literal`/`null` objects are
+  preserved verbatim.
+- **One revision, one source.** All chapters merge into a single
+  `src_001`; per-record `chapter_by_ref` (`revision_ref → chapter_id`)  plus exact artifact provenance (`artifact_sha256`,
+  `candidate_sha256`, `request_fingerprint`) serve T08 candidacy and T10
+  evidence lookup. Anchors keep their chapter binding; a cross-chapter
+  anchor fails closed.
+- **No automatic merging.** Unlike the chunk path, chapter assembly
+  performs no boundary-duplicate suppression and emits no same-links.
+  Different chapters may describe the same occurrence, but this stage
+  keeps them as distinct pending records and never merges by name.
+  Same-name cross-chapter records stay independent; the source count
+  does not inflate per chapter.
+- **Deterministic, fail-closed report.** The report carries the chapter
+  manifest, `chapter_by_ref`, `local_to_revision` (`"(index,local)" →
+  revision_ref`), per-chapter artifact hashes, input counts, and
+  `bundle_sha256`. Unchanged inputs yield byte-identical canonical JSON
+  regardless of input order (unit-tested).
+
+Verification:
+
+```bash
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_assembly_unit.py' -v
+```
