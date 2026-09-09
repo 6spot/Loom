@@ -17,6 +17,9 @@ GET /healthz
 GET /v0/timeline?from_year=208&to_year=208&limit=50&offset=0
 GET /v0/events/{canonical_event_id}
 GET /v0/entities/{canonical_entity_id}
+GET /v0/chapters?limit=50&cursor=…
+GET /v0/chapters/{publication_id}
+GET /v0/chapters/{publication_id}/sources/{anchor_id}?view=window|chapter&cursor=…&limit=…
 ```
 
 The transport is intentionally thin and framework-free. `ChronicleReadRepository` is the application contract; the standard-library HTTP server is replaceable without changing read semantics.
@@ -179,6 +182,58 @@ The router returns stable JSON errors:
 - `400 bad_request` — invalid UUID/query parameters or contract input;
 - `404 not_found` — route or canonical object does not exist;
 - `405 method_not_allowed` — non-GET request.
+
+## Public chapters (C2-R1-T14)
+
+Read-only public surface over already-published chapters
+(`chapter-production.md` §7). Python-internal paths are the fixed
+`/v0/chapters*` above on the shared public router; `server.py` injects
+the configured `storage_dir` into the source reader, and the Rust
+`/api/v1/public/chapters*` frontend mapping belongs to T17. All GETs
+run in read-only transactions, never call a model, allocate canonical
+IDs, or repair data.
+
+- `GET /v0/chapters?limit=50&cursor=…` — published-only directory with
+  document/chapter titles, `revision_no`, `publication_id` and stable
+  keyset order `(document_id, revision_no, chapter_index,
+  publication_id)`; `limit` is `1..100`, cursor is versioned and
+  scope-bound, `next_cursor` is null at the tail. Accepted-but-
+  unpublished artifacts never appear here.
+- `GET /v0/chapters/{publication_id}` — the complete ordered
+  translation blocks plus `source_overview` and the precomputed
+  (assembled-remapped, catalog-canonicalized) entity/event references.
+  The response must validate against the T01
+  `validate_public_chapter_response` shape; it returns the full text
+  or fails explicitly and never serves a summary, first paragraph, or
+  blurb as the full text.
+- `GET /v0/chapters/{publication_id}/sources/{anchor_id}?view=window|chapter`
+  — the exact source text visible to that publication, served through
+  the unique T10 `source_context` reader after verifying the anchor
+  belongs to the addressed publication/artifact/revision. Window is
+  ±400 code points clamped to the chapter; chapter pages hold at most
+  16,000 code points with `has_more`/`next_cursor`. Old pages stay
+  pinned to the old revision/hash; identical text under another
+  publication never authorizes a read.
+
+Error codes beyond the shared ones above:
+
+- `404 not_found` — unknown publication, cross-publication anchor, or
+  unknown version;
+- `409 source_unavailable` — revision bytes missing or anchor without a
+  chapter binding (never falls back to a newer revision);
+- `409 source_mismatch` — source hash/range drift (never reads the new
+  bytes as the old version);
+- `409 reference_unmapped` / `reference_unavailable` /
+  `catalog_unavailable` — a translation reference without its exact
+  assembled/catalog mapping (never guessed or regenerated at read);
+- `409 response_too_large` — the complete response exceeds the 8 MiB
+  forwarding cap (explicit failure, never truncated).
+
+Tests: `test_reader_chapters_postgres.py` (12 PG18 integration tests:
+two revisions pinning old links, claim-less blocks, many-to-many ref
+positions, drift/unavailable 409s, exact chapter paging, read-only +
+no-model-call proof) and `test_reader_chapters_unit.py` (cursor
+scope binding, size cap, method/route codes).
 
 ## Verification dataset
 

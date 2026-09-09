@@ -88,7 +88,14 @@ def handler_class(
                         with conn.transaction():
                             conn.execute("SET TRANSACTION READ ONLY")
                             status, payload = dispatch(
-                                ChronicleReadRepository(conn), self.command, path, query
+                                ChronicleReadRepository(conn),
+                                self.command,
+                                path,
+                                query,
+                                # T14: the public chapter router reuses the
+                                # configured storage_dir-injected source
+                                # reader (T10 shared entry, no second copy).
+                                source_dir=resolved_storage,
                             )
             except psycopg.Error:
                 status, payload = 503, {

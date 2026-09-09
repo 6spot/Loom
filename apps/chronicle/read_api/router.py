@@ -8,6 +8,7 @@ from urllib.parse import parse_qs
 from coverage import build_coverage
 from historical_moment import build_historical_moment
 from read_common import ReadModelError, ReadModelNotFound
+from reader_chapters import CHAPTERS_PREFIX, dispatch_chapters
 from reader_presentation import latest_reader_presentation
 from search import search_catalog
 
@@ -48,7 +49,14 @@ def _with_reader_presentation(repo, *, target_kind: str, canonical_id: str, deta
     return enriched
 
 
-def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, dict[str, Any]]:
+def dispatch(
+    repo,
+    method: str,
+    path: str,
+    raw_query: str = "",
+    *,
+    source_dir=None,
+) -> tuple[int, dict[str, Any]]:
     if method != "GET":
         return _error(405, "method_not_allowed", "only GET is supported")
 
@@ -142,6 +150,18 @@ def dispatch(repo, method: str, path: str, raw_query: str = "") -> tuple[int, di
                 target_kind="entity",
                 canonical_id=canonical_id,
                 detail=detail,
+            )
+
+        if path == CHAPTERS_PREFIX or path.startswith(CHAPTERS_PREFIX + "/"):
+            # Public chapter directory / full translation / pinned source
+            # (C2-R1-T14). Runs in the caller's read-only transaction and
+            # reuses the configured storage_dir-injected source reader.
+            return dispatch_chapters(
+                repo.conn,
+                method=method,
+                path=path,
+                raw_query=raw_query,
+                source_dir=source_dir,
             )
 
         return _error(404, "not_found", "route not found")
