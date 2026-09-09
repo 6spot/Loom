@@ -89,6 +89,157 @@ for (const id of SMALL_IDS) {
     decision: null,
   });
 }
+// C2-R1-T12 evidence items: long chapter, same-name groups, no-claim, failure.
+const EVIDENCE_LONG_ID = "r-evidence-long";
+const EVIDENCE_GROUPS_ID = "r-evidence-groups";
+const EVIDENCE_NOCLAIM_ID = "r-evidence-noclaim";
+const EVIDENCE_FAIL_ID = "r-evidence-fail";
+const LONG_CHAPTER_TEXT = "列传文字。".repeat(4000);
+const LONG_ANCHOR_START = 8000;
+const LONG_ANCHOR_END = 8012;
+const FAIL_ANCHOR = "anc-fail-1";
+const failAttempts = new Map();
+
+function evidenceDescriptor(reviewId, bundle, ref, overrides = {}) {
+  return {
+    context_id: `ctx-${reviewId}-${ref}`,
+    bundle,
+    bundle_sha256: "b".repeat(64),
+    record_ref: ref,
+    link_kind: "entity",
+    job_id: "job-smoke-a",
+    revision_id: "rev-smoke",
+    chapter_id: "ch-smoke-1",
+    chapter_index: 0,
+    chapter_title: " smoke 章",
+    artifact_sha256: "a".repeat(64),
+    source_title: " smoke 文献",
+    source_sha256: "s".repeat(64),
+    evidence_kinds: ["direct_claim", "mention", "record_source"],
+    available: true,
+    unavailable_reason: null,
+    anchor_count: 1,
+    anchors: [{ anchor_id: `anc-${ref}`, chapter_id: "ch-smoke-1", start: 8, end: 12, quote_sha256: "q" }],
+    ...overrides,
+  };
+}
+
+function contextsPayload(reviewId, url) {
+  const groupId = url.searchParams.get("group_id");
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || "50"), 1), 100);
+  const cursor = url.searchParams.get("cursor");
+  let all = [];
+  if (reviewId === EVIDENCE_GROUPS_ID) {
+    const groupA = [
+      evidenceDescriptor(reviewId, "incoming", "g-a-1"),
+      evidenceDescriptor(reviewId, "incoming", "g-a-2"),
+    ];
+    const groupB = [evidenceDescriptor(reviewId, "incoming", "g-b-1")];
+    if (groupId === "rg-ev-a") all = groupA;
+    else if (groupId === "rg-ev-b") all = groupB;
+    else all = [...groupA, ...groupB];
+  } else if (reviewId === EVIDENCE_LONG_ID) {
+    all = [evidenceDescriptor(reviewId, "incoming", "long-1", {
+      chapter_id: "ch-long", chapter_title: " smoke 长章",
+      anchors: [{ anchor_id: "anc-long-1", chapter_id: "ch-long", start: LONG_ANCHOR_START, end: LONG_ANCHOR_END, quote_sha256: "q" }],
+    })];
+  } else if (reviewId === EVIDENCE_NOCLAIM_ID) {
+    all = [evidenceDescriptor(reviewId, "incoming", "nc-1", {
+      evidence_kinds: ["record_source", "mention", "translation"],
+      anchors: [{ anchor_id: "anc-nc-1", chapter_id: "ch-smoke-1", start: 0, end: 4, quote_sha256: "q" }],
+    })];
+  } else if (reviewId === EVIDENCE_FAIL_ID) {
+    all = [evidenceDescriptor(reviewId, "incoming", "fail-1", {
+      anchors: [{ anchor_id: FAIL_ANCHOR, chapter_id: "ch-smoke-1", start: 0, end: 4, quote_sha256: "q" }],
+    })];
+  } else {
+    all = [evidenceDescriptor(reviewId, "incoming", `right-${reviewId}`)];
+  }
+  let start = 0;
+  if (cursor) {
+    const match = cursor.match(/^ev-(\d+)$/);
+    if (!match) {
+      return { status: 400, body: { schema: "chronicle.error", version: "0.1", error: { code: "bad_request", message: "invalid context cursor" } } };
+    }
+    start = Number(match[1]);
+  }
+  // Same-name batch: first page holds back one member so the UI must offer
+  // an explicit expand-all instead of presenting the first page as the group.
+  let end = start + limit;
+  if (reviewId === EVIDENCE_GROUPS_ID && !groupId && !cursor) end = Math.min(start + 2, all.length);
+  const slice = all.slice(start, end);
+  const hasMore = end < all.length;
+  return {
+    status: 200,
+    body: {
+      schema: "chronicle.review-source-contexts",
+      version: "0.1",
+      review_id: reviewId,
+      group_id: groupId,
+      total: all.length,
+      items: slice,
+      has_more: hasMore,
+      next_cursor: hasMore ? `ev-${end}` : null,
+    },
+  };
+}
+
+function sourcePayload(reviewId, anchorId, url) {
+  if (anchorId === FAIL_ANCHOR) {
+    const seen = failAttempts.get(anchorId) || 0;
+    failAttempts.set(anchorId, seen + 1);
+    if (seen === 0) {
+      return { status: 409, body: { schema: "chronicle.error", version: "0.1", error: { code: "source_unavailable", message: "revision source is not configured" } } };
+    }
+  }
+  const view = url.searchParams.get("view") || "window";
+  const evil = '<img src=x onerror="alert(1)">军次襄阳。';
+  if (anchorId === "anc-long-1" && view === "chapter") {
+    const cursor = url.searchParams.get("cursor");
+    const offset = cursor ? Number(cursor.split("off-")[1]) : 0;
+    if (!Number.isInteger(offset) || offset < 0 || offset > LONG_CHAPTER_TEXT.length) {
+      return { status: 400, body: { schema: "chronicle.error", version: "0.1", error: { code: "bad_request", message: "bad chapter cursor" } } };
+    }
+    const sliceEnd = Math.min(offset + 16000, LONG_CHAPTER_TEXT.length);
+    const text = LONG_CHAPTER_TEXT.slice(offset, sliceEnd);
+    const hasMore = sliceEnd < LONG_CHAPTER_TEXT.length;
+    const lo = Math.max(offset, LONG_ANCHOR_START);
+    const hi = Math.min(sliceEnd, LONG_ANCHOR_END);
+    const segments = [];
+    if (lo > offset) segments.push({ text: LONG_CHAPTER_TEXT.slice(offset, lo).slice(-200), highlight: false });
+    segments.push({ text: LONG_CHAPTER_TEXT.slice(lo, hi), highlight: true });
+    if (hi < sliceEnd) segments.push({ text: LONG_CHAPTER_TEXT.slice(hi, sliceEnd).slice(0, 200), highlight: false });
+    return {
+      status: 200,
+      body: {
+        schema: "chronicle.review-source", version: "0.1", review_id: reviewId, anchor_id: anchorId,
+        view: "chapter", revision_id: "rev-smoke", source_sha256: "s".repeat(64), chapter_id: "ch-long",
+        bundle: "incoming", record_ref: "long-1",
+        bounds: { start: LONG_ANCHOR_START, end: LONG_ANCHOR_END, slice_start: offset, slice_end: sliceEnd, chapter_start: 0, chapter_end: LONG_CHAPTER_TEXT.length, chapter_length: LONG_CHAPTER_TEXT.length },
+        source_hash: "h", chapter_hash: "h", text,
+        segments, has_more: hasMore, next_cursor: hasMore ? `off-${sliceEnd}` : null,
+      },
+    };
+  }
+  const windowText = anchorId === "anc-nc-1" ? "先主姓刘，讳备。" : `${evil}前后文四百字。`;
+  return {
+    status: 200,
+    body: {
+      schema: "chronicle.review-source", version: "0.1", review_id: reviewId, anchor_id: anchorId,
+      view: "window", revision_id: "rev-smoke", source_sha256: "s".repeat(64), chapter_id: "ch-smoke-1",
+      bundle: "incoming", record_ref: "nc",
+      bounds: { start: 0, end: 4, slice_start: 0, slice_end: windowText.length, chapter_start: 0, chapter_end: 800, chapter_length: 800 },
+      source_hash: "h", chapter_hash: "h", text: windowText,
+      segments: [
+        { text: windowText.slice(0, 8), highlight: false },
+        { text: windowText.slice(8, 12), highlight: true },
+        { text: windowText.slice(12), highlight: false },
+      ],
+      has_more: false, next_cursor: null,
+    },
+  };
+}
+
 // Conflict item: batch default same_entity collides with two canonicals.
 const CONFLICT_ID = "r-conflict";
 ITEMS.push({
@@ -109,6 +260,32 @@ ITEMS.push({
   suggestion: { decision: "same_entity", confidence: 0.6, signals: ["exact_name"] },
   decision: null,
 });
+
+for (const [id, title] of [
+  [EVIDENCE_LONG_ID, " smoke 长章证据"],
+  [EVIDENCE_GROUPS_ID, " smoke 同名多组"],
+  [EVIDENCE_NOCLAIM_ID, " smoke 无Claim"],
+  [EVIDENCE_FAIL_ID, " smoke 失败重试"],
+]) {
+  ITEMS.push({
+    review_id: id,
+    kind: "stage_gate",
+    status: "open",
+    job_id: "job-smoke-a",
+    job_status: "needs_review",
+    link_kind: "entity",
+    created_at: "2026-09-09T00:00:00+00:00",
+    candidate_id: `cand-${id}`,
+    resolution_sha256: "2".repeat(60),
+    document: { title, revision_no: 1 },
+    left_label: "已发布",
+    right_label: "来源",
+    member_count: id === EVIDENCE_GROUPS_ID ? 3 : 1,
+    group_count: id === EVIDENCE_GROUPS_ID ? 2 : 1,
+    suggestion: { decision: null, confidence: null, signals: [] },
+    decision: null,
+  });
+}
 
 const resolved = new Map();
 const decisionPosts = [];
@@ -189,14 +366,41 @@ function detailFor(id) {
 function detailBody(item) {
   const kind = item.link_kind;
   const left = contextFor("published", `left-${item.review_id}`, `已发布${item.review_id}`);
-  const right = contextFor("incoming", `right-${item.review_id}`, `来源${item.review_id}`);
+  let right = contextFor("incoming", `right-${item.review_id}`, `来源${item.review_id}`);
+  if (item.review_id === EVIDENCE_NOCLAIM_ID) {
+    right = {
+      bundle: "incoming",
+      ref: "nc-1",
+      source_title: " smoke 文献",
+      record: { kind: "entity", name: "无名氏" },
+      display: { kind: "entity", name: "无名氏", evidence: [] },
+    };
+  }
   const groups =
     item.review_id === CONFLICT_ID
       ? [
         { review_group_id: "rg-a", member_count: 1, signals: [], right_contexts: [right] },
         { review_group_id: "rg-b", member_count: 1, signals: [], right_contexts: [right] },
       ]
-      : [];
+      : item.review_id === EVIDENCE_GROUPS_ID
+        ? [
+          {
+            review_group_id: "rg-ev-a",
+            member_count: 2,
+            signals: [],
+            right_contexts: [
+              contextFor("incoming", "g-a-1", "襄阳"),
+              contextFor("incoming", "g-a-2", "襄阳"),
+            ],
+          },
+          {
+            review_group_id: "rg-ev-b",
+            member_count: 1,
+            signals: [],
+            right_contexts: [contextFor("incoming", "g-b-1", "襄阳")],
+          },
+        ]
+        : [];
   return {
     ...item,
     scope: "resolution",
@@ -303,6 +507,16 @@ async function main() {
           contentType: "application/json",
           body: JSON.stringify({ schema: "chronicle.review", version: "0.1", review: { ...detailBody(item), status: "resolved", decision: decided, resolved_at: OBSERVED } }),
         });
+      }
+      const contexts = path.match(/^\/api\/v1\/studio\/jobs\/reviews\/([^/]+)\/contexts$/);
+      if (contexts && req.method() === "GET") {
+        const payload = contextsPayload(decodeURIComponent(contexts[1]), url);
+        return route.fulfill({ status: payload.status, contentType: "application/json", body: JSON.stringify(payload.body) });
+      }
+      const source = path.match(/^\/api\/v1\/studio\/jobs\/reviews\/([^/]+)\/sources\/([^/]+)$/);
+      if (source && req.method() === "GET") {
+        const payload = sourcePayload(decodeURIComponent(source[1]), decodeURIComponent(source[2]), url);
+        return route.fulfill({ status: payload.status, contentType: "application/json", body: JSON.stringify(payload.body) });
       }
       const detail = path.match(/^\/api\/v1\/studio\/jobs\/reviews\/([^/]+)$/);
       if (detail && req.method() === "GET") {
@@ -484,6 +698,59 @@ async function main() {
       await page.getByText("人工审核队列").first().waitFor({ timeout: 15000 });
       const jobUrl = new URL(page.url());
       check("job scope entry", jobUrl.searchParams.get("job_id") === SMALL_JOB);
+
+      // 12. Evidence section: window snippet expands inline, HTML is inert.
+      await page.goto(`${BASE_URL}/studio/review/${EVIDENCE_LONG_ID}?status=open`, { waitUntil: "networkidle" });
+      await page.getByText("审核证据与来源").first().waitFor({ timeout: 15000 });
+      check("evidence section present", true);
+      await page.getByRole("button", { name: "展开原文" }).first().click();
+      await page.locator(".evidence-text").first().waitFor({ timeout: 15000 });
+      check("window snippet shown", (await page.locator(".evidence-text").first().textContent()).includes("前后文"));
+      check("malicious html not executed", (await page.locator(".evidence-text img").count()) === 0);
+      check("server highlight rendered", (await page.locator(".evidence-text mark").count()) >= 1);
+
+      // 13. Long chapter: explicit unfinished state plus continued paging.
+      // "整章阅读" loads the first page by itself; only "分页续读" advances.
+      await page.getByRole("button", { name: "整章阅读" }).first().click();
+      await page.getByText("本章还有未完分页").first().waitFor({ timeout: 15000 });
+      check("chapter unfinished state explicit", true);
+      await page.getByRole("button", { name: /分页续读/ }).first().click();
+      await page.getByText("已读完本章全部内容").first().waitFor({ timeout: 15000 });
+      check("chapter continued to the end", true);
+
+      // 14. Same-name groups: first page is not the whole group; per-group
+      // evidence is checkable inside the exception cards.
+      await page.goto(`${BASE_URL}/studio/review/${EVIDENCE_GROUPS_ID}?status=open`, { waitUntil: "networkidle" });
+      await page.getByText("审核证据与来源").first().waitFor({ timeout: 15000 });
+      await page.getByText(/已加载 2 \/ 共 3 个候选来源/).first().waitFor({ timeout: 15000 });
+      check("group members not reduced to first page", true);
+      await page.getByRole("button", { name: /展开全部成员/ }).first().click();
+      await page.getByText(/已加载 3 \/ 共 3 个候选来源/).first().waitFor({ timeout: 15000 });
+      check("expand-all loads every member", true);
+      await page.getByRole("button", { name: "存在例外，展开逐组判断" }).click();
+      await page.getByText("候选组 1 的逐组来源").waitFor({ timeout: 15000 });
+      check("per-group evidence checkable", (await page.getByText("候选组 2 的逐组来源").count()) === 1);
+
+      // 15. No-claim record falls back to record_source/mention material.
+      await page.goto(`${BASE_URL}/studio/review/${EVIDENCE_NOCLAIM_ID}?status=open`, { waitUntil: "networkidle" });
+      await page.getByText("审核证据与来源").first().waitFor({ timeout: 15000 });
+      await page.getByRole("button", { name: "展开原文" }).first().click();
+      await page.getByText(/没有直接关联的事实声明/).first().waitFor({ timeout: 15000 });
+      check("no-claim fallback shown", true);
+      check("translation marked auxiliary", (await page.getByText(/白话译文仅供辅助参考/).count()) >= 1);
+
+      // 16. Source failure keeps the form and the draft, then retries.
+      await page.goto(`${BASE_URL}/studio/review/${EVIDENCE_FAIL_ID}?status=open`, { waitUntil: "networkidle" });
+      await page.getByText("审核证据与来源").first().waitFor({ timeout: 15000 });
+      await page.getByLabel("判断依据").fill("smoke证据失败草稿");
+      await page.waitForTimeout(500);
+      await page.getByRole("button", { name: "展开原文" }).first().click();
+      await page.getByRole("button", { name: "重试加载原文" }).first().waitFor({ timeout: 15000 });
+      check("failure keeps form with retry", true);
+      check("draft retained across failure", (await page.getByLabel("判断依据").inputValue()) === "smoke证据失败草稿");
+      await page.getByRole("button", { name: "重试加载原文" }).first().click();
+      await page.locator(".evidence-text").first().waitFor({ timeout: 15000 });
+      check("retry recovers the source", true);
     }
 
     console.log(`review-flow smoke (${SUITE}, mocked-api): PASS`);

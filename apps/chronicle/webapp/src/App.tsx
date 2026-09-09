@@ -12,6 +12,7 @@ import { NotFoundState } from "./components/shared";
 import "./styles/chronicle.css";
 import "./styles/world.css";
 import "./styles/studio.css";
+import "./styles/review-evidence.css";
 
 const StudioLayout = lazy(() => import("./pages/studio/StudioLayout"));
 const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));

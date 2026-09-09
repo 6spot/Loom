@@ -300,6 +300,98 @@ export interface ReviewDetail extends ReviewSummary {
   right_contexts?: ReviewRecordContext[];
   review_groups?: ReviewGroupDetail[];
   job_open_resolution_reviews: number;
+  review_mode?: "chapter_pair" | "published_batch" | string | null;
+  source_contexts?: {
+    total: number;
+    href: string;
+    items: SourceContextDescriptor[];
+  };
+  source_entry?: {
+    contexts_href: string;
+    source_href_template: string;
+    revision_id: string;
+    source_sha256: string | null;
+  };
+}
+
+export type SourceEvidenceKind =
+  | "direct_claim"
+  | "mention"
+  | "record_source"
+  | "event_context"
+  | "translation";
+
+export interface SourceAnchorSummary {
+  anchor_id: string;
+  chapter_id: string | null;
+  start: number | null;
+  end: number | null;
+  quote_sha256: string | null;
+}
+
+export interface SourceContextDescriptor {
+  context_id: string;
+  bundle: string;
+  bundle_sha256: string | null;
+  record_ref: string;
+  link_kind: ReviewLinkKind | string;
+  job_id: string;
+  revision_id: string;
+  chapter_id: string | null;
+  chapter_index: number | null;
+  chapter_title: string | null;
+  artifact_sha256: string | null;
+  source_title: string | null;
+  source_sha256: string | null;
+  evidence_kinds: SourceEvidenceKind[];
+  available: boolean;
+  unavailable_reason: string | null;
+  anchor_count: number;
+  anchors: SourceAnchorSummary[];
+}
+
+export interface ReviewContextsResponse {
+  schema: "chronicle.review-source-contexts";
+  version: string;
+  review_id: string;
+  group_id: string | null;
+  total: number;
+  items: SourceContextDescriptor[];
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
+export interface ReviewSourceSegment {
+  text: string;
+  highlight: boolean;
+}
+
+export interface ReviewSourceResponse {
+  schema: "chronicle.review-source";
+  version: string;
+  review_id: string;
+  anchor_id: string;
+  view: "window" | "chapter";
+  revision_id: string;
+  source_sha256: string;
+  chapter_id: string;
+  bundle: string;
+  record_ref: string;
+  bounds: {
+    start: number;
+    end: number;
+    slice_start: number;
+    slice_end: number;
+    chapter_start: number;
+    chapter_end: number;
+    chapter_length: number;
+  };
+  source_hash: string;
+  chapter_hash: string;
+  text: string;
+  segments: ReviewSourceSegment[];
+  has_more: boolean;
+  next_cursor: string | null;
 }
 
 interface DocumentsResponse {
@@ -532,6 +624,75 @@ export async function listReviews(
 export async function getReview(auth: string | null, reviewId: string): Promise<ReviewDetail> {
   const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}`;
   return (await studioRequest<ReviewResponse>(auth, path)).review;
+}
+
+// C2-R1-T12 review evidence: frozen source-context descriptors and the
+// exact source reader (window ±400 code points, chapter pages ≤16k). These
+// transport the T10 backend DTOs only; the T11 draft/queue ownership stays
+// in review-session.ts and the decision form.
+export async function listReviewContexts(
+  auth: string | null,
+  reviewId: string,
+  query: { groupId?: string | null; limit?: number; cursor?: string | null } = {},
+): Promise<ReviewContextsResponse> {
+  const params = new URLSearchParams();
+  if (query.groupId) params.set("group_id", query.groupId);
+  params.set("limit", String(query.limit ?? 50));
+  if (query.cursor) params.set("cursor", query.cursor);
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/contexts?${params.toString()}`;
+  return studioRequest<ReviewContextsResponse>(auth, path);
+}
+
+export async function listAllReviewContexts(
+  auth: string | null,
+  reviewId: string,
+  query: { groupId?: string | null; limit?: number } = {},
+): Promise<SourceContextDescriptor[]> {
+  const collected: SourceContextDescriptor[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 100; page += 1) {
+    const result = await listReviewContexts(auth, reviewId, {
+      groupId: query.groupId,
+      limit: query.limit ?? 50,
+      cursor,
+    });
+    collected.push(...result.items);
+    if (!result.has_more || !result.next_cursor) return collected;
+    cursor = result.next_cursor;
+  }
+  throw new StudioApiError(500, "context_page_overflow", "来源描述分页遍历超出上限");
+}
+
+export async function getReviewSourceWindow(
+  auth: string | null,
+  reviewId: string,
+  anchorId: string,
+): Promise<ReviewSourceResponse> {
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/sources/${encodeURIComponent(anchorId)}?view=window`;
+  return studioRequest<ReviewSourceResponse>(auth, path);
+}
+
+export async function getReviewSourceChapterPage(
+  auth: string | null,
+  reviewId: string,
+  anchorId: string,
+  query: { cursor?: string | null; limit?: number } = {},
+): Promise<ReviewSourceResponse> {
+  const params = new URLSearchParams({ view: "chapter" });
+  if (query.cursor) params.set("cursor", query.cursor);
+  if (query.limit != null) params.set("limit", String(query.limit));
+  const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/sources/${encodeURIComponent(anchorId)}?${params.toString()}`;
+  return studioRequest<ReviewSourceResponse>(auth, path);
+}
+
+/** Stable request key: a late response may only fill its own panel slot. */
+export function evidenceRequestKey(
+  reviewId: string,
+  planFingerprint: string | null | undefined,
+  contextId: string,
+  anchorId: string,
+): string {
+  return `${reviewId}|${planFingerprint ?? "-"}|${contextId}|${anchorId}`;
 }
 
 export async function submitReviewDecision(
