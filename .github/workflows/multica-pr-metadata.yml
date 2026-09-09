@@ -2,7 +2,7 @@ name: Multica PR Metadata
 
 on:
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
@@ -42,7 +42,8 @@ jobs:
           unique_markers = list(dict.fromkeys(markers))
 
           if not unique_markers:
-              raise SystemExit("Multica-Issue marker is present but not in a supported standalone format")
+              print("No standalone Multica-Issue marker; nothing to normalize")
+              raise SystemExit(0)
           if len(unique_markers) != 1:
               raise SystemExit(
                   "Expected exactly one Multica issue identifier, found: "
