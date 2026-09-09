@@ -3,13 +3,8 @@ task: C2-R2-T01
 issue: 570
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R1-T01]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 阅读注解、叙事时间与导航 DTO 契约
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 回溯事件不能成为当前时间依据，人物角色不能指向别人的 participant。
 - [ ] 所有公开 DTO 与 TS 类型可对应同一组 fixture；不存在 canonical ID/URL 由模型写入的入口。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

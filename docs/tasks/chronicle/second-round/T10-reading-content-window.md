@@ -3,13 +3,8 @@ task: C2-R2-T10
 issue: 579
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T01, C2-R2-T02, C2-R1-T15]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 连续白话正文窗口与按需原文组件
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 正常 mounted units <=120、最多 20 个固定单位，超出时停止自动预取且可手动继续。
 - [ ] 引用失败不清正文，关闭回到触发点；320px 宽和 200% 字号可阅读。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

@@ -3,13 +3,8 @@ task: C2-R2-T06
 issue: 575
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T03, C2-R2-T04, C2-R2-T05]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 把阅读索引接入唯一 worker 和原子发布事务
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 接管/重试幂等且不为阅读再调用模型或重建人审计划。
 - [ ] source/plan/config/annotation 漂移与混版本被拒绝，既有 canonical 语义未改变。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

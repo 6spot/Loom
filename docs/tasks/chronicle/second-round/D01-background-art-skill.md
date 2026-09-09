@@ -26,7 +26,7 @@ Canonical design: [background art](../../../../apps/chronicle/docs/background-ar
 - [x] 仅明确的图片生成请求触发生成；仅对具体版本和位置的人工保存允许产品启用。
 - [x] 离线候选归档与检索保留原图、提示词、元数据和完整性信息；重复导入不覆写，破损能报告。
 - [x] 背景工作流和时代画风进入 canonical 设计；无正文插图或自动生成的默认路径。
-- [x] 实际验证证据、交付 PR/merge 和默认分支对账完整；未来 Studio/页面能力没有被标成完成。
+- [x] 实际验证结果和交付证据完整；未来 Studio/页面能力没有被标成完成。
 
 ## Verification
 
@@ -39,7 +39,7 @@ Canonical design: [background art](../../../../apps/chronicle/docs/background-ar
 - [PR #592](https://github.com/6spot/Loom/pull/592) 实际 head `d2b29c97d39c0e1021e7c7792564b3c08063babb`：更新后的 [CI](https://github.com/6spot/Loom/actions/runs/34250793295) 与 [Validator](https://github.com/6spot/Loom/actions/runs/34250793163) 运行，Repository Gate / Validator Gate 均通过；12项检查 success、2项通知 skipped。本次未修改产品 source/dist、SQL、公开 API 或 workflow。
 - 技能 UI metadata 检查通过，67个本地文档链接有效，提交 whitespace 通过；依赖图无环，T17覆盖新增D01在内的18个叶。
 
-没有运行图像生成、图片上传端点、生产页面或模型行为测试。人工触发/保存规则通过技能与设计文本核对；它们不等于尚未开发的产品权限门已通过运行验收。交付 PR #592 已于 2026-09-08 16:36:19 UTC squash 合并；本记录以实际 merge SHA 对账，需到达默认分支并回读后才关闭 #588。
+没有运行图像生成、图片上传端点、生产页面或模型行为测试。人工触发/保存规则通过技能与设计文本核对；它们不等于尚未开发的产品权限门已通过运行验收。交付 PR #592 已于 2026-09-08 16:36:19 UTC squash 合并；其后由 [PR #599](https://github.com/6spot/Loom/pull/599) 补充历史交付记录。
 
 ## Progress Log
 

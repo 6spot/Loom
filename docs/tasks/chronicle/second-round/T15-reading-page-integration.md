@@ -3,13 +3,8 @@ task: C2-R2-T15
 issue: 584
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T06, C2-R2-T09, C2-R2-T10, C2-R2-T11, C2-R2-T12, C2-R2-T13, C2-R2-T14]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 统一接入连续阅读页面、事件入口与生产构建
@@ -28,9 +23,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 桌面/平板/窄屏正文优先，无技术字段占据默认流程；原页与 Studio 保持可操作。
 - [ ] 生产构建与提交 dist/Rust 资源一致，真实 Rust 入口能服务新页面。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

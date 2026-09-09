@@ -3,13 +3,8 @@ task: C2-R2-T12
 issue: 581
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T01, C2-R2-T02]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 当前片段、深链接、返回栈与滚动恢复控制器
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 刷新/深链接可 locate 远处目标，旧网络响应不把视口拉回；用户滚动可取消恢复。
 - [ ] 存储失败或 token 失效不开放外部跳转、不冒称恢复到新版本/首段。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

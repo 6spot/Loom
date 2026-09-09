@@ -3,13 +3,8 @@ task: C2-R2-T16
 issue: 585
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T15]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 离线整链、浏览器交互与长文性能验收接入 CI
@@ -25,11 +20,11 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 真实栈离线链通过，重启/发布失败不泄漏半成品；所有角色/时间/版本/导航负例被检验。
 - [ ] 键盘/触屏/窄屏/200% 字体与 reduced-motion 实际操作有证据，不能只检查源码字符串。
 - [ ] 5,000 units/1,000 groups 测量满足已定预算，或任务保持未完成并记录具体失败。
-- [ ] CI 发现本轮路径且执行数据/UI/跨轮 ledger 检查；缺 fixture/场景/manifest 时 harness 失败。
+- [ ] CI 发现本轮路径且执行数据/UI 检查；缺 fixture/场景/manifest 时 harness 失败。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

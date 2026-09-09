@@ -3,13 +3,8 @@ task: C2-R2-T09
 issue: 578
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T03, C2-R2-T07, C2-R2-T08]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 统一接入 Python/Rust 公开路由和 typed 阅读 client
@@ -29,9 +24,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 旧详情无 catalog 行为保持；带 catalog 的 Event/Entity detail 与阅读页一致，未绑定快照的 latest presentation 不混入。
 - [ ] 0.2 章的公开原文和 Studio 审核上下文均可查看，source/hash/越权拒绝不变；0.1 历史 fixture 回归保留。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

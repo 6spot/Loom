@@ -3,13 +3,8 @@ task: C2-R2-T04
 issue: 573
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T01, C2-R1-T19]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 阅读注解 remap、时间分组和不可变投影编译
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 同月共享标记、换月只换月、未知与 source/Gregorian 不误合并，倒叙不重排。
 - [ ] current 与 retrospective 目标区分；无来源支持的角色或断裂继承导致编译拒绝。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 

@@ -3,13 +3,8 @@ task: C2-R2-T03
 issue: 572
 kind: leaf
 parent: C2-R2
-status: planned
 depends_on: [C2-R2-T01, C2-R1-T19]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
 ---
 
 # 完整章联合生成阅读注解并接入 provider
@@ -27,9 +22,9 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 - [ ] 不合法阅读 refs/角色/span 不能被丢弃后当成功；0.2 不降为 0.1。
 - [ ] fingerprint 和 run 历史区分模型/契约/限制版本，provider/fixture 输出形状一致。
 
-## Verification
+## Verification requirements
 
-Not run. Implementation has not started. During delivery record actual test/CI evidence and any unavailable checks. Cross-round governance includes the first-round and second-round records as described in [task-completion](../../../development/task-completion.md#dependencies-across-initiative-directories).
+Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
 ## Progress Log
 
