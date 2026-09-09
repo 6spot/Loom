@@ -7,11 +7,33 @@
 逐案独立结论索引：`manual-content-review.json`（本目录，与本文同次提交）。
 
 > 结论前置：**本次 live 内容验收未通过（NOT_PASSED）**。
-> 真实 provider 调用、Studio 交互审核、浏览器阅读与独立人工逐章核对
-> 均未执行（见 §4 阻塞项）。fixture 离线 PASS 仅证明编排与契约形状，
+> 真实 provider 调用、Studio 交互审核（含 7 pair same_entity 裁决）、
+> 真实浏览器阅读（通鑑章）均已执行；SG 书发布、四章 Reader、
+> 13 案独立结论仍未完成（见 §0 当前候选摘要与 §11 待办）。
+> fixture 离线 PASS 仅证明编排与契约形状，
 > **不能作为译文内容正确证据**，本文不以脚本 PASS 代替内容验收。
 
-## 1. 冻结候选与来源
+## 0. 当前候选权威摘要（current-candidate，唯一可审计口径）
+
+- 代码候选：`855a1dc04b3e3173cfa34bc25b52978256877209`
+  （分支 `agent/executor/7dfa2567b43d`；其后提交均为纯文档记录，
+  不改变产品代码：`1db8b4b`、`2e726fe`、`8752229`、`a9cb9d2`）。
+- prompt：`c2r1-chapter-prompt-v6`；模型：`gpt-5.6-luna`（extraction/
+  presentation/chapter 三路）；镜像 `loom-chronicle:t19-855a1dc0`
+  （已按 SHA 校验 baked 代码与候选一致）。
+- 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
+- 当前状态：通鑑卷65已发布（`01a08753`，Reader API＋真浏览器验证）；
+  三國志最新 job（job 5）终局 needs_review，publish 未完成；
+  13 案独立结论 **0/13**（`manual-content-review.json` 全 pending）；
+  verdict **NOT_PASSED**。细节见 §9–§12；§1–§6 为历史基线（下述），
+  不得作为当前验收证据引用。
+
+## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
+
+> 本节（§1–§6）为 T19 启动时的诚实 NOT_PASSED 基线记录
+> （candidate `b611c33a50f30e895fd6aaeb9c8c4168be5d9bc1`），
+> 其 “均未执行” 状态已被后续轮次（§7 起）取代。
+> 当前可审计口径以 §0 为准；本节仅保留作历史对照，不得引用为现状。
 
 - candidate commit：`b611c33a50f30e895fd6aaeb9c8c4168be5d9bc1`
  （origin/main 在本记录编写时即该提交，T18 PR #613 已合入）。
@@ -239,32 +261,35 @@
 - 本轮结论：NOT_PASSED。待 job 5 三块→review 裁决→publish→三章 Reader
   （含真实浏览器）→13 案独立结论→台账对账。
 
-## 12. T02 十三案 operator 草稿结论（人工逐条核对，非最终 PASS）
+## 12. T02 十三案 operator observations（观察记录，未计入独立结论）
 
-> 方法：executor 人工对照原文与真实模型产物逐条核对（非模型自证）。
-> 通鑑依据已发布产物（publication `01a08753`，artifact `b1aaf568`）；
-> 三國志依据 job 1 accepted-but-unpublished artifacts（三块 47/48/38KB，
-> 翻译与 bundle 均已落盘 `sg-job1-chunk*-translation.txt`）。
-> `manual-content-review.json` 保持全部 `pending`，以下为草稿结论，
-> 须独立 reviewer 确认后方可转正；总体 verdict 仍为 NOT_PASSED。
+> 方法：executor 人工对照原文与真实模型产物逐条记录所见（非模型自证，
+> 非独立结论）。通鑑依据已发布产物（publication `01a08753`，
+> artifact `b1aaf568`）；三國志依据 job 1 accepted-but-unpublished
+> artifacts（三块 47/48/38KB，翻译与 bundle 均已落盘
+> `sg-job1-chunk*-translation.txt`）。
+> **独立结论口径：0/13** —— `manual-content-review.json` 保持全部
+> `pending`；下表每行均为 operator observation（not counted），
+> 含 recall 缺口原样保留；任何“通过”含义的解读均属误读，
+> 总体 verdict 仍为 NOT_PASSED。
 
-| 案 | 译文侧 | bundle 侧 | 草稿 |
+| 案 | 译文侧所见 | bundle 侧所见 | 观察（含缺口） |
 | --- | --- | --- | --- |
-| C01 先主/備 | 開篇先主姓刘名备；先主124×一贯 | SG1 備→ent_005；SG0 两 mention unresolved；ch0↔ch1↔ch2 pair 均 same_entity | PASS（记 SG0 内链缺口） |
-| C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | PASS |
-| C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity | PASS |
-| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | SG1 赤壁 place；ZZ evt_004 赤壁之戰；事件跨章未裁决 | PASS（记事件未裁决） |
-| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 跨書 batch 从未开出（ZZ 单发，SG 未发布） | PASS（记跨書未裁决） |
-| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 人名职事对象一致；跨書未裁决 | PASS（记用词漂移＋未裁决） |
-| C07 南郡/江陵 | 追至南郡／守卫江陵分明 | 无南郡 entity、无合并（uncertain 平凡成立）；南郡未建模记 recall 观察 | PASS（记 recall 观察） |
-| C08 典略注 | 3×《典略》说/又记载，位置正确 | 注无伪造归属 | PASS |
-| C09 江表傳注 | 7×《江表传》说，位置正确 | 同上 | PASS |
-| C10 馬超背景 | 周瑜演说内背景铺陈完整 | 无馬超 entity/event/claim | PASS |
-| C11 首部完整 | 四章開篇俱全 | — | PASS |
-| C12 尾部完整 | 先主傳惠陵＋神仙傳注；通鑑賀齊太守（与原文末一致） | — | PASS |
-| C13 習鑿齒論曰 | “习凿齿评论说”＋位置正确（劉備遗言后、王威前） | 无習鑿齒 entity（未误作同期言论） | PASS |
+| C01 先主/備 | 開篇先主姓刘名备；先主124×一贯 | SG1 備→ent_005；SG0 两 mention unresolved；ch0↔ch1↔ch2 pair 均 same_entity（终局快照已对账） | 观察记录：同章共指在译文与 SG1 bundle 成立；SG0 内链缺口保留 |
+| C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | 观察记录 |
+| C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity（终局快照已对账） | 观察记录 |
+| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | SG1 赤壁 place；ZZ evt_004 赤壁之戰；事件跨章未裁决 | 观察记录：事件跨章裁决缺口保留 |
+| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 跨書 batch 从未开出（ZZ 单发，SG 未发布） | 观察记录：跨書裁决缺口保留 |
+| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 人名职事对象一致；跨書未裁决 | 观察记录：用词漂移＋未裁决缺口保留 |
+| C07 南郡/江陵 | 追至南郡／守卫江陵分明 | 无南郡 entity、无合并（uncertain 平凡成立）；南郡未建模记 recall 缺口 | 观察记录：recall 缺口保留 |
+| C08 典略注 | 3×《典略》说/又记载，位置正确 | 注无伪造归属 | 观察记录 |
+| C09 江表傳注 | 7×《江表传》说，位置正确 | 同上 | 观察记录 |
+| C10 馬超背景 | 周瑜演说内背景铺陈完整 | 无馬超 entity/event/claim | 观察记录 |
+| C11 首部完整 | 四章開篇俱全 | — | 观察记录 |
+| C12 尾部完整 | 先主傳惠陵＋神仙傳注；通鑑賀齊太守（与原文末一致） | — | 观察记录 |
+| C13 習鑿齒論曰 | “习凿齿评论说”＋位置正确（劉備遗言后、王威前） | 无習鑿齒 entity（未误作同期言论） | 观察记录 |
 
-关键负发现（阻止转正，必须先解决或由 owner 定夺）：
+关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13 recall 契约裁决）：
 
 1. **SG chunk 0 骨架 bundle**：12591 字先主傳只产出 1 entity（刘备）＋1 event
    （永安宮去世）＋1 claim＋2 unresolved mentions，而译文含曹操37×/孫權19×/
@@ -273,5 +298,34 @@
    对先主傳不成立的直接证据。修召回下限属契约语义决策，未擅改，上报定夺。
 2. **ch0 canonical 简体**：先主傳 entity 名用简体「刘备」（通鑑章 15 entities
    全繁体）。身份无误，内容质量观察项。
-3. **SG 未发布**：以上 SG 结论基于 accepted-but-unpublished artifacts；
-   四章 Reader、发布闭环、13 案转正均待 SG  Booker 发布后由独立 reviewer 定夺。
+3. **SG 未发布**：以上 SG 观察基于 accepted-but-unpublished artifacts；
+   四章 Reader、发布闭环、13 案转正均待 SG 发布后由独立 reviewer 定夺。
+
+## 13. Recall 契约裁决（owning-layer decision，有记录、可审计）
+
+问题（真实证据，见 §12 负发现 1）：validator 为纯结构检查，
+骨架 bundle（先主傳：12591 字仅 1 entity/1 event/1 claim/2 mentions，
+译文实含曹操 37× 等）可以通过；修正轮“修好唯一报错”进一步激励最小修复。
+T19 不能以结构 PASS 代替召回判断。
+
+裁决（T01 拥有层 `chapter_contract.py`，契约只增观察、不增门限）：
+
+1. **拒绝硬召回下限**（如“每章至少 N entities”）：可被 padding 轻易 game；
+   对天然稀疏章误伤；阈值本身无文本依据，属武断语义。维持 validator
+   `passed`/`count` 语义不变——不放宽、不收紧通过线。
+2. **实现召回可观察性**：validation report 增加 `recall` 观察节
+   （`chapter_chars`、`translation_chars/blocks`、entity/event/claim/
+   mention/resolved/unresolved/record_sources 计数、`per_1000_chars`
+   密度；report `version` 0.1→0.2）。该节永不影响 `passed`/`count`；
+   通过既有 Studio projection 原样进入 attempt evidence，
+   operator 与独立 reviewer 按章读数判断召回，不再静默。
+3. 修正轮最小修复激励如实记录为已知动态，不在本轮另设计数器对抗；
+   召回判断归人工核对（本记录 §12 方法）。
+
+实现：`bundle_recall_observations`＋`_report` 接线（`chapter_contract.py`），
+focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不存在、
+畸形候选零值）。验证：contract/extraction/wiring＋gate 全过（见 T19 台账）。
+负证据保留：骨架 bundle 原件在 DB（job 1 artifacts）与 §12 中原样保留，
+未删除、未重写。
+
+本轮结论：NOT_PASSED（裁决本身不转正任何案例；0/13 保持）。

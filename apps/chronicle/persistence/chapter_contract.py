@@ -521,6 +521,7 @@ def validate_chapter_candidate(
         return _report(
             schema_errors, identity, references, record_sources, mentions,
             coverage, anchors, time_precision, aliases,
+            bundle_recall_observations(request, candidate),
         )
 
     if candidate.get("schema") != CANDIDATE_SCHEMA or candidate.get("version") != CANDIDATE_VERSION:
@@ -926,7 +927,79 @@ def validate_chapter_candidate(
     return _report(
         schema_errors, identity, references, record_sources, mentions,
         coverage, anchors, time_precision, aliases,
+        bundle_recall_observations(request, candidate),
     )
+
+
+def bundle_recall_observations(request: Any, candidate: Any) -> dict[str, Any]:
+    """Count-only recall observability for one chapter candidate.
+
+    Live finding (C2-R1-T19, 先主傳 chunk 0): the validator is purely
+    structural, so a skeletal-but-valid bundle (1 entity / 1 event /
+    1 claim / 2 mentions over 12591 chapter chars, while the translation
+    names 曹操 37× and 孫權 19×) passes while demonstrating almost no
+    identity/source linkage. A hard count floor is deliberately NOT a
+    contract rule — it is gameable by padding and false-positives on
+    genuinely sparse chapters (see the T19 acceptance record §13 for the
+    recorded decision). This function therefore OBSERVES ONLY: it never
+    affects ``passed``/``count``. Operators and independent reviewers
+    read these numbers (surfaced in the validation report, hence in
+    Studio attempt evidence) to judge recall per chapter.
+    """
+    text = request.get("normalized_text") if isinstance(request, dict) else None
+    chapter_chars = len(text) if isinstance(text, str) else None
+    bundle = (
+        candidate.get("bundle")
+        if isinstance(candidate, dict) and isinstance(candidate.get("bundle"), dict)
+        else {}
+    )
+
+    def _count(key: str) -> int:
+        values = bundle.get(key)
+        return len(values) if isinstance(values, list) else 0
+
+    entities = _count("entities")
+    events = _count("events")
+    claims = _count("claims")
+    raw_mentions = candidate.get("mentions") if isinstance(candidate, dict) else None
+    mention_list = raw_mentions if isinstance(raw_mentions, list) else []
+    mentions = len(mention_list)
+    resolved = sum(1 for m in mention_list if isinstance(m, dict) and m.get("status") == "resolved")
+    raw_sources = candidate.get("record_sources") if isinstance(candidate, dict) else None
+    record_sources_entries = len(raw_sources) if isinstance(raw_sources, list) else 0
+    translation = candidate.get("translation") if isinstance(candidate, dict) else None
+    tblocks = (
+        translation.get("blocks")
+        if isinstance(translation, dict) and isinstance(translation.get("blocks"), list)
+        else []
+    )
+    translation_chars = sum(
+        len(b.get("text")) for b in tblocks if isinstance(b, dict) and isinstance(b.get("text"), str)
+    )
+    densities: dict[str, float] | None = None
+    if isinstance(chapter_chars, int) and chapter_chars > 0:
+        densities = {
+            key: round(count / chapter_chars * 1000, 2)
+            for key, count in (
+                ("entities", entities),
+                ("events", events),
+                ("claims", claims),
+                ("mentions", mentions),
+            )
+        }
+    return {
+        "chapter_chars": chapter_chars,
+        "translation_chars": translation_chars,
+        "translation_blocks": len(tblocks),
+        "entities": entities,
+        "events": events,
+        "claims": claims,
+        "mentions": mentions,
+        "mentions_resolved": resolved,
+        "mentions_unresolved": mentions - resolved,
+        "record_sources_entries": record_sources_entries,
+        "per_1000_chars": densities,
+    }
 
 
 def _report(
@@ -939,6 +1012,7 @@ def _report(
     anchors: list[str],
     time_precision: list[str],
     aliases: list[str],
+    recall: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors = {
         "schema_validation": sorted(schema_errors),
@@ -954,12 +1028,15 @@ def _report(
     count = sum(len(values) for values in errors.values())
     return {
         "schema": "chronicle.chapter-validation",
-        "version": "0.1",
+        "version": "0.2",
         "candidate_schema": CANDIDATE_SCHEMA,
         "candidate_version": CANDIDATE_VERSION,
         "passed": count == 0,
         "count": count,
         "errors": errors,
+        # Count-only recall observability (see bundle_recall_observations):
+        # never affects passed/count; operators judge recall from it.
+        "recall": recall if isinstance(recall, dict) else {},
     }
 
 

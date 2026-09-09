@@ -334,6 +334,53 @@ class EqualityDiagnosticTests(unittest.TestCase):
         self.assertFalse(report2["errors"]["references"])
 
 
+class RecallObservationsTests(unittest.TestCase):
+    def test_valid_candidate_carries_recall_counts(self) -> None:
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        recall = report["recall"]
+        self.assertEqual(
+            (recall["entities"], recall["events"], recall["claims"], recall["mentions"]),
+            (3, 1, 1, 4),
+        )
+        self.assertEqual(
+            (recall["mentions_resolved"], recall["mentions_unresolved"]),
+            (2, 2),
+        )
+        self.assertEqual(recall["chapter_chars"], len(request["normalized_text"]))
+        self.assertIn("entities", recall["per_1000_chars"])
+
+    def test_no_recall_floor_category_exists(self) -> None:
+        # Recorded T19 decision (acceptance §13): NO hard recall floor —
+        # floors are gameable by padding and false-positive on genuinely
+        # sparse chapters. Removing entities fails only on reference
+        # closure (dangling refs), never on a recall/minimum category;
+        # the recall section stays purely observational.
+        request, candidate = base()
+        candidate["bundle"]["entities"] = [candidate["bundle"]["entities"][0]]
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        joined = json.dumps(report["errors"], ensure_ascii=False).lower()
+        for token in ("recall", "minimum", "too few", "too sparse", "floor"):
+            self.assertNotIn(token, joined)
+        self.assertEqual(report["recall"]["entities"], 1)
+
+    def test_malformed_candidate_reports_zero_recall(self) -> None:
+        request, _ = base()
+        report = C.validate_chapter_candidate(request, {"nope": True})
+        self.assertFalse(report["passed"])
+        recall = report["recall"]
+        self.assertEqual(
+            (recall["entities"], recall["events"], recall["claims"], recall["mentions"]),
+            (0, 0, 0, 0),
+        )
+        self.assertEqual(
+            recall["per_1000_chars"],
+            {"entities": 0.0, "events": 0.0, "claims": 0.0, "mentions": 0.0},
+        )
+
+
 class ClaimObjectShapeTests(unittest.TestCase):
     def test_literal_object_carries_value(self) -> None:
         # Frozen shape across the candidate schema, the API-enforced
