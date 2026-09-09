@@ -57,7 +57,14 @@ def validate_resolution_envelope(resolution: dict[str, Any]) -> str | None:
             raise PersistenceError(
                 "within_revision resolution requires identical bundle labels"
             )
-    elif version != RESOLUTION_V01:
+        if scope == SCOPE_CROSS_SOURCE and left_label == right_label:
+            raise PersistenceError(
+                "cross_source resolution requires distinct bundle labels"
+            )
+    elif version == RESOLUTION_V01:
+        if resolution.get("scope") is not None:
+            raise PersistenceError("resolution version 0.1 must not carry a scope")
+    else:
         raise PersistenceError(f"resolution has unsupported version {version!r}")
     for field, prefix in (("entity_links", "ec_"), ("event_links", "vc_")):
         for link in resolution.get(field) or []:

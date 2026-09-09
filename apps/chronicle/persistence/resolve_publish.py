@@ -443,12 +443,14 @@ def build_within_bundle_initial_resolution(
     bundle: dict[str, Any],
     bundle_label: str,
     chapter_by_ref: dict[str, str],
+    chapter_index_by_id: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
     """Build the within-bundle initial (v0.2 within_revision) artifact.
 
     Returns None when no cross-chapter candidate blocks. Different
     chapters sharing only a name stay ``uncertain`` here; a shared name
-    alone never proves identity.
+    alone never proves identity. Ends order on ``(chapter_index, ref)``
+    via ``chapter_index_by_id`` (assembly plan chapters).
     """
     if not isinstance(bundle, dict):
         raise PersistenceError("assembled source bundle must be a JSON object")
@@ -457,7 +459,10 @@ def build_within_bundle_initial_resolution(
     if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
         raise PersistenceError("chapter_by_ref must be a non-empty mapping")
     candidates = resolution_v0.build_within_bundle_candidate_set(
-        bundle, bundle_label, chapter_by_ref
+        bundle,
+        bundle_label,
+        chapter_by_ref,
+        chapter_index_by_id=chapter_index_by_id,
     )
     entity_candidates = candidates.get("entity_candidates") or []
     event_candidates = candidates.get("event_candidates") or []
@@ -520,11 +525,15 @@ def build_chapter_initial_resolutions(
     bundle_label: str,
     chapter_by_ref: dict[str, str],
     corpus: dict[str, dict[str, Any]] | None = None,
+    chapter_index_by_id: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Build all chapter initials: within-bundle plus published-corpus pairs."""
     resolutions: list[dict[str, Any]] = []
     within = build_within_bundle_initial_resolution(
-        bundle=bundle, bundle_label=bundle_label, chapter_by_ref=chapter_by_ref
+        bundle=bundle,
+        bundle_label=bundle_label,
+        chapter_by_ref=chapter_by_ref,
+        chapter_index_by_id=chapter_index_by_id,
     )
     if within is not None:
         resolutions.append(within)

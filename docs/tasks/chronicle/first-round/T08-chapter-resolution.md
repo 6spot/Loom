@@ -39,6 +39,14 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `git diff --check` — **clean**.
 - Dependency reconciliation: C2-R1-T04 ledger is `in_progress` and C2-R1-T07 ledger is `planned` on the default branch (`main` contains neither merge); both code merges exist only on the stacked branch. Per the Issue, this task **cannot close** until T04/T07 reconcile to `completed` on the default branch. No UI change, so no test/build/smoke:dist applies. No new migration; `ingestion_worker.py` untouched.
 
+2026-09-09 — Reviewer CHANGES_REQUIRED on PR #607 (head `d17b3ac`) addressed on the same branch:
+
+- 冻结计划恢复精确校验：fingerprint 新增 `pair_candidate_keys` 绑定；`validate_chapter_review_plan` 在 fingerprint 之外逐项核对 `pair_payloads`（mode/指纹/单候选/决议号/左右端/signals/词表）与 `batch_payloads`（mode/指纹/覆盖/组-成员一致），缺失或篡改 fail closed；`open_chapter_review_plan` 要求计划携带 `candidate_keys` 并强制 payload 恰好覆盖一次。6 个新篡改/漏项测试在修复前代码上失败 5 项（已用旧版模块实测复现），修复后全部通过。
+- 0.2/scope 非法组合门禁：publisher 拒绝 `within_revision` 配不同 bundle、`cross_source` 配相同 bundle、0.1 带 scope、0.1 同 bundle；store 拒绝 0.1 带 scope（`cross_source` 同 bundle 亦拒绝）。新增 4 个组合拒绝测试。
+- within-bundle 改按 `(chapter_index, ref)` 定序：`build_within_bundle_candidate_set` 新增可选 `chapter_index_by_id`（assembly plan 章序），缺项 fail closed；章路径透传该映射。新增哈希 chapter_id 反序测试（字符串序与引用序均与章序相反，仍以章序为准）。
+
+复测（均为真实运行）：`test_resolve_publish_unit.py` — **40 tests OK**（+7）；`test_*review*_unit.py` — **41 tests OK**（+6）；`test_resolution_v0.py` — **7 OK**；`test_publication_v0.py` — **11 OK**；`test_chapter_store_postgres.py` — **17 OK**（回归）；`git diff --check` — **clean**。
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

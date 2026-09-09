@@ -892,5 +892,135 @@ class ChapterPublishTests(unittest.TestCase):
             )
 
 
+class WithinBundleIndexOrderTests(unittest.TestCase):
+    def _hash_chapters(self) -> tuple[dict, dict[str, str], dict[str, int]]:
+        # Hash-like chapter ids whose string order disagrees with the
+        # real chapter order: ch_zzz is chapter 0, ch_aaa is chapter 1.
+        bundle = _bundle(
+            "合裝本",
+            [_entity("ent_b", "曹操"), _entity("ent_a", "曹操")],
+            [],
+        )
+        chapters = {"ent_b": "ch_zzz", "ent_a": "ch_aaa"}
+        index_by_id = {"ch_zzz": 0, "ch_aaa": 1}
+        return bundle, chapters, index_by_id
+
+    def test_left_follows_chapter_index_not_id_string_or_ref(self) -> None:
+        import resolution_v0
+
+        bundle, chapters, index_by_id = self._hash_chapters()
+        candidates = resolution_v0.build_within_bundle_candidate_set(
+            bundle, "bund", chapters, chapter_index_by_id=index_by_id
+        )
+        self.assertEqual(len(candidates["entity_candidates"]), 1)
+        candidate = candidates["entity_candidates"][0]
+        # Index 0 (ch_zzz/ent_b) is left even though 'ch_aaa' < 'ch_zzz'
+        # and 'ent_a' < 'ent_b' as strings.
+        self.assertEqual(candidate["left"], {"bundle": "bund", "ref": "ent_b"})
+        self.assertEqual(candidate["right"], {"bundle": "bund", "ref": "ent_a"})
+
+    def test_missing_chapter_index_fails_closed(self) -> None:
+        import resolution_v0
+
+        bundle, chapters, _ = self._hash_chapters()
+        with self.assertRaises(resolution_v0.ResolutionV0Error):
+            resolution_v0.build_within_bundle_candidate_set(
+                bundle, "bund", chapters, chapter_index_by_id={"ch_zzz": 0}
+            )
+
+    def test_chapter_path_threads_the_index_map(self) -> None:
+        bundle, chapters, index_by_id = self._hash_chapters()
+        initials = R.build_chapter_initial_resolutions(
+            bundle=bundle,
+            bundle_label="bund",
+            chapter_by_ref=chapters,
+            chapter_index_by_id=index_by_id,
+        )
+        self.assertEqual(len(initials), 1)
+        link = initials[0]["entity_links"][0]
+        self.assertEqual(link["left"], {"bundle": "bund", "ref": "ent_b"})
+        self.assertEqual(link["right"], {"bundle": "bund", "ref": "ent_a"})
+
+
+class IllegalScopeCombinationTests(unittest.TestCase):
+    def _within(self) -> dict:
+        bundle, chapters = _chapter_bundle()
+        initial = R.build_within_bundle_initial_resolution(
+            bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
+        )
+        assert initial is not None
+        return initial
+
+    def test_within_revision_with_two_bundles_is_rejected(self) -> None:
+        import publication_v0
+
+        initial = self._within()
+        other = _bundle("他書", [_entity("ent_900", "曹操")], [])
+        bundles = {"bund": _chapter_bundle()[0], "other": other}
+        split = copy.deepcopy(initial)
+        split["right_bundle"] = {
+            "label": "other",
+            "source_ref": "src_001",
+            "source_title": "他書",
+        }
+        split["entity_links"][0]["right"] = {"bundle": "other", "ref": "ent_900"}
+        with self.assertRaises(publication_v0.PublicationV0Error):
+            publication_v0.publish_catalog(
+                bundles, [split], existing_catalog=None
+            )
+        with self.assertRaises(PersistenceError):
+            R.publish_with_decisions(
+                bundles=bundles, resolutions=[split], existing_catalog=None
+            )
+
+    def test_scoped_01_is_rejected_by_publisher_and_store(self) -> None:
+        import publication_v0
+        import resolution_store
+
+        initial = self._within()
+        scoped_01 = copy.deepcopy(initial)
+        scoped_01["version"] = "0.1"
+        bundles = {"bund": _chapter_bundle()[0]}
+        with self.assertRaises(publication_v0.PublicationV0Error):
+            publication_v0.publish_catalog(
+                bundles, [scoped_01], existing_catalog=None
+            )
+        with self.assertRaises(PersistenceError):
+            resolution_store.validate_resolution_envelope(scoped_01)
+
+    def test_same_bundle_01_is_rejected(self) -> None:
+        import publication_v0
+
+        bundles = {"bund": _chapter_bundle()[0]}
+        legacy_same = {
+            "schema": "chronicle.resolution-links",
+            "version": "0.1",
+            "left_bundle": {"label": "bund", "source_ref": "src_001", "source_title": "t"},
+            "right_bundle": {"label": "bund", "source_ref": "src_001", "source_title": "t"},
+            "entity_links": [],
+            "event_links": [],
+            "warnings": [],
+        }
+        with self.assertRaises(publication_v0.PublicationV0Error):
+            publication_v0.publish_catalog(
+                bundles, [legacy_same], existing_catalog=None
+            )
+
+    def test_cross_source_02_with_same_bundle_is_rejected(self) -> None:
+        import publication_v0
+        import resolution_store
+
+        initial = self._within()
+        cross_same = copy.deepcopy(initial)
+        cross_same["scope"] = "cross_source"
+        bundles = {"bund": _chapter_bundle()[0]}
+        with self.assertRaises(publication_v0.PublicationV0Error):
+            publication_v0.publish_catalog(
+                bundles, [cross_same], existing_catalog=None
+            )
+        with self.assertRaises(PersistenceError):
+            resolution_store.validate_resolution_envelope(cross_same)
+
+
 if __name__ == "__main__":
     unittest.main()

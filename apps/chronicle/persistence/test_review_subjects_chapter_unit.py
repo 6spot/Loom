@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import sys
 import unittest
+import unittest.mock
 import uuid
 from pathlib import Path
 
@@ -375,6 +376,93 @@ class BridgeRejectionTests(unittest.TestCase):
             catalog=catalog,
             within_book_links=None,
         )
+
+
+class FrozenPlanTamperTests(unittest.TestCase):
+    def _mixed_plan(self):
+        cross = _cross_resolution("old", "ent_a", "ent_a1")
+        catalog = _catalog([("canon-a", [("old", "ent_a")])])
+        params = _plan_inputs(
+            resolutions=[_within_resolution(), cross], catalog=catalog
+        )
+        plan = S.build_chapter_review_plan(**params)
+        return plan, params, [_within_resolution(), cross]
+
+    def test_deleted_pair_payload_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        del tampered["pair_payloads"][0]
+        with self.assertRaises(PersistenceConflict):
+            S.validate_chapter_review_plan(
+                tampered,
+                resolutions,
+                job_id=params["job_id"],
+                revision_id=params["revision_id"],
+                assembled_bundle_sha256=params["assembled_bundle_sha256"],
+                base_catalog_sha256=params["base_catalog_sha256"],
+            )
+
+    def test_tampered_pair_candidate_id_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        tampered["pair_payloads"][0]["candidate_id"] = "ec_999"
+        with self.assertRaises(PersistenceConflict):
+            S.validate_chapter_review_plan(
+                tampered,
+                resolutions,
+                job_id=params["job_id"],
+                revision_id=params["revision_id"],
+                assembled_bundle_sha256=params["assembled_bundle_sha256"],
+                base_catalog_sha256=params["base_catalog_sha256"],
+            )
+
+    def test_tampered_pair_left_ref_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        tampered["pair_payloads"][0]["left"] = {"bundle": "bund", "ref": "ent_b1"}
+        with self.assertRaises(PersistenceConflict):
+            S.validate_chapter_review_plan(
+                tampered,
+                resolutions,
+                job_id=params["job_id"],
+                revision_id=params["revision_id"],
+                assembled_bundle_sha256=params["assembled_bundle_sha256"],
+                base_catalog_sha256=params["base_catalog_sha256"],
+            )
+
+    def test_deleted_batch_payload_fails_restore(self) -> None:
+        plan, params, resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        del tampered["batch_payloads"][0]
+        with self.assertRaises(PersistenceConflict):
+            S.validate_chapter_review_plan(
+                tampered,
+                resolutions,
+                job_id=params["job_id"],
+                revision_id=params["revision_id"],
+                assembled_bundle_sha256=params["assembled_bundle_sha256"],
+                base_catalog_sha256=params["base_catalog_sha256"],
+            )
+
+    def test_open_rejects_plan_missing_its_pair(self) -> None:
+        plan, _params, _resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        del tampered["pair_payloads"][0]
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
+            )
+
+    def test_open_rejects_tampered_pair_fingerprint(self) -> None:
+        plan, _params, _resolutions = self._mixed_plan()
+        tampered = copy.deepcopy(plan)
+        tampered["pair_payloads"][0]["plan_fingerprint"] = "0" * 64
+        conn = unittest.mock.MagicMock()
+        with self.assertRaises(PersistenceConflict):
+            S.open_chapter_review_plan(
+                conn, job_id=uuid.UUID(plan["job_id"]), plan=tampered
+            )
 
 
 if __name__ == "__main__":

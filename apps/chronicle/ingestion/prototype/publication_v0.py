@@ -207,10 +207,40 @@ def _existing_membership(
     return by_rep, by_id
 
 
+def _resolution_bundle_label(resolution: dict[str, Any], side: str) -> str | None:
+    raw = resolution.get(f"{side}_bundle")
+    if not isinstance(raw, dict):
+        return None
+    label = raw.get("label")
+    return label if isinstance(label, str) and label else None
+
+
 def _require_resolution_version_scope(resolution: dict[str, Any], resolution_index: int) -> str | None:
-    """Validate the narrow 0.2 version/scope gate (union rules unchanged)."""
+    """Validate the narrow version/scope gate (union rules unchanged).
+
+    - ``0.1`` is the legacy envelope: it carries no scope and never
+      spans a single bundle twice. Any scope on 0.1, or identical
+      left/right labels, is rejected.
+    - ``0.2`` must carry a valid scope with matching bundle geometry:
+      ``within_revision`` requires identical labels, ``cross_source``
+      requires distinct labels.
+    """
     version = resolution.get("version")
+    left_label = _resolution_bundle_label(resolution, "left")
+    right_label = _resolution_bundle_label(resolution, "right")
     if version == RESOLUTION_V01_VERSION:
+        if resolution.get("scope") is not None:
+            raise PublicationV0Error(
+                f"resolution[{resolution_index}] version 0.1 must not carry a scope"
+            )
+        if (
+            left_label is not None
+            and right_label is not None
+            and left_label == right_label
+        ):
+            raise PublicationV0Error(
+                f"resolution[{resolution_index}] version 0.1 requires distinct bundles"
+            )
         return None
     if version != RESOLUTION_V02_VERSION:
         raise PublicationV0Error(f"resolution[{resolution_index}] has unsupported version")
@@ -218,6 +248,14 @@ def _require_resolution_version_scope(resolution: dict[str, Any], resolution_ind
     if scope not in VALID_RESOLUTION_V02_SCOPES:
         raise PublicationV0Error(
             f"resolution[{resolution_index}] has invalid v0.2 scope {scope!r}"
+        )
+    if scope == RESOLUTION_SCOPE_WITHIN_REVISION and left_label != right_label:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] within_revision requires identical bundle labels"
+        )
+    if scope == RESOLUTION_SCOPE_CROSS_SOURCE and left_label == right_label:
+        raise PublicationV0Error(
+            f"resolution[{resolution_index}] cross_source requires distinct bundle labels"
         )
     return str(scope)
 

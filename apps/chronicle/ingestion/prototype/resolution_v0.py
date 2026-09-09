@@ -412,14 +412,20 @@ def build_within_bundle_candidate_set(
     bundle_label: str,
     chapter_by_ref: dict[str, str],
     max_candidates: int = 64,
+    chapter_index_by_id: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Generate conservative within-bundle cross-chapter candidates (v0.2).
 
     Reuses the existing Entity/Event blocking, but only pairs records from
     different chapters with different refs. Ordering is deterministic on
-    ``(chapter, ref)``: the smaller end is left, self-pairs and symmetric
-    duplicates are never emitted. The returned set carries candidates only;
-    initial ``uncertain`` decisions are applied by the persistence layer.
+    ``(chapter_index, ref)``: the smaller end is left, self-pairs and
+    symmetric duplicates are never emitted. ``chapter_by_ref`` carries the
+    revision refs' chapter ids (hashes, unordered); the real order comes
+    from ``chapter_index_by_id`` (assembly plan chapters). When the index
+    map is absent every ref's chapter still differs by id, but callers
+    needing the contract order must pass it. The returned set carries
+    candidates only; initial ``uncertain`` decisions are applied by the
+    persistence layer.
     """
     if not isinstance(bundle, dict):
         raise ResolutionV0Error("within-bundle candidate input must be a bundle object")
@@ -427,6 +433,16 @@ def build_within_bundle_candidate_set(
         raise ResolutionV0Error("within-bundle bundle label must be a non-empty string")
     if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
         raise ResolutionV0Error("within-bundle chapter_by_ref must be a non-empty mapping")
+    if chapter_index_by_id is not None:
+        if not isinstance(chapter_index_by_id, dict) or not chapter_index_by_id:
+            raise ResolutionV0Error("chapter_index_by_id must be a non-empty mapping")
+        for chapter_id, index in chapter_index_by_id.items():
+            if not isinstance(chapter_id, str) or not chapter_id:
+                raise ResolutionV0Error("chapter_index_by_id keys must be chapter ids")
+            if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+                raise ResolutionV0Error(
+                    f"chapter_index_by_id[{chapter_id!r}] must be a non-negative integer"
+                )
 
     entities = bundle.get("entities") or []
     events = bundle.get("events") or []
@@ -436,6 +452,21 @@ def build_within_bundle_candidate_set(
     def _chapter_of(ref: str) -> str | None:
         chapter = chapter_by_ref.get(ref)
         return chapter if isinstance(chapter, str) and chapter else None
+
+    def _order_key(ref: str) -> tuple[int, str]:
+        chapter = _chapter_of(ref)
+        assert chapter is not None
+        if chapter_index_by_id is not None:
+            try:
+                index = chapter_index_by_id[chapter]
+            except KeyError as exc:
+                raise ResolutionV0Error(
+                    f"chapter {chapter!r} of ref {ref!r} is missing from chapter_index_by_id"
+                ) from exc
+            return (index, ref)
+        # No index map: order by ref alone (chapter ids are unordered
+        # hashes; their string order proves nothing about chapter order).
+        return (0, ref)
 
     entity_by_ref: dict[str, dict[str, Any]] = {}
     for record in entities:
@@ -453,7 +484,7 @@ def build_within_bundle_candidate_set(
             event_by_ref.setdefault(ref, record)
 
     entity_candidates: list[dict[str, Any]] = []
-    for left_ref, right_ref in _ordered_ref_pairs(entity_by_ref, _chapter_of):
+    for left_ref, right_ref in _ordered_ref_pairs(entity_by_ref, _chapter_of, _order_key):
         assert isinstance(left_ref, str) and isinstance(right_ref, str)
         left, right = entity_by_ref[left_ref], entity_by_ref[right_ref]
         signals = _entity_pair_blocked(left, right)
@@ -474,7 +505,7 @@ def build_within_bundle_candidate_set(
 
     names = _entity_name_map(bundle)
     ranked: list[tuple[int, dict[str, Any]]] = []
-    for left_ref, right_ref in _ordered_ref_pairs(event_by_ref, _chapter_of):
+    for left_ref, right_ref in _ordered_ref_pairs(event_by_ref, _chapter_of, _order_key):
         assert isinstance(left_ref, str) and isinstance(right_ref, str)
         left, right = event_by_ref[left_ref], event_by_ref[right_ref]
         blocked = _event_pair_blocked(left, right, names, names)
@@ -519,6 +550,7 @@ def build_within_bundle_candidate_set(
 def _ordered_ref_pairs(
     by_ref: dict[str, dict[str, Any]],
     chapter_of,  # callable(ref) -> chapter | None
+    order_key,  # callable(ref) -> comparable (chapter_index, ref)
 ) -> list[tuple[str, str]]:
     """Return deterministic cross-chapter ref pairs (smaller end first)."""
     refs = sorted(by_ref)
@@ -529,27 +561,22 @@ def _ordered_ref_pairs(
             first, second = refs[left_pos], refs[right_pos]
             if first == second:
                 continue
-            left_chapter, right_chapter = chapter_of(first), chapter_of(second)
-            if left_chapter is None or right_chapter is None:
+            if chapter_of(first) is None or chapter_of(second) is None:
                 continue
-            if left_chapter == right_chapter:
+            if chapter_of(first) == chapter_of(second):
                 continue
-            left_key = (left_chapter, first)
-            right_key = (right_chapter, second)
-            if right_key < left_key:
+            if order_key(second) < order_key(first):
                 first, second = second, first
             key = (first, second)
             if key in seen:
                 continue
             seen.add(key)
             pairs.append(key)
-    pairs.sort(key=lambda pair: ((chapter_of(pair[0]), pair[0]), (chapter_of(pair[1]), pair[1])))
-    # Re-derive canonical left/right order from the sorted chapter/ref keys.
+    pairs.sort(key=lambda pair: (order_key(pair[0]), order_key(pair[1])))
+    # Re-derive canonical left/right order from the sorted order keys.
     ordered: list[tuple[str, str]] = []
     for first, second in pairs:
-        left_key = (chapter_of(first), first)
-        right_key = (chapter_of(second), second)
-        if right_key < left_key:
+        if order_key(second) < order_key(first):
             first, second = second, first
         ordered.append((first, second))
     return ordered

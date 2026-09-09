@@ -316,6 +316,7 @@ def plan_fingerprint(
     base_catalog_sha256: str,
     resolutions: list[dict[str, Any]],
     groups: list[dict[str, Any]] | None = None,
+    pair_keys: list[str] | None = None,
 ) -> str:
     """Compute the frozen review plan fingerprint (no decision/status/time)."""
     members = _candidate_members(resolutions)
@@ -328,6 +329,13 @@ def plan_fingerprint(
         for group in (groups or [])
         if isinstance(group, dict) and group.get("review_group_id")
     )
+    if pair_keys is None:
+        within_shas = {
+            sha256_json(item) for item in resolutions if _is_within_revision(item)
+        }
+        pair_keys = sorted(
+            item["candidate_key"] for item in members if item["resolution_sha256"] in within_shas
+        )
     identity = {
         "version": REVIEW_PLAN_VERSION,
         "job_id": str(job_id),
@@ -336,6 +344,7 @@ def plan_fingerprint(
         "base_catalog_sha256": base_catalog_sha256,
         "resolution_sha256s": sorted(sha256_json(item) for item in resolutions),
         "candidate_keys": sorted(item["candidate_key"] for item in members),
+        "pair_candidate_keys": sorted(pair_keys),
         "member_refs": sorted(ends),
         "review_group_ids": group_ids,
     }
@@ -419,6 +428,16 @@ def build_chapter_review_plan(
         raise PersistenceConflict(
             "chapter review plan did not preserve one-to-one candidate coverage"
         )
+    pair_keys = sorted(
+        key for payload in pair_payloads for key in _payload_candidate_keys(payload)
+    )
+    if sorted(pair_keys) != sorted(
+        item["candidate_key"]
+        for item in _candidate_members(within)
+    ):
+        raise PersistenceConflict(
+            "chapter review plan pair payloads do not match within_revision candidates"
+        )
     return {
         "version": REVIEW_PLAN_VERSION,
         "job_id": str(job_id),
@@ -426,11 +445,77 @@ def build_chapter_review_plan(
         "assembled_bundle_sha256": assembled_bundle_sha256,
         "base_catalog_sha256": base_catalog_sha256,
         "plan_fingerprint": fingerprint,
+        "candidate_keys": sorted(expected),
         "chapter_pair_subjects": pair_subjects,
         "published_batch_subjects": batch_subjects,
         "pair_payloads": pair_payloads,
         "batch_payloads": batch_payloads,
     }
+
+
+def _check_plan_pair_payload(
+    payload: dict[str, Any], member: dict[str, Any], fingerprint: str
+) -> None:
+    """Verify one frozen chapter_pair payload against its candidate member."""
+    if payload.get("scope") != REVIEW_SCOPE:
+        raise PersistenceConflict("chapter_pair payload scope must be resolution")
+    if payload.get("review_mode") != REVIEW_MODE_CHAPTER_PAIR:
+        raise PersistenceConflict("chapter_pair payload has wrong review mode")
+    if payload.get("plan_fingerprint") != fingerprint:
+        raise PersistenceConflict("chapter_pair payload fingerprint mismatch")
+    if payload.get("member_count") != 1:
+        raise PersistenceConflict("chapter_pair payload must cover exactly one candidate")
+    keys = _payload_candidate_keys(payload)
+    if keys != [member["candidate_key"]]:
+        raise PersistenceConflict("chapter_pair payload candidate mismatch")
+    for field in ("resolution_sha256", "candidate_id", "link_kind", "left", "right"):
+        if payload.get(field) != member[field]:
+            raise PersistenceConflict(
+                f"chapter_pair payload {field} no longer matches the frozen candidate"
+            )
+    if sorted(str(value) for value in (payload.get("signals") or [])) != list(
+        member.get("signals") or []
+    ):
+        raise PersistenceConflict(
+            "chapter_pair payload signals no longer match the frozen candidate"
+        )
+    if payload.get("link_kind") == "entity":
+        allowed = list(ENTITY_DECISIONS)
+    elif payload.get("link_kind") == "event":
+        allowed = list(EVENT_DECISIONS)
+    else:
+        raise PersistenceConflict("chapter_pair payload has unknown link kind")
+    if payload.get("allowed_decisions") != allowed:
+        raise PersistenceConflict("chapter_pair payload vocabulary mismatch")
+
+
+def _check_plan_batch_payload(
+    payload: dict[str, Any],
+    cross_keys: set[str],
+    fingerprint: str,
+    seen: set[str],
+) -> None:
+    """Verify one frozen published_batch payload covers only frozen candidates."""
+    if payload.get("scope") != REVIEW_SCOPE:
+        raise PersistenceConflict("published_batch payload scope must be resolution")
+    if payload.get("review_mode") != REVIEW_MODE_PUBLISHED_BATCH:
+        raise PersistenceConflict("published_batch payload has wrong review mode")
+    if payload.get("plan_fingerprint") != fingerprint:
+        raise PersistenceConflict("published_batch payload fingerprint mismatch")
+    keys = _payload_candidate_keys(payload)
+    if not keys:
+        raise PersistenceConflict("published_batch payload covers no candidate")
+    for key in keys:
+        if key not in cross_keys:
+            raise PersistenceConflict(
+                f"published_batch payload covers unknown candidate {key}"
+            )
+        if key in seen:
+            raise PersistenceConflict(f"candidate {key} is covered twice in the frozen plan")
+        seen.add(key)
+    # Group/member consistency (one-to-one fan-out) is re-checked here;
+    # overrides themselves are validated at decision time.
+    _payload_groups(payload)
 
 
 def validate_chapter_review_plan(
@@ -442,7 +527,12 @@ def validate_chapter_review_plan(
     assembled_bundle_sha256: str,
     base_catalog_sha256: str,
 ) -> str:
-    """Revalidate a frozen plan exactly (no re-materialization)."""
+    """Revalidate a frozen plan exactly (no re-materialization).
+
+    Besides the fingerprint, every stored payload is checked back
+    against the frozen candidates: deleted or tampered pair/batch
+    payloads fail closed instead of silently narrowing the plan.
+    """
     if not isinstance(plan, dict) or plan.get("version") != REVIEW_PLAN_VERSION:
         raise PersistenceConflict("unknown chapter review plan version")
     if str(plan.get("job_id")) != str(job_id):
@@ -453,6 +543,9 @@ def validate_chapter_review_plan(
         raise PersistenceConflict("chapter review plan assembled bundle mismatch")
     if plan.get("base_catalog_sha256") != base_catalog_sha256:
         raise PersistenceConflict("chapter review plan base catalog mismatch")
+    fingerprint = plan.get("plan_fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        raise PersistenceConflict("chapter review plan is missing its fingerprint")
     groups = [
         group
         for subject in plan.get("published_batch_subjects") or []
@@ -467,9 +560,48 @@ def validate_chapter_review_plan(
         resolutions=resolutions,
         groups=groups,
     )
-    if plan.get("plan_fingerprint") != expected:
+    if fingerprint != expected:
         raise PersistenceConflict("chapter review plan fingerprint mismatch")
-    return str(plan.get("plan_fingerprint"))
+    members = {item["candidate_key"]: item for item in _candidate_members(resolutions)}
+    if sorted(plan.get("candidate_keys") or []) != sorted(members):
+        raise PersistenceConflict("chapter review plan candidate list mismatch")
+    within = [item for item in resolutions if _is_within_revision(item)]
+    within_members = {
+        item["candidate_key"]: item for item in _candidate_members(within)
+    }
+    pair_payloads = plan.get("pair_payloads") or []
+    batch_payloads = plan.get("batch_payloads") or []
+    if not isinstance(pair_payloads, list) or not isinstance(batch_payloads, list):
+        raise PersistenceConflict("chapter review plan payloads must be arrays")
+    if len(pair_payloads) != len(within_members):
+        raise PersistenceConflict(
+            "chapter review plan pair payloads no longer match within_revision candidates"
+        )
+    seen: set[str] = set()
+    for payload in pair_payloads:
+        if not isinstance(payload, dict):
+            raise PersistenceConflict("chapter review plan pair payload must be an object")
+        keys = _payload_candidate_keys(payload)
+        if len(keys) != 1 or keys[0] not in within_members:
+            raise PersistenceConflict(
+                "chapter review plan pair payload covers an unknown candidate"
+            )
+        if keys[0] in seen:
+            raise PersistenceConflict(
+                f"candidate {keys[0]} is covered twice in the frozen plan"
+            )
+        seen.add(keys[0])
+        _check_plan_pair_payload(payload, within_members[keys[0]], fingerprint)
+    cross_keys = set(members) - set(within_members)
+    for payload in batch_payloads:
+        if not isinstance(payload, dict):
+            raise PersistenceConflict("chapter review plan batch payload must be an object")
+        _check_plan_batch_payload(payload, cross_keys, fingerprint, seen)
+    if sorted(seen) != sorted(members) or len(seen) != len(members):
+        raise PersistenceConflict(
+            "chapter review plan no longer covers every candidate exactly once"
+        )
+    return fingerprint
 
 
 def _catalog_membership(
@@ -1054,7 +1186,12 @@ def open_review_subjects(
 def open_chapter_review_plan(
     conn, *, job_id: uuid.UUID, plan: dict[str, Any]
 ) -> list[uuid.UUID]:
-    """Persist a frozen chapter review plan (adopt-or-create, exact match)."""
+    """Persist a frozen chapter review plan (adopt-or-create, exact match).
+
+    The plan's frozen ``candidate_keys`` bind the payload set: payloads
+    missing a pair, or tampered to cover a different candidate, fail
+    closed here even before the resolution-level restore check runs.
+    """
     if not isinstance(plan, dict) or plan.get("version") != REVIEW_PLAN_VERSION:
         raise PersistenceConflict("unknown chapter review plan version")
     if str(plan.get("job_id")) != str(job_id):
@@ -1062,11 +1199,20 @@ def open_chapter_review_plan(
     fingerprint = plan.get("plan_fingerprint")
     if not isinstance(fingerprint, str) or not fingerprint:
         raise PersistenceError("chapter review plan is missing its fingerprint")
+    frozen_keys = plan.get("candidate_keys")
+    if (
+        not isinstance(frozen_keys, list)
+        or not frozen_keys
+        or not all(isinstance(key, str) and key for key in frozen_keys)
+        or len(frozen_keys) != len(set(frozen_keys))
+    ):
+        raise PersistenceError("chapter review plan is missing its candidate list")
+    frozen_keys = sorted(frozen_keys)
     payloads = list(plan.get("pair_payloads") or []) + list(
         plan.get("batch_payloads") or []
     )
     if not payloads:
-        return []
+        raise PersistenceConflict("chapter review plan has no review payloads")
     for payload in payloads:
         if not isinstance(payload, dict) or payload.get("scope") != REVIEW_SCOPE:
             raise PersistenceError("chapter review plan payload is not a resolution review")
@@ -1078,8 +1224,10 @@ def open_chapter_review_plan(
     covered = [
         key for payload in payloads for key in _payload_candidate_keys(payload)
     ]
-    if len(covered) != len(set(covered)):
-        raise PersistenceConflict("chapter review plan repeats a candidate key")
+    if sorted(covered) != frozen_keys or len(covered) != len(set(covered)):
+        raise PersistenceConflict(
+            "chapter review plan payloads no longer cover every frozen candidate exactly once"
+        )
     existing_rows = _scoped_review_rows(conn, job_id)
     if existing_rows:
         existing_covered = [
