@@ -685,14 +685,21 @@ export async function getReviewSourceChapterPage(
   return studioRequest<ReviewSourceResponse>(auth, path);
 }
 
-/** Stable request key: a late response may only fill its own panel slot. */
+/**
+ * Stable request key: review/plan/context/artifact (review-workflow §§4–5).
+ * The backend binds `context_id` only to `(review_id, bundle, ref)`, so the
+ * artifact can change while context and anchor stay the same: the same
+ * context/anchor with a new `artifact_sha256` is a different slot and must
+ * never reuse or accept old-artifact material.
+ */
 export function evidenceRequestKey(
   reviewId: string,
   planFingerprint: string | null | undefined,
   contextId: string,
   anchorId: string,
+  artifactSha256?: string | null,
 ): string {
-  return `${reviewId}|${planFingerprint ?? "-"}|${contextId}|${anchorId}`;
+  return `${reviewId}|${planFingerprint ?? "-"}|${contextId}|${anchorId}|${artifactSha256 || "-"}`;
 }
 
 // C2-R1-T12 stale-response guard (review-workflow §§4–5: a late response

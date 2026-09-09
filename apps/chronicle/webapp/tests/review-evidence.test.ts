@@ -85,11 +85,37 @@ describe("T12 review evidence display", () => {
   });
 
   it("fixes the request key to review/plan/context/artifact", () => {
-    const first = evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a");
-    expect(first).toBe("r1|fp1|ctx_a|anc_a");
-    expect(evidenceRequestKey("r1", "fp2", "ctx_a", "anc_a")).not.toBe(first);
-    expect(evidenceRequestKey("r1", "fp1", "ctx_b", "anc_a")).not.toBe(first);
-    expect(evidenceRequestKey("r1", "fp1", "ctx_a", "anc_b")).not.toBe(first);
+    const first = evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a", "art_a");
+    expect(first).toBe("r1|fp1|ctx_a|anc_a|art_a");
+    expect(evidenceRequestKey("r1", "fp2", "ctx_a", "anc_a", "art_a")).not.toBe(first);
+    expect(evidenceRequestKey("r1", "fp1", "ctx_b", "anc_a", "art_a")).not.toBe(first);
+    expect(evidenceRequestKey("r1", "fp1", "ctx_a", "anc_b", "art_a")).not.toBe(first);
+  });
+
+  it("treats the same context/anchor with a changed artifact as a new slot", () => {
+    // The backend binds context_id only to (review_id, bundle, ref), so a
+    // re-accepted artifact keeps context/anchor with different material.
+    const before = evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a", "a".repeat(64));
+    const after = evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a", "b".repeat(64));
+    expect(after).not.toBe(before);
+    // Missing artifact degrades to an explicit placeholder, never to the
+    // key of a versioned artifact.
+    const unversioned = evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a", null);
+    expect(unversioned).toBe("r1|fp1|ctx_a|anc_a|-");
+    expect(unversioned).not.toBe(before);
+    expect(evidenceRequestKey("r1", "fp1", "ctx_a", "anc_a")).toBe(unversioned);
+  });
+
+  it("binds the panel identity and guards to the artifact hash", () => {
+    const panel = readFileSync(
+      resolve(HERE, "../src/components/studio/ReviewEvidencePanel.tsx"),
+      "utf8",
+    );
+    // currentKey carries the artifact; both identity effects depend on it so
+    // an artifact-only change resets pages and invalidates flights.
+    expect(panel).toContain("descriptor.context_id, anchorId, artifactSha256");
+    expect(panel).toContain("descriptor.context_id, artifactSha256, descriptor.anchors");
+    expect(panel).toContain("}, [anchorId]);");
   });
 
   it("keeps only the current flight writable across anchor switches", () => {

@@ -52,6 +52,16 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
     - `cargo test --lib static_assets` in `apps/chronicle/server` — 7 passed.
     - Smoke `--suite all` — PASS with 3 new race checks (slow anchor-A chapter page vs. immediate anchor-B switch: B loads, A dropped, draft untouched). Negative control: the same script against the pre-fix panel fails at the race step, proving sensitivity.
 
+  Review fix 2026-09-09, round 2 (Reviewer artifact-identity blocker on PR #611):
+
+  - `evidenceRequestKey` is now review/plan/context/artifact: new optional `artifactSha256` segment (missing degrades to an explicit `-`, never to a versioned key). The panel builds `currentKey` from `descriptor.artifact_sha256` and both identity effects depend on it, so an artifact-only change (same context/anchor, re-accepted artifact) resets chapter pagination, invalidates outstanding flights via the request guard, and takes a fresh react-query cache slot instead of reusing old-artifact material.
+  - Regression coverage: same context/anchor with a changed artifact yields a different key; unversioned keys stay distinct from versioned ones; plus file-content assertions that the panel wires the artifact into `currentKey` and the identity-effect dependencies. The flight-level guard mechanism itself remains browser-covered by the anchor-race scenario.
+  - Re-verified on the fix head:
+    - Focused trio — 3 files / 23 tests passed (2 new artifact-identity tests).
+    - Full `npm test` — 18 files / 94 passed; `run build` OK; `run smoke:dist` PASS; rebuilt `web/dist` (same chunk names, no `static_assets.rs` change needed).
+    - `cargo test --lib static_assets` in `apps/chronicle/server` — 7 passed.
+    - Smoke `--suite all` — PASS (unchanged mock behavior; all prior queue + evidence + race checks green).
+
   ## Progress Log
 
  - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

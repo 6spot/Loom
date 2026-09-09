@@ -122,11 +122,16 @@ export function ReviewEvidencePanel({
   if (guardRef.current === null) guardRef.current = createEvidenceRequestGuard();
   const guard = guardRef.current;
 
-  const currentKey = evidenceRequestKey(reviewId, planFingerprint, descriptor.context_id, anchorId);
+  // The artifact is part of the identity: the backend binds context_id only
+  // to (review_id, bundle, ref), so a re-accepted artifact keeps the same
+  // context/anchor with different source material.
+  const artifactSha256 = descriptor.artifact_sha256 ?? null;
+  const currentKey = evidenceRequestKey(reviewId, planFingerprint, descriptor.context_id, anchorId, artifactSha256);
 
-  // Switching review/plan/context/anchor resets chapter pagination so the
-  // previous chapter's pages can never appear under the new header, and
-  // invalidates any flight that is still in the air for the old identity.
+  // Switching review/plan/context/artifact/anchor resets chapter pagination
+  // so the previous chapter's pages can never appear under the new header,
+  // and invalidates any flight that is still in the air for the old
+  // identity.
   useEffect(() => {
     guard.invalidate();
     setChapterPages([]);
@@ -139,7 +144,7 @@ export function ReviewEvidencePanel({
     setView("window");
     setAnchorId(descriptor.anchors[0]?.anchor_id ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewId, planFingerprint, descriptor.context_id, descriptor.anchors]);
+  }, [reviewId, planFingerprint, descriptor.context_id, artifactSha256, descriptor.anchors]);
 
   // Anchor switches invalidate outstanding chapter flights as well: the
   // select handler below also invalidates synchronously to close the gap
