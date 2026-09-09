@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v1"
+PROMPT_VERSION = "c2r1-chapter-prompt-v2"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -96,13 +96,24 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   REQUIRED BLOCKS must appear in at least one translation block's source_block_ids.
 - Time precision is never invented: normalized month/day stay null; a normalized
   year appears only with an exact verified source mapping, otherwise null.
-  time.original_text must be grounded in the chapter text.'''
+- VERBATIM GROUNDING PROCEDURE (no exceptions):
+  (a) every selection.quote (mentions and record_sources alike) must be copied
+  character-for-character from CHAPTER BLOCKS or FULL CHAPTER TEXT; never
+  paraphrase, abbreviate, merge, or complete a passage, and never emit a quote
+  you cannot find as an exact substring;
+  (b) set first_block_id/last_block_id to the block(s) whose [start:end) range
+  actually encloses the quote, in legal order; count occurrence only inside
+  that window; never guess a block id;
+  (c) time.original_text must be the temporal expression EXACTLY as written in
+  the source: do NOT prepend or append era, year, season, month, day, or 干支
+  from surrounding context. Context-derived fields belong ONLY in
+  source_calendar (era/era_year/month/day) and inherited_fields; anything not
+  verbatim must not appear in original_text.'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
-_TEMP_ID_RE = re.compile(r"\b(src|ent|evt|clm|ch|b|t|m|anc)_[0-9a-f]{3,}\b")
 _WS_RE = re.compile(r"\s+")
 
 
@@ -116,8 +127,15 @@ def _json(value: Any) -> str:
 
 
 def _diagnostic_signature(value: str) -> str:
-    value = _INDEX_PATH_RE.sub("/*", value)
-    return _TEMP_ID_RE.sub(lambda match: f"{match.group(1)}_*", value)
+    # Only schema index paths are generalized ("/bundle/entities/0" -> "/*").
+    # Record temp ids (ent_*/evt_*/clm_*/src_*/b_*) are repair pointers into
+    # the PREVIOUS CANDIDATE carried in the same prompt: masking them to
+    # "ent_*" collapses distinct records into one signature, so the dedup
+    # below drops all but one failing record and the model can no longer
+    # tell which record each diagnostic belongs to. Live evidence (C2-R1-T19)
+    # showed anchor/time failures surviving correction exactly for this
+    # reason; keep the ids verbatim.
+    return _INDEX_PATH_RE.sub("/*", value)
 
 
 def compact_validation_errors(errors: list[str]) -> list[str]:
@@ -126,6 +144,8 @@ def compact_validation_errors(errors: list[str]) -> list[str]:
     The complete validator report remains in the extraction attempt
     history. Only this compacted copy is sent back to the model so a long
     tail of repeated schema paths cannot consume the correction budget.
+    Record temp ids stay verbatim so every diagnostic remains mapped to
+    its failing record (see _diagnostic_signature).
     """
     if not isinstance(errors, list):
         return []

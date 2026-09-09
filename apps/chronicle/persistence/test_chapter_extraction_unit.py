@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v1", prompt)
+        self.assertIn("c2r1-chapter-prompt-v2", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -140,6 +140,34 @@ class PromptRenderingTests(unittest.TestCase):
         compacted = P.compact_validation_errors(errors)
         self.assertLessEqual(len(compacted), 21)
         self.assertLessEqual(sum(len(e) for e in compacted), 1800 + 160 + 280)
+
+    def test_compact_diagnostics_preserve_record_ids(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0): masking record temp
+        # ids collapsed distinct failing records into one signature, so the
+        # dedup dropped all but one and the model could not tell which
+        # record each diagnostic belonged to. Both anchor failures and the
+        # time failure must survive with their ids verbatim.
+        errors = [
+            "anchors: record_sources 'ent_006'[1] quote occurs 0 time(s)"
+            " in ['b_011'..'b_011'] but occurrence=1 was requested",
+            "anchors: record_sources 'ent_008'[1] quote occurs 0 time(s)"
+            " in ['b_021'..'b_021'] but occurrence=1 was requested",
+            "time_precision: evt_007 time.original_text '二年夏六月'"
+            " is not grounded in chapter text",
+        ]
+        compacted = P.compact_validation_errors(errors)
+        self.assertEqual(len(compacted), 3)
+        joined = "\n".join(compacted)
+        for token in ("ent_006", "ent_008", "b_011", "b_021", "evt_007"):
+            self.assertIn(token, joined)
+        self.assertNotIn("ent_*", joined)
+
+    def test_prompt_states_verbatim_grounding_procedure(self) -> None:
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("VERBATIM GROUNDING PROCEDURE", prompt)
+        self.assertIn("character-for-character", prompt)
+        self.assertIn("inherited_fields", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -360,6 +388,29 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "model_transport_error")
 
 
+class AttemptTimingTests(unittest.TestCase):
+    def test_attempts_record_latency_ms(self) -> None:
+        # Live usage/timing evidence (C2-R1-T19): every model call in a
+        # round carries its wall-clock cost, including transport failures.
+        request, candidate = base()
+        ok = X.extract_chapter(
+            request, FakeChapterModel([json.dumps(candidate, ensure_ascii=False)])
+        )
+        self.assertTrue(ok["accepted"])
+        for attempt in ok["attempts"]:
+            self.assertIsInstance(attempt["latency_ms"], int)
+            self.assertGreaterEqual(attempt["latency_ms"], 0)
+
+    def test_transport_failure_attempt_records_latency_ms(self) -> None:
+        request, _ = base()
+        result = X.extract_chapter(
+            request, FakeChapterModel([RuntimeError("boom")])
+        )
+        self.assertFalse(result["accepted"])
+        self.assertIsInstance(result["attempts"][0]["latency_ms"], int)
+        self.assertGreaterEqual(result["attempts"][0]["latency_ms"], 0)
+
+
 class HistoryTests(unittest.TestCase):
     def test_tampered_history_detected(self) -> None:
         request, candidate = base()
@@ -382,7 +433,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v1")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v2")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(
