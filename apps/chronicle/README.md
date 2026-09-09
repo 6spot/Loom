@@ -25,6 +25,7 @@ Initial data may focus on a narrow period, but the product and data model must r
 - [Second-round task graph](../../docs/tasks/chronicle/second-round/README.md) — #549 reading implementation remains planned; D01 separately tracks reusable background-art design preparation.
 - [`docs/continuous-reading.md`](docs/continuous-reading.md) — second-round chapter annotations, immutable streams, source time and snapshot APIs.
 - [`docs/reading-experience.md`](docs/reading-experience.md) — reading layout, current-fragment context, accessible previews and position restoration.
+- [`docs/person-state-reading.md`](docs/person-state-reading.md) — third-round source-grounded offices, affiliations, narrative phases, evidence review and certainty display (implementation target).
 - [`docs/background-art.md`](docs/background-art.md) — era-aware background art, explicit generation/upload and human save-to-display workflow; product upload/display integration remains planned.
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — detailed #548 children, dependencies and shared-file ownership; planned, not implemented.
 - [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.

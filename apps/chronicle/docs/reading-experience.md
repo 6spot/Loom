@@ -1,6 +1,6 @@
 # Chronicle 第二轮：阅读界面与交互验收
 
-状态：待实施；属于 [#549](https://github.com/6spot/Loom/issues/549)。数据含义、路由和发布边界以 [continuous-reading.md](continuous-reading.md) 为准。此文固定布局、交互和可观察结果；Task Ledger 只记录执行证据。
+状态：待实施；属于 [#549](https://github.com/6spot/Loom/issues/549)。数据含义、路由和发布边界以 [continuous-reading.md](continuous-reading.md) 为准。此文固定布局、交互和可观察结果；task 文档记录任务范围、接口前置和验收要求。
 
 新增背景设计见 [background-art.md](background-art.md)：按时代制作淡彩背景，AI 可建议位置，用户明确触发生成/上传并校验保存后才展示。仅页面背景，不插入正文；滚动和内容生产均不自动生成图片。技能/离线候选库由 D01 提供，产品上传、保存/关联和背景渲染另待拆分，当前没有可评阅的完整阅读页面原型。
 
@@ -41,7 +41,7 @@
 
 单一 controller 维护 `{stream, catalog, active_unit, narrative_time, navigation_state}`。阅读参考线位于 sticky header 下方可用视口高度的 30%；取穿过参考线的 unit，落在间隙则取紧随其后的可见 unit，末尾取最后一个。并列按 ordinal 确定。用 IntersectionObserver 配合有界测量和 requestAnimationFrame 合批，不每个 scroll 事件扫描全文。
 
-滚动改变 active unit 时，轴和人物地点用同一个状态更新；不发全世界/人物状态请求。每个 active unit 对外暴露自己的 narrative_time/current_event_refs，供第三轮接入，当前不计算长期身份。
+滚动改变 active unit 时，轴和人物地点用同一个状态更新。第二轮仅消费 unit 自带 context，不计算长期身份。第三轮按 [person-state-reading.md](person-state-reading.md) 订阅同一 locator，一次有界获取本 unit 的人物资料；不发全世界查询或逐人状态请求，不增加另一个滚动控制器。
 
 预览开启不改 active unit；展开原文引起布局变化时先保持触发 unit，用户再次滚动才恢复跟读。主动跳转有独立 restoring 状态：目标页到达、字体/尺寸稳定后滚动并聚焦目标段；旧请求不能抢回视口。用户 wheel/touch/键盘滚动可取消未完成的自动恢复。网络失败保持已读正文和明确错误，不清空整页。
 

@@ -111,6 +111,8 @@ cursor 绑定版本、snapshot、stream、filters、方向和最后稳定排序�
 
 任何长期身份/关系都不从本轮 context 推导；第三轮可以引用 `{stream_id, publication_id, unit_id, narrative_time, current_event_refs}` 作为读取上下文，另行定义有效时间和状态依据。
 
+第三轮的具体扩展归 [person-state-reading.md](person-state-reading.md)：0.3 联合产物、发布前阶段投影、独立于身份合并的依据评估及按 unit 有界读取。由第三轮任务交付，第二轮的 context 和叙事时间合同不承担长期状态推断。
+
 ## 8. 验收分层
 
 自动验证覆盖 schema/ref/span/历法分组、不可变发布和恢复、snapshot SQL/游标、真实浏览器交互；真实内容验证检查主叙事与回溯、同名事件、主要人物、角色归属和原文支持。既有 #541 作为负例来源，不能自动宣称其旧数据已修复。
