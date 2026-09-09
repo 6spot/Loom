@@ -1,0 +1,174 @@
+{
+  "blockers": [
+    "no live provider credentials or empty compose target stack in this run",
+    "no interactive Studio operator: live gate correctly refuses non-TTY stdin",
+    "no independent human or stronger reviewer: dev model must not self-certify content correctness",
+    "no real provider calls, publications, or browser observations exist to archive"
+  ],
+  "candidate_commit": "b611c33a50f30e895fd6aaeb9c8c4168be5d9bc1",
+  "cases": [
+    {
+      "case_id": "T02-C01",
+      "category": "same-chapter-appellation",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "先主傳同章指代：先主/備"
+    },
+    {
+      "case_id": "T02-C02",
+      "category": "same-chapter-appellation",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "周瑜傳同章稱謂：周瑜/公瑾"
+    },
+    {
+      "case_id": "T02-C03",
+      "category": "same-chapter-appellation",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "魯肅傳同章稱謂：魯肅/子敬"
+    },
+    {
+      "case_id": "T02-C04",
+      "category": "cross-chapter-recurrence",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "赤壁跨章復現（先主傳↔周瑜傳）"
+    },
+    {
+      "case_id": "T02-C05",
+      "category": "cross-book-same-event",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "跨書同事件：赤壁（吳書↔通鑑）"
+    },
+    {
+      "case_id": "T02-C06",
+      "category": "cross-book-same-person",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "跨書同人：周瑜受命督軍"
+    },
+    {
+      "case_id": "T02-C07",
+      "category": "place-ambiguity",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "地點歧義：南郡/江陵（須保留uncertain）"
+    },
+    {
+      "case_id": "T02-C08",
+      "category": "annotation-attribution",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "嵌注歸屬：先主傳《典略》注"
+    },
+    {
+      "case_id": "T02-C09",
+      "category": "annotation-attribution",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "嵌注歸屬：周瑜傳《江表傳》注"
+    },
+    {
+      "case_id": "T02-C10",
+      "category": "no-direct-claim",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "無直接Claim：卷65馬超僅背景提及"
+    },
+    {
+      "case_id": "T02-C11",
+      "category": "head-completeness",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "首部完整：三傳開篇與通鑑卷首"
+    },
+    {
+      "case_id": "T02-C12",
+      "category": "tail-completeness",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "尾部完整：先主傳讖語尾與通鑑卷末"
+    },
+    {
+      "case_id": "T02-C13",
+      "category": "commentary-attribution",
+      "conclusion": null,
+      "evidence": null,
+      "reviewer": null,
+      "status": "pending",
+      "title": "史論歸屬：習鑿齒論曰"
+    },
+    {
+      "case_id": "T02-N01",
+      "category": "synthetic-negative",
+      "conclusion": "synthetic negative control; zero hits in the four source files by construction; must never be cited as a source observation",
+      "evidence": null,
+      "reviewer": null,
+      "status": "not_applicable",
+      "title": "合成負例（非原書記載）：江陵太守劉備"
+    }
+  ],
+  "companion_record": "apps/chronicle/corpus/first-round/acceptance.md",
+  "issue": 569,
+  "legacy_tracker_note": "#541 is a regression-discovery source only; no conclusion is recorded here and the old tracker is not closed by this file",
+  "pack_id": "c2-r1-t02-first-round-v1",
+  "ref_details_in": "apps/chronicle/corpus/first-round/cases.json",
+  "review_method": "independent per-chapter full-text and annotation check by a human or an independent stronger reviewer; the implementing model must not self-certify content correctness",
+  "reviewer": null,
+  "schema": "chronicle.first-round-manual-content-review",
+  "sources": [
+    {
+      "ingest_file": "ingest/sanguozhi-three-chapters.md",
+      "ingest_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+      "source_files": [
+        "sources/sanguozhi-032-xianzhu-liubei.txt",
+        "sources/sanguozhi-054-zhou-yu.txt",
+        "sources/sanguozhi-054-lu-su.txt"
+      ],
+      "work": "三國志"
+    },
+    {
+      "ingest_file": "ingest/zizhi-tongjian-065.md",
+      "ingest_sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
+      "source_files": [
+        "sources/zizhi-tongjian-065-quan.txt"
+      ],
+      "work": "資治通鑑"
+    }
+  ],
+  "status_counts": {
+    "fail": 0,
+    "not_applicable": 1,
+    "pass": 0,
+    "pending": 13
+  },
+  "task": "C2-R1-T19",
+  "verdict": "not_passed",
+  "version": "0.1"
+}
