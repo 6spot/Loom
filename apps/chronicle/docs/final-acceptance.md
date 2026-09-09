@@ -164,3 +164,13 @@ A gate failure is evidence, not permission to weaken the check. In particular:
 ## Completion protocol
 
 C1-T17 delivery PR #535 and reconciliation PR #542 are complete; their historical workflow results remain part of the archived acceptance evidence. For a later executable acceptance task, record its exact-candidate CI, explicit live-provider preflights, real-machine run and separate content inspection, then follow the repository [task-completion procedure](../../../docs/development/task-completion.md) for delivery, default-branch reconciliation and Issue closure. The completed T17 workflow is not a standing merge prerequisite for future development.
+
+## C2 first-round acceptance (T18/T19)
+
+The C2 first round (chapter production, joint review, full translation)
+runs its own acceptance loop outside the archived C1-T17 record above;
+nothing in this file's C1 history is rewritten by it. The single
+operating guide is [chapter-acceptance.md](chapter-acceptance.md):
+T18 owns the offline fixture/live gate entry
+(`apps/chronicle/acceptance/first_round_gate.py`), T19 owns real-model
+execution and per-chapter content inspection.
