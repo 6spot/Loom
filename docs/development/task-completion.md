@@ -1,15 +1,17 @@
 # Loom task completion workflow
 
-This guide is the canonical operational procedure for finishing an executable Loom task that has a durable Task Ledger record under `docs/tasks/`.
+This guide defines repository delivery completion for executable Loom work.
 
-A merged delivery PR is not task completion. Completion is reached only after the canonical Task Ledger on the repository default branch has been reconciled with the real merge evidence and the repository-level completion checks pass.
+The repository does not use Markdown Task Ledger state as a second workflow engine. Execution state, dependency readiness and staged scheduling belong to the active orchestrator; repository completion is based on the actual delivered change and its required verification.
 
 ## Completion sequence
 
-Use this sequence for every executable task with a Task Ledger record:
+For a repository change, use this sequence:
 
 ```text
 implementation complete
+        ↓
+required focused verification passed
         ↓
 required review passed
         ↓
@@ -17,132 +19,64 @@ required CI/checks passed
         ↓
 delivery PR merged
         ↓
-read the real delivery PR number and merge SHA
-        ↓
-reconcile the canonical Task Ledger on the default branch
-        ↓
-run the applicable ledger/governance checks
-        ↓
-merge any required ledger-only reconciliation PR
-        ↓
-re-read the canonical default branch and confirm the task record is completed
-        ↓
-close the GitHub Issue as completed
-        ↓
-mark any external workflow/task state complete
+repository delivery complete
 ```
 
-Do not reorder the final steps. In particular, do not close the GitHub Issue or mark an external workflow complete while the canonical Task Ledger is still stale.
+Do not create a post-merge reconciliation run or ledger-only PR merely to copy the final PR number, merge SHA, Issue state or external workflow state into Markdown.
 
-## Canonical reconciliation
+## Task notes under docs/tasks
 
-After the delivery PR is merged, obtain the actual merged PR number and actual merge commit SHA from the repository. Do not guess either value and do not copy an implementation-head SHA into `merge_sha`.
+Task notes are optional planning and audit material. They may record:
 
-Update the task record required by `docs/tasks/README.md`. When the standard front matter is used, the completed record must include:
+- scope and file ownership;
+- architecture/contract links;
+- acceptance examples;
+- useful verification evidence;
+- historical decisions or implementation notes.
+
+Legacy task files may also contain fields such as:
 
 ```yaml
-status: completed
-completed_at: YYYY-MM-DD
-completion_pr: <actual delivery PR number>
-merge_sha: <actual integration/default-branch merge SHA>
+status:
+depends_on:
+started_at:
+completed_at:
+completion_pr:
+merge_sha:
 ```
 
-Also reconcile every task-local completion field required by the record and initiative, including as applicable:
+Those fields are informational unless a task explicitly defines a product/runtime contract that consumes them. They are not repository-wide execution gates and must not override the active orchestrator.
 
-- acceptance checklist state;
-- verification / CI evidence;
-- progress-log completion entry;
-- milestone or initiative README status;
-- dependency/READY eligibility derived from the canonical ledger;
-- any other durable completion metadata required by the active task contract.
+If a delivery already edits a task note, keep the note accurate. Prefer recording useful evidence in the delivery PR itself. Do not require a follow-up change solely because final merge metadata was unknowable before merge.
 
-A feature branch, local worktree, agent comment, GitHub Issue state, PR state, or external task state is not the canonical ledger.
+## Dependency readiness
 
-## Reconciliation write path
+Repository Markdown does not decide whether another task may start.
 
-Prefer recording completion evidence in the delivery PR when every required value is already known.
+When Multica coordinates the work, Multica Issue dependencies, parent/child relationships and Stage state are the scheduling authority. A stale `status` or `depends_on` value in `docs/tasks/` does not block an Issue that Multica has made ready.
 
-When the final merge SHA only exists after merge, perform an immediate small follow-up audit change. Use the normal repository contribution path. If repository policy requires a PR, create a ledger-only reconciliation PR, run its required checks, merge it, and then re-read the default branch.
-
-The reconciliation change must not silently absorb new implementation scope. If new product or architecture work is required, reopen or create the appropriate executable task instead.
+Task-document dependency graphs remain useful design context and should still describe intended sequencing, but they are not a second scheduler.
 
 ## Verification
 
-Run the Task Ledger / governance checks applicable to the changed initiative. For ledgers covered by the repository validator, use the current commands documented by the initiative and CI, including `tools/validator_ready.py` where applicable.
+Run the checks appropriate to the changed contract. The current development guide and CI workflows are the source for those checks.
 
-A task is not complete while its canonical ledger fails a required governance check.
+Do not:
 
-### Dependencies across initiative directories
+- claim a check passed without running it;
+- weaken a failing architecture/product contract just to finish a task;
+- run unrelated full suites merely to satisfy historical Task Ledger ceremony.
 
-Include the upstream records when checking a downstream initiative. Running
-the validator on only the downstream directory cannot prove cross-directory
-READY eligibility. Do not duplicate upstream task files or mark dependencies
-complete in a temporary copy.
+If verification cannot be performed, record the missing verification and reason in the delivery handoff.
 
-For several linked initiatives, compose the existing validator functions over
-the selected directories. Preserve paths relative to their common ledger root
-so completion evidence is read from the real canonical files. For example,
-Chronicle's first and second rounds use:
+## GitHub Issues and external workflow state
 
-```bash
-python3 - docs/tasks/chronicle first-round second-round <<'PY'
-import json
-import sys
-from dataclasses import replace
-from pathlib import Path
-from tools.validator_ready import discover_records, evaluate, validate_invariants
+GitHub Issue and external-orchestrator completion follow their own configured lifecycle. They do not wait for a Markdown reconciliation step that exists only to duplicate state.
 
-root = Path(sys.argv[1])
-records = [
-    replace(record, path=f"{scope}/{record.path}")
-    for scope in sys.argv[2:]
-    for record in discover_records(root / scope)
-]
-snapshot = evaluate(records)
-violations = validate_invariants(records, root)
-missing = [
-    item for item in snapshot["blocked"]
-    if any("has no task metadata" in reason for reason in item["reasons"])
-]
-snapshot.update(valid=not violations and not missing, violations=violations)
-print(json.dumps(snapshot, ensure_ascii=False, indent=2))
-raise SystemExit(0 if snapshot["valid"] else 1)
-PY
-```
+For Multica-linked PRs, the repository/GitHub integration may close the corresponding Multica Issue after the qualifying PR merges. That merge-driven lifecycle does not require a second Task Ledger completion commit.
 
-This uses the existing READY and completion rules. It does not change scope,
-skip a dependency, or certify implementation from a planning record. CI for
-the linked initiative must use the same complete record set. Unrelated
-historical directories need not be added to this check.
+## Historical records
 
-## Dependency eligibility
+Existing Task Ledger reconciliation PRs and completed metadata remain valid historical evidence of how earlier work was delivered. This guide does not require rewriting history or removing those records.
 
-Downstream READY eligibility must be computed from the reconciled canonical ledger, not from:
-
-- a merged delivery PR alone;
-- a closed GitHub Issue alone;
-- an agent saying the task is complete;
-- Multica or another external workflow status;
-- a task record that exists only on a feature branch.
-
-If a downstream task depends on the current task being `completed`, do not activate it until the canonical record on the default branch actually reflects completion.
-
-## Agent / automation rule
-
-Agents and automation working in Loom must read `AGENTS.md`, this guide, `docs/tasks/README.md`, the current task record, and the initiative README before finishing an executable task.
-
-Automation may split implementation and post-merge reconciliation into separate runs, but the task remains incomplete between those runs. If reconciliation needs a repository edit, the responsible implementation agent performs that edit; a coordination-only agent must dispatch it rather than skipping the gate.
-
-## Completion invariant
-
-The invariant is:
-
-```text
-delivery PR merged != task completed
-
-canonical task record reconciled on the default branch
-+ required ledger/governance checks passed
-= repository completion gate satisfied
-```
-
-Only after that gate is satisfied may external tracking state be finalized.
+For new work, avoid introducing another durable status field when GitHub/Multica already owns that state.
