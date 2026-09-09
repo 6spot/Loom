@@ -248,6 +248,7 @@ def handler_class(
                         path=path,
                         raw_query=query,
                         body=body,
+                        source_dir=resolved_storage,
                     )
             except psycopg.Error:
                 status, content_type, payload = (
