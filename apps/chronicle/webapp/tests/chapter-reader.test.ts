@@ -224,6 +224,23 @@ describe("chapter-reader references: multi-anchor and honest unknown refs", () =
     const html = renderToString(React.createElement(ChapterDetailView, { detail: withCanonical }));
     expect(html).toContain('href="/entities/canonical-cao"');
   });
+
+  it("joins block refs to references[] through the server revision_ref (T17 seam)", () => {
+    // Production serves source-side local refs on blocks and revision refs
+    // in references[]; the join must use revision_ref, not guess.
+    const references: ChapterDetailResponse["references"] = {
+      entities: [{ ref: "ent_000001", name: "劉備", canonical_id: "canonical-liu" }],
+      events: [{ ref: "evt_000001", title: "先主出身", canonical_id: "canonical-event" }],
+    };
+    expect(
+      canonicalTargetForRef({ kind: "entity", ref: "ent_001", revision_ref: "ent_000001" }, references),
+    ).toBe("/entities/canonical-liu");
+    expect(
+      refDisplayName({ kind: "entity", ref: "ent_001", revision_ref: "ent_000001" }, references),
+    ).toBe("劉備");
+    // Source ref alone (no remap) never fabricates a link.
+    expect(canonicalTargetForRef({ kind: "entity", ref: "ent_001" }, references)).toBeNull();
+  });
 });
 
 describe("chapter-reader on-demand source: expansion, pagination, race, retry", () => {

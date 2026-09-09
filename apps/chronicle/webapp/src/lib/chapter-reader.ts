@@ -33,7 +33,10 @@ export interface ChapterDirectoryResponse {
 
 export interface ChapterRef {
   kind: "entity" | "event";
+  /** Source-side ref as stored on the translation block (preserved). */
   ref: string;
+  /** Revision-namespaced ref joining this entry to references[] (T17 seam). */
+  revision_ref?: string | null;
 }
 
 export interface ChapterEntityReference {
@@ -274,13 +277,20 @@ export function mergeDirectoryPages(
   return merged;
 }
 
+/** Join key into references[]: the server remap wins, source ref is fallback. */
+export function refJoinKey(ref: ChapterRef): string {
+  const revision = (ref.revision_ref ?? "").trim();
+  return revision || ref.ref;
+}
+
 /** 服务端未给 canonical 目标的引用：只展示名称/引用，不生成详情链接。 */
 export function canonicalTargetForRef(
   ref: ChapterRef,
   references?: ChapterDetailResponse["references"],
 ): string | null {
   const pool = ref.kind === "entity" ? (references?.entities ?? []) : (references?.events ?? []);
-  const match = (pool ?? []).find((entry) => entry?.ref === ref.ref);
+  const key = refJoinKey(ref);
+  const match = (pool ?? []).find((entry) => entry?.ref === key || entry?.ref === ref.ref);
   const canonicalId = (match?.canonical_id ?? "").trim();
   if (!canonicalId) return null;
   return ref.kind === "entity"
@@ -293,7 +303,8 @@ export function refDisplayName(
   references?: ChapterDetailResponse["references"],
 ): string {
   const pool = ref.kind === "entity" ? (references?.entities ?? []) : (references?.events ?? []);
-  const match = (pool ?? []).find((entry) => entry?.ref === ref.ref);
+  const key = refJoinKey(ref);
+  const match = (pool ?? []).find((entry) => entry?.ref === key || entry?.ref === ref.ref);
   if (ref.kind === "entity") {
     const name = (match as ChapterEntityReference | undefined)?.name;
     return (name ?? "").trim() || ref.ref;

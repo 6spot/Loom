@@ -123,29 +123,28 @@ async function main() {
     await page.screenshot({ path: join(SHOTS_DIR, "desktop-reader.png") });
 
     // 5. Reference -> pinned source -> chapter-wide source -> back to text.
+    // This journey is the acceptance item: a chapter without any
+    // server-issued source anchor cannot prove it, so zero anchors FAIL.
     const sourceButtons = page.locator('[data-test="chapter-source-open"]');
-    if ((await sourceButtons.count()) > 0) {
-      await sourceButtons.first().click();
-      await page.waitForSelector('[data-test="chapter-source-panel"]', { timeout: 15000 });
-      await page.waitForSelector('[data-test="chapter-source-segments"]', { timeout: 15000 });
-      check("source-panel-opens", true);
-      await page.screenshot({ path: join(SHOTS_DIR, "desktop-source-window.png") });
-      const chapterView = page.locator('[data-test="chapter-source-view-chapter"]');
-      if ((await chapterView.count()) > 0) {
-        await chapterView.click();
-        await page.waitForSelector('[data-test="chapter-source-panel"][data-view="chapter"]', {
-          timeout: 15000,
-        });
-        check("source-expands-to-chapter", true);
-        await page.screenshot({ path: join(SHOTS_DIR, "desktop-source-chapter.png") });
-      }
-      await page.locator('[data-test="chapter-source-close"]').click();
-      await page.waitForSelector('[data-test="chapter-source-panel"]', { state: "detached", timeout: 10000 });
-      check("source-closes-back-to-text", true);
-    } else {
-      evidence.no_source_anchors = true;
-      console.log("  note: chapter has no source anchors; source-panel steps skipped");
+    const sourceCount = await sourceButtons.count();
+    check("chapter-exposes-source-anchors", sourceCount > 0, "no chapter-source-open button rendered");
+    await sourceButtons.first().click();
+    await page.waitForSelector('[data-test="chapter-source-panel"]', { timeout: 15000 });
+    await page.waitForSelector('[data-test="chapter-source-segments"]', { timeout: 15000 });
+    check("source-panel-opens", true);
+    await page.screenshot({ path: join(SHOTS_DIR, "desktop-source-window.png") });
+    const chapterView = page.locator('[data-test="chapter-source-view-chapter"]');
+    if ((await chapterView.count()) > 0) {
+      await chapterView.click();
+      await page.waitForSelector('[data-test="chapter-source-panel"][data-view="chapter"]', {
+        timeout: 15000,
+      });
+      check("source-expands-to-chapter", true);
+      await page.screenshot({ path: join(SHOTS_DIR, "desktop-source-chapter.png") });
     }
+    await page.locator('[data-test="chapter-source-close"]').click();
+    await page.waitForSelector('[data-test="chapter-source-panel"]', { state: "detached", timeout: 10000 });
+    check("source-closes-back-to-text", true);
     // Footer stays visible at the end of the full text.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     check("reader-footer-visible", await page.locator(".site-footer").isVisible());

@@ -3,13 +3,13 @@ task: C2-R1-T12
 issue: 562
 kind: leaf
 parent: C2-R1
-status: in_progress
+status: completed
 depends_on: [C2-R1-T10, C2-R1-T11]
 created_at: 2026-09-08
 started_at: 2026-09-09
-completed_at:
-completion_pr:
-merge_sha:
+completed_at: 2026-09-09
+completion_pr: 611
+merge_sha: 3e4c6e978aa80ff31bf81f686360f60a1a3952b5
 ---
 
 # 审核证据展开、逐组来源与整章阅读界面
@@ -67,3 +67,4 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
  - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
  - 2026-09-09 — Implementation complete within T12 file ownership (evidence panel + CSS, studio-api/review-display extensions, detail-page wiring, unit tests, smoke evidence scenarios, rebuilt dist). Evidence above; delivery PR pending, post-merge reconciliation still open.
  - 2026-09-09 — Reviewer CHANGES_REQUIRED addressed on the same PR: valid ledger front matter, request-guard invalidation on anchor/context/review/group transitions, busy-flag resets, race coverage (unit + browser incl. negative control), re-verified per above; pushed to PR #611, awaiting re-review; merge + default-branch reconciliation still open.
+ - 2026-09-09 — Post-merge reconciliation (delivery PR #611 MERGED as `3e4c6e978aa80ff31bf81f686360f60a1a3952b5` on 2026-09-09; Issue #562 auto-closed by the merge): front matter now carries actual completion_pr/merge_sha. Post-merge regression on the T17 integration head: `npm --prefix apps/chronicle/webapp test` — 18 files / 98 passed (incl. all review-evidence, studio-review-human-display and studio-entity-conflict tests); `cargo test --manifest-path apps/chronicle/server/Cargo.toml` — all suites pass; `git diff --check` — clean. Transitive note: T10/T11 ledger completion remains owned by their own deliveries (both code-merged on the default branch); no status is manufactured for them here.

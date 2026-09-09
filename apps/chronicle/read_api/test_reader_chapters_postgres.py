@@ -733,6 +733,35 @@ class ReaderChaptersPostgresTests(unittest.TestCase):
         self.assertEqual("先主傳", detail["source_overview"]["chapter_title"])
         self.assertEqual("三國志合裝本", detail["source_overview"]["source_title"])
 
+    def test_detail_carries_reader_seam_anchors_and_revision_refs(self) -> None:
+        # T17 reader seam: served blocks carry server-owned source_anchor_ids
+        # and revision_ref joins; source refs are preserved, never guessed.
+        items = self._walk_directory()
+        first = [i for i in items if i["revision_no"] == 1 and i["chapter_index"] == 0][0]
+        status, detail = self._request("GET", f"/v0/chapters/{first['publication_id']}")
+        self.assertEqual(200, status, detail)
+        blocks = detail["translation_blocks"]
+        anchored = [b for b in blocks if b.get("source_anchor_ids")]
+        self.assertTrue(anchored, "at least one block must expose source anchors")
+        for block in anchored:
+            for anchor_id in block["source_anchor_ids"]:
+                source_status, source = self._request(
+                    "GET",
+                    f"/v0/chapters/{first['publication_id']}/sources/{anchor_id}?view=window",
+                )
+                self.assertEqual(200, source_status, anchor_id)
+                self.assertEqual(anchor_id, source["anchor_id"])
+        entity_refs = blocks[0]["entity_refs"]
+        self.assertEqual(["ent_001"], [r["ref"] for r in entity_refs])
+        revision_refs = {r["ref"]: r["revision_ref"] for r in entity_refs}
+        by_ref = {r["ref"]: r for r in detail["references"]["entities"]}
+        for local, revision in revision_refs.items():
+            self.assertIn(revision, by_ref, local)
+        event_refs = blocks[0]["event_refs"]
+        self.assertEqual(["evt_001"], [r["ref"] for r in event_refs])
+        event_by_ref = {r["ref"]: r for r in detail["references"]["events"]}
+        self.assertIn(event_refs[0]["revision_ref"], event_by_ref)
+
     def test_unknown_and_unpublished_publications_404(self) -> None:
         status, payload = self._request("GET", f"/v0/chapters/{uuid.uuid4()}")
         self.assertEqual(404, status)

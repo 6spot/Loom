@@ -3,13 +3,13 @@ task: C2-R1-T14
 issue: 564
 kind: leaf
 parent: C2-R1
-status: planned
+status: completed
 depends_on: [C2-R1-T10, C2-R1-T13]
 created_at: 2026-09-08
-started_at:
-completed_at:
-completion_pr:
-merge_sha:
+started_at: 2026-09-09
+completed_at: 2026-09-09
+completion_pr: 610
+merge_sha: 66ef5b47e1b9aaaf72ccff0f6dcb164eddb31711
 ---
 
 # 公开章节目录、完整译文与版本固定的原文API
@@ -44,3 +44,4 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-09 — Implemented within T14 file ownership (`reader_chapters.py` new, `router.py` chapters mount, `server.py` storage_dir injection, `test_reader_chapters_postgres.py` + `test_reader_chapters_unit.py` new, `read-api.md` public-chapters section). Evidence above; delivery PR pending, Reviewer review still open.
 - 2026-09-09 — Reviewer CHANGES_REQUIRED addressed on the same branch: `_load_assembled_output()` now binds the publication's exact `assembled_bundle_sha256` (`artifact_sha256` equality, no `created_at DESC` latest-row read) and verifies the stored payload/bundle hash before use; directory + detail both pass the per-publication hash through. Two new regression tests (second assembled output isolation, tampered-bundle explicit failure). Full battery re-run green (see Verification); PR updated, awaiting re-review.
+- 2026-09-09 — Post-merge reconciliation (delivery PR #610 MERGED as `66ef5b47e1b9aaaf72ccff0f6dcb164eddb31711` on 2026-09-09; Issue #564 auto-closed by the merge): front matter now carries actual start/completion_pr/merge_sha. Post-merge re-runs on the T17 integration head: `test_reader_chapters_postgres.py` — 15 tests OK (14 delivery + 1 new T17 reader-seam test proving per-block `source_anchor_ids` open and `revision_ref` joins); `test_reader_chapters_unit.py` — 8 tests OK. The T17 isolated-service smoke (real PG + real Python sidecar + production Rust front + real Chromium, publication `01a084ab-0505-753d-abd3-8ead0794fe7e`) proves this API end to end. T17 also adds the additive reader seam to `handle_detail` (per-block `source_anchor_ids`, per-ref `revision_ref`, source `ref` preserved; T01 response validator still clean) because the pre-seam response could not drive the accepted source/reference journey — flagged as cross-ownership integration fix, not a T14 redesign. Transitive note: T10/T13 ledger completion remains owned by their own deliveries (both code-merged on the default branch).
