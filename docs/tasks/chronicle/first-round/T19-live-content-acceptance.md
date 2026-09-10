@@ -87,7 +87,6 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - B4: Studio real-browser flow closed — node + playwright chromium installed on the test server (env only, not committed); canonical `chapter-reader-smoke.mjs` PASSES on all 4 published chapters (64/43/16/10 blocks, source-panel open/expand/close, direct-open/refresh/mobile); Studio `/studio/review` login gate verified, authenticated queue shows 0 pending and the decided trail (`已选择：同一实体`), screenshots archived. Second ZZ import deepened the matrix: 12 reviews decided (10 same_entity + 2 event same_occurrence), then publish failed closed on published-canonical stability (`would collapse existing canonical IDs`) — recorded as terminal evidence without softening decisions. Retained blockers: all-unresolved mentions modeling, thin systematic batch matrix, pending independent 13-case review.
 
 2026-09-10 — Single-narrative remediation (still NOT_PASSED):
-
 - §12 corrected: FINAL paths/counts now match `5024be17` (22-pair + 1-batch FINALs; ZZ2 12-review round); C04/C05/C06 rewritten as current-vs-history (855a1dc0 clearly historical); 劉備-triangle IDs pinned per round. §0 pointer extended to §12–§17.
 - 13 cases verified still all pending (0/13, verdict `not_passed`); unresolved chapter mentions explicitly retained as a content blocker (JSON + §12 + §16).
 - Cross-book matrix explicitly defined (§16 exists-vs-missing table): 1 published batch + 12 decided-unpublished + import-level second source exist; systematic matrix, post-publish event merges, within-chapter co-reference modeling are missing. Never called a complete loop.
@@ -97,3 +96,12 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
 - 2026-09-09 — Started: added `apps/chronicle/corpus/first-round/acceptance.md` (live record, verdict NOT_PASSED) and `manual-content-review.json` (desensitized per-case index, 13 pending + 1 synthetic n/a, no secrets). Acceptance boxes stay unchecked; `completed_at`/`merge_sha` empty until a real live pass. #549/#550 untouched.
+
+2026-09-10 — Substantive round on `a517dcd`/`0bb5c6a` (still NOT_PASSED):
+
+- Batch-recall investigation: cross-book candidate blocking needs shared stable surfaces; 魯肅/程普/黃蓋/夏口 missing from ZZ bundles is extraction recall on the ZZ side, not a blocking-logic miss. No code change (cannot script model answers); recorded.
+- Prompt v7 (prefer resolved over hedged unresolved) verified live: published chapters' mentions resolved 12/12, 19/19, 8/10 (was 0 everywhere); 先主→ent_001 劉備 and 11 more span-copy linkages recorded (C01 bundle evidence, first time).
+- Temp-ID fail-fast fix (prompt v8 + validator mirror of assembler 000–999 rule) after live `ent_1001` killed a job at assemble; 99 unit + 15 gate tests green.
+- Genuine Studio browser decision-clicks: ad-hoc playwright driver logged in, opened/filled/submitted all 27 reviews (22 same-revision + 5 cross-book incl. 1 event same_occurrence) with 34 before/after screenshots; API verified 0 open; FINAL snapshots 27/27; job completed and published SG (`01a08997`).
+- Hollow/condensed translation findings (content failures, published artifacts retained): v7 先主傳 2412 chars/0.192 (孫權 x0), v8 ZZ 2808/0.26, v8 周瑜傳 3182/0.63 with dropped subplots (左右督任命/陳就/蘇飛) and 公瑾 normalization; v8 先主傳 (16516/1.31) and 魯肅傳 (5155/1.43) full. Recall section makes hollowness visible; no fidelity gate added (recorded §13 philosophy).
+- 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.

@@ -15,24 +15,20 @@
 
 ## 0. 当前候选权威摘要（current-candidate，唯一可审计口径）
 
-- 代码候选：`5024be17c2df8fc64fca5c72c838b366990b20c`
-  （分支 `agent/executor/7dfa2567b43d`；其后若有提交均为纯文档记录，
-  不改变产品代码，见 PR head 历史）。
-- prompt：`c2r1-chapter-prompt-v6`＋recall 观察节（report v0.2）；
-  模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-5024be17`
-  （已按 SHA 校验 baked 代码与候选一致）；测试服务端口 8086，
-  新 project/数据/证据目录（`/srv/loom-t19-evidence/5024be17/`）。
+- 代码候选：`0bb5c6a07226d4f877b63cd5a6ff9757f3a441ec`
+  （prompt v8：v7 resolve-hedging 澄清＋temp_id 001–999 钉值；
+  validation report v0.2 recall 观察节；分支
+  `agent/executor/7dfa2567b43d`，其后若有提交均为纯文档记录）。
+- 模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-0bb5c6a0`
+  （SHA 校验一致）；测试服务端口 8088，新 project/数据/证据目录
+  （`/srv/loom-t19-evidence/0bb5c6a0/`）。
 - 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态：三國志三章已发布（publication `01a088b2`，artifacts
-  `4ca75066`/`588cfbc3`/`3f93574f`；先主傳 10 entities/7 events、
-  周瑜傳 20 entities/10 events、魯肅傳 23 entities/11 events/6 claims，
-  全部繁体名）；通鑑卷65已发布（`01a088e7`，artifact `5f6e2b43`，
-  64 块 14591 字）；22 个同书 pair＋1 个跨書 batch（曹操）共 23 review
-  全部 operator 裁决 same_entity（终局快照见 §12 方法注与服务器证据目录）；
-  四章 Reader API＋真浏览器首尾验证通过。
-  13 案独立结论 **0/13**（`manual-content-review.json` 全 pending）；
-  verdict **NOT_PASSED**（待独立 reviewer 转正与对账）。
-  细节见 §12–§17；§1–§6 为历史基线（下述），§7–§11 为中间轮次，
+- 当前状态：三國志三章已发布（publication `01a08997`）＋通鑑已发布
+  （`01a08975`）；27 review（22 同书＋5 跨書）全部浏览器内真实
+  decision-click（34 截图＋终局快照）；章内 mention 链接已建模验证
+  （见 §18）；但 v8 轮暴露译文空心/ condensed 缺口（见 §18），
+  13 案独立结论 **0/13**，verdict **NOT_PASSED**。
+  细节见 §12、§16–§18；§1–§6 为历史基线，§7–§15 为中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -451,3 +447,35 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   Mocked（review-flow smoke）/ API（23＋12 decisions）/ 真实 UI 读
   （登录＋队列＋轨迹）三类证据在此明确区分，不得混用。
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
+
+## 18. v7/v8 轮：mention 链接建模验证、浏览器真实点击与空心译文发现
+
+- v7（`a517dcd`，prompt：优先 resolve 已确证指代）→ v8（`0bb5c6a`，
+  ＋temp_id 001–999 prompt 钉值与校验前置失败，起因 job 2 `ent_1001`
+  在 assemble 炸作业；prompt v8，focused tests 99＋gate 15 全过）。
+  镜像 SHA 校验一致；新 project（端口 8087→8088）＋新证据目录。
+- Mention/bundle linkage 建模验证（v7 生效，v8 保持）：
+  已发布 v8 三章 mentions resolved 12/12、19/19、8/10（此前轮次全 0）；
+  先主傳 m_001 先主→ent_001 劉備、m_002 曹公征徐州→ent_002 曹操、
+  操/羽/飛/亮/璋等全链（surface-as-copy 跨度）；C01 章内共指有 bundle
+  记录（首次）。先主傳 entities 20（含劉備/曹操/孫權/關羽/張飛/諸葛亮，
+  全繁体）。 expressive §12 C01 行待独立 reviewer 结合本节复核。
+- 浏览器内真实 decision-click（v8 SG job，27/27）：
+  ad-hoc playwright 驱动（非 canonical 脚本，如实注明）完成
+  登录→逐条 open→select decision→填 rationale/confidence→confirm 提交，
+  每条 before/after 截图（34 张）＋`browser-decisions.json`；
+  API 核验 0 open；终局快照 `reviews-FINAL/` 27/27 resolved
+  （22 同书 pair＋5 跨書：孫權/赤壁事件/曹操/劉備/赤壁地点）。
+  resume 后 8 阶段全完成，publication `01a08997`（三章）。
+  通鑑 v8 job 先行完成并发布（`01a08975`），故 SG 计划含跨書 batch。
+- 空心/condensed 译文发现（内容失败，终局保留，不重写已发布产物）：
+  v7 先主傳出版物 43 块仅 2412 字（ratio 0.192，孫權/白帝 x0）；
+  v8 通鑑 62 块仅 2808 字（ratio 0.26，关键项各 x1，缺卷题行）；
+  v8 周瑜傳 3182 字（ratio 0.63，缺左右督任命/陳就/蘇飛段、
+  公瑾归一为周瑜）；v8 先主傳 16516 字（1.31）与魯肅傳 5155 字
+  （1.43）完整。recall 观察节使空心可见（此前静默），
+  但 validator 本身无 fidelity 门——§13 哲学不变（观察不设限），
+  空心章的内容失败由人工核对承担（本节），转正仍待独立 reviewer。
+- Canonical reader smoke：v8 先主傳 PASS（43 块渲染；内容空心不影响
+  渲染层 PASS——渲染与内容验收分离，明确记录）。
+- 本轮结论：NOT_PASSED。0/13 保持；未关闭 T19/#548。
