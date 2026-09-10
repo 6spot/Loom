@@ -246,10 +246,12 @@ def event_candidates(
     """Generate conservative Event candidates without deciding occurrence identity.
 
     Broad event types such as military, battle, and movement are not allowed to
-    qualify on a single shared high-frequency participant alone. They need a
-    shared place as an additional anchor. Narrow event types may qualify on the
+    qualify on a single shared high-frequency participant alone. They need
+    either a shared place anchor, or (when no side names a conflicting place)
+    at least two shared participants. Narrow event types may qualify on the
     same type, a shared participant, and compatible time even when a source
-    omits the place.
+    omits the place. A candidate is still only an ``uncertain`` review item;
+    it never merges identities by itself.
     """
 
     left_names = _entity_name_map(left_bundle)
@@ -259,53 +261,13 @@ def event_candidates(
     for left in left_bundle.get("events") or []:
         if not isinstance(left, dict):
             continue
-        lp = _event_participants(left, left_names)
-        lplaces = _event_places(left, left_names)
         for right in right_bundle.get("events") or []:
-            if not isinstance(right, dict) or not _time_compatible(left, right):
+            if not isinstance(right, dict):
                 continue
-            rp = _event_participants(right, right_names)
-            rplaces = _event_places(right, right_names)
-            participant_overlap = sorted(lp & rp)
-            place_overlap = sorted(lplaces & rplaces)
-            left_type = left.get("type")
-            right_type = right.get("type")
-            same_type = left_type == right_type and isinstance(left_type, str)
-            type_compatible = _event_type_compatible(left_type, right_type)
-
-            narrow_same_type = (
-                same_type
-                and left_type in _LOW_AMBIGUITY_EVENT_TYPES
-                and bool(participant_overlap)
-            )
-            anchored_broad_match = (
-                type_compatible
-                and bool(participant_overlap)
-                and bool(place_overlap)
-            )
-            if not (narrow_same_type or anchored_broad_match):
+            blocked = _event_pair_blocked(left, right, left_names, right_names)
+            if blocked is None:
                 continue
-
-            score = 0
-            signals: list[str] = []
-            if type_compatible:
-                score += 3
-                signals.append(f"compatible event types: {left_type} / {right_type}")
-            if narrow_same_type:
-                score += 2
-                signals.append(f"low-ambiguity same event type: {left_type}")
-            if participant_overlap:
-                score += 2 * len(participant_overlap)
-                signals.append("shared participants: " + ", ".join(participant_overlap))
-            if place_overlap:
-                score += 3 * len(place_overlap)
-                signals.append("shared places: " + ", ".join(place_overlap))
-            lt = _event_time(left)
-            rt = _event_time(right)
-            if lt["normalized_year"] is not None and lt["normalized_year"] == rt["normalized_year"]:
-                score += 1
-                signals.append(f"same normalized year: {lt['normalized_year']}")
-
+            score, signals = blocked
             ranked.append(
                 (
                     score,
@@ -383,7 +345,22 @@ def _event_pair_blocked(
     anchored_broad_match = (
         type_compatible and bool(participant_overlap) and bool(place_overlap)
     )
-    if not (narrow_same_type or anchored_broad_match):
+    # Live regression (C2-R1-T19 C04): the same battle (赤壁) was extracted in
+    # 先主傳 (participants 劉備/曹操/孫權, no place recorded) and 周瑜傳
+    # (participants 周瑜/孫權/曹操/黃蓋/劉備, place 赤壁). The events are correct;
+    # only the place anchor was missing on one side, so the original blocking
+    # emitted no candidate. General rule: a compatible broad-type pair with two
+    # or more shared participants and no conflicting place is worth human review
+    # even when one side omitted the place. A single shared participant still
+    # never qualifies (honesty: it produces only an uncertain review candidate,
+    # never an automatic merge).
+    conflicting_places = bool(lplaces) and bool(rplaces) and not bool(place_overlap)
+    strong_participant_match = (
+        type_compatible
+        and len(participant_overlap) >= 2
+        and not conflicting_places
+    )
+    if not (narrow_same_type or anchored_broad_match or strong_participant_match):
         return None
     score = 0
     signals: list[str] = []
@@ -399,6 +376,9 @@ def _event_pair_blocked(
     if place_overlap:
         score += 3 * len(place_overlap)
         signals.append("shared places: " + ", ".join(place_overlap))
+    if strong_participant_match and not place_overlap:
+        score += 1
+        signals.append("multi-participant anchor without shared place")
     lt = _event_time(left)
     rt = _event_time(right)
     if lt["normalized_year"] is not None and lt["normalized_year"] == rt["normalized_year"]:
