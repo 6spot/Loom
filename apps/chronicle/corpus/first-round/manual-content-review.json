@@ -1,14 +1,14 @@
 {
   "blockers": [
-    "independent Reviewer completed all 13 real cases: 12 pass and C04 fail because the required current same-revision cross-chapter event link is absent; T19 remains not_passed",
-    "current four-chapter content-complete evidence (real-browser round, candidate 7e637dd): SG publication 01a08b08 (先主傳 16312/1.30, 周瑜傳 7068/1.41, 魯肅傳 5169/1.44) + ZZ publication 01a08ad9 (卷65 14718/1.37), artifact hashes recorded, canonical smoke 4/4; same-candidate historical comparison: the API-decided round SG 01a08a8e / ZZ 01a08a66 (11974/5177/5224/14353). Historical condensed publications (SG3 4658/0.37, v7 0.192, v8 ZZ 0.26, v8 周瑜傳 0.63) retained as evidence",
-    "hollow-pass gap dispositioned (not gated): a v10-round initial candidate of 1803 chars passed structural validation (job b0c5e3c6, cancelled before publish, run evidence retained); chapter-production.md section 96 puts translation completeness under per-chapter content review, so no length gate is added and the 13 cases carry the judgment",
-    "mentions: current SG/ZZ rounds mostly resolved with span-copy linkages; 魯肅傳 2 unmodeled mentions are temporal expressions (建安二十二年/十九年) with no entity referent, correctly unresolved+null (query evidence)",
-    "cross-book matrix criterion defined + executed (acceptance section 22): Coverage PASS on candidate 7e637dd - all 6 cells {same_revision, same_book_reimport, cross_book} x {entity, event} covered and terminal (41/41, 1/1 not_same, 174/174, 31/31, 48/48, 4/4); Publish FAIL - the event round (d7c18548) fail-closed on event canonical collapse (two existing canonical ids), retained as terminal evidence. General event-merge rule (publication_v0._build_canonical_records): a merge component maps to at most one existing canonical id; >=2 -> fail-closed (ZZ2; event round); single/new join publishes (ZZ3, ZZ-v10, v10-browser); both outcomes retained",
-    "current Studio browser decision-clicks (candidate 7e637dd): v10 SG job 5ee49e77 43/43 + ZZ job 3417517d 1/1 via real browser open/fill/submit, 88 before/after screenshots, FINAL states, API open 0; historical: SG3/ZZ3 browser round (43/43 + 7/7, 100 screenshots) and the same-candidate v10 API-decided round (21 decisions); canonical review-flow-smoke.mjs remains mocked-API-only (ad-hoc/browser driver used, documented)",
-    "live artifacts archived: current 7e637dd3 browser round publications 01a08b08/01a08ad9; same-candidate historical API round 01a08a8e/01a08a66; historical 0bb5c6a0 rounds 01a089d6/01a08a13, 01a08997/01a08975, 5024be17, 855a1dc0 preserved; canonical review-flow-smoke.mjs real-backend coverage is an explicit unmet requirement (out of T19 scope, ad-hoc browser driver evidence provided); final ledger reconciliation awaits independent review"
+    "independent Reviewer completed all 13 real T02 cases: 13 pass / 0 fail / 0 pending (C04 accepted after the T08 place-anchor fix produced the sole within_revision event candidate f9e37a9d, evt_000003 先主傳 ↔ evt_001003 周瑜傳, terminal same_occurrence). Overall T19 is still not_passed and awaits final acceptance; T19/#548 remain open.",
+    "final candidate and provenance: candidate c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808 (origin/main, contains #637/#638/#639/#640). Runtime delta vs 57fe539 is only review-flow-smoke.mjs (test tooling). Provenance rebuilt on c10ba6a: /srv/loom-t19-evidence/c10ba6aa/fp-provenance.json — deployed image loom-chronicle:t19-c10ba6aa (id sha256:60d530a2…), source revision sha256 match a5dc345f… (SG) / b9831c28… (ZZ), publication artifact hashes, real-backend PASS log hash, deployed on project chronicle-t19-c10ba6aa / port 8092.",
+    "canonical review-flow-smoke.mjs --mode real-backend PASS on the live server (real login/open/select/submit/readback status=resolved), achieved with the candidate SHA's script after #639 (terminal-item navigation) and #640 (readback Basic auth); this PASS is attributed to c10ba6a, not to 57fe539.",
+    "primary happy-path content evidence (run candidate 57fe539, runtime identical to c10ba6a): SG publication 01a08c36 (先主傳 15872/1.26, 周瑜傳 6963/1.38, 魯肅傳 5244/1.46) + ZZ publication 01a08c46 (14718, 64 blocks); Reader 4/4 PASS (43/16/10/64 blocks); worker restart/takeover resumed mid-extract (job attempt 2, lease re-claimed).",
+    "canonical-stability Publish fail-closed (event round, two existing canonical ids) classified per apps/chronicle/docs/publication.md as expected negative-path / fail-closed PASS evidence (acceptance §24); not a T19 blocker.",
+    "supporting same-source re-imports used to exercise the canonical real-backend review: ZZ2 01a08c53 and SG2 01a08ca7 published; ZZ3 publish_plan_stale and ZZ4 extraction failure retained as failed runs (evidence preserved, not deleted).",
+    "overall verdict remains not_passed; no self-certification of PASSED; T19/#548 not closed."
   ],
-  "candidate_commit": "7e637dd3b8cb70434436feb92e7db8c8bdfd06ae",
+  "candidate_commit": "c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808",
   "evidence_notes": [
     "v10 round evidence dirs: /srv/loom-t19-evidence/7e637dd3/ (API-decided content-complete) and .../browser-round/ (real-browser decisions)",
     "current real-browser record (candidate 7e637dd, prompt v10): SG job 5ee49e77 43/43 + ZZ job 3417517d 1/1 decided via ad-hoc playwright open/fill/submit (88 before/after screenshots, shots-sg/ and shots/), API open 0, FINAL snapshots in reviews-sg-FINAL/ and reviews-FINAL/; publications 01a08b08 (先主傳 16312/1.30, 周瑜傳 7068/1.41, 魯肅傳 5169/1.44) and 01a08ad9 (14718/1.37)",
@@ -62,10 +62,10 @@
     {
       "case_id": "T02-C04",
       "category": "cross-chapter-recurrence",
-      "conclusion": "FAIL — both chapter translations accurately contain the 赤壁 accounts, but the current bundle has no same-revision 先主傳↔周瑜傳 event candidate; place-entity evidence and historical SG3/848a296f records cannot substitute for the required event link.",
-      "evidence": "acceptance.md §25.5 and §26 C04; §34 chapter-sg0-sidebyside.md/chapter-sg1-sidebyside.md; case_context.out T02-C04; current publication 01a08b08; no current event candidate recorded",
+      "conclusion": "PASS — the tightened T08 place-anchor rule produces the required same-revision 先主傳↔周瑜傳 event candidate: sole within_revision event candidate f9e37a9d (evt_000003 赤壁之戰擊破曹操水軍 ↔ evt_001003 赤壁之戰, shared place 赤壁 via the candidate's title/place anchor), terminal same_occurrence in the real run. Both chapter translations contain the 赤壁 accounts.",
+      "evidence": "acceptance.md §0/§24/§35; run candidate 57fe539 (code equals c10ba6a runtime), SG job effb5ac1, review f9e37a9d, publication 01a08c36; evidence /srv/loom-t19-evidence/57fe5390 and /srv/loom-t19-evidence/c10ba6aa (fp-provenance.json)",
       "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
-      "status": "fail",
+      "status": "pass",
       "title": "赤壁跨章復現（先主傳↔周瑜傳）"
     },
     {
@@ -187,9 +187,9 @@
     }
   ],
   "status_counts": {
-    "fail": 1,
+    "fail": 0,
     "not_applicable": 1,
-    "pass": 12,
+    "pass": 13,
     "pending": 0
   },
   "task": "C2-R1-T19",

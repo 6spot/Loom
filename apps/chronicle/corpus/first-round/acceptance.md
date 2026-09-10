@@ -6,42 +6,47 @@
 操作入口 `apps/chronicle/docs/chapter-acceptance.md`。
 逐案独立结论索引：`manual-content-review.json`（本目录，与本文同次提交）。
 
-> 结论前置：**本次 live 内容验收未通过（NOT_PASSED）**。
-> 当前状态（v10 candidate `7e637dd`，见 §0/§20）：真实 provider 调用、
-> 认证 API 审核（v10 轮 21/21）、两书四章发布（SG `01a08a8e`＋ZZ
-> `01a08a66`，四章 content-complete：11974/7177/5224/14353 字）、四章
-> Reader API＋canonical smoke＋真浏览器渲染均已执行；13 案独立结论已完成
-> 13/13（12 pass、C04 fail）。拥有层跟进（2026-09-10）：C04 修复 PR #635、
-> canonical real-backend review-flow PR #636 均已 merge；canonical-stability
-> publish fail-closed 按规范分类为 expected negative-path PASS evidence
-> （§24）。下一 candidate 将重跑最终 happy-path；hollow/condensed 由 v10
-> 修正轮保真修复消除机制（历史 SG3 4658/0.37 见 §19）。
+> 结论前置：**总体 verdict 仍为 NOT_PASSED（不自我认证 PASSED）**。
+> 当前口径（见 §0/§35）：最终 happy-path 在 candidate `57fe539`（运行时代码与
+> `c10ba6a` 一致）上完成——两书四章 content-complete（SG `01a08c36`：先主傳
+> 15872/1.26、周瑜傳 6963/1.38、魯肅傳 5244/1.46；ZZ `01a08c46`：14718/1.37）、
+> C04 同 revision event candidate `f9e37a9d` 终局 `same_occurrence`、Reader 4/4、
+> restart/takeover、provenance/hash；13 案独立结论 **13 pass / 0 fail / 0 pending**。
+> canonical `review-flow-smoke.mjs --mode real-backend` 在含 #639/#640 的 candidate
+> `c10ba6a` 上 PASS（不归属 `57fe539`）。canonical-stability publish fail-closed
+> 按规范分类为 expected negative-path PASS evidence（§24）。历史 `7e637dd` 轮的
+> 12 pass/1 fail 口径见 §7–§34，仅对照。
 > fixture 离线 PASS 仅证明编排与契约形状，
 > **不能作为译文内容正确证据**，本文不以脚本 PASS 代替内容验收。
 
 ## 0. 当前候选权威摘要（current-candidate，唯一可审计口径）
 
-- 代码候选：`7e637dd3b8cb70434436feb92e7db8c8bdfd06ae`
-  （prompt v10：在 v8/v9 基础上要求修正轮逐字保留译文 blocks；
-  validation report v0.2 recall 观察节；分支
-  `agent/executor/7dfa2567b43d`，其后若有提交均为纯文档记录）。
-- 模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-7e637dd3`
-  （SHA 校验一致）；测试服务端口 8090，新 project/数据/证据目录
-  （`/srv/loom-t19-evidence/7e637dd3/`）。
-- 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态（内容完整闭环＋真实浏览器审核，见 §20–§21）：三國志三章
-  已发布（publication `01a08b08`：先主傳 16312/1.30、周瑜傳 7068/1.41、
-  魯肅傳 5169/1.44）＋通鑑已发布（publication `01a08ad9`，14718/1.37）——
-  **四个自然章均有 content-complete 译文**，且同轮 43/43＋1/1 review
-  经真实 Studio 浏览器 decision-click 裁决；四章 canonical smoke 4/4＋
-  DOM 首尾 PASS。同候选另有 API 裁决轮（`01a08a8e`/`01a08a66`）作对照。
-  另有 event 轮 `d7c18548` 58/58 浏览器裁决；矩阵 Coverage PASS（6/6 单元
-  §22）、Publish fail-closed（event 轮 canonical collapse；§24 按 publication
-  规范分类为 expected negative-path PASS evidence，不再阻塞 T19）。
-  历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
-  仅对照。13 案独立结论 **13/13（12 pass、1 fail）**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§35；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
-  不得作为当前验收证据引用。
+- 最终 candidate：`c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808`（origin/main，含
+  #637（T05 v7–v10 保真）/ #638（T08 地点锚点收紧）/ #639（real-backend terminal
+  提交）/ #640（real-backend readback 凭据））。与 `57fe539` 的 runtime 差异仅
+  `apps/chronicle/webapp/scripts/review-flow-smoke.mjs`（工具脚本，非服务运行时）。
+- happy-path 运行：project `chronicle-t19-57fe5390`（运行 candidate `57fe539`，
+  与 c10ba6a 运行时代码一致）；provenance 重建后部署于 candidate `c10ba6a`
+  （project `chronicle-t19-c10ba6aa`，镜像 `loom-chronicle:t19-c10ba6aa`，
+  id `sha256:60d530a2…`），端口 8092，证据
+  `/srv/loom-t19-evidence/57fe5390`（运行）与 `/srv/loom-t19-evidence/c10ba6aa`
+  （provenance）。
+- 模型：`gpt-5.6-luna`。
+- 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致；重建的
+  `fp-provenance.json` 记录 source revision sha256、publication artifact sha256、
+  real-backend PASS log hash 与部署镜像 id。
+- 主结果：四章 content-complete（SG `01a08c36`：先主傳 15872/1.26、周瑜傳
+  6963/1.38、魯肅傳 5244/1.46；ZZ `01a08c46`：14718/1.37）；C04 同 revision
+  event candidate `f9e37a9d`（`evt_000003` 先主傳 ↔ `evt_001003` 周瑜傳）终局
+  `same_occurrence`；全部 resolution review terminal（open=0）；Reader 4/4 PASS
+  （43/16/10/64 blocks）；worker restart 后 takeover 续跑。
+- canonical 工具：`review-flow-smoke.mjs --mode real-backend` 在 `c10ba6a` 上真实后端
+  PASS（登录/打开/选择/提交/读回 `status=resolved`）；属 `c10ba6a`，不归属 `57fe539`。
+- 13 案独立结论 **13 pass / 0 fail / 0 pending**（C04 pass），见 §35 与
+  `manual-content-review.json`；**总体 verdict 仍 `NOT_PASSED`**，不自我认证 PASSED，
+  未关闭 T19/#548。
+- 历史轮（`7e637dd` 12 pass/1 fail、`e89e9062` 未发布证据、SG3/ZZ3 on `0bb5c6a`、
+  v8 首发等）见 §7–§34，仅对照，不得作为当前证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
 
@@ -748,51 +753,35 @@ canonical real-backend 覆盖已由 T11 owning layer（PR #636）**解决**。
      在 event 轮被正确触发；失败终局保留为安全性证据
      （负面 fail-closed 与正面 join 发布 ZZ3/ZZ-v10/v10-browser 两种终局
      并存），**不再作为 T19 blocker**，也不因此放宽 canonical identity 边界。
-2. **当前 C04 事件证据路径（显式 unmet）**：
-   - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。当前 candidate 三轮 resolve
-     输出中未涌现该特定候选（event 轮同 revision 事件仅 `07a7c595`
-     孫策去世 vs 魯肅去世，已 `not_same`）。
-   - **拥有层修复已合入（2026-09-10）**：`resolution_v0._event_pair_blocked`
-     的通用规则已修（兼容 broad 事件对在 ≥2 共享参与者且无冲突地点时产生
-     within_revision candidate；单一共享参与者仍不产生），回归见
-     `test_resolution_v0.py`，PR #635 已 merge（`9a7076c`）。当前
-     `7e637dd` artifact 上确定性验证该修复后 `build_within_bundle_candidate_set`
-     恰好产出 先主傳↔周瑜傳 该候选。下一 candidate 的最终 happy-path 将
-     重新生成 C04 证据；本节旧证据路径保留为历史。
-   - 可复现（两条可直接复制；先 `ssh root@<测试服务器>` → `cd /srv/Loom &&
-     set -a && . ./.env.chronicle && set +a`，凭据只来自服务器环境）：
-     ```
-     curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
-       'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=e4e952f0-ec61-4f5e-b9c9-7f4363e11fb7&link_kind=event&limit=50'
-     curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
-       'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=d7c18548-b51d-4581-be06-f26cad9fdd06&link_kind=event&limit=50'
-     ```
-     两条查询分别返回 SG2（`e4e952f0`，2 个 event review）与 event 轮
-     （`d7c18548`，12 个）的候选清单：SG2 的 `848a296f`（赤壁之戰↔赤壁之戰
-     火攻曹軍）是 **ZZ 已发布↔SG 跨書**（`21cd`↔`86ac`），非 C04 的
-     先主傳↔周瑜傳 **同 revision** 对；event 轮同 revision 事件仅
-     `07a7c595`（孫策/魯肅去世，`not_same`）。故**无 C04 指定的 先主傳↔
-     周瑜傳 赤壁 同类候选**。浏览器 SG 轮完整 UUID 为
-     `5ee49e77-5980-4263-95c0-d23d3323160e`，同样可替换 `job_id` 复核。
-   - 当前可用 C04 材料：两章已发布译文均含「赤壁」（`01a08b08`）；历史 SG3 轮
-     同 revision event same_occurrence（`0bb5c6a`，§19）。**须由独立 reviewer
-     结合原文判定，本节不预置结论。**
-3. **canonical `review-flow-smoke.mjs` 真实后端覆盖 —— 拥有层已解决（RESOLVED）**：
-   原缺口：脚本仅支持 `--mode mocked-api`。**2026-09-10 已由 T11/T18
-   UI/acceptance-script owning layer 解决**：PR #636（`f91041f`，已 merge）
-   新增 `--mode real-backend`——不 mock API、对真实 Chronicle server 执行、
-   凭据只从 `CHRONICLE_SMOKE_USERNAME`/`CHRONICLE_SMOKE_PASSWORD`（或
-   `--username`/`--password`）读取、接受 prepared `--review-id`/`--job-id`、
-   真正执行打开/选择 decision/提交/读回 `status=resolved`，并有退出码与
-   focused CLI 契约测试
-   (`apps/chronicle/webapp/tests/review-flow-smoke.test.ts`) 与使用文档
-   (`apps/chronicle/docs/chapter-acceptance.md`)。ad-hoc 真实浏览器证据见
-   §17/§21（SG 43/43＋ZZ 1/1＋event 58/58）。**最终 happy-path 将以
-   `--mode real-backend` 产出 canonical 覆盖。**
+2. **C04 事件证据路径 —— 已解决（RESOLVED，2026-09-10/11）**：
+   - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。收紧后的 T08
+     `_event_pair_blocked`（PR #638：broad 类型要求共享地点锚点，标题地名可回填）
+     在主 happy-path 的 SG bundle 中产生**唯一** within-revision event candidate
+     `f9e37a9d`：`evt_000003` 先主傳「赤壁之戰擊破曹操水軍」 ↔ `evt_001003`
+     周瑜傳「赤壁之戰」（共享地点赤壁），真实 review 终局 `same_occurrence`。
+     #635 早先的“≥2 参与者即候选”过宽规则已由 #638 收敛；3 个仅参与者误候选
+     （赤壁之戰↔曹操敗退、赤壁之戰↔孫權決定抗拒曹操、周瑜之子胤…↔魯肅代周瑜領兵）
+     不再出现。
+   - happy-path 运行 candidate `57fe539`（运行时代码等同 `c10ba6a`），SG job
+     `effb5ac1`，证据 `/srv/loom-t19-evidence/57fe5390`；独立 Reviewer 已据此判
+     C04 `pass`（§35）。历史 `7e637dd` 轮无该候选，见 §25，仅对照。
+3. **canonical `review-flow-smoke.mjs` 真实后端覆盖 —— 已解决（RESOLVED）**：
+   PR #636 新增 `--mode real-backend`（不 mock API、对真实 server 执行、凭据仅从
+   `CHRONICLE_SMOKE_USERNAME`/`CHRONICLE_SMOKE_PASSWORD` 或 flags 读取、接受
+   prepared `--review-id`、真打开/选择/提交并读回 `status=resolved`）；随后
+   PR #639（末项提交后不跳转的容忍）与 PR #640（读回请求补 Basic 凭据）修好真实
+   后端路径。最终在含 #639/#640 的 candidate `c10ba6a` 上对真实服务器
+   **PASS（exit 0）**，日志
+   `/srv/loom-t19-evidence/c10ba6aa/canonical-real-backend-review.log`；
+   **归属 `c10ba6a`，不归属 `57fe539`**。focused CLI 契约测试见
+   `apps/chronicle/webapp/tests/review-flow-smoke.test.ts`，ad-hoc 历史证据见 §17/§21。
 
-## 25. C04 当前 source-grounded 材料（供独立 review，不预置结论）
+## 25. C04 历史 source-grounded 材料（candidate `7e637dd`，仅对照）
 
-C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd` 的可用证据如下；
+> 历史快照：本节是 `7e637dd` 轮的 C04 材料（当时无同 revision event candidate）。
+> 最终 C04 结论见 §0/§35（candidate `c10ba6a`，运行 `57fe539`，候选 `f9e37a9d`）。
+
+C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。candidate `7e637dd` 的可用证据如下；
 **注意 `848a296f`（赤壁之戰 ZZ↔SG 跨書）不是 C04 的先主傳↔周瑜傳同类对**，
 不得当 C04 结论。
 
@@ -1057,32 +1046,34 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
   独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；
   两项 owning-layer escalation 继续跟踪。
 
-## 35. 独立 Reviewer 逐案结论（current candidate `7e637dd`）
+## 35. 独立 Reviewer 逐案结论（最终：candidate `c10ba6a`，运行 `57fe539`）
 
 2026-09-10，Reviewer agent
 `54d5eed4-ef01-479d-9a80-1bc6e55cca2a` 基于 §23、§25–§34 的原文锚点、四章
 全文、side-by-side/句级索引、上下文与引用/事件 locator，逐案核对并写入
 `manual-content-review.json`。结论不是由 replay、hash、Reader smoke 或
-浏览器裁决计数自动产生：
+浏览器裁决计数自动产生。
 
-§23–§34 中关于“判定留空／pending”的表述是复核输入包生成时的快照；当前
-台账与总口径以本节及 `manual-content-review.json` 为准。
+历史快照：candidate `7e637dd` 轮曾给 12 pass / C04 fail / 0 pending，C04 以
+“缺同 revision 先主傳↔周瑜傳 event candidate”为唯一内容 FAIL；该快照保留于
+§23–§34，仅对照，不再是当前口径。
+
+最终轮（candidate `c10ba6a`，运行 `57fe539`）：
 
 | 案 | 独立结论 | 核对摘要 |
 | --- | --- | --- |
 | C01–C03 | `pass` | 同章姓名/字号与后文称谓在原文及译文中对应。 |
-| C04 | `fail` | 两章赤壁译文有原文依据，但当前没有先主傳↔周瑜傳同 revision event candidate；place entity、跨書记录与历史 SG3 不能替代。 |
+| C04 | `pass` | 收紧后的 T08 地点锚点规则产生唯一 within_revision event candidate `f9e37a9d`（`evt_000003` 先主傳「赤壁之戰擊破曹操水軍」↔ `evt_001003` 周瑜傳「赤壁之戰」，共享地点赤壁），真实 review 终局 `same_occurrence`；两章译文均含赤壁。 |
 | C05–C06 | `pass` | 赤壁跨書事件及周瑜/程普跨書身份材料与当前 terminal review 对应。 |
 | C07 | `pass` | 译文保留南郡（郡）与江陵（城）的层级差异，不直接合并。 |
 | C08–C10 | `pass` | 典略/江表传归属保留；馬超仅作战略背景，不伪造 direct claim。 |
 | C11–C13 | `pass` | 四章首尾定位完整；嵌注闭合；习凿齿评论明确保留后世史论归属。 |
 
-因此当前台账为 13/13 已有独立结论（12 `pass`、1 `fail`、0 pending），总
-verdict 仍为 `NOT_PASSED`。C04 为当前唯一明确内容/链接 FAIL；canonical-stability
-publish fail-closed 经 §24 对照 `publication.md` 规范分类为
+因此最终台账为 13/13 独立结论 **13 pass / 0 fail / 0 pending**（另有 1 个合成
+负例 `not_applicable`）。canonical-stability publish fail-closed 按 §24 分类为
 **expected negative-path / fail-closed PASS evidence**，不再阻塞 T19；
-canonical review-flow 真实后端缺口已由 T11 owning layer PR #636 解决，
-C04 owning layer 修复已由 PR #635 merge。上述结论基于 candidate `7e637dd`；
-下一 candidate 的最终 happy-path 须重新产出 C04 candidate 与
-`--mode real-backend` canonical 覆盖，再由独立 Reviewer 给最终 verdict。
-不以本表关闭 T19/#548，Executor 不自证 PASSED。
+canonical `review-flow-smoke.mjs --mode real-backend` 在含 #639/#640 的 candidate
+`c10ba6a` 上真实后端 PASS（登录/打开/选择/提交/读回 `status=resolved`），
+**归属 `c10ba6a`，不归属 `57fe539`**。**总体 verdict 仍为 `NOT_PASSED`**：
+内容与 provenance 闭环已完成，但最终验收由独立流程确认；不以本表关闭 T19/#548，
+Executor 不自证 PASSED。
