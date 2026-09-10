@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§32；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§33；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -998,3 +998,27 @@ verdict/依据/证据，不转正任何案例**。
 - 结合 §31 全文文件与 §30/§29 引用、窗口、hash，reviewer 可对每案做完整上下文
   核对。C04 仍无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
   `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空。
+
+## 33. 复核输入一键确定性重放与清单（locator-only）
+
+§27–§32 的全部复核输入可用**单条命令**确定性重放，产出 25 个文件并生成
+sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**不写 verdict/依据/
+证据，不转正任何案例。**
+
+- 重放脚本：`/srv/loom-t19-evidence/7e637dd3/regen_review_bundle.sh`
+  （凭据仅读 `.env.chronicle`/worker 容器环境；不写仓库）。执行：
+  ```
+  bash /srv/loom-t19-evidence/7e637dd3/regen_review_bundle.sh
+  ```
+  依次生成：`case_windows.out`（源窗口）、`case_hashes.out`（窗口/边界/嵌注
+  hash）、`case_context.out`（全上下文＋引用/事件 locator）、`chapter_pairs.out`
+  ＋`chapter-*-src/trans/align`（四章全文与对齐）、`chapter_index.out`＋
+  `chapter-*-source-blocks/translation-sentences.tsv`（句级阅读索引）、
+  `review-bundle-manifest.json`（清单）。
+- 清单（`review-bundle-manifest.json`，25 文件、0 missing）逐一记录每个文件的
+  `sha256` 与字节数，replay 后与记录一致即证明输入未漂移。
+- 说明：清单只校验**输入一致性**，不代表任何内容结论；`08`/`09` 注文计数、
+  ZZ 单块→句级视图等均为 locator/observation。
+- C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
+  不作替代。`manual-content-review.json` 保持 13 `pending`／`not_passed`／
+  reviewer 空；两项 owning-layer escalation 继续跟踪。

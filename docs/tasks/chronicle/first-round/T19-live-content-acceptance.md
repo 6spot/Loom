@@ -236,3 +236,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — sentence-level reading index (still NOT_PASSED):
 
 - Acceptance section 32 added: chapter_index.py outputs deterministic source-block and translation-sentence indexes with offsets+sha16, resolving ZZ's single-block limitation (zz 127/1/492; sg0 86/43/552; sg1 32/16/214; sg2 19/10/164). Locator-only; no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — one-command review-bundle replay (still NOT_PASSED):
+
+- Acceptance section 33 added: regen_review_bundle.sh deterministically regenerates the 25-file 13-case review bundle and review-bundle-manifest.json (25 files, 0 missing). Input-consistency only; locator-only, no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
