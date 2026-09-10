@@ -130,3 +130,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - `manual-content-review.json` B2–B5 rewritten: SG3 43-review + ZZ3 7-review browser decisions, publications `01a089d6`/`01a08a13`, correct unresolved time-expression disposition (建安二十二年/十九年), current hollows (SG3 先主傳 4658/0.37; SG3 周瑜傳 7108 fixes v8 r1; ZZ3 9804/0.91), prior v8 values marked historical; 13 pending / 0/13 preserved.
 - §12 method/reconciliation notes, C01–C07/C11 rows, negative findings, top conclusion, and §16 matrix table all updated to SG3/ZZ3 current with v8-first marked historical; canonical review-flow retained mocked-only; matrix/event-merge gaps retained.
 - Consistency: JSON parses, 14 cases 1:1, 13 pending, `git diff --check` clean, gate 15 tests OK.
+
+2026-09-10 — §17 browser-boundary sync (still NOT_PASSED):
+
+- §17 now records SG3 43/43 + ZZ3 7/7 genuine Studio browser decision-clicks (100 before/after screenshots, final states 43/43 and 7/7, API 0-open) as the current record; v8-first 27 clicks and the 23+12 API traces explicitly historical; canonical review-flow-smoke.mjs retained mocked-only. SG3 4658/0.37 condensed, 13 pending/0/13, matrix/event-merge gaps (ZZ2 fail-closed + ZZ3 success) preserved; nothing closed.

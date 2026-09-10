@@ -444,23 +444,26 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 
 不得把已发布覆盖合称为完整跨書闭环。
 
-## 17. Studio 浏览器证据边界（精确划分）
+## 17. Studio 浏览器证据边界（精确划分，SG3/ZZ3 当前）
 
-- ✅ Canonical 真实后端证据：`chapter-reader-smoke.mjs` 对 4 个已发布章
-  全部 PASS（生产 Rust 前端＋真实 API，非 dev server/mock）。
+- ✅ 当前轮真实 UI 点击（**current record**）：SG3 43/43＋ZZ3 7/7，
+  经 ad-hoc playwright 驱动在 Studio 浏览器内 open/fill/submit 真实执行
+  （`window.confirm` 对话框通过），共 100 张 before/after 截图
+  （SG3 86＋ZZ3 14）＋终局快照 SG3 43/43、ZZ3 7/7；API 复核 0 open。
+- ✅ Canonical 真实后端证据：`chapter-reader-smoke.mjs` 对已发布章
+  全部 PASS（生产 Rust 前端＋真实 API，非 dev server/mock）；SG3/ZZ3
+  四章 smoke 4/4＋DOM 首尾断言。
 - ✅ 真实 UI 读证据（ad-hoc playwright 驱动，非 canonical 脚本）：
-  `/studio/review` 登录壳（未认证）→ 认证登录 → 审核队列“待处理 0 项”→
-  已处理页 23＋12 条已裁决轨迹；截图与 DOM 断言已归档。
-- ✅ 23＋12 条历史裁决：经认证 API（与 UI 同路由）执行，有终局快照；
-  当时非浏览器点击（历史局限，见 §15）。
-- ✅ v8 轮 27 条裁决：浏览器内 open/fill/submit 真实执行
-  （ad-hoc playwright 驱动，34 before/after 截图＋27/27 FINAL），
-  非 mocked、非纯 API。
+  `/studio/review` 登录壳（未认证）→ 认证登录 → 队列 + 已处理轨迹。
+- 历史（仅对照）：v8 首发 27 条浏览器点击（34 before/after 截图＋
+  27/27 FINAL）；更早 23＋12 条经认证 API（与 UI 同路由）执行、
+  当时非浏览器点击（见 §15）。均不构成本轮 current record。
 - ❌ 剩余 unmet（保留）：canonical `review-flow-smoke.mjs` 仍仅
   mocked-api——尚无以仓库 canonical 脚本执行的真实后端 review-flow
   浏览器证据；ad-hoc 驱动已证明 UI 路径可行，但不等同 canonical 覆盖。
   Mocked（review-flow smoke）/ API（历史 23＋12）/ 真实 UI
-  点击（v8 27/27）/ 真实 UI 读四类证据在此明确区分，不得混用。
+  点击（当前 SG3 43/43＋ZZ3 7/7；历史 v8 27/27）/ 真实 UI 读
+  五类证据在此明确区分，不得混用。
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
 ## 18. v7/v8 轮：mention 链接建模验证、浏览器真实点击与空心译文发现
