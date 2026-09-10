@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v6", prompt)
+        self.assertIn("c2r1-chapter-prompt-v7", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -208,6 +208,17 @@ class PromptRenderingTests(unittest.TestCase):
         prompt = P.render_chapter_prompt(request)
         self.assertIn("never the entity display name", prompt)
         self.assertIn("曹公征徐州", prompt)
+
+    def test_prompt_prefers_resolved_over_hedged_unresolved(self) -> None:
+        # Live regression (C2-R1-T19, published chapters): every mention
+        # arrived unresolved even where the chapter confirms the referent
+        # (先主 in 先主傳), leaving within-chapter co-reference unmodeled.
+        # The guide now prefers resolved-with-target_ref and reserves
+        # unresolved for genuinely unidentified references.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("Prefer resolved over unresolved", prompt)
+        self.assertIn("Reserve \"unresolved\" strictly", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -473,7 +484,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v6")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v7")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v6"
+PROMPT_VERSION = "c2r1-chapter-prompt-v7"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -85,6 +85,13 @@ REFERENCE_RULES = r'''SAME-CHAPTER REFERENCE RULES
   target_ref null (candidate_refs may be empty). A genuinely ambiguous surface
   uses status "ambiguous" with target_ref null and at least two valid
   candidate_refs. Never force an uncertain surface onto the most familiar person.
+- Prefer resolved over unresolved whenever the chapter confirms the referent:
+  if the chapter text confirms who or what a mention denotes (for example
+  先主 in 先主傳, or 曹公/操 where the chapter confirms 曹操), resolve the
+  mention to that Entity with target_ref. Reserve "unresolved" strictly for
+  references the chapter genuinely leaves unidentified; hedging every mention
+  as unresolved when referents are confirmed evades the linkage the bundle
+  exists to record.
 - Contextual forms such as 公 / 王 stay contextual mentions; they must not become
   stable global aliases of any Entity.
 - Every mention surface must equal its selection.quote exactly.
