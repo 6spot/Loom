@@ -1015,8 +1015,9 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
   ＋`chapter-*-src/trans/align`（四章全文与对齐）、`chapter_index.out`＋
   `chapter-*-source-blocks/translation-sentences.tsv`（句级阅读索引）、
   `review-bundle-manifest.json`（清单）。
-- 清单（`review-bundle-manifest.json`，25 文件、0 missing）逐一记录每个文件的
-  `sha256` 与字节数，replay 后与记录一致即证明输入未漂移。
+- 清单（`review-bundle-manifest.json`，§33 的 25 个核心文件加 §34 的 4 个
+  side-by-side 文件，共 29 文件、0 missing）逐一记录每个文件的 `sha256` 与
+  字节数，replay 后与记录一致即证明输入未漂移。
 - 说明：清单只校验**输入一致性**，不代表任何内容结论；`08`/`09` 注文计数、
   ZZ 单块→句级视图等均为 locator/observation。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
