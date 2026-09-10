@@ -333,6 +333,30 @@ class EqualityDiagnosticTests(unittest.TestCase):
         self.assertTrue(report2["errors"]["schema_validation"])
         self.assertFalse(report2["errors"]["references"])
 
+    def test_temp_id_beyond_999_rejected_fail_fast(self) -> None:
+        # Live regression (C2-R1-T19, v7 SG job 2): the model emitted
+        # ent_1001, sailed through validation, and killed the whole job
+        # one stage later at assemble (revision-scoped remap needs
+        # 000-999). The validator now fails fast on the same rule.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["temp_id"] = "ent_1001"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "references")
+        messages = report["errors"]["references"]
+        self.assertTrue(
+            any("ent_1001" in m and "999" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_temp_id_at_999_boundary_passes_prefix_check(self) -> None:
+        # ent_999 breaks other fixture references (renamed record), but it
+        # must NOT trip the numeric-range rule itself.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["temp_id"] = "ent_999"
+        report = C.validate_chapter_candidate(request, candidate)
+        joined = json.dumps(report["errors"]["references"], ensure_ascii=False)
+        self.assertNotIn("must be within 000-999", joined)
+
 
 class RecallObservationsTests(unittest.TestCase):
     def test_valid_candidate_carries_recall_counts(self) -> None:

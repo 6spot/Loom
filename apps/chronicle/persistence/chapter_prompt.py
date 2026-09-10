@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v7"
+PROMPT_VERSION = "c2r1-chapter-prompt-v8"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -40,7 +40,9 @@ Emit exactly one JSON object with schema="chronicle.chapter-candidate", version=
 and chapter_id copied verbatim from CHAPTER REQUEST. Required top-level keys:
 bundle, translation, mentions, record_sources, warnings.
 bundle: {schema_version:"0.1", source, entities[], events[], claims[], warnings[]}.
-Use temp_id only (src_*/ent_*/evt_*/clm_*); NEVER emit canonical `id`,
+Use temp_id only (src_*/ent_*/evt_*/clm_*), numbered sequentially from 001
+within each kind (ent_001, ent_002, ...; the numeric part must stay within
+000-999 so assembly can remap it); NEVER emit canonical `id`,
 canonical_id, or candidate_ids.
 source: {temp_id:"src_*", kind:"source", source_type, title, language, extraction}.
 entity: {temp_id:"ent_*", kind:"entity", type, canonical_name, aliases[], mentions:[{text}],

@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v7", prompt)
+        self.assertIn("c2r1-chapter-prompt-v8", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -219,6 +219,16 @@ class PromptRenderingTests(unittest.TestCase):
         prompt = P.render_chapter_prompt(request)
         self.assertIn("Prefer resolved over unresolved", prompt)
         self.assertIn("Reserve \"unresolved\" strictly", prompt)
+
+    def test_prompt_pins_temp_id_numbering(self) -> None:
+        # Live regression (C2-R1-T19, v7 SG job 2): the model emitted
+        # ent_1001, passed validation, and killed the whole job one stage
+        # later at assemble (revision-scoped remap needs 000-999).
+        # The guide now pins sequential 001-based numbering.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("numbered sequentially from 001", prompt)
+        self.assertIn("000-999", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -484,7 +494,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v7")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v8")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

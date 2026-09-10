@@ -30,6 +30,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -57,6 +58,15 @@ OFFSET_UNIT = "chars-normalized-utf8"
 
 #: Surfaces that must stay contextual mentions, never stable aliases.
 CONTEXTUAL_ONLY_SURFACES = {"公", "王"}
+
+#: Temp-ID numeric range mirrored from the assembler's revision-scoped
+#: remapping (`assembly._remapped_id` / `_remapped_chapter_id`): the
+#: numeric part must fit in 3 digits (0-999). Validation rejects larger
+#: numbers fail-fast so a bad id dies here, not one stage later at
+#: assemble (live C2-R1-T19: model emitted ent_1001, passed validation,
+#: killed the whole job at assemble).
+_TEMP_ID_NUMBER_RE = re.compile(r"^(?:src|ent|evt|clm)_(\d+)$")
+_MAX_TEMP_ID_NUMBER = 999
 
 #: Max characters of each compared value rendered into a repair diagnostic.
 #: Equality diagnostics must show both sides so the correction re-ask can
@@ -588,6 +598,13 @@ def validate_chapter_candidate(
             if not temp_id.startswith(prefix):
                 references.append(
                     f"{owner} temp_id must carry the {prefix!r} {collection_name} prefix"
+                )
+            id_match = _TEMP_ID_NUMBER_RE.match(temp_id)
+            if id_match and int(id_match.group(1)) > _MAX_TEMP_ID_NUMBER:
+                references.append(
+                    f"{owner} temp_id number must be within 000-{_MAX_TEMP_ID_NUMBER} "
+                    f"(assembly remaps into revision-scoped {prefix}_NNN); "
+                    "renumber sequentially from 001"
                 )
             if temp_id in seen_temp_ids:
                 references.append(
