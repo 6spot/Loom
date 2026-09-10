@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§33；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§34；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -1022,3 +1022,21 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
   不作替代。`manual-content-review.json` 保持 13 `pending`／`not_passed`／
   reviewer 空；两项 owning-layer escalation 继续跟踪。
+
+## 34. 四章 side-by-side 阅读companion（locator-only）
+
+为便于独立 reviewer 做**全文逐段/逐句语义对照**（而非只看窗口或 hash），§34 为
+四章生成 side-by-side 阅读 companion，源文块与对应译文并排；**仅定位用途，
+不含 verdict**。
+
+- 产出（`/srv/loom-t19-evidence/7e637dd3/chapter-<name>-sidebyside.md`）；生成
+  已并入 `regen_review_bundle.sh`（清单现 29 文件、0 missing）。
+- SG 三章：每个源块后接**引用该源块**的译文块（经 `source_block_ids`），
+  无译文块引用者显式标注 `(no translation block references this source block)`。
+- **ZZ**：当前为单一译文块，脚本按源块字符占比给出**比例定位切片**，并显式标注
+  “proportional/ordinal locator only, NOT an alignment claim”，避免把定位当对齐
+  结论。ZZ 逐段精确阅读另见 §32 的句级索引（492 句）。
+- 计数（observation）：sg0 86 源块/43 译文块；sg1 32/16；sg2 19/10；zz 127/1。
+- C04 仍：无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
+  `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空；
+  两项 owning-layer escalation 继续跟踪。

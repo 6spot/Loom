@@ -240,3 +240,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — one-command review-bundle replay (still NOT_PASSED):
 
 - Acceptance section 33 added: regen_review_bundle.sh deterministically regenerates the 25-file 13-case review bundle and review-bundle-manifest.json (25 files, 0 missing). Input-consistency only; locator-only, no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — side-by-side reading companion (still NOT_PASSED):
+
+- Acceptance section 34 added: chapter-<name>-sidebyside.md (SG block->referencing translation blocks; ZZ proportional/ordinal locator, not an alignment claim), wired into regen_review_bundle.sh (manifest 29 files, 0 missing). Locator-only; no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
