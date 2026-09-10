@@ -162,3 +162,10 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - manual-content-review.json blockers B2/B5/B6 (+B4) synced: current = browser round publications 01a08b08/01a08ad9, SG 43/43 + ZZ 1/1 real-browser decisions, 88 screenshots; API round 01a08a8e/01a08a66 labeled same-candidate historical comparison; older SG3/ZZ3 (100 screenshots) and 0bb5c6a0 rounds historical.
 - acceptance §16 rewritten: v10 browser round rows are current; SG3/ZZ3, v8-first, ZZ2 rows marked historical; missing-matrix row now states exhaustive source-pair×kind matrix + matrix-level criterion undefined; event-merge both outcomes retained.
 - 13 pending / 0/13 / reviewer empty / not_passed preserved; mocked-only retained. Consistency: JSON 1:1, pending 13, no stale SG3-current labels, gate 15 + 101 unit tests OK, diff clean.
+
+2026-09-10 — owning-layer gap disposition + reviewer material (still NOT_PASSED):
+
+- Matrix criterion defined and executed (§22): 6 cells {same_revision, same_book_reimport, cross_book} x {entity, event}; 5 PASS (27/27, 53/53, 9/9, 31/31, 3/3), same_revision x event EMPTY -> matrix-level FAIL, missing cell retained (evidence /srv/loom-t19-evidence/7e637dd3/matrix-all.py).
+- General post-publication event-merge rule documented from owning code (publication_v0._build_canonical_records): a merge component maps to at most one existing canonical id; >=2 -> fail-closed (ZZ2), single/new join publishes (ZZ3/ZZ-v10/v10-browser); both outcomes retained.
+- canonical review-flow-smoke.mjs real-backend coverage recorded as explicit unmet requirement (out of T19 file scope); ad-hoc browser evidence provided.
+- §23 added: per-case source-grounded reviewer material (13 cases with original quotes + current publication/evidence locations); 13 pending / 0/13 / reviewer empty preserved.

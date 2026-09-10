@@ -35,7 +35,7 @@
   DOM 首尾 PASS。同候选另有 API 裁决轮（`01a08a8e`/`01a08a66`）作对照。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§21；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§23；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -438,7 +438,7 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 
 | 缺口 | 说明 |
 | --- | --- |
-| 系统性跨書 batch 矩阵 | 未定义“全部来源对 × 种类”穷举矩阵与矩阵级 pass/fail 判据；督軍任命等仍非系统性覆盖 |
+| 系统性跨書 batch 矩阵 | 判据已在 §22 定义并执行：6 单元中 5 个 PASS、`same_revision×event` EMPTY → 矩阵级 FAIL，缺失单元保留；督軍任命等仍非系统性覆盖（§22） |
 | 空心/condensed 译文 | SG3/ZZ3 轮（历史）先主傳 4658/0.37 condensed；v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63；v10 四章 content-complete（`01a08b08`/`01a08ad9`，§20–§21） |
 | 已发表后 event 归并语义 | ZZ2 多 canonical 归并 fail-closed；ZZ3/ZZ-v10/v10-browser 非碰撞 join 发布——两种终局都保留，通用规则上报 canonical-stability |
 | Studio 浏览器 decision-click | 当前 v10 轮 SG 43/43＋ZZ 1/1 已完成（§17/§21）；历史 SG3 43/43＋ZZ3 7/7；canonical review-flow 脚本仍 mocked-only |
@@ -621,3 +621,68 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
    canonical-stability 拥有层，交 reviewer 确认；两种终局都保留。
 4. 13 案仍全部 `pending`（0/13）；上述为**供独立 reviewer 评估的候选
    证据**，不自行转正。本轮结论：NOT_PASSED；未关闭 T19/#548。
+
+## 22. 矩阵级判据、event-merge 通用规则与 review-flow 缺口（formal disposition）
+
+1. **source-pair×kind 矩阵级 pass/fail 判据（已定义并执行）**：
+   - 声明宇宙：来源两两配对三类 `{same_revision, same_book_reimport,
+     cross_book}` × 种类 `{entity, event}` = 6 单元；证据取当前 candidate
+     `7e637dd` 的两轮（API 轮 job `e4e952f0`＋浏览器轮 jobs `5ee49e77`/
+     `3417517d`）。
+   - 判据：某单元 **PASS** 当且仅当 (a) 该单元有候选（candidates>0 且来自
+     终局 review），且 (b) 全部候选 terminal（resolved 且 decision ∈
+     {same_entity, same_occurrence, related_occurrence}）并随发布；
+     单元无候选记 **EMPTY**；矩阵级 PASS 当且仅当 6 个单元全为 PASS（EMPTY
+     不算 PASS，因同 revision 两章间事件本应产生候选）。
+   - 执行结果（脚本 `matrix-all.py`，服务器证据目录）：`same_revision×entity`
+     27/27 PASS、`same_book_reimport×entity` 53/53 PASS、
+     `same_book_reimport×event` 9/9 PASS、`cross_book×entity` 31/31 PASS、
+     `cross_book×event` 3/3 PASS；`same_revision×event` **EMPTY**。
+     故 **矩阵级判据当前 FAIL**，缺失单元 = `same_revision×event`
+     （当前 candidate 两轮均未涌现同 revision 事件候选；历史 SG3 轮曾涌现
+     6 组，属采样缺口，保留为 blocker）。**这是可复核的判据结果，不再是
+     “未定义”。**
+2. **post-publication event-merge 通用规则（拥有层，代码即规则）**：
+   `publication_v0._build_canonical_records`（`apps/chronicle/ingestion/
+   prototype/publication_v0.py`）对每个等价分量取“已发布 canonical id 集”，
+   若 `len(existing_ids) > 1` 则抛 `PublicationConflict`
+   （“……would collapse existing canonical IDs……”）；`existing_ids==1`
+   复用该 id（单向 join），`==0` 新分配。规则：**一次发布的归并分量最多
+   映射到一个既有 canonical id；把两个及以上既有 canonical id 折成一个
+   分量即 fail-closed（原子回滚，不合并既有身份）**；entity 与 event 同规。
+   证据：ZZ2（`09870dff`）命中该冲突 fail-closed；ZZ3（`099d018b`）、
+   v10（`9b31a529`）与 v10 浏览器轮（`3417517d`）均未命中，join 发布成功。
+   两终局都保留。
+3. **canonical `review-flow-smoke.mjs` 真实后端缺口（显式 unmet）**：
+   `apps/chronicle/webapp/scripts/review-flow-smoke.mjs` 仅支持
+   `--mode mocked-api`；真实后端 review-flow 覆盖在当前 T19 文件归属外
+   （属 T11/T18 UI/客户端脚本拥有层），本任务不修改该脚本。因此记录为
+   **显式 unmet requirement**：仓库 canonical 脚本仍无真实后端 review-flow
+   覆盖；当前的 SG 43/43＋ZZ 1/1 真实浏览器点击由 ad-hoc 驱动产生（§17/§21），
+   可作候选证据但不等同 canonical 覆盖。
+4. 13 案仍 `pending`（0/13）；本节不改其状态与 reviewer 字段。
+
+## 23. 十三案 source-grounded reviewer 材料（不预置结论）
+
+供独立 reviewer 逐案核对的原文锚点与当前 candidate 证据位置。原文引用来自
+`cases.json`；当前证据 publications：SG `01a08b08`（先主傳/周瑜傳/魯肅傳）、
+ZZ `01a08ad9`；同候选历史对照 `01a08a8e`/`01a08a66`。reviewer 须自行判定，
+本节不填 pass/fail。
+
+| 案 | 问题（摘） | 原文锚点（file :: quote） | 当前证据位置 |
+| --- | --- | --- | --- |
+| C01 先主/備 | 先主＝劉備同章共指？ | sanguozhi-032 :: 先主姓劉，諱備；先主少孤… | SG `01a08b08` 先主傳译文；bundle mentions 先主→ent_001 |
+| C02 周瑜/公瑾 | 周瑜＝公瑾？ | sanguozhi-054-zhou-yu :: 周瑜字公瑾；孤念公瑾 | SG `01a08b08` 周瑜傳（公瑾 x15） |
+| C03 魯肅/子敬 | 魯肅＝子敬？ | sanguozhi-054-lu-su :: 魯肅字子敬；子敬，孤持鞍下馬相迎 | SG `01a08b08` 魯肅傳 |
+| C04 赤壁跨章 | 先主傳↔周瑜傳同記赤壁？ | xianzhu :: 與曹公戰於赤壁，大破之；zhou-yu :: 遇於赤壁 | SG 两章译文；SG 轮 event same_occurrence |
+| C05 赤壁跨書 | 周瑜傳↔通鑑同事件？ | zhou-yu :: 遇於赤壁；tongjian :: 進，與操遇於赤壁 | SG `01a08b08`＋ZZ `01a08ad9`；cross_book event 3/3 |
+| C06 周瑜督軍跨書 | 兩書周瑜同人？ | tongjian :: 遂以周瑜、程普為左右督…；zhou-yu :: 權遂遣瑜及程普… | SG/ZZ 译文；cross_book entity |
+| C07 南郡/江陵 | 南郡≠江陵（uncertain）？ | tongjian :: 追操至南郡；守江陵 | ZZ `01a08ad9` 译文；`fa3fd04c` related_occurrence 非合并 |
+| C08 典略注 | 先主傳《典略》注归属？ | xianzhu :: 〈《典略》曰：備本臨邑侯枝屬也。〉 | SG 先主傳译文嵌注 |
+| C09 江表傳注 | 周瑜傳《江表傳》注归属？ | zhou-yu :: 《江表傳》曰：策又給瑜鼓吹 | SG 周瑜傳译文嵌注 |
+| C10 馬超背景 | 馬超僅背景、非 direct claim？ | tongjian :: 馬超、韓遂尚在關西 | ZZ `01a08ad9` 译文；ZZ bundle 無馬超 entity |
+| C11 首部完整 | 三傳開篇＋通鑑卷首完整？ | xianzhu/zhou-yu/lu-su 開篇；tongjian :: 資治通鑑 第065卷 | 四章译文首部；ZZ 卷题行缺失（fidelity 观察） |
+| C12 尾部完整 | 先主傳讖語尾＋通鑑卷末完整？ | xianzhu :: 其畫作大人而埋之者…；tongjian :: 以齊為太守。 | 四章译文尾部 |
+| C13 習鑿齒論曰 | 史論歸屬（非同期言論）？ | tongjian :: 習鑿齒論曰：昔齊桓一矜其功而叛者九國 | ZZ `01a08ad9` 译文；bundle 無習鑿齒 entity |
+
+结论：本材料只提供 anchor 与证据位置；13 案独立结论仍 0/13，待独立 reviewer。
