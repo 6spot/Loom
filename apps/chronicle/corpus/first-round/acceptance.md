@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§31；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§32；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -971,3 +971,30 @@ verdict/依据/证据，不转正任何案例**。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
   不作替代（§25.5）。判定留空；`manual-content-review.json` 保持 13 `pending`／
   `not_passed`／reviewer 空。
+
+## 32. 四章阅读索引（源块＋译文句级定位，locator-only）
+
+§31 的 `align.tsv` 对 **ZZ 单一译文块**只能给出整块映射，不足以逐段定位。
+§32 因此提供确定性**句级阅读索引**，供独立 reviewer 做完整全文语义/引用事件/
+边界/嵌注/首尾核对；仍**不写 verdict/依据/证据，不转正**。
+
+- 脚本：`/srv/loom-t19-evidence/7e637dd3/chapter_index.py`（worker 容器内执行）；
+  产出：
+  - `chapter-<name>-source-blocks.tsv`：`idx/block_id/start/end/char_len/sha16/text`
+    （源块级，含 `chars-normalized-utf8` 偏移）；
+  - `chapter-<name>-translation-sentences.tsv`：`idx/trans_block/start/end/
+    char_len/sha16/text`（把译文按 `。！？\n` 切句并给全文字符偏移）。
+  ```
+  docker cp /srv/loom-t19-evidence/7e637dd3/chapter_index.py \
+    chronicle-t19-7e637dd3-chronicle-worker-1:/tmp/chapter_index.py
+  docker exec -e OUT=/tmp/index chronicle-t19-7e637dd3-chronicle-worker-1 \
+    python3 /tmp/chapter_index.py > /srv/loom-t19-evidence/7e637dd3/chapter_index.out
+  docker cp chronicle-t19-7e637dd3-chronicle-worker-1:/tmp/index/. \
+    /srv/loom-t19-evidence/7e637dd3/
+  ```
+- 确定性计数（observation，非结论）：sg0 源块 86/译文块 43/译文句 552；
+  sg1 32/16/214；sg2 19/10/164；**zz 源块 127/译文块 1/译文句 492**。
+  ZZ 的 492 句即单一译文块的可定位句级视图（每句带全文字符偏移与 sha16）。
+- 结合 §31 全文文件与 §30/§29 引用、窗口、hash，reviewer 可对每案做完整上下文
+  核对。C04 仍无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
+  `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空。

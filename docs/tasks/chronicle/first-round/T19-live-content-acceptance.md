@@ -232,3 +232,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — full-chapter pair packet (still NOT_PASSED):
 
 - Acceptance section 31 added: chapter_pairs.py outputs complete source/translation files and per-block alignment for all four chapters with sha256 (sg0 12591/16312, sg1 5030/7068, sg2 3594/5169, zz 10715/14718; zz single translation block over 127 source blocks). Locator-only; no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — sentence-level reading index (still NOT_PASSED):
+
+- Acceptance section 32 added: chapter_index.py outputs deterministic source-block and translation-sentence indexes with offsets+sha16, resolving ZZ's single-block limitation (zz 127/1/492; sg0 86/43/552; sg1 32/16/214; sg2 19/10/164). Locator-only; no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
