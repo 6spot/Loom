@@ -212,3 +212,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — independent-review worksheet (still NOT_PASSED):
 
 - Acceptance section 27 added: per-case original-translation-reference/event-boundary worksheet for all 13 cases (source anchor with offsets, current translation window, linkage/boundary notes) with verdict/rationale/evidence cells left blank for the independent reviewer. No verdict prefilled; C04 event link stays not-accepted (§25.5). Owner decisions for the two escalations not yet received. 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — §27 neutralized to observation/[hypothesis] (still NOT_PASSED):
+
+- §27 reference/event/boundary column rewritten so every entry is a checkable observation or an explicitly labeled [hypothesis]; removed pre-judgments (C07 merge recommendation, C08/C09 "position correct", C11/C12 completeness claims, C13 synchronicity claim). Verdict/basis/evidence cells stay blank. C04 missing current event candidate and the two escalations unchanged; 13 pending / 0/13 / not_passed preserved.
