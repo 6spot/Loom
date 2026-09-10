@@ -220,3 +220,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — deterministic 13-case replay (still NOT_PASSED):
 
 - Acceptance section 28 added: pure-repo source-window command + server translation-window script (case_windows.py, output case_windows.out 13/13, 0 MISSING). Generates comparison windows only, writes no verdicts. §27 unchanged and neutral; C04 missing event candidate and escalations unchanged; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — locator/hash packet (still NOT_PASSED):
+
+- Acceptance section 29 added: deterministic locator/hash packet (case_hashes.py -> case_hashes.out) with source-window sha, translation artifact/revision/block/window sha, HEAD/TAIL hashes, and annotation counts. Locator-only; §27/§28 unchanged; no verdicts written; C04 unaccepted (no current same-revision event candidate); escalations tracked; 13 pending / 0/13 / reviewer empty preserved.

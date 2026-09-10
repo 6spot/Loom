@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§28；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§29；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -890,3 +890,25 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
    冻结原文切片与 `01a08b08`/`01a08ad9` 的 published 译文，无判定逻辑。
 3. C04 在重放中仍显示：当前无先主傳↔周瑜傳同 revision event candidate；
    `848a296f`（ZZ↔SG 跨書）与历史 SG3 不作替代（§25.5），判定留空。
+
+## 29. 十三案 locator/hash 包（§28 为 locator-only；不写判定）
+
+§28/§29 均**只提供 locator、窗口与 sha256**，用于独立 reviewer 做
+原文–译文语义、引用/事件、边界、嵌注、完整性核对；**不填写 verdict/依据/证据，
+不转正任何案例**。
+
+- 脚本：`/srv/loom-t19-evidence/7e637dd3/case_hashes.py`，输出
+  `/srv/loom-t19-evidence/7e637dd3/case_hashes.out`（73 行）。命令：
+  ```
+  cd /srv/Loom && set -a && . ./.env.chronicle && set +a
+  /srv/loom-tools/chronicle-t19/bin/python /srv/loom-t19-evidence/7e637dd3/case_hashes.py
+  ```
+- 每个 case 输出：`SRC <file> [start,end) sha=<16hex> :: <原文>`；`TGT <pub>
+  art=<artifact12> rev=<rev8> block=<translation_block> kw=<词> winsha=<16hex>`。
+- 边界/嵌注 locator：四章 HEAD/TAIL 的 sha 与文本；`典略` 在 sg0 出现
+  count=7、`江表传` 在 sg1 count=7（确定性计数，供 reviewer 复核，不构成结论）。
+- 引用/事件 locator：见 §22 矩阵判据、§25（C04）、§16（矩阵定义）与服务器
+  `reviews-sg-FINAL/`、`reviews-FINAL/`（当前轮 43＋1 终局 review 详情）。
+- C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
+  不作替代。判定留空。
+- `manual-content-review.json` 保持 13 `pending`／0-13／`not_passed`、reviewer 空。
