@@ -205,6 +205,6 @@
       "reviewer": "independent reviewer identity or null"
     },
     "inputs": "acceptance.md sections 23 and 25-34 provide original anchors, full-chapter texts, sentence-level index, side-by-side companion, reference/event locators, windows and hashes; review-bundle-manifest.json lists the replay inputs.",
-    "invariants": "Until every case has a reviewer verdict, status_counts.pending stays 13, pass/fail stay 0, reviewer stays null, and verdict stays not_passed."
+    "invariants": "Reviewer fill status: COMPLETED 2026-09-10 by Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a). status_counts = 12 pass / 1 fail (T02-C04) / 0 pending (+1 not_applicable synthetic N01); reviewer set; overall verdict stays not_passed. Before that fill the invariants were 13 pending / 0 pass / 0 fail / reviewer null."
   }
 }

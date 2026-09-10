@@ -285,10 +285,11 @@
 > hollow、魯肅傳 5155）/`01a08975`（2808 hollow）；5024 轮产物
 > `01a088b2`/`01a088e7`；job 1 骨架 artifacts。均仅作负证据保留
 > （见 §13、§10–§11、§18–§19）。
-> **独立结论口径：0/13** —— `manual-content-review.json` 保持全部
-> `pending`；下表每行均为 operator observation（not counted），
+> **独立结论口径（本轮快照）：0/13** —— 当时 `manual-content-review.json`
+> 保持全部 `pending`；下表每行均为 operator observation（not counted），
 > 含 recall/空心缺口原样保留；任何“通过”含义的解读均属误读，
-> 总体 verdict 仍为 NOT_PASSED。
+> 总体 verdict 仍为 NOT_PASSED。独立 reviewer 随后完成 13/13
+> （12 pass、C04 fail，见 §35）；总 verdict 仍为 NOT_PASSED。
 > 审核对账注（单一口径，历史/当前已区分）：
 > SG3/ZZ3 轮（`0bb5c6a0/`，历史）：`job-sg3-FINAL.json`（job `ecb00598`
 > completed，43/43 resolved：36 same_entity＋6 same_occurrence＋
@@ -670,7 +671,7 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
    **显式 unmet requirement**：仓库 canonical 脚本仍无真实后端 review-flow
    覆盖；当前的 SG 43/43＋ZZ 1/1 真实浏览器点击由 ad-hoc 驱动产生（§17/§21），
    可作候选证据但不等同 canonical 覆盖。
-4. 13 案仍 `pending`（0/13）；本节不改其状态与 reviewer 字段。
+4. 本包生成时 13 案为 `pending`；独立 reviewer 已完成 13/13（12 pass、C04 fail），见 §35，本节快照不改变其 verdict。
 
 ## 23. 十三案 source-grounded reviewer 材料（不预置结论）
 
@@ -704,7 +705,7 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
 | C12 尾部完整 | 先主傳讖語尾＋通鑑卷末完整？ | xianzhu :: 其畫作大人而埋之者…；tongjian :: 以齊為太守。 | 四章译文尾部 |
 | C13 習鑿齒論曰 | 史論歸屬（非同期言論）？ | tongjian :: 習鑿齒論曰：昔齊桓一矜其功而叛者九國 | ZZ `01a08ad9` 译文；bundle 無習鑿齒 entity |
 
-结论：本材料只提供 anchor 与证据位置；13 案独立结论仍 0/13，待独立 reviewer。
+结论：本材料只提供 anchor 与证据位置；13 案独立结论已由 Reviewer 完成（12 pass、C04 fail），见 §35。
 
 ## 24. 显式 unmet requirements 与可复现终局证据
 
@@ -797,7 +798,7 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
    候选**（亦无该对的同 revision entity 成员）。即“赤壁地名跨束同一”有记录，
    “赤壁战役跨章复现为独立事件”未在 bundle 层单独建模。
 4. **判定归属**：以上均为素材；C04 内容是否成立须独立 reviewer 对照原文与
-   译文判定，本节与 `manual-content-review.json` 均不预置结论（0/13）。
+   译文判定；独立结论见 §35（12 pass、C04 fail），本节不预置结论。
 5. **独立 Reviewer 判定记录（2026-09-10，head `0c03ab3`）**：
    - 原文锚点与 `01a08b08` 指定块在所给位置吻合，当前可作为
      **source-grounded translation evidence**。
@@ -857,8 +858,8 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
 | C12 尾部完整 | 先主傳讖語尾 @[12552,12571)；通鑑卷末 @[10673,10679) | sg0 尾:「……先主将死。〉」；zz 尾:「……孙权于是分割当地设置新都郡，任命贺齐为太守。」 | observation：译文尾段如左列窗口；原文锚点见左。[hypothesis] 尾部完整性 | |
 | C13 習鑿齒論曰 | 習鑿齒論曰：昔齊桓一矜其功而叛者九國 @[10078,10096) | zz:「习凿齿评论说：刘玄德虽然颠沛流离……」 | observation：zz 译文作「习凿齿评论说……」；当前 ZZ bundle 无 習鑿齒 entity。[hypothesis] 史论归属（非同期言论） | |
 
-> 说明：本表仅为独立复核提供对照素材；`manual-content-review.json` 仍全部
-> `pending`、`not_passed`、reviewer 空。C04 事件链路按 §25.5 保持“不独立接受”。
+> 说明：本表为复核输入快照；独立 reviewer 已完成 13/13（12 pass、C04 fail），
+> 见 §35。C04 事件链路按 §25.5 保持“不独立接受”。
 
 ## 28. 十三案确定性重放（source/translation 窗口，供独立核对；不填判定）
 
@@ -911,7 +912,7 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
   `reviews-sg-FINAL/`、`reviews-FINAL/`（当前轮 43＋1 终局 review 详情）。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
   不作替代。判定留空。
-- `manual-content-review.json` 保持 13 `pending`／0-13／`not_passed`、reviewer 空。
+- `manual-content-review.json` 快照为 13 pending（复核输入时）；独立 reviewer 已完成 13/13（12 pass、C04 fail），见 §35；总 verdict `not_passed`。
 
 ## 30. 十三案全上下文＋引用/事件 locator 包（locator-only，不写判定）
 
@@ -936,8 +937,7 @@ verdict/依据/证据，不转正任何案例**。
     （引用/事件归属的确定性 locator）。
 - 覆盖：C01–C13 全部有 CTX；引用/事件 locator 覆盖该案所在 chapter artifact。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
-  不作替代。判定留空；`manual-content-review.json` 保持 13 `pending`／
-  `not_passed`／reviewer 空。
+  不作替代。独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；总 verdict `not_passed`。
 
 ## 31. 四章全文对照包（source/translation 全文＋对齐，locator-only）
 
@@ -969,8 +969,7 @@ verdict/依据/证据，不转正任何案例**。
 - 说明（observation，不构成结论）：zz 当前译文为**单一翻译块**（`trans_blocks=1`），
   其 `align.tsv` 将该块映射到全部 127 个 source blocks；sg0/1/2 为多块对齐。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
-  不作替代（§25.5）。判定留空；`manual-content-review.json` 保持 13 `pending`／
-  `not_passed`／reviewer 空。
+  不作替代（§25.5）。独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；总 verdict `not_passed`。
 
 ## 32. 四章阅读索引（源块＋译文句级定位，locator-only）
 
@@ -997,7 +996,7 @@ verdict/依据/证据，不转正任何案例**。
   ZZ 的 492 句即单一译文块的可定位句级视图（每句带全文字符偏移与 sha16）。
 - 结合 §31 全文文件与 §30/§29 引用、窗口、hash，reviewer 可对每案做完整上下文
   核对。C04 仍无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
-  `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空。
+  独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；总 verdict `not_passed`。
 
 ## 33. 复核输入一键确定性重放与清单（locator-only）
 
@@ -1021,8 +1020,7 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
 - 说明：清单只校验**输入一致性**，不代表任何内容结论；`08`/`09` 注文计数、
   ZZ 单块→句级视图等均为 locator/observation。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
-  不作替代。`manual-content-review.json` 保持 13 `pending`／`not_passed`／
-  reviewer 空；两项 owning-layer escalation 继续跟踪。
+  不作替代。独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；总 verdict `not_passed`；两项 owning-layer escalation 继续跟踪。
 
 ## 34. 四章 side-by-side 阅读companion（locator-only）
 
@@ -1039,7 +1037,7 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
   结论。ZZ 逐段精确阅读另见 §32 的句级索引（492 句）。
 - 计数（observation）：sg0 86 源块/43 译文块；sg1 32/16；sg2 19/10；zz 127/1。
 - C04 仍：无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
-  `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空；
+  独立 reviewer 已完成 13/13（12 pass、C04 fail，见 §35）；
   两项 owning-layer escalation 继续跟踪。
 
 ## 35. 独立 Reviewer 逐案结论（current candidate `7e637dd`）

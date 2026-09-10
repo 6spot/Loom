@@ -252,3 +252,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — independent Reviewer conclusions (still NOT_PASSED):
 
 - Reviewer agent `54d5eed4-ef01-479d-9a80-1bc6e55cca2a` independently checked all 13 real cases against the §23/§25–§34 source-grounded package and wrote per-case `status`, `conclusion`, `evidence`, and `reviewer` fields. C01–C03 and C05–C13 are `pass`; C04 is `fail` because the current candidate lacks the required same-revision 先主傳↔周瑜傳 event candidate. The canonical ledger is now 12 pass / 1 fail / 0 pending, with overall `not_passed`; owning-layer fail-closed and mocked-only gaps remain, and T19/#548 stay open.
+
+2026-09-10 — consistency closeout of reviewer conclusions (still NOT_PASSED):
+
+- Verified canonical ledger counts: 12 pass / 1 fail (T02-C04) / 0 pending, +1 not_applicable synthetic N01; reviewer set; verdict not_passed. C04 fail basis (no current same-revision 先主傳↔周瑜傳 event candidate) present in conclusion/evidence.
+- Fixed stale "13 pending / 0-13 / reviewer empty" snapshot lines in acceptance sections 12/21/23-34 to point to the reviewer's section 35 result (12 pass / C04 fail, not_passed); updated reviewer_instructions.invariants and status_counts accordingly. Reviewer verdicts and the overall not_passed verdict left unchanged.
+- Retained blockers: canonical-stability publish fail-closed, review-flow mocked-only/real-backend gap, C04 same-revision event candidate absence, matrix/event-merge items. T19/#548 stay open.
