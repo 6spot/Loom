@@ -406,6 +406,12 @@ jobs:
             apps/chronicle/worker \
             apps/chronicle/ingestion
 
+      - name: Ingestion prototype unit tests
+        if: needs.changes.outputs.chronicle_python == 'true'
+        run: |
+          python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_v0.py' -v
+          python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_publication_v0.py' -v
+
       - name: Install Chronicle Rust toolchain
         if: needs.changes.outputs.chronicle_rust == 'true'
         run: |
