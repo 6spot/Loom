@@ -1,19 +1,34 @@
 #!/usr/bin/env node
-// C2-R1-T11 continuous-review smoke (UI behavior only).
+// C2-R1-T11 continuous-review smoke.
 //
-// Drives a REAL Chromium over the review queue + detail pages and mocks the
-// Studio HTTP responses, so the test proves actual page behavior (sticky
-// bottom action bar, save-and-next advance, skip, draft restore, 409
-// retention, entity/event isolation) without claiming a real-backend chain.
-// The full offline backend gate belongs to T18.
+// Two modes:
+//
+//   mocked-api (default) — drives a REAL Chromium over the review queue +
+//     detail pages and mocks the Studio HTTP responses, proving actual page
+//     behavior (sticky bottom action bar, save-and-next advance, skip, draft
+//     restore, 409 retention, entity/event isolation) without claiming a
+//     real-backend chain. The full offline backend gate belongs to T18.
+//
+//   real-backend — no HTTP mocking: logs into a live Studio, opens a real
+//     review from a prepared job/publication, selects a decision, submits and
+//     asserts the server resolved it. Credentials come from the environment
+//     (or flags) and are never written to the repository or logs. The caller
+//     is responsible for the prepared data.
 //
 // Usage:
 //   npm --prefix apps/chronicle/webapp run dev  # isolated Vite service first
 //   node apps/chronicle/webapp/scripts/review-flow-smoke.mjs \
 //     --base-url http://127.0.0.1:5173 --mode mocked-api --suite queue
 //
-// Flags: --base-url <url> (required), --mode mocked-api (only supported
-// mode in this task), --suite queue|all (default queue).
+//   CHRONICLE_SMOKE_USERNAME=... CHRONICLE_SMOKE_PASSWORD=... \
+//   node apps/chronicle/webapp/scripts/review-flow-smoke.mjs \
+//     --base-url http://127.0.0.1:8090 --mode real-backend \
+//     --review-id <uuid> [--job-id <uuid>]
+//
+// Flags: --base-url <url> (required), --mode mocked-api|real-backend,
+// --suite queue|all (mocked-api only, default queue),
+// --review-id <uuid> / --username / --password (real-backend; username and
+// password fall back to CHRONICLE_SMOKE_USERNAME / CHRONICLE_SMOKE_PASSWORD).
 import { chromium } from "@playwright/test";
 
 const args = process.argv.slice(2);
@@ -25,17 +40,28 @@ function flag(name) {
 const BASE_URL = (flag("--base-url") || "").replace(/\/+$/, "");
 const MODE = flag("--mode") || "mocked-api";
 const SUITE = flag("--suite") || "queue";
+const REVIEW_ID = flag("--review-id");
+const JOB_ID = flag("--job-id");
+const USERNAME = flag("--username") || process.env.CHRONICLE_SMOKE_USERNAME || "";
+const PASSWORD = flag("--password") || process.env.CHRONICLE_SMOKE_PASSWORD || "";
 
 if (!BASE_URL) {
   console.error("review-flow smoke: FAIL: --base-url is required (start an isolated Vite service first)");
   process.exit(1);
 }
-if (MODE !== "mocked-api") {
-  console.error(`review-flow smoke: FAIL: unsupported --mode ${MODE} (this task only provides mocked-api; real-backend chain is T18)`);
+if (!["mocked-api", "real-backend"].includes(MODE)) {
+  console.error(`review-flow smoke: FAIL: unsupported --mode ${MODE} (expected mocked-api|real-backend)`);
   process.exit(1);
 }
-if (!["queue", "all"].includes(SUITE)) {
+if (MODE === "mocked-api" && !["queue", "all"].includes(SUITE)) {
   console.error(`review-flow smoke: FAIL: unsupported --suite ${SUITE} (expected queue|all)`);
+  process.exit(1);
+}
+if (MODE === "real-backend" && (!USERNAME || !PASSWORD)) {
+  console.error(
+    "review-flow smoke: FAIL: real-backend needs credentials via --username/--password " +
+      "or CHRONICLE_SMOKE_USERNAME/CHRONICLE_SMOKE_PASSWORD",
+  );
   process.exit(1);
 }
 
@@ -511,12 +537,94 @@ function check(name, cond) {
   console.log(`  ok: ${name}`);
 }
 
-async function main() {
-  const browser = await chromium.launch();
-  try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    page.on("dialog", (dialog) => void dialog.accept());
+async function login(page) {
+  await page.getByLabel("用户名").fill(USERNAME);
+  await page.getByLabel("密码").fill(PASSWORD);
+  await page.getByRole("button", { name: "登录管理工作台" }).click();
+  await page.getByText("Studio 总览").first().waitFor({ timeout: 15000 });
+}
 
+async function queueUrl() {
+  const scope = new URLSearchParams({ status: "open" });
+  if (JOB_ID) scope.set("job_id", JOB_ID);
+  return `${BASE_URL}/studio/review?${scope.toString()}`;
+}
+
+async function reviewCount(page) {
+  const html = await page.content();
+  const match = html.match(/待处理\s*(\d+)\s*项/);
+  return match ? Number(match[1]) : null;
+}
+
+// Real-backend mode: no HTTP mocking. Logs into a live Studio, opens a real
+// review from prepared data, submits a decision and asserts the server
+// resolved it. Mutates real review state, so it is run against the disposable
+// test deployment with its own prepared job/review, never production data.
+async function runRealBackend(page) {
+  await page.goto(await queueUrl(), { waitUntil: "networkidle" });
+  await login(page);
+  check("studio login (real)", true);
+
+  await page.goto(await queueUrl(), { waitUntil: "networkidle" });
+  await page.getByText("人工审核队列").first().waitFor({ timeout: 15000 });
+  check("queue renders (real)", true);
+  const openBefore = await reviewCount(page);
+  check("server open_count shown (real)", openBefore !== null);
+
+  let reviewId = REVIEW_ID;
+  if (reviewId) {
+    await page.goto(`${BASE_URL}/studio/review/${encodeURIComponent(reviewId)}?status=open`, {
+      waitUntil: "networkidle",
+    });
+  } else {
+    const link = page.locator('a:has-text("查看并判断")').first();
+    await link.waitFor({ timeout: 15000 });
+    const href = await link.getAttribute("href");
+    reviewId = decodeURIComponent(href.split("/studio/review/")[1].split("?")[0]);
+    await link.click();
+  }
+  await page.getByRole("toolbar", { name: "连续审核操作" }).waitFor({ timeout: 15000 });
+  check("review detail opened (real)", true);
+
+  const decisionSelect = page.getByLabel("你的判断");
+  const decision = await decisionSelect.inputValue();
+  check("allowed decision preselected (real)", typeof decision === "string" && decision.length > 0);
+
+  const rationaleId = `smoke-real-${Date.now()}`;
+  await page.getByLabel("判断依据").fill(rationaleId);
+  await page.waitForTimeout(300);
+  const beforeUrl = page.url();
+  await page.getByRole("button", { name: "保存并下一项" }).click();
+  await Promise.race([
+    page.waitForURL((url) => url.pathname !== new URL(beforeUrl).pathname, { timeout: 15000 }),
+    page.getByRole("alert").waitFor({ timeout: 15000 }).then(() => {
+      throw new Error("real-backend submit surfaced an error alert");
+    }),
+  ]);
+  check("submit accepted (real)", true);
+
+  const response = await page.request.get(
+    `${BASE_URL}/api/v1/studio/jobs/reviews/${encodeURIComponent(reviewId)}`,
+  );
+  if (response.status() !== 200) {
+    throw new Error(`real-backend review readback failed: HTTP ${response.status()}`);
+  }
+  const readback = await response.json();
+  const review = readback.review || readback;
+  check("server reports resolved (real)", review.status === "resolved");
+  check(
+    "server echoes the submitted decision (real)",
+    review.decision && review.decision.decision === decision,
+  );
+
+  const afterOpen = JOB_ID ? null : await reviewCount(page).catch(() => null);
+  if (afterOpen !== null && openBefore !== null) {
+    check("open_count does not increase (real)", afterOpen <= openBefore);
+  }
+  console.log("review-flow smoke (real-backend): PASS");
+}
+
+async function runMocked(page) {
     await page.route("**/api/v1/studio/**", async (route) => {
       const req = route.request();
       const url = new URL(req.url());
@@ -814,6 +922,18 @@ async function main() {
     }
 
     console.log(`review-flow smoke (${SUITE}, mocked-api): PASS`);
+}
+
+async function main() {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    page.on("dialog", (dialog) => void dialog.accept());
+    if (MODE === "real-backend") {
+      await runRealBackend(page);
+    } else {
+      await runMocked(page);
+    }
   } finally {
     await browser.close();
   }
