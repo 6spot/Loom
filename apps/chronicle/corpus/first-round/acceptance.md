@@ -20,19 +20,21 @@
 
 ## 0. 当前候选权威摘要（current-candidate，唯一可审计口径）
 
-- 代码候选：`0bb5c6a07226d4f877b63cd5a6ff9757f3a441ec`
-  （prompt v8：v7 resolve-hedging 澄清＋temp_id 001–999 钉值；
+- 代码候选：`7e637dd3b8cb70434436feb92e7db8c8bdfd06ae`
+  （prompt v10：在 v8/v9 基础上要求修正轮逐字保留译文 blocks；
   validation report v0.2 recall 观察节；分支
   `agent/executor/7dfa2567b43d`，其后若有提交均为纯文档记录）。
-- 模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-0bb5c6a0`
-  （SHA 校验一致）；测试服务端口 8088，新 project/数据/证据目录
-  （`/srv/loom-t19-evidence/0bb5c6a0/`）。
+- 模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-7e637dd3`
+  （SHA 校验一致）；测试服务端口 8090，新 project/数据/证据目录
+  （`/srv/loom-t19-evidence/7e637dd3/`）。
 - 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态：三國志三章已发布（publication `01a089d6`，第二 SG 导入；
-  另有 `01a08997` 首发轮）＋通鑑已发布（`01a08a13` 第二导入；
-  另有 `01a08975` 首发轮）；50 review（43 SG3＋7 ZZ3）全部浏览器内真实
-  decision-click（100 截图＋终局快照）；章内 mention 链接已建模验证
-  （见 §18–§19）；但译文空心/condensed 缺口持续（见 §19），
+- 当前状态（内容完整闭环，见 §20）：三國志三章已发布
+  （publication `01a08a8e`：先主傳 11974/0.95、周瑜傳 7177/1.43、
+  魯肅傳 5224/1.45）＋通鑑已发布（publication `01a08a66`，
+  14353/1.34）——**四个自然章均有 content-complete 译文**；
+  四章 canonical smoke＋真 chromium DOM 首尾 PASS；21 review 经认证 API
+  裁决（见 §20）。历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）
+  见 §12–§19，仅对照。
   13 案独立结论 **0/13**，verdict **NOT_PASSED**。
   细节见 §12、§16–§19；§1–§6 为历史基线，§7–§15 为中间轮次，
   不得作为当前验收证据引用。
@@ -530,3 +532,55 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 - Canonical smoke 第二批 4/4 PASS（SG3 41/16/10＋ZZ3 62 块）＋DOM 首尾
   （6720/8256/6285/11884 字）＋截图。
 - 本轮结论：NOT_PASSED。0/13 保持；未关闭 T19/#548。
+
+## 20. v10 内容完整轮：修正轮保真修复、四章 content-complete、event-merge 语义
+
+代码候选 `7e637dd`（prompt v10），镜像 `loom-chronicle:t19-7e637dd3`，
+端口 8090，证据 `/srv/loom-t19-evidence/7e637dd3/`，模型 `gpt-5.6-luna`。
+
+1. **修正轮 condensing 根因与修复（消除 SG3 4658 condensed 机制）**：
+   真实证据显示，bounded correction 会重生成一份 condensed 摘要并仍通过
+   结构校验——初始全文被压缩（v9 轮先例 16404→7318、16906→6139、
+   13551→2663；SG3 4658/0.37 即为压缩后的修正产物）。prompt v10 在修正轮
+   显式要求“copy the PREVIOUS CANDIDATE's translation.blocks through
+   unchanged … Do NOT rewrite, shorten, or re-summarize”，并给出上轮
+   translation 字符数。修复后可测：v10 ZZ 初始 14353→修正 14353（一致），
+   v10 SG 初始/修正保真通过 11974。**这是把 4658 condensed 来源机制消除，
+   非放宽校验**（沿用 §13：无硬召回下限；保真是格式指令，不是 gate）。
+   focused tests：`test_correction_preserves_full_translation_length`、
+   `test_correction_without_translation_omits_fidelity_line`（extraction 36 tests OK）。
+2. **四章 content-complete 证据（当前，有 hash）**：
+   - 三國志 publication `01a08a8e`（job `e4e952f0`，同候选）：先主傳
+     41 块 11974 字（0.95）、周瑜傳 16 块 7177 字（1.43）、魯肅傳
+     10 块 5224 字（1.45），artifact `1c0216973def`/`82639a6ae29b`/
+     `3394a6d7f6f6`。
+   - 通鑑 publication `01a08a66`（job `9b31a529`）：卷65 62 块 14353 字
+     （1.34），artifact `6a7fcdb8caa9`。
+   - 四章 canonical `chapter-reader-smoke.mjs` 4/4 PASS＋真 chromium DOM
+     首尾（13500/8675/6907/16481 字）＋截图。**渲染/冒烟仅证编排，内容
+     完整性由本节字符/结构证据与后续独立核对共同承担。**
+3. **hollow-pass 缺口（正式 disposition，保留证据）**：契约
+   `chapter-production.md` §96 明确“覆盖检查只证明没有完全未关联的原文段，
+   不证明译文完整或语义正确；最后仍需逐章内容核对”。故 validator 不设
+   译文长度硬门（§13）。v10 轮另观察到 initial 1803 字且结构 PASS 的
+   hollow 候选（job `b0c5e3c6` chunk0，已 cancel、未发布，run 证据保留）：
+   证明空心可穿透结构校验，属**内容核对失败**，由 13 案独立核对承担，
+   不以门限替代人工结论。
+4. **event-merge 语义（post-publication，显式记录）**：
+   - ZZ2（job `09870dff`）：publish fail-closed，
+     `Event publication would collapse existing canonical IDs
+     [01a088b2-7151-79a8-9166-962b29b74be1, 01a088b2-7151-7cf8-83c9-6a51d40542d3]
+     via [c1rev-4d065729aff5:evt_001003, ...:evt_001004, c1rev-556da56f4aef:evt_000006]`
+     ——把**两个已发布 canonical 事件**并成一个被拒；原子回滚，终局保留。
+   - ZZ3（job `099d018b`）：event same_occurrence（`309cd1d4` 赤壁之戰）
+     随单发布成功——未发生“两个已发布 canonical 相撞”的情形。
+   - ZZ v10（job `9b31a529`）：全文 14353 发布成功。
+   - 结论（观察到的边界）：已发布后 event 归并**不可把两个既有 canonical
+     事件折叠为一个**；不与既有 canonical 相撞的链接可发布。两种终局
+     （fail-closed 与 success）均保留，通用规则归 canonical-stability
+     拥有层，交 reviewer 确认。
+5. 历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发）见 §12–§19；本轮 21 review 经
+   认证 API 裁决（非浏览器点击；浏览器点击证据见 §17 的 SG3/ZZ3 轮）。
+6. 本轮结论：NOT_PASSED。四章 content-complete 证据成立，但
+   `manual-content-review.json` 仍 13 pending／0/13，独立转正未发生；
+   未关闭 T19/#548。

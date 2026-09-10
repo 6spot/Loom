@@ -134,3 +134,11 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — §17 browser-boundary sync (still NOT_PASSED):
 
 - §17 now records SG3 43/43 + ZZ3 7/7 genuine Studio browser decision-clicks (100 before/after screenshots, final states 43/43 and 7/7, API 0-open) as the current record; v8-first 27 clicks and the 23+12 API traces explicitly historical; canonical review-flow-smoke.mjs retained mocked-only. SG3 4658/0.37 condensed, 13 pending/0/13, matrix/event-merge gaps (ZZ2 fail-closed + ZZ3 success) preserved; nothing closed.
+
+2026-09-10 — v10 content-complete round (still NOT_PASSED):
+
+- Root cause + fix for condensed corrections: bounded correction re-asks regressed full initial translations (16404→7318, 16906→6139, 13551→2663; SG3 4658/0.37) yet passed structural validation. Prompt v10 requires copying the previous translation blocks through unchanged; measured fix (ZZ 14353→14353, SG 11974 preserved). Focused tests added; extraction 36 tests OK.
+- Four-chapter content-complete evidence on `7e637dd`: SG `01a08a8e` (先主傳 11974/0.95, 周瑜傳 7177/1.43, 魯肅傳 5224/1.45) + ZZ `01a08a66` (14353/1.34), artifact hashes recorded; canonical smokes 4/4 + real-chromium DOM head/tail + screenshots. Rendering/smoke does not substitute review.
+- Hollow-pass dispositioned per chapter-production.md §96: a 1803-char initial candidate passed structural validation (job b0c5e3c6, cancelled pre-publish, run evidence kept); no length gate added; 13 cases carry the completeness judgment.
+- Event-merge semantics documented: ZZ2 fail-closed (two existing canonical IDs would collapse), ZZ3 and ZZ-v10 joins published; both terminal outcomes retained.
+- 13 cases stay pending (0/13); verdict NOT_PASSED; canonical review-flow retained mocked-only; nothing closed.

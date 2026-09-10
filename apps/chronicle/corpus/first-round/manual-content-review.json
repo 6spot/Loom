@@ -1,13 +1,14 @@
 {
   "blockers": [
-    "independent reviewer conclusions pending for all 13 real cases (0/13); operator observations in acceptance.md sections 12/19 are explicitly not counted",
-    "current hollow/condensed failures retained: SG3 先主傳 4658 chars (ratio 0.37, key terms present but condensed); no single publication provides all four chapters fully translated. Historical v8-first SG hollows (v8 周瑜傳 3182/0.63, v7 先主傳 0.192) superseded by SG3 周瑜傳 7108/1.41 (gap fixed) but retained as evidence",
-    "mentions: SG3 先主傳/周瑜傳/魯肅傳 mostly resolved with span-copy linkages; 魯肅傳 2 unmodeled mentions are temporal expressions (建安二十二年/十九年) with no entity referent, correctly left unresolved+null (query evidence), not a miss",
-    "cross-book matrix deepened but still incomplete: SG3 43 reviews (15 same-revision + 23 same-source re-import consistency + 5 cross-book incl. related_occurrence 南郡-vs-江陵, first C07-principle application) + ZZ3 7 reviews spanning three corpus bundles; systematic matrix and post-publication event-merge semantics remain open (ZZ2 multi-canonical merge fail-closed retained; ZZ3 event merge published, contrast kept). Multi-bundle members may be same-revision to a published corpus bundle, not only SG3-staged",
-    "Studio browser decision-clicks done on the current round (SG3 43/43 + ZZ3 7/7 via real browser open/fill/submit with before/after screenshots and FINAL snapshots, publications 01a089d6 and 01a08a13); canonical chapter-reader-smoke.mjs PASSES on published chapters against the real backend; canonical review-flow-smoke.mjs remains mocked-API-only (ad-hoc driver used, documented)",
-    "live artifacts archived (SG3 publication 01a089d6 with 3 chapters, ZZ3 publication 01a08a13; historical v8-first 01a08997/01a08975, 5024be17, 855a1dc0 preserved separately); Reader API plus headless-chromium renders and canonical smokes; final ledger reconciliation awaits independent review"
+    "independent reviewer conclusions pending for all 13 real cases (0/13); operator observations in acceptance.md sections 12/19/20 are explicitly not counted",
+    "content-complete four-chapter evidence now exists on candidate 7e637dd: SG publication 01a08a8e (先主傳 11974/0.95, 周瑜傳 7177/1.43, 魯肅傳 5224/1.45) + ZZ publication 01a08a66 (卷65 14353/1.34), each with artifact hash, smoke+DOM verified; historical condensed publications (SG3 4658/0.37, v7 0.192, v8 ZZ 0.26, v8 周瑜傳 0.63) retained as evidence",
+    "hollow-pass gap dispositioned (not gated): a v10-round initial candidate of 1803 chars passed structural validation (job b0c5e3c6, cancelled before publish, run evidence retained); chapter-production.md section 96 puts translation completeness under per-chapter content review, so no length gate is added and the 13 cases carry the judgment",
+    "mentions: current SG/ZZ rounds mostly resolved with span-copy linkages; 魯肅傳 2 unmodeled mentions are temporal expressions (建安二十二年/十九年) with no entity referent, correctly unresolved+null (query evidence)",
+    "cross-book matrix and post-publication event-merge semantics documented: ZZ2 multi-canonical event merge fail-closed (two existing canonical IDs would collapse), ZZ3/Zzv10 event joins published; both terminal outcomes retained; systematic matrix still not fully exercised",
+    "Studio browser decision-clicks on SG3/ZZ3 (43/43 + 7/7, 100 screenshots, FINAL states); v10 round decisions via authenticated API (not browser); canonical review-flow-smoke.mjs remains mocked-API-only (ad-hoc/browser driver used, documented)",
+    "live artifacts archived (7e637dd3 round publications 01a08a8e/01a08a66; historical 0bb5c6a0 rounds 01a089d6/01a08a13, 01a08997/01a08975, 5024be17, 855a1dc0 preserved); final ledger reconciliation awaits independent review"
   ],
-  "candidate_commit": "0bb5c6a07226d4f877b63cd5a6ff9757f3a441ec",
+  "candidate_commit": "7e637dd3b8cb70434436feb92e7db8c8bdfd06ae",
   "cases": [
     {
       "case_id": "T02-C01",
