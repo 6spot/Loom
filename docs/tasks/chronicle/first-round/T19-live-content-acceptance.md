@@ -149,3 +149,10 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - PR body current summary + 内容/验证 sections synced to v10 (candidate 7e637dd, prompt v10, extraction 36); SG3/ZZ3 bullets marked historical; zero close-intent.
 - canonical index `manual-content-review.json`: added `evidence_notes` labeling `job-sg2-FINAL.json` as the pre-decision needs_review snapshot and `job-sg2-resumed.json` as the 21/21-resolved terminal record; candidate `7e637dd`; 13 pending / 0/13 / reviewer empty / `not_passed` preserved.
 - Consistency: JSON parses, 14 cases 1:1, 13 pending, no stale v8-current strings, `git diff --check` clean, gate 15 + contract/extraction/wiring 101 tests OK.
+
+2026-09-10 — v10 real-browser review round + systematic matrix (still NOT_PASSED):
+
+- Real-browser review-flow evidence on current candidate 7e637dd: SG job 5ee49e77 (3 chunks; resolve opened 43) 43/43 and ZZ job 3417517d 1/1 decided via ad-hoc playwright open/fill/submit (window.confirm), 88 before/after screenshots, API open 0, FINAL 43/43 + 1/1; publications 01a08b08 (先主傳 16312/1.30, 周瑜傳 7068/1.41, 魯肅傳 5169/1.44) and 01a08ad9 (14718/1.37); canonical reader smoke 4/4.
+- Systematic cross-book matrix documented (§21): covered = same-revision, published-bundle↔import consistency, cross-book SG↔ZZ entity/event, three-bundle transitivity, same-source re-import, event same_occurrence + related_occurrence (fa3fd04c non-merge); missing = exhaustive source-pair×kind matrix and matrix-level pass/fail criterion retained.
+- Event-merge: ZZ2 fail-closed; ZZ3/ZZ-v10/v10-browser joins published; general rule deferred, both terminal outcomes retained.
+- canonical review-flow-smoke.mjs retained mocked-only; 13 cases stay pending (0/13, reviewer empty, not_passed); nothing closed.

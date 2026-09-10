@@ -10,9 +10,11 @@
   ],
   "candidate_commit": "7e637dd3b8cb70434436feb92e7db8c8bdfd06ae",
   "evidence_notes": [
-    "v10 round evidence dir: /srv/loom-t19-evidence/7e637dd3/ (candidate 7e637dd, prompt v10)",
-    "SG2 job e4e952f0: job-sg2-FINAL.json is the PRE-DECISION needs_review snapshot (21 open reviews); job-sg2-resumed.json is the terminal record (21/21 resolved via authenticated API, 8/8 stages completed, publication 01a08a8e)",
-    "ZZ job 9b31a529: job-zz-FINAL.json terminal (8/8 completed, publication 01a08a66)",
+    "v10 round evidence dirs: /srv/loom-t19-evidence/7e637dd3/ (API-decided content-complete) and .../browser-round/ (real-browser decisions)",
+    "current real-browser record (candidate 7e637dd, prompt v10): SG job 5ee49e77 43/43 + ZZ job 3417517d 1/1 decided via ad-hoc playwright open/fill/submit (88 before/after screenshots, shots-sg/ and shots/), API open 0, FINAL snapshots in reviews-sg-FINAL/ and reviews-FINAL/; publications 01a08b08 (先主傳 16312/1.30, 周瑜傳 7068/1.41, 魯肅傳 5169/1.44) and 01a08ad9 (14718/1.37)",
+    "API-decided content-complete round (same candidate): SG job e4e952f0 publication 01a08a8e, ZZ job 9b31a529 publication 01a08a66; job-sg2-FINAL.json is the PRE-DECISION needs_review snapshot and job-sg2-resumed.json is the 21/21 resolved terminal record",
+    "canonical review-flow-smoke.mjs remains mocked-API-only; ad-hoc browser driver evidence is not canonical-script coverage (gap retained)",
+    "event-merge: ZZ2 (09870dff) fail-closed on multi-canonical collapse; ZZ3 (099d018b), ZZ-v10 (9b31a529), and browser-round ZZ (3417517d) joins published; both terminal outcomes retained",
     "historical round evidence dirs (0bb5c6a0 SG3/ZZ3, 5024be17, 855a1dc0) retained separately and marked historical in acceptance sections 12-19"
   ],
   "cases": [

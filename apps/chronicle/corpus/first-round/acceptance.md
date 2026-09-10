@@ -27,15 +27,15 @@
   （SHA 校验一致）；测试服务端口 8090，新 project/数据/证据目录
   （`/srv/loom-t19-evidence/7e637dd3/`）。
 - 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态（内容完整闭环，见 §20）：三國志三章已发布
-  （publication `01a08a8e`：先主傳 11974/0.95、周瑜傳 7177/1.43、
-  魯肅傳 5224/1.45）＋通鑑已发布（publication `01a08a66`，
-  14353/1.34）——**四个自然章均有 content-complete 译文**；
-  四章 canonical smoke＋真 chromium DOM 首尾 PASS；21 review 经认证 API
-  裁决（见 §20）。历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）
-  见 §12–§19，仅对照。
-  13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§20；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+- 当前状态（内容完整闭环＋真实浏览器审核，见 §20–§21）：三國志三章
+  已发布（publication `01a08b08`：先主傳 16312/1.30、周瑜傳 7068/1.41、
+  魯肅傳 5169/1.44）＋通鑑已发布（publication `01a08ad9`，14718/1.37）——
+  **四个自然章均有 content-complete 译文**，且同轮 43/43＋1/1 review
+  经真实 Studio 浏览器 decision-click 裁决；四章 canonical smoke 4/4＋
+  DOM 首尾 PASS。同候选另有 API 裁决轮（`01a08a8e`/`01a08a66`）作对照。
+  历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
+  仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
+  细节见 §12、§16–§21；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -445,25 +445,27 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 
 不得把已发布覆盖合称为完整跨書闭环。
 
-## 17. Studio 浏览器证据边界（精确划分，SG3/ZZ3 浏览器轮；v10 轮用认证 API，见 §20）
+## 17. Studio 浏览器证据边界（精确划分，v10 浏览器轮当前；SG3/ZZ3 历史）
 
-- ✅ 当前轮真实 UI 点击（**current record**）：SG3 43/43＋ZZ3 7/7，
-  经 ad-hoc playwright 驱动在 Studio 浏览器内 open/fill/submit 真实执行
-  （`window.confirm` 对话框通过），共 100 张 before/after 截图
-  （SG3 86＋ZZ3 14）＋终局快照 SG3 43/43、ZZ3 7/7；API 复核 0 open。
+- ✅ 当前轮真实 UI 点击（**current record，candidate `7e637dd`**）：
+  v10 SG job `5ee49e77` 43/43＋ZZ job `3417517d` 1/1，经 ad-hoc playwright
+  驱动在 Studio 浏览器内 open/fill/submit 真实执行（`window.confirm`
+  通过），共 88 张 before/after 截图（43×2＋1×2＋…）；API 复核 0 open；
+  终局快照 SG 43/43、ZZ 1/1；publications `01a08b08`/`01a08ad9`（见 §21）。
 - ✅ Canonical 真实后端证据：`chapter-reader-smoke.mjs` 对已发布章
-  全部 PASS（生产 Rust 前端＋真实 API，非 dev server/mock）；SG3/ZZ3
-  四章 smoke 4/4＋DOM 首尾断言。
+  全部 PASS（生产 Rust 前端＋真实 API，非 dev server/mock）；v10 轮
+  四章 smoke 4/4（`01a08b08`/`01a08ad9`）＋DOM 首尾断言；SG3/ZZ3 轮
+  4/4 为历史对照。
 - ✅ 真实 UI 读证据（ad-hoc playwright 驱动，非 canonical 脚本）：
   `/studio/review` 登录壳（未认证）→ 认证登录 → 队列 + 已处理轨迹。
-- 历史（仅对照）：v8 首发 27 条浏览器点击（34 before/after 截图＋
+- 历史（仅对照）：SG3 43/43＋ZZ3 7/7（100 截图，v8 镜像 `0bb5c6a`）；v8 首发 27 条浏览器点击（34 before/after 截图＋
   27/27 FINAL）；更早 23＋12 条经认证 API（与 UI 同路由）执行、
   当时非浏览器点击（见 §15）。均不构成本轮 current record。
 - ❌ 剩余 unmet（保留）：canonical `review-flow-smoke.mjs` 仍仅
   mocked-api——尚无以仓库 canonical 脚本执行的真实后端 review-flow
   浏览器证据；ad-hoc 驱动已证明 UI 路径可行，但不等同 canonical 覆盖。
   Mocked（review-flow smoke）/ API（历史 23＋12）/ 真实 UI
-  点击（当前 SG3 43/43＋ZZ3 7/7；历史 v8 27/27）/ 真实 UI 读
+  点击（当前 v10 SG 43/43＋ZZ 1/1；历史 SG3/ZZ3、v8 27/27）/ 真实 UI 读
   五类证据在此明确区分，不得混用。
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
@@ -583,3 +585,38 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 6. 本轮结论：NOT_PASSED。四章 content-complete 证据成立，但
    `manual-content-review.json` 仍 13 pending／0/13，独立转正未发生；
    未关闭 T19/#548。
+
+## 21. v10 真实浏览器审核轮与系统跨書矩阵（candidate `7e637dd`）
+
+候选 `7e637dd`（prompt v10），镜像 `loom-chronicle:t19-7e637dd3`，端口 8090，
+证据 `/srv/loom-t19-evidence/7e637dd3/browser-round/`，模型 `gpt-5.6-luna`。
+
+1. **当前 candidate 的真实浏览器 review-flow 证据（非 API、非 mocked）**：
+   - SG job `5ee49e77`（第三 SG 导入，revision `d848...`）：resolve 开出
+     43 个 review，全部经 ad-hoc playwright 驱动在真实 Studio 浏览器内
+     open/fill/submit（`window.confirm` 通过），86 张 before/after 截图；
+     API 复核 0 open；FINAL 43/43 resolved（36 same_entity＋6
+     same_occurrence＋1 related_occurrence）。resume 后 8 阶段全完成，
+     publication `01a08b08`：先主傳 16312 字（1.30）、周瑜傳 7068（1.41）、
+     魯肅傳 5169（1.44）——**四章 content-complete 且浏览器裁决同一轮**。
+   - ZZ job `3417517d`（第三通鑑导入）：1 个 review（曹操 same_entity）
+     浏览器裁决（2 张截图），publication `01a08ad9`（14718 字/1.37）。
+   - 四章 canonical smoke 4/4 PASS（上述 publications）。
+   - canonical `review-flow-smoke.mjs` 仍为 mocked-api-only：本证据由
+     ad-hoc 驱动产生，证明真实 UI 路径可行，但**不等同仓库 canonical
+     脚本覆盖**（缺口保留）。
+2. **系统跨書矩阵（当前覆盖 vs 缺失）**：
+   - 已覆盖（本 current candidate，浏览器裁决）：同 revision 三章内
+     （13 组 entity＋7 组 event）、已发布束↔本导入束一致性（15 组）、
+     跨書 SG↔ZZ（5 组 entity＋1 组 event）、三束传递（1 组）、
+     同源重导入；event 含 same_occurrence 与 related_occurrence
+     （`fa3fd04c` 孫權遣魯肅出使荊州 vs 魯肅代周瑜領兵，两事件非同一
+     发生故 related、不合并）。
+   - 缺失（保留）：未定义“全部来源对 × 种类”的穷举矩阵；任命类等仍非
+     系统性覆盖；无矩阵级 pass/fail 判据，故不得称完整矩阵闭环。
+3. **post-publication event-merge 通用语义（保留双终局）**：ZZ2 多 canonical
+   归并 fail-closed（两既有 canonical 事件将坍缩，原子回滚）；
+   ZZ3/ZZ-v10/v10-browser 的非碰撞 join 发布成功。通用判定规则归
+   canonical-stability 拥有层，交 reviewer 确认；两种终局都保留。
+4. 13 案仍全部 `pending`（0/13）；上述为**供独立 reviewer 评估的候选
+   证据**，不自行转正。本轮结论：NOT_PASSED；未关闭 T19/#548。
