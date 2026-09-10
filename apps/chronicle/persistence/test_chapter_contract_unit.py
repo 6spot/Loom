@@ -160,6 +160,42 @@ class AnchorCoordinateTests(unittest.TestCase):
         candidate = load("candidate-bad-occurrence.json")
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "anchors")
 
+    def test_anchor_miss_hint_points_to_holding_block(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0): 0-hit anchors never
+        # said whether the quote exists elsewhere. A misattributed quote
+        # must name its chapter-wide count and holding block.
+        request, _ = base()
+        text = request["normalized_text"]
+        blocks = request["blocks"]
+        by_id = {b["block_id"]: {"start": b["start"], "end": b["end"]} for b in blocks}
+        home = blocks[2]
+        quote = text[home["start"]:home["start"] + 6]
+        other = blocks[0]["block_id"]
+        assert other != home["block_id"]
+        _anchor, error = C.resolve_selection(
+            {"first_block_id": other, "last_block_id": other, "quote": quote, "occurrence": 1},
+            request=request, blocks_by_id=by_id, owner="test",
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("chapter-wide", error)
+        self.assertIn(home["block_id"], error)
+        self.assertIn("re-point", error)
+
+    def test_anchor_miss_hint_flags_fabricated_quote(self) -> None:
+        # A quote occurring nowhere in the chapter must say so explicitly
+        # so the correction replaces it instead of shuffling block ids.
+        request, _ = base()
+        by_id = {b["block_id"]: {"start": b["start"], "end": b["end"]} for b in request["blocks"]}
+        _anchor, error = C.resolve_selection(
+            {"first_block_id": "b_001", "last_block_id": "b_001", "quote": "子虛烏有先生曰", "occurrence": 1},
+            request=request, blocks_by_id=by_id, owner="test",
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("not found anywhere in chapter text", error)
+        self.assertIn("replace it", error)
+
     def test_cross_block_quote_resolves(self) -> None:
         request, candidate = base()
         text = request["normalized_text"]
@@ -229,6 +265,183 @@ class AliasMentionTests(unittest.TestCase):
         request, candidate = base()
         candidate["bundle"]["entities"][1]["aliases"] = ["武侯"]
         assert_rejected(self, C.validate_chapter_candidate(request, candidate), "aliases")
+
+
+class EqualityDiagnosticTests(unittest.TestCase):
+    def test_mention_surface_mismatch_shows_both_values(self) -> None:
+        # Live regression (C2-R1-T19, candidate 0410b15d): a value-free
+        # "surface must equal selection.quote" left the model unable to see
+        # which side to copy, and all 10 mentions of a correction round
+        # failed at once. The contract is unchanged; the diagnostic now
+        # carries both sides.
+        request, candidate = base()
+        candidate["mentions"][0]["surface"] = "曹公"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "mentions")
+        messages = report["errors"]["mentions"]
+        self.assertTrue(
+            any("m_001" in m and "曹公" in m and "曹操" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_claim_evidence_mismatch_shows_both_values(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["evidence"]["text"] = "曹操屯江陵矣"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "record_sources")
+        messages = report["errors"]["record_sources"]
+        self.assertTrue(
+            any("曹操屯江陵矣" in m and "曹操屯江陵" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_long_values_truncated_in_diagnostic(self) -> None:
+        rendered = C._diagnostic_value("x" * 500)
+        self.assertIn("…", rendered)
+        self.assertLessEqual(len(rendered), C._DIAGNOSTIC_VALUE_CHARS + 3)
+
+    def test_matching_values_still_pass(self) -> None:
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+    def test_entity_resolution_new_rejected_with_actionable_message(self) -> None:
+        # Live regression (C2-R1-T19, candidate 26eb34c1): status 'new'
+        # sailed through validation and killed the job at assemble.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["resolution"] = {"status": "new"}
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "references")
+        messages = report["errors"]["references"]
+        self.assertTrue(
+            any("ent_001" in m and "new" in m and "unresolved" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_entity_resolution_unresolved_passes_missing_is_schema_error(self) -> None:
+        # The candidate schema already requires resolution on entities, so
+        # a missing object fails at schema_validation; the new references
+        # check only fires on a present-but-wrong status, mirroring the
+        # assembler's entities-only rule.
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        candidate2 = base()[1]
+        del candidate2["bundle"]["entities"][0]["resolution"]
+        report2 = C.validate_chapter_candidate(request, candidate2)
+        self.assertFalse(report2["passed"])
+        self.assertTrue(report2["errors"]["schema_validation"])
+        self.assertFalse(report2["errors"]["references"])
+
+    def test_temp_id_beyond_999_rejected_fail_fast(self) -> None:
+        # Live regression (C2-R1-T19, v7 SG job 2): the model emitted
+        # ent_1001, sailed through validation, and killed the whole job
+        # one stage later at assemble (revision-scoped remap needs
+        # 000-999). The validator now fails fast on the same rule.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["temp_id"] = "ent_1001"
+        report = C.validate_chapter_candidate(request, candidate)
+        assert_rejected(self, report, "references")
+        messages = report["errors"]["references"]
+        self.assertTrue(
+            any("ent_1001" in m and "999" in m for m in messages),
+            json.dumps(messages, ensure_ascii=False),
+        )
+
+    def test_temp_id_at_999_boundary_passes_prefix_check(self) -> None:
+        # ent_999 breaks other fixture references (renamed record), but it
+        # must NOT trip the numeric-range rule itself.
+        request, candidate = base()
+        candidate["bundle"]["entities"][0]["temp_id"] = "ent_999"
+        report = C.validate_chapter_candidate(request, candidate)
+        joined = json.dumps(report["errors"]["references"], ensure_ascii=False)
+        self.assertNotIn("must be within 000-999", joined)
+
+
+class RecallObservationsTests(unittest.TestCase):
+    def test_valid_candidate_carries_recall_counts(self) -> None:
+        request, candidate = base()
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        recall = report["recall"]
+        self.assertEqual(
+            (recall["entities"], recall["events"], recall["claims"], recall["mentions"]),
+            (3, 1, 1, 4),
+        )
+        self.assertEqual(
+            (recall["mentions_resolved"], recall["mentions_unresolved"]),
+            (2, 2),
+        )
+        self.assertEqual(recall["chapter_chars"], len(request["normalized_text"]))
+        self.assertIn("entities", recall["per_1000_chars"])
+
+    def test_no_recall_floor_category_exists(self) -> None:
+        # Recorded T19 decision (acceptance §13): NO hard recall floor —
+        # floors are gameable by padding and false-positive on genuinely
+        # sparse chapters. Removing entities fails only on reference
+        # closure (dangling refs), never on a recall/minimum category;
+        # the recall section stays purely observational.
+        request, candidate = base()
+        candidate["bundle"]["entities"] = [candidate["bundle"]["entities"][0]]
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        joined = json.dumps(report["errors"], ensure_ascii=False).lower()
+        for token in ("recall", "minimum", "too few", "too sparse", "floor"):
+            self.assertNotIn(token, joined)
+        self.assertEqual(report["recall"]["entities"], 1)
+
+    def test_malformed_candidate_reports_zero_recall(self) -> None:
+        request, _ = base()
+        report = C.validate_chapter_candidate(request, {"nope": True})
+        self.assertFalse(report["passed"])
+        recall = report["recall"]
+        self.assertEqual(
+            (recall["entities"], recall["events"], recall["claims"], recall["mentions"]),
+            (0, 0, 0, 0),
+        )
+        self.assertEqual(
+            recall["per_1000_chars"],
+            {"entities": 0.0, "events": 0.0, "claims": 0.0, "mentions": 0.0},
+        )
+
+
+class ClaimObjectShapeTests(unittest.TestCase):
+    def test_literal_object_carries_value(self) -> None:
+        # Frozen shape across the candidate schema, the API-enforced
+        # text_format, and the C0 LITERAL convention: a literal claim
+        # object is {"kind": "literal", "value": <text>}. Live regression
+        # (C2-R1-T19): the references check demanded a ref key while the
+        # schema demanded value, so no literal could pass both gates.
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["object"] = {
+            "kind": "literal", "value": "白帝城",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+    def test_literal_object_without_value_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["object"] = {
+            "kind": "literal",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("malformed reference" in message for message in report["errors"]["references"]),
+            json.dumps(report["errors"]["references"], ensure_ascii=False),
+        )
+
+    def test_literal_subject_still_rejected(self) -> None:
+        request, candidate = base()
+        candidate["bundle"]["claims"][0]["subject"] = {
+            "kind": "literal", "value": "白帝城",
+        }
+        report = C.validate_chapter_candidate(request, candidate)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("must not be a literal" in message for message in report["errors"]["references"]),
+            json.dumps(report["errors"]["references"], ensure_ascii=False),
+        )
 
 
 class TimeAndSchemaTests(unittest.TestCase):

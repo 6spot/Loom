@@ -137,6 +137,7 @@ def chapter_model_from_env(
         chapter_name,
         endpoint,
         api_key=(source.get(CHAPTER_API_KEY_ENV) or "").strip() or None,
+        timeout_seconds=model_provider.timeout_from_env(source),
     )
 
 
@@ -415,6 +416,26 @@ def _producing_run_for(run_id: uuid.UUID, model_name: str) -> dict[str, Any]:
     }
 
 
+def _chapter_error_message(result: dict[str, Any]) -> str:
+    """Derive the persisted/logged message for a failed chapter result.
+
+    The run checkpoint carries no "error" key, so the message must be
+    derived here and shared by the persisted run row and the
+    chapter_failed log event (reading it back from the checkpoint
+    always yields None).
+    """
+    if not isinstance(result, dict):
+        return "chapter extraction failed closed"
+    error = result.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+    if isinstance(error, str) and error.strip():
+        return error
+    return "chapter extraction failed closed"
+
+
 def _read_runs(conn, chunk_id: uuid.UUID) -> list[tuple[int, str, dict[str, Any]]]:
     rows = conn.execute(
         """
@@ -653,16 +674,16 @@ def execute_chapter_extract(
                     f"chapter chunk {chunk_id} accepted result carries no candidate"
                 )
             run_checkpoint["candidate"] = candidate
+        # The same message goes to the persisted run row and to the
+        # chapter_failed log event: reading it back from run_checkpoint
+        # always yields None because the checkpoint carries no "error" key.
+        run_error = _chapter_error_message(result)
         with psycopg.connect(database_url) as conn:
             _, run_attempt = control_plane.record_chunk_run_fenced(
                 conn, job_id=job_id, chunk_id=chunk_id,
                 status="completed" if result.get("accepted") else "failed",
                 worker=worker, checkpoint=run_checkpoint,
-                error=None if result.get("accepted") else str(
-                    (result.get("error") or {}).get("message")
-                    or result.get("error")
-                    or "chapter extraction failed closed"
-                ),
+                error=None if result.get("accepted") else run_error,
             )
         if not result.get("accepted"):
             with psycopg.connect(database_url) as conn:
@@ -673,7 +694,7 @@ def execute_chapter_extract(
             if on_event is not None:
                 on_event(
                     "chapter_failed",
-                    {"chunk_id": str(chunk_id), "error": run_checkpoint.get("error")},
+                    {"chunk_id": str(chunk_id), "error": run_error},
                 )
             return _failed_outcome(database_url, chunk_id)
         # Accept under the lease with the persisted run identity; the

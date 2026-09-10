@@ -27,7 +27,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 from urllib import error, parse, request
 
 from common import PersistenceError
@@ -93,12 +93,26 @@ def _validate_endpoint(endpoint: str) -> str:
     return value
 
 
-def _timeout_from_env() -> float:
-    raw = _nonempty_env("CHRONICLE_MODEL_TIMEOUT_SECONDS")
-    if raw is None:
+def timeout_from_env(env: Mapping[str, str] | None = None) -> float:
+    """Return the per-attempt HTTP timeout for live model providers.
+
+    Honors ``CHRONICLE_MODEL_TIMEOUT_SECONDS`` from the given mapping
+    (or the process environment when omitted) with the same
+    positive-number validation as the C1 extraction/presentation path,
+    so the joint chapter pipeline observes the deployed timeout instead
+    of silently falling back to the code default.
+    """
+    if env is None:
+        raw_value = _nonempty_env("CHRONICLE_MODEL_TIMEOUT_SECONDS")
+    else:
+        raw = env.get("CHRONICLE_MODEL_TIMEOUT_SECONDS")
+        raw_value = raw.strip() if isinstance(raw, str) else None
+        if not raw_value:
+            raw_value = None
+    if raw_value is None:
         return DEFAULT_MODEL_TIMEOUT_SECONDS
     try:
-        value = float(raw)
+        value = float(raw_value)
     except ValueError as exc:
         raise PersistenceError(
             "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a positive number"
@@ -108,6 +122,10 @@ def _timeout_from_env() -> float:
             "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a positive number"
         )
     return value
+
+
+def _timeout_from_env() -> float:
+    return timeout_from_env()
 
 
 def _response_text(payload: Any) -> str:

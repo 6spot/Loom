@@ -13,7 +13,9 @@ Result shape of :func:`extract_chapter`::
     {
       "accepted": bool,
       "artifact": dict | None,          # chronicle.chapter-artifact / 0.1
-      "attempts": [...],                # one entry per model call, verbatim
+      "attempts": [...],                # one entry per model call, each with
+                                        # prompt/response sizes+hashes,
+                                        # validation report, and latency_ms
       "error": None | {"code": str, "message": str},
       "request_fingerprint": str,
       "fingerprints": {...},            # limits/model/schema/source/plan binding
@@ -42,6 +44,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import time
 from typing import Any, Protocol
 
 import chapter_contract as C
@@ -157,6 +160,7 @@ def _attempt(
     transport_error: str | None = None,
     validation: dict[str, Any] | None = None,
     candidate: dict[str, Any] | None = None,
+    latency_ms: int | None = None,
 ) -> dict[str, Any]:
     return {
         "kind": kind,
@@ -169,6 +173,7 @@ def _attempt(
             len(raw_response.encode("utf-8")) if isinstance(raw_response, str) else None
         ),
         "raw_response_sha256": sha256_text(raw_response) if isinstance(raw_response, str) else None,
+        "latency_ms": latency_ms,
         "parse_error": parse_error,
         "transport_error": transport_error,
         "validation": copy.deepcopy(validation),
@@ -315,6 +320,7 @@ def extract_chapter(
 
     for round_no in range(1 + active_limits.max_correction_rounds):
         kind = "initial" if round_no == 0 else "correction"
+        started = time.monotonic()
         try:
             raw_response = model.complete(prompt)
         except Exception as exc:
@@ -324,6 +330,7 @@ def extract_chapter(
                     prompt=prompt,
                     raw_response=None,
                     transport_error=f"model call failed: {exc}",
+                    latency_ms=int((time.monotonic() - started) * 1000),
                 )
             )
             # Transport retry belongs to T06; this layer records and fails.
@@ -344,6 +351,9 @@ def extract_chapter(
                 "correction_rounds_used": round_no,
                 "transport_retries": TRANSPORT_RETRIES_HERE,
             }
+        # Wall-clock cost of this semantic round's single model call, kept
+        # on every attempt of the round for live usage/timing evidence.
+        latency_ms = int((time.monotonic() - started) * 1000)
         if not isinstance(raw_response, str):
             attempts.append(
                 _attempt(
@@ -354,6 +364,7 @@ def extract_chapter(
                         "model.complete must return response text, "
                         f"got {type(raw_response).__name__}"
                     ),
+                    latency_ms=latency_ms,
                 )
             )
             return {
@@ -370,7 +381,7 @@ def extract_chapter(
                 "transport_retries": TRANSPORT_RETRIES_HERE,
             }
         if len(raw_response.encode("utf-8")) > active_limits.max_response_bytes:
-            attempts.append(_attempt(kind=kind, prompt=prompt, raw_response=raw_response))
+            attempts.append(_attempt(kind=kind, prompt=prompt, raw_response=raw_response, latency_ms=latency_ms))
             return {
                 "accepted": False,
                 "artifact": None,
@@ -389,7 +400,7 @@ def extract_chapter(
                 "transport_retries": TRANSPORT_RETRIES_HERE,
             }
         if len(raw_response) > active_limits.max_response_chars:
-            attempts.append(_attempt(kind=kind, prompt=prompt, raw_response=raw_response))
+            attempts.append(_attempt(kind=kind, prompt=prompt, raw_response=raw_response, latency_ms=latency_ms))
             return {
                 "accepted": False,
                 "artifact": None,
@@ -417,7 +428,7 @@ def extract_chapter(
             attempts.append(
                 _attempt(
                     kind=kind, prompt=prompt, raw_response=raw_response,
-                    parse_error=parse_error,
+                    parse_error=parse_error, latency_ms=latency_ms,
                 )
             )
             if round_no >= active_limits.max_correction_rounds:
@@ -472,7 +483,7 @@ def extract_chapter(
         attempts.append(
             _attempt(
                 kind=kind, prompt=prompt, raw_response=raw_response,
-                validation=report, candidate=candidate,
+                validation=report, candidate=candidate, latency_ms=latency_ms,
             )
         )
         if report.get("passed"):

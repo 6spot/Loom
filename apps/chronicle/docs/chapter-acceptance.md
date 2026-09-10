@@ -71,7 +71,8 @@ T18 的 live 模式只做严格前置检查，**不调用真实 provider、不�
 cp .env.chronicle.example .env.chronicle
 # 填入 CHRONICLE_POSTGRES_PASSWORD / CHRONICLE_ADMIN_USER /
 # CHRONICLE_ADMIN_PASSWORD / CHRONICLE_MODEL_ENDPOINT /
-# CHRONICLE_EXTRACTION_MODEL / CHRONICLE_PRESENTATION_MODEL
+# CHRONICLE_EXTRACTION_MODEL / CHRONICLE_PRESENTATION_MODEL /
+# CHRONICLE_CHAPTER_MODEL（C2-R1 联合章模型，live READY 必需）
 # 不得设置 CHRONICLE_MODEL_FIXTURE_PACK；endpoint 不得内嵌凭据。
 
 python3 apps/chronicle/acceptance/first_round_gate.py --mode live --env-file .env.chronicle --source-pack apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /tmp/chronicle-first-round-live
