@@ -161,6 +161,39 @@ def _event_places(event: dict[str, Any], names: dict[str, str]) -> set[str]:
     return result
 
 
+def _place_name_set(bundle: dict[str, Any]) -> set[str]:
+    """Canonical names of entities the extractor typed as places."""
+    result: set[str] = set()
+    for entity in bundle.get("entities") or []:
+        if not isinstance(entity, dict) or entity.get("type") != "place":
+            continue
+        name = entity.get("canonical_name")
+        if isinstance(name, str) and name:
+            result.add(name)
+    return result
+
+
+def _event_place_anchors(
+    event: dict[str, Any], names: dict[str, str], place_names: set[str] | None
+) -> set[str]:
+    """Structured places plus place names named directly in the event title.
+
+    One source often records the battle site in the title (e.g. 赤壁之戰) while
+    leaving the structured ``places`` list empty. Recovering those title place
+    names keeps a real shared-site anchor without falling back to participant
+    count alone.
+    """
+    anchors = _event_places(event, names)
+    if not place_names:
+        return anchors
+    title = event.get("title")
+    if isinstance(title, str) and title:
+        for name in place_names:
+            if name in title:
+                anchors.add(name)
+    return anchors
+
+
 def _event_time(event: dict[str, Any]) -> dict[str, Any]:
     time = event.get("time")
     if not isinstance(time, dict):
@@ -246,16 +279,18 @@ def event_candidates(
     """Generate conservative Event candidates without deciding occurrence identity.
 
     Broad event types such as military, battle, and movement are not allowed to
-    qualify on a single shared high-frequency participant alone. They need
-    either a shared place anchor, or (when no side names a conflicting place)
-    at least two shared participants. Narrow event types may qualify on the
-    same type, a shared participant, and compatible time even when a source
-    omits the place. A candidate is still only an ``uncertain`` review item;
-    it never merges identities by itself.
+    qualify on shared participants alone. They must carry a real shared-place
+    anchor, where a place named in the event title counts even when one source
+    left the structured ``places`` list empty. Narrow event types may qualify
+    on the same type, a shared participant, and compatible time even when a
+    source omits the place. A candidate is still only an ``uncertain`` review
+    item; it never merges identities by itself.
     """
 
     left_names = _entity_name_map(left_bundle)
     right_names = _entity_name_map(right_bundle)
+    left_place_names = _place_name_set(left_bundle)
+    right_place_names = _place_name_set(right_bundle)
     ranked: list[tuple[int, dict[str, Any]]] = []
 
     for left in left_bundle.get("events") or []:
@@ -264,7 +299,9 @@ def event_candidates(
         for right in right_bundle.get("events") or []:
             if not isinstance(right, dict):
                 continue
-            blocked = _event_pair_blocked(left, right, left_names, right_names)
+            blocked = _event_pair_blocked(
+                left, right, left_names, right_names, left_place_names, right_place_names
+            )
             if blocked is None:
                 continue
             score, signals = blocked
@@ -321,6 +358,8 @@ def _event_pair_blocked(
     right: dict[str, Any],
     left_names: dict[str, str],
     right_names: dict[str, str],
+    left_place_names: set[str] | None = None,
+    right_place_names: set[str] | None = None,
 ) -> tuple[int, list[str]] | None:
     """Return (score, signals) when an Event pair blocks, else None."""
     if not isinstance(left, dict) or not isinstance(right, dict):
@@ -329,8 +368,8 @@ def _event_pair_blocked(
         return None
     lp = _event_participants(left, left_names)
     rp = _event_participants(right, right_names)
-    lplaces = _event_places(left, left_names)
-    rplaces = _event_places(right, right_names)
+    lplaces = _event_place_anchors(left, left_names, left_place_names)
+    rplaces = _event_place_anchors(right, right_names, right_place_names)
     participant_overlap = sorted(lp & rp)
     place_overlap = sorted(lplaces & rplaces)
     left_type = left.get("type")
@@ -342,25 +381,19 @@ def _event_pair_blocked(
         and left_type in _LOW_AMBIGUITY_EVENT_TYPES
         and bool(participant_overlap)
     )
+    # Broad types must carry a real anchor beyond shared participants. A shared
+    # participant set alone is not evidence of the same occurrence: two
+    # different battles, appointments or territorial changes routinely share
+    # their principals. The anchor is a shared place, where a place name named
+    # in the event title counts even when the structured place list is empty
+    # (C2-R1-T19 C04: 先主傳 赤壁之戰 has no place ref, 周瑜傳 赤壁之戰火攻曹軍
+    # carries 赤壁). Live counterexamples that must stay silent: 赤壁之戰 vs
+    # 曹操敗退 (different places), 劉備取得益州 vs 劉備割湘水為界並罷軍 (only
+    # shared place-free participants/titles), 周瑜之子胤… vs 魯肅代周瑜領兵.
     anchored_broad_match = (
         type_compatible and bool(participant_overlap) and bool(place_overlap)
     )
-    # Live regression (C2-R1-T19 C04): the same battle (赤壁) was extracted in
-    # 先主傳 (participants 劉備/曹操/孫權, no place recorded) and 周瑜傳
-    # (participants 周瑜/孫權/曹操/黃蓋/劉備, place 赤壁). The events are correct;
-    # only the place anchor was missing on one side, so the original blocking
-    # emitted no candidate. General rule: a compatible broad-type pair with two
-    # or more shared participants and no conflicting place is worth human review
-    # even when one side omitted the place. A single shared participant still
-    # never qualifies (honesty: it produces only an uncertain review candidate,
-    # never an automatic merge).
-    conflicting_places = bool(lplaces) and bool(rplaces) and not bool(place_overlap)
-    strong_participant_match = (
-        type_compatible
-        and len(participant_overlap) >= 2
-        and not conflicting_places
-    )
-    if not (narrow_same_type or anchored_broad_match or strong_participant_match):
+    if not (narrow_same_type or anchored_broad_match):
         return None
     score = 0
     signals: list[str] = []
@@ -376,9 +409,6 @@ def _event_pair_blocked(
     if place_overlap:
         score += 3 * len(place_overlap)
         signals.append("shared places: " + ", ".join(place_overlap))
-    if strong_participant_match and not place_overlap:
-        score += 1
-        signals.append("multi-participant anchor without shared place")
     lt = _event_time(left)
     rt = _event_time(right)
     if lt["normalized_year"] is not None and lt["normalized_year"] == rt["normalized_year"]:
@@ -481,11 +511,12 @@ def build_within_bundle_candidate_set(
         candidate["candidate_id"] = f"ec_{index:03d}"
 
     names = _entity_name_map(bundle)
+    place_names = _place_name_set(bundle)
     ranked: list[tuple[int, dict[str, Any]]] = []
     for left_ref, right_ref in _ordered_ref_pairs(event_by_ref, _chapter_of, _order_key):
         assert isinstance(left_ref, str) and isinstance(right_ref, str)
         left, right = event_by_ref[left_ref], event_by_ref[right_ref]
-        blocked = _event_pair_blocked(left, right, names, names)
+        blocked = _event_pair_blocked(left, right, names, names, place_names, place_names)
         if blocked is None:
             continue
         score, signals = blocked
