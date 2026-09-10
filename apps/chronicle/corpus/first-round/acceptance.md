@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§29；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§30；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -912,3 +912,29 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
   不作替代。判定留空。
 - `manual-content-review.json` 保持 13 `pending`／0-13／`not_passed`、reviewer 空。
+
+## 30. 十三案全上下文＋引用/事件 locator 包（locator-only，不写判定）
+
+§30 在前述窗口/hash 之上，提供每案的**更大上下文窗口**与**引用/事件 locator**，
+供独立 reviewer 做语义、引用/事件归属、边界、嵌注与首尾完整性核对；仍**不写
+verdict/依据/证据，不转正任何案例**。
+
+- 脚本：`/srv/loom-t19-evidence/7e637dd3/case_context.py`，输出
+  `/srv/loom-t19-evidence/7e637dd3/case_context.out`（124 行）。在 worker 容器内
+  执行（`CHRONICLE_DATABASE_URL` 仅容器内提供，不导出/不落盘）：
+  ```
+  docker cp /srv/loom-t19-evidence/7e637dd3/case_context.py \
+    chronicle-t19-7e637dd3-chronicle-worker-1:/tmp/case_context.py
+  docker exec -e REPO=/opt/loom chronicle-t19-7e637dd3-chronicle-worker-1 \
+    python3 /tmp/case_context.py > /srv/loom-t19-evidence/7e637dd3/case_context.out
+  ```
+- 每案输出：
+  - `CTX <pub> art=... kw=... ctxsha=<16hex>` ＋ ±250 字全上下文，供语义/边界/
+    完整性核对；
+  - `REF <pub> <temp_id> <kind>/<type> :: <name> anchor quote=<...> blocks=[a..b]`
+    列出该案源块上的 bundle entity/event/claim 及其 record_sources 锚点
+    （引用/事件归属的确定性 locator）。
+- 覆盖：C01–C13 全部有 CTX；引用/事件 locator 覆盖该案所在 chapter artifact。
+- C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
+  不作替代。判定留空；`manual-content-review.json` 保持 13 `pending`／
+  `not_passed`／reviewer 空。

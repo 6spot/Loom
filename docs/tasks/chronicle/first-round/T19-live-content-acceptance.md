@@ -224,3 +224,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — locator/hash packet (still NOT_PASSED):
 
 - Acceptance section 29 added: deterministic locator/hash packet (case_hashes.py -> case_hashes.out) with source-window sha, translation artifact/revision/block/window sha, HEAD/TAIL hashes, and annotation counts. Locator-only; §27/§28 unchanged; no verdicts written; C04 unaccepted (no current same-revision event candidate); escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — full-context + reference/event locator packet (still NOT_PASSED):
+
+- Acceptance section 30 added: case_context.py -> case_context.out (124 lines; run inside worker container) with per-case ±250-char context+sha and bundle entity/event/claim record_sources anchors for the case blocks. Locator-only, no verdicts. §27-§29 unchanged; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
