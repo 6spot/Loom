@@ -173,3 +173,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — §23 C04 current/history clarification (still NOT_PASSED):
 
 - §23 intro now states event/entity linkage cells follow §22's executed matrix (current candidate cross_book×event non-empty; same_revision×event EMPTY -> matrix-level FAIL); any same-revision event same_occurrence example is the historical SG3 round. C04 row relabeled accordingly; C05 cites current cross_book×event 3/3 PASS. 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — event round resolves same_revision×event coverage (still NOT_PASSED):
+
+- event round job d7c18548 (new SG import, v10): 58 reviews decided via real browser open/fill/submit (116 screenshots), incl. the first current-candidate same_revision event candidate 07a7c595 (孫策去世 vs 魯肅去世) adjudicated not_same; publish then fail-closed on event canonical collapse (two existing canonical ids), retained.
+- §22 criterion split into Coverage vs Publish: Coverage PASS (6/6 cells covered+terminal: 41/41, 1/1 not_same, 174/174, 31/31, 48/48, 4/4); Publish FAIL (event-round canonical-collapse terminal retained). §16/§17/§0 and JSON blocker updated; matrix script /srv/loom-t19-evidence/7e637dd3/matrix-all.py.
+- canonical review-flow-smoke.mjs real-backend coverage remains explicit unmet (out of T19 scope). 13 pending / 0/13 / reviewer empty preserved.
