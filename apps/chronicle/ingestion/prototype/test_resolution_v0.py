@@ -157,18 +157,18 @@ class ResolutionV0Tests(unittest.TestCase):
         self.assertEqual(1, len(candidates["event_candidates"]))
         self.assertIn("shared places: 合肥", candidates["event_candidates"][0]["signals"])
 
-    def test_broad_event_multi_participant_anchor_without_place(self) -> None:
-        # Live regression (C2-R1-T19 C04): 先主傳 赤壁之戰 (劉備/曹操/孫權, no
-        # place) vs 周瑜傳 赤壁火攻 (周瑜/孫權/曹操/劉備, place 赤壁). Events are
-        # correct; only one side omitted the place, so the old blocking emitted
-        # no candidate. Two or more shared participants must now surface an
-        # (uncertain) review candidate.
+    def test_broad_event_title_place_anchor_when_one_side_omits_place(self) -> None:
+        # Live regression (C2-R1-T19 C04): 先主傳 赤壁之戰 records no place ref
+        # but names the battle site in the title; 周瑜傳 赤壁之戰火攻曹軍 carries
+        # the 赤壁 place. The title place is the shared anchor, not the
+        # participant count.
         left = _bundle(
             "left",
             [
                 _entity("ent_001", "person", "劉備"),
                 _entity("ent_002", "person", "曹操"),
                 _entity("ent_003", "person", "孫權"),
+                _entity("ent_004", "place", "赤壁"),
             ],
             [
                 _event_multi(
@@ -197,9 +197,75 @@ class ResolutionV0Tests(unittest.TestCase):
         candidates = build_candidate_set(left, "left", right, "right")
         self.assertEqual(1, len(candidates["event_candidates"]))
         self.assertIn(
-            "multi-participant anchor without shared place",
+            "shared places: 赤壁",
             candidates["event_candidates"][0]["signals"],
         )
+
+    def test_broad_event_participants_alone_do_not_block(self) -> None:
+        # Live counterexample (C2-R1-T19): 劉備取得益州 and 劉備割湘水為界並罷軍
+        # share 劉備/孫權 and no shared-place anchor, so they must not block.
+        left = _bundle(
+            "left",
+            [
+                _entity("ent_001", "person", "劉備"),
+                _entity("ent_002", "person", "孫權"),
+            ],
+            [
+                _event_multi(
+                    "evt_001", "territorial_change", "劉備取得益州",
+                    ["ent_001", "ent_002"], 214,
+                )
+            ],
+        )
+        right = _bundle(
+            "right",
+            [
+                _entity("ent_010", "person", "劉備"),
+                _entity("ent_011", "person", "孫權"),
+            ],
+            [
+                _event_multi(
+                    "evt_010", "territorial_change", "劉備割湘水為界並罷軍",
+                    ["ent_010", "ent_011"], 214,
+                )
+            ],
+        )
+        candidates = build_candidate_set(left, "left", right, "right")
+        self.assertEqual([], candidates["event_candidates"])
+
+    def test_broad_event_related_title_without_shared_place_do_not_block(self) -> None:
+        # Live counterexample (C2-R1-T19): 赤壁之戰 vs 曹操敗退 share
+        # participants but the titles name different (or no) places.
+        left = _bundle(
+            "left",
+            [
+                _entity("ent_001", "person", "曹操"),
+                _entity("ent_002", "person", "劉備"),
+                _entity("ent_003", "place", "赤壁"),
+            ],
+            [
+                _event_multi(
+                    "evt_001", "battle", "赤壁之戰",
+                    ["ent_001", "ent_002"], 208,
+                )
+            ],
+        )
+        right = _bundle(
+            "right",
+            [
+                _entity("ent_010", "person", "曹操"),
+                _entity("ent_011", "person", "劉備"),
+                _entity("ent_012", "place", "江東"),
+            ],
+            [
+                _event_multi(
+                    "evt_010", "military", "曹操敗退",
+                    ["ent_010", "ent_011"], 208, ["ent_012"],
+                )
+            ],
+        )
+        candidates = build_candidate_set(left, "left", right, "right")
+        self.assertEqual([], candidates["event_candidates"])
 
     def test_broad_event_conflicting_places_do_not_block(self) -> None:
         # Two shared participants are not enough when both chapters name
@@ -269,6 +335,31 @@ class ResolutionV0Tests(unittest.TestCase):
         candidate = out["event_candidates"][0]
         self.assertEqual("evt_001", candidate["left"]["ref"])
         self.assertEqual("evt_002", candidate["right"]["ref"])
+
+    def test_within_bundle_participants_alone_do_not_block(self) -> None:
+        # Same guard on the within-revision path: cross-chapter broad events
+        # that share only participants must not become candidates.
+        bundle = _bundle(
+            "book",
+            [
+                _entity("ent_001", "person", "劉備"),
+                _entity("ent_002", "person", "孫權"),
+            ],
+            [
+                _event_multi(
+                    "evt_001", "territorial_change", "劉備取得益州",
+                    ["ent_001", "ent_002"], 214,
+                ),
+                _event_multi(
+                    "evt_002", "territorial_change", "劉備割湘水為界並罷軍",
+                    ["ent_001", "ent_002"], 214,
+                ),
+            ],
+        )
+        out = build_within_bundle_candidate_set(
+            bundle, "book", {"evt_001": "ch_a", "evt_002": "ch_b"}, {"ch_a": 0, "ch_b": 1}
+        )
+        self.assertEqual([], out["event_candidates"])
 
     def test_prompt_is_closed_world_and_non_destructive(self) -> None:
         candidates = {
