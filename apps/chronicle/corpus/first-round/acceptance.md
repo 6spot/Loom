@@ -732,10 +732,21 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。当前 candidate 三轮 resolve
      输出中未涌现该特定候选（event 轮同 revision 事件仅 `07a7c595`
      孫策去世 vs 魯肅去世，已 `not_same`）。
-   - 可复现：`curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD"
-     'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=<job>&link_kind=event&limit=50'`
-     对 `5ee49e77`/`d7c18548` 分别执行，可见 event 候选清单（event 轮 12 项，
-     同 revision 仅 `07a7c595`），**无 C04 的 先主傳↔周瑜傳 赤壁 该对**。
+   - 可复现（两条可直接复制；先 `ssh root@<测试服务器>` → `cd /srv/Loom &&
+     set -a && . ./.env.chronicle && set +a`，凭据只来自服务器环境）：
+     ```
+     curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+       'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=e4e952f0-ec61-4f5e-b9c9-7f4363e11fb7&link_kind=event&limit=50'
+     curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD" \
+       'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=d7c18548-b51d-4581-be06-f26cad9fdd06&link_kind=event&limit=50'
+     ```
+     两条查询分别返回 SG2（`e4e952f0`，2 个 event review）与 event 轮
+     （`d7c18548`，12 个）的候选清单：SG2 的 `848a296f`（赤壁之戰↔赤壁之戰
+     火攻曹軍）是 **ZZ 已发布↔SG 跨書**（`21cd`↔`86ac`），非 C04 的
+     先主傳↔周瑜傳 **同 revision** 对；event 轮同 revision 事件仅
+     `07a7c595`（孫策/魯肅去世，`not_same`）。故**无 C04 指定的 先主傳↔
+     周瑜傳 赤壁 同类候选**。浏览器 SG 轮完整 UUID 为
+     `5ee49e77-5980-4263-95c0-d23d3323160e`，同样可替换 `job_id` 复核。
    - 当前可用 C04 材料：两章已发布译文均含「赤壁」（`01a08b08`）；历史 SG3 轮
      同 revision event same_occurrence（`0bb5c6a`，§19）。**须由独立 reviewer
      结合原文判定，本节不预置结论。**
@@ -744,3 +755,12 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    `--mode mocked-api`；真实后端 review-flow 覆盖属 T11/T18 UI/客户端脚本
    拥有层，超出 T19 文件归属。ad-hoc 真实浏览器证据见 §17/§21（SG 43/43＋
    ZZ 1/1＋event 58/58），可作候选但**不等同** canonical 脚本覆盖。
+   - 可复现验证（无需凭据）：在仓库根执行
+     ```
+     grep -n "mocked-api\|unsupported --mode\|SUITE\|MODE" apps/chronicle/webapp/scripts/review-flow-smoke.mjs
+     node apps/chronicle/webapp/scripts/review-flow-smoke.mjs --mode real-backend --base-url http://127.0.0.1:1 ; echo "exit=$?"
+     ```
+     第一条显示脚本只声明 `mocked-api` 且非该模式即拒绝；第二条实际输出
+     `review-flow smoke: FAIL: unsupported --mode real-backend (this task only
+     provides mocked-api; real-backend chain is T18)` 并 `exit=1`——证明
+     canonical 脚本**能力上不支持真实后端**（非环境缺失）。

@@ -187,3 +187,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — explicit unmet requirements registered (§24, still NOT_PASSED):
 
 - §24 added with reproducible commands + terminal evidence for three unmet items: (1) canonical-stability Publish FAIL (by-design fail-closed in publication_v0; ZZ2 and event-round terminal files); (2) current C04 event-evidence path (no same_revision 先主傳↔周瑜傳 赤壁 candidate; material = published 01a08b08 translations + historical SG3 same_occurrence); (3) canonical review-flow-smoke.mjs real-backend coverage (T11/T18 scope). JSON evidence_notes updated; 13 pending / 0/13 / reviewer empty / not_passed preserved; both event-merge outcomes retained.
+
+2026-09-10 — §24 reproducibility fixes (still NOT_PASSED):
+
+- Replaced literal <job>/short IDs with two exact copyable review queries using full UUIDs (SG2 e4e952f0-ec61-4f5e-b9c9-7f4363e11fb7 and event d7c18548-b51d-4581-be06-f26cad9fdd06; browser SG 5ee49e77-5980-4263-95c0-d23d3323160e noted), credentials read only from server env; clarified SG2's 848a296f 赤壁 is cross-book ZZ↔SG, not the C04 same-revision pair.
+- Added credential-free review-flow-smoke.mjs capability check: grep of supported modes + `node ... --mode real-backend` prints the mocked-api-only FAIL message and exits 1 (real output captured).
+- Unmet dispositions, 13 pending / 0/13 / reviewer empty, C04 awaiting independent review, Publish FAIL and mocked-only blockers preserved.
