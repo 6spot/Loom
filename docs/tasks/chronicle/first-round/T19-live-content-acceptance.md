@@ -244,3 +244,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — side-by-side reading companion (still NOT_PASSED):
 
 - Acceptance section 34 added: chapter-<name>-sidebyside.md (SG block->referencing translation blocks; ZZ proportional/ordinal locator, not an alignment claim), wired into regen_review_bundle.sh (manifest 29 files, 0 missing). Locator-only; no verdicts; C04 unaccepted; escalations tracked; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — reviewer-fill protocol (still NOT_PASSED):
+
+- `manual-content-review.json` gained `reviewer_instructions`: per-case fields (status pending|pass|fail, conclusion, evidence, reviewer) are reviewer-only; inputs listed (acceptance sections 23/25-34 + review-bundle-manifest.json); invariants keep 13 pending / 0 pass / 0 fail / reviewer null / verdict not_passed until the independent reviewer concludes. No locator material added; C04 unaccepted; escalations tracked; nothing closed.

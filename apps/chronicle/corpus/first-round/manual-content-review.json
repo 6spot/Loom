@@ -194,5 +194,16 @@
   },
   "task": "C2-R1-T19",
   "verdict": "not_passed",
-  "version": "0.1"
+  "version": "0.1",
+  "reviewer_instructions": {
+    "purpose": "Independent per-case content verdict ledger for the 13 real T02 cases. Only an independent reviewer fills these fields; the implementing agent must not.",
+    "fields_per_case": {
+      "status": "pending | pass | fail  (starts pending; reviewer-only transition)",
+      "conclusion": "reviewer's verdict text or null",
+      "evidence": "reviewer's source-grounded evidence location(s) or null",
+      "reviewer": "independent reviewer identity or null"
+    },
+    "inputs": "acceptance.md sections 23 and 25-34 provide original anchors, full-chapter texts, sentence-level index, side-by-side companion, reference/event locators, windows and hashes; review-bundle-manifest.json lists the replay inputs.",
+    "invariants": "Until every case has a reviewer verdict, status_counts.pending stays 13, pass/fail stay 0, reviewer stays null, and verdict stays not_passed."
+  }
 }
