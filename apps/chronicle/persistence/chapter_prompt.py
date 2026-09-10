@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v8"
+PROMPT_VERSION = "c2r1-chapter-prompt-v9"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -151,6 +151,23 @@ def _json(value: Any) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
+
+
+def _translation_chars(candidate: Any) -> int:
+    """Total translated characters in a previous candidate, or 0 if absent."""
+    if not isinstance(candidate, dict):
+        return 0
+    translation = candidate.get("translation")
+    if not isinstance(translation, dict):
+        return 0
+    blocks = translation.get("blocks")
+    if not isinstance(blocks, list):
+        return 0
+    total = 0
+    for block in blocks:
+        if isinstance(block, dict) and isinstance(block.get("text"), str):
+            total += len(block["text"])
+    return total
 
 
 def _diagnostic_signature(value: str) -> str:
@@ -290,6 +307,23 @@ def render_chapter_prompt(
     correction = ""
     if validation_errors is not None:
         diagnostics = compact_validation_errors(validation_errors)
+        prev_chars = _translation_chars(previous_candidate)
+        preserve = ""
+        if prev_chars:
+            # Live regression (C2-R1-T19 live rounds): the bounded correction
+            # re-ask sometimes returned a condensed summary that still passed
+            # structural validation, shrinking a full initial translation
+            # (e.g. 16404 chars) to a fraction (e.g. 7318). The contract is
+            # unchanged — only the re-ask now names the prior full length and
+            # forbids condensing it. Never a validation gate; a repair signal.
+            preserve = (
+                f"FIDELITY: the previous translation had {prev_chars} characters. "
+                "The corrected product MUST keep the whole translation at that "
+                "full length — faithfully translate every sentence and every "
+                "embedded annotation. Do NOT summarize, condense, shorten, or "
+                "replace any passage with an overview; only repair the listed "
+                "issues while preserving (or lengthening) the full translation.\n"
+            )
         correction = (
             "\nCORRECTION RE-ASK\n"
             "The prior chapter product failed deterministic validation. Return one "
@@ -297,7 +331,8 @@ def render_chapter_prompt(
             "full faithful translation plus the joint bundle, mentions, and "
             "record_sources. Repair every listed issue. Do NOT translate only the "
             "failed segment and splice it back, and do NOT drop the chapter tail.\n"
-            "VALIDATION DIAGNOSTICS\n"
+            + preserve
+            + "VALIDATION DIAGNOSTICS\n"
             + _json(diagnostics)
             + "\nPREVIOUS CANDIDATE\n"
             + _json(previous_candidate)
