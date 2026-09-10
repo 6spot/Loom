@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§30；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§31；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -937,4 +937,37 @@ verdict/依据/证据，不转正任何案例**。
 - 覆盖：C01–C13 全部有 CTX；引用/事件 locator 覆盖该案所在 chapter artifact。
 - C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
   不作替代。判定留空；`manual-content-review.json` 保持 13 `pending`／
+  `not_passed`／reviewer 空。
+
+## 31. 四章全文对照包（source/translation 全文＋对齐，locator-only）
+
+为支持独立 reviewer 对**完整章上下文**（而非 ±250 字窗口）做语义、引用/事件、
+边界、嵌注、首尾完整性核对，§31 提供四章的完整原文与当前 candidate 完整译文
+文件、逐块对齐表及 sha256。**locator/replay only；不写 verdict/依据/证据，不转正。**
+
+- 脚本：`/srv/loom-t19-evidence/7e637dd3/chapter_pairs.py`（worker 容器内执行，
+  只读 DB artifact 与冻结原文）；产出（`/srv/loom-t19-evidence/7e637dd3/`）：
+  `chapter-<name>-src.txt`、`chapter-<name>-trans.txt`、
+  `chapter-<name>-align.tsv`（`trans_block -> source_blocks`）、`chapter_pairs.out`。
+  ```
+  docker cp /srv/loom-t19-evidence/7e637dd3/chapter_pairs.py \
+    chronicle-t19-7e637dd3-chronicle-worker-1:/tmp/chapter_pairs.py
+  docker exec -e OUT=/tmp/pairs chronicle-t19-7e637dd3-chronicle-worker-1 \
+    python3 /tmp/chapter_pairs.py > /srv/loom-t19-evidence/7e637dd3/chapter_pairs.out
+  docker cp chronicle-t19-7e637dd3-chronicle-worker-1:/tmp/pairs/. \
+    /srv/loom-t19-evidence/7e637dd3/
+  ```
+- 四章 sha256（复现核对用；完整值见 `chapter_pairs.out`）：
+
+  | name | 章 | src_chars | src_sha256（前 16） | trans_blocks | trans_chars | trans_sha256（前 16） |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | sg0 | 先主傳 | 12591 | 322649ae127ec674 | 43 | 16312 | 9a30e5c469ebb1a5 |
+  | sg1 | 周瑜傳 | 5030 | 3e771415bb1762bd | 16 | 7068 | 51eace84507e95ec |
+  | sg2 | 魯肅傳 | 3594 | 0a182a2f9df4029b | 10 | 5169 | c668746b20aeda73 |
+  | zz | 通鑑卷65 | 10715 | b9831c28e64a0676 | 1 | 14718 | 4e95c1b42cbeecac |
+
+- 说明（observation，不构成结论）：zz 当前译文为**单一翻译块**（`trans_blocks=1`），
+  其 `align.tsv` 将该块映射到全部 127 个 source blocks；sg0/1/2 为多块对齐。
+- C04 仍：无当前同 revision event candidate；`848a296f`（跨書）与历史 SG3
+  不作替代（§25.5）。判定留空；`manual-content-review.json` 保持 13 `pending`／
   `not_passed`／reviewer 空。
