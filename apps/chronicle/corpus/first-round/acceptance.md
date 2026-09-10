@@ -32,7 +32,7 @@
   四章 Reader API＋真浏览器首尾验证通过。
   13 案独立结论 **0/13**（`manual-content-review.json` 全 pending）；
   verdict **NOT_PASSED**（待独立 reviewer 转正与对账）。
-  细节见 §12–§14；§1–§6 为历史基线（下述），§7–§11 为中间轮次，
+  细节见 §12–§17；§1–§6 为历史基线（下述），§7–§11 为中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -282,21 +282,27 @@
 > `pending`；下表每行均为 operator observation（not counted），
 > 含 recall 缺口原样保留；任何“通过”含义的解读均属误读，
 > 总体 verdict 仍为 NOT_PASSED。
-> 审核对账注：23 个 review（22 pair＋1 跨書 batch）终局快照：
-> 服务器 `5024be17/` 下 `job-sanguozhi-FINAL.json`（7/7 resolved，
-> 见历史轮）与本轮 `operator-pair-decisions.json`（22/22 resolved）、
-> `reviews-zz-decision.json`（1/1 resolved）；`reviews-sg-open.json` 类
-> 文件为裁决前历史快照，以 `-FINAL` 与 decisions 文件为准；
-> 可重跑命令见服务器 `review-snapshot-reconciliation.md`。
+> 审核对账注（单一口径，历史/当前已区分）：
+> 当前轮（`5024be17/`）：`job-sanguozhi-FINAL.json`（job `4252de57`
+> completed，22/22 resolved）＋`reviews-FINAL/`（22 个 pair 终局详情，
+> 19 人＋3 地，全部 resolved/same_entity）＋`job-zztj-FINAL.json`
+> （job `1fe9b575` completed，publication `01a088e7`）＋
+> `reviews-zz/<RID>-FINAL.json`（774bc130 跨書 batch resolved/same_entity）
+> ＋第二通鑑导入 `job-zztj-2-FINAL.json`（终局 publish fail-closed）
+> 与 12 个已裁决 review（`operator-batch-decisions.json` 12/12）。
+> 历史轮（`855a1dc0/`，仅对照）：`job-sanguozhi-1-FINAL.json`＋
+> 7 个 `*-FINAL.json`（job `443136b6` 7/7 resolved，publish-stale 终局）。
+> `reviews-sg-open.json` 类文件均为裁决前历史快照，以 `-FINAL` 与
+> decisions 文件为准；可重跑命令见各目录 `review-snapshot-reconciliation.md`。
 
 | 案 | 译文侧所见 | bundle 侧所见 | 观察（含缺口） |
 | --- | --- | --- | --- |
-| C01 先主/備 | 開篇先主姓刘名备；先主一贯（已发布先主傳译文） | 已发布先主傳 ent_0001 劉備（繁体）aliases 玄德；10 mentions 全部 unresolved；ch0↔ch1↔ch2 pair（本轮 3 组＋历史轮 3 组）均 same_entity | 观察记录：同章共指在译文与跨章裁决成立；章内 mentions 未 resolve 缺口保留 |
+| C01 先主/備 | 開篇先主姓刘名备；先主一贯（已发布先主傳译文） | 已发布先主傳 ent_0001 劉備（繁体）aliases 玄德；10 mentions 全部 unresolved；劉備三角：历史轮（855a1dc0 job `443136b6`）3 组＋当前轮（5024be17 job `4252de57`）3 组（02c49d3c/94e517af/d5070e78）均 same_entity | 观察记录：同章共指在译文与跨章裁决成立；章内 mentions 未 resolve 缺口保留 |
 | C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | 观察记录 |
 | C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity（终局快照已对账） | 观察记录 |
-| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | SG1 赤壁 place；ZZ evt_004 赤壁之戰；事件跨章未裁决 | 观察记录：事件跨章裁决缺口保留 |
-| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 跨書 batch 从未开出（ZZ 单发，SG 未发布） | 观察记录：跨書裁决缺口保留 |
-| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 人名职事对象一致；跨書未裁决 | 观察记录：用词漂移＋未裁决缺口保留 |
+| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | 历史（855a1dc0）：事件跨章未裁决；当前（5024be17）：ZZ2 开出 2 组 event same_occurrence（赤壁之戰↔赤壁火攻擊敗曹操；火攻曹軍水軍↔赤壁火攻擊敗曹操）已裁决但未发布（canonical 稳定性 fail-closed，见 §15）；SG 22 pair 全为 entity | 观察记录：事件裁决存在但未发布，缺口保留 |
+| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 历史（855a1dc0）：跨書 batch 从未开出；当前（5024be17）：曹操 batch 已裁决且已发布（ZZ v1 publication `01a088e7`），ZZ2 再开 10 entity＋2 event 跨書 review 已裁决但未发布（见 §15） | 观察记录：已发布跨書覆盖仅 1 组；其余已裁决未发布，缺口保留 |
+| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 历史（855a1dc0）：跨書未裁决；当前（5024be17）：ZZ2 的 12 组跨書矩阵仍未涌现督軍任命 batch（仅赤壁事件＋人物/地点），任命跨書 linkage 从未开出 | 观察记录：用词漂移＋任命未裁决缺口保留 |
 | C07 南郡/江陵 | 追至南郡／守卫江陵分明 | 无南郡 entity、无合并（uncertain 平凡成立）；南郡未建模记 recall 缺口 | 观察记录：recall 缺口保留 |
 | C08 典略注 | 3×《典略》说/又记载，位置正确 | 注无伪造归属 | 观察记录 |
 | C09 江表傳注 | 7×《江表传》说，位置正确 | 同上 | 观察记录 |
@@ -317,9 +323,13 @@
    job 1 骨架原件在 DB 与 §10–§11 中原样保留，未删除。
 2. **用词漂移观察**：左右督→左右都督、並力→合力、`進` 主语弱化等，
    已记录在 C05/C06 行，待独立 reviewer 定夺是否关键。
-3. **跨書 batch 覆盖单薄**：仅开出 1 个跨書 review（曹操 same_entity）；
-   系统性跨書 batch 矩阵未被演练（单章 ZZ vs 已发布 SG 只涌现这一组）。
-   第二来源导入事件本身（doc2 jobs 4/5 终局保留）可作导入级证据。
+3. **跨書 batch 覆盖单薄（当前口径，见 §15 与下述矩阵定义）**：
+   已发布：仅 1 组（曹操 batch，随 ZZ v1 publication `01a088e7` 发布）；
+   已裁决未发布：ZZ2 的 12 组（10 entity same_entity＋2 event
+   same_occurrence），因已发布 canonical 不可归并而终局 fail-closed，
+   原样保留。系统性跨書矩阵（任命类事件如督軍、更多人物）未被演练；
+   第二来源导入事件本身（doc2 jobs 4/5、ZZ doc2 job 终局保留）可作导入级证据。
+   不得把“1 已发布＋12 已裁决未发布”合称为完整跨書闭环。
 
 ## 13. Recall 契约裁决（owning-layer decision，有记录、可审计）
 
@@ -401,4 +411,43 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   已处理页显示 23＋12 条“已选择：同一实体/同一战役”轨迹，截图已归档。
   （canonical `review-flow-smoke.mjs` 仅 mocked-api，不适用于真实后端，
   故 Studio 交互证据为上述真实登录＋队列＋轨迹；reviewer 可复核。）
+- 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
+
+## 16. 跨書矩阵定义（存在 vs 缺失，单一口径）
+
+已存在（有终局证据，不重复演练）：
+
+| 覆盖 | 内容 | 状态 |
+| --- | --- | --- |
+| 同书 pair（SG 内） | 22 组 entity（19 人＋3 地），全部 same_entity | 已裁决＋已发布（`01a088b2`） |
+| 跨書 batch（曹操） | 先主傳曹操↔通鑑曹操 same_entity | 已裁决＋已发布（`01a088e7`） |
+| 跨書 batch（ZZ2） | 10 entity same_entity＋2 event same_occurrence | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
+| 导入级第二来源 | SG doc2（jobs 4/5）、ZZ doc2（job 2）独立导入事件 | 终局保留 |
+
+缺失（blocker，原样保留，不得视为完成）：
+
+| 缺口 | 说明 |
+| --- | --- |
+| 系统性跨書 batch 矩阵 | 只涌现过 1＋12 组；任命类事件（如周瑜督軍）等从未开出；无矩阵级覆盖证据 |
+| 已发表后 event 归并 | 设计上不可发布（canonical 不可变）；same_occurrence 跨書事件在首书发布后无发布路径，属语义上报项 |
+| 章内共指建模 | 已发布 4 章 mentions 全部 unresolved；章内先主=備等 linkage 无 bundle 记录，内容 blocker |
+| Studio 浏览器 decision-click | 见 §17；unmet blocker |
+| 13 案独立转正 | 0/13 保持；待独立 reviewer |
+
+不得把“1 已发布＋12 已裁决未发布”合称为完整跨書闭环。
+
+## 17. Studio 浏览器证据边界（精确划分）
+
+- ✅ Canonical 真实后端证据：`chapter-reader-smoke.mjs` 对 4 个已发布章
+  全部 PASS（生产 Rust 前端＋真实 API，非 dev server/mock）。
+- ✅ 真实 UI 读证据（ad-hoc playwright 驱动，非 canonical 脚本）：
+  `/studio/review` 登录壳（未认证）→ 认证登录 → 审核队列“待处理 0 项”→
+  已处理页 23＋12 条已裁决轨迹；截图与 DOM 断言已归档。
+- ✅ 23＋12 条裁决本身：经认证 API（与 UI 同路由）执行，有终局快照；
+  非浏览器点击。
+- ❌ Unmet blocker（保留）：Studio review-flow **浏览器内 decision-click**
+  （在 UI 中打开 review、填写 decision、提交）从未执行；
+  canonical `review-flow-smoke.mjs` 仅 mocked-api，不能替代。
+  Mocked（review-flow smoke）/ API（23＋12 decisions）/ 真实 UI 读
+  （登录＋队列＋轨迹）三类证据在此明确区分，不得混用。
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。

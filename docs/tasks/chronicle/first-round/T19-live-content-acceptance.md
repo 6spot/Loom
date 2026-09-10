@@ -86,6 +86,13 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - B3: PR #614 body rewritten to historical-plus-current `5024be17` NOT_PASSED summary; zero close-intent lines; markers kept.
 - B4: Studio real-browser flow closed — node + playwright chromium installed on the test server (env only, not committed); canonical `chapter-reader-smoke.mjs` PASSES on all 4 published chapters (64/43/16/10 blocks, source-panel open/expand/close, direct-open/refresh/mobile); Studio `/studio/review` login gate verified, authenticated queue shows 0 pending and the decided trail (`已选择：同一实体`), screenshots archived. Second ZZ import deepened the matrix: 12 reviews decided (10 same_entity + 2 event same_occurrence), then publish failed closed on published-canonical stability (`would collapse existing canonical IDs`) — recorded as terminal evidence without softening decisions. Retained blockers: all-unresolved mentions modeling, thin systematic batch matrix, pending independent 13-case review.
 
+2026-09-10 — Single-narrative remediation (still NOT_PASSED):
+
+- §12 corrected: FINAL paths/counts now match `5024be17` (22-pair + 1-batch FINALs; ZZ2 12-review round); C04/C05/C06 rewritten as current-vs-history (855a1dc0 clearly historical); 劉備-triangle IDs pinned per round. §0 pointer extended to §12–§17.
+- 13 cases verified still all pending (0/13, verdict `not_passed`); unresolved chapter mentions explicitly retained as a content blocker (JSON + §12 + §16).
+- Cross-book matrix explicitly defined (§16 exists-vs-missing table): 1 published batch + 12 decided-unpublished + import-level second source exist; systematic matrix, post-publish event merges, within-chapter co-reference modeling are missing. Never called a complete loop.
+- Studio browser boundary precisely documented (§17): canonical reader smokes (real backend) + real-UI reads (ad-hoc driver) + API decisions vs mocked review-flow smoke kept distinct; browser decision-click recorded as the unmet blocker.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
