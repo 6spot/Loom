@@ -116,3 +116,11 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Canonical chapter-reader smokes PASS on all 4 v8 chapters (43/16/10/62 blocks) plus headless-chromium DOM head/tail asserts (18718/4510/6666/4762 chars) and screenshots; rendering/content separation explicitly recorded (hollow chapters still render).
 - JSON B2–B5, §12 rows/findings, §16 matrix, §17 boundary, PR body all synchronized to v8 current (mention linkage 12/12·19/19·8/10, 27/27 browser clicks, hollow failures); 5024/855a1dc0 explicitly historical.
 - 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.
+
+2026-09-10 — SG3/ZZ3 substantive round (still NOT_PASSED):
+
+- Two 魯肅傳 unmodeled mentions dispositioned: temporal expressions (建安二十二年/十九年) with no entity referent; unresolved+null is correct restraint (query evidence), not a miss.
+- SG3 (2nd SG import, same frozen bytes): 3 chunks attempt-1 pass; 43 reviews (15 within-revision + 23 same-source re-import consistency + 5 cross-book incl. 1 event), side semantics corrected before clicking; 43/43 genuine browser decision-clicks (86 screenshots) with 36 same_entity + 6 same_occurrence + 1 related_occurrence (南郡 campaign vs 江陵 capture — first C07-principle application); job completed and published `01a089d6`.
+- ZZ3 (2nd ZZ import): 3 bounded + 2 supervised runs; 7 reviews spanning three corpus bundles (2 cross-book 周瑜/諸葛亮 + 5 multi-bundle); 7/7 browser clicks; job completed and published `01a08a13` (event merge published this time — contrast with ZZ2 retained, not unified).
+- Hollow persistence: SG3 先主傳 4658/0.37 condensed (key terms present); SG3 周瑜傳 7108/1.41 fixes v8r1 gaps (公瑾15×, 左右任命 present); ZZ3 9804/0.91 near-full with all previously-missing entities; canonical smokes 4/4 + DOM asserts; every chapter has ≥1 full translation across evidence but no single publication is all-full.
+- 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.

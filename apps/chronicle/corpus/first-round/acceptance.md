@@ -26,12 +26,13 @@
   （SHA 校验一致）；测试服务端口 8088，新 project/数据/证据目录
   （`/srv/loom-t19-evidence/0bb5c6a0/`）。
 - 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态：三國志三章已发布（publication `01a08997`）＋通鑑已发布
-  （`01a08975`）；27 review（22 同书＋5 跨書）全部浏览器内真实
-  decision-click（34 截图＋终局快照）；章内 mention 链接已建模验证
-  （见 §18）；但 v8 轮暴露译文空心/ condensed 缺口（见 §18），
+- 当前状态：三國志三章已发布（publication `01a089d6`，第二 SG 导入；
+  另有 `01a08997` 首发轮）＋通鑑已发布（`01a08a13` 第二导入；
+  另有 `01a08975` 首发轮）；50 review（43 SG3＋7 ZZ3）全部浏览器内真实
+  decision-click（100 截图＋终局快照）；章内 mention 链接已建模验证
+  （见 §18–§19）；但译文空心/condensed 缺口持续（见 §19），
   13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§18；§1–§6 为历史基线，§7–§15 为中间轮次，
+  细节见 §12、§16–§19；§1–§6 为历史基线，§7–§15 为中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -421,7 +422,9 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 | 跨書 batch（v8，SG↔ZZ） | 4 entity same_entity（孫權/曹操/劉備/赤壁地点）＋1 event same_occurrence（赤壁之戰↔赤壁之戰），浏览器内真实点击 | 已裁决＋已发布（`01a08997`，与 ZZ 已发布 `01a08975` 链接） |
 | 跨書 batch（历史，曹操） | 先主傳曹操↔通鑑曹操 same_entity | 已裁决＋已发布（`01a088e7`） |
 | 跨書 batch（历史，ZZ2） | 10 entity same_entity＋2 event same_occurrence | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
-| 章内共指建模（v8） | 先主傳 12/12、周瑜傳 19/19、魯肅傳 8/10 mentions resolved（含先主→ent_001 劉備跨度拷贝） | 已发布 bundle 有记录（首次）；剩余 unresolved 与空心章待决 |
+| 章内共指建模（v8） | 先主傳 12/12、周瑜傳 19/19、魯肅傳 8/10 mentions resolved（含先主→ent_001 劉備跨度拷贝） | 已发布 bundle 有记录（首次）；剩余 2 时间表达正确留置（见 §19） |
+| 同 revision＋重导入＋跨書（SG3，v8） | 43 review：15 同 revision＋23 同源重导入一致性＋5 跨書，36 same_entity＋6 same_occurrence＋1 related_occurrence（南郡 vs 江陵），全部浏览器真实点击 | 已裁决＋已发布（`01a089d6`） |
+| 跨三束 batch（ZZ3，v8） | 7 review：2 跨書（周瑜/諸葛亮）＋5 横跨三书库束，全部浏览器真实点击；event 归并此次随单发布（与 ZZ2 对照保留） | 已裁决＋已发布（`01a08a13`） |
 | 导入级第二来源 | SG doc2/doc3（jobs 4/5/2）、ZZ doc2（job 2）独立导入事件 | 终局保留 |
 
 缺失（blocker，原样保留，不得视为完成）：
@@ -486,4 +489,36 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 - Canonical reader smoke：v8 四章全部 PASS（43/16/10/62 块渲染；
   真 chromium DOM 首尾断言 18718/4510/6666/4762 字＋截图；内容空心不影响
   渲染层 PASS——渲染与内容验收分离，明确记录）。
+- 本轮结论：NOT_PASSED。0/13 保持；未关闭 T19/#548。
+
+## 19. SG3/ZZ3 轮：43＋7 浏览器裁决、双发布与空心持续（verdict 仍 NOT_PASSED）
+
+- 第二 SG 导入（同冻结字节 `a5dc345f`，revision `222d15ee`）＋第二通鑑导入
+  （同冻结字节 `b9831c28`）＋ job SG3（`ecb00598`）/ZZ3（`099d018b`），
+  均在 v8 镜像（`0bb5c6a`，代码未变）上运行。
+- SG3：三块 attempt-1 全过；resolve 开出 43（15 同 revision＋23 同源
+  重导入一致性＋5 跨書，7 event 含 1 related_occurrence
+  `5492790f` 南郡战役 vs 江陵夺取——南郡≠江陵故 related 而非 same，
+  C07 原则的首次裁决应用）。side 语义在点击前纠正
+  （初稿误写黃蓋/周胤/東城归属，仅正确版 plan 被提交；有记录）。
+  43/43 浏览器真实点击（86 before/after 截图）＋终局 43/43 resolved
+  （36 same_entity＋6 same_occurrence＋1 related_occurrence），
+  job 完成 8/8 并发布 `01a089d6`（三章）。
+- ZZ3：3 bounded＋2 supervised runs 后通过；resolve 开出 7
+  （2 跨書 周瑜/諸葛亮＋5 横跨 SG 已发布/ZZ 已发布/SG3-staged 三束）；
+  7/7 浏览器真实点击；job 完成 8/8 并发布 `01a08a13`——event
+  same_occurrence 此次随单发布（与 ZZ2 多 canonical 归并被拒不同；
+  两种终局都保留，不统一解释）。
+- 2 处未建模 mentions 裁决：魯肅傳 `建安二十二年`/`十九年` 为时间表达，
+  无 entity 所指，unresolved＋null 是正确留置（强行链接才是伪造），
+  非内容失败；有查询证据。
+- 空心持续（内容失败，终局保留）：SG3 先主傳 4658 字（0.37，
+  关键项俱全但 condensed）；其余 SG3 周瑜傳 7108（1.41，
+  公瑾15×/左右任命俱全，修复 v8 首发缺口）/魯肅傳 5155（1.43）、
+  ZZ3 9804（0.91，魯肅/程普/黃蓋/夏口全现）完整。
+  全证据四章全文库存：每章至少一版完整译文存在（先主傳 v8 首发 16516；
+  周瑜傳 SG3 7108；魯肅傳多版；通鑑 v4 系 14k＋/ZZ3 9804），
+  但无任何单 publication 四章全完整——独立核对仍须逐版对照。
+- Canonical smoke 第二批 4/4 PASS（SG3 41/16/10＋ZZ3 62 块）＋DOM 首尾
+  （6720/8256/6285/11884 字）＋截图。
 - 本轮结论：NOT_PASSED。0/13 保持；未关闭 T19/#548。
