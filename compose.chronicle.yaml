@@ -180,6 +180,12 @@ services:
       CHRONICLE_MODEL_INPUT_BUDGET_CHARS: ${CHRONICLE_MODEL_INPUT_BUDGET_CHARS:-16384}
       CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
       CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
+      # C2-R1: formal joint chapter model entry consumed by
+      # chapter_stage.chapter_model_from_env. Without this passthrough
+      # the worker container never sees CHRONICLE_CHAPTER_MODEL, so the
+      # joint chapter pipeline stays disabled/fails closed even when the
+      # host .env.chronicle sets it.
+      CHRONICLE_CHAPTER_MODEL: ${CHRONICLE_CHAPTER_MODEL:-}
       # C2-R1-T16: chapter-production §3 engineering envelope. These bounds
       # enter the chapter request fingerprint (ChapterLimits.from_env); they
       # are resource-protection limits, not a claim that the configured

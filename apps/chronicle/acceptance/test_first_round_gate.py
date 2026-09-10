@@ -6,8 +6,12 @@ Covers the fixture/live contract owned by this task:
 - fixture mode passes end to end on the frozen T02 source pack and its
   manifest explicitly marks the result non-live;
 - live mode refuses fixture material, missing/credential-embedded
-  provider config, auto decisions, non-interactive review and execution;
-- a READY live handoff performs zero provider calls (patched prechecks);
+  provider config (including a missing joint chapter model),
+  auto decisions, non-interactive review and execution;
+- a READY live handoff performs zero provider calls (patched prechecks)
+  and records the joint chapter model identity;
+- the deployed chronicle-worker container receives
+  CHRONICLE_CHAPTER_MODEL from the host env (compose passthrough);
 - the orchestrator carries no direct product-DB writes;
 - offline fault injections fail closed (missing chapter, over-limit,
   hash drift, forged adoption, tampered artifact, mixed revisions).
@@ -73,8 +77,62 @@ def live_env(directory: Path, extra: str = "") -> Path:
         directory,
         "CHRONICLE_MODEL_ENDPOINT=https://example.test/v1/responses\n"
         "CHRONICLE_EXTRACTION_MODEL=fixture-extract\n"
-        "CHRONICLE_PRESENTATION_MODEL=fixture-present\n" + extra,
+        "CHRONICLE_PRESENTATION_MODEL=fixture-present\n"
+        "CHRONICLE_CHAPTER_MODEL=fixture-chapter\n" + extra,
     )
+
+
+def _compose_service_environment(path: Path, service: str) -> dict[str, str]:
+    """Read one service's ``environment:`` mapping without PyYAML.
+
+    Minimal indentation scan for the compose layout used here
+    (``services:`` → two-space service → four-space ``environment:``
+    → six-space ``KEY: value``). Raises ``AssertionError`` when the
+    service or its environment block is missing, so a structural
+    drift fails the test instead of passing silently.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_services = False
+    in_service = False
+    in_environment = False
+    found_service = False
+    found_environment = False
+    env: dict[str, str] = {}
+    for raw in lines:
+        if not raw.strip() or raw.strip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        key = raw.strip()
+        if indent == 0 and key == "services:":
+            in_services = True
+            continue
+        if not in_services:
+            continue
+        if indent == 2 and key.endswith(":"):
+            in_service = key[:-1] == service
+            in_environment = False
+            if in_service:
+                found_service = True
+            continue
+        if not in_service:
+            continue
+        if indent == 4 and key == "environment:":
+            in_environment = True
+            found_environment = True
+            continue
+        if indent == 4:
+            in_environment = False
+            continue
+        if in_environment and indent == 6 and ":" in key:
+            name, value = key.split(":", 1)
+            env[name.strip()] = value.strip()
+    if not found_service:
+        raise AssertionError(f"compose service missing: {service}")
+    if not found_environment:
+        raise AssertionError(
+            f"compose service {service!r} carries no environment block"
+        )
+    return env
 
 
 def tiny_plan() -> tuple[dict, str]:
@@ -159,6 +217,31 @@ class LiveModeTests(unittest.TestCase):
                 G.require_live_env(G.load_env_file(write_env(Path(tmp))))
             self.assertIn("CHRONICLE_MODEL_ENDPOINT", str(ctx.exception))
 
+    def test_live_requires_chapter_model(self) -> None:
+        # READY must never be issued for a deployment that cannot
+        # execute the T19 joint chapter pipeline: a missing
+        # CHRONICLE_CHAPTER_MODEL fails the preflight even when the
+        # endpoint and the C1 extraction/presentation models are set.
+        config = {
+            "CHRONICLE_POSTGRES_PASSWORD": "x",
+            "CHRONICLE_ADMIN_USER": "admin",
+            "CHRONICLE_ADMIN_PASSWORD": "x",
+            "CHRONICLE_MODEL_ENDPOINT": "https://example.test/v1/responses",
+            "CHRONICLE_EXTRACTION_MODEL": "m1",
+            "CHRONICLE_PRESENTATION_MODEL": "m2",
+        }
+        with self.assertRaises(G.GateError) as ctx:
+            G.require_live_env(config)
+        self.assertIn("CHRONICLE_CHAPTER_MODEL", str(ctx.exception))
+
+    def test_live_records_chapter_model_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            provider = G.require_live_env(
+                G.load_env_file(live_env(Path(tmp)))
+            )
+            self.assertEqual(provider["chapter_model"], "fixture-chapter")
+            self.assertFalse(provider["fixture_mode"])
+
     def test_live_refuses_endpoint_credentials(self) -> None:
         config = {
             "CHRONICLE_POSTGRES_PASSWORD": "x",
@@ -167,6 +250,7 @@ class LiveModeTests(unittest.TestCase):
             "CHRONICLE_MODEL_ENDPOINT": "https://user:pass@example.test/v1",
             "CHRONICLE_EXTRACTION_MODEL": "m1",
             "CHRONICLE_PRESENTATION_MODEL": "m2",
+            "CHRONICLE_CHAPTER_MODEL": "m3",
         }
         with self.assertRaises(G.GateError) as ctx:
             G.require_live_env(config)
@@ -213,6 +297,9 @@ class LiveModeTests(unittest.TestCase):
             G.sys.stdin = real_stdin  # type: ignore[assignment]
         self.assertEqual(manifest["result"], "READY")
         self.assertEqual(manifest["t19_handoff"]["provider_calls_by_t18"], 0)
+        # READY records the joint chapter model identity: the handoff
+        # must name the exact deployment entry the T19 pipeline executes.
+        self.assertEqual(manifest["provider"]["chapter_model"], "fixture-chapter")
         # Only the local compose precheck ran; no provider/model call exists
         # on this path (run_live contains no model invocation at all).
         self.assertEqual(prechecks, ["compose"])
@@ -245,6 +332,21 @@ class LiveModeTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("interactive terminal", result.stderr)
+
+    def test_compose_passes_chapter_model_to_worker(self) -> None:
+        # Regression guard for the production wiring blocker: the
+        # chronicle-worker container must receive CHRONICLE_CHAPTER_MODEL
+        # from the host env, otherwise chapter_model_from_env() inside
+        # the container sees nothing and the joint chapter pipeline
+        # cannot execute. Stdlib-only: CI Python carries no PyYAML.
+        worker_env = _compose_service_environment(
+            REPO / "compose.chronicle.yaml", "chronicle-worker"
+        )
+        self.assertIn("CHRONICLE_CHAPTER_MODEL", worker_env)
+        self.assertIn(
+            "CHRONICLE_CHAPTER_MODEL",
+            worker_env["CHRONICLE_CHAPTER_MODEL"],
+        )
 
 
 class NoDirectDbTests(unittest.TestCase):

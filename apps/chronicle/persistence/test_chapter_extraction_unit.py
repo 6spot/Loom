@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v1", prompt)
+        self.assertIn("c2r1-chapter-prompt-v10", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -140,6 +140,124 @@ class PromptRenderingTests(unittest.TestCase):
         compacted = P.compact_validation_errors(errors)
         self.assertLessEqual(len(compacted), 21)
         self.assertLessEqual(sum(len(e) for e in compacted), 1800 + 160 + 280)
+
+    def test_compact_diagnostics_preserve_record_ids(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0): masking record temp
+        # ids collapsed distinct failing records into one signature, so the
+        # dedup dropped all but one and the model could not tell which
+        # record each diagnostic belonged to. Both anchor failures and the
+        # time failure must survive with their ids verbatim.
+        errors = [
+            "anchors: record_sources 'ent_006'[1] quote occurs 0 time(s)"
+            " in ['b_011'..'b_011'] but occurrence=1 was requested",
+            "anchors: record_sources 'ent_008'[1] quote occurs 0 time(s)"
+            " in ['b_021'..'b_021'] but occurrence=1 was requested",
+            "time_precision: evt_007 time.original_text '二年夏六月'"
+            " is not grounded in chapter text",
+        ]
+        compacted = P.compact_validation_errors(errors)
+        self.assertEqual(len(compacted), 3)
+        joined = "\n".join(compacted)
+        for token in ("ent_006", "ent_008", "b_011", "b_021", "evt_007"):
+            self.assertIn(token, joined)
+        self.assertNotIn("ent_*", joined)
+
+    def test_prompt_states_verbatim_grounding_procedure(self) -> None:
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("VERBATIM GROUNDING PROCEDURE", prompt)
+        self.assertIn("character-for-character", prompt)
+        self.assertIn("inherited_fields", prompt)
+
+    def test_prompt_states_claim_reference_shape(self) -> None:
+        # Live regression (C2-R1-T19 先主传 chunk 0, attempt 2): the guide
+        # left the claim object shape implicit, so the model had to guess
+        # between the schema-blessed {kind:literal,value} and a ref key.
+        # The guide now pins both shapes explicitly.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("object:{kind,ref}|{kind:literal,value}", prompt)
+        self.assertIn("subject must not be a literal", prompt)
+
+    def test_prompt_pins_entity_resolution_unresolved(self) -> None:
+        # Live regression (C2-R1-T19, candidate 26eb34c1): the guide said
+        # resolution:{status} without pinning the value, the model emitted
+        # status 'new', validation passed it, and the whole job died one
+        # stage later at assemble. The guide now pins the only legal value.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn('resolution:{status:"unresolved"}', prompt)
+        self.assertIn("Studio review", prompt)
+
+    def test_prompt_forbids_script_conversion(self) -> None:
+        # Live regression (C2-R1-T19, candidate 9902a374): the 通鑑 run
+        # emitted Simplified surfaces/quotes against a Traditional source
+        # (刘备 vs 劉備說劉表襲許, 进 vs 進). Copying exact source characters
+        # is now an explicit grounding rule, not an implied nicety.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("never convert script forms", prompt)
+        self.assertIn("Traditional", prompt)
+
+    def test_prompt_defines_surface_as_occurrence_copy(self) -> None:
+        # Live regression (C2-R1-T19, candidates 9902a374/23da90b1): the
+        # model repeatedly used surface as the entity display name (曹公
+        # for quote 曹公征徐州; 劉備 for quote 備) instead of copying the
+        # occurrence text. surface-as-copy is now explicit with examples.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("never the entity display name", prompt)
+        self.assertIn("曹公征徐州", prompt)
+
+    def test_prompt_prefers_resolved_over_hedged_unresolved(self) -> None:
+        # Live regression (C2-R1-T19, published chapters): every mention
+        # arrived unresolved even where the chapter confirms the referent
+        # (先主 in 先主傳), leaving within-chapter co-reference unmodeled.
+        # The guide now prefers resolved-with-target_ref and reserves
+        # unresolved for genuinely unidentified references.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("Prefer resolved over unresolved", prompt)
+        self.assertIn("Reserve \"unresolved\" strictly", prompt)
+
+    def test_prompt_pins_temp_id_numbering(self) -> None:
+        # Live regression (C2-R1-T19, v7 SG job 2): the model emitted
+        # ent_1001, passed validation, and killed the whole job one stage
+        # later at assemble (revision-scoped remap needs 000-999).
+        # The guide now pins sequential 001-based numbering.
+        request = long_request()
+        prompt = P.render_chapter_prompt(request)
+        self.assertIn("numbered sequentially from 001", prompt)
+        self.assertIn("000-999", prompt)
+
+    def test_correction_preserves_full_translation_length(self) -> None:
+        # Live regression (C2-R1-T19 live rounds): the bounded correction
+        # re-ask regressed a full 16404-char initial translation to a
+        # 7318-char condensed summary that still passed structural
+        # validation. The re-ask now names the prior full length and
+        # forbids condensing (repair signal, not a validation gate).
+        request = long_request()
+        previous = {
+            "translation": {
+                "blocks": [
+                    {"block_id": "t_1", "text": "甲" * 120},
+                    {"block_id": "t_2", "text": "乙" * 80},
+                ]
+            }
+        }
+        prompt = P.render_chapter_prompt(
+            request, validation_errors=["mentions: e"], previous_candidate=previous,
+        )
+        self.assertIn("previous translation had 200 characters", prompt)
+        self.assertIn("Do NOT summarize, condense, shorten", prompt)
+        self.assertIn("copy the PREVIOUS CANDIDATE's", prompt)
+
+    def test_correction_without_translation_omits_fidelity_line(self) -> None:
+        request = long_request()
+        prompt = P.render_chapter_prompt(
+            request, validation_errors=["mentions: e"], previous_candidate={"x": 1},
+        )
+        self.assertNotIn("FIDELITY:", prompt)
 
 
 class AcceptOnceTests(unittest.TestCase):
@@ -360,6 +478,29 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "model_transport_error")
 
 
+class AttemptTimingTests(unittest.TestCase):
+    def test_attempts_record_latency_ms(self) -> None:
+        # Live usage/timing evidence (C2-R1-T19): every model call in a
+        # round carries its wall-clock cost, including transport failures.
+        request, candidate = base()
+        ok = X.extract_chapter(
+            request, FakeChapterModel([json.dumps(candidate, ensure_ascii=False)])
+        )
+        self.assertTrue(ok["accepted"])
+        for attempt in ok["attempts"]:
+            self.assertIsInstance(attempt["latency_ms"], int)
+            self.assertGreaterEqual(attempt["latency_ms"], 0)
+
+    def test_transport_failure_attempt_records_latency_ms(self) -> None:
+        request, _ = base()
+        result = X.extract_chapter(
+            request, FakeChapterModel([RuntimeError("boom")])
+        )
+        self.assertFalse(result["accepted"])
+        self.assertIsInstance(result["attempts"][0]["latency_ms"], int)
+        self.assertGreaterEqual(result["attempts"][0]["latency_ms"], 0)
+
+
 class HistoryTests(unittest.TestCase):
     def test_tampered_history_detected(self) -> None:
         request, candidate = base()
@@ -382,7 +523,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v1")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v10")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(

@@ -21,10 +21,11 @@ Fixture results are explicitly labelled non-live and can never prove
 real content correctness.
 
 ``live`` mode performs only the strict prechecks for a future real-model
-run (fixture exclusion, explicit provider/model identity, complete
-sample hashes, compose config, interactive-review requirement) and then
-stops with a READY handoff for T19. T18 never calls a real provider and
-never auto-decides review identity.
+run (fixture exclusion, explicit provider/model identity including the
+joint chapter model, complete sample hashes, compose config,
+interactive-review requirement) and then stops with a READY handoff
+for T19. T18 never calls a real provider and never auto-decides
+review identity.
 
 The script only orchestrates existing product APIs and Compose; it never
 writes product PostgreSQL directly (no DB driver import, no SQL), and it
@@ -1067,6 +1068,7 @@ def require_live_env(config: dict[str, str]) -> dict[str, Any]:
         "CHRONICLE_MODEL_ENDPOINT",
         "CHRONICLE_EXTRACTION_MODEL",
         "CHRONICLE_PRESENTATION_MODEL",
+        "CHRONICLE_CHAPTER_MODEL",
     )
     missing = [name for name in required if not config.get(name, "").strip()]
     if missing:
@@ -1082,6 +1084,7 @@ def require_live_env(config: dict[str, str]) -> dict[str, Any]:
         "endpoint_host": parsed.netloc,
         "extraction_model": config["CHRONICLE_EXTRACTION_MODEL"],
         "presentation_model": config["CHRONICLE_PRESENTATION_MODEL"],
+        "chapter_model": config["CHRONICLE_CHAPTER_MODEL"],
         "timeout_seconds": config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS", "600"),
         "fixture_mode": False,
     }

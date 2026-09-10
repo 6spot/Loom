@@ -30,6 +30,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -57,6 +58,36 @@ OFFSET_UNIT = "chars-normalized-utf8"
 
 #: Surfaces that must stay contextual mentions, never stable aliases.
 CONTEXTUAL_ONLY_SURFACES = {"公", "王"}
+
+#: Temp-ID numeric range mirrored from the assembler's revision-scoped
+#: remapping (`assembly._remapped_id` / `_remapped_chapter_id`): the
+#: numeric part must fit in 3 digits (0-999). Validation rejects larger
+#: numbers fail-fast so a bad id dies here, not one stage later at
+#: assemble (live C2-R1-T19: model emitted ent_1001, passed validation,
+#: killed the whole job at assemble).
+_TEMP_ID_NUMBER_RE = re.compile(r"^(?:src|ent|evt|clm)_(\d+)$")
+_MAX_TEMP_ID_NUMBER = 999
+
+#: Max characters of each compared value rendered into a repair diagnostic.
+#: Equality diagnostics must show both sides so the correction re-ask can
+#: copy the verbatim value; the per-diagnostic char budget in
+#: chapter_prompt.compact_validation_errors still bounds the total.
+_DIAGNOSTIC_VALUE_CHARS = 60
+
+
+def _diagnostic_value(value: Any) -> str:
+    """Render one compared value for a model-facing repair diagnostic.
+
+    Live evidence (C2-R1-T19, candidate 0410b15d): every mention of a
+    corrected chapter failed ``surface must equal selection.quote`` with a
+    value-free message, so the model could not see which side to copy and
+    the whole correction round was wasted. The contract is unchanged —
+    only the diagnostic carries both sides, truncated.
+    """
+    text = value if isinstance(value, str) else repr(value)
+    if len(text) > _DIAGNOSTIC_VALUE_CHARS:
+        text = text[: _DIAGNOSTIC_VALUE_CHARS - 1] + "…"
+    return repr(text)
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "ingestion" / "schemas"
 CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.1.schema.json"
@@ -312,6 +343,50 @@ def _find_occurrences(haystack: str, needle: str) -> list[int]:
         start = found + max(len(needle), 1)
 
 
+def _anchor_miss_hint(
+    text: str,
+    quote: str,
+    blocks_by_id: dict[str, dict[str, Any]],
+    *,
+    first: str,
+    last: str,
+) -> str:
+    """Explain a 0-hit anchor as misattribution or fabrication.
+
+    Returns a short model-facing suffix: when the quote occurs elsewhere
+    in the chapter, name the chapter-wide count and the first enclosing
+    block so the correction can re-point first/last_block_id and recount;
+    when it occurs nowhere, say so explicitly so the correction replaces
+    the quote instead of shuffling block ids. Pure hint — the contract
+    decision is unchanged.
+    """
+    try:
+        total = _find_occurrences(text, quote)
+    except (TypeError, ValueError):
+        return ""
+    if not total:
+        return "; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+    offset = total[0]
+    holder = ""
+    for block_id, block in blocks_by_id.items():
+        try:
+            start, end = block["start"], block["end"]
+        except (KeyError, TypeError):
+            continue
+        if (
+            isinstance(start, int)
+            and isinstance(end, int)
+            and start <= offset < end
+        ):
+            holder = block_id
+            break
+    where = f" first in block {holder!r}" if holder else ""
+    return (
+        f"; quote occurs {len(total)} time(s) chapter-wide,"
+        f"{where}: re-point first/last_block_id to the enclosing block(s) and recount"
+    )
+
+
 def resolve_selection(
     selection: dict[str, Any],
     *,
@@ -352,9 +427,18 @@ def resolve_selection(
     window = text[window_start:window_end]
     positions = _find_occurrences(window, quote)
     if len(positions) < occurrence:
+        # Live regression (C2-R1-T19, 先主传 chunk 0 across v4/v5): every
+        # surviving correction error is a 0-hit anchor, but the diagnostic
+        # never says whether the quote exists elsewhere (re-point the
+        # blocks) or nowhere in the chapter (replace the quote). The
+        # contract is unchanged; the diagnostic now carries that fork.
+        hint = _anchor_miss_hint(
+            text, quote, blocks_by_id, first=first, last=last,
+        )
         return None, (
             f"{owner} quote occurs {len(positions)} time(s) in "
             f"[{first!r}..{last!r}] but occurrence={occurrence} was requested"
+            f"{hint}"
         )
     start = window_start + positions[occurrence - 1]
     end = start + len(quote)
@@ -447,6 +531,7 @@ def validate_chapter_candidate(
         return _report(
             schema_errors, identity, references, record_sources, mentions,
             coverage, anchors, time_precision, aliases,
+            bundle_recall_observations(request, candidate),
         )
 
     if candidate.get("schema") != CANDIDATE_SCHEMA or candidate.get("version") != CANDIDATE_VERSION:
@@ -514,6 +599,13 @@ def validate_chapter_candidate(
                 references.append(
                     f"{owner} temp_id must carry the {prefix!r} {collection_name} prefix"
                 )
+            id_match = _TEMP_ID_NUMBER_RE.match(temp_id)
+            if id_match and int(id_match.group(1)) > _MAX_TEMP_ID_NUMBER:
+                references.append(
+                    f"{owner} temp_id number must be within 000-{_MAX_TEMP_ID_NUMBER} "
+                    f"(assembly remaps into revision-scoped {prefix}_NNN); "
+                    "renumber sequentially from 001"
+                )
             if temp_id in seen_temp_ids:
                 references.append(
                     f"duplicate temp_id {temp_id!r} "
@@ -546,6 +638,23 @@ def validate_chapter_candidate(
                 references.append(f"{owner} must not carry canonical_id")
             if resolution.get("candidate_ids"):
                 references.append(f"{owner} must not carry candidate_ids")
+            if (
+                collection_name == "entities"
+                and isinstance(record.get("resolution"), dict)
+                and resolution.get("status") != "unresolved"
+            ):
+                # Live regression (C2-R1-T19, candidate 26eb34c1): the guide
+                # said resolution:{status} without pinning the value, the
+                # model emitted status 'new', validation passed it, and the
+                # whole job died one stage later at assemble. Fail fast here
+                # with both sides shown, mirroring the assembler's
+                # entities-only status rule (the candidate schema already
+                # requires the resolution object itself).
+                references.append(
+                    f"{owner} resolution status {_diagnostic_value(resolution.get('status'))} "
+                    'must be "unresolved"; identity is decided in Studio review, '
+                    "never in this chapter product"
+                )
 
     # Reference closure + kinds for translation refs, claim refs, participants.
     # Every membership test is type-guarded: schema-invalid model output
@@ -627,7 +736,20 @@ def validate_chapter_candidate(
             ref = claim.get(field)
             if ref is None or not isinstance(ref, dict):
                 continue
-            kind, target = ref.get("kind"), ref.get("ref")
+            kind = ref.get("kind")
+            if kind == "literal":
+                # Literal shape follows the frozen candidate schema and the
+                # C0 LITERAL convention ({"kind": "literal", "value": ...}).
+                # Live evidence (C2-R1-T19) proved the API-enforced schema
+                # guides the model to value-shape while this check demanded
+                # ref-shape, so no literal object could ever pass both
+                # gates. Subjects still must not be literals.
+                if field == "subject":
+                    references.append(f"{owner}.subject must not be a literal")
+                elif "value" not in ref:
+                    references.append(f"{owner}.{field} has a malformed reference")
+                continue
+            target = ref.get("ref")
             if not isinstance(target, str):
                 references.append(f"{owner}.{field} has a malformed reference")
                 continue
@@ -635,9 +757,7 @@ def validate_chapter_candidate(
                 references.append(f"{owner}.{field} references missing entity {target!r}")
             elif kind == "event" and target not in event_ids:
                 references.append(f"{owner}.{field} references missing event {target!r}")
-            elif kind == "literal" and field == "subject":
-                references.append(f"{owner}.subject must not be a literal")
-            elif kind not in ("entity", "event", "literal"):
+            elif kind not in ("entity", "event"):
                 references.append(f"{owner}.{field} has invalid ref kind {kind!r}")
         evidence = claim.get("evidence") if isinstance(claim.get("evidence"), dict) else {}
         if evidence.get("source_ref") != source_id:
@@ -690,7 +810,8 @@ def validate_chapter_candidate(
             first = entry["selections"][0]
             if isinstance(first, dict) and first.get("quote") != evidence.get("text"):
                 record_sources.append(
-                    f"{owner} evidence text must equal first selection quote"
+                    f"{owner} evidence text {_diagnostic_value(evidence.get('text'))} "
+                    f"must equal first selection quote {_diagnostic_value(first.get('quote'))}"
                 )
 
     # Mentions: status discipline + surface==quote + resolvable anchors.
@@ -730,7 +851,10 @@ def validate_chapter_candidate(
             mentions.append(f"{owner} surface must be a non-empty string")
         else:
             if isinstance(selection, dict) and selection.get("quote") != surface:
-                mentions.append(f"{owner} surface must equal selection.quote")
+                mentions.append(
+                    f"{owner} surface {_diagnostic_value(surface)} must equal "
+                    f"selection.quote {_diagnostic_value(selection.get('quote'))}"
+                )
             if not mention.get("contextual") and surface in CONTEXTUAL_ONLY_SURFACES:
                 mentions.append(f"{owner} surface {surface!r} must stay contextual")
         if blocks_by_id and isinstance(selection, dict):
@@ -820,7 +944,79 @@ def validate_chapter_candidate(
     return _report(
         schema_errors, identity, references, record_sources, mentions,
         coverage, anchors, time_precision, aliases,
+        bundle_recall_observations(request, candidate),
     )
+
+
+def bundle_recall_observations(request: Any, candidate: Any) -> dict[str, Any]:
+    """Count-only recall observability for one chapter candidate.
+
+    Live finding (C2-R1-T19, 先主傳 chunk 0): the validator is purely
+    structural, so a skeletal-but-valid bundle (1 entity / 1 event /
+    1 claim / 2 mentions over 12591 chapter chars, while the translation
+    names 曹操 37× and 孫權 19×) passes while demonstrating almost no
+    identity/source linkage. A hard count floor is deliberately NOT a
+    contract rule — it is gameable by padding and false-positives on
+    genuinely sparse chapters (see the T19 acceptance record §13 for the
+    recorded decision). This function therefore OBSERVES ONLY: it never
+    affects ``passed``/``count``. Operators and independent reviewers
+    read these numbers (surfaced in the validation report, hence in
+    Studio attempt evidence) to judge recall per chapter.
+    """
+    text = request.get("normalized_text") if isinstance(request, dict) else None
+    chapter_chars = len(text) if isinstance(text, str) else None
+    bundle = (
+        candidate.get("bundle")
+        if isinstance(candidate, dict) and isinstance(candidate.get("bundle"), dict)
+        else {}
+    )
+
+    def _count(key: str) -> int:
+        values = bundle.get(key)
+        return len(values) if isinstance(values, list) else 0
+
+    entities = _count("entities")
+    events = _count("events")
+    claims = _count("claims")
+    raw_mentions = candidate.get("mentions") if isinstance(candidate, dict) else None
+    mention_list = raw_mentions if isinstance(raw_mentions, list) else []
+    mentions = len(mention_list)
+    resolved = sum(1 for m in mention_list if isinstance(m, dict) and m.get("status") == "resolved")
+    raw_sources = candidate.get("record_sources") if isinstance(candidate, dict) else None
+    record_sources_entries = len(raw_sources) if isinstance(raw_sources, list) else 0
+    translation = candidate.get("translation") if isinstance(candidate, dict) else None
+    tblocks = (
+        translation.get("blocks")
+        if isinstance(translation, dict) and isinstance(translation.get("blocks"), list)
+        else []
+    )
+    translation_chars = sum(
+        len(b.get("text")) for b in tblocks if isinstance(b, dict) and isinstance(b.get("text"), str)
+    )
+    densities: dict[str, float] | None = None
+    if isinstance(chapter_chars, int) and chapter_chars > 0:
+        densities = {
+            key: round(count / chapter_chars * 1000, 2)
+            for key, count in (
+                ("entities", entities),
+                ("events", events),
+                ("claims", claims),
+                ("mentions", mentions),
+            )
+        }
+    return {
+        "chapter_chars": chapter_chars,
+        "translation_chars": translation_chars,
+        "translation_blocks": len(tblocks),
+        "entities": entities,
+        "events": events,
+        "claims": claims,
+        "mentions": mentions,
+        "mentions_resolved": resolved,
+        "mentions_unresolved": mentions - resolved,
+        "record_sources_entries": record_sources_entries,
+        "per_1000_chars": densities,
+    }
 
 
 def _report(
@@ -833,6 +1029,7 @@ def _report(
     anchors: list[str],
     time_precision: list[str],
     aliases: list[str],
+    recall: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors = {
         "schema_validation": sorted(schema_errors),
@@ -848,12 +1045,15 @@ def _report(
     count = sum(len(values) for values in errors.values())
     return {
         "schema": "chronicle.chapter-validation",
-        "version": "0.1",
+        "version": "0.2",
         "candidate_schema": CANDIDATE_SCHEMA,
         "candidate_version": CANDIDATE_VERSION,
         "passed": count == 0,
         "count": count,
         "errors": errors,
+        # Count-only recall observability (see bundle_recall_observations):
+        # never affects passed/count; operators judge recall from it.
+        "recall": recall if isinstance(recall, dict) else {},
     }
 
 

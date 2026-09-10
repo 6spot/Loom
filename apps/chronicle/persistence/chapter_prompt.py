@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v1"
+PROMPT_VERSION = "c2r1-chapter-prompt-v10"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -40,15 +40,22 @@ Emit exactly one JSON object with schema="chronicle.chapter-candidate", version=
 and chapter_id copied verbatim from CHAPTER REQUEST. Required top-level keys:
 bundle, translation, mentions, record_sources, warnings.
 bundle: {schema_version:"0.1", source, entities[], events[], claims[], warnings[]}.
-Use temp_id only (src_*/ent_*/evt_*/clm_*); NEVER emit canonical `id`,
+Use temp_id only (src_*/ent_*/evt_*/clm_*), numbered sequentially from 001
+within each kind (ent_001, ent_002, ...; the numeric part must stay within
+000-999 so assembly can remap it); NEVER emit canonical `id`,
 canonical_id, or candidate_ids.
 source: {temp_id:"src_*", kind:"source", source_type, title, language, extraction}.
 entity: {temp_id:"ent_*", kind:"entity", type, canonical_name, aliases[], mentions:[{text}],
-  resolution:{status}, extraction}.
+  resolution:{status:"unresolved"}, extraction}.
 event: {temp_id:"evt_*", kind:"event", type, title, time, participants:[{entity_ref,role}],
   places:[entity-temp-id,...], parent_event_ref, extraction}.
-claim: {temp_id:"clm_*", kind:"claim", subject:{kind,ref}, predicate, object, time,
+claim: {temp_id:"clm_*", kind:"claim", subject:{kind,ref}, predicate,
+  object:{kind,ref}|{kind:literal,value}, time,
   evidence:{text,source_ref,locator}, assessment:{status:"unassessed"}, extraction}.
+  subject/object entity|event references are {kind,ref} naming an existing
+  temp_id; a non-entity/event claim object is {kind:literal,value} with the
+  literal text in value (never a ref key, never a bare string).
+  subject must not be a literal.
 translation: {language:"zh-CN", blocks:[{block_id, text, source_block_ids[],
   entity_refs:[{kind:"entity",ref}], event_refs:[{kind:"event",ref}]}]}.
 Every translation block needs a unique block_id, non-empty text, and a non-empty
@@ -80,9 +87,25 @@ REFERENCE_RULES = r'''SAME-CHAPTER REFERENCE RULES
   target_ref null (candidate_refs may be empty). A genuinely ambiguous surface
   uses status "ambiguous" with target_ref null and at least two valid
   candidate_refs. Never force an uncertain surface onto the most familiar person.
+- Prefer resolved over unresolved whenever the chapter confirms the referent:
+  if the chapter text confirms who or what a mention denotes (for example
+  先主 in 先主傳, or 曹公/操 where the chapter confirms 曹操), resolve the
+  mention to that Entity with target_ref. Reserve "unresolved" strictly for
+  references the chapter genuinely leaves unidentified; hedging every mention
+  as unresolved when referents are confirmed evades the linkage the bundle
+  exists to record.
 - Contextual forms such as 公 / 王 stay contextual mentions; they must not become
   stable global aliases of any Entity.
-- Every mention surface must equal its selection.quote exactly.'''
+- Every mention surface must equal its selection.quote exactly.
+  surface is the mention occurrence text, never the entity display name:
+  copy selection.quote character-for-character into surface (a quote
+  '曹公征徐州' takes surface '曹公征徐州', not '曹公'; a quote '備' takes
+  surface '備', not '劉備'). A shortened, expanded, or normalized surface
+  is a grounding failure even when it names the right person.
+- Entity resolution stays unresolved in this product: emit
+  resolution:{status:"unresolved"} on every entity. Never invent
+  canonical_id, candidate_ids, or another status value such as "new";
+  identity is decided later in Studio review, never in this chapter product.'''
 
 TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
 - Translate the WHOLE chapter body text and every embedded annotation that exists
@@ -96,13 +119,28 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   REQUIRED BLOCKS must appear in at least one translation block's source_block_ids.
 - Time precision is never invented: normalized month/day stay null; a normalized
   year appears only with an exact verified source mapping, otherwise null.
-  time.original_text must be grounded in the chapter text.'''
+- VERBATIM GROUNDING PROCEDURE (no exceptions):
+  (a) every selection.quote (mentions and record_sources alike) must be copied
+  character-for-character from CHAPTER BLOCKS or FULL CHAPTER TEXT; never
+  paraphrase, abbreviate, merge, or complete a passage, and never emit a quote
+  you cannot find as an exact substring;
+  (b) set first_block_id/last_block_id to the block(s) whose [start:end) range
+  actually encloses the quote, in legal order; count occurrence only inside
+  that window; never guess a block id;
+  (c) time.original_text must be the temporal expression EXACTLY as written in
+  the source: do NOT prepend or append era, year, season, month, day, or 干支
+  from surrounding context. Context-derived fields belong ONLY in
+  source_calendar (era/era_year/month/day) and inherited_fields; anything not
+  verbatim must not appear in original_text.
+  (d) never convert script forms: the chapter source is Traditional; every
+  quote, mention surface, alias, and time.original_text must reuse the exact
+  source characters. A Simplified character where the source has Traditional
+  (or vice versa) is a grounding failure, not a spelling variant.'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
-_TEMP_ID_RE = re.compile(r"\b(src|ent|evt|clm|ch|b|t|m|anc)_[0-9a-f]{3,}\b")
 _WS_RE = re.compile(r"\s+")
 
 
@@ -115,9 +153,33 @@ def _json(value: Any) -> str:
     )
 
 
+def _translation_chars(candidate: Any) -> int:
+    """Total translated characters in a previous candidate, or 0 if absent."""
+    if not isinstance(candidate, dict):
+        return 0
+    translation = candidate.get("translation")
+    if not isinstance(translation, dict):
+        return 0
+    blocks = translation.get("blocks")
+    if not isinstance(blocks, list):
+        return 0
+    total = 0
+    for block in blocks:
+        if isinstance(block, dict) and isinstance(block.get("text"), str):
+            total += len(block["text"])
+    return total
+
+
 def _diagnostic_signature(value: str) -> str:
-    value = _INDEX_PATH_RE.sub("/*", value)
-    return _TEMP_ID_RE.sub(lambda match: f"{match.group(1)}_*", value)
+    # Only schema index paths are generalized ("/bundle/entities/0" -> "/*").
+    # Record temp ids (ent_*/evt_*/clm_*/src_*/b_*) are repair pointers into
+    # the PREVIOUS CANDIDATE carried in the same prompt: masking them to
+    # "ent_*" collapses distinct records into one signature, so the dedup
+    # below drops all but one failing record and the model can no longer
+    # tell which record each diagnostic belongs to. Live evidence (C2-R1-T19)
+    # showed anchor/time failures surviving correction exactly for this
+    # reason; keep the ids verbatim.
+    return _INDEX_PATH_RE.sub("/*", value)
 
 
 def compact_validation_errors(errors: list[str]) -> list[str]:
@@ -126,6 +188,8 @@ def compact_validation_errors(errors: list[str]) -> list[str]:
     The complete validator report remains in the extraction attempt
     history. Only this compacted copy is sent back to the model so a long
     tail of repeated schema paths cannot consume the correction budget.
+    Record temp ids stay verbatim so every diagnostic remains mapped to
+    its failing record (see _diagnostic_signature).
     """
     if not isinstance(errors, list):
         return []
@@ -243,6 +307,29 @@ def render_chapter_prompt(
     correction = ""
     if validation_errors is not None:
         diagnostics = compact_validation_errors(validation_errors)
+        prev_chars = _translation_chars(previous_candidate)
+        preserve = ""
+        if prev_chars:
+            # Live regression (C2-R1-T19 live rounds): the bounded correction
+            # re-ask sometimes returned a condensed summary that still passed
+            # structural validation, shrinking a full initial translation
+            # (e.g. 16404 chars) to a fraction (e.g. 7318). The contract is
+            # unchanged — only the re-ask now names the prior full length and
+            # forbids condensing it. Never a validation gate; a repair signal.
+            preserve = (
+                f"FIDELITY: the previous translation had {prev_chars} characters. "
+                "The corrected product MUST keep the whole translation at that "
+                "full length — faithfully translate every sentence and every "
+                "embedded annotation. Do NOT summarize, condense, shorten, or "
+                "replace any passage with an overview; only repair the listed "
+                "issues while preserving (or lengthening) the full translation.\n"
+                "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
+                "translation.blocks through unchanged (same block_ids, same order, "
+                "same full text). Do NOT rewrite, shorten, or re-summarize the "
+                "translation; the diagnostics below concern the joint bundle, "
+                "mentions, record_sources and time fields — repair those and keep "
+                "the translation verbatim.\n"
+            )
         correction = (
             "\nCORRECTION RE-ASK\n"
             "The prior chapter product failed deterministic validation. Return one "
@@ -250,7 +337,8 @@ def render_chapter_prompt(
             "full faithful translation plus the joint bundle, mentions, and "
             "record_sources. Repair every listed issue. Do NOT translate only the "
             "failed segment and splice it back, and do NOT drop the chapter tail.\n"
-            "VALIDATION DIAGNOSTICS\n"
+            + preserve
+            + "VALIDATION DIAGNOSTICS\n"
             + _json(diagnostics)
             + "\nPREVIOUS CANDIDATE\n"
             + _json(previous_candidate)
