@@ -142,3 +142,10 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Hollow-pass dispositioned per chapter-production.md §96: a 1803-char initial candidate passed structural validation (job b0c5e3c6, cancelled pre-publish, run evidence kept); no length gate added; 13 cases carry the completeness judgment.
 - Event-merge semantics documented: ZZ2 fail-closed (two existing canonical IDs would collapse), ZZ3 and ZZ-v10 joins published; both terminal outcomes retained.
 - 13 cases stay pending (0/13); verdict NOT_PASSED; canonical review-flow retained mocked-only; nothing closed.
+
+2026-09-10 — v10 audit-surface reconciliation (still NOT_PASSED):
+
+- acceptance top conclusion and §0 pointer synced to v10 `7e637dd` (four-chapter content-complete); §12/§16/§17 v8/SG3 wording explicitly relabeled historical (v10 in §20). No stale "无单 publication 四章全完整" / SG3-as-current.
+- PR body current summary + 内容/验证 sections synced to v10 (candidate 7e637dd, prompt v10, extraction 36); SG3/ZZ3 bullets marked historical; zero close-intent.
+- canonical index `manual-content-review.json`: added `evidence_notes` labeling `job-sg2-FINAL.json` as the pre-decision needs_review snapshot and `job-sg2-resumed.json` as the 21/21-resolved terminal record; candidate `7e637dd`; 13 pending / 0/13 / reviewer empty / `not_passed` preserved.
+- Consistency: JSON parses, 14 cases 1:1, 13 pending, no stale v8-current strings, `git diff --check` clean, gate 15 + contract/extraction/wiring 101 tests OK.

@@ -7,14 +7,13 @@
 逐案独立结论索引：`manual-content-review.json`（本目录，与本文同次提交）。
 
 > 结论前置：**本次 live 内容验收未通过（NOT_PASSED）**。
-> 当前状态（SG3/ZZ3，同 v8 镜像，见 §0）：真实 provider 调用、Studio
-> 交互审核（SG3 43/43＋ZZ3 7/7 全部浏览器内真实 decision-click，
-> 含跨書与 related_occurrence）、两书四章发布（`01a089d6`/`01a08a13`，
-> 另有首发轮 `01a08997`/`01a08975`）、四章 Reader API＋canonical smoke＋
-> 真浏览器渲染均已执行；但空心/condensed 译文失败（SG3 先主傳 4658 字
-> 0.37，当前无单 publication 四章全完整）、魯肅傳 2 时间表达正确留置、
-> 系统跨書矩阵与发表后归并语义、canonical review-flow 脚本覆盖缺失，
-> 13 案独立结论仍为 0/13。
+> 当前状态（v10 candidate `7e637dd`，见 §0/§20）：真实 provider 调用、
+> 认证 API 审核（v10 轮 21/21）、两书四章发布（SG `01a08a8e`＋ZZ
+> `01a08a66`，四章 content-complete：11974/7177/5224/14353 字）、四章
+> Reader API＋canonical smoke＋真浏览器渲染均已执行；但 13 案独立结论仍为
+> 0/13，系统跨書矩阵与通用 post-publication event-merge 规则未闭环、
+> canonical review-flow 脚本仍 mocked-only；hollow/condensed 由 v10 修正轮
+> 保真修复消除机制（历史 SG3 4658/0.37 见 §19）。
 > fixture 离线 PASS 仅证明编排与契约形状，
 > **不能作为译文内容正确证据**，本文不以脚本 PASS 代替内容验收。
 
@@ -36,7 +35,7 @@
   裁决（见 §20）。历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）
   见 §12–§19，仅对照。
   13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§19；§1–§6 为历史基线，§7–§15 为中间轮次，
+  细节见 §12、§16–§20；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -275,7 +274,7 @@
 ## 12. T02 十三案 operator observations（观察记录，未计入独立结论）
 
 > 方法：executor 人工对照原文与真实模型产物逐条记录所见（非模型自证，
-> 非独立结论）。当前轮（SG3/ZZ3, 同 v8 镜像 `0bb5c6a`）：三國志依据
+> 非独立结论）。SG3/ZZ3 轮（v8 镜像 `0bb5c6a`，历史；v10 当前见 §20）：三國志依据
 > 已发布产物（publication `01a089d6`：先主傳 41 块 4658 字 condensed、
 > 周瑜傳 16 块 7108 字、魯肅傳 10 块 5180 字）；通鑑依据已发布产物
 > （publication `01a08a13`，62 块 9804 字近全文）。四章 Reader API＋
@@ -289,7 +288,7 @@
 > 含 recall/空心缺口原样保留；任何“通过”含义的解读均属误读，
 > 总体 verdict 仍为 NOT_PASSED。
 > 审核对账注（单一口径，历史/当前已区分）：
-> 当前轮（`0bb5c6a0/`）：SG3 `job-sg3-FINAL.json`（job `ecb00598`
+> SG3/ZZ3 轮（`0bb5c6a0/`，历史）：`job-sg3-FINAL.json`（job `ecb00598`
 > completed，43/43 resolved：36 same_entity＋6 same_occurrence＋
 > 1 related_occurrence，全部浏览器内真实点击，86 before/after 截图）
 > ＋`reviews-sg3-FINAL/`；ZZ3 `job-zztj-3-FINAL.json`（job `099d018b`
@@ -318,7 +317,7 @@
 关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13/§16–§19）：
 
 1. **空心/condensed 译文（当前内容失败，终局保留，不重写已发布产物）**：
-   当前轮 SG3 先主傳 41 块 4658 字（ratio 0.37，关键项俱全但 condensed）；
+   SG3/ZZ3 轮（历史）先主傳 41 块 4658 字（ratio 0.37 condensed；v10 轮已修复为 11974/0.95，见 §20）；
    SG3 周瑜傳 7108 字（1.41，修复 v8 首发的 3182/0.63 缺口）、
    SG3 魯肅傳 5180 字（1.44）、ZZ3 9804 字（0.91 近全文）。
    历史空心（v7 先主傳 0.192、v8 通鑑 0.26、v8 周瑜傳 0.63）保留。
@@ -418,7 +417,7 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   故 Studio 交互证据为上述真实登录＋队列＋轨迹；reviewer 可复核。）
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
-## 16. 跨書矩阵定义（存在 vs 缺失，单一口径，SG3/ZZ3 当前）
+## 16. 跨書矩阵定义（存在 vs 缺失，单一口径，SG3/ZZ3 轮；v10 当前见 §20）
 
 已存在（有终局证据，不重复演练）：
 
@@ -439,14 +438,14 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 | 缺口 | 说明 |
 | --- | --- |
 | 系统性跨書 batch 矩阵 | 督軍任命等从未开出；无矩阵级覆盖证据 |
-| 空心/condensed 译文 | 当前 SG3 先主傳 4658/0.37 condensed；历史 v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63（§18–§19）；内容失败；无单 publication 四章全完整 |
+| 空心/condensed 译文 | SG3/ZZ3 轮（历史）先主傳 4658/0.37 condensed；v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63；v10 已四章 content-complete（§20） |
 | 已发表后 event 归并语义 | ZZ2 多 canonical 归并 fail-closed；ZZ3 单向 join 可发布——两种终局都保留，属语义上报项 |
 | Studio 浏览器 decision-click | 当前轮 SG3 43/43＋ZZ3 7/7 已完成（见 §17/§19）；canonical review-flow 脚本仍 mocked-only |
 | 13 案独立转正 | 0/13 保持；待独立 reviewer |
 
 不得把已发布覆盖合称为完整跨書闭环。
 
-## 17. Studio 浏览器证据边界（精确划分，SG3/ZZ3 当前）
+## 17. Studio 浏览器证据边界（精确划分，SG3/ZZ3 浏览器轮；v10 轮用认证 API，见 §20）
 
 - ✅ 当前轮真实 UI 点击（**current record**）：SG3 43/43＋ZZ3 7/7，
   经 ad-hoc playwright 驱动在 Studio 浏览器内 open/fill/submit 真实执行
