@@ -7,9 +7,12 @@
 逐案独立结论索引：`manual-content-review.json`（本目录，与本文同次提交）。
 
 > 结论前置：**本次 live 内容验收未通过（NOT_PASSED）**。
-> 真实 provider 调用、Studio 交互审核（含 7 pair same_entity 裁决）、
-> 真实浏览器阅读（通鑑章）均已执行；SG 书发布、四章 Reader、
-> 13 案独立结论仍未完成（见 §0 当前候选摘要与 §11 待办）。
+> 当前状态（v8，见 §0）：真实 provider 调用、Studio 交互审核
+> （27 review 全部浏览器内真实 decision-click，含 5 跨書）、
+> 两书四章发布（`01a08997`/`01a08975`）、四章 Reader API＋canonical
+> smoke＋真浏览器渲染均已执行；但空心/condensed 译文失败、
+> 魯肅傳 2 处 mentions 未建模、系统跨書矩阵与发表后归并语义、
+> canonical review-flow 脚本覆盖缺失，13 案独立结论仍为 0/13。
 > fixture 离线 PASS 仅证明编排与契约形状，
 > **不能作为译文内容正确证据**，本文不以脚本 PASS 代替内容验收。
 
