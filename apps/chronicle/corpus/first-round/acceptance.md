@@ -15,17 +15,24 @@
 
 ## 0. 当前候选权威摘要（current-candidate，唯一可审计口径）
 
-- 代码候选：`855a1dc04b3e3173cfa34bc25b52978256877209`
-  （分支 `agent/executor/7dfa2567b43d`；其后提交均为纯文档记录，
-  不改变产品代码：`1db8b4b`、`2e726fe`、`8752229`、`a9cb9d2`）。
-- prompt：`c2r1-chapter-prompt-v6`；模型：`gpt-5.6-luna`（extraction/
-  presentation/chapter 三路）；镜像 `loom-chronicle:t19-855a1dc0`
-  （已按 SHA 校验 baked 代码与候选一致）。
+- 代码候选：`5024be17c2df8fc64fca5c72c838b366990b20c`
+  （分支 `agent/executor/7dfa2567b43d`；其后若有提交均为纯文档记录，
+  不改变产品代码，见 PR head 历史）。
+- prompt：`c2r1-chapter-prompt-v6`＋recall 观察节（report v0.2）；
+  模型：`gpt-5.6-luna`（三路）；镜像 `loom-chronicle:t19-5024be17`
+  （已按 SHA 校验 baked 代码与候选一致）；测试服务端口 8086，
+  新 project/数据/证据目录（`/srv/loom-t19-evidence/5024be17/`）。
 - 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致。
-- 当前状态：通鑑卷65已发布（`01a08753`，Reader API＋真浏览器验证）；
-  三國志最新 job（job 5）终局 needs_review，publish 未完成；
+- 当前状态：三國志三章已发布（publication `01a088b2`，artifacts
+  `4ca75066`/`588cfbc3`/`3f93574f`；先主傳 10 entities/7 events、
+  周瑜傳 20 entities/10 events、魯肅傳 23 entities/11 events/6 claims，
+  全部繁体名）；通鑑卷65已发布（`01a088e7`，artifact `5f6e2b43`，
+  64 块 14591 字）；22 个同书 pair＋1 个跨書 batch（曹操）共 23 review
+  全部 operator 裁决 same_entity（终局快照见 §12 方法注与服务器证据目录）；
+  四章 Reader API＋真浏览器首尾验证通过。
   13 案独立结论 **0/13**（`manual-content-review.json` 全 pending）；
-  verdict **NOT_PASSED**。细节见 §9–§12；§1–§6 为历史基线（下述），
+  verdict **NOT_PASSED**（待独立 reviewer 转正与对账）。
+  细节见 §12–§14；§1–§6 为历史基线（下述），§7–§11 为中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -264,18 +271,27 @@
 ## 12. T02 十三案 operator observations（观察记录，未计入独立结论）
 
 > 方法：executor 人工对照原文与真实模型产物逐条记录所见（非模型自证，
-> 非独立结论）。通鑑依据已发布产物（publication `01a08753`，
-> artifact `b1aaf568`）；三國志依据 job 1 accepted-but-unpublished
-> artifacts（三块 47/48/38KB，翻译与 bundle 均已落盘
-> `sg-job1-chunk*-translation.txt`）。
+> 非独立结论）。通鑑依据已发布产物（publication `01a088e7`，
+> artifact `5f6e2b43`）；三國志依据**已发布产物**
+> （publication `01a088b2`，artifacts `4ca75066`/`588cfbc3`/`3f93574f`；
+> 先主傳 43 块 16519 字、周瑜傳 16 块 7017 字、魯肅傳 10 块 5289 字，
+> 四章 Reader API＋真浏览器首尾验证通过，截图与 DOM 断言已归档）。
+> 历史注：job 1 accepted-but-unpublished artifacts（先主傳 5139 字/骨架
+> bundle）已由已发布产物取代，仅作负证据保留（见 §13 与 §10–§11）。
 > **独立结论口径：0/13** —— `manual-content-review.json` 保持全部
 > `pending`；下表每行均为 operator observation（not counted），
 > 含 recall 缺口原样保留；任何“通过”含义的解读均属误读，
 > 总体 verdict 仍为 NOT_PASSED。
+> 审核对账注：23 个 review（22 pair＋1 跨書 batch）终局快照：
+> 服务器 `5024be17/` 下 `job-sanguozhi-FINAL.json`（7/7 resolved，
+> 见历史轮）与本轮 `operator-pair-decisions.json`（22/22 resolved）、
+> `reviews-zz-decision.json`（1/1 resolved）；`reviews-sg-open.json` 类
+> 文件为裁决前历史快照，以 `-FINAL` 与 decisions 文件为准；
+> 可重跑命令见服务器 `review-snapshot-reconciliation.md`。
 
 | 案 | 译文侧所见 | bundle 侧所见 | 观察（含缺口） |
 | --- | --- | --- | --- |
-| C01 先主/備 | 開篇先主姓刘名备；先主124×一贯 | SG1 備→ent_005；SG0 两 mention unresolved；ch0↔ch1↔ch2 pair 均 same_entity（终局快照已对账） | 观察记录：同章共指在译文与 SG1 bundle 成立；SG0 内链缺口保留 |
+| C01 先主/備 | 開篇先主姓刘名备；先主一贯（已发布先主傳译文） | 已发布先主傳 ent_0001 劉備（繁体）aliases 玄德；10 mentions 全部 unresolved；ch0↔ch1↔ch2 pair（本轮 3 组＋历史轮 3 组）均 same_entity | 观察记录：同章共指在译文与跨章裁决成立；章内 mentions 未 resolve 缺口保留 |
 | C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | 观察记录 |
 | C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity（终局快照已对账） | 观察记录 |
 | C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | SG1 赤壁 place；ZZ evt_004 赤壁之戰；事件跨章未裁决 | 观察记录：事件跨章裁决缺口保留 |
@@ -289,17 +305,21 @@
 | C12 尾部完整 | 先主傳惠陵＋神仙傳注；通鑑賀齊太守（与原文末一致） | — | 观察记录 |
 | C13 習鑿齒論曰 | “习凿齿评论说”＋位置正确（劉備遗言后、王威前） | 无習鑿齒 entity（未误作同期言论） | 观察记录 |
 
-关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13 recall 契约裁决）：
+关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13–§14）：
 
-1. **SG chunk 0 骨架 bundle**：12591 字先主傳只产出 1 entity（刘备）＋1 event
-   （永安宮去世）＋1 claim＋2 unresolved mentions，而译文含曹操37×/孫權19×/
-   諸葛亮17×/关羽14×。validator 只量结构（禁空 bundle），不量召回；
-   修正轮“修好唯一报错”激励最小修复。这是 T19 “身份关联、来源核对可用”
-   对先主傳不成立的直接证据。修召回下限属契约语义决策，未擅改，上报定夺。
-2. **ch0 canonical 简体**：先主傳 entity 名用简体「刘备」（通鑑章 15 entities
-   全繁体）。身份无误，内容质量观察项。
-3. **SG 未发布**：以上 SG 观察基于 accepted-but-unpublished artifacts；
-   四章 Reader、发布闭环、13 案转正均待 SG 发布后由独立 reviewer 定夺。
+1. **骨架 bundle（历史负证据，已被已发布产物部分取代，但裁决意义保留）**：
+   job 1 先主傳（12591 字）只产出 1 entity（简体名刘备）＋1 event＋1 claim＋
+   2 unresolved mentions，而译文实含曹操 37× 等——validator 只量结构
+   （禁空 bundle），不量召回；修正轮“修好唯一报错”激励最小修复。
+   已发布先主傳（16519 字译文，10 entities 全繁体、7 events）已大幅改善，
+   但 validator 本身仍无召回 visibility（靠 §13 recall 观察节补足），
+   且已发布 3 章 mentions 全部 unresolved（章内共指未建模）。
+   job 1 骨架原件在 DB 与 §10–§11 中原样保留，未删除。
+2. **用词漂移观察**：左右督→左右都督、並力→合力、`進` 主语弱化等，
+   已记录在 C05/C06 行，待独立 reviewer 定夺是否关键。
+3. **跨書 batch 覆盖单薄**：仅开出 1 个跨書 review（曹操 same_entity）；
+   系统性跨書 batch 矩阵未被演练（单章 ZZ vs 已发布 SG 只涌现这一组）。
+   第二来源导入事件本身（doc2 jobs 4/5 终局保留）可作导入级证据。
 
 ## 13. Recall 契约裁决（owning-layer decision，有记录、可审计）
 
@@ -329,3 +349,28 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 未删除、未重写。
 
 本轮结论：NOT_PASSED（裁决本身不转正任何案例；0/13 保持）。
+
+## 14. 真实验证轮次 5024be17（recall 观察＋两书发布，verdict 仍为 NOT_PASSED）
+
+- 候选：`5024be17c2df8fc64fca5c72c838b366990b20c`（§13 recall 观察节，
+  report v0.2；其余代码同 v6 prompt）。镜像 `loom-chronicle:t19-5024be17`
+  （SHA 校验一致），新 project（端口 8086）＋新数据/证据目录
+  `/srv/loom-t19-evidence/5024be17/`，模型 `gpt-5.6-luna`。
+- recall 观察 live 验证：先主傳 correction recall
+  entities=10/events=7/mentions=10（0.79/1000字），译文 16519 字——
+  富 bundle 可见，不再静默；API run meta 原样携带 recall（证据到位）。
+- 三國志 job（`4252de57`）：chunk 0 run1 通过、chunk 1 run2 通过
+  （run1 全员 hedge 违规被修正）、chunk 2 通过；assemble 通过；
+  resolve 开出 22 个同书 pair（19 人＋益州/荊州/夏口 3 地），operator
+  按原文逐条裁决 22/22 same_entity（决定文件已存档），resume 后
+  resolve→publish→present 全完成；publication `01a088b2`（三章，
+  artifacts `4ca75066`/`588cfbc3`/`3f93574f`）。
+- 通鑑 job（`1fe9b575`）：run1 hedge、run2 transport 空回包、run3 2 anchor、
+  run4 全员 hedge、run5 通过；resolve 开出 1 个跨書 batch（先主傳曹操↔
+  通鑑曹操），operator 裁决 same_entity（第二来源覆盖首例）；publish 完成，
+  publication `01a088e7`（artifact `5f6e2b43`，64 块 14591 字）。
+- 四章 Reader：API 全文＋SHA＋引用计数；真 chromium 渲染 DOM
+  （18397/8464/6749/16440 字）首尾标题齐全，截图已归档。
+- 旧失败全保留（855a1dc0 等 5 个 project 容器与 DB 原位；job 1–5 终局不变）。
+- 本轮结论：NOT_PASSED。待独立 reviewer 转正 13 案（0/13 保持）与对账；
+  未关闭 T19/#548；PR body 无 close 语义。

@@ -71,6 +71,14 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Live worker restart/takeover: SIGTERM graceful (`signal 15; finishing current step`), new instance reclaimed the 300s lease, job continued — log archived. Cost: one job-claim consumed from the 3-claim bounded budget.
 - SG job 2: chunks 0+1 passed, chunk 2 missed by 4 anchor/alias cases; claims exhausted → Studio retry refused by design (`attempt 3 >= max_attempts 3`, bounds not loosened). SG job 3 opened on the same revision; 13 cases stay `pending`.
 
+2026-09-10 — Leader-directed evidence remediation + live round on `5024be1` (recall observability; still NOT_PASSED):
+
+- B1: acceptance §1–§6 marked historical baseline (`b611c33`, pre-live); new authoritative §0 current-candidate summary (single auditable mouth); 结论前置 rewritten to current state.
+- B2: §12 rewritten — all rows are operator observations (not counted); independent-conclusion mouth stays 0/13 with recall gaps preserved; no PASS wording.
+- B3: pair-decision/review snapshots reconciled — `reviews-sg-open.json` labeled pre-decision historical; FINAL API snapshots (`job-sanguozhi-1-FINAL.json` + 7 `*-FINAL.json`, 7/7 resolved/same_entity) + `review-snapshot-reconciliation.md` with reproducible command archived server-side.
+- B4: owning-layer recall decision implemented + formally documented (acceptance §13): hard floors rejected (gameable, sparse-chapter false positives, `passed`/`count` unchanged); `bundle_recall_observations` added to the validation report (v0.1→0.2, API-visible via existing projection); `RecallObservationsTests` green with contract/extraction/wiring/gate suites; skeletal-bundle negatives retained.
+- B5 live round (port 8086, model `gpt-5.6-luna`): recall verified live (SG chunk-0 correction: 10 entities/0.79 per-1000, 16519-char translation); SG job completed all 8 stages and published 3 chapters (`01a088b2`: 先主傳 10ent/7evt, 周瑜傳 20ent/10evt, 魯肅傳 23ent/11evt/6clm — all Traditional names) after 22/22 pair decisions (19 persons + 3 places) + resume; ZZ job completed and published (`01a088e7`, 64 blocks) after 1 cross-book batch decision (曹操 same_entity — second-source coverage); 4-chapter Reader API + real-chromium renders (screenshots + DOM head/tail asserts) all green. Old failures preserved; bounds untouched; 13 cases stay `pending` for independent review.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.
