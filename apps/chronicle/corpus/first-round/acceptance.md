@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§25；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§26；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -807,3 +807,29 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
      当前候选。
    - 结论：**C04 跨章事件等价/链接不能独立接受，不填 PASS**；保留为未决，
      待完整独立 13 案评估（`manual-content-review.json` 仍 `pending`）。
+## 26. 十三案 source-grounded 附录（精确原文偏移与当前证据指针，不预置结论）
+
+冻结原文在 `apps/chronicle/corpus/first-round/sources/`；偏移为
+`chars-normalized-utf8` 半开区间 `[start,end)`（见 `cases.json`）。
+当前译文证据 publications：SG `01a08b08`（revision `d848e43a`，artifacts
+先主傳 `2ba19a38889a`/周瑜傳 `4848cfbc52e5`/魯肅傳 `16374e0994b4`）与 ZZ
+`01a08ad9`（artifact `85c988f902c0`）。bundle 链接的权威结果为 §22/§25；
+本节只给出可核对锚点与指针，**不填 pass/fail**。
+
+| 案 | 类别 | 原文锚点（file :: quote @ [start,end)） | 当前译文证据指针 |
+| --- | --- | --- | --- |
+| T02-C01 | same-chapter-appellation | sources/sanguozhi-032-xianzhu-liubei.txt :: 先主姓劉，諱備 @ [0,7)<br>sources/sanguozhi-032-xianzhu-liubei.txt :: 先主少孤，與母販履織蓆為業 @ [102,115) | SG 先主傳 `01a08b08-219c-73b3-a15b-7325f936ba80` |
+| T02-C02 | same-chapter-appellation | sources/sanguozhi-054-zhou-yu.txt :: 周瑜字公瑾 @ [0,5)<br>sources/sanguozhi-054-zhou-yu.txt :: 孤念公瑾，豈有已乎？ @ [5006,5016) | SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e` |
+| T02-C03 | same-chapter-appellation | sources/sanguozhi-054-lu-su.txt :: 魯肅字子敬 @ [0,5)<br>sources/sanguozhi-054-lu-su.txt :: 子敬，孤持鞍下馬相迎，足以顯卿未？ @ [2068,2085) | SG 魯肅傳 `01a08b08-21a7-7f4e-8ff1-e9b308bff0d0` |
+| T02-C04 | cross-chapter-recurrence | sources/sanguozhi-032-xianzhu-liubei.txt :: 與曹公戰於赤壁，大破之 @ [5114,5125)<br>sources/sanguozhi-054-zhou-yu.txt :: 遇於赤壁 @ [2320,2324) | SG 先主傳 `01a08b08-219c-73b3-a15b-7325f936ba80`; SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e` |
+| T02-C05 | cross-book-same-event | sources/sanguozhi-054-zhou-yu.txt :: 遇於赤壁 @ [2320,2324)<br>sources/zizhi-tongjian-065-quan.txt :: 進，與操遇於赤壁 @ [9270,9278) | SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e`; ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C06 | cross-book-same-person | sources/zizhi-tongjian-065-quan.txt :: 遂以周瑜、程普為左右督，將兵與備並力逆操 @ [9067,9087)<br>sources/sanguozhi-054-zhou-yu.txt :: 權遂遣瑜及程普等與備並力逆曹公 @ [2304,2319) | SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e`; ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C07 | place-ambiguity | sources/zizhi-tongjian-065-quan.txt :: 追操至南郡 @ [9577,9582)<br>sources/zizhi-tongjian-065-quan.txt :: 留征南將軍曹仁、橫野將軍徐晃守江陵 @ [9598,9615) | ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C08 | annotation-attribution | sources/sanguozhi-032-xianzhu-liubei.txt :: 〈《典略》曰：備本臨邑侯枝屬也。〉 @ [58,75) | SG 先主傳 `01a08b08-219c-73b3-a15b-7325f936ba80` |
+| T02-C09 | annotation-attribution | sources/sanguozhi-054-zhou-yu.txt :: 《江表傳》曰：策又給瑜鼓吹 @ [563,576) | SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e` |
+| T02-C10 | no-direct-claim | sources/zizhi-tongjian-065-quan.txt :: 馬超、韓遂尚在關西 @ [8589,8598) | ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C11 | head-completeness | sources/sanguozhi-032-xianzhu-liubei.txt :: 先主姓劉，諱備 @ [0,7)<br>sources/sanguozhi-054-zhou-yu.txt :: 周瑜字公瑾 @ [0,5)<br>sources/sanguozhi-054-lu-su.txt :: 魯肅字子敬 @ [0,5)<br>sources/zizhi-tongjian-065-quan.txt :: 資治通鑑 第065卷 @ [0,10) | SG 先主傳 `01a08b08-219c-73b3-a15b-7325f936ba80`; SG 周瑜傳 `01a08b08-21a4-723a-a202-da2f5f710c9e`; SG 魯肅傳 `01a08b08-21a7-7f4e-8ff1-e9b308bff0d0`; ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C12 | tail-completeness | sources/sanguozhi-032-xianzhu-liubei.txt :: 其畫作大人而埋之者，即是言先主死意。〉 @ [12552,12571)<br>sources/zizhi-tongjian-065-quan.txt :: 以齊為太守。 @ [10673,10679) | SG 先主傳 `01a08b08-219c-73b3-a15b-7325f936ba80`; ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+| T02-C13 | commentary-attribution | sources/zizhi-tongjian-065-quan.txt :: 習鑿齒論曰：昔齊桓一矜其功而叛者九國 @ [10078,10096) | ZZ `01a08ad9-4b5f-7f07-9cff-89f1f441afcc` |
+
+说明：C04 事件链路无当前同 revision 候选（§25.5，独立判定不 PASS）；C05/C06 为跨書（ZZ↔SG）；C07 须保持 uncertain/不合并；其余为同章/首尾/注文类。本次复查不改变 `manual-content-review.json` 的 pending 状态。

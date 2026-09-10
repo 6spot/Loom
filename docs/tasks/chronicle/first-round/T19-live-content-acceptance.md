@@ -204,3 +204,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 - §25.5 records the independent Reviewer finding (head 0c03ab3): translation evidence at 01a08b08 matches the anchors, but no current same-revision 先主傳↔周瑜傳 event candidate exists; 848a296f (cross-book) and historical SG3 same_occurrence are not substitutes, so the C04 cross-chapter event link is not accepted (no PASS). Case stays pending.
 - §24 escalations annotated as Reviewer-confirmed and bounded to owning layers (canonical-stability architecture; T11/T18 UI scripts); T19 does not relax fail-closed or mocked-only contracts. JSON evidence_notes updated; 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — 13-case source-grounded appendix (still NOT_PASSED):
+
+- Acceptance section 26 added: exact original anchors for all 13 real cases with chars-normalized-utf8 [start,end) offsets (spot-verified 10/10 against sources) plus current publication pointers (SG 01a08b08 revision d848e43a; ZZ 01a08ad9). No pass/fail pre-filled. §25.5 C04 judgment and §24 escalations unchanged; no owner decisions arrived yet. 13 pending / 0/13 / reviewer empty preserved.
