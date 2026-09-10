@@ -193,3 +193,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Replaced literal <job>/short IDs with two exact copyable review queries using full UUIDs (SG2 e4e952f0-ec61-4f5e-b9c9-7f4363e11fb7 and event d7c18548-b51d-4581-be06-f26cad9fdd06; browser SG 5ee49e77-5980-4263-95c0-d23d3323160e noted), credentials read only from server env; clarified SG2's 848a296f 赤壁 is cross-book ZZ↔SG, not the C04 same-revision pair.
 - Added credential-free review-flow-smoke.mjs capability check: grep of supported modes + `node ... --mode real-backend` prints the mocked-api-only FAIL message and exits 1 (real output captured).
 - Unmet dispositions, 13 pending / 0/13 / reviewer empty, C04 awaiting independent review, Publish FAIL and mocked-only blockers preserved.
+
+2026-09-10 — C04 source-grounded material + ownership escalations (still NOT_PASSED):
+
+- §25 added: current candidate C04 material - original quotes (與曹公戰於赤壁，大破之 / 遇於赤壁); SG publication 01a08b08 (revision d848e43a) translations with block/source-block ids (先主傳 t_013 b_025, t_015 b_029; 周瑜傳 t_008 b_101, t_011 b_107); bundle entity 赤壁 cross-bundle link fdeec79e (d848 ent_001010 with 86ac/21cd); no same_revision 先主↔周瑜 event candidate. Explicitly notes 848a296f (cross-book) is NOT the C04 pair. No conclusions pre-filled.
+- §24 items 1 (canonical-stability Publish FAIL) and 3 (review-flow real-backend) formally escalated to owning layers (architecture Amendment / T11-T18 UI scripts) with the decision required; fail-closed and mocked-only dispositions retained.
+- 13 pending / 0/13 / reviewer empty / not_passed preserved.

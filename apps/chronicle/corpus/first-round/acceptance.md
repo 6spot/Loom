@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§24；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§25；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -725,9 +725,11 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
      `curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD"
      http://127.0.0.1:8088/api/v1/studio/jobs/09870dff-bcba-4b72-adda-a891aec473f0`（ZZ2，现仍为终局）
      与 `http://127.0.0.1:8090/api/v1/studio/jobs/d7c18548-b51d-4581-be06-f26cad9fdd06`（event 轮）。
-   - 状态：**显式 unmet**。是否允许“折叠”属 canonical-stability/架构拥有层语义
-     决策，超出 T19 文件归属，本轮不改；ZZ2 与 event 轮 fail-closed（负面）与
-     ZZ3/ZZ-v10/v10-browser 发布（正面）两种终局均保留。
+   - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：canonical-stability/
+     架构拥有层是否允许“跨既有 canonical id 的 event 归并”，或维持永久
+     fail-closed；属架构 Amendment 范围，超出 T19 文件归属，本轮不改。
+     ZZ2 与 event 轮 fail-closed（负面）与 ZZ3/ZZ-v10/v10-browser 发布（正面）
+     两种终局均保留，交拥有层与环境 owner 定夺。
 2. **当前 C04 事件证据路径（显式 unmet）**：
    - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。当前 candidate 三轮 resolve
      输出中未涌现该特定候选（event 轮同 revision 事件仅 `07a7c595`
@@ -755,6 +757,9 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    `--mode mocked-api`；真实后端 review-flow 覆盖属 T11/T18 UI/客户端脚本
    拥有层，超出 T19 文件归属。ad-hoc 真实浏览器证据见 §17/§21（SG 43/43＋
    ZZ 1/1＋event 58/58），可作候选但**不等同** canonical 脚本覆盖。
+   - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：T11/T18 UI/
+     客户端脚本拥有层是否新增真实后端 review-flow 模式（或明确永久限定
+     mocked-api）；超出 T19 文件归属。
    - 可复现验证（无需凭据）：在仓库根执行
      ```
      grep -n "mocked-api\|unsupported --mode\|SUITE\|MODE" apps/chronicle/webapp/scripts/review-flow-smoke.mjs
@@ -764,3 +769,30 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
      `review-flow smoke: FAIL: unsupported --mode real-backend (this task only
      provides mocked-api; real-backend chain is T18)` 并 `exit=1`——证明
      canonical 脚本**能力上不支持真实后端**（非环境缺失）。
+
+## 25. C04 当前 source-grounded 材料（供独立 review，不预置结论）
+
+C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd` 的可用证据如下；
+**注意 `848a296f`（赤壁之戰 ZZ↔SG 跨書）不是 C04 的先主傳↔周瑜傳同类对**，
+不得当 C04 结论。
+
+1. **原文锚点**（`cases.json`，sources/ 冻结文本）：
+   - 先主傳：`與曹公戰於赤壁，大破之`（sanguozhi-032-xianzhu-liubei.txt）。
+   - 周瑜傳：`遇於赤壁`（sanguozhi-054-zhou-yu.txt）。
+2. **当前已发布译文证据**（SG publication `01a08b08`，revision `d848e43a`）：
+   - 先主傳 artifact `2ba19a38889a`：block `t_013`（源块 `b_025`，2 anchors）
+     「和曹公在赤壁交战，大败曹军，焚烧他的船只……」；block `t_015`
+     （源块 `b_029`，1 anchor）「……在赤壁失利……」。
+   - 周瑜傳 artifact `4848cfbc52e5`：block `t_008`（源块 `b_101`，8 anchors）
+     「……在赤壁相遇。当时曹公的军队已经有疾病……」；block `t_011`
+     （源块 `b_107`，1 anchor）「赤壁之战，正逢军中有疾病……」。
+   - 复现：见 §24 的 review 查询模式；reader 详情
+     `curl …/public/chapters/01a08b08-219c-…`（先主傳）与 `01a08b08-21a4-…`
+     （周瑜傳）。
+3. **bundle 层**：赤壁 place entity 在当前轮的 `fdeec79e`（entity,
+   `same_entity`）中把本导入束 `d848` 的 `ent_001010` 与已发布束
+   `86ac`(SG)/`21cd`(ZZ) 链接；**未见 先主傳↔周瑜傳 的同 revision event
+   候选**（亦无该对的同 revision entity 成员）。即“赤壁地名跨束同一”有记录，
+   “赤壁战役跨章复现为独立事件”未在 bundle 层单独建模。
+4. **判定归属**：以上均为素材；C04 内容是否成立须独立 reviewer 对照原文与
+   译文判定，本节与 `manual-content-review.json` 均不预置结论（0/13）。
