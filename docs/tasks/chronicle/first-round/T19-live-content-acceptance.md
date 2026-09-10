@@ -79,6 +79,13 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - B4: owning-layer recall decision implemented + formally documented (acceptance §13): hard floors rejected (gameable, sparse-chapter false positives, `passed`/`count` unchanged); `bundle_recall_observations` added to the validation report (v0.1→0.2, API-visible via existing projection); `RecallObservationsTests` green with contract/extraction/wiring/gate suites; skeletal-bundle negatives retained.
 - B5 live round (port 8086, model `gpt-5.6-luna`): recall verified live (SG chunk-0 correction: 10 entities/0.79 per-1000, 16519-char translation); SG job completed all 8 stages and published 3 chapters (`01a088b2`: 先主傳 10ent/7evt, 周瑜傳 20ent/10evt, 魯肅傳 23ent/11evt/6clm — all Traditional names) after 22/22 pair decisions (19 persons + 3 places) + resume; ZZ job completed and published (`01a088e7`, 64 blocks) after 1 cross-book batch decision (曹操 same_entity — second-source coverage); 4-chapter Reader API + real-chromium renders (screenshots + DOM head/tail asserts) all green. Old failures preserved; bounds untouched; 13 cases stay `pending` for independent review.
 
+2026-09-10 — Remaining-blocker remediation (still NOT_PASSED):
+
+- B1: 22 pair + 1 batch FINAL snapshots archived on `5024be17` (`reviews-FINAL/` 22/22 resolved/same_entity, batch FINAL, both jobs FINAL) + `review-snapshot-reconciliation.md` with rerun commands; historical `855a1dc0` mapping documented.
+- B2: `manual-content-review.json` blockers rewritten to current unfinished items + candidate `5024be17`; 13 pending / 0/13 / verdict `not_passed` preserved.
+- B3: PR #614 body rewritten to historical-plus-current `5024be17` NOT_PASSED summary; zero close-intent lines; markers kept.
+- B4: Studio real-browser flow closed — node + playwright chromium installed on the test server (env only, not committed); canonical `chapter-reader-smoke.mjs` PASSES on all 4 published chapters (64/43/16/10 blocks, source-panel open/expand/close, direct-open/refresh/mobile); Studio `/studio/review` login gate verified, authenticated queue shows 0 pending and the decided trail (`已选择：同一实体`), screenshots archived. Second ZZ import deepened the matrix: 12 reviews decided (10 same_entity + 2 event same_occurrence), then publish failed closed on published-canonical stability (`would collapse existing canonical IDs`) — recorded as terminal evidence without softening decisions. Retained blockers: all-unresolved mentions modeling, thin systematic batch matrix, pending independent 13-case review.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #548 with explicit dependencies and file ownership. No implementation or completion claim.

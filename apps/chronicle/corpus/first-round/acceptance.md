@@ -374,3 +374,31 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 - 旧失败全保留（855a1dc0 等 5 个 project 容器与 DB 原位；job 1–5 终局不变）。
 - 本轮结论：NOT_PASSED。待独立 reviewer 转正 13 案（0/13 保持）与对账；
   未关闭 T19/#548；PR body 无 close 语义。
+
+## 15. 第二通鑑导入与 canonical 稳定性发现（verdict 仍为 NOT_PASSED）
+
+- 新通鑑 document＋revision（同冻结字节 `b9831c28`，`duplicate=False`）
+  ＋ job 2（`09870dff`）：chunk run1 通过；resolve 对 catalog v2
+  （SG 已发布 3 章＋ZZ v1）开出 12 个 review（10 entity＋2 event），
+  operator 按原文逐条裁决——10×`same_entity`（荊州/諸葛亮/劉備/甘寧/
+  赤壁/周瑜/曹操/孫權/劉表/江陵）＋2×`same_occurrence`
+  （赤壁之戰↔赤壁火攻擊敗曹操；火攻曹軍水軍↔赤壁火攻擊敗曹操，
+  均为建安十三年赤壁火攻破曹同一战役/战斗），12/12 resolved。
+- publish 按设计 fail-closed（新证据类）：
+  `Event publication would collapse existing canonical IDs
+  [01a088b2-7151-...] via [c1rev-4d06...:evt_001003, ...:evt_001004,
+  c1rev-556d...:evt_000006]`——已发布的 SG canonical 事件不可事后归并，
+  整单 publish 原子回滚。entity 的 10 组 same_entity 不触发此错
+  （与 ZZ v1 的曹操 batch 已发布成功一致）；event same_occurrence
+  在首书发布后不可再发布，属已发表身份不可变语义，
+  未降级裁决迁就发布，未重设计（上报定夺）。job 2 作 terminal 证据保留；
+  ZZ 已发布产物（`01a088e7`）不受影响。
+- Studio 真实浏览器流闭环：测试机装 node＋playwright chromium
+  （环境变更，未进仓库）；canonical `chapter-reader-smoke.mjs`
+  对 4 个已发布章全部 PASS（64/43/16/10 块全渲染、原文面板开合、
+  直接打开/刷新/移动端）；Studio `/studio/review` 未认证只渲染登录壳
+  （服务端强制认证，正确）；认证后审核队列“待处理 0 项”，
+  已处理页显示 23＋12 条“已选择：同一实体/同一战役”轨迹，截图已归档。
+  （canonical `review-flow-smoke.mjs` 仅 mocked-api，不适用于真实后端，
+  故 Studio 交互证据为上述真实登录＋队列＋轨迹；reviewer 可复核。）
+- 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。

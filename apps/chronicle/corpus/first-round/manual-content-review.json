@@ -1,11 +1,12 @@
 {
   "blockers": [
-    "no live provider credentials or empty compose target stack in this run",
-    "no interactive Studio operator: live gate correctly refuses non-TTY stdin",
-    "no independent human or stronger reviewer: dev model must not self-certify content correctness",
-    "no real provider calls, publications, or browser observations exist to archive"
+    "independent reviewer conclusions pending for all 13 real cases (0/13); operator observations in acceptance.md section 12 are explicitly not counted",
+    "published chapters carry all-unresolved mentions: within-chapter co-reference is not modeled and needs independent content judgment",
+    "cross-book review matrix is thin: only 1 batch review (曹操, same_entity) decided; a systematic cross-book matrix was not exercised",
+    "Studio review-flow browser run not executed (operator decisions went through the same-route authenticated API; canonical .mjs smokes require node, unavailable on the test server)",
+    "live artifacts exist and are archived (SG publication 01a088b2 with 3 chapters, ZZ publication 01a088e7, four-chapter Reader API plus headless-chromium renders, recall observations); final ledger reconciliation awaits independent review"
   ],
-  "candidate_commit": "b611c33a50f30e895fd6aaeb9c8c4168be5d9bc1",
+  "candidate_commit": "5024be17c2df8fc64fca5c72c838b366990b20c",
   "cases": [
     {
       "case_id": "T02-C01",
