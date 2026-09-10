@@ -124,3 +124,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - ZZ3 (2nd ZZ import): 3 bounded + 2 supervised runs; 7 reviews spanning three corpus bundles (2 cross-book 周瑜/諸葛亮 + 5 multi-bundle); 7/7 browser clicks; job completed and published `01a08a13` (event merge published this time — contrast with ZZ2 retained, not unified).
 - Hollow persistence: SG3 先主傳 4658/0.37 condensed (key terms present); SG3 周瑜傳 7108/1.41 fixes v8r1 gaps (公瑾15×, 左右任命 present); ZZ3 9804/0.91 near-full with all previously-missing entities; canonical smokes 4/4 + DOM asserts; every chapter has ≥1 full translation across evidence but no single publication is all-full.
 - 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.
+
+2026-09-10 — Canonical audit index synced to SG3/ZZ3 (still NOT_PASSED):
+
+- `manual-content-review.json` B2–B5 rewritten: SG3 43-review + ZZ3 7-review browser decisions, publications `01a089d6`/`01a08a13`, correct unresolved time-expression disposition (建安二十二年/十九年), current hollows (SG3 先主傳 4658/0.37; SG3 周瑜傳 7108 fixes v8 r1; ZZ3 9804/0.91), prior v8 values marked historical; 13 pending / 0/13 preserved.
+- §12 method/reconciliation notes, C01–C07/C11 rows, negative findings, top conclusion, and §16 matrix table all updated to SG3/ZZ3 current with v8-first marked historical; canonical review-flow retained mocked-only; matrix/event-merge gaps retained.
+- Consistency: JSON parses, 14 cases 1:1, 13 pending, `git diff --check` clean, gate 15 tests OK.
