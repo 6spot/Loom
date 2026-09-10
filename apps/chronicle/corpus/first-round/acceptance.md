@@ -267,65 +267,64 @@
 ## 12. T02 十三案 operator observations（观察记录，未计入独立结论）
 
 > 方法：executor 人工对照原文与真实模型产物逐条记录所见（非模型自证，
-> 非独立结论）。通鑑依据已发布产物（publication `01a088e7`，
-> artifact `5f6e2b43`）；三國志依据**已发布产物**
-> （publication `01a088b2`，artifacts `4ca75066`/`588cfbc3`/`3f93574f`；
-> 先主傳 43 块 16519 字、周瑜傳 16 块 7017 字、魯肅傳 10 块 5289 字，
-> 四章 Reader API＋真浏览器首尾验证通过，截图与 DOM 断言已归档）。
-> 历史注：job 1 accepted-but-unpublished artifacts（先主傳 5139 字/骨架
-> bundle）已由已发布产物取代，仅作负证据保留（见 §13 与 §10–§11）。
+> 非独立结论）。当前轮（v8, `0bb5c6a`）：三國志依据已发布产物
+> （publication `01a08997`：先主傳 43 块 16516 字、周瑜傳 16 块 3182 字、
+> 魯肅傳 10 块 5155 字）；通鑑依据已发布产物（publication `01a08975`，
+> 62 块 2808 字）。四章 Reader API＋真浏览器首尾验证通过，
+> 截图、DOM 断言与 canonical smoke 已归档。
+> 历史注：5024 轮产物（`01a088b2`/`01a088e7`）与 job 1
+> accepted-but-unpublished artifacts（先主傳 5139 字/骨架 bundle）
+> 已由当前产物取代，仅作负证据保留（见 §13 与 §10–§11、§18）。
 > **独立结论口径：0/13** —— `manual-content-review.json` 保持全部
 > `pending`；下表每行均为 operator observation（not counted），
-> 含 recall 缺口原样保留；任何“通过”含义的解读均属误读，
+> 含 recall/空心缺口原样保留；任何“通过”含义的解读均属误读，
 > 总体 verdict 仍为 NOT_PASSED。
 > 审核对账注（单一口径，历史/当前已区分）：
-> 当前轮（`5024be17/`）：`job-sanguozhi-FINAL.json`（job `4252de57`
-> completed，22/22 resolved）＋`reviews-FINAL/`（22 个 pair 终局详情，
-> 19 人＋3 地，全部 resolved/same_entity）＋`job-zztj-FINAL.json`
-> （job `1fe9b575` completed，publication `01a088e7`）＋
-> `reviews-zz/<RID>-FINAL.json`（774bc130 跨書 batch resolved/same_entity）
-> ＋第二通鑑导入 `job-zztj-2-FINAL.json`（终局 publish fail-closed）
-> 与 12 个已裁决 review（`operator-batch-decisions.json` 12/12）。
-> 历史轮（`855a1dc0/`，仅对照）：`job-sanguozhi-1-FINAL.json`＋
-> 7 个 `*-FINAL.json`（job `443136b6` 7/7 resolved，publish-stale 终局）。
+> 当前轮（`0bb5c6a0/`）：`job-sanguozhi-FINAL.json`（job `14bb2587`
+> completed，27/27 resolved，22 同书＋5 跨書，全部浏览器内真实点击，
+> 34 before/after 截图）＋`reviews-FINAL/`（27 个终局详情）＋
+> ZZ `job-zztj-FINAL.json`（job `24666b4f` completed，publication
+> `01a08975`）。历史轮：`5024be17/`（22＋1，见 reconciliation）与
+> `855a1dc0/`（7 review，publish-stale 终局），仅对照。
 > `reviews-sg-open.json` 类文件均为裁决前历史快照，以 `-FINAL` 与
 > decisions 文件为准；可重跑命令见各目录 `review-snapshot-reconciliation.md`。
 
 | 案 | 译文侧所见 | bundle 侧所见 | 观察（含缺口） |
 | --- | --- | --- | --- |
-| C01 先主/備 | 開篇先主姓刘名备；先主一贯（已发布先主傳译文） | 已发布先主傳 ent_0001 劉備（繁体）aliases 玄德；10 mentions 全部 unresolved；劉備三角：历史轮（855a1dc0 job `443136b6`）3 组＋当前轮（5024be17 job `4252de57`）3 组（02c49d3c/94e517af/d5070e78）均 same_entity | 观察记录：同章共指在译文与跨章裁决成立；章内 mentions 未 resolve 缺口保留 |
-| C02 周瑜/公瑾 | 公瑾15×（与 T02 计数一致）＋卷末孤念公瑾 | aliases 公瑾/周郎 grounded | 观察记录 |
-| C03 魯肅/子敬 | 子敬3×＋持鞍下馬全段 | aliases 子敬/肅；pair same_entity（终局快照已对账） | 观察记录 |
-| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊 | 历史（855a1dc0）：事件跨章未裁决；当前（5024be17）：ZZ2 开出 2 组 event same_occurrence（赤壁之戰↔赤壁火攻擊敗曹操；火攻曹軍水軍↔赤壁火攻擊敗曹操）已裁决但未发布（canonical 稳定性 fail-closed，见 §15）；SG 22 pair 全为 entity | 观察记录：事件裁决存在但未发布，缺口保留 |
-| C05 赤壁跨書 | SG1 遇赤壁＋ZZ 進遇赤壁＋疾疫互證 | 历史（855a1dc0）：跨書 batch 从未开出；当前（5024be17）：曹操 batch 已裁决且已发布（ZZ v1 publication `01a088e7`），ZZ2 再开 10 entity＋2 event 跨書 review 已裁决但未发布（见 §15） | 观察记录：已发布跨書覆盖仅 1 组；其余已裁决未发布，缺口保留 |
-| C06 周瑜督軍跨書 | 兩書任命均渲染（左右督→左右都督/並力→合力用词漂移，记观察） | 历史（855a1dc0）：跨書未裁决；当前（5024be17）：ZZ2 的 12 组跨書矩阵仍未涌现督軍任命 batch（仅赤壁事件＋人物/地点），任命跨書 linkage 从未开出 | 观察记录：用词漂移＋任命未裁决缺口保留 |
-| C07 南郡/江陵 | 追至南郡／守卫江陵分明 | 无南郡 entity、无合并（uncertain 平凡成立）；南郡未建模记 recall 缺口 | 观察记录：recall 缺口保留 |
+| C01 先主/備 | 開篇先主姓刘名备；先主一贯（v8 先主傳译文） | v8 先主傳 12 mentions resolved 12/12，m_001 先主→ent_001 劉備（跨度拷贝）；劉備三角：v8 轮 3 组（5a47c1af/836826b2/cdbbb0d0）＋历史（5024 3 组、855a1dc0 3 组）均 same_entity | 观察记录：章内共指在 v8 bundle 已建模；待独立确认 |
+| C02 周瑜/公瑾 | v8 周瑜傳公瑾仅 2×（归一为周瑜；5024 轮 15×），卷末顾念周瑜（孤念公瑾转述） | 周瑜三角已裁决；alias 公瑾原文有据但译文归一，fidelity 观察 | 观察记录：身份无误，称谓保真观察保留 |
+| C03 魯肅/子敬 | v8 子敬3×＋持鞍下馬全段俱全 | v8 27 组未涌现魯肅对（extraction recall 方差）；历史轮 pair（5024/855a1dc0）均 same_entity | 观察记录：v8 翻译俱全；本轮对缺失，缺口保留 |
+| C04 赤壁跨章 | 兩章均有遇赤壁＋疾疫＋並力迎擊（v8 周瑜傳 condensed 但核心俱全） | v8 event 对 d7397a4b（赤壁之戰↔赤壁之戰）same_occurrence，浏览器裁决，随 `01a08997` 发布；历史 ZZ2 2 组 event 已裁决未发布 | 观察记录：v8 事件链接已裁决＋已发布；ZZ2 未发布终局保留 |
+| C05 赤壁跨書 | SG 遇赤壁＋ZZ 進遇赤壁＋疾疫互證（v8 ZZ condensed 但核心俱全） | v8 跨書 5 组之二：赤壁地点＋赤壁事件 same_occurrence，浏览器裁决，随 `01a08997` 发布；历史：曹操 batch 已发布（ZZ v1）、ZZ2 12 组已裁决未发布 | 观察记录：v8 跨書事件/地点已发布；ZZ2 未发布保留 |
+| C06 周瑜督軍跨書 | 兩書任命均渲染（v8 周瑜傳左右督任命缺失，记缺口；5024 轮有渲染但用词漂移） | v8 27 组与 ZZ2 12 组均未涌现督軍任命 batch；任命跨書 linkage 从未开出 | 观察记录：v8 周瑜傳任命缺失＋跨書未开出，缺口保留 |
+| C07 南郡/江陵 | 追至南郡／守卫江陵分明（v8 ZZ 亦分明） | v8 南郡 entity 对 ca89410b 已裁决 same_entity（浏览器）＋已发布；南郡≠江陵从未合并 | 观察记录：南郡自身同一已发布；两者区分保持 |
 | C08 典略注 | 3×《典略》说/又记载，位置正确 | 注无伪造归属 | 观察记录 |
 | C09 江表傳注 | 7×《江表传》说，位置正确 | 同上 | 观察记录 |
-| C10 馬超背景 | 周瑜演说内背景铺陈完整 | 无馬超 entity/event/claim | 观察记录 |
-| C11 首部完整 | 四章開篇俱全 | — | 观察记录 |
+| C10 馬超背景 | v8 ZZ 周瑜演说背景句俱全（馬超 x1） | v8 ZZ bundle（4 entities）無馬超 entity/event/claim | 观察记录 |
+| C11 首部完整 | SG 三章開篇俱全；v8 ZZ 缺卷题行（卷第六十五/第065卷未渲染， fidelity 观察） | — | 观察记录：ZZ 卷题缺失保留 |
 | C12 尾部完整 | 先主傳惠陵＋神仙傳注；通鑑賀齊太守（与原文末一致） | — | 观察记录 |
-| C13 習鑿齒論曰 | “习凿齿评论说”＋位置正确（劉備遗言后、王威前） | 无習鑿齒 entity（未误作同期言论） | 观察记录 |
+| C13 習鑿齒論曰 | v8 ZZ “习凿齿评论说”＋位置正确（x2） | v8 ZZ bundle 無習鑿齒 entity（未误作同期言论） | 观察记录 |
 
-关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13–§14）：
+关键负发现（阻止转正，必须先解决或由 owner 定夺，见 §13/§16–§18）：
 
-1. **骨架 bundle（历史负证据，已被已发布产物部分取代，但裁决意义保留）**：
-   job 1 先主傳（12591 字）只产出 1 entity（简体名刘备）＋1 event＋1 claim＋
-   2 unresolved mentions，而译文实含曹操 37× 等——validator 只量结构
-   （禁空 bundle），不量召回；修正轮“修好唯一报错”激励最小修复。
-   已发布先主傳（16519 字译文，10 entities 全繁体、7 events）已大幅改善，
-   但 validator 本身仍无召回 visibility（靠 §13 recall 观察节补足），
-   且已发布 3 章 mentions 全部 unresolved（章内共指未建模）。
-   job 1 骨架原件在 DB 与 §10–§11 中原样保留，未删除。
-2. **用词漂移观察**：左右督→左右都督、並力→合力、`進` 主语弱化等，
-   已记录在 C05/C06 行，待独立 reviewer 定夺是否关键。
-3. **跨書 batch 覆盖单薄（当前口径，见 §15 与下述矩阵定义）**：
-   已发布：仅 1 组（曹操 batch，随 ZZ v1 publication `01a088e7` 发布）；
-   已裁决未发布：ZZ2 的 12 组（10 entity same_entity＋2 event
-   same_occurrence），因已发布 canonical 不可归并而终局 fail-closed，
-   原样保留。系统性跨書矩阵（任命类事件如督軍、更多人物）未被演练；
-   第二来源导入事件本身（doc2 jobs 4/5、ZZ doc2 job 终局保留）可作导入级证据。
-   不得把“1 已发布＋12 已裁决未发布”合称为完整跨書闭环。
+1. **空心/condensed 译文（当前内容失败，终局保留，不重写已发布产物）**：
+   v7 先主傳出版物 43 块仅 2412 字（ratio 0.192，孫權/白帝 x0）；
+   v8 通鑑出版物 62 块仅 2808 字（ratio 0.26，关键项各 x1，缺卷题行）；
+   v8 周瑜傳 3182 字（ratio 0.63，缺左右督任命/陳就/蘇飛段，
+   公瑾归一为周瑜）；v8 先主傳 16516 字（1.31）与魯肅傳 5155 字
+   （1.43）完整。历史骨架 bundle（job 1 先主傳 1 entity＋2 unresolved
+   mentions）已由 v7/v8 富 bundle 取代意义（12/12、19/19、8/10
+   resolved），仅作历史负证据保留。recall 观察节使空心可见，
+   但 validator 本身无 fidelity 门（§13 哲学不变）。
+2. **用词漂移观察**：左右督→左右都督、並力→合力、`進` 主语弱化、
+   孤念公瑾→顾念周瑜等，已记录在 C02/C05/C06 行，待独立 reviewer
+   定夺是否关键。
+3. **跨書矩阵（当前口径，见 §16 定义与 §18）**：
+   已发布：v8 轮 5 组（孫權/曹操/劉備/赤壁地点＋赤壁事件
+   same_occurrence，随 `01a08997` 发布）＋历史曹操 batch（随 ZZ v1
+   `01a088e7` 发布）；已裁决未发布：ZZ2 的 12 组（canonical 稳定性
+   fail-closed 终局保留）。缺失：督軍任命等从未开出、系统矩阵、
+   已发表后 event 归并语义（上报项）。不得合称为完整闭环。
 
 ## 13. Recall 契约裁决（owning-layer decision，有记录、可审计）
 
@@ -409,28 +408,30 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   故 Studio 交互证据为上述真实登录＋队列＋轨迹；reviewer 可复核。）
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
-## 16. 跨書矩阵定义（存在 vs 缺失，单一口径）
+## 16. 跨書矩阵定义（存在 vs 缺失，单一口径，v8 当前）
 
 已存在（有终局证据，不重复演练）：
 
 | 覆盖 | 内容 | 状态 |
 | --- | --- | --- |
-| 同书 pair（SG 内） | 22 组 entity（19 人＋3 地），全部 same_entity | 已裁决＋已发布（`01a088b2`） |
-| 跨書 batch（曹操） | 先主傳曹操↔通鑑曹操 same_entity | 已裁决＋已发布（`01a088e7`） |
-| 跨書 batch（ZZ2） | 10 entity same_entity＋2 event same_occurrence | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
-| 导入级第二来源 | SG doc2（jobs 4/5）、ZZ doc2（job 2）独立导入事件 | 终局保留 |
+| 同书 pair（SG 内，v8） | 22 组（21 entity＋1 event：赤壁之戰 d7397a4b same_occurrence；含劉備/曹操/孫權/周瑜三角与魯肅/程普/孫策/甘寧/呂蒙/劉璋/赤壁/荊州/益州/夏口/南郡/江東），浏览器内真实点击 | 已裁决＋已发布（`01a08997`） |
+| 跨書 batch（v8，SG↔ZZ） | 4 entity same_entity（孫權/曹操/劉備/赤壁地点）＋1 event same_occurrence（赤壁之戰↔赤壁之戰），浏览器内真实点击 | 已裁决＋已发布（`01a08997`，与 ZZ 已发布 `01a08975` 链接） |
+| 跨書 batch（历史，曹操） | 先主傳曹操↔通鑑曹操 same_entity | 已裁决＋已发布（`01a088e7`） |
+| 跨書 batch（历史，ZZ2） | 10 entity same_entity＋2 event same_occurrence | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
+| 章内共指建模（v8） | 先主傳 12/12、周瑜傳 19/19、魯肅傳 8/10 mentions resolved（含先主→ent_001 劉備跨度拷贝） | 已发布 bundle 有记录（首次）；剩余 unresolved 与空心章待决 |
+| 导入级第二来源 | SG doc2/doc3（jobs 4/5/2）、ZZ doc2（job 2）独立导入事件 | 终局保留 |
 
 缺失（blocker，原样保留，不得视为完成）：
 
 | 缺口 | 说明 |
 | --- | --- |
-| 系统性跨書 batch 矩阵 | 只涌现过 1＋12 组；任命类事件（如周瑜督軍）等从未开出；无矩阵级覆盖证据 |
-| 已发表后 event 归并 | 设计上不可发布（canonical 不可变）；same_occurrence 跨書事件在首书发布后无发布路径，属语义上报项 |
-| 章内共指建模 | 已发布 4 章 mentions 全部 unresolved；章内先主=備等 linkage 无 bundle 记录，内容 blocker |
-| Studio 浏览器 decision-click | 见 §17；unmet blocker |
+| 系统性跨書 batch 矩阵 | 督軍任命等从未开出；魯肅/程普等 v8 轮未涌现（recall 方差）；无矩阵级覆盖证据 |
+| 空心/condensed 译文 | v7 先主傳 0.192、v8 ZZ 0.26、v8 周瑜傳缺关键段（§18）；内容失败 |
+| 已发表后 event 归并语义 | ZZ2 证明不可发布；v8 单向 join 可发布——边界已记录，属语义上报项 |
+| Studio 浏览器 decision-click | v8 轮 27/27 已完成（见 §17/§18）；canonical review-flow 脚本仍 mocked-only |
 | 13 案独立转正 | 0/13 保持；待独立 reviewer |
 
-不得把“1 已发布＋12 已裁决未发布”合称为完整跨書闭环。
+不得把已发布覆盖合称为完整跨書闭环。
 
 ## 17. Studio 浏览器证据边界（精确划分）
 
@@ -439,13 +440,16 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 - ✅ 真实 UI 读证据（ad-hoc playwright 驱动，非 canonical 脚本）：
   `/studio/review` 登录壳（未认证）→ 认证登录 → 审核队列“待处理 0 项”→
   已处理页 23＋12 条已裁决轨迹；截图与 DOM 断言已归档。
-- ✅ 23＋12 条裁决本身：经认证 API（与 UI 同路由）执行，有终局快照；
-  非浏览器点击。
-- ❌ Unmet blocker（保留）：Studio review-flow **浏览器内 decision-click**
-  （在 UI 中打开 review、填写 decision、提交）从未执行；
-  canonical `review-flow-smoke.mjs` 仅 mocked-api，不能替代。
-  Mocked（review-flow smoke）/ API（23＋12 decisions）/ 真实 UI 读
-  （登录＋队列＋轨迹）三类证据在此明确区分，不得混用。
+- ✅ 23＋12 条历史裁决：经认证 API（与 UI 同路由）执行，有终局快照；
+  当时非浏览器点击（历史局限，见 §15）。
+- ✅ v8 轮 27 条裁决：浏览器内 open/fill/submit 真实执行
+  （ad-hoc playwright 驱动，34 before/after 截图＋27/27 FINAL），
+  非 mocked、非纯 API。
+- ❌ 剩余 unmet（保留）：canonical `review-flow-smoke.mjs` 仍仅
+  mocked-api——尚无以仓库 canonical 脚本执行的真实后端 review-flow
+  浏览器证据；ad-hoc 驱动已证明 UI 路径可行，但不等同 canonical 覆盖。
+  Mocked（review-flow smoke）/ API（历史 23＋12）/ 真实 UI
+  点击（v8 27/27）/ 真实 UI 读四类证据在此明确区分，不得混用。
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
 ## 18. v7/v8 轮：mention 链接建模验证、浏览器真实点击与空心译文发现

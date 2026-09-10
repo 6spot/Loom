@@ -105,3 +105,8 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Genuine Studio browser decision-clicks: ad-hoc playwright driver logged in, opened/filled/submitted all 27 reviews (22 same-revision + 5 cross-book incl. 1 event same_occurrence) with 34 before/after screenshots; API verified 0 open; FINAL snapshots 27/27; job completed and published SG (`01a08997`).
 - Hollow/condensed translation findings (content failures, published artifacts retained): v7 先主傳 2412 chars/0.192 (孫權 x0), v8 ZZ 2808/0.26, v8 周瑜傳 3182/0.63 with dropped subplots (左右督任命/陳就/蘇飛) and 公瑾 normalization; v8 先主傳 (16516/1.31) and 魯肅傳 (5155/1.43) full. Recall section makes hollowness visible; no fidelity gate added (recorded §13 philosophy).
 - 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.
+
+2026-09-10 — v8 audit-narrative sync (still NOT_PASSED):
+
+- PR body, `manual-content-review.json` B2–B5, §12 (method note, C01–C07/C11–C13 rows, negative findings), §16 matrix table, and §17 browser boundary all synchronized to v8 current (`0bb5c6a`): published SG `01a08997` (ch0 16516/1.31 full, ch1 3182/0.63 with dropped subplots, ch2 5155/1.43) + ZZ `01a08975` (2808/0.26 hollow); mentions resolved 12/12, 19/19, 8/10 with 先主→ent_001 linkage; 27/27 browser decision-clicks (22 same-revision incl. 1 event + 5 cross-book); hollow/condensed findings retained as content failures; 5024/855a1dc0 rounds explicitly historical.
+- 13 cases stay pending (0/13, verdict `not_passed`); cross-book/event-merge gaps, hollow chapters, and canonical-script review-flow coverage remain blockers; nothing closed.

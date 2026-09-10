@@ -1,10 +1,10 @@
 {
   "blockers": [
     "independent reviewer conclusions pending for all 13 real cases (0/13); operator observations in acceptance.md section 12 are explicitly not counted",
-    "published chapters carry all-unresolved mentions: within-chapter co-reference is not modeled and needs independent content judgment",
-    "cross-book matrix is thin: 1 batch review published (曹操, with ZZ v1 publication 01a088e7) plus ZZ2 second-import round with 10 entity + 2 event reviews (12/12 decided: 10 same_entity + 2 same_occurrence) but not published (fail-closed on published-canonical stability, terminal evidence retained); no systematic cross-book matrix",
-    "Reader smoke is complete (canonical chapter-reader-smoke.mjs PASSES on all 4 published chapters against the real backend, plus authenticated Studio login/queue/resolved-trail screenshots), but a real Studio browser decision-click (open review, fill and submit decision in the UI) remains unmet; mocked review-flow-smoke.mjs and authenticated API decisions do not substitute for it",
-    "live artifacts exist and are archived (SG publication 01a088b2 with 3 chapters, ZZ publication 01a088e7, four-chapter Reader API plus headless-chromium renders, recall observations); final ledger reconciliation awaits independent review"
+    "v8 published chapters carry mostly-resolved mentions (12/12, 19/19, 8/10 with span-copy linkages including 先主->ent_001 劉備); remaining unresolved mentions plus hollow/condensed translations (v7 先主傳 0.192, v8 ZZ 0.26, v8 周瑜傳 missing subplots) block content sign-off and need independent judgment",
+    "cross-book matrix: 22 same-revision pairs plus 5 cross-book pairs (4 entity + 1 event same_occurrence) decided and published with v8 SG publication 01a08997; earlier 1 published Cao Cao batch (with ZZ v1 01a088e7) plus ZZ2 second-import 10 entity + 2 event reviews (12/12 decided, unpublished on published-canonical-stability fail-closed, terminal evidence retained); no systematic cross-book matrix",
+    "Studio browser decision-clicks executed on v8 round (27/27 via real browser open/fill/submit with before/after screenshots and FINAL snapshots); canonical chapter-reader-smoke.mjs PASSES on published chapters against the real backend; canonical review-flow-smoke.mjs remains mocked-API-only (ad-hoc driver used, documented)",
+    "live artifacts exist and are archived (v8 SG publication 01a08997 with 3 chapters, v8 ZZ publication 01a08975, four-chapter Reader API plus headless-chromium renders and canonical smokes, recall observations, hollow-translation terminal evidence); historical rounds (5024be17, 855a1dc0) preserved separately; final ledger reconciliation awaits independent review"
   ],
   "candidate_commit": "0bb5c6a07226d4f877b63cd5a6ff9757f3a441ec",
   "cases": [
