@@ -612,8 +612,12 @@ async function runRealBackend(page) {
   }
   check("submit accepted (real)", true);
 
+  // The Studio UI authenticates its own XHR with Basic credentials held in the
+  // page session, not a cookie, so an out-of-band request must supply them.
+  const authHeader = `Basic ${Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64")}`;
   const response = await page.request.get(
     `${BASE_URL}/api/v1/studio/jobs/reviews/${encodeURIComponent(reviewId)}`,
+    { headers: { Authorization: authHeader } },
   );
   if (response.status() !== 200) {
     throw new Error(`real-backend review readback failed: HTTP ${response.status()}`);
