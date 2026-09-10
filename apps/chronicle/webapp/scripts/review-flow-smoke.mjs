@@ -594,17 +594,30 @@ async function runRealBackend(page) {
   await page.getByLabel("判断依据").fill(rationaleId);
   await page.waitForTimeout(300);
   const beforeUrl = page.url();
+  const submittedPath = new URL(beforeUrl).pathname;
   await page.getByRole("button", { name: "保存并下一项" }).click();
+  // The action bar advances to the next open review, but the submitted review
+  // may be the last open item in scope, in which case the page stays put. The
+  // authoritative check is the server readback below, so tolerate the terminal
+  // (no-next-item) case instead of failing on a navigation timeout; still
+  // surface a real error alert if the submit was rejected.
   await Promise.race([
-    page.waitForURL((url) => url.pathname !== new URL(beforeUrl).pathname, { timeout: 15000 }),
-    page.getByRole("alert").waitFor({ timeout: 15000 }).then(() => {
-      throw new Error("real-backend submit surfaced an error alert");
-    }),
+    page.waitForURL((url) => url.pathname !== submittedPath, { timeout: 10000 }).catch(() => {}),
+    page.waitForTimeout(10000),
   ]);
+  const submitAlerts = await page.getByRole("alert").allInnerTexts().catch(() => []);
+  const submitError = submitAlerts.map((text) => (text || "").trim()).filter(Boolean).join(" | ");
+  if (submitError) {
+    throw new Error(`real-backend submit surfaced an error: ${submitError.slice(0, 200)}`);
+  }
   check("submit accepted (real)", true);
 
+  // The Studio UI authenticates its own XHR with Basic credentials held in the
+  // page session, not a cookie, so an out-of-band request must supply them.
+  const authHeader = `Basic ${Buffer.from(`${USERNAME}:${PASSWORD}`).toString("base64")}`;
   const response = await page.request.get(
     `${BASE_URL}/api/v1/studio/jobs/reviews/${encodeURIComponent(reviewId)}`,
+    { headers: { Authorization: authHeader } },
   );
   if (response.status() !== 200) {
     throw new Error(`real-backend review readback failed: HTTP ${response.status()}`);
