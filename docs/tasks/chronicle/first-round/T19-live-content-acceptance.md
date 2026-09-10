@@ -110,3 +110,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 
 - PR body, `manual-content-review.json` B2–B5, §12 (method note, C01–C07/C11–C13 rows, negative findings), §16 matrix table, and §17 browser boundary all synchronized to v8 current (`0bb5c6a`): published SG `01a08997` (ch0 16516/1.31 full, ch1 3182/0.63 with dropped subplots, ch2 5155/1.43) + ZZ `01a08975` (2808/0.26 hollow); mentions resolved 12/12, 19/19, 8/10 with 先主→ent_001 linkage; 27/27 browser decision-clicks (22 same-revision incl. 1 event + 5 cross-book); hollow/condensed findings retained as content failures; 5024/855a1dc0 rounds explicitly historical.
 - 13 cases stay pending (0/13, verdict `not_passed`); cross-book/event-merge gaps, hollow chapters, and canonical-script review-flow coverage remain blockers; nothing closed.
+
+2026-09-10 — v8 full-sync follow-up (still NOT_PASSED):
+
+- Canonical chapter-reader smokes PASS on all 4 v8 chapters (43/16/10/62 blocks) plus headless-chromium DOM head/tail asserts (18718/4510/6666/4762 chars) and screenshots; rendering/content separation explicitly recorded (hollow chapters still render).
+- JSON B2–B5, §12 rows/findings, §16 matrix, §17 boundary, PR body all synchronized to v8 current (mention linkage 12/12·19/19·8/10, 27/27 browser clicks, hollow failures); 5024/855a1dc0 explicitly historical.
+- 13 cases stay pending (0/13); verdict NOT_PASSED; nothing closed.

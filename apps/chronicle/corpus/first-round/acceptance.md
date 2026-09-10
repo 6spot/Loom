@@ -480,6 +480,7 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   （1.43）完整。recall 观察节使空心可见（此前静默），
   但 validator 本身无 fidelity 门——§13 哲学不变（观察不设限），
   空心章的内容失败由人工核对承担（本节），转正仍待独立 reviewer。
-- Canonical reader smoke：v8 先主傳 PASS（43 块渲染；内容空心不影响
+- Canonical reader smoke：v8 四章全部 PASS（43/16/10/62 块渲染；
+  真 chromium DOM 首尾断言 18718/4510/6666/4762 字＋截图；内容空心不影响
   渲染层 PASS——渲染与内容验收分离，明确记录）。
 - 本轮结论：NOT_PASSED。0/13 保持；未关闭 T19/#548。
