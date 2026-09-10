@@ -156,3 +156,9 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - Systematic cross-book matrix documented (§21): covered = same-revision, published-bundle↔import consistency, cross-book SG↔ZZ entity/event, three-bundle transitivity, same-source re-import, event same_occurrence + related_occurrence (fa3fd04c non-merge); missing = exhaustive source-pair×kind matrix and matrix-level pass/fail criterion retained.
 - Event-merge: ZZ2 fail-closed; ZZ3/ZZ-v10/v10-browser joins published; general rule deferred, both terminal outcomes retained.
 - canonical review-flow-smoke.mjs retained mocked-only; 13 cases stay pending (0/13, reviewer empty, not_passed); nothing closed.
+
+2026-09-10 — canonical index current/history repair (still NOT_PASSED):
+
+- manual-content-review.json blockers B2/B5/B6 (+B4) synced: current = browser round publications 01a08b08/01a08ad9, SG 43/43 + ZZ 1/1 real-browser decisions, 88 screenshots; API round 01a08a8e/01a08a66 labeled same-candidate historical comparison; older SG3/ZZ3 (100 screenshots) and 0bb5c6a0 rounds historical.
+- acceptance §16 rewritten: v10 browser round rows are current; SG3/ZZ3, v8-first, ZZ2 rows marked historical; missing-matrix row now states exhaustive source-pair×kind matrix + matrix-level criterion undefined; event-merge both outcomes retained.
+- 13 pending / 0/13 / reviewer empty / not_passed preserved; mocked-only retained. Consistency: JSON 1:1, pending 13, no stale SG3-current labels, gate 15 + 101 unit tests OK, diff clean.

@@ -417,30 +417,31 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
   故 Studio 交互证据为上述真实登录＋队列＋轨迹；reviewer 可复核。）
 - 本轮结论：NOT_PASSED。13 案独立结论 0/13 保持；未关闭 T19/#548。
 
-## 16. 跨書矩阵定义（存在 vs 缺失，单一口径，SG3/ZZ3 轮；v10 当前见 §20）
+## 16. 跨書矩阵定义（存在 vs 缺失，单一口径，v10 浏览器轮当前；SG3/ZZ3 历史）
 
 已存在（有终局证据，不重复演练）：
 
 | 覆盖 | 内容 | 状态 |
 | --- | --- | --- |
-| 同 revision 三章内（SG3，当前） | 15 组 link（person/place），浏览器内真实点击 | 已裁决＋已发布（`01a089d6`） |
-| 同源重导入一致性（SG3，当前） | 23 组 link（已发布 SG 束 `38b0fa` ↔ SG3 束 `222d15`），同一冻结字节 | 已裁决＋已发布（`01a089d6`） |
-| 跨書（SG3，当前） | 5 组（含赤壁地点/事件等，束 `0bd286` ZZ-已发布 ↔ `222d15` SG3） | 已裁决＋已发布（`01a089d6`） |
-| 跨三束 batch（ZZ3，当前） | 7 组：2 跨書（周瑜/諸葛亮）＋5 横跨 SG-已发布/ZZ-已发布/SG3-staged | 已裁决＋已发布（`01a08a13`）；event 归并随单发布 |
-| 章内共指建模（当前） | SG3 先主傳 12/12 resolved（先主→ent_001 劉備）；魯肅傳 2 时间表达正确留置 unresolved+null | 已发布 bundle 有记录 |
-| 同书 pair（历史，v8 首发） | 22 组（21 entity＋1 event d7397a4b） | 已裁决＋已发布（`01a08997`，对照） |
-| 跨書 batch（历史，v8 首发/曹操） | v8 首发 5 组；更早曹操 batch | 已发布（`01a08997`/`01a088e7`，对照） |
-| 跨書 batch（历史，ZZ2） | 10 entity same_entity＋2 event same_occurrence | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
-| 导入级第二来源 | SG doc2/doc3（jobs 4/5/2）、ZZ doc2/doc3（jobs 2/3）独立导入事件 | 终局保留 |
+| 同 revision 三章内（v10 浏览器轮，当前） | SG job `5ee49e77` 43 组中的 13 entity＋7 event（束 `d848` 内），浏览器内真实点击 | 已裁决＋已发布（`01a08b08`） |
+| 已发布束↔导入束一致性（v10 浏览器轮，当前） | 15 组（已发布束↔`d848`，同注入字节来源） | 已裁决＋已发布（`01a08b08`） |
+| 跨書 SG↔ZZ（v10 浏览器轮，当前） | 5 entity＋1 event（束 `21cd`/`86ac`/`9e1f` ↔ `d848`），含 related_occurrence `fa3fd04c` 非合并 | 已裁决＋已发布（`01a08b08`） |
+| 三束传递（v10 浏览器轮，当前） | 1 entity 横跨 SG 已发布/ZZ 已发布/SG 浏览器轮束 | 已裁决＋已发布（`01a08b08`） |
+| 同源重导入（v10 浏览器轮，当前） | ZZ job `3417517d` 1 组（曹操，束 `9e1f`↔ZZ 已发布） | 已裁决＋已发布（`01a08ad9`） |
+| 章内共指建模（v10） | 先主傳 mentions resolved（跨度拷贝）；魯肅傳 2 时间表达正确留置 unresolved+null | 已发布 bundle 有记录 |
+| 同 revision/重导入/跨書（历史，SG3/ZZ3） | 15＋23＋5＋7 组，浏览器点击 | 已发布（`01a089d6`/`01a08a13`，对照） |
+| 同书 pair（历史，v8 首发） | 22 组 | 已发布（`01a08997`，对照） |
+| 跨書 batch（历史，ZZ2） | 10 entity＋2 event | 已裁决、未发布（canonical 稳定性 fail-closed，终局保留） |
+| 导入级第二来源 | SG doc2/doc3/doc4、ZZ doc2/doc3/doc4 独立导入事件 | 终局保留 |
 
 缺失（blocker，原样保留，不得视为完成）：
 
 | 缺口 | 说明 |
 | --- | --- |
-| 系统性跨書 batch 矩阵 | 督軍任命等从未开出；无矩阵级覆盖证据 |
-| 空心/condensed 译文 | SG3/ZZ3 轮（历史）先主傳 4658/0.37 condensed；v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63；v10 已四章 content-complete（§20） |
-| 已发表后 event 归并语义 | ZZ2 多 canonical 归并 fail-closed；ZZ3 单向 join 可发布——两种终局都保留，属语义上报项 |
-| Studio 浏览器 decision-click | 当前轮 SG3 43/43＋ZZ3 7/7 已完成（见 §17/§19）；canonical review-flow 脚本仍 mocked-only |
+| 系统性跨書 batch 矩阵 | 未定义“全部来源对 × 种类”穷举矩阵与矩阵级 pass/fail 判据；督軍任命等仍非系统性覆盖 |
+| 空心/condensed 译文 | SG3/ZZ3 轮（历史）先主傳 4658/0.37 condensed；v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63；v10 四章 content-complete（`01a08b08`/`01a08ad9`，§20–§21） |
+| 已发表后 event 归并语义 | ZZ2 多 canonical 归并 fail-closed；ZZ3/ZZ-v10/v10-browser 非碰撞 join 发布——两种终局都保留，通用规则上报 canonical-stability |
+| Studio 浏览器 decision-click | 当前 v10 轮 SG 43/43＋ZZ 1/1 已完成（§17/§21）；历史 SG3 43/43＋ZZ3 7/7；canonical review-flow 脚本仍 mocked-only |
 | 13 案独立转正 | 0/13 保持；待独立 reviewer |
 
 不得把已发布覆盖合称为完整跨書闭环。
