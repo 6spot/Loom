@@ -26,7 +26,7 @@ from common import PersistenceError
 
 #: Version of the whole-chapter prompt template rendered here. Bound into
 #: the producing run of every accepted artifact.
-PROMPT_VERSION = "c2r1-chapter-prompt-v9"
+PROMPT_VERSION = "c2r1-chapter-prompt-v10"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -323,6 +323,12 @@ def render_chapter_prompt(
                 "embedded annotation. Do NOT summarize, condense, shorten, or "
                 "replace any passage with an overview; only repair the listed "
                 "issues while preserving (or lengthening) the full translation.\n"
+                "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
+                "translation.blocks through unchanged (same block_ids, same order, "
+                "same full text). Do NOT rewrite, shorten, or re-summarize the "
+                "translation; the diagnostics below concern the joint bundle, "
+                "mentions, record_sources and time fields — repair those and keep "
+                "the translation verbatim.\n"
             )
         correction = (
             "\nCORRECTION RE-ASK\n"

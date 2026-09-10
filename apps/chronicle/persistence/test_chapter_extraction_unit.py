@@ -111,7 +111,7 @@ class PromptRenderingTests(unittest.TestCase):
         for block_id in request["required_block_ids"]:
             self.assertIn(block_id, prompt)
         self.assertIn(request["chapter_id"], prompt)
-        self.assertIn("c2r1-chapter-prompt-v9", prompt)
+        self.assertIn("c2r1-chapter-prompt-v10", prompt)
 
     def test_correction_prompt_repeats_whole_chapter(self) -> None:
         request = long_request()
@@ -250,6 +250,7 @@ class PromptRenderingTests(unittest.TestCase):
         )
         self.assertIn("previous translation had 200 characters", prompt)
         self.assertIn("Do NOT summarize, condense, shorten", prompt)
+        self.assertIn("copy the PREVIOUS CANDIDATE's", prompt)
 
     def test_correction_without_translation_omits_fidelity_line(self) -> None:
         request = long_request()
@@ -522,7 +523,7 @@ class HistoryTests(unittest.TestCase):
         result = X.extract_chapter(request, model)
         fingerprints = result["fingerprints"]
         self.assertEqual(fingerprints["model"], "unit-model-v1")
-        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v9")
+        self.assertEqual(fingerprints["prompt_version"], "c2r1-chapter-prompt-v10")
         self.assertEqual(fingerprints["plan_version"], "c2r1-chapters-v1")
         self.assertEqual(fingerprints["source_sha256"], request["source_sha256"])
         self.assertEqual(
