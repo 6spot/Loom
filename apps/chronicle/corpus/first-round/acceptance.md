@@ -728,6 +728,7 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：canonical-stability/
      架构拥有层是否允许“跨既有 canonical id 的 event 归并”，或维持永久
      fail-closed；属架构 Amendment 范围，超出 T19 文件归属，本轮不改。
+     （Reviewer 独立复核确认该升级应由拥有层处置，T19 不得放宽 fail-closed。）
      ZZ2 与 event 轮 fail-closed（负面）与 ZZ3/ZZ-v10/v10-browser 发布（正面）
      两种终局均保留，交拥有层与环境 owner 定夺。
 2. **当前 C04 事件证据路径（显式 unmet）**：
@@ -759,7 +760,8 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    ZZ 1/1＋event 58/58），可作候选但**不等同** canonical 脚本覆盖。
    - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：T11/T18 UI/
      客户端脚本拥有层是否新增真实后端 review-flow 模式（或明确永久限定
-     mocked-api）；超出 T19 文件归属。
+     mocked-api）；超出 T19 文件归属。（Reviewer 独立复核确认限界处置，
+     ad-hoc 浏览器证据不替代 canonical 覆盖，T19 不得放宽 mocked-only。）
    - 可复现验证（无需凭据）：在仓库根执行
      ```
      grep -n "mocked-api\|unsupported --mode\|SUITE\|MODE" apps/chronicle/webapp/scripts/review-flow-smoke.mjs
@@ -796,3 +798,12 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
    “赤壁战役跨章复现为独立事件”未在 bundle 层单独建模。
 4. **判定归属**：以上均为素材；C04 内容是否成立须独立 reviewer 对照原文与
    译文判定，本节与 `manual-content-review.json` 均不预置结论（0/13）。
+5. **独立 Reviewer 判定记录（2026-09-10，head `0c03ab3`）**：
+   - 原文锚点与 `01a08b08` 指定块在所给位置吻合，当前可作为
+     **source-grounded translation evidence**。
+   - bundle 仅有 `fdeec79e` 的赤壁 place entity `same_entity`；**未产生
+     先主傳↔周瑜傳 同 revision event candidate**。
+   - `848a296f`（ZZ↔SG 跨書）与历史 SG3 `same_occurrence` **均不可替代**
+     当前候选。
+   - 结论：**C04 跨章事件等价/链接不能独立接受，不填 PASS**；保留为未决，
+     待完整独立 13 案评估（`manual-content-review.json` 仍 `pending`）。

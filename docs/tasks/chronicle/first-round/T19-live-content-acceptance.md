@@ -199,3 +199,8 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - §25 added: current candidate C04 material - original quotes (與曹公戰於赤壁，大破之 / 遇於赤壁); SG publication 01a08b08 (revision d848e43a) translations with block/source-block ids (先主傳 t_013 b_025, t_015 b_029; 周瑜傳 t_008 b_101, t_011 b_107); bundle entity 赤壁 cross-bundle link fdeec79e (d848 ent_001010 with 86ac/21cd); no same_revision 先主↔周瑜 event candidate. Explicitly notes 848a296f (cross-book) is NOT the C04 pair. No conclusions pre-filled.
 - §24 items 1 (canonical-stability Publish FAIL) and 3 (review-flow real-backend) formally escalated to owning layers (architecture Amendment / T11-T18 UI scripts) with the decision required; fail-closed and mocked-only dispositions retained.
 - 13 pending / 0/13 / reviewer empty / not_passed preserved.
+
+2026-09-10 — independent C04 finding recorded (still NOT_PASSED):
+
+- §25.5 records the independent Reviewer finding (head 0c03ab3): translation evidence at 01a08b08 matches the anchors, but no current same-revision 先主傳↔周瑜傳 event candidate exists; 848a296f (cross-book) and historical SG3 same_occurrence are not substitutes, so the C04 cross-chapter event link is not accepted (no PASS). Case stays pending.
+- §24 escalations annotated as Reviewer-confirmed and bounded to owning layers (canonical-stability architecture; T11/T18 UI scripts); T19 does not relax fail-closed or mocked-only contracts. JSON evidence_notes updated; 13 pending / 0/13 / reviewer empty preserved.
