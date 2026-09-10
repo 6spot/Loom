@@ -248,3 +248,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — reviewer-fill protocol (still NOT_PASSED):
 
 - `manual-content-review.json` gained `reviewer_instructions`: per-case fields (status pending|pass|fail, conclusion, evidence, reviewer) are reviewer-only; inputs listed (acceptance sections 23/25-34 + review-bundle-manifest.json); invariants keep 13 pending / 0 pass / 0 fail / reviewer null / verdict not_passed until the independent reviewer concludes. No locator material added; C04 unaccepted; escalations tracked; nothing closed.
+
+2026-09-10 — independent Reviewer conclusions (still NOT_PASSED):
+
+- Reviewer agent `54d5eed4-ef01-479d-9a80-1bc6e55cca2a` independently checked all 13 real cases against the §23/§25–§34 source-grounded package and wrote per-case `status`, `conclusion`, `evidence`, and `reviewer` fields. C01–C03 and C05–C13 are `pass`; C04 is `fail` because the current candidate lacks the required same-revision 先主傳↔周瑜傳 event candidate. The canonical ledger is now 12 pass / 1 fail / 0 pending, with overall `not_passed`; owning-layer fail-closed and mocked-only gaps remain, and T19/#548 stay open.

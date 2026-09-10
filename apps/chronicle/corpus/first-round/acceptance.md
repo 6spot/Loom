@@ -10,8 +10,8 @@
 > 当前状态（v10 candidate `7e637dd`，见 §0/§20）：真实 provider 调用、
 > 认证 API 审核（v10 轮 21/21）、两书四章发布（SG `01a08a8e`＋ZZ
 > `01a08a66`，四章 content-complete：11974/7177/5224/14353 字）、四章
-> Reader API＋canonical smoke＋真浏览器渲染均已执行；但 13 案独立结论仍为
-> 0/13，系统跨書矩阵与通用 post-publication event-merge 规则未闭环、
+> Reader API＋canonical smoke＋真浏览器渲染均已执行；13 案独立结论已完成
+> 13/13（12 pass、C04 fail），但系统跨書矩阵与通用 post-publication event-merge 规则未闭环、
 > canonical review-flow 脚本仍 mocked-only；hollow/condensed 由 v10 修正轮
 > 保真修复消除机制（历史 SG3 4658/0.37 见 §19）。
 > fixture 离线 PASS 仅证明编排与契约形状，
@@ -36,8 +36,8 @@
   另有 event 轮 `d7c18548` 58/58 浏览器裁决；矩阵 Coverage PASS（6/6 单元
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
-  仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§34；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  仅对照。13 案独立结论 **13/13（12 pass、1 fail）**，verdict **NOT_PASSED**。
+  细节见 §12、§16–§35；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -60,8 +60,8 @@
     hash 见 `ingest-manifest.json`（`prepared_manifest_sha256=ff51bf140b1ce4aaa6ef8eb2184a2c2260481cf17257bfff048b62b5524db012`）。
 - T02 核对点：`cases.json` 13 个真实核对点（T02-C01…C13）＋1 个合成负例
   （T02-N01，`synthetic=true`，禁作史料引用）。逐章独立结论状态见
-  `manual-content-review.json`：本轮 13 个真实案例全部为 `pending`，
-  无独立复核结论。
+  `manual-content-review.json`：本轮 13 个真实案例已由独立 Reviewer 完成
+  逐案结论（12 `pass`、C04 `fail`），合成负例保持 `not_applicable`。
 
 ## 2. 实际运行过的检查（可复现）
 
@@ -587,9 +587,9 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
      拥有层，交 reviewer 确认。
 5. 历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发）见 §12–§19；本轮 21 review 经
    认证 API 裁决（非浏览器点击；浏览器点击证据见 §17 的 SG3/ZZ3 轮）。
-6. 本轮结论：NOT_PASSED。四章 content-complete 证据成立，但
-   `manual-content-review.json` 仍 13 pending／0/13，独立转正未发生；
-   未关闭 T19/#548。
+6. 本轮结论：NOT_PASSED。四章 content-complete 证据成立，独立 Reviewer
+   已完成 13/13 案结论（12 pass、C04 fail）；C04 当前同 revision event
+   candidate 缺失，且 owning-layer publish/review-flow 缺口仍在；未关闭 T19/#548。
 
 ## 21. v10 真实浏览器审核轮与系统跨書矩阵（candidate `7e637dd`）
 
@@ -623,8 +623,8 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
    归并 fail-closed（两既有 canonical 事件将坍缩，原子回滚）；
    ZZ3/ZZ-v10/v10-browser 的非碰撞 join 发布成功。通用判定规则归
    canonical-stability 拥有层，交 reviewer 确认；两种终局都保留。
-4. 13 案仍全部 `pending`（0/13）；上述为**供独立 reviewer 评估的候选
-   证据**，不自行转正。本轮结论：NOT_PASSED；未关闭 T19/#548。
+4. 13 案独立 Reviewer 已完成 13/13（12 pass、C04 fail）；上述浏览器与矩阵
+   记录仍只是支撑材料，不替代逐案结论。本轮结论：NOT_PASSED；未关闭 T19/#548。
 
 ## 22. 矩阵级判据、event-merge 通用规则与 review-flow 缺口（formal disposition）
 
@@ -1040,3 +1040,28 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
 - C04 仍：无当前同 revision event candidate；`848a296f`/历史 SG3 不作替代。
   `manual-content-review.json` 保持 13 `pending`／`not_passed`／reviewer 空；
   两项 owning-layer escalation 继续跟踪。
+
+## 35. 独立 Reviewer 逐案结论（current candidate `7e637dd`）
+
+2026-09-10，Reviewer agent
+`54d5eed4-ef01-479d-9a80-1bc6e55cca2a` 基于 §23、§25–§34 的原文锚点、四章
+全文、side-by-side/句级索引、上下文与引用/事件 locator，逐案核对并写入
+`manual-content-review.json`。结论不是由 replay、hash、Reader smoke 或
+浏览器裁决计数自动产生：
+
+§23–§34 中关于“判定留空／pending”的表述是复核输入包生成时的快照；当前
+台账与总口径以本节及 `manual-content-review.json` 为准。
+
+| 案 | 独立结论 | 核对摘要 |
+| --- | --- | --- |
+| C01–C03 | `pass` | 同章姓名/字号与后文称谓在原文及译文中对应。 |
+| C04 | `fail` | 两章赤壁译文有原文依据，但当前没有先主傳↔周瑜傳同 revision event candidate；place entity、跨書记录与历史 SG3 不能替代。 |
+| C05–C06 | `pass` | 赤壁跨書事件及周瑜/程普跨書身份材料与当前 terminal review 对应。 |
+| C07 | `pass` | 译文保留南郡（郡）与江陵（城）的层级差异，不直接合并。 |
+| C08–C10 | `pass` | 典略/江表传归属保留；馬超仅作战略背景，不伪造 direct claim。 |
+| C11–C13 | `pass` | 四章首尾定位完整；嵌注闭合；习凿齿评论明确保留后世史论归属。 |
+
+因此当前台账为 13/13 已有独立结论（12 `pass`、1 `fail`、0 pending），总
+verdict 仍为 `NOT_PASSED`。C04 失败、canonical-stability publish
+fail-closed、canonical review-flow mocked-only/真实后端缺口仍阻塞 T19；不以
+本表关闭 T19/#548。
