@@ -56,6 +56,10 @@ python3 apps/chronicle/acceptance/first_round_gate.py --mode fixture --env-file 
 - 浏览器复用：`review-flow-smoke.mjs`（450+ 审核队列与连审）与
   `chapter-reader-smoke.mjs`（Reader 路线）静态复用检查；fixture
   不启动浏览器、不复制第二套客户端逻辑。live 才真实执行。
+  `review-flow-smoke.mjs` 另有 `--mode real-backend`：不 mock Studio
+  HTTP，用环境变量 `CHRONICLE_SMOKE_USERNAME` / `CHRONICLE_SMOKE_PASSWORD`
+  （或 `--username` / `--password`）登录真实实例，打开准备好的
+  `--review-id`，提交裁决并读回 `status=resolved`；账号密码不落仓库与日志。
 
 ## 2. 真实模型验收入口（live mode，交 T19 执行）
 

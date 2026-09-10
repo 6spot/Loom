@@ -2,6 +2,8 @@
 
 状态：**本轮实现契约，尚未实现**。章节及引用依赖 [chapter-production.md](chapter-production.md)；此文拥有队列、来源查看和交互规则。旧实现基线见 [review-publication.md](review-publication.md)，新功能由 [第一轮任务图](../../../docs/tasks/chronicle/first-round/README.md) 交付。
 
+第三轮在同一审核外壳中增加阶段依据包，扩展合同归 [person-state-reading.md §5](person-state-reading.md#5-阶段依据审核)。该扩展新增 review_scope、按 scope 分派的评估表单和候选来源读取；原身份决定、连续操作与来源权限保持此文规则，由第三轮单独交付。
+
 ## 1. 决定的含义
 
 保留既有 allowed decisions、rationale、confidence、batch 默认和逐组例外；继续让应用层在同一事务中检查 graph、记录 decision 和终态。来源展示、翻译和名称不产生身份等价。

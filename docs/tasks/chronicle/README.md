@@ -100,8 +100,19 @@ modern-Chinese reading are scoped there; completed C1 history stays unchanged.
 
 ## Second delivery round after C1
 
-The [second-round ledger](second-round/README.md) tracks #549 and 17 planned
-children for continuous reading, source-aware narrative time, event navigation
-and current-fragment entities. Early isolated modules may proceed only when
-their declared first-round dependencies are reconciled; production changes
-wait for C2-R1-T19. Third-round temporal identities/relationships remain #550.
+The [second-round task index](second-round/README.md) covers #549, its 17
+implementation children and the background-art skill preparation task.
+Continuous reading, source-aware narrative time, event navigation and
+current-fragment entities follow their specific interface prerequisites and
+file ownership. Production work retains its declared C2-R1-T19 prerequisite.
+Task state belongs to the current task-management tool.
+
+## Third delivery round after C1
+
+The [third-round task index](third-round/README.md) covers #550 with two
+preparation tasks and 15 implementation/acceptance tasks. Source-grounded
+offices, titles and affiliations follow the active narrative phase, with
+per-item clear/unclear markers, chapter-level evidence review and pinned reads.
+The product contract is [person-state-reading.md](../../../apps/chronicle/docs/person-state-reading.md).
+Preparation and disjoint modules can proceed according to the dependency
+graph; shared publication, routing and page integration have ordered owners.
