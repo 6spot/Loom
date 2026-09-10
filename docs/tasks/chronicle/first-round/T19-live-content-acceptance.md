@@ -208,3 +208,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — 13-case source-grounded appendix (still NOT_PASSED):
 
 - Acceptance section 26 added: exact original anchors for all 13 real cases with chars-normalized-utf8 [start,end) offsets (spot-verified 10/10 against sources) plus current publication pointers (SG 01a08b08 revision d848e43a; ZZ 01a08ad9). No pass/fail pre-filled. §25.5 C04 judgment and §24 escalations unchanged; no owner decisions arrived yet. 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — independent-review worksheet (still NOT_PASSED):
+
+- Acceptance section 27 added: per-case original-translation-reference/event-boundary worksheet for all 13 cases (source anchor with offsets, current translation window, linkage/boundary notes) with verdict/rationale/evidence cells left blank for the independent reviewer. No verdict prefilled; C04 event link stays not-accepted (§25.5). Owner decisions for the two escalations not yet received. 13 pending / 0/13 / reviewer empty preserved.
