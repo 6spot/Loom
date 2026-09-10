@@ -15,7 +15,8 @@
     "API-decided content-complete round (same candidate): SG job e4e952f0 publication 01a08a8e, ZZ job 9b31a529 publication 01a08a66; job-sg2-FINAL.json is the PRE-DECISION needs_review snapshot and job-sg2-resumed.json is the 21/21 resolved terminal record",
     "canonical review-flow-smoke.mjs remains mocked-API-only; ad-hoc browser driver evidence is not canonical-script coverage (gap retained)",
     "event-merge: ZZ2 (09870dff) fail-closed on multi-canonical collapse; ZZ3 (099d018b), ZZ-v10 (9b31a529), and browser-round ZZ (3417517d) joins published; both terminal outcomes retained",
-    "historical round evidence dirs (0bb5c6a0 SG3/ZZ3, 5024be17, 855a1dc0) retained separately and marked historical in acceptance sections 12-19"
+    "historical round evidence dirs (0bb5c6a0 SG3/ZZ3, 5024be17, 855a1dc0) retained separately and marked historical in acceptance sections 12-19",
+    "explicit unmet requirements (acceptance section 24, with reproducible commands): (1) canonical-stability Publish FAIL/closure is an owning-layer by-design fail-closed boundary (publication_v0._build_canonical_records); terminal evidence ZZ2 5024be17/job-zztj-2-FINAL.json and event-round 7e637dd3/event-round/job-FINAL.json; not changed in T19 scope. (2) current C04 event evidence path: no same_revision 先主傳↔周瑜傳 赤壁 candidate in current rounds; current material is published translations 01a08b08 plus historical SG3 same_occurrence; independent reviewer judgment required. (3) canonical review-flow-smoke.mjs real-backend coverage out of T19 scope."
   ],
   "cases": [
     {

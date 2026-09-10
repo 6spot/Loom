@@ -183,3 +183,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — §23 synced to §22 coverage/publish split (still NOT_PASSED):
 
 - §23 intro now cites §22 coverage/publish: Coverage PASS 6/6 (same_revision×event 1/1 = 07a7c595 human not_same; cross_book×event 4/4), Publish FAIL (event round canonical collapse retained, ZZ2 same class; ZZ3/ZZ-v10/v10-browser success); SG3 same_occurrence explicitly historical. C04/C05 rows updated. 13 pending / 0/13 / reviewer empty; mocked-only and both event-merge outcomes retained.
+
+2026-09-10 — explicit unmet requirements registered (§24, still NOT_PASSED):
+
+- §24 added with reproducible commands + terminal evidence for three unmet items: (1) canonical-stability Publish FAIL (by-design fail-closed in publication_v0; ZZ2 and event-round terminal files); (2) current C04 event-evidence path (no same_revision 先主傳↔周瑜傳 赤壁 candidate; material = published 01a08b08 translations + historical SG3 same_occurrence); (3) canonical review-flow-smoke.mjs real-backend coverage (T11/T18 scope). JSON evidence_notes updated; 13 pending / 0/13 / reviewer empty / not_passed preserved; both event-merge outcomes retained.

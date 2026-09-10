@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§23；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§24；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -705,3 +705,42 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
 | C13 習鑿齒論曰 | 史論歸屬（非同期言論）？ | tongjian :: 習鑿齒論曰：昔齊桓一矜其功而叛者九國 | ZZ `01a08ad9` 译文；bundle 無習鑿齒 entity |
 
 结论：本材料只提供 anchor 与证据位置；13 案独立结论仍 0/13，待独立 reviewer。
+
+## 24. 显式 unmet requirements 与可复现终局证据
+
+以下三项以“显式未满足要求”登记，附终局证据与可复现命令；不伪装为已完成。
+命令在测试服务器执行（凭据只从服务器 `.env.chronicle` 读取，不写入仓库）：
+
+1. **Publish FAIL / canonical-stability closure（拥有层 by-design 边界）**：
+   - 规则（代码即规则）：`apps/chronicle/ingestion/prototype/publication_v0.py`
+     `_build_canonical_records`——同一归并分量若映射 ≥2 个既有 canonical id，
+     抛 `PublicationConflict`（“……would collapse existing canonical IDs……”），
+     整单原子回滚。
+   - 终局证据：ZZ2 `/srv/loom-t19-evidence/5024be17/job-zztj-2-FINAL.json`；
+     event 轮 `/srv/loom-t19-evidence/7e637dd3/event-round/job-FINAL.json`
+     （错误 `Event publication would collapse existing canonical IDs
+     [01a08a8e-…, 01a08b08-…] via [c1rev-86ac…:evt_002008, c1rev-8a1e…:evt_*]`）。
+   - 可复现：`ssh root@<测试服务器>` → `cd /srv/Loom && set -a && . ./.env.chronicle
+     && set +a` →
+     `curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD"
+     http://127.0.0.1:8088/api/v1/studio/jobs/09870dff-bcba-4b72-adda-a891aec473f0`（ZZ2，现仍为终局）
+     与 `http://127.0.0.1:8090/api/v1/studio/jobs/d7c18548-b51d-4581-be06-f26cad9fdd06`（event 轮）。
+   - 状态：**显式 unmet**。是否允许“折叠”属 canonical-stability/架构拥有层语义
+     决策，超出 T19 文件归属，本轮不改；ZZ2 与 event 轮 fail-closed（负面）与
+     ZZ3/ZZ-v10/v10-browser 发布（正面）两种终局均保留。
+2. **当前 C04 事件证据路径（显式 unmet）**：
+   - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。当前 candidate 三轮 resolve
+     输出中未涌现该特定候选（event 轮同 revision 事件仅 `07a7c595`
+     孫策去世 vs 魯肅去世，已 `not_same`）。
+   - 可复现：`curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD"
+     'http://127.0.0.1:8090/api/v1/studio/jobs/reviews?status=all&job_id=<job>&link_kind=event&limit=50'`
+     对 `5ee49e77`/`d7c18548` 分别执行，可见 event 候选清单（event 轮 12 项，
+     同 revision 仅 `07a7c595`），**无 C04 的 先主傳↔周瑜傳 赤壁 该对**。
+   - 当前可用 C04 材料：两章已发布译文均含「赤壁」（`01a08b08`）；历史 SG3 轮
+     同 revision event same_occurrence（`0bb5c6a`，§19）。**须由独立 reviewer
+     结合原文判定，本节不预置结论。**
+3. **canonical `review-flow-smoke.mjs` 真实后端覆盖（显式 unmet）**：
+   `apps/chronicle/webapp/scripts/review-flow-smoke.mjs` 仅支持
+   `--mode mocked-api`；真实后端 review-flow 覆盖属 T11/T18 UI/客户端脚本
+   拥有层，超出 T19 文件归属。ad-hoc 真实浏览器证据见 §17/§21（SG 43/43＋
+   ZZ 1/1＋event 58/58），可作候选但**不等同** canonical 脚本覆盖。
