@@ -11,9 +11,11 @@
 > 认证 API 审核（v10 轮 21/21）、两书四章发布（SG `01a08a8e`＋ZZ
 > `01a08a66`，四章 content-complete：11974/7177/5224/14353 字）、四章
 > Reader API＋canonical smoke＋真浏览器渲染均已执行；13 案独立结论已完成
-> 13/13（12 pass、C04 fail），但系统跨書矩阵与通用 post-publication event-merge 规则未闭环、
-> canonical review-flow 脚本仍 mocked-only；hollow/condensed 由 v10 修正轮
-> 保真修复消除机制（历史 SG3 4658/0.37 见 §19）。
+> 13/13（12 pass、C04 fail）。拥有层跟进（2026-09-10）：C04 修复 PR #635、
+> canonical real-backend review-flow PR #636 均已 merge；canonical-stability
+> publish fail-closed 按规范分类为 expected negative-path PASS evidence
+> （§24）。下一 candidate 将重跑最终 happy-path；hollow/condensed 由 v10
+> 修正轮保真修复消除机制（历史 SG3 4658/0.37 见 §19）。
 > fixture 离线 PASS 仅证明编排与契约形状，
 > **不能作为译文内容正确证据**，本文不以脚本 PASS 代替内容验收。
 
@@ -34,7 +36,8 @@
   经真实 Studio 浏览器 decision-click 裁决；四章 canonical smoke 4/4＋
   DOM 首尾 PASS。同候选另有 API 裁决轮（`01a08a8e`/`01a08a66`）作对照。
   另有 event 轮 `d7c18548` 58/58 浏览器裁决；矩阵 Coverage PASS（6/6 单元
-  §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
+  §22）、Publish fail-closed（event 轮 canonical collapse；§24 按 publication
+  规范分类为 expected negative-path PASS evidence，不再阻塞 T19）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **13/13（12 pass、1 fail）**，verdict **NOT_PASSED**。
   细节见 §12、§16–§35；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
@@ -444,7 +447,7 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 | 系统性跨書 batch 矩阵 | 判据已在 §22 定义并执行：Coverage PASS（6/6 单元全覆盖＋terminal，含 `same_revision×event` 1/1 not_same）；Publish FAIL（event 轮 canonical collapse fail-closed 终局保留）；督軍任命等仍非穷举（§22） |
 | 空心/condensed 译文 | SG3/ZZ3 轮（历史）先主傳 4658/0.37 condensed；v7 0.192、v8 ZZ 0.26、v8 周瑜傳 0.63；v10 四章 content-complete（`01a08b08`/`01a08ad9`，§20–§21） |
 | 已发表后 event 归并语义 | ZZ2 多 canonical 归并 fail-closed；ZZ3/ZZ-v10/v10-browser 非碰撞 join 发布——两种终局都保留，通用规则上报 canonical-stability |
-| Studio 浏览器 decision-click | 当前 v10 轮 SG 43/43＋ZZ 1/1 已完成（§17/§21）；历史 SG3 43/43＋ZZ3 7/7；canonical review-flow 脚本仍 mocked-only |
+| Studio 浏览器 decision-click | 当前 v10 轮 SG 43/43＋ZZ 1/1 已完成（§17/§21）；历史 SG3 43/43＋ZZ3 7/7；canonical review-flow 已由 T11 #636 增加 real-backend 模式（§24） |
 | 13 案独立转正 | 0/13 保持；待独立 reviewer |
 
 不得把已发布覆盖合称为完整跨書闭环。
@@ -467,9 +470,15 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 - 历史（仅对照）：SG3 43/43＋ZZ3 7/7（100 截图，v8 镜像 `0bb5c6a`）；v8 首发 27 条浏览器点击（34 before/after 截图＋
   27/27 FINAL）；更早 23＋12 条经认证 API（与 UI 同路由）执行、
   当时非浏览器点击（见 §15）。均不构成本轮 current record。
-- ❌ 剩余 unmet（保留）：canonical `review-flow-smoke.mjs` 仍仅
-  mocked-api——尚无以仓库 canonical 脚本执行的真实后端 review-flow
-  浏览器证据；ad-hoc 驱动已证明 UI 路径可行，但不等同 canonical 覆盖。
+- ✅ Canonical 真实后端 review-flow（T11 owning layer 已解决，2026-09-10）：
+  `review-flow-smoke.mjs --mode real-backend` 已由 PR #636（`f91041f`，merge）
+  加入——不 mock API、对真实 server 执行、凭据仅从 env 读取、可传 prepared
+  `--review-id`，真提交并读回 `status=resolved`；focused CLI 契约测试见
+  `apps/chronicle/webapp/tests/review-flow-smoke.test.ts`。最终 happy-path
+  将以该模式产出 canonical 覆盖（mocked 模式仍保留供 UI 行为回归）。
+- ❌ 历史 unmet（已被 T11 #636 取代，仅备查）：本包生成时
+  canonical `review-flow-smoke.mjs` 仍仅 mocked-api；ad-hoc 驱动已证明 UI
+  路径可行，但当时不等同 canonical 覆盖。
   Mocked（review-flow smoke）/ API（历史 23＋12）/ 真实 UI
   点击（当前 v10 SG 43/43＋ZZ 1/1＋event 58/58；历史 SG3/ZZ3、v8 27/27）/ 真实 UI 读
   五类证据在此明确区分，不得混用。
@@ -707,35 +716,49 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
 
 结论：本材料只提供 anchor 与证据位置；13 案独立结论已由 Reviewer 完成（12 pass、C04 fail），见 §35。
 
-## 24. 显式 unmet requirements 与可复现终局证据
+## 24. 显式 unmet requirements、规范分类与可复现终局证据
 
-以下三项以“显式未满足要求”登记，附终局证据与可复现命令；不伪装为已完成。
-命令在测试服务器执行（凭据只从服务器 `.env.chronicle` 读取，不写入仓库）：
+原三项登记现状态如下：第 1 项按 publication 规范**分类为 expected
+negative-path / fail-closed PASS evidence**（不再阻塞 T19）；第 2 项 C04
+拥有层修复已 merge（PR #635），最终 candidate 将重跑该证据；第 3 项
+canonical real-backend 覆盖已由 T11 owning layer（PR #636）**解决**。
+终局命令在测试服务器执行（凭据只从服务器 `.env.chronicle` 读取，不写入仓库）：
 
-1. **Publish FAIL / canonical-stability closure（拥有层 by-design 边界）**：
+1. **Publish FAIL / canonical-stability closure —— 规范分类：expected negative-path / fail-closed PASS evidence（不再阻塞 T19）**：
    - 规则（代码即规则）：`apps/chronicle/ingestion/prototype/publication_v0.py`
      `_build_canonical_records`——同一归并分量若映射 ≥2 个既有 canonical id，
      抛 `PublicationConflict`（“……would collapse existing canonical IDs……”），
      整单原子回滚。
-   - 终局证据：ZZ2 `/srv/loom-t19-evidence/5024be17/job-zztj-2-FINAL.json`；
-     event 轮 `/srv/loom-t19-evidence/7e637dd3/event-round/job-FINAL.json`
-     （错误 `Event publication would collapse existing canonical IDs
-     [01a08a8e-…, 01a08b08-…] via [c1rev-86ac…:evt_002008, c1rev-8a1e…:evt_*]`）。
-   - 可复现：`ssh root@<测试服务器>` → `cd /srv/Loom && set -a && . ./.env.chronicle
-     && set +a` →
-     `curl -sS -u "$CHRONICLE_ADMIN_USER:$CHRONICLE_ADMIN_PASSWORD"
-     http://127.0.0.1:8088/api/v1/studio/jobs/09870dff-bcba-4b72-adda-a891aec473f0`（ZZ2，现仍为终局）
-     与 `http://127.0.0.1:8090/api/v1/studio/jobs/d7c18548-b51d-4581-be06-f26cad9fdd06`（event 轮）。
-   - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：canonical-stability/
-     架构拥有层是否允许“跨既有 canonical id 的 event 归并”，或维持永久
-     fail-closed；属架构 Amendment 范围，超出 T19 文件归属，本轮不改。
-     （Reviewer 独立复核确认该升级应由拥有层处置，T19 不得放宽 fail-closed。）
-     ZZ2 与 event 轮 fail-closed（负面）与 ZZ3/ZZ-v10/v10-browser 发布（正面）
-     两种终局均保留，交拥有层与环境 owner 定夺。
+   - **规范结论（对照 `apps/chronicle/docs/publication.md`）**：该文档第 61 行
+     明确要求“若发布需要把两个已存在的 canonical UUID 合并为一个，必须
+     `PublicationConflict`；发布永不静默挑选其一，也永不为冲突生成替代
+     ID”。即当前 fail-closed 行为就是规范要求，**不是产品缺陷**；规范也
+     **未**要求提供“人工显式合并既有 canonical ID”的能力，故不新开
+     owning-layer/architecture issue。已有回归测试
+     `test_publication_v0.py::test_conflicting_existing_ids_fail_instead_of_collapsing`
+     固化该边界。
+   - 终局证据（保留为安全性证据，不改）：ZZ2
+     `/srv/loom-t19-evidence/5024be17/job-zztj-2-FINAL.json`；event 轮
+     `/srv/loom-t19-evidence/7e637dd3/event-round/job-FINAL.json`（错误
+     `Event publication would collapse existing canonical IDs [01a08a8e-…,
+     01a08b08-…] via [c1rev-86ac…:evt_002008, c1rev-8a1e…:evt_*]`）。
+   - 状态：**expected negative-path / fail-closed PASS evidence**。
+     publication_v0 的既有规则（一个 merge component 映射 ≥2 个既有
+     canonical id → `PublicationConflict` / 原子回滚 / fail-closed）
+     在 event 轮被正确触发；失败终局保留为安全性证据
+     （负面 fail-closed 与正面 join 发布 ZZ3/ZZ-v10/v10-browser 两种终局
+     并存），**不再作为 T19 blocker**，也不因此放宽 canonical identity 边界。
 2. **当前 C04 事件证据路径（显式 unmet）**：
    - C04 需 `先主傳↔周瑜傳` 的同 revision 事件候选。当前 candidate 三轮 resolve
      输出中未涌现该特定候选（event 轮同 revision 事件仅 `07a7c595`
      孫策去世 vs 魯肅去世，已 `not_same`）。
+   - **拥有层修复已合入（2026-09-10）**：`resolution_v0._event_pair_blocked`
+     的通用规则已修（兼容 broad 事件对在 ≥2 共享参与者且无冲突地点时产生
+     within_revision candidate；单一共享参与者仍不产生），回归见
+     `test_resolution_v0.py`，PR #635 已 merge（`9a7076c`）。当前
+     `7e637dd` artifact 上确定性验证该修复后 `build_within_bundle_candidate_set`
+     恰好产出 先主傳↔周瑜傳 该候选。下一 candidate 的最终 happy-path 将
+     重新生成 C04 证据；本节旧证据路径保留为历史。
    - 可复现（两条可直接复制；先 `ssh root@<测试服务器>` → `cd /srv/Loom &&
      set -a && . ./.env.chronicle && set +a`，凭据只来自服务器环境）：
      ```
@@ -754,24 +777,18 @@ canonical id，fail-closed 终局保留，与 ZZ2 同型；ZZ3/ZZ-v10/v10-browse
    - 当前可用 C04 材料：两章已发布译文均含「赤壁」（`01a08b08`）；历史 SG3 轮
      同 revision event same_occurrence（`0bb5c6a`，§19）。**须由独立 reviewer
      结合原文判定，本节不预置结论。**
-3. **canonical `review-flow-smoke.mjs` 真实后端覆盖（显式 unmet）**：
-   `apps/chronicle/webapp/scripts/review-flow-smoke.mjs` 仅支持
-   `--mode mocked-api`；真实后端 review-flow 覆盖属 T11/T18 UI/客户端脚本
-   拥有层，超出 T19 文件归属。ad-hoc 真实浏览器证据见 §17/§21（SG 43/43＋
-   ZZ 1/1＋event 58/58），可作候选但**不等同** canonical 脚本覆盖。
-   - 状态：**显式 unmet，已正式上报（escalated）**。所需决策：T11/T18 UI/
-     客户端脚本拥有层是否新增真实后端 review-flow 模式（或明确永久限定
-     mocked-api）；超出 T19 文件归属。（Reviewer 独立复核确认限界处置，
-     ad-hoc 浏览器证据不替代 canonical 覆盖，T19 不得放宽 mocked-only。）
-   - 可复现验证（无需凭据）：在仓库根执行
-     ```
-     grep -n "mocked-api\|unsupported --mode\|SUITE\|MODE" apps/chronicle/webapp/scripts/review-flow-smoke.mjs
-     node apps/chronicle/webapp/scripts/review-flow-smoke.mjs --mode real-backend --base-url http://127.0.0.1:1 ; echo "exit=$?"
-     ```
-     第一条显示脚本只声明 `mocked-api` 且非该模式即拒绝；第二条实际输出
-     `review-flow smoke: FAIL: unsupported --mode real-backend (this task only
-     provides mocked-api; real-backend chain is T18)` 并 `exit=1`——证明
-     canonical 脚本**能力上不支持真实后端**（非环境缺失）。
+3. **canonical `review-flow-smoke.mjs` 真实后端覆盖 —— 拥有层已解决（RESOLVED）**：
+   原缺口：脚本仅支持 `--mode mocked-api`。**2026-09-10 已由 T11/T18
+   UI/acceptance-script owning layer 解决**：PR #636（`f91041f`，已 merge）
+   新增 `--mode real-backend`——不 mock API、对真实 Chronicle server 执行、
+   凭据只从 `CHRONICLE_SMOKE_USERNAME`/`CHRONICLE_SMOKE_PASSWORD`（或
+   `--username`/`--password`）读取、接受 prepared `--review-id`/`--job-id`、
+   真正执行打开/选择 decision/提交/读回 `status=resolved`，并有退出码与
+   focused CLI 契约测试
+   (`apps/chronicle/webapp/tests/review-flow-smoke.test.ts`) 与使用文档
+   (`apps/chronicle/docs/chapter-acceptance.md`)。ad-hoc 真实浏览器证据见
+   §17/§21（SG 43/43＋ZZ 1/1＋event 58/58）。**最终 happy-path 将以
+   `--mode real-backend` 产出 canonical 覆盖。**
 
 ## 25. C04 当前 source-grounded 材料（供独立 review，不预置结论）
 
@@ -1061,6 +1078,11 @@ sha256 清单，供独立 reviewer 核对“输入是否与记录一致”。**�
 | C11–C13 | `pass` | 四章首尾定位完整；嵌注闭合；习凿齿评论明确保留后世史论归属。 |
 
 因此当前台账为 13/13 已有独立结论（12 `pass`、1 `fail`、0 pending），总
-verdict 仍为 `NOT_PASSED`。C04 失败、canonical-stability publish
-fail-closed、canonical review-flow mocked-only/真实后端缺口仍阻塞 T19；不以
-本表关闭 T19/#548。
+verdict 仍为 `NOT_PASSED`。C04 为当前唯一明确内容/链接 FAIL；canonical-stability
+publish fail-closed 经 §24 对照 `publication.md` 规范分类为
+**expected negative-path / fail-closed PASS evidence**，不再阻塞 T19；
+canonical review-flow 真实后端缺口已由 T11 owning layer PR #636 解决，
+C04 owning layer 修复已由 PR #635 merge。上述结论基于 candidate `7e637dd`；
+下一 candidate 的最终 happy-path 须重新产出 C04 candidate 与
+`--mode real-backend` canonical 覆盖，再由独立 Reviewer 给最终 verdict。
+不以本表关闭 T19/#548，Executor 不自证 PASSED。
