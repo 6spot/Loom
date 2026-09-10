@@ -169,3 +169,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 - General post-publication event-merge rule documented from owning code (publication_v0._build_canonical_records): a merge component maps to at most one existing canonical id; >=2 -> fail-closed (ZZ2), single/new join publishes (ZZ3/ZZ-v10/v10-browser); both outcomes retained.
 - canonical review-flow-smoke.mjs real-backend coverage recorded as explicit unmet requirement (out of T19 file scope); ad-hoc browser evidence provided.
 - §23 added: per-case source-grounded reviewer material (13 cases with original quotes + current publication/evidence locations); 13 pending / 0/13 / reviewer empty preserved.
+
+2026-09-10 — §23 C04 current/history clarification (still NOT_PASSED):
+
+- §23 intro now states event/entity linkage cells follow §22's executed matrix (current candidate cross_book×event non-empty; same_revision×event EMPTY -> matrix-level FAIL); any same-revision event same_occurrence example is the historical SG3 round. C04 row relabeled accordingly; C05 cites current cross_book×event 3/3 PASS. 13 pending / 0/13 / reviewer empty preserved.

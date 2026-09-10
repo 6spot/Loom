@@ -664,18 +664,23 @@ focused tests（`RecallObservationsTests`：fixture 计数、no-floor 类别不�
 
 ## 23. 十三案 source-grounded reviewer 材料（不预置结论）
 
-供独立 reviewer 逐案核对的原文锚点与当前 candidate 证据位置。原文引用来自
-`cases.json`；当前证据 publications：SG `01a08b08`（先主傳/周瑜傳/魯肅傳）、
-ZZ `01a08ad9`；同候选历史对照 `01a08a8e`/`01a08a66`。reviewer 须自行判定，
-本节不填 pass/fail。
+供独立 reviewer 逐案核对的原文锚点与证据位置。原文引用来自 `cases.json`。
+
+**证据口径（避免与 §22 冲突）**：本表“当前证据位置”列以当前 candidate
+`7e637dd` 的 publications SG `01a08b08`（先主傳/周瑜傳/魯肅傳）与 ZZ
+`01a08ad9` 为准；同候选历史对照 `01a08a8e`/`01a08a66`。事件/实体链接的
+**矩阵覆盖以 §22 执行结果为准**：当前 candidate `cross_book×event` 非空、
+`same_revision×event` 为 **EMPTY**（§22 矩阵级 FAIL）。凡本表引用
+“同 revision 事件 same_occurrence”者，均为**历史 SG3 轮**（`0bb5c6a`）
+证据，非当前 candidate 证据。reviewer 须自行判定，本节不填 pass/fail。
 
 | 案 | 问题（摘） | 原文锚点（file :: quote） | 当前证据位置 |
 | --- | --- | --- | --- |
 | C01 先主/備 | 先主＝劉備同章共指？ | sanguozhi-032 :: 先主姓劉，諱備；先主少孤… | SG `01a08b08` 先主傳译文；bundle mentions 先主→ent_001 |
 | C02 周瑜/公瑾 | 周瑜＝公瑾？ | sanguozhi-054-zhou-yu :: 周瑜字公瑾；孤念公瑾 | SG `01a08b08` 周瑜傳（公瑾 x15） |
 | C03 魯肅/子敬 | 魯肅＝子敬？ | sanguozhi-054-lu-su :: 魯肅字子敬；子敬，孤持鞍下馬相迎 | SG `01a08b08` 魯肅傳 |
-| C04 赤壁跨章 | 先主傳↔周瑜傳同記赤壁？ | xianzhu :: 與曹公戰於赤壁，大破之；zhou-yu :: 遇於赤壁 | SG 两章译文；SG 轮 event same_occurrence |
-| C05 赤壁跨書 | 周瑜傳↔通鑑同事件？ | zhou-yu :: 遇於赤壁；tongjian :: 進，與操遇於赤壁 | SG `01a08b08`＋ZZ `01a08ad9`；cross_book event 3/3 |
+| C04 赤壁跨章 | 先主傳↔周瑜傳同記赤壁？ | xianzhu :: 與曹公戰於赤壁，大破之；zhou-yu :: 遇於赤壁 | SG `01a08b08` 两章译文。事件链接：当前 candidate `same_revision×event` 为 EMPTY（§22 矩阵 FAIL）；历史上的同 revision event same_occurrence 见 SG3 轮 `0bb5c6a`（§19） |
+| C05 赤壁跨書 | 周瑜傳↔通鑑同事件？ | zhou-yu :: 遇於赤壁；tongjian :: 進，與操遇於赤壁 | SG `01a08b08`＋ZZ `01a08ad9` 译文；事件链接：当前 candidate `cross_book×event` 3/3 terminal PASS（§22） |
 | C06 周瑜督軍跨書 | 兩書周瑜同人？ | tongjian :: 遂以周瑜、程普為左右督…；zhou-yu :: 權遂遣瑜及程普… | SG/ZZ 译文；cross_book entity |
 | C07 南郡/江陵 | 南郡≠江陵（uncertain）？ | tongjian :: 追操至南郡；守江陵 | ZZ `01a08ad9` 译文；`fa3fd04c` related_occurrence 非合并 |
 | C08 典略注 | 先主傳《典略》注归属？ | xianzhu :: 〈《典略》曰：備本臨邑侯枝屬也。〉 | SG 先主傳译文嵌注 |
