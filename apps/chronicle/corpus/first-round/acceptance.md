@@ -37,7 +37,7 @@
   §22）、Publish FAIL（event 轮 canonical collapse fail-closed，保留）。
   历史轮（SG3/ZZ3 on `0bb5c6a`、v8 首发、5024、855a1dc0）见 §12–§19，
   仅对照。13 案独立结论 **0/13**，verdict **NOT_PASSED**。
-  细节见 §12、§16–§27；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
+  细节见 §12、§16–§28；§1–§6 为历史基线，§7–§19 为历史/中间轮次，
   不得作为当前验收证据引用。
 
 ## 1. 冻结候选与来源（历史基线：candidate `b611c33`，仅记录起点）
@@ -859,3 +859,34 @@ C04 = 「先主傳↔周瑜傳 赤壁跨章復現」。当前 candidate `7e637dd
 
 > 说明：本表仅为独立复核提供对照素材；`manual-content-review.json` 仍全部
 > `pending`、`not_passed`、reviewer 空。C04 事件链路按 §25.5 保持“不独立接受”。
+
+## 28. 十三案确定性重放（source/translation 窗口，供独立核对；不填判定）
+
+以下命令只**生成对照窗口**，不写入任何结论；§27 的 verdict/依据/证据仍留空。
+
+1. **原文窗口（纯仓库，无凭据，确定性）**：在仓库根执行
+   ```
+   python3 - <<'PY'
+   import json, os
+   C="apps/chronicle/corpus/first-round"; SRC=C+"/sources"
+   c=json.load(open(C+"/cases.json")); items=c if isinstance(c,list) else c.get("cases",[])
+   for it in items:
+       if not it.get("id","").startswith("T02-"): continue
+       print("==", it["id"], it.get("category"))
+       for r in it.get("refs", []):
+           t=open(os.path.join(SRC, r["file"].split("/")[-1]), encoding="utf-8").read()
+           print("  SRC [%s,%s) %s :: %s" % (r["start"], r["end"], r["file"], t[r["start"]:r["end"]]))
+   PY
+   ```
+   输出即 §26/§27 的原文锚点（`cases.json` 偏移，`chars-normalized-utf8`）。
+2. **译文窗口（测试服务器，凭据只读服务器 env）**：
+   ```
+   cd /srv/Loom && set -a && . ./.env.chronicle && set +a
+   /srv/loom-tools/chronicle-t19/bin/python /srv/loom-t19-evidence/7e637dd3/case_windows.py
+   ```
+   脚本对每个 case 打印 `SRC [...]` 与 `TGT <pub> keyword=... :: <窗口>`；
+   在当前 candidate 上 **13/13 全部命中（0 MISSING）**，已归档
+   `/srv/loom-t19-evidence/7e637dd3/case_windows.out`（89 行）。脚本仅拼接
+   冻结原文切片与 `01a08b08`/`01a08ad9` 的 published 译文，无判定逻辑。
+3. C04 在重放中仍显示：当前无先主傳↔周瑜傳同 revision event candidate；
+   `848a296f`（ZZ↔SG 跨書）与历史 SG3 不作替代（§25.5），判定留空。

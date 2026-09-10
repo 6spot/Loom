@@ -216,3 +216,7 @@ Long-lived contracts: [chapter production](../../../../apps/chronicle/docs/chapt
 2026-09-10 — §27 neutralized to observation/[hypothesis] (still NOT_PASSED):
 
 - §27 reference/event/boundary column rewritten so every entry is a checkable observation or an explicitly labeled [hypothesis]; removed pre-judgments (C07 merge recommendation, C08/C09 "position correct", C11/C12 completeness claims, C13 synchronicity claim). Verdict/basis/evidence cells stay blank. C04 missing current event candidate and the two escalations unchanged; 13 pending / 0/13 / not_passed preserved.
+
+2026-09-10 — deterministic 13-case replay (still NOT_PASSED):
+
+- Acceptance section 28 added: pure-repo source-window command + server translation-window script (case_windows.py, output case_windows.out 13/13, 0 MISSING). Generates comparison windows only, writes no verdicts. §27 unchanged and neutral; C04 missing event candidate and escalations unchanged; 13 pending / 0/13 / reviewer empty preserved.
