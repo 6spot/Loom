@@ -81,10 +81,6 @@
   text-decoration-color: var(--rcw-muted);
 }
 
-[data-active="true"] .rcw-unit-text {
-  font-weight: 500;
-}
-
 .rcw-unit-sources {
   display: flex;
   flex-wrap: wrap;

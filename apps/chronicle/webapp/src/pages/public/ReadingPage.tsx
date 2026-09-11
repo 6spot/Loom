@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
+import PublicDialog from "../../components/PublicDialog";
+import ReadingNearbyEvents from "../../components/reading/ReadingNearbyEvents";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
 import ReadingEventTrigger from "../../components/reading/ReadingEventTrigger";
 import ReadingTimeAxis from "../../components/reading/ReadingTimeAxis";
@@ -80,7 +82,7 @@ function useNarrowViewport(): boolean {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia("(max-width: 767px)");
+    const media = window.matchMedia("(max-width: 1199px)");
     const update = () => setNarrow(media.matches);
     update();
     media.addEventListener?.("change", update);
@@ -273,6 +275,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const [loadingDirection, setLoadingDirection] = useState<ReadingDirection | null>(null);
   const [windowError, setWindowError] = useState<ReadingWindowError | null>(null);
   const [sourcePanel, setSourcePanel] = useState<{ publicationId: string; anchorId: string; label: string } | null>(null);
+  const [toolsUnit, setToolsUnit] = useState<ReadingUnit | null>(null);
 
   const chromeRef = useRef<HTMLDivElement | null>(null);
   const [chromeHeight, setChromeHeight] = useState(0);
@@ -544,7 +547,10 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           label: `${activeUnit.chapter_id} · 原文`,
         });
       }}
-    />
+    >
+      {(close) => <ReadingNearbyEvents units={units} activeOrdinal={controller.activeOrdinal ?? 0}
+        onNavigate={(locator) => { close(); controller.navigate({ kind: "locate", locator }); }} />}
+    </ReadingContextPanel>
   );
 
   const hasContent = units.length > 0;
@@ -554,17 +560,11 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
         <span className="rpage-compact-time" data-test="reading-compact-time">
           {narrativeTimeLabel(narrativeTime)}
         </span>
-        {timelineHref ? (
-          <a
-            className="rpage-compact-link"
-            data-test="reading-compact-timeline"
-            href={timelineHref}
-            title="仅在本段有明确公历时间时提供"
-          >
-            在历史时间线查看
-          </a>
-        ) : null}
-        {narrow ? contextPanel : null}
+        <div className="rpage-tools">
+          {narrow ? contextPanel : null}
+          <button type="button" className="public-text-button" data-test="reading-tools-open"
+            aria-haspopup="dialog" disabled={!activeUnit} onClick={() => setToolsUnit(activeUnit ?? null)}>阅读资料</button>
+        </div>
       </div>
 
       {issue ? (
@@ -585,17 +585,19 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
         <div className="rpage-axis-column" data-test="reading-axis-column">
           {axis}
         </div>
-        <main className="rpage-main" data-test="reading-main">
+        <div className="rpage-main" data-test="reading-main" aria-label="历史正文">
           <ReadingWindow
             pages={pages}
             activeUnitId={controller.activeUnitId}
             chapterTitles={chapterTitles}
+            showChapterHeadings={false}
+            showSources={false}
             loadingDirection={loadingDirection}
             error={windowError}
             callbacks={{ requestPage, onRetry: () => requestPage(windowError?.direction ?? "next") }}
             renderEvent={renderEvent}
           />
-        </main>
+        </div>
         {!narrow ? (
           <div className="rpage-context-column" data-test="reading-context-column">
             {contextPanel}
@@ -603,8 +605,9 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
         ) : null}
       </div>
 
-      {sourcePanel ? (
-        <div className="rpage-source-panel" data-test="reading-page-source">
+      {sourcePanel || toolsUnit ? <PublicDialog title={sourcePanel ? "原文依据" : "阅读资料"}
+        onClose={() => { setSourcePanel(null); setToolsUnit(null); }}>
+        {sourcePanel ? <div data-test="reading-page-source">
           <ChapterSourceReference
             key={`${sourcePanel.publicationId}:${sourcePanel.anchorId}`}
             publicationId={sourcePanel.publicationId}
@@ -612,8 +615,17 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
             anchorLabel={sourcePanel.label}
             onClose={() => setSourcePanel(null)}
           />
-        </div>
-      ) : null}
+        </div> : toolsUnit ? <div className="reading-tool-sources">
+          <p>{chapterTitles[toolsUnit.chapter_id] ?? "本段史料"}</p>
+          {toolsUnit.source_anchor_ids.map((anchorId, index) => <button type="button"
+            className="public-text-button" data-test="reading-tool-source" key={anchorId}
+            onClick={() => setSourcePanel({ publicationId: toolsUnit.publication_id, anchorId, label: "本段原文" })}>
+            查看原文依据{toolsUnit.source_anchor_ids.length > 1 ? ` ${index + 1}` : ""}
+          </button>)}
+          {toolsUnit.source_anchor_ids.length === 0 ? <p>这一段尚未附上原文依据。</p> : null}
+          {timelineHref ? <a className="public-text-button" data-test="reading-compact-timeline" href={timelineHref}>查看这个时刻的其他事件</a> : null}
+        </div> : null}
+      </PublicDialog> : null}
     </section>
   );
 }

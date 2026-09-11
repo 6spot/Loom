@@ -104,9 +104,10 @@ async function checkStream(runner, baseUrl, stream, { requireEvents }) {
         "preview must attribute a source",
       );
       runner.check(
-        "context-role-sourced",
-        (await page.locator('[data-test="reading-context-role"]').count()) >= 1,
-        "current context must carry at least one sourced event role",
+        "context-does-not-invent-state",
+        (await page.locator('.chr-context-unknown').count()) >= 1 &&
+          (await page.locator('[data-test="reading-context-role"]').count()) === 0,
+        "source-only context must expose missing state rather than repurpose event roles",
       );
       await page.keyboard.press("Escape");
       await page.waitForFunction(

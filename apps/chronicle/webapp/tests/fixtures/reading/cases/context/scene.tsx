@@ -128,12 +128,18 @@ function SwitchableColumn() {
 }
 
 function EventRoleColumn() {
+  const [reviewed, setReviewed] = useState(false);
   return (
     <main data-test="context-scene" data-synthetic="true">
+      <button data-test="context-reviewed-state" onClick={() => setReviewed(!reviewed)}>切换已核对阶段资料</button>
       <ReadingContextPanel
         entities={EVENT_ROLE_UNIT}
         unitId="unit-event-roles"
         resolveEventLabel={(ref) => EVENT_LABELS[ref] ?? null}
+        stateFacts={reviewed ? { "ent-zhouyu": [
+          { id: "office", label: "官职", value: "偏將軍", certainty: "clear" },
+          { id: "office-other", label: "兼任", value: "南郡太守", certainty: "uncertain", reason: "合成分歧案例" },
+        ] } : {}}
       />
     </main>
   );

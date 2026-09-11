@@ -7,12 +7,16 @@ surface.
 ## Routes
 
 ```text
-/                        redirects to /world?year=208
+/                        history entry points and search
 /world                   public grounded Historical Moment / World page
 /timeline                public Timeline
 /search                  public Search
 /events/{id}             public Event Detail
 /entities/{id}           public Entity Detail
+/read                    published source-reading directory (under More)
+/read/{streamId}         continuous source text with contextual navigation
+/chapters                source publications (under More)
+/chapters/{publicationId} pinned chapter and original evidence
 /studio                  Studio overview (authenticated)
 /studio/imports          import operations
 /studio/review           resolution review
@@ -108,3 +112,25 @@ npm run smoke:dist
   semantics and historical-time-context preservation)
 - `node scripts/visual-verify.mjs` for focused Playwright/Chromium visual checks
   against the real Rust server and its configured upstream.
+
+## Public reading surface
+
+The production homepage offers historical entry points and search. An event
+entry locates a confirmed occurrence in the pinned reading catalog; it does not
+filter or replace the surrounding text. Multiple precise targets remain an
+explicit choice, and a retrospective mention is never chosen automatically.
+
+The source reading page uses the existing single position controller. The left
+time axis and right nearby events/context follow its active paragraph. Tablets
+and phones expose the same context through a modal. Evidence is available in
+Reading materials, with exact publication/anchor references and focus restored
+on dismissal. Event participation never supplies missing offices or allegiance.
+The current source API has no reviewed state facts; absent states remain absent.
+
+Component behavior is verified with the existing synthetic browser suite:
+
+```bash
+node scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5173 --suite all --output /tmp/chronicle-reading-ui-qa
+```
+
+This component suite does not substitute for the real-stack content gate.

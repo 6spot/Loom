@@ -53,6 +53,8 @@ export interface ReadingWindowProps {
   readonly activeUnitId?: string | null;
   /** publication-owned 章标题映射；缺失时回退 chapter_id。 */
   readonly chapterTitles?: Readonly<Record<string, string | null>>;
+  readonly showChapterHeadings?: boolean;
+  readonly showSources?: boolean;
   readonly pinnedUnitIds?: readonly string[];
   readonly loadingDirection?: ReadingDirection | null;
   readonly error?: ReadingWindowError | null;
@@ -75,6 +77,7 @@ interface MountedUnitProps {
   pinned: boolean;
   chapterTitle: string | null;
   showChapterHeading: boolean;
+  showSources: boolean;
   expandedAnchorId: string | null;
   sourceClient?: ChapterSourceClient;
   renderEvent?: ReadingEventRenderer;
@@ -90,6 +93,7 @@ function MountedUnit({
   pinned,
   chapterTitle,
   showChapterHeading,
+  showSources,
   expandedAnchorId,
   sourceClient,
   renderEvent,
@@ -132,6 +136,7 @@ function MountedUnit({
         unit={unit}
         chapterTitle={chapterTitle}
         showChapterHeading={showChapterHeading}
+        showSources={showSources}
         expandedAnchorId={expandedAnchorId}
         sourceClient={sourceClient}
         renderEvent={renderEvent}
@@ -151,6 +156,8 @@ export default function ReadingWindow({
   pages,
   activeUnitId = null,
   chapterTitles,
+  showChapterHeadings = true,
+  showSources = true,
   pinnedUnitIds: externalPinned,
   loadingDirection = null,
   error = null,
@@ -385,7 +392,8 @@ export default function ReadingWindow({
               active={unit.unit_id === activeUnitId}
               pinned={plan.pinnedUnitIds.includes(unit.unit_id)}
               chapterTitle={heading?.chapter_title ?? null}
-              showChapterHeading={Boolean(heading)}
+              showChapterHeading={showChapterHeadings && Boolean(heading)}
+              showSources={showSources}
               expandedAnchorId={expandedSources[unit.unit_id] ?? null}
               sourceClient={sourceClient}
               renderEvent={renderEvent}
