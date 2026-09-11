@@ -56,6 +56,12 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/v1/public/chapters/{publication_id}/sources/{anchor_id}",
             any(public_chapter_source),
         )
+        .route("/api/v1/public/reading-streams", any(public_reading))
+        .route(
+            "/api/v1/public/reading-streams/{*rest}",
+            any(public_reading),
+        )
+        .route("/api/v1/public/reading-events/{*rest}", any(public_reading))
         .route("/v0/timeline", any(legacy_proxy))
         .route("/v0/search", any(legacy_proxy))
         .route("/v0/events/{id}", any(legacy_proxy))
@@ -215,6 +221,30 @@ async fn public_chapter_source(
         }
         _ => TypedError::not_found("route not found").into_response(),
     }
+}
+
+/// Public second-round reading surface (C2-R2-T09). One thin forwarder maps
+/// every `/api/v1/public/reading-*` path to its Python sidecar `/v0/reading-*`
+/// contract, passing `catalog`/`stream`/`unit`/`cursor` through unchanged.
+/// Rust never reads the reading index itself: the C0 read model stays the one
+/// historical/reading read authority, with the existing 8 MiB response cap.
+async fn public_reading(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    request: axum::http::Request<Body>,
+) -> Response {
+    let path = uri.path();
+    let upstream_path = match path.strip_prefix("/api/v1/public/") {
+        Some(rest) => format!("/v0/{rest}"),
+        None => path.to_string(),
+    };
+    proxy_public(
+        &state,
+        request.method().clone(),
+        upstream_path,
+        uri.query().map(str::to_string),
+    )
+    .await
 }
 
 /// Legacy C0 `/v0/*` compat: same handler, same upstream path.
