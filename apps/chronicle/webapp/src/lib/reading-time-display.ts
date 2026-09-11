@@ -16,6 +16,7 @@ import type {
 
 /** 服务端已固定的 unknown key；不得被附近已知日期覆盖。 */
 export const AXIS_UNKNOWN_PERIOD_KEY = "unknown";
+export const AXIS_UNKNOWN_YEAR_KEY = "unknown";
 
 export type AxisTimeBasis = "source" | "gregorian" | "mixed" | "unknown";
 
@@ -64,7 +65,11 @@ const BASIS_LABELS: Readonly<Record<AxisTimeBasis, string | null>> = {
 
 /** unknown 区段（整段未知）不得继承上一次已知日期。 */
 export function isUnknownTime(group: TimeGroup): boolean {
-  return group.precision === "unknown" || group.period_key === AXIS_UNKNOWN_PERIOD_KEY;
+  return (
+    group.precision === "unknown" ||
+    group.period_key === AXIS_UNKNOWN_PERIOD_KEY ||
+    group.year_key === AXIS_UNKNOWN_YEAR_KEY
+  );
 }
 
 /** 时间基准：区分来源历法、公历、多历法与未明确，标签不得混淆。 */
@@ -135,7 +140,6 @@ export function groupObservedYear(group: TimeGroup): number | null {
 /** 两个区段是否属于同一个年/月语义区段（同月跨页共享标记）。 */
 export function sameAxisSection(previous: TimeGroup, current: TimeGroup): boolean {
   if (isUnknownTime(previous) || isUnknownTime(current)) return false;
-  if (previous.year_key === null || current.year_key === null) return false;
   return previous.year_key === current.year_key && previous.period_key === current.period_key;
 }
 
@@ -173,7 +177,7 @@ export function buildAxisModel(
 
   groups.forEach((group, index) => {
     const unknown = isUnknownTime(group);
-    const yearKey = unknown || group.year_key === null ? null : group.year_key;
+    const yearKey = unknown ? null : group.year_key;
     const previous = hasPrevious ? { yearKey: lastYearKey, periodKey: lastPeriodKey } : null;
 
     const sameSection =

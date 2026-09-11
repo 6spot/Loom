@@ -6,6 +6,7 @@
 import { useState } from "react";
 import ReadingTimeAxis from "../../../../../src/components/reading/ReadingTimeAxis";
 import type { ReadingLocator, TimeGroup } from "../../../../../src/lib/reading-types";
+import "./axis-fixture.css";
 
 export interface AxisSceneProps {
   readonly groups: readonly TimeGroup[];
@@ -27,16 +28,7 @@ export function AxisScene({ groups: initialGroups, active = null, moreGroups, he
         合成 fixture：只演示 published DTO 形状与轴交互，非真实后端、非真实模型输出，也不冒充史料。
       </p>
       {heading ? <h1 data-test="axis-fixture-heading">{heading}</h1> : null}
-      <div
-        className="axis-fixture-layout"
-        style={{
-          display: "grid",
-          gap: "1.5rem",
-          gridTemplateColumns: "minmax(0, 11rem) minmax(0, 1fr)",
-          alignItems: "start",
-          marginTop: "1rem",
-        }}
-      >
+      <div className="axis-fixture-layout" data-test="axis-fixture-layout">
         <ReadingTimeAxis
           groups={groups}
           activeGroup={activeGroup}
@@ -51,10 +43,7 @@ export function AxisScene({ groups: initialGroups, active = null, moreGroups, he
             if (hit) setActiveGroup(hit.group_id);
           }}
         />
-        <article
-          data-test="axis-fixture-body"
-          style={{ minWidth: 0, maxWidth: "42rem", lineHeight: 1.85 }}
-        >
+        <article className="axis-fixture-body" data-test="axis-fixture-body">
           <p>正文占位段落：用于观察侧边轴在桌面/平板/手机上是否挤压正文。</p>
           <p>正文占位段落：轴只反映叙事顺序，不按年份数字重排文字。</p>
         </article>

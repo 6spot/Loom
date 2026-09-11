@@ -74,7 +74,7 @@ function gregorianObservation(
 
 interface GroupSpec {
   readonly id: string;
-  readonly yearKey: string | null;
+  readonly yearKey: string;
   readonly periodKey: string;
   readonly yearLabel: string | null;
   readonly periodLabel: string;
@@ -145,7 +145,7 @@ export const HIERARCHY_GROUPS: TimeGroup[] = [
   group(
     {
       id: "tg_axis_h3",
-      yearKey: null,
+      yearKey: "unknown",
       periodKey: "unknown",
       yearLabel: null,
       periodLabel: "时间未明确",
@@ -267,7 +267,7 @@ export const RETRO_GROUPS: TimeGroup[] = [
   group(
     {
       id: "tg_axis_r2",
-      yearKey: null,
+      yearKey: "unknown",
       periodKey: "unknown",
       yearLabel: null,
       periodLabel: "时间未明确",

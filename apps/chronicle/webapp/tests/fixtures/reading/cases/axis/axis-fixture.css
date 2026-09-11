@@ -1,0 +1,27 @@
+/* C2-R2-T11 axis fixture 页面布局（仅测试使用，不进生产构建）。
+ *
+ * 复刻阅读页在桌面与窄屏的排布主张：桌面「轴 + 正文」两列，<=767px 必须
+ * 单列，正文落到轴下方且不被轴挤压。生产页面布局由 T15 负责；这里只让组件
+ * suite 能在真实 Chromium 里断言单列行为。
+ */
+
+.axis-fixture-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.axis-fixture-body {
+  min-width: 0;
+  max-width: 42rem;
+  line-height: 1.85;
+}
+
+@media (max-width: 767px) {
+  .axis-fixture-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+}

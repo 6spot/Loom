@@ -19,6 +19,36 @@ async function textContents(locator) {
   return await locator.allTextContents();
 }
 
+async function singleColumnSnapshot(page) {
+  return await page.evaluate(() => {
+    const axis = document.querySelector('[data-test="reading-time-axis"]');
+    const body = document.querySelector('[data-test="axis-fixture-body"]');
+    if (!axis || !body) return null;
+    const a = axis.getBoundingClientRect();
+    const b = body.getBoundingClientRect();
+    return {
+      axisBottom: a.bottom,
+      axisLeft: a.left,
+      bodyTop: b.top,
+      bodyLeft: b.left,
+      bodyRight: b.right,
+      viewportWidth: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+}
+
+function assertSingleColumn(ctx, label, snapshot) {
+  const detail = JSON.stringify(snapshot);
+  ctx.check(`${label}: 正文在轴下方（真单列）`, Boolean(snapshot) && snapshot.bodyTop >= snapshot.axisBottom - 1, detail);
+  ctx.check(`${label}: 正文与轴同列起点`, Boolean(snapshot) && Math.abs(snapshot.bodyLeft - snapshot.axisLeft) <= 1, detail);
+  ctx.check(
+    `${label}: 正文不横向溢出`,
+    Boolean(snapshot) && snapshot.bodyRight <= snapshot.viewportWidth + 1 && snapshot.scrollWidth - snapshot.viewportWidth <= 1,
+    detail,
+  );
+}
+
 async function runHierarchy(ctx) {
   const page = await ctx.openScene("axis-hierarchy", { viewport: { width: 1440, height: 900 } });
   const pageErrors = [];
@@ -158,6 +188,7 @@ async function runManyAndNarrow(ctx) {
   await page.setViewportSize({ width: 320, height: 568 });
   const overflowMany = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ctx.check("长轴窄屏无横向溢出", overflowMany <= 1, `overflow=${overflowMany}`);
+  assertSingleColumn(ctx, "320px", await singleColumnSnapshot(page));
   ctx.info("many_group_overflow_320", overflowMany);
   await ctx.screenshot(page, "many-narrow");
 }
@@ -165,6 +196,7 @@ async function runManyAndNarrow(ctx) {
 async function runKeyboard(ctx) {
   const page = await ctx.openScene("axis-hierarchy", { viewport: { width: 390, height: 844 } });
   await page.waitForSelector('[data-test="reading-axis-toggle"]');
+  assertSingleColumn(ctx, "390px", await singleColumnSnapshot(page));
   ctx.check("窄屏出现轴入口", await page.locator('[data-test="reading-axis-toggle"]').isVisible());
   ctx.check("窄屏默认折叠", (await page.locator('[data-test="reading-axis-panel"]').getAttribute("data-open")) === "false");
   ctx.check("折叠时区段不可见", !(await page.locator(HIERARCHY_GROUP).first().isVisible()));

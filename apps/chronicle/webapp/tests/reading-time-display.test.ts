@@ -65,7 +65,7 @@ function observation(spec: ObservationSpec): TimeObservation {
 
 interface GroupSpec {
   id: string;
-  yearKey: string | null;
+  yearKey: string;
   periodKey: string;
   yearLabel: string | null;
   periodLabel: string;
@@ -171,7 +171,7 @@ describe("reading-time-display: 年/月层级", () => {
   it("未知区段不继承上次日期，后续已知区段重新显示年标题", () => {
     const unknown = group({
       id: "tg_unknown",
-      yearKey: null,
+      yearKey: "unknown",
       periodKey: "unknown",
       yearLabel: "时间未明确",
       periodLabel: "时间未明确",
@@ -237,7 +237,7 @@ describe("reading-time-display: 历法与精度标签", () => {
     for (const [precision, label] of precisionCases) {
       const spec = group({
         id: `tg_${precision}`,
-        yearKey: precision === "unknown" ? null : "gregorian:208",
+        yearKey: precision === "unknown" ? "unknown" : "gregorian:208",
         periodKey: precision === "unknown" ? "unknown" : `gregorian:208:${precision}`,
         yearLabel: precision === "unknown" ? null : "公元208年",
         periodLabel: label,
@@ -346,8 +346,8 @@ describe("reading-time-display: 倒叙与导航", () => {
   });
 
   it("activeGroup 命中对应区段，空输入安全", () => {
-    const g1 = group({ id: "tg_a", yearKey: null, periodKey: "unknown", yearLabel: null, periodLabel: "时间未明确", precision: "unknown", observations: [], ordinal: 0 });
-    const g2 = group({ id: "tg_b", yearKey: null, periodKey: "unknown", yearLabel: null, periodLabel: "时间未明确", precision: "unknown", observations: [], ordinal: 1 });
+    const g1 = group({ id: "tg_a", yearKey: "unknown", periodKey: "unknown", yearLabel: null, periodLabel: "时间未明确", precision: "unknown", observations: [], ordinal: 0 });
+    const g2 = group({ id: "tg_b", yearKey: "unknown", periodKey: "unknown", yearLabel: null, periodLabel: "时间未明确", precision: "unknown", observations: [], ordinal: 1 });
     const model = buildAxisModel([g1, g2], "tg_b");
     expect(model.activeIndex).toBe(1);
     expect(model.entries[1].isActive).toBe(true);
