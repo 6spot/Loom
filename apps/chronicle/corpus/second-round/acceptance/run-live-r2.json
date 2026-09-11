@@ -1,0 +1,567 @@
+{
+  "schema": "chronicle.second-round-live-acceptance-evidence",
+  "version": "0.2",
+  "task": "C2-R2-T17",
+  "multica_issue": "LM-39",
+  "github_issue": 586,
+  "parent_issue": 549,
+  "candidate": {
+    "commit": "c1a0d06a56bb86dd5b841f7d68552c98cdb1e1fc",
+    "git_clean": true,
+    "repo": "https://github.com/6spot/Loom.git"
+  },
+  "provider": {
+    "endpoint": "http://host.docker.internal:8317/v1/responses",
+    "extraction_model": "gpt-5.6-luna",
+    "presentation_model": "gpt-5.6-luna",
+    "chapter_model": "gpt-5.6-luna",
+    "timeout_seconds": "900",
+    "api_key_present": true,
+    "fixture_mode": false,
+    "preflight_result": "READY",
+    "preflight_provider_calls": 0,
+    "note": "Credentials are never recorded. Provider was the authorized live gateway reached by the isolated Compose worker through host.docker.internal."
+  },
+  "streams": [
+    {
+      "document_id": "411a4151-ad96-4688-92d4-1e473f063869",
+      "revision_id": "32dc1f0f-8e0b-4e4a-ba85-5f6fb2156910",
+      "job_id": "dd993219-4477-4f87-bf79-1307787ff722",
+      "upload": "ingest/sanguozhi-three-chapters.md",
+      "work": "三國志",
+      "source": {
+        "work": "三國志",
+        "sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "bytes": 63266,
+        "chars": 21215
+      },
+      "stream_id": "df371fc1-6232-7907-94dd-2352d8df80ad",
+      "catalog_sha": "4a7d0e0dd95c2be7eb1f0acaab62bc3f9fe929b472b7e53710972b70f470ffdc",
+      "unit_count": 66,
+      "group_count": 5,
+      "narrative_time_modes": {
+        "events": 25,
+        "unknown": 37,
+        "mixed": 2,
+        "inherit": 2
+      },
+      "unique_events": 27,
+      "context_entity_count": 0,
+      "event_word_segments": 0,
+      "groups": [
+        {
+          "group_id": "tg_99f1c2791ce4192d",
+          "time_label": null,
+          "year_key": "unknown",
+          "unit_count": 0,
+          "status": null
+        },
+        {
+          "group_id": "tg_ae4b439ff24180ae",
+          "time_label": null,
+          "year_key": "mixed:unknown",
+          "unit_count": 0,
+          "status": null
+        },
+        {
+          "group_id": "tg_b768a19f67bb1ea6",
+          "time_label": null,
+          "year_key": "unknown",
+          "unit_count": 0,
+          "status": null
+        },
+        {
+          "group_id": "tg_4c489609196749bc",
+          "time_label": null,
+          "year_key": "mixed:unknown",
+          "unit_count": 0,
+          "status": null
+        },
+        {
+          "group_id": "tg_efcfa3f084a9a71d",
+          "time_label": null,
+          "year_key": "unknown",
+          "unit_count": 0,
+          "status": null
+        }
+      ],
+      "job_evidence": {
+        "status": "completed",
+        "attempts": 4,
+        "max_attempts": 3,
+        "stages": [
+          {
+            "stage": "prepare",
+            "status": "completed",
+            "started_at": "2026-09-11T05:36:20.770310+00:00",
+            "finished_at": "2026-09-11T05:36:20.808345+00:00"
+          },
+          {
+            "stage": "structure",
+            "status": "completed",
+            "started_at": "2026-09-11T05:36:20.840283+00:00",
+            "finished_at": "2026-09-11T05:36:20.926915+00:00"
+          },
+          {
+            "stage": "segment",
+            "status": "completed",
+            "started_at": "2026-09-11T05:36:20.958226+00:00",
+            "finished_at": "2026-09-11T05:36:21.038941+00:00"
+          },
+          {
+            "stage": "extract",
+            "status": "completed",
+            "started_at": "2026-09-11T05:36:21.069934+00:00",
+            "finished_at": "2026-09-11T06:31:39.861531+00:00"
+          },
+          {
+            "stage": "assemble",
+            "status": "completed",
+            "started_at": "2026-09-11T06:31:39.894316+00:00",
+            "finished_at": "2026-09-11T06:31:40.024906+00:00"
+          },
+          {
+            "stage": "resolve",
+            "status": "completed",
+            "started_at": "2026-09-11T06:31:40.059001+00:00",
+            "finished_at": "2026-09-11T06:32:30.736947+00:00"
+          },
+          {
+            "stage": "publish",
+            "status": "completed",
+            "started_at": "2026-09-11T06:32:30.770292+00:00",
+            "finished_at": "2026-09-11T06:32:31.231105+00:00"
+          },
+          {
+            "stage": "present",
+            "status": "completed",
+            "started_at": "2026-09-11T06:32:31.268384+00:00",
+            "finished_at": "2026-09-11T06:32:31.388934+00:00"
+          }
+        ],
+        "chunk_runs": [
+          {
+            "chunk_index": 0,
+            "run_attempt": 1,
+            "status": "completed",
+            "error": null,
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "e6d9a2cffadd1dd5e145615c969c2fce1175cda15e66db46ea67072644336cbb",
+                "chapter_errors": [
+                  "aliases: ent_013 alias '陸遜' has no chapter-text support",
+                  "aliases: ent_021 alias '魚復' has no chapter-text support",
+                  "anchors: mention 'm_008' quote occurs 0 time(s) in ['b_023'..'b_023'] but occurrence=1 was requested; quote occurs 13 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: mention 'm_009' quote occurs 0 time(s) in ['b_023'..'b_023'] but occurrence=1 was requested; quote occurs 6 time(s) chapter-wide, first in block 'b_019': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: mention 'm_011' quote occurs 1 time(s) in ['b_043'..'b_043'] but occurrence=2 was requested; quote occurs 13 time(s) chapter-wide, first in block 'b_033': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_002'[1] quote occurs 0 time(s) in ['b_009'..'b_009'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_009'[1] quote occurs 0 time(s) in ['b_023'..'b_023'] but occurrence=1 was requested; quote occurs 13 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_010'[1] quote occurs 0 time(s) in ['b_023'..'b_023'] but occurrence=1 was requested; quote occurs 6 time(s) chapter-wide, first in block 'b_019': re-point first/last_block_id to the enclosing block(s) and recount"
+                ],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "812e59b0af50d317de8d82d8187a728e15cc67d3e58163c856f720d358f67f28",
+                "chapter_errors": [],
+                "time_errors": []
+              }
+            ]
+          },
+          {
+            "chunk_index": 1,
+            "run_attempt": 1,
+            "status": "failed",
+            "error": "chapter extraction failed closed after 2 attempt(s): reading_time: reading.units[10] inherit mode must not carry current_event_refs; reading_time: reading.units[13] inherit mode must not carry current_event_refs; reading_time: reading.units[14] inherit mode must not carry current_event_refs; reading_time: reading.units[15] inherit mode must not carry current_event_refs; reading_time: reading.units[2] inherit mode must not carry current_event_refs; reading_time: reading.units[6] inherit mode must not carry current_event_refs; reading_time: reading.units[7] inherit mode must not carry current_event_refs; reading_time: reading.units[8] inherit mode must not carry current_event_refs; reading_time: reading.units[9] inherit mode must not carry current_event_refs",
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "b5bcbabba6a2c04fff716a5ccb932ab1f1837e93f1c52adc79b1ded3f007baec",
+                "chapter_errors": [
+                  "aliases: ent_004 alias '仲謀' has no chapter-text support",
+                  "anchors: mention 'm_009' quote occurs 0 time(s) in ['b_103'..'b_103'] but occurrence=1 was requested; quote occurs 2 time(s) chapter-wide, first in block 'b_101': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_026'[1] quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_111': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_027'[1] quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_111': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_038'[1] quote occurs 1 time(s) in ['b_093'..'b_093'] but occurrence=2 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_093': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "mentions: mention 'm_002' surface '公瑾' must equal selection.quote '周公瑾'",
+                  "mentions: mention 'm_010' surface '周胤' must equal selection.quote '周瑜子胤'"
+                ],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "92e71ba779cb928b728a173687dd99f7c35b71ce21da9965a913d60aa464a044",
+                "chapter_errors": [],
+                "time_errors": []
+              }
+            ]
+          },
+          {
+            "chunk_index": 1,
+            "run_attempt": 2,
+            "status": "failed",
+            "error": "chapter extraction failed closed after 2 attempt(s): chapter: anchors: mention 'm_008' quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 5 time(s) chapter-wide, first in block 'b_101': re-point first/last_block_id to the enclosing block(s) and recount",
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "4d8fecd0dbceb340e4b4e3be38c27dd179bbc0556da0e40cb53e57433126205f",
+                "chapter_errors": [],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "95fbc308be0a944a9a3de83db7cbf61f8b2f046159619c0e070a59bbd992a942",
+                "chapter_errors": [
+                  "anchors: mention 'm_008' quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 5 time(s) chapter-wide, first in block 'b_101': re-point first/last_block_id to the enclosing block(s) and recount"
+                ],
+                "time_errors": []
+              }
+            ]
+          },
+          {
+            "chunk_index": 1,
+            "run_attempt": 3,
+            "status": "completed",
+            "error": null,
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "84cb6550de1dbfc873bd3d0d794f09da85b51d9f04dac2c4f7a9c77ad7ec3b27",
+                "chapter_errors": [
+                  "aliases: ent_004 alias '仲謀' has no chapter-text support",
+                  "anchors: record_sources 'ent_020'[1] quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_111': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_021'[1] quote occurs 0 time(s) in ['b_113'..'b_113'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_111': re-point first/last_block_id to the enclosing block(s) and recount"
+                ],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "f43ebf0928caf7e0a11ddd8c3553eb037c0109f1c400cac3b55c4247a958de2c",
+                "chapter_errors": [],
+                "time_errors": []
+              }
+            ]
+          },
+          {
+            "chunk_index": 2,
+            "run_attempt": 1,
+            "status": "completed",
+            "error": null,
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "1ad54df2632b8892e17336a9af436a7251ccf7cb90cc5aaad8585456a09b27e2",
+                "chapter_errors": [
+                  "anchors: mention 'm_002' quote occurs 0 time(s) in ['b_123'..'b_123'] but occurrence=1 was requested; quote occurs 3 time(s) chapter-wide, first in block 'b_121': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: mention 'm_004' quote occurs 0 time(s) in ['b_123'..'b_123'] but occurrence=1 was requested; quote occurs 2 time(s) chapter-wide, first in block 'b_131': re-point first/last_block_id to the enclosing block(s) and recount",
+                  "anchors: record_sources 'ent_003'[1] quote occurs 0 time(s) in ['b_123'..'b_123'] but occurrence=1 was requested; quote occurs 2 time(s) chapter-wide, first in block 'b_131': re-point first/last_block_id to the enclosing block(s) and recount"
+                ],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "67e702e6cbc10a245e4f55dba10fed66f92965aab06d195aa407384a50aae630",
+                "chapter_errors": [],
+                "time_errors": []
+              }
+            ]
+          }
+        ],
+        "review_decision_count": 22,
+        "review_decisions": [
+          {
+            "review_id": "06f6fd08-c4ad-4b80-a9a2-6495f1495cfb",
+            "link_kind": "entity",
+            "left_label": "諸葛亮",
+            "right_label": "諸葛亮",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "17de84cf-9619-42c7-b948-09d83148ff70",
+            "link_kind": "entity",
+            "left_label": "孫權",
+            "right_label": "孫權",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "18d3d0e8-ded7-49d4-948f-f988a0cc090e",
+            "link_kind": "entity",
+            "left_label": "魯肅",
+            "right_label": "魯肅",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "1bc0b8a7-f31c-46ba-af6e-37622a68e1a8",
+            "link_kind": "entity",
+            "left_label": "甘寧",
+            "right_label": "甘寧",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "1d5d197c-44cb-4da5-ba25-fde1a2614d01",
+            "link_kind": "entity",
+            "left_label": "曹操",
+            "right_label": "曹操",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "2c3cd0de-d5d8-4420-b1e9-b8ab23cd841f",
+            "link_kind": "entity",
+            "left_label": "劉璋",
+            "right_label": "劉璋",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "2e1ddf53-ee61-4357-942e-14bd6ced3eed",
+            "link_kind": "event",
+            "left_label": "孫權任命周瑜為偏將軍並領南郡太守",
+            "right_label": "魯肅代周瑜領兵",
+            "decision": "related_occurrence"
+          },
+          {
+            "review_id": "2eb00cf2-b716-4852-b11b-96412b0cdf05",
+            "link_kind": "entity",
+            "left_label": "江陵",
+            "right_label": "江陵",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "37d4a225-50eb-48b1-a657-2be3d3cb367f",
+            "link_kind": "entity",
+            "left_label": "夏口",
+            "right_label": "夏口",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "3a448781-6719-4f9c-9bd8-143da958b91f",
+            "link_kind": "entity",
+            "left_label": "劉備",
+            "right_label": "劉備",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "50d20f8b-d968-45b7-9a7a-f619278a9781",
+            "link_kind": "entity",
+            "left_label": "劉備",
+            "right_label": "劉備",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "5a228cd2-223f-4776-a9e5-9a100ec52d10",
+            "link_kind": "entity",
+            "left_label": "周瑜",
+            "right_label": "周瑜",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "77deab80-ffd1-4340-8cb6-987cadcb4a22",
+            "link_kind": "entity",
+            "left_label": "關羽",
+            "right_label": "關羽",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "7fd92c2c-c153-4786-b0ae-b674c0a0a7ce",
+            "link_kind": "entity",
+            "left_label": "程普",
+            "right_label": "程普",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "87d43513-9acb-4ae6-b4ae-6ff970acbc81",
+            "link_kind": "entity",
+            "left_label": "曹操",
+            "right_label": "曹操",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "8cab45d7-c9de-4e9c-ae49-98d47d130257",
+            "link_kind": "entity",
+            "left_label": "劉備",
+            "right_label": "劉備",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "9de7b663-dbe5-42fc-bf21-66bdddc175e7",
+            "link_kind": "entity",
+            "left_label": "劉表",
+            "right_label": "劉表",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "bad1137b-d16a-4ca7-b423-fcc21ee7dc86",
+            "link_kind": "entity",
+            "left_label": "曹操",
+            "right_label": "曹操",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "c2f1e1b9-3ad1-45ba-a340-f80ebdf2f0df",
+            "link_kind": "entity",
+            "left_label": "孫權",
+            "right_label": "孫權",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "d5380d7c-7110-456f-bc5e-a58e9cd8602b",
+            "link_kind": "entity",
+            "left_label": "吳",
+            "right_label": "吳",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "e0706088-d917-4be3-99d1-cd1f142ba8f0",
+            "link_kind": "entity",
+            "left_label": "呂蒙",
+            "right_label": "呂蒙",
+            "decision": "same_entity"
+          },
+          {
+            "review_id": "e6402afb-4e4e-4b33-aef6-2f763f1c19a1",
+            "link_kind": "entity",
+            "left_label": "孫權",
+            "right_label": "孫權",
+            "decision": "same_entity"
+          }
+        ]
+      }
+    },
+    {
+      "document_id": "e34a8609-c330-4af4-861e-fecdc57a0ca0",
+      "revision_id": "5883698e-b051-4ab9-9c87-c940f09d142e",
+      "job_id": "6ad9112d-d4bf-4395-892d-aa7656766e9e",
+      "upload": "ingest/zizhi-tongjian-065.md",
+      "work": "資治通鑑",
+      "source": {
+        "work": "資治通鑑",
+        "sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
+        "bytes": 31871,
+        "chars": 10715
+      },
+      "stream_id": "19c32f1b-56f8-76d5-86f6-b4f1c6f93f1c",
+      "catalog_sha": "dedb2619bd43f86f3b8ac5a301021529502a96b390ed24dd51f4f1e8dccf75b8",
+      "unit_count": 64,
+      "group_count": 1,
+      "narrative_time_modes": {
+        "unknown": 64
+      },
+      "unique_events": 0,
+      "context_entity_count": 0,
+      "event_word_segments": 0,
+      "groups": [
+        {
+          "group_id": "tg_eae2dbc9f2dc61a2",
+          "time_label": null,
+          "year_key": "unknown",
+          "unit_count": 0,
+          "status": null
+        }
+      ],
+      "job_evidence": {
+        "status": "completed",
+        "attempts": 2,
+        "max_attempts": 3,
+        "stages": [
+          {
+            "stage": "prepare",
+            "status": "completed",
+            "started_at": "2026-09-11T06:33:06.585937+00:00",
+            "finished_at": "2026-09-11T06:33:06.625148+00:00"
+          },
+          {
+            "stage": "structure",
+            "status": "completed",
+            "started_at": "2026-09-11T06:33:06.658631+00:00",
+            "finished_at": "2026-09-11T06:33:06.729961+00:00"
+          },
+          {
+            "stage": "segment",
+            "status": "completed",
+            "started_at": "2026-09-11T06:33:06.763645+00:00",
+            "finished_at": "2026-09-11T06:33:06.817536+00:00"
+          },
+          {
+            "stage": "extract",
+            "status": "completed",
+            "started_at": "2026-09-11T06:33:06.850444+00:00",
+            "finished_at": "2026-09-11T06:44:42.023135+00:00"
+          },
+          {
+            "stage": "assemble",
+            "status": "completed",
+            "started_at": "2026-09-11T06:44:42.056555+00:00",
+            "finished_at": "2026-09-11T06:44:42.125352+00:00"
+          },
+          {
+            "stage": "resolve",
+            "status": "completed",
+            "started_at": "2026-09-11T06:44:42.159551+00:00",
+            "finished_at": "2026-09-11T06:45:07.680168+00:00"
+          },
+          {
+            "stage": "publish",
+            "status": "completed",
+            "started_at": "2026-09-11T06:45:07.713434+00:00",
+            "finished_at": "2026-09-11T06:45:07.944323+00:00"
+          },
+          {
+            "stage": "present",
+            "status": "completed",
+            "started_at": "2026-09-11T06:45:07.978654+00:00",
+            "finished_at": "2026-09-11T06:45:08.063400+00:00"
+          }
+        ],
+        "chunk_runs": [
+          {
+            "chunk_index": 0,
+            "run_attempt": 1,
+            "status": "completed",
+            "error": null,
+            "attempts": [
+              {
+                "kind": "initial",
+                "raw_response_sha256": "c6c69fb39fde60d9587d9c718aee288ef809142cd145a987959d4559cbcb3698",
+                "chapter_errors": [
+                  "references: bundle carries no entities/events/claims (bundle-only structure required)"
+                ],
+                "time_errors": []
+              },
+              {
+                "kind": "correction",
+                "raw_response_sha256": "70b6121cc6b188d6420b5c5ac2a152b4e4efd7b53167f457d40a23e419ba4645",
+                "chapter_errors": [],
+                "time_errors": []
+              }
+            ]
+          }
+        ],
+        "review_decision_count": 1,
+        "review_decisions": [
+          {
+            "review_id": "61c935df-eae1-4007-841d-0b39b4ec1328",
+            "link_kind": "entity",
+            "left_label": "曹操",
+            "right_label": "曹操",
+            "decision": "same_entity"
+          }
+        ]
+      }
+    }
+  ],
+  "browser_walkthrough": {
+    "run": false,
+    "reason": "The live reading surface already fails the event/context content checks below; a live browser walkthrough would only re-observe the same missing event spans and context entities. Offline fixture browser/interaction evidence remains T16's `reading-flow-smoke.mjs --suite all`."
+  },
+  "content_findings": [
+    "Real joint chapter generation failed closed repeatedly on reading contract rules: `inherit` mode units carried `current_event_refs`, and anchor occurrence/block mismatches; the 三國志 job needed 4 job attempts and chunk 1 needed 3 runs.",
+    "Published 三國志 units expose 27 narrative_time event refs but zero event word segments (`segments[].kind == 'event'`) and zero `context_entities`, so the body event-word entry and the current people/place panel have no data.",
+    "Published 資治通鑑 units are all `narrative_time.mode == 'unknown'` (0 events, 1 group), including the explicit 建安十一年/十二年/十三年 year headers; the narrative-time axis is therefore empty for that work.",
+    "narrative_time event refs are source-local (`evt_000001`); the public event preview/targets route requires canonical UUID ids and there are no event-span targets, so event back-navigation cannot be exercised from the published stream."
+  ],
+  "unverified": [
+    "Independent human/strong-reviewer confirmation of the real content is pending.",
+    "Live desktop/keyboard/touch/narrow reading walkthrough and event-preview return to the original unit were not run because the published content lacks event spans and context entities.",
+    "Real provider token usage/cost is not captured by the gate; only call timings are observable (see per-job stage timestamps)."
+  ]
+}
