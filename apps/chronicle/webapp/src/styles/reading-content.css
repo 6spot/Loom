@@ -1,0 +1,180 @@
+/* C2-R2-T10 连续阅读正文窗口专属样式。
+ *
+ * 只使用 rcw- 前缀的类选择器，限定在阅读窗口容器内；不写全局元素选择器，
+ * 不导入/不覆盖 chronicle.css、studio.css、world.css 或 chapter-reader.css，
+ * 未挂接 App 前不影响生产 dist。正文优先、单栏、以 rem 排版，根字号放大
+ * （200%）时仍不产生横向溢出。
+ */
+
+.rcw-window {
+  --rcw-text: #1f2528;
+  --rcw-muted: #667074;
+  --rcw-line: #d8d0c2;
+  --rcw-paper: #fffdf8;
+  --rcw-accent: #7d2f2f;
+  --rcw-focus: #345d6f;
+
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+  color: var(--rcw-text);
+}
+
+.rcw-units {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.rcw-unit {
+  scroll-margin-top: 5rem;
+  overflow-wrap: anywhere;
+}
+
+.rcw-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.rcw-chapter-heading {
+  margin: 1.75em 0 0.25em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--rcw-line);
+}
+
+.rcw-unit:first-child .rcw-chapter-heading {
+  margin-top: 0.25em;
+}
+
+.rcw-chapter-eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--rcw-muted);
+}
+
+.rcw-chapter-title {
+  margin: 0.2em 0 0;
+  font-size: 1.35rem;
+  line-height: 1.4;
+}
+
+.rcw-unit-text {
+  margin: 0;
+  font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 1.125rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rcw-event {
+  text-decoration: underline;
+  text-decoration-color: var(--rcw-accent);
+  text-underline-offset: 3px;
+}
+
+.rcw-event-uncertain {
+  text-decoration-style: dotted;
+  text-decoration-color: var(--rcw-muted);
+}
+
+[data-active="true"] .rcw-unit-text {
+  font-weight: 500;
+}
+
+.rcw-unit-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25em;
+}
+
+.rcw-source-label {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--rcw-muted);
+}
+
+.rcw-source-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rcw-source-toggle,
+.rcw-manual-button,
+.rcw-retry-button {
+  font: inherit;
+  cursor: pointer;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--rcw-accent);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--rcw-accent);
+}
+
+.rcw-source-toggle:focus-visible,
+.rcw-manual-button:focus-visible,
+.rcw-retry-button:focus-visible {
+  outline: 3px solid var(--rcw-focus);
+  outline-offset: 2px;
+}
+
+.rcw-unit [data-test="reading-source-slot"] {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.rcw-placeholder {
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent,
+    transparent 1.5rem,
+    rgb(216 208 194 / 30%) 1.5rem,
+    rgb(216 208 194 / 30%) calc(1.5rem + 1px)
+  );
+}
+
+.rcw-paused,
+.rcw-error {
+  border: 1px dashed var(--rcw-accent);
+  border-radius: 10px;
+  background: var(--rcw-paper);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.rcw-error-note,
+.rcw-paused-text {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--rcw-muted);
+}
+
+.rcw-manual-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rcw-loading,
+.rcw-empty {
+  margin: 0.75rem 0;
+  color: var(--rcw-muted);
+}
+
+@media (max-width: 40rem) {
+  .rcw-window {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  .rcw-unit-text {
+    font-size: 1.0625rem;
+  }
+}
