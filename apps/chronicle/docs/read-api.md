@@ -236,6 +236,54 @@ no-model-call proof, same-job second assembled output isolation,
 tampered-bundle explicit failure) and `test_reader_chapters_unit.py`
 (cursor scope binding, size cap, method/route codes).
 
+## Continuous reading (C2-R2-T09)
+
+`continuous-reading.md` §6 fixes one public HTTP boundary: browsers call
+the Rust `/api/v1/public/reading-*` surface; the Python sidecar serves
+the matching `/v0/reading-*` contracts. Every read is snapshot-scoped:
+the first stream-directory call resolves the newest catalog and returns
+`snapshot.catalog_sha`, and later pages/previews/locators must send it
+back explicitly.
+
+```text
+GET /v0/reading-streams?catalog=&limit=20&cursor=
+GET /v0/reading-streams/{stream_id}?catalog=
+GET /v0/reading-streams/{stream_id}/units?catalog=&limit=20&cursor=&direction=
+GET /v0/reading-streams/{stream_id}/groups?catalog=&limit=50&cursor=&direction=
+GET /v0/reading-streams/{stream_id}/locate?catalog=&unit_id=&limit=
+GET /v0/reading-events/{event_id}/preview?catalog=
+GET /v0/reading-events/{event_id}/targets?catalog=&limit=20&cursor=
+```
+
+- `limit` is `1..50` for body pages and locate, `1..100` for groups;
+  cursors bind catalog, stream, direction and the last stable ordering
+  key (`continuous-reading.md` §5-6).
+- `catalog` is optional on the stream directory (first call resolves the
+  newest snapshot) and required on `/reading-events/.../preview` and
+  `/targets`; an unknown catalog is a `404`.
+- Unknown or repeated query parameters, an invalid UUID/catalog, a
+  missing required `catalog`, an out-of-range `limit` and a cursor from
+  another scope are `400 bad_request`.
+- Unknown or unpublished streams/units/events, an out-of-publication
+  source anchor, and unknown subroutes are `404 not_found`.
+- Non-GET methods are `405 method_not_allowed`.
+- An internally inconsistent reading index is `500 internal_error`
+  (explicit failure, never silently repaired).
+
+The existing `GET /v0/events/{id}` and `GET /v0/entities/{id}` accept an
+optional `catalog`. Without it the response is unchanged, including the
+latest `reader_presentation` overlay. With it, source representations,
+related objects and Resolution provenance are restricted to that
+snapshot's members and `reader_presentation` is `null`: a Reader
+Presentation has no snapshot binding, so the unbounded "latest"
+projection is never mixed into a fixed snapshot view.
+
+Tests: `test_reading_router_postgres.py` (route coverage, parameter/
+method/error mapping, snapshot overlay suppression) and
+`test_reading_source_context_postgres.py` (an accepted 0.2 artifact is
+served through the same `source_context` reader and public source
+route).
+
 ## Verification dataset
 
 The dedicated `Chronicle` GitHub Actions workflow loads the retained C0-T7/C0-T8 golden artifacts into an isolated PostgreSQL 18 database before read-model tests. The contract verifies Red Cliffs de-duplication and source evidence, Jiangling related-but-distinct navigation, 曹操 aggregation, uncertain same-name place separation, place-to-Event navigation, and HTTP error behavior without Luna/model calls.

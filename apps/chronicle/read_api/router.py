@@ -10,6 +10,21 @@ from historical_moment import build_historical_moment
 from read_common import ReadModelError, ReadModelNotFound
 from reader_chapters import CHAPTERS_PREFIX, dispatch_chapters
 from reader_presentation import latest_reader_presentation
+from reader_streams import (
+    ReadingStreamBadRequest,
+    ReadingStreamError,
+    ReadingStreamNotFound,
+    list_streams,
+    locate_unit,
+    stream_detail,
+    stream_groups,
+    stream_units,
+)
+from reading_events import (
+    ReadModelInconsistency,
+    event_preview,
+    event_targets,
+)
 from search import search_catalog
 
 
@@ -32,6 +47,34 @@ def _optional_int(query: dict[str, list[str]], name: str) -> int | None:
         raise ReadModelError(f"query parameter {name} must be an integer") from exc
 
 
+def _scalar_query(raw_query: str, allowed: set[str]) -> dict[str, str]:
+    """Parse a query string, rejecting unknown or repeated parameters.
+
+    The reading contracts bind identity and pagination to the query
+    (``catalog``/``stream``/``cursor``), so an unexpected or duplicated
+    parameter is a 400 rather than a silently ignored value.
+    """
+    query = parse_qs(raw_query, keep_blank_values=True)
+    unknown = sorted(set(query) - allowed)
+    if unknown:
+        raise ReadModelError(f"unknown query parameter(s): {', '.join(unknown)}")
+    scalars: dict[str, str] = {}
+    for name, values in query.items():
+        if len(values) != 1:
+            raise ReadModelError(f"query parameter {name} must appear once")
+        scalars[name] = values[0]
+    return scalars
+
+
+def _int_param(query: dict[str, str], name: str, default: int) -> int:
+    if name not in query:
+        return default
+    try:
+        return int(query[name])
+    except (TypeError, ValueError) as exc:
+        raise ReadModelError(f"query parameter {name} must be an integer") from exc
+
+
 def _error(status: int, code: str, message: str) -> tuple[int, dict[str, Any]]:
     return status, {
         "schema": "chronicle.error",
@@ -47,6 +90,103 @@ def _with_reader_presentation(repo, *, target_kind: str, canonical_id: str, deta
         repo.conn, target_kind=target_kind, canonical_id=canonical_id
     )
     return enriched
+
+
+def _scoped_detail(detail: dict[str, Any]) -> dict[str, Any]:
+    """Return a snapshot-scoped Event/Entity detail without a later overlay.
+
+    A Reader Presentation has no snapshot binding, so the "latest published"
+    projection cannot be proven to belong to the requested catalog. The
+    snapshot view therefore carries source-owned evidence only and reports
+    ``reader_presentation: null`` instead of mixing in later content.
+    """
+    scoped = dict(detail)
+    scoped["reader_presentation"] = None
+    return scoped
+
+
+def _reading_streams(repo, path: str, raw_query: str) -> tuple[int, dict[str, Any]] | None:
+    prefix = "/v0/reading-streams"
+    if path == prefix:
+        query = _scalar_query(raw_query, {"catalog", "limit", "cursor"})
+        payload = list_streams(
+            repo.conn,
+            catalog_sha=query.get("catalog"),
+            limit=_int_param(query, "limit", 20),
+            cursor=query.get("cursor"),
+        )
+        return 200, payload
+    if not path.startswith(prefix + "/"):
+        return None
+    parts = path[len(prefix) + 1:].split("/")
+    stream_id = parts[0]
+    if len(parts) == 1 and stream_id:
+        query = _scalar_query(raw_query, {"catalog"})
+        return 200, stream_detail(
+            repo.conn, stream_id=stream_id, catalog_sha=query.get("catalog")
+        )
+    if len(parts) == 2 and stream_id and parts[1] == "units":
+        query = _scalar_query(raw_query, {"catalog", "limit", "cursor", "direction"})
+        return 200, stream_units(
+            repo.conn,
+            stream_id=stream_id,
+            catalog_sha=query.get("catalog"),
+            limit=_int_param(query, "limit", 20),
+            cursor=query.get("cursor"),
+            direction=query.get("direction"),
+        )
+    if len(parts) == 2 and stream_id and parts[1] == "groups":
+        query = _scalar_query(raw_query, {"catalog", "limit", "cursor", "direction"})
+        return 200, stream_groups(
+            repo.conn,
+            stream_id=stream_id,
+            catalog_sha=query.get("catalog"),
+            limit=_int_param(query, "limit", 50),
+            cursor=query.get("cursor"),
+            direction=query.get("direction"),
+        )
+    if len(parts) == 2 and stream_id and parts[1] == "locate":
+        query = _scalar_query(raw_query, {"catalog", "unit_id", "limit"})
+        unit_id = query.get("unit_id")
+        if not unit_id:
+            raise ReadModelError("query parameter unit_id is required")
+        return 200, locate_unit(
+            repo.conn,
+            stream_id=stream_id,
+            unit_id=unit_id,
+            catalog_sha=query.get("catalog"),
+            limit=_int_param(query, "limit", 20),
+        )
+    return _error(404, "not_found", "route not found")
+
+
+def _reading_events(repo, path: str, raw_query: str) -> tuple[int, dict[str, Any]] | None:
+    prefix = "/v0/reading-events/"
+    if not path.startswith(prefix) or len(path) <= len(prefix):
+        return None
+    parts = path[len(prefix):].split("/")
+    if len(parts) != 2 or not parts[0] or parts[1] not in ("preview", "targets"):
+        return _error(404, "not_found", "route not found")
+    event_id, action = parts
+    if action == "preview":
+        query = _scalar_query(raw_query, {"catalog"})
+        catalog = query.get("catalog")
+        if not catalog:
+            raise ReadModelError("query parameter catalog is required")
+        return 200, event_preview(
+            repo.conn, snapshot_catalog_sha=catalog, canonical_event_id=event_id
+        )
+    query = _scalar_query(raw_query, {"catalog", "limit", "cursor"})
+    catalog = query.get("catalog")
+    if not catalog:
+        raise ReadModelError("query parameter catalog is required")
+    return 200, event_targets(
+        repo.conn,
+        snapshot_catalog_sha=catalog,
+        canonical_event_id=event_id,
+        limit=_int_param(query, "limit", 20),
+        cursor=query.get("cursor"),
+    )
 
 
 def dispatch(
@@ -131,26 +271,42 @@ def dispatch(
             canonical_id = path[len(event_prefix):]
             if "/" in canonical_id:
                 return _error(404, "not_found", "route not found")
-            detail = repo.event_detail(canonical_id)
-            return 200, _with_reader_presentation(
-                repo,
-                target_kind="event",
-                canonical_id=canonical_id,
-                detail=detail,
-            )
+            query = _scalar_query(raw_query, {"catalog"})
+            catalog = query.get("catalog")
+            if catalog is None:
+                detail = repo.event_detail(canonical_id)
+                return 200, _with_reader_presentation(
+                    repo,
+                    target_kind="event",
+                    canonical_id=canonical_id,
+                    detail=detail,
+                )
+            return 200, _scoped_detail(repo.event_detail(canonical_id, catalog_sha=catalog))
 
         entity_prefix = "/v0/entities/"
         if path.startswith(entity_prefix) and len(path) > len(entity_prefix):
             canonical_id = path[len(entity_prefix):]
             if "/" in canonical_id:
                 return _error(404, "not_found", "route not found")
-            detail = repo.entity_detail(canonical_id)
-            return 200, _with_reader_presentation(
-                repo,
-                target_kind="entity",
-                canonical_id=canonical_id,
-                detail=detail,
-            )
+            query = _scalar_query(raw_query, {"catalog"})
+            catalog = query.get("catalog")
+            if catalog is None:
+                detail = repo.entity_detail(canonical_id)
+                return 200, _with_reader_presentation(
+                    repo,
+                    target_kind="entity",
+                    canonical_id=canonical_id,
+                    detail=detail,
+                )
+            return 200, _scoped_detail(repo.entity_detail(canonical_id, catalog_sha=catalog))
+
+        reading_streams = _reading_streams(repo, path, raw_query)
+        if reading_streams is not None:
+            return reading_streams
+
+        reading_events = _reading_events(repo, path, raw_query)
+        if reading_events is not None:
+            return reading_events
 
         if path == CHAPTERS_PREFIX or path.startswith(CHAPTERS_PREFIX + "/"):
             # Public chapter directory / full translation / pinned source
@@ -169,3 +325,11 @@ def dispatch(
         return _error(404, "not_found", str(exc))
     except ReadModelError as exc:
         return _error(400, "bad_request", str(exc))
+    except ReadingStreamNotFound as exc:
+        return _error(404, "not_found", str(exc))
+    except ReadingStreamBadRequest as exc:
+        return _error(400, "bad_request", str(exc))
+    except ReadModelInconsistency as exc:
+        return _error(500, "internal_error", str(exc))
+    except ReadingStreamError as exc:
+        return _error(500, "internal_error", str(exc))
