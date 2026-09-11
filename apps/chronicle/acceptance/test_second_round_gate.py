@@ -335,6 +335,23 @@ class BoundaryTests(unittest.TestCase):
         report = G.check_no_direct_product_writes()
         self.assertFalse(report["direct_product_writes"])
 
+    def test_scale_fixture_scope_handoff_recorded(self) -> None:
+        import reading_scale_fixture
+
+        handoff = reading_scale_fixture.SCOPE_HANDOFF
+        self.assertIn("reading_scale_fixture", (HERE / "reading_scale_fixture.py").name)
+        self.assertIn("second_round_gate.py", handoff)
+        task_note = (
+            REPO
+            / "docs/tasks/chronicle/second-round/T16-reading-automated-gate.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("reading_scale_fixture.py", task_note)
+        self.assertIn("File scope coordination", task_note)
+        acceptance_doc = (REPO / "apps/chronicle/docs/reading-acceptance.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("reading_scale_fixture.py", acceptance_doc)
+
     def test_scale_fixture_has_no_raw_writes(self) -> None:
         import reading_scale_fixture
 

@@ -223,6 +223,14 @@ jobs:
           runs = perf["evidence"]["runs"]
           assert len(runs) == 5, runs
           assert all(r["active_p95_ms"] <= 100 and r["restore_ms"] <= 250 for r in runs), runs
+          bm = json.load(open("/tmp/chronicle-r2-offline/browser-fixture-manifest.json"))
+          mounted_max = bm["budgets"]["mounted_max_units"]
+          for run in runs:
+            assert run["window_progression"]["mounted_max"] <= mounted_max, run
+            assert run["window_progression"]["duration_seconds"] >= 30, run
+            assert run["window_progression"]["active_ordinal_max"] > run["window_progression"]["active_ordinal_min"], run
+            assert run["max_long_task_ms"] < bm["budgets"]["max_long_task_ms"], run
+            assert run["request_counts"]["preview"] == 0, run
           PY
 
 

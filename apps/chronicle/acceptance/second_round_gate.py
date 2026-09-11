@@ -62,6 +62,10 @@ PERF_BUDGETS = {
     "active_to_sidebar_p95_ms": 100,
     "restore_p95_ms": 250,
     "max_long_task_ms": 200,
+    # reading-experience.md §3: at most 120 rendered units, plus up to 20
+    # pinned units under focus/selection/expanded-reference, so 140 is the
+    # absolute mounted-window ceiling.
+    "mounted_max_units": 140,
     "target_units": 5000,
     "target_groups": 1000,
 }

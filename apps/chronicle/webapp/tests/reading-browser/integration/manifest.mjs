@@ -111,7 +111,12 @@ export function budgets(manifest) {
   if (!value || typeof value !== "object") {
     throw new Error("reading-flow: fixture manifest carries no performance budgets");
   }
-  for (const key of ["active_to_sidebar_p95_ms", "restore_p95_ms", "max_long_task_ms"]) {
+  for (const key of [
+    "active_to_sidebar_p95_ms",
+    "restore_p95_ms",
+    "max_long_task_ms",
+    "mounted_max_units",
+  ]) {
     if (typeof value[key] !== "number") {
       throw new Error(`reading-flow: budget ${key} is missing`);
     }

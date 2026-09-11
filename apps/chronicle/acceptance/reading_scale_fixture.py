@@ -22,6 +22,19 @@ gate's "no direct product writes" guard still covers the real chain.
 
 from __future__ import annotations
 
+#: Explicit scope coordination for this acceptance-only module. The T16 issue
+#: write boundary did not name a synthetic-scale module; adding this file was
+#: coordinated in the task note
+#: ``docs/tasks/chronicle/second-round/T16-reading-automated-gate.md``
+#: ("File scope coordination") and the delivery PR, and is guarded by
+#: ``test_second_round_gate.py::test_scale_fixture_scope_handoff_recorded``.
+SCOPE_HANDOFF = (
+    "C2-R2-T16 acceptance-only synthetic scale fixture; scope added by "
+    "coordination recorded in docs/tasks/chronicle/second-round/"
+    "T16-reading-automated-gate.md; consumed by "
+    "apps/chronicle/acceptance/second_round_gate.py"
+)
+
 SCALE_UNITS_ENV = "GATE_SCALE_UNITS"
 SCALE_GROUPS_ENV = "GATE_SCALE_GROUPS"
 SCALE_RESULT_MARKER = "GATE_SCALE_RESULT="
