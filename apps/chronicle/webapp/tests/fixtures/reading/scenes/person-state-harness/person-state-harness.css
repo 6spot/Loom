@@ -1,0 +1,649 @@
+/* C2-R3-D02 人物階段資料交互 harness 樣式（僅測試使用，不進生產構建）。
+ *
+ * 複用 `public-reading.css` / `reading-layout.css` / `reading-context.css` 的正式
+ * token 與 `.rpage`、`.chr-context-*` 骨架；這裡只補 D02 新交互（緊湊行內排版、
+ * 兩檔圖例、詳情時間軸、審核頁、人物頁三欄）。所有顏色都同時有文字或形狀標記，
+ * 不依賴顏色單獨表意。 */
+
+.pstate-review,
+.pstate-review *,
+.pstate-entity,
+.pstate-entity * {
+  box-sizing: border-box;
+}
+
+.pstate-synthetic-flag {
+  padding: 0.3rem 0.6rem;
+  border: 1px dashed #884d41;
+  border-radius: 4px;
+  color: #884d41;
+  font-size: 0.75rem;
+}
+
+/* ---------------------------------------------------------------- 閱讀頁 */
+
+.person-state-reading .chr-context-panel {
+  gap: 1rem;
+}
+
+.pstate-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e3db;
+  color: #696e67;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.person-state-reading .pstate-subject-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0;
+}
+
+.person-state-reading .pstate-name-button {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-state-reading .pstate-name-button:hover .chr-context-name,
+.person-state-reading .pstate-name-button:focus-visible .chr-context-name {
+  color: #884d41;
+}
+
+.person-state-reading .chr-context-states {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.8;
+}
+
+.person-state-reading .chr-context-state {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 1.6rem;
+}
+
+.person-state-reading .chr-context-state[data-certainty="uncertain"] {
+  color: #696e67;
+}
+
+.pstate-item-label {
+  color: #696e67;
+  font-size: 0.7rem;
+}
+
+.pstate-item-value {
+  font-weight: 500;
+}
+
+.pstate-qualification {
+  font-size: 0.7rem;
+}
+
+.pstate-reason {
+  padding: 0 0.35rem;
+  border: 1px solid #c9c7bd;
+  border-radius: 3px;
+  color: #5c615b;
+  font-size: 0.68rem;
+}
+
+.pstate-evidence-button {
+  min-height: 2.75rem;
+  padding: 0 0.35rem;
+  color: #884d41;
+  font-size: 0.72rem;
+}
+
+.pstate-phase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  color: #5c615b;
+  font-size: 0.7rem;
+}
+
+.pstate-phase small {
+  color: #696e67;
+}
+
+.pstate-loading,
+.pstate-error {
+  color: #696e67;
+  font-size: 0.8rem;
+  line-height: 1.8;
+}
+
+.pstate-error {
+  padding: 0.75rem;
+  border: 1px solid #e3c9a3;
+  border-radius: 8px;
+  background: #fdf4e3;
+}
+
+.pstate-error .public-text-button {
+  justify-content: flex-start;
+  padding-left: 0;
+  color: #884d41;
+}
+
+.pstate-mobile-entry {
+  display: none;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  color: #884d41;
+}
+
+.pstate-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 1440px;
+  margin: 1rem auto 3rem;
+  padding: 0.5rem 1rem;
+  border: 1px dashed #b9b9ae;
+  border-radius: 8px;
+  color: #696e67;
+  font-size: 0.75rem;
+}
+
+/* 詳情與依據面板 */
+
+.pstate-intro {
+  margin: 0 0 1rem;
+  line-height: 1.8;
+}
+
+.pstate-section-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #696e67;
+}
+
+.pstate-detail-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-detail-items > li {
+  display: flex;
+}
+
+.pstate-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-timeline-entry {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid #e5e3db;
+}
+
+.pstate-timeline-stage {
+  color: #884d41;
+  font-size: 0.75rem;
+}
+
+.pstate-timeline-text {
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  line-height: 1.9;
+}
+
+.pstate-timeline-meta,
+.pstate-evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: #696e67;
+  font-size: 0.72rem;
+}
+
+.pstate-change {
+  color: #5c615b;
+  font-size: 0.75rem;
+}
+
+.pstate-inline-source {
+  justify-content: flex-start;
+  padding-left: 0;
+  color: #884d41;
+  font-size: 0.72rem;
+}
+
+.pstate-timeline-empty {
+  color: #696e67;
+  font-size: 0.8rem;
+}
+
+.pstate-related {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-related li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e5e3db;
+}
+
+.pstate-related small {
+  color: #696e67;
+}
+
+.pstate-quote {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.85rem;
+  border-left: 2px solid #a7b5a4;
+  background: #f5f7f2;
+  font-family: "Songti SC", serif;
+  line-height: 1.95;
+}
+
+.pstate-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.pstate-evidence-actions .public-text-button {
+  min-height: 2.75rem;
+  padding: 0 0.6rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 4px;
+  color: #884d41;
+}
+
+.pstate-source-window {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #dce3d9;
+  border-radius: 6px;
+  background: #f5f7f2;
+  font-family: "Songti SC", serif;
+  line-height: 1.9;
+}
+
+.pstate-event-preview {
+  margin: 0.5rem 0 0;
+  color: #884d41;
+  font-size: 0.75rem;
+}
+
+.pstate-attribution {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 999px;
+  color: #5c615b;
+  font-size: 0.68rem;
+}
+
+/* ---------------------------------------------------------------- 審核頁 */
+
+.pstate-review {
+  width: min(100%, 60rem);
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 2rem;
+}
+
+.pstate-review h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: 1.4rem;
+}
+
+.pstate-review-intro {
+  color: #696e67;
+  font-size: 0.85rem;
+  line-height: 1.8;
+}
+
+.pstate-review-shared {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid #dde3dc;
+  border-radius: 8px;
+  background: #f5f7f4;
+}
+
+.pstate-review-shared h2,
+.pstate-review-person h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pstate-review-shared ol {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pstate-review-shared blockquote {
+  margin: 0.3rem 0;
+  font-family: "Songti SC", serif;
+  line-height: 1.9;
+}
+
+.pstate-review-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #dde3dc;
+  border-radius: 6px;
+  background: #f8faf7;
+  font-size: 0.8rem;
+}
+
+.pstate-review-batch .public-text-button {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 4px;
+  color: #884d41;
+}
+
+.pstate-review-person {
+  margin: 1.5rem 0;
+}
+
+.pstate-review-person ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pstate-review-change {
+  padding: 0.9rem 1rem;
+  border: 1px solid #dde3dc;
+  border-radius: 8px;
+}
+
+.pstate-review-change[data-exception="true"] {
+  border-color: #c9a35a;
+}
+
+.pstate-review-change-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.pstate-review-dimension {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: #eeeae2;
+  font-size: 0.75rem;
+}
+
+.pstate-review-flow {
+  font-weight: 500;
+}
+
+.pstate-effect {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 999px;
+  color: #5c615b;
+  font-size: 0.68rem;
+}
+
+.pstate-review-stages {
+  margin: 0.4rem 0 0.3rem;
+  color: #696e67;
+  font-size: 0.75rem;
+}
+
+.pstate-review-change blockquote {
+  margin: 0.3rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid #e5e3db;
+  font-family: "Songti SC", serif;
+  line-height: 1.9;
+}
+
+.pstate-review-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-top: 0.6rem;
+}
+
+.pstate-review-decision label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.pstate-review-decision select,
+.pstate-review-decision input {
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d7dcd6;
+  border-radius: 4px;
+  background: #fff;
+  color: #272e2c;
+  font: inherit;
+}
+
+.pstate-review-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  color: #696e67;
+  font-size: 0.78rem;
+}
+
+.pstate-simulate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+}
+
+.pstate-save-error {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d9a3a3;
+  border-radius: 6px;
+  background: #fdf1f1;
+  color: #7d2f2f;
+}
+
+.pstate-save-error .public-text-button {
+  color: #7d2f2f;
+}
+
+.pstate-saved,
+.pstate-skipped {
+  margin: 0.75rem 0;
+  color: #4c6b46;
+  font-size: 0.8rem;
+}
+
+.pstate-primary {
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #884d41;
+  border-radius: 4px;
+  background: #884d41;
+  color: #fffdf8;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pstate-review-controls {
+  /* 讓頁底固定操作區之後仍有內容可捲動，避免遮住最後一條。 */
+  padding-bottom: 0.5rem;
+}
+
+/* 頁底固定操作區（正式樣式由 T12 實作；此處固定 D02 交互）。 */
+.pstate-review .nr-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0;
+  padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom));
+  border-top: 1px solid #d7ded3;
+  background: rgb(250 248 243 / 96%);
+}
+
+.pstate-review .nr-actions > [data-test="review-return"] {
+  margin-right: auto;
+}
+
+.pstate-review-decision select,
+.pstate-review-decision input {
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------- 人物頁三欄 */
+
+.pstate-entity {
+  padding: 0 1rem 4rem;
+}
+
+.pstate-entity-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 300px);
+  gap: clamp(1.25rem, 3vw, 3rem);
+  max-width: 1440px;
+  margin: 1.5rem auto 0;
+  align-items: start;
+}
+
+.pstate-entity-left,
+.pstate-entity-main,
+.pstate-entity-right {
+  min-width: 0;
+}
+
+.pstate-entity-grid h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #696e67;
+}
+
+.pstate-entity-left h1 {
+  margin: 0 0 0.5rem;
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: 1.6rem;
+}
+
+.pstate-time-anchor {
+  padding: 0.5rem 0;
+  border-top: 1px solid #e5e3db;
+  border-bottom: 1px solid #e5e3db;
+  color: #5c615b;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.pstate-entity-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.pstate-entity-entry .public-text-button {
+  min-height: 2.75rem;
+  padding: 0 0.6rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 4px;
+  color: #884d41;
+}
+
+.pstate-return-status {
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid #cfe0c8;
+  border-radius: 6px;
+  background: #f2f8ef;
+  color: #42603c;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+
+@media (max-width: 1199px) {
+  .pstate-mobile-entry {
+    display: inline-flex;
+  }
+
+  .pstate-entity-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  }
+
+  .pstate-entity-main {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .pstate-entity-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pstate-entity-main {
+    grid-column: auto;
+  }
+
+  .pstate-review {
+    padding: 1rem 0.75rem 2rem;
+  }
+}
