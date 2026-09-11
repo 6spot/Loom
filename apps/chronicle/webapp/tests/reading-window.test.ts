@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import React from "react";
 import {
+  AUTO_PREFETCH_EDGE_UNITS,
   applyMeasuredHeight,
   estimateReadingUnitHeight,
   mergeReadingUnitPages,
+  planAutoPrefetch,
   planReadingWindow,
   readingChapterHeadings,
+  readingStreamEdges,
   resolveReadingWindowLimits,
 } from "../src/lib/reading-window";
 import { readingUnitText, type ReadingSegment, type ReadingUnit } from "../src/lib/reading-types";
@@ -41,21 +44,144 @@ describe("reading-window: page merge and chapter boundaries", () => {
     expect(mergeReadingUnitPages([null, undefined] as never)).toEqual([]);
   });
 
-  it("emits a chapter heading only at the actual boundary", () => {
-    const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE]);
-    const headings = readingChapterHeadings(units, CHAPTER_TITLES);
-    const headingIds = Object.keys(headings).map((id) => {
-      return units.find((unit) => unit.unit_id === id)?.ordinal;
+  it("only marks a verifiable stream-start or contiguous chapter boundary", () => {
+    // 从 ordinal 3 起（章中间）的页：首个可见 unit 不是真实章首，不得显示标题；
+    // 只有连续到章节切换的 ordinal 5 才显示章 B 标题。
+    const partial = mergeReadingUnitPages([INITIAL_PAGE]);
+    const partialHeadings = readingChapterHeadings(partial, CHAPTER_TITLES);
+    const partialOrdinals = Object.keys(partialHeadings).map((id) => {
+      return partial.find((unit) => unit.unit_id === id)?.ordinal;
     });
-    expect(headingIds).toEqual([3, 5]);
-    expect(headings[activeFromOrdinal(units, 5)].chapter_id).toBe(CHAPTER_B);
-    expect(headings[activeFromOrdinal(units, 5)].chapter_title).toBe("卷二 · 魏书");
-    expect(headings[activeFromOrdinal(units, 3)].chapter_title).toBe("卷一 · 吴书");
+    expect(partialOrdinals).toEqual([5]);
+    expect(partialHeadings[activeFromOrdinal(partial, 5)].chapter_title).toBe("卷二 · 魏书");
+    expect(partialHeadings[activeFromOrdinal(partial, 3)]).toBeUndefined();
+
+    // 从 stream 起点 ordinal 0 开始：章 A 与章 B 的真实边界都显示。
+    const complete = mergeReadingUnitPages([PREVIOUS_PAGE, INITIAL_PAGE, NEXT_PAGE]);
+    const completeHeadings = readingChapterHeadings(complete, CHAPTER_TITLES);
+    const completeOrdinals = Object.keys(completeHeadings).map((id) => {
+      return complete.find((unit) => unit.unit_id === id)?.ordinal;
+    });
+    expect(completeOrdinals).toEqual([0, 5]);
+    expect(completeHeadings[activeFromOrdinal(complete, 0)].chapter_title).toBe("卷一 · 吴书");
+    expect(completeHeadings[activeFromOrdinal(complete, 5)].chapter_id).toBe(CHAPTER_B);
+  });
+
+  it("does not invent a boundary across a gap in the loaded units", () => {
+    const first = makeUnit(3, "章 A 中的一段。", { chapterId: CHAPTER_A });
+    const gapped = makeUnit(10, "章 B 中的一段。", { chapterId: CHAPTER_B });
+    const contiguous = makeUnit(11, "章 B 的下一段。", { chapterId: CHAPTER_B });
+    const headings = readingChapterHeadings([first, gapped, contiguous]);
+    // 3 -> 10 有缺口：边界不可验证，不显示；10 -> 11 同章，不显示。
+    expect(Object.keys(headings)).toEqual([]);
   });
 
   function initialCount(): number {
     return mergeReadingUnitPages([INITIAL_PAGE]).length;
   }
+});
+
+describe("reading-window: adjacent-page auto prefetch", () => {
+  it("derives real bidirectional edges from page metadata", () => {
+    expect(readingStreamEdges([INITIAL_PAGE])).toEqual({
+      firstOrdinal: 3,
+      lastOrdinal: 6,
+      hasPrevious: true,
+      hasNext: true,
+    });
+    expect(readingStreamEdges([PREVIOUS_PAGE, NEXT_PAGE])).toEqual({
+      firstOrdinal: 0,
+      lastOrdinal: 8,
+      hasPrevious: false,
+      hasNext: true,
+    });
+    expect(readingStreamEdges([])).toEqual({
+      firstOrdinal: null,
+      lastOrdinal: null,
+      hasPrevious: false,
+      hasNext: false,
+    });
+  });
+
+  it("requests both adjacent pages at a normal boundary", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE]);
+    const edges = readingStreamEdges([INITIAL_PAGE]);
+    const plan = planAutoPrefetch({
+      autoPrefetch: true,
+      units,
+      edges,
+      activeUnitId: units[0].unit_id,
+    });
+    expect(plan.requests).toEqual(["previous", "next"]);
+    expect(plan.markers).toEqual({ previous: 3, next: 6 });
+  });
+
+  it("produces no request once the window is saturated", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
+    const edges = readingStreamEdges([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
+    const plan = planAutoPrefetch({
+      autoPrefetch: false,
+      units,
+      edges,
+      activeUnitId: units[0].unit_id,
+    });
+    expect(plan.requests).toEqual([]);
+    expect(plan.markers).toEqual({ previous: null, next: null });
+  });
+
+  it("does not prefetch from a mid-page locate and does not repeat the same edge", () => {
+    const far = mergeReadingUnitPages([FAR_PAGE]);
+    const farPlan = planAutoPrefetch({
+      autoPrefetch: true,
+      units: far,
+      edges: readingStreamEdges([FAR_PAGE]),
+      activeUnitId: activeFromOrdinal(far, 5020),
+    });
+    expect(farPlan.requests).toEqual([]);
+
+    const units = mergeReadingUnitPages([INITIAL_PAGE]);
+    const repeated = planAutoPrefetch({
+      autoPrefetch: true,
+      units,
+      edges: readingStreamEdges([INITIAL_PAGE]),
+      activeUnitId: units[0].unit_id,
+      markers: { previous: 3, next: 6 },
+    });
+    expect(repeated.requests).toEqual([]);
+  });
+
+  it("holds a direction that is already loading but still prefetches the other", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE]);
+    const plan = planAutoPrefetch({
+      autoPrefetch: true,
+      units,
+      edges: readingStreamEdges([INITIAL_PAGE]),
+      activeUnitId: units[0].unit_id,
+      loadingDirection: "previous",
+    });
+    expect(plan.requests).toEqual(["next"]);
+  });
+
+  it("respects the edge buffer threshold", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE]);
+    const edges = readingStreamEdges([INITIAL_PAGE]);
+    const atEdge = planAutoPrefetch({
+      autoPrefetch: true,
+      units,
+      edges,
+      activeUnitId: activeFromOrdinal(units, 3),
+      edgeUnits: 0,
+    });
+    expect(atEdge.requests).toEqual(["previous"]);
+    expect(AUTO_PREFETCH_EDGE_UNITS).toBeGreaterThan(0);
+    const buffered = planAutoPrefetch({
+      autoPrefetch: true,
+      units,
+      edges,
+      activeUnitId: activeFromOrdinal(units, 3),
+    });
+    expect(buffered.requests).toEqual(["previous", "next"]);
+  });
 });
 
 describe("reading-window: bounded plan and pinning", () => {
@@ -178,7 +304,7 @@ describe("reading-window: safe content rendering", () => {
 });
 
 describe("reading-window: window states", () => {
-  it("renders units in ordinal order with chapter headings only at boundaries", () => {
+  it("renders units in ordinal order and only marks the verifiable chapter boundary", () => {
     const html = renderToString(
       React.createElement(ReadingWindow, {
         pages: [INITIAL_PAGE, NEXT_PAGE],
@@ -187,9 +313,10 @@ describe("reading-window: window states", () => {
       }),
     );
     expect(html.match(/data-test="reading-unit"/g)?.length).toBe(6);
-    expect(html.match(/data-test="reading-chapter-heading"/g)).toHaveLength(2);
-    expect(html).toContain('data-chapter-id="' + CHAPTER_A + '"');
-    expect(html).toContain('data-chapter-id="' + CHAPTER_B + '"');
+    // 页从 ordinal 3（章中间）开始：章 A 起点不可验证，不显示；只显示连续的章 B 边界。
+    expect(html.match(/data-test="reading-chapter-heading"/g)).toHaveLength(1);
+    expect(html).toContain('data-test="reading-chapter-heading" data-chapter-id="' + CHAPTER_B + '"');
+    expect(html).not.toContain('data-test="reading-chapter-heading" data-chapter-id="' + CHAPTER_A + '"');
     // data-text must equal the reconstructed segment text.
     expect(html).toContain("遇于");
   });

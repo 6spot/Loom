@@ -85,6 +85,7 @@ export function ControlledContentWindow() {
   const [mode, setMode] = useState<LoadMode>("ok");
   const [loads, setLoads] = useState(0);
   const [sourceFails, setSourceFails] = useState(false);
+  const [windowRequests, setWindowRequests] = useState<string[]>([]);
 
   const activeSourceClient = useMemo<ChapterSourceClient>(
     () =>
@@ -124,6 +125,7 @@ export function ControlledContentWindow() {
 
   const requestPage = useCallback(
     (direction: ReadingDirection) => {
+      setWindowRequests((previous) => [...previous, direction]);
       void performLoad(direction, mode);
     },
     [mode, performLoad],
@@ -182,6 +184,9 @@ export function ControlledContentWindow() {
         <span data-test="content-mode">{mode}</span>
         <span data-test="content-loaded-pages">{loads}</span>
         <span data-test="content-active-ordinal">{activeOrdinal}</span>
+        <span data-test="content-window-requests" style={{ overflowWrap: "anywhere" }}>
+          {windowRequests.slice(-12).join(",")}
+        </span>
         <button type="button" data-test="content-load-next-ok" onClick={() => void performLoad("next", "ok")}>
           下一页
         </button>

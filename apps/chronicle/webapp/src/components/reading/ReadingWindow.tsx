@@ -26,8 +26,11 @@ import {
 import {
   applyMeasuredHeight,
   mergeReadingUnitPages,
+  planAutoPrefetch,
   planReadingWindow,
   readingChapterHeadings,
+  readingStreamEdges,
+  type AutoPrefetchMarkers,
   type ReadingWindowLimits,
 } from "../../lib/reading-window";
 import ReadingContent, {
@@ -225,6 +228,26 @@ export default function ReadingWindow({
       return next;
     });
   }, []);
+
+  // 正常边界自动预取相邻一页（前后双向）。窗口饱和时 planAutoPrefetch 不产生
+  // 任何请求，只保留显式加载入口。
+  const streamEdges = useMemo(() => readingStreamEdges(pages), [pages]);
+  const autoMarkersRef = useRef<AutoPrefetchMarkers>({ previous: null, next: null });
+  const requestPage = callbacks?.requestPage;
+
+  useEffect(() => {
+    const result = planAutoPrefetch({
+      autoPrefetch: plan.autoPrefetch,
+      units,
+      edges: streamEdges,
+      activeUnitId,
+      loadingDirection,
+      markers: autoMarkersRef.current,
+    });
+    autoMarkersRef.current = result.markers;
+    if (!requestPage) return;
+    for (const direction of result.requests) requestPage(direction);
+  }, [plan.autoPrefetch, units, streamEdges, activeUnitId, loadingDirection, requestPage]);
 
   // 文本选择固定：selectionchange 时才扫描，不在每个 scroll 事件里做。
   useEffect(() => {

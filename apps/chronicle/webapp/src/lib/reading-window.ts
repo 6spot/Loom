@@ -11,6 +11,7 @@
 
 import {
   readingUnitText,
+  type ReadingDirection,
   type ReadingUnit,
   type StreamPage,
 } from "./reading-types";
@@ -82,26 +83,152 @@ export interface ReadingChapterHeading {
 }
 
 /**
- * 只在章边界（首段或 chapter_id 变化）产出标题；章内段落不重复标题。
- * 标题来自调用方提供的 publication-owned 映射，组件不猜标题。
+ * 只在**可验证的**真实章边界产出标题：
+ *  - stream 的 ordinal 0（正文起点，必定是第一章起点）；
+ *  - 紧邻且连续的上一段 ordinal+1，且 chapter_id 发生变化。
+ *
+ * 深链 / locate 从章中间开始的页没有 ordinal 0，且缺少紧邻的上一段，
+ * 因此保守地不显示标题，而不是把首个可见 unit 冒充章首。章内段落也不会
+ * 重复标题。标题文本来自调用方提供的 publication-owned 映射，组件不猜。
+ *
+ * `units` 必须按 ordinal 升序（`mergeReadingUnitPages` 已保证）。
  */
 export function readingChapterHeadings(
   units: readonly ReadingUnit[],
   chapterTitles?: Readonly<Record<string, string | null>>,
 ): Readonly<Record<string, ReadingChapterHeading>> {
   const headings: Record<string, ReadingChapterHeading> = {};
-  let previousChapter: string | null = null;
+  let previous: ReadingUnit | null = null;
   for (const unit of units) {
-    if (unit.chapter_id === previousChapter) continue;
-    headings[unit.unit_id] = {
-      unit_id: unit.unit_id,
-      ordinal: unit.ordinal,
-      chapter_id: unit.chapter_id,
-      chapter_title: chapterTitles?.[unit.chapter_id] ?? null,
-    };
-    previousChapter = unit.chapter_id;
+    const isStreamStart = unit.ordinal === 0;
+    const isContiguousChapterChange =
+      previous !== null &&
+      unit.ordinal === previous.ordinal + 1 &&
+      unit.chapter_id !== previous.chapter_id;
+    if (isStreamStart || isContiguousChapterChange) {
+      headings[unit.unit_id] = {
+        unit_id: unit.unit_id,
+        ordinal: unit.ordinal,
+        chapter_id: unit.chapter_id,
+        chapter_title: chapterTitles?.[unit.chapter_id] ?? null,
+      };
+    }
+    previous = unit;
   }
   return headings;
+}
+
+/** 已加载页真实边界：首/末 ordinal 与是否还有更前/更后的页。 */
+export interface ReadingStreamEdges {
+  readonly firstOrdinal: number | null;
+  readonly lastOrdinal: number | null;
+  readonly hasPrevious: boolean;
+  readonly hasNext: boolean;
+}
+
+/**
+ * 从已加载页推导真实双向边界，而不是假设“首屏就是 stream 起点”。
+ * 取覆盖最小 ordinal 的页的 `has_previous`、覆盖最大 ordinal 的页的 `has_next`。
+ */
+export function readingStreamEdges(
+  pages: readonly StreamPage[] | null | undefined,
+): ReadingStreamEdges {
+  let firstOrdinal: number | null = null;
+  let lastOrdinal: number | null = null;
+  let backwardPage: StreamPage | null = null;
+  let forwardPage: StreamPage | null = null;
+  for (const page of pages ?? []) {
+    const pageUnits = page?.units ?? [];
+    if (pageUnits.length === 0) continue;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const unit of pageUnits) {
+      if (unit.ordinal < min) min = unit.ordinal;
+      if (unit.ordinal > max) max = unit.ordinal;
+    }
+    if (firstOrdinal === null || min < firstOrdinal) {
+      firstOrdinal = min;
+      backwardPage = page;
+    }
+    if (lastOrdinal === null || max > lastOrdinal) {
+      lastOrdinal = max;
+      forwardPage = page;
+    }
+  }
+  return {
+    firstOrdinal,
+    lastOrdinal,
+    hasPrevious: Boolean(backwardPage?.has_previous),
+    hasNext: Boolean(forwardPage?.has_next),
+  };
+}
+
+/** 距已加载边界多少 unit 内才自动预取相邻页，避免预取整本书。 */
+export const AUTO_PREFETCH_EDGE_UNITS = 12;
+
+export interface AutoPrefetchMarkers {
+  readonly previous: number | null;
+  readonly next: number | null;
+}
+
+export interface AutoPrefetchPlan {
+  readonly requests: readonly ReadingDirection[];
+  readonly markers: AutoPrefetchMarkers;
+}
+
+export interface AutoPrefetchInput {
+  readonly autoPrefetch: boolean;
+  readonly units: readonly ReadingUnit[];
+  readonly edges: ReadingStreamEdges;
+  readonly activeUnitId?: string | null;
+  readonly loadingDirection?: ReadingDirection | null;
+  readonly markers?: AutoPrefetchMarkers;
+  readonly edgeUnits?: number;
+}
+
+const NO_MARKERS: AutoPrefetchMarkers = { previous: null, next: null };
+
+/**
+ * 决定本帧正常边界要自动请求的相邻页方向：
+ *  - 只有 `autoPrefetch`（窗口未饱和）且确实还有前/后页时才请求；
+ *  - 只有 active 接近已加载边界（<= edgeUnits）时才请求，保持相邻一页缓冲；
+ *  - 同一边界 ordinal 只请求一次，页真的增长后才重新武装；
+ *  - 该方向正在加载时不重复请求。
+ * 窗口饱和（autoPrefetch=false）时清空标记且不产生任何请求，交由显式加载。
+ */
+export function planAutoPrefetch(input: AutoPrefetchInput): AutoPrefetchPlan {
+  if (!input.autoPrefetch) return { requests: [], markers: NO_MARKERS };
+  const markers = input.markers ?? NO_MARKERS;
+  const next: { previous: number | null; next: number | null } = { ...markers };
+  const requests: ReadingDirection[] = [];
+  const units = input.units ?? [];
+  if (units.length === 0) return { requests, markers: next };
+  const edgeUnits = input.edgeUnits ?? AUTO_PREFETCH_EDGE_UNITS;
+  const activeOrdinal =
+    units.find((unit) => unit.unit_id === input.activeUnitId)?.ordinal ?? units[0].ordinal;
+  const { firstOrdinal, lastOrdinal } = input.edges;
+
+  if (
+    input.edges.hasPrevious &&
+    input.loadingDirection !== "previous" &&
+    firstOrdinal !== null &&
+    activeOrdinal - firstOrdinal <= edgeUnits &&
+    next.previous !== firstOrdinal
+  ) {
+    next.previous = firstOrdinal;
+    requests.push("previous");
+  }
+  if (
+    input.edges.hasNext &&
+    input.loadingDirection !== "next" &&
+    lastOrdinal !== null &&
+    lastOrdinal - activeOrdinal <= edgeUnits &&
+    next.next !== lastOrdinal
+  ) {
+    next.next = lastOrdinal;
+    requests.push("next");
+  }
+  return { requests, markers: next };
 }
 
 export function estimateReadingUnitHeight(unit: ReadingUnit): number {
