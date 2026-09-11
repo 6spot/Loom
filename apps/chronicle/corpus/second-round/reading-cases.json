@@ -1,0 +1,545 @@
+{
+  "schema": "chronicle.second-round-reading-cases",
+  "version": "0.1",
+  "pack_id": "c2-r2-t02-reading-cases-v1",
+  "task": "C2-R2-T02",
+  "issue": 571,
+  "parent_issue": 549,
+  "round": "R2",
+  "derived_from": "c2-r1-t02-first-round-v1",
+  "rule": "synthetic entries carry synthetic=true and must never be cited as source observations; every real ref quote must occur in the recorded frozen first-round file at [start,end) with the given 1-based occurrence over code points; reading expectations follow apps/chronicle/docs/continuous-reading.md; a fixture/DTO scene is only a published-shape sample and must never be presented as real model output or a live backend",
+  "sources": [
+    {
+      "key": "xianzhu-liubei",
+      "work": "三國志",
+      "chapter": "蜀書·先主傳",
+      "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+      "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "chars": 12572,
+      "page_title": "三國志/卷32",
+      "oldid": 2583378
+    },
+    {
+      "key": "zhou-yu",
+      "work": "三國志",
+      "chapter": "吳書·周瑜傳",
+      "file": "sources/sanguozhi-054-zhou-yu.txt",
+      "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "chars": 5018,
+      "page_title": "三國志/卷54",
+      "oldid": 2387393
+    },
+    {
+      "key": "lu-su",
+      "work": "三國志",
+      "chapter": "吳書·魯肅傳",
+      "file": "sources/sanguozhi-054-lu-su.txt",
+      "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+      "chars": 3583,
+      "page_title": "三國志/卷54",
+      "oldid": 2387393
+    },
+    {
+      "key": "zztj-065",
+      "work": "資治通鑑",
+      "chapter": "卷第六十五 漢紀五十七（建安十一年至十三年）",
+      "file": "sources/zizhi-tongjian-065-quan.txt",
+      "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+      "chars": 10680,
+      "page_title": "資治通鑑/卷065",
+      "oldid": 2306420
+    }
+  ],
+  "real_case_count": 15,
+  "synthetic_case_count": 3,
+  "cases": [
+    {
+      "id": "R2C01",
+      "category": "time-sequence-same-source",
+      "synthetic": false,
+      "title": "周瑜傳同章時間推進：十三年春→其年九月→遇於赤壁",
+      "question": "周瑜傳「十三年春」「其年九月」「遇於赤壁」是否構成同一敘事起點內連續、可繼承的年份？",
+      "observation": "周瑜傳以「十三年春」起，接「其年九月，曹公入荊州…」，再接「遇於赤壁」；三段同章、同一年、按敘事順序排列，後段可沿用前段年份（inherit）而不另造公曆時間。",
+      "expected_reading_behavior": "同一 stream 內聯續 units 可共享 year_key；「其年九月」承接「十三年春」的年份並新增九月 period_key；事件段以 current_event_refs 表示所在事件，不由前端按年份重排。",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "十三年春，權討江夏，瑜為前部大督",
+          "occurrence": 1,
+          "start": 1323,
+          "end": 1339
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "其年九月，曹公入荊州",
+          "occurrence": 1,
+          "start": 1340,
+          "end": 1350
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "遇於赤壁",
+          "occurrence": 1,
+          "start": 2320,
+          "end": 2324
+        }
+      ]
+    },
+    {
+      "id": "R2C02",
+      "category": "time-advance-after-event",
+      "synthetic": false,
+      "title": "周瑜傳戰後時間推進：又進南郡→拜偏將軍領南郡太守",
+      "question": "赤壁之後周瑜傳是否明確推進到戰後南郡階段？",
+      "observation": "「瑜與程普又進南郡」「權拜瑜偏將軍，領南郡太守」承接赤壁戰後，時間與地點（南郡/江陵）均較前段後移，屬敘事時間推進而非回溯。",
+      "expected_reading_behavior": "軸僅在 period_key 改變時新建區段；戰後段用本段 current_event_refs，不把赤壁事件年份平移到戰後。",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "瑜與程普又進南郡",
+          "occurrence": 1,
+          "start": 2892,
+          "end": 2900
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "權拜瑜偏將軍，領南郡太守",
+          "occurrence": 1,
+          "start": 3108,
+          "end": 3120
+        }
+      ]
+    },
+    {
+      "id": "R2C03",
+      "category": "retrospective-block",
+      "synthetic": false,
+      "title": "周瑜傳回溯：初，孫堅與義兵討董卓",
+      "question": "周瑜傳「初，孫堅與義兵討董卓…」是否為回溯鋪陳而非當前敘事時間？",
+      "observation": "「初」引出周瑜與孫策同年、徙家於舒的早年背景，時間早於前文十三年主線；正確閱讀應標為回溯（relation=retrospective），不改變當前 narrative_time。",
+      "expected_reading_behavior": "回溯 span 不參與 narrative_time；軸不回退到董卓討伐年份；回溯事件僅作可預覽的旁及，hover/預覽不改 active unit。",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "初，孫堅與義兵討董卓",
+          "occurrence": 1,
+          "start": 281,
+          "end": 291
+        }
+      ]
+    },
+    {
+      "id": "R2C04",
+      "category": "retrospective-block",
+      "synthetic": false,
+      "title": "通鑑回溯：初，魯肅聞劉表卒",
+      "question": "通鑑卷65「初，魯肅聞劉表卒」在編年體中是回溯還是當下記事？",
+      "observation": "「初」於編年記事中補敘魯肅聞劉表卒而為孫權畫策，屬回溯倒插；其後方接當下荊州/赤壁主線。",
+      "expected_reading_behavior": "回溯段時間不參與主敘事；回到主線後時間軸接回原編年位置，不把兩次出現的年份全局合併。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "初，魯肅聞劉表卒",
+          "occurrence": 1,
+          "start": 7089,
+          "end": 7097
+        }
+      ]
+    },
+    {
+      "id": "R2C05",
+      "category": "cross-source-same-event",
+      "synthetic": false,
+      "title": "跨來源同一事件：赤壁遭遇（周瑜傳↔通鑑卷65）",
+      "question": "周瑜傳「遇於赤壁」與通鑑「進，與操遇於赤壁」是否同一事件、可顯式切換來源並返回？",
+      "observation": "兩來源記同一赤壁遭遇戰；通鑑補「時操軍眾已有疾疫」細節。閱讀時以同一已確認事件切換 A→B 並保存返回位置，不在前端混編兩書正文。",
+      "expected_reading_behavior": "跨來源切換顯式顯示來源切換並保存返回 locator；B 軸不延長 A 軸；返回 A 恢復原 unit 而非首段。",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "遇於赤壁",
+          "occurrence": 1,
+          "start": 2320,
+          "end": 2324
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "進，與操遇於赤壁",
+          "occurrence": 1,
+          "start": 9270,
+          "end": 9278
+        }
+      ]
+    },
+    {
+      "id": "R2C06",
+      "category": "cross-source-same-appointment",
+      "synthetic": false,
+      "title": "跨來源同一任命：周瑜、程普為左右督",
+      "question": "通鑑「遂以周瑜、程普為左右督」與周瑜傳「權遂遣瑜及程普等與備並力逆曹公」是否為同一任命？",
+      "observation": "人名、職事（左右督）、協同對象（與備並力）三者一致，可作跨書同人/同事件核對點；最終 canonical 身份歸併仍走審核，不由核對點自動合併。",
+      "expected_reading_behavior": "targets 以 relation=current 定位發生段落；同名事件先以 canonical ID 區分，不按顯示名稱查找任意 Event。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "遂以周瑜、程普為左右督，將兵與備並力逆操",
+          "occurrence": 1,
+          "start": 9067,
+          "end": 9087
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "權遂遣瑜及程普等與備並力逆曹公",
+          "occurrence": 1,
+          "start": 2304,
+          "end": 2319
+        }
+      ]
+    },
+    {
+      "id": "R2C07",
+      "category": "place-ambiguity",
+      "synthetic": false,
+      "title": "地點層級歧義：南郡/江陵須保留 uncertain",
+      "question": "通鑑「追操至南郡」與「留…守江陵」能否直接等同為同一地點？",
+      "observation": "「南郡」為郡名、「江陵」為城名，同段相鄰但指稱層級不同；無更強原文依據時必須保留 uncertain，不因同屬荊州戰場自動合併。",
+      "expected_reading_behavior": "context_entities 的地點不冒充人物所在；不確定關聯顯示無明確關聯，不填整章地點。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "追操至南郡",
+          "occurrence": 1,
+          "start": 9577,
+          "end": 9582
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "留征南將軍曹仁、橫野將軍徐晃守江陵",
+          "occurrence": 1,
+          "start": 9598,
+          "end": 9615
+        }
+      ]
+    },
+    {
+      "id": "R2C08",
+      "category": "annotation-not-body",
+      "synthetic": false,
+      "title": "嵌注歸屬：先主傳《典略》注不得當正文",
+      "question": "「〈《典略》曰：備本臨邑侯枝屬也。〉」是正文斷言還是裴注轉述？",
+      "observation": "以〈〉包裹的裴松之引《典略》置於世系敘述後；譯文與閱讀斷言必須保留「《典略》記載」歸屬，不得改寫為正文斷言。",
+      "expected_reading_behavior": "注文可作 source_selection 與 context 依據，但不得作為正文 current_event_refs/主敘事斷言；原文視圖仍可展開。",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "〈《典略》曰：備本臨邑侯枝屬也。〉",
+          "occurrence": 1,
+          "start": 58,
+          "end": 75
+        }
+      ]
+    },
+    {
+      "id": "R2C09",
+      "category": "annotation-not-body",
+      "synthetic": false,
+      "title": "嵌注歸屬：周瑜傳《江表傳》注",
+      "question": "周瑜傳「《江表傳》曰：策又給瑜鼓吹…」的歸屬層為何？",
+      "observation": "同為〈〉嵌注記孫策優禮周瑜，與正文「授建威中郎將，即與兵二千人」分屬不同來源層；譯文須分層保留。",
+      "expected_reading_behavior": "注文作為回溯/背景 relation 時不參與 narrative_time；來源摘錄保有原文入口與歸屬。",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "《江表傳》曰：策又給瑜鼓吹",
+          "occurrence": 1,
+          "start": 563,
+          "end": 576
+        }
+      ]
+    },
+    {
+      "id": "R2C10",
+      "category": "context-only-no-claim",
+      "synthetic": false,
+      "title": "無直接 Claim：卷65馬超僅背景提及",
+      "question": "卷65「馬超、韓遂尚在關西，為操後患」能否作馬超本人的直接事迹？",
+      "observation": "此句是魯肅勸孫權抗曹時的戰略背景鋪陳；馬超在本卷無出場動作與時間地點包裹的直接斷言，僅能作 event_context 提及。",
+      "expected_reading_behavior": "context_entities 可列馬超為 other 提及並帶來源，但不得造 direct claim；事件地點不證明參與人物在當地。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "馬超、韓遂尚在關西",
+          "occurrence": 1,
+          "start": 8589,
+          "end": 8598
+        }
+      ]
+    },
+    {
+      "id": "R2C11",
+      "category": "time-axis-year-groups",
+      "synthetic": false,
+      "title": "時間軸年分組：建安十一年/十二年/十三年三個年標題",
+      "question": "通鑑卷65三個年號小標是否為三個可獨立分組的年份邊界？",
+      "observation": "卷首紀首後依序出現「建安十一年」「建安十二年」「建安十三年」三個年標題；每個年標題開啟新 year_key 區段，同卷跨年不全局合併。",
+      "expected_reading_behavior": "year_key 改變才新建區段；同年只顯示一次年標題；傳統年號（regnal）key 不與公曆精確月互等。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "孝獻皇帝庚建安十一年〈丙戌，西元二〇六年〉",
+          "occurrence": 1,
+          "start": 38,
+          "end": 59
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "孝獻皇帝庚建安十二年〈丁亥，西元二〇七年〉",
+          "occurrence": 1,
+          "start": 1114,
+          "end": 1135
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "孝獻皇帝庚建安十三年〈戊子，西元二〇八年〉",
+          "occurrence": 1,
+          "start": 3368,
+          "end": 3389
+        }
+      ]
+    },
+    {
+      "id": "R2C12",
+      "category": "commentary-attribution",
+      "synthetic": false,
+      "title": "史論歸屬：習鑿齒論曰",
+      "question": "通鑑「習鑿齒論曰…」是當時記事還是後世史論？",
+      "observation": "是東晉習鑿齒對曹操的評論，置於建安十三年記事之後；譯文與抽取須標為論述歸屬，不得作建安十三年當事人同期言論。",
+      "expected_reading_behavior": "史論作為後世評述，不產生建安十三年 current_event_refs；不因相鄰而同化其時間。",
+      "refs": [
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "習鑿齒論曰：昔齊桓一矜其功而叛者九國",
+          "occurrence": 1,
+          "start": 10078,
+          "end": 10096
+        }
+      ]
+    },
+    {
+      "id": "R2C13",
+      "category": "cross-chapter-recurrence",
+      "synthetic": false,
+      "title": "跨章復現：赤壁（先主傳↔周瑜傳）",
+      "question": "赤壁是否在先主傳與周瑜傳兩章同時記載？",
+      "observation": "先主傳「與曹公戰於赤壁，大破之」與周瑜傳「遇於赤壁」互證；同一事件出現在兩章、兩個 stream/章邊界，不自動合併為一個連續 stream。",
+      "expected_reading_behavior": "章邊界是內容邊界，不繼承上一章時間；兩側各自明確且相同分組才可連續；同 snapshot 兩來源可互跳。",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "與曹公戰於赤壁，大破之",
+          "occurrence": 1,
+          "start": 5114,
+          "end": 5125
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "遇於赤壁",
+          "occurrence": 1,
+          "start": 2320,
+          "end": 2324
+        }
+      ]
+    },
+    {
+      "id": "R2C14",
+      "category": "appellation-coreference",
+      "synthetic": false,
+      "title": "同章稱謂共指：先主/備、公瑾、子敬",
+      "question": "四位主要人物的名/字在各自章內是否共指同一人？",
+      "observation": "先主傳「先主姓劉，諱備」確立先主=劉備；周瑜傳「周瑜字公瑾」與卷末「孤念公瑾」共指；魯肅傳「魯肅字子敬」與「子敬，孤持鞍下馬相迎」共指。",
+      "expected_reading_behavior": "context 以 canonical ID 去重但保留各條來源；同名不同人不得因顯示名稱合併；長期關係/官職不在本輪推斷。",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主姓劉，諱備",
+          "occurrence": 1,
+          "start": 0,
+          "end": 7
+        },
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主少孤，與母販履織蓆為業",
+          "occurrence": 1,
+          "start": 102,
+          "end": 115
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "周瑜字公瑾",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "孤念公瑾，豈有已乎？",
+          "occurrence": 1,
+          "start": 5006,
+          "end": 5016
+        },
+        {
+          "source_key": "lu-su",
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "魯肅字子敬",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "source_key": "lu-su",
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "子敬，孤持鞍下馬相迎",
+          "occurrence": 1,
+          "start": 2068,
+          "end": 2078
+        }
+      ]
+    },
+    {
+      "id": "R2C15",
+      "category": "head-tail-completeness",
+      "synthetic": false,
+      "title": "首尾完整：四章開篇與兩部尾部",
+      "question": "四個凍結章的頭部與兩部尾部是否連續可定位、注文未截斷？",
+      "observation": "先主傳、周瑜傳、魯肅傳均起於偏移 0；通鑑卷首為站點卷題接原典紀首；先主傳尾〈〉閉合完整；通鑑卷末正文完整。",
+      "expected_reading_behavior": "正文可按 ordinal 連續閱讀至章尾；尾段不被站點授權橫幅污染；注文閉合才可作完成判斷。",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "先主姓劉，諱備",
+          "occurrence": 1,
+          "start": 0,
+          "end": 7
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "周瑜字公瑾",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "source_key": "lu-su",
+          "file": "sources/sanguozhi-054-lu-su.txt",
+          "quote": "魯肅字子敬",
+          "occurrence": 1,
+          "start": 0,
+          "end": 5
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "資治通鑑 第065卷",
+          "occurrence": 1,
+          "start": 0,
+          "end": 10
+        },
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "其畫作大人而埋之者，即是言先主死意。〉",
+          "occurrence": 1,
+          "start": 12552,
+          "end": 12571
+        },
+        {
+          "source_key": "zztj-065",
+          "file": "sources/zizhi-tongjian-065-quan.txt",
+          "quote": "以齊為太守。",
+          "occurrence": 1,
+          "start": 10673,
+          "end": 10679
+        }
+      ]
+    },
+    {
+      "id": "R2N01",
+      "category": "synthetic-negative",
+      "synthetic": true,
+      "title": "合成負例：不存在的「江陵太守劉備」",
+      "question": "「江陵太守劉備」是否為四章原文記載？",
+      "observation": "否。該拼接式表述在四份凍結原文中零命中，僅驗證定位工具對同名/同地拼湊斷言的拒絕；禁止引用為史料發現。",
+      "expected_reading_behavior": "任何 ref 定位必須返回零命中並拒絕成為 source_selection；不得偽造位置或 occurrence。",
+      "negative_probe": "江陵太守劉備",
+      "refs": []
+    },
+    {
+      "id": "R2N02",
+      "category": "synthetic-negative",
+      "synthetic": true,
+      "title": "合成負例：把《典略》注文當正文斷言",
+      "question": "「劉備本為臨邑侯枝屬」可作先主傳正文斷言嗎？",
+      "observation": "否。原文此意僅見於〈《典略》曰：備本臨邑侯枝屬也。〉裴注；合成場景故意把它升為正文斷言，用以驗證注文/正文分層拒絕。禁止引用為史料發現。",
+      "expected_reading_behavior": "注文只能作歸屬來源；若場景斷言其為正文 current_event_refs 必須判為 synthetic 並拒絕。",
+      "negative_probe": "劉備本為臨邑侯枝屬",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "quote": "〈《典略》曰：備本臨邑侯枝屬也。〉",
+          "occurrence": 1,
+          "start": 58,
+          "end": 75
+        }
+      ]
+    },
+    {
+      "id": "R2N03",
+      "category": "synthetic-negative",
+      "synthetic": true,
+      "title": "合成負例：用 canonical 事件聚合年份覆蓋回溯段",
+      "question": "能否用赤壁事件的聚合最小/最大年份作周瑜傳回溯段 narrative_time？",
+      "observation": "否。回溯段屬周瑜早年背景，用事件聚合年份覆蓋會把敘事時間講成發生時間；合成場景故意這樣標註，用以驗證回溯不參與時間且不採用聚合年份。禁止引用為史料發現。",
+      "expected_reading_behavior": "回溯 span 不參與 narrative_time；當前段用本來源觀察，不用 canonical Event 聚合年份代替。",
+      "negative_probe": "retrospective_uses_canonical_event_year",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "quote": "初，孫堅與義兵討董卓",
+          "occurrence": 1,
+          "start": 281,
+          "end": 291
+        }
+      ]
+    }
+  ]
+}
