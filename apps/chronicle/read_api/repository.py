@@ -49,11 +49,18 @@ class _CatalogScope:
     widen an older snapshot.
     """
 
-    def __init__(self, payload: Any) -> None:
+    def __init__(
+        self,
+        payload: Any,
+        relation_shas: Iterable[str] | None = None,
+    ) -> None:
         self.event_members: dict[tuple[str, str], str] = {}
         self.entity_members: dict[tuple[str, str], str] = {}
         self.event_ids: set[str] = set()
         self.entity_ids: set[str] = set()
+        # Canonical event relations the snapshot itself lists. A relation that
+        # only appears in a later catalog must not leak into this snapshot.
+        self.relation_shas: set[str] = set(relation_shas or ())
         self._entity_cache: dict[
             tuple[str, str], tuple[str | None, dict[str, Any] | None]
         ] = {}
@@ -232,7 +239,12 @@ class ChronicleReadRepository:
         ).fetchone()
         if row is None:
             raise ReadModelNotFound(f"catalog snapshot {catalog_sha} not found")
-        return _CatalogScope(row[0])
+        relation_rows = self.conn.execute(
+            "SELECT relation_sha256 FROM chronicle.canonical_catalog_relations"
+            " WHERE catalog_sha256 = %s",
+            (catalog_sha,),
+        ).fetchall()
+        return _CatalogScope(row[0], {item[0] for item in relation_rows})
 
     def _event_summary_from_rows(self, canonical_id: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         payloads = [row["payload"] for row in rows]
@@ -661,6 +673,10 @@ class ChronicleReadRepository:
             other_id = right_id if left_id == canonical_event_id else left_id
             if scope is not None and other_id not in scope.event_ids:
                 # A relation to an event outside the snapshot must not appear.
+                continue
+            if scope is not None and relation_sha not in scope.relation_shas:
+                # The relation itself is not listed by this snapshot catalog
+                # (it was introduced by a later catalog): do not leak it.
                 continue
             provenance = self.conn.execute(
                 """

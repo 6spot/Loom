@@ -68,6 +68,16 @@ TARGETS_MAX_LIMIT = 50
 CURSOR_VERSION = 1
 
 
+class ReadModelInconsistency(RuntimeError):
+    """Persisted reading rows contradict each other.
+
+    Unlike a bad request (400) or a missing object (404), an internally
+    inconsistent reading index is a server-side defect: the contract requires
+    it to fail explicitly instead of being patched with a fallback. T09 maps
+    this to a 5xx response.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Small validators
 # ---------------------------------------------------------------------------
@@ -298,6 +308,11 @@ def event_preview(
         occurrences = current_by_bundle.get(bundle) or []
         if occurrences:
             row = occurrences[0]
+            if row[3] is not None:
+                # A published span occurrence must still resolve to its exact
+                # segment; a mismatch is an internal inconsistency, not a
+                # reason to silently show a fallback.
+                _require_span_text(row[7], row[3], row[4])
             text, excerpt_more = _clip(_unit_text(row[7]), PREVIEW_EXCERPT_CODE_POINTS)
             excerpt = text or None
             original_entry = _anchor_entry(row[5], row[8])
@@ -379,6 +394,10 @@ def _decode_cursor(
         raise ReadModelError("cursor ordinal key is invalid")
     if not isinstance(stream_id, str) or not stream_id:
         raise ReadModelError("cursor stream key is invalid")
+    try:
+        stream_id = str(uuid.UUID(stream_id))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ReadModelError("cursor stream key is not a valid UUID") from exc
     if not isinstance(span_id, str) or not span_id:
         raise ReadModelError("cursor span key is invalid")
     return rank, stream_id, ordinal, span_id
@@ -392,6 +411,7 @@ _TARGET_BASE = f"""
     JOIN chronicle.canonical_catalogs origin
       ON origin.artifact_sha256 = s.origin_catalog_sha
     JOIN chronicle.source_bundles b ON b.bundle_label = o.bundle_label
+    JOIN chronicle.chapter_publications p ON p.publication_id = u.publication_id
     WHERE o.canonical_event_id = %s::uuid
       AND o.event_kind = 'span'
       AND o.span_id IS NOT NULL
@@ -412,6 +432,72 @@ def _span_text(segments: Any, span_id: str) -> str:
             if isinstance(text, str):
                 return text
     return ""
+
+
+def _require_span_text(segments: Any, span_id: str, unit_id: str) -> str:
+    """Return the exact event span text or fail on an inconsistent index."""
+    text = _span_text(segments, span_id)
+    if not text:
+        raise ReadModelInconsistency(
+            f"reading span {span_id!r} in unit {unit_id!r} has no matching "
+            "segment; the reading index and its segments disagree"
+        )
+    return text
+
+
+def _chapter_titles(conn, rows: list[tuple]) -> dict[tuple[str, str, str], str]:
+    """Batch-load source chapter titles for one target page.
+
+    The title lives in the publication's own assembled source bundle
+    (``report.plan.chapters``), never in the reading index; it is loaded once
+    per distinct ``(job_id, assembled_bundle_sha256)`` in the page instead of
+    once per target, so a page never causes an N+1 lookup.
+    """
+    pairs = sorted(
+        {
+            (str(row[12]), row[13])
+            for row in rows
+            if row[12] is not None and isinstance(row[13], str) and row[13]
+        }
+    )
+    if not pairs:
+        return {}
+    output_rows = conn.execute(
+        """
+        SELECT o.job_id, o.artifact_sha256, o.payload
+        FROM chronicle.ingestion_outputs o
+        JOIN unnest(%s::text[], %s::text[]) AS wanted(job_id, artifact_sha256)
+          ON o.job_id = wanted.job_id::uuid
+         AND o.artifact_sha256 = wanted.artifact_sha256
+        WHERE o.artifact_type = 'assembled-source-bundle'
+        """,
+        ([pair[0] for pair in pairs], [pair[1] for pair in pairs]),
+    ).fetchall()
+    titles: dict[tuple[str, str, str], str] = {}
+    for job_id, sha, payload in output_rows:
+        if not isinstance(payload, dict):
+            continue
+        report = payload.get("report")
+        chapters = (
+            report.get("plan", {}).get("chapters")
+            if isinstance(report, dict)
+            else None
+        )
+        if not isinstance(chapters, list):
+            continue
+        for entry in chapters:
+            if not isinstance(entry, dict):
+                continue
+            chapter_id = entry.get("chapter_id")
+            title = entry.get("title")
+            if (
+                isinstance(chapter_id, str)
+                and chapter_id
+                and isinstance(title, str)
+                and title
+            ):
+                titles[(str(job_id), sha, chapter_id)] = title
+    return titles
 
 
 def _target_counts(
@@ -477,7 +563,8 @@ def event_targets(
         SELECT o.stream_id, o.unit_ordinal, o.relation,
                o.bundle_label, o.record_ref, o.span_id,
                u.unit_id, u.publication_id, u.chapter_id, u.segments,
-               b.source_title, o.event_kind
+               b.source_title, o.event_kind,
+               p.job_id, p.assembled_bundle_sha256
         {_TARGET_BASE}
         {clauses}
         ORDER BY (CASE WHEN o.relation = 'current' THEN 0 ELSE 1 END),
@@ -495,17 +582,17 @@ def event_targets(
         publication_sequence=snapshot.publication_sequence,
     )
 
+    chapter_titles = _chapter_titles(conn, rows)
+
     targets: list[dict[str, Any]] = []
     last_key: tuple[int, str, int, str] | None = None
     for row in rows:
         relation = "current" if row[2] == "current" else "mention"
         span_id = row[5]
-        excerpt = _span_text(row[9], span_id)
-        if not excerpt:
-            excerpt = _unit_text(row[9])
-        excerpt, _more = _clip(excerpt, TARGET_EXCERPT_CODE_POINTS)
-        if not excerpt:
-            excerpt = row[4]
+        excerpt, _more = _clip(
+            _require_span_text(row[9], span_id, row[6]),
+            TARGET_EXCERPT_CODE_POINTS,
+        )
         targets.append(
             {
                 "event_id": event_id,
@@ -514,7 +601,7 @@ def event_targets(
                 "stream_id": str(row[0]),
                 "publication_id": str(row[7]),
                 "chapter_id": row[8],
-                "chapter_title": None,
+                "chapter_title": chapter_titles.get((str(row[12]), row[13], row[8])),
                 "source_title": row[10],
                 "unit_id": row[6],
                 "span_id": span_id,

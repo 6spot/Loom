@@ -15,6 +15,7 @@ is T06's single publish transaction.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -40,7 +41,7 @@ import control_plane
 import reading_store
 from migrations import apply_migrations
 from read_common import ReadModelError, ReadModelNotFound
-from reading_events import event_preview, event_targets
+from reading_events import ReadModelInconsistency, event_preview, event_targets
 
 
 DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
@@ -275,6 +276,7 @@ class ReadingEventsPostgresTests(unittest.TestCase):
             ),
         )
         publication_id = _uuid7()
+        assembled_sha = _sha256(f"{label}-assembled")
         publication = {
             "schema": "chronicle.chapter-publication",
             "version": "0.1",
@@ -283,7 +285,7 @@ class ReadingEventsPostgresTests(unittest.TestCase):
             "revision_id": str(revision_id),
             "artifact_sha256": artifact_sha256,
             "catalog_sha256": catalog_sha,
-            "assembled_bundle_sha256": _sha256(f"{label}-assembled"),
+            "assembled_bundle_sha256": assembled_sha,
             "translation_blocks": blocks_payload,
         }
         self.conn.execute(
@@ -305,6 +307,25 @@ class ReadingEventsPostgresTests(unittest.TestCase):
                 chapter_id,
                 json.dumps(publication),
             ),
+        )
+        # The chapter title lives in the publication's own assembled source
+        # bundle, exactly where the production publish path records it.
+        control_plane.record_output(
+            self.conn,
+            job_id=job_id,
+            revision_id=revision_id,
+            artifact_type="assembled-source-bundle",
+            artifact_sha256=assembled_sha,
+            payload={
+                "bundle": {"seed": label},
+                "report": {
+                    "plan": {
+                        "chapters": [
+                            {"chapter_id": chapter_id, "title": f"{label}章标题"}
+                        ]
+                    }
+                },
+            },
         )
         return {
             "label": label,
@@ -828,6 +849,127 @@ class ReadingEventsPostgresTests(unittest.TestCase):
             event_targets(
                 self.conn, snapshot_catalog_sha="bad", canonical_event_id=event_id
             )
+
+    def test_forged_non_uuid_cursor_is_bad_request(self) -> None:
+        event_id = _uuid7()
+        catalog = self._seed_catalog(
+            [
+                {
+                    "canonical_id": event_id,
+                    "title": "赤壁之战",
+                    "members": [
+                        {"bundle": "book-a", "ref": "evt_a", "source_title": "甲书"}
+                    ],
+                }
+            ]
+        )
+        forged = {
+            "v": 1,
+            "catalog": catalog,
+            "event": event_id,
+            "rank": 0,
+            "stream": "not-a-uuid",
+            "ordinal": 0,
+            "span": "sp_a",
+        }
+        cursor = (
+            base64.urlsafe_b64encode(
+                json.dumps(forged, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            )
+            .decode("ascii")
+            .rstrip("=")
+        )
+        # A forged stream key must be a 400 (ReadModelError), never reach the
+        # database as %s::uuid and surface as a 503.
+        with self.assertRaises(ReadModelError):
+            event_targets(
+                self.conn,
+                snapshot_catalog_sha=catalog,
+                canonical_event_id=event_id,
+                cursor=cursor,
+            )
+
+    def test_missing_span_segment_fails_explicitly(self) -> None:
+        event_id = _uuid7()
+        catalog = self._seed_catalog(
+            [
+                {
+                    "canonical_id": event_id,
+                    "title": "赤壁之战",
+                    "members": [
+                        {"bundle": "book-a", "ref": "evt_a", "source_title": "甲书"}
+                    ],
+                }
+            ]
+        )
+        ctx = self._seed_publication(
+            label="a", title="甲书", blocks=["甲书叙赤壁之战。"], catalog_sha=catalog
+        )
+        # The occurrence claims a span the unit's segments do not contain:
+        # the reading index and the body disagree and must fail explicitly.
+        self._persist_stream(
+            ctx,
+            catalog_sha=catalog,
+            unit_specs=[
+                {
+                    "text": ctx["blocks"][0]["text"],
+                    "occurrences": [
+                        self._span_occurrence(
+                            canonical_id=event_id,
+                            bundle="book-a",
+                            ref="evt_a",
+                            span_id="sp_missing",
+                            relation="current",
+                        )
+                    ],
+                }
+            ],
+        )
+        with self.assertRaises(ReadModelInconsistency):
+            event_targets(
+                self.conn, snapshot_catalog_sha=catalog, canonical_event_id=event_id
+            )
+
+    def test_targets_return_source_chapter_title(self) -> None:
+        event_id = _uuid7()
+        catalog = self._seed_catalog(
+            [
+                {
+                    "canonical_id": event_id,
+                    "title": "赤壁之战",
+                    "members": [
+                        {"bundle": "book-a", "ref": "evt_a", "source_title": "甲书"}
+                    ],
+                }
+            ]
+        )
+        ctx = self._seed_publication(
+            label="a", title="甲书", blocks=["甲书叙赤壁之战。"], catalog_sha=catalog
+        )
+        self._persist_stream(
+            ctx,
+            catalog_sha=catalog,
+            unit_specs=[
+                {
+                    "text": ctx["blocks"][0]["text"],
+                    "span": {"span_id": "sp_a", "quote": "赤壁之战"},
+                    "occurrences": [
+                        self._span_occurrence(
+                            canonical_id=event_id,
+                            bundle="book-a",
+                            ref="evt_a",
+                            span_id="sp_a",
+                            relation="current",
+                        )
+                    ],
+                }
+            ],
+        )
+        page = event_targets(
+            self.conn, snapshot_catalog_sha=catalog, canonical_event_id=event_id
+        )
+        self.assertEqual(page["targets"][0]["chapter_title"], "a章标题")
+        self.assertEqual(page["targets"][0]["source_title"], "甲书")
 
 
 if __name__ == "__main__":

@@ -141,6 +141,23 @@ class ReadingSnapshotDetailsPostgresTests(unittest.TestCase):
             ]
             cls.jiangling_no_wuzhu_sha, _ = _canonical_store.persist_catalog(conn, subset)
 
+            # Snapshot that keeps both related events and their representations
+            # but omits *the relation itself*: the relation exists globally and
+            # in the full catalog, but this earlier snapshot must not leak it.
+            cls.full_catalog_sha, _ = _canonical_store.persist_catalog(conn, cls.catalog)
+            pair = {cls.jiangling_wudi_id, cls.jiangling_wuzhu_id}
+            subset = copy.deepcopy(cls.catalog)
+            subset["event_relations"] = [
+                relation
+                for relation in subset["event_relations"]
+                if {
+                    relation.get("left_canonical_event_id"),
+                    relation.get("right_canonical_event_id"),
+                }
+                != pair
+            ]
+            cls.jiangling_no_relation_sha, _ = _canonical_store.persist_catalog(conn, subset)
+
     @classmethod
     def tearDownClass(cls) -> None:
         with psycopg.connect(cls.control_url, autocommit=True) as conn:
@@ -208,6 +225,30 @@ class ReadingSnapshotDetailsPostgresTests(unittest.TestCase):
                 item["event"]["canonical_event_id"] for item in full["related_events"]
             }
             self.assertIn(self.jiangling_wuzhu_id, related_ids)
+        finally:
+            conn.close()
+
+    def test_relation_introduced_later_does_not_leak_into_old_snapshot(self) -> None:
+        # Both endpoints stay in the snapshot, but the relation is only listed
+        # by the full catalog. The earlier snapshot must not surface it.
+        conn, repo = self._repo()
+        try:
+            leaked = repo.event_detail(
+                self.jiangling_wudi_id, catalog_sha=self.jiangling_no_relation_sha
+            )
+            self.assertEqual(leaked["related_events"], [])
+            leaked_ids = {
+                item["event"]["canonical_event_id"] for item in leaked["related_events"]
+            }
+            self.assertNotIn(self.jiangling_wuzhu_id, leaked_ids)
+
+            full = repo.event_detail(
+                self.jiangling_wudi_id, catalog_sha=self.full_catalog_sha
+            )
+            full_ids = {
+                item["event"]["canonical_event_id"] for item in full["related_events"]
+            }
+            self.assertIn(self.jiangling_wuzhu_id, full_ids)
         finally:
             conn.close()
 
