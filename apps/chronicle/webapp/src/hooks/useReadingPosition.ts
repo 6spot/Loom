@@ -152,6 +152,10 @@ function prefersReducedMotion(): boolean {
   }
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function useReadingPosition(options: ReadingPositionOptions): ReadingPositionController {
   const strategy = options.urlStrategy ?? DEFAULT_READING_URL_STRATEGY;
   const unitSelector = options.unitSelector ?? "[data-reading-unit]";
@@ -196,6 +200,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const historySeqRef = useRef(0);
   const historyKeyRef = useRef("");
   const activeRef = useRef<{ unitId: string; ordinal: number } | null>(null);
+  // 导航状态用 ref 同步跟踪，避免 rAF/滚动回调在 React 重渲染前读到过期的 state。
+  const navStateRef = useRef<ReadingNavigationState>("idle");
   const settleTimerRef = useRef<number | null>(null);
   const schedulerRef = useRef<FrameScheduler | null>(null);
 
@@ -206,6 +212,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
 
   const commitState = useCallback(
     (patch: Partial<ReadingPositionControllerState>) => {
+      if (patch.navigationState !== undefined) {
+        navStateRef.current = patch.navigationState;
+      }
       if (!mountedRef.current) return;
       setState((previous) => ({ ...previous, ...patch }));
     },
@@ -214,10 +223,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
 
   const setNavState = useCallback(
     (event: Parameters<typeof nextNavigationState>[1]) => {
-      setState((previous) => ({
-        ...previous,
-        navigationState: nextNavigationState(previous.navigationState, event),
-      }));
+      const next = nextNavigationState(navStateRef.current, event);
+      navStateRef.current = next;
+      setState((previous) => ({ ...previous, navigationState: next }));
     },
     [],
   );
@@ -308,6 +316,19 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     [currentLocator],
   );
 
+  /** 测量某个 unit 相对参考线的位置；用于持久化 unit 内相对位置而非固定 0。 */
+  const measureRelativeOffset = useCallback(
+    (unitId: string): number => {
+      if (typeof document === "undefined" || typeof window === "undefined") return 0;
+      const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
+      if (!node) return 0;
+      const rect = node.getBoundingClientRect();
+      const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
+      return relativeOffsetWithin({ top: rect.top, bottom: rect.bottom }, referenceY);
+    },
+    [selectorFor, headerHeight, referenceRatio],
+  );
+
   const scheduleSettleUrl = useCallback(() => {
     if (typeof window === "undefined") return;
     if (settleTimerRef.current !== null) {
@@ -317,10 +338,13 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       settleTimerRef.current = null;
       const locator = currentLocator();
       if (!locator) return;
+      // 自然滚动 settle 时按当前 active unit 的实测相对位置持久化，供
+      // back/forward 与刷新恢复 unit 内位置，而不是总回到段首。
+      const offset = measureRelativeOffset(locator.unit_id);
       writeUrl(locator, "replace", historyKeyRef.current);
-      saveHistoryEntry(0, null, false);
+      saveHistoryEntry(offset, null, false);
     }, settleDelayMs);
-  }, [currentLocator, writeUrl, saveHistoryEntry, settleDelayMs]);
+  }, [currentLocator, writeUrl, saveHistoryEntry, measureRelativeOffset, settleDelayMs]);
 
   const scrollToTarget = useCallback(
     (unitId: string, relativeOffset: number) => {
@@ -374,23 +398,42 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     [selectorFor, restoreFrameBudget],
   );
 
+  /**
+   * 在第一个 await 之前分配操作序号，使任何更新的导航/用户交互立即作废本次操作。
+   * 所有异步回调（locate/loadWindow/resolveStart/DOM-ready）都必须用同一序号 fence。
+   */
+  const beginOperation = useCallback((): number => {
+    requestSeqRef.current += 1;
+    return requestSeqRef.current;
+  }, []);
+
   const applyLocator = useCallback(
-    async (locator: ReadingLocator, detail: RestoreDetail) => {
+    async (locator: ReadingLocator, detail: RestoreDetail, preallocatedSeq?: number) => {
       if (!isReadingLocator(locator)) {
         commitState({ issue: readingIssue("invalid_unit", "refusing non-typed locator") });
         return;
       }
-      const seq = requestSeqRef.current + 1;
-      requestSeqRef.current = seq;
+      const seq = preallocatedSeq ?? beginOperation();
+      if (seq !== requestSeqRef.current) return;
       setNavState(detail.push ? "begin_navigation" : "begin_restore");
       commitState({ issue: null });
 
-      const located = await optionsRef.current.locate(locator);
+      let located: ReadingLocateResult | null;
+      try {
+        located = await optionsRef.current.locate(locator);
+      } catch (error) {
+        if (seq !== requestSeqRef.current || !mountedRef.current) return;
+        commitState({
+          navigationState: "idle",
+          issue: readingIssue("snapshot_mismatch", `locate failed: ${errorMessage(error)}`),
+        });
+        return;
+      }
       if (seq !== requestSeqRef.current || !mountedRef.current) return;
       if (!located) {
         commitState({
           navigationState: "idle",
-          issue: readingIssue("snapshot_mismatch", "locate failed for locator"),
+          issue: readingIssue("snapshot_mismatch", "locate returned no page for locator"),
         });
         return;
       }
@@ -446,13 +489,12 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         trigger?.focus();
       }
     },
-    [commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, ordinalOf],
+    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, ordinalOf],
   );
 
   const refreshActive = useCallback(() => {
     if (!mountedRef.current || typeof window === "undefined") return;
-    const currentState = stateRef.current;
-    if (currentState.navigationState === "restoring" || currentState.navigationState === "navigating") {
+    if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       return;
     }
     const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
@@ -468,7 +510,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         });
         optionsRef.current.onActiveUnitChange?.(optionsRef.current.getUnit(chosen.unitId) ?? null);
       }
-      if (currentState.navigationState !== "idle") {
+      if (navStateRef.current !== "idle") {
         setNavState("settled");
       }
       if (changed) scheduleSettleUrl();
@@ -488,8 +530,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       settleTimerRef.current = null;
     }
     schedulerRef.current?.cancel();
-    const currentState = stateRef.current;
-    if (currentState.navigationState === "restoring" || currentState.navigationState === "navigating") {
+    if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       requestSeqRef.current += 1;
       setNavState("user_scrolled");
     }
@@ -506,13 +547,29 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     }
     const location = parsed.location;
     if (location.unit_id === null) {
+      // 在 await 之前 fence：迟到的 resolveStart 不得覆盖之后发生的导航/用户交互。
+      const seq = beginOperation();
+      if (seq !== requestSeqRef.current) return;
+      setNavState("begin_restore");
+      commitState({ issue: null });
       const resolveStart = optionsRef.current.resolveStart;
-      const start = resolveStart
-        ? await resolveStart({
-            stream_id: location.stream_id,
-            catalog_sha: location.catalog_sha,
-          })
-        : null;
+      let start: ReadingLocator | null;
+      try {
+        start = resolveStart
+          ? await resolveStart({
+              stream_id: location.stream_id,
+              catalog_sha: location.catalog_sha,
+            })
+          : null;
+      } catch (error) {
+        if (seq !== requestSeqRef.current || !mountedRef.current) return;
+        commitState({
+          navigationState: "idle",
+          issue: readingIssue("snapshot_mismatch", `start resolution failed: ${errorMessage(error)}`),
+        });
+        return;
+      }
+      if (seq !== requestSeqRef.current || !mountedRef.current) return;
       if (!start) {
         commitState({
           issue: readingIssue("missing_unit", "URL has no at and no start resolver"),
@@ -520,13 +577,17 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         });
         return;
       }
-      await applyLocator(start, {
-        relativeOffset: 0,
-        focusId: null,
-        sourceExpanded: false,
-        historyKey: historyKeyRef.current || undefined,
-        push: false,
-      });
+      await applyLocator(
+        start,
+        {
+          relativeOffset: 0,
+          focusId: null,
+          sourceExpanded: false,
+          historyKey: historyKeyRef.current || undefined,
+          push: false,
+        },
+        seq,
+      );
       return;
     }
     const locator: ReadingLocator = {
@@ -542,7 +603,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       historyKey: historyKeyRef.current || undefined,
       push: false,
     });
-  }, [applyLocator, commitState]);
+  }, [applyLocator, beginOperation, commitState, setNavState]);
 
   const restoreFromUrl = useCallback(() => {
     void restoreFromUrlInternal();
@@ -559,15 +620,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         });
         return;
       }
-      const offset = (() => {
-        const active = activeRef.current;
-        if (!active || typeof document === "undefined" || typeof window === "undefined") return 0;
-        const node = document.querySelector(selectorFor(active.unitId)) as HTMLElement | null;
-        if (!node) return 0;
-        const rect = node.getBoundingClientRect();
-        const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
-        return relativeOffsetWithin({ top: rect.top, bottom: rect.bottom }, referenceY);
-      })();
+      const active = activeRef.current;
+      const offset = active ? measureRelativeOffset(active.unitId) : 0;
       saveHistoryEntry(offset, action.kind === "event" ? action.event_id : null, action.kind === "source");
       void applyLocator(action.locator, {
         relativeOffset: 0,
@@ -576,13 +630,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         push: true,
       });
     },
-    [
-      applyLocator,
-      saveHistoryEntry,
-      selectorFor,
-      headerHeight,
-      referenceRatio,
-    ],
+    [applyLocator, saveHistoryEntry, measureRelativeOffset],
   );
 
   const restoreLocator = useCallback(

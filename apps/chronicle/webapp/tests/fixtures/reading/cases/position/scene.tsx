@@ -155,24 +155,28 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
 
   const locate = useCallback(
     async (locator: ReadingLocator): Promise<ReadingLocateResult | null> => {
+      const target = UNIT_BY_ID.get(locator.unit_id);
+      if (!target) return null;
+      if (target.ordinal === 29) throw new Error("controlled locate failure");
       const slow = slowNextRef.current;
       slowNextRef.current = false;
       if (slow) {
         await new Promise((resolve) => window.setTimeout(resolve, 800));
       }
-      const target = UNIT_BY_ID.get(locator.unit_id);
-      if (!target) return null;
       return { locator, unitIds: [target.unitId] };
     },
     [],
   );
 
   const resolveStart = useCallback(
-    async (route: { stream_id: string; catalog_sha: string }): Promise<ReadingLocator | null> => ({
-      stream_id: route.stream_id,
-      catalog_sha: route.catalog_sha,
-      unit_id: unitId(0),
-    }),
+    async (route: { stream_id: string; catalog_sha: string }): Promise<ReadingLocator | null> => {
+      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      return {
+        stream_id: route.stream_id,
+        catalog_sha: route.catalog_sha,
+        unit_id: unitId(0),
+      };
+    },
     [],
   );
 
@@ -229,6 +233,22 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
     window.scrollTo({ top: node.getBoundingClientRect().top + window.scrollY - 40 });
   };
 
+  // 移除 URL 的 at 后走 resolveStart（受控迟到 800ms），用于验证起点解析被 fence。
+  const delayedStartRestore = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("at");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    controller.restoreFromUrl();
+  };
+
+  const failLocate = () => {
+    const target = UNITS[29]!;
+    controller.navigate({
+      kind: "locate",
+      locator: { stream_id: STREAM_ID, catalog_sha: CATALOG_SHA, unit_id: target.unitId },
+    });
+  };
+
   const rememberReturn = () => {
     const remembered = controller.rememberReturnTarget();
     if (!remembered) {
@@ -278,6 +298,12 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
         </button>
         <button type="button" data-test="position-delayed-nav" onClick={delayedNavigate}>
           迟到定位 u28
+        </button>
+        <button type="button" data-test="position-delayed-start" onClick={delayedStartRestore}>
+          迟到起点解析
+        </button>
+        <button type="button" data-test="position-fail-locate" onClick={failLocate}>
+          失败定位 u29
         </button>
         <button type="button" data-test="position-scroll-u02" onClick={() => naturalScrollTo(2)}>
           自然滚动 u02

@@ -90,6 +90,26 @@ export async function run(ctx) {
   const replacedAt = await page.evaluate(() => new URLSearchParams(window.location.search).get("at"));
   ctx.check("natural-scroll-replaces-url", replacedAt === ru(2), `at=${replacedAt}`);
 
+  // 3b. 自然滚动 settle 时必须持久化实测的 unit 内相对位置，而不是固定 0。
+  const storedOffsets = await page.evaluate(() => {
+    const out = [];
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+      if (!key || !key.includes("entry.")) continue;
+      try {
+        out.push(JSON.parse(window.sessionStorage.getItem(key) ?? "{}").relative_offset);
+      } catch {
+        /* ignore malformed */
+      }
+    }
+    return out;
+  });
+  ctx.check(
+    "natural-scroll-persists-relative-offset",
+    storedOffsets.some((value) => typeof value === "number" && value > 0.05),
+    JSON.stringify(storedOffsets),
+  );
+
   // 4. 显式导航使用 push。
   const pushBefore = await page.evaluate(() => window.history.length);
   await page.click('[data-test="position-nav-axis"]');
@@ -166,6 +186,34 @@ export async function run(ctx) {
   ctx.check("invalid-token-falls-back", (await text(page, '[data-test="position-return-result"]')).includes("token 失效"));
   ctx.check("invalid-token-no-external-jump", (await page.evaluate(() => window.location.origin)) === origin);
   ctx.check("invalid-token-keeps-active-unit", (await activeUnitId(page)) === activeBeforeInvalid);
+
+  // 10b. 迟到的起点解析（URL 无 at）不得覆盖之后发生的显式导航。
+  await page.click('[data-test="position-nav-axis"]');
+  await waitForActive(page, 10);
+  await page.click('[data-test="position-delayed-start"]');
+  await page.click('[data-test="position-nav-event"]');
+  await waitForActive(page, 15);
+  await page.waitForTimeout(1000);
+  ctx.check(
+    "delayed-start-does-not-override-later-nav",
+    (await activeUnitId(page)) === ru(15),
+    `active=${await activeUnitId(page)}`,
+  );
+  ctx.check("delayed-start-resolves-idle", (await text(page, '[data-test="position-nav-state"]')) === "idle");
+  ctx.check("delayed-start-no-issue", (await text(page, '[data-test="position-issue"]')) === "");
+
+  // 10c. locate 抛错必须显式回落 idle，保留已读正文与 URL。
+  const activeBeforeLocateFailure = await activeUnitId(page);
+  await page.click('[data-test="position-fail-locate"]');
+  await page.waitForTimeout(400);
+  ctx.check("locate-failure-explicit-issue", (await text(page, '[data-test="position-issue"]')) === "snapshot_mismatch");
+  ctx.check("locate-failure-returns-idle", (await text(page, '[data-test="position-nav-state"]')) === "idle");
+  ctx.check("locate-failure-preserves-active", (await activeUnitId(page)) === activeBeforeLocateFailure);
+  ctx.check(
+    "locate-failure-preserves-url",
+    (await page.evaluate(() => new URLSearchParams(window.location.search).get("at"))) === activeBeforeLocateFailure,
+  );
+
   ctx.check("no-page-error", pageErrors.length === 0, pageErrors.join(";"));
 
   // 11. storage 不可用：URL 定位仍可用，token 安全降级。
