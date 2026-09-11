@@ -216,6 +216,13 @@ jobs:
           assert c["performance_budget"] == "PASS", c
           assert m["scale"]["unit_count"] >= 5000 and m["scale"]["group_count"] >= 1000, m["scale"]
           assert m["browser"]["ok"] is True, m["browser"]
+          kinds = {n["kind"] for n in m["negatives"]}
+          assert {"unknown_time", "missing_context", "missing_role"} <= kinds, kinds
+          assert m["scale_contract"]["units_checked"] >= 50, m["scale_contract"]
+          perf = next(r for r in m["browser"]["results"] if r["suite"] == "performance")
+          runs = perf["evidence"]["runs"]
+          assert len(runs) == 5, runs
+          assert all(r["active_p95_ms"] <= 100 and r["restore_ms"] <= 250 for r in runs), runs
           PY
 
 

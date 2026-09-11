@@ -271,6 +271,120 @@ async function touchInteraction(runner, baseUrl, stream) {
   }
 }
 
+async function negativeScenarios(runner, baseUrl, negatives) {
+  const byKind = Object.fromEntries(negatives.map((item) => [item.kind, item]));
+  const openAt = async (negative, unitId) => {
+    const { page } = await openStream(
+      runner,
+      baseUrl,
+      { stream_id: negative.stream_id, catalog_sha: negative.catalog_sha },
+      { viewport: { width: 1440, height: 900 } },
+    );
+    if (unitId && unitId !== negative.unit_id) {
+      await page.goto(
+        readingUrl(
+          baseUrl,
+          { stream_id: negative.stream_id, catalog_sha: negative.catalog_sha },
+          unitId,
+        ),
+        { waitUntil: "domcontentloaded" },
+      );
+      await page.waitForSelector(UNIT, { timeout: 30000 });
+    }
+    return page;
+  };
+
+  if (byKind.unknown_time) {
+    const page = await openAt(byKind.unknown_time, byKind.unknown_time.unit_id);
+    try {
+      await page.waitForSelector('[data-test="reading-compact-time"]', {
+        timeout: 10000,
+      });
+      const label = (await page
+        .locator('[data-test="reading-compact-time"]')
+        .first()
+        .innerText()).trim();
+      runner.check(
+        "unknown-time-expressed",
+        label.includes("未") || label.includes("未知"),
+        `unknown-time unit rendered ${label}`,
+      );
+      runner.check(
+        "unknown-time-not-fabricated",
+        !/[0-9]{3,4}\s*年/.test(label),
+        `unknown-time unit fabricated a year: ${label}`,
+      );
+    } finally {
+      await runner.closePages();
+    }
+  }
+
+  if (byKind.missing_context) {
+    const page = await openAt(
+      byKind.missing_context,
+      byKind.missing_context.previous_context_unit_id,
+    );
+    try {
+    try {
+      await page.waitForSelector('[data-test="reading-context-entity"]', {
+        timeout: 15000,
+      });
+    } catch {
+      /* asserted below */
+    }
+    runner.check(
+      "context-shown-before-clearing",
+      (await page.locator('[data-test="reading-context-entity"]').count()) >= 1,
+      "preceding unit exposed no context to clear",
+    );
+      await page.goto(
+        readingUrl(
+          baseUrl,
+          {
+            stream_id: byKind.missing_context.stream_id,
+            catalog_sha: byKind.missing_context.catalog_sha,
+          },
+          byKind.missing_context.unit_id,
+        ),
+        { waitUntil: "domcontentloaded" },
+      );
+      await page.waitForSelector(UNIT, { timeout: 30000 });
+      runner.check(
+        "missing-context-clears",
+        (await page.locator('[data-test="reading-context-entity"]').count()) === 0,
+        "context was not cleared on a unit without context",
+      );
+    } finally {
+      await runner.closePages();
+    }
+  }
+
+  if (byKind.missing_role) {
+    const page = await openAt(byKind.missing_role, byKind.missing_role.unit_id);
+    try {
+      try {
+        await page.waitForSelector('[data-test="reading-context-entity"]', {
+          timeout: 15000,
+        });
+      } catch {
+        /* asserted below */
+      }
+      runner.check(
+        "missing-role-entity-present",
+        (await page.locator('[data-test="reading-context-entity"]').count()) >= 1,
+        "missing-role entity was not rendered",
+      );
+      runner.check(
+        "missing-role-not-fabricated",
+        (await page.locator('[data-test="reading-context-role"]').count()) === 0,
+        "a role was fabricated for an entity with no sourced role",
+      );
+    } finally {
+      await runner.closePages();
+    }
+  }
+}
+
 export async function run(ctx) {
   const { runner, baseUrl, manifest } = ctx;
   const streams = manifest.streams;
@@ -286,5 +400,6 @@ export async function run(ctx) {
   await versionPinning(runner, baseUrl, manifest.versions);
   await navigation(runner, baseUrl, streams[0]);
   await touchInteraction(runner, baseUrl, streams[0]);
+  await negativeScenarios(runner, baseUrl, manifest.negatives);
   return runner;
 }

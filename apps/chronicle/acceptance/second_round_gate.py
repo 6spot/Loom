@@ -97,13 +97,14 @@ from gate_runtime import (  # noqa: E402
     write_json,
 )
 from reading_scale_fixture import (  # noqa: E402
-    SCALE_GROUPS_ENV,
-    SCALE_UNITS_ENV,
+    SCALE_GROUPS_PLACEHOLDER,
+    SCALE_UNITS_PLACEHOLDER,
     SEED_SCRIPT,
     parse_scale_result,
 )
 
 import fixture_model  # noqa: E402
+import reading_contract  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +578,121 @@ def _event_ids_from_units(units: list[dict[str, Any]]) -> list[str]:
     return found
 
 
+def assert_time_contract(narrative_time: dict[str, Any]) -> None:
+    """Assert a narrative_time is contract-complete, not just schema-valid.
+
+    JSON Schema cannot express that an ``events``/``mixed`` time must carry at
+    least one event reference while ``unknown``/``inherit`` must not. The
+    product DTO validator therefore accepts the inconsistent shape; the gate
+    rejects it here so a synthetic or mis-generated unit can never be treated
+    as contract evidence.
+    """
+    mode = narrative_time.get("mode")
+    refs = narrative_time.get("event_refs")
+    if not isinstance(refs, list):
+        raise GateError("narrative_time.event_refs must be an array")
+    if mode in ("events", "mixed") and not refs:
+        raise GateError(f"narrative_time mode {mode!r} requires event_refs")
+    if mode in ("unknown", "inherit") and refs:
+        raise GateError(f"narrative_time mode {mode!r} must not carry event_refs")
+    for field in (
+        "status",
+        "from_block_id",
+        "observations",
+        "year_key",
+        "period_key",
+        "year_label",
+        "period_label",
+        "precision",
+        "continues_previous",
+    ):
+        if field not in narrative_time:
+            raise GateError(f"narrative_time missing {field!r}")
+
+
+def validate_scale_contract(base_url: str, scale: dict[str, Any]) -> dict[str, Any]:
+    """Validate the synthetic scale stream's DTOs and time/role contract."""
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/units"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["units"]
+    groups = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/groups"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["groups"]
+    if not units or not groups:
+        raise GateError("synthetic scale stream exposed no units or groups")
+    for unit in units:
+        errors = reading_contract.validate_reading_dto("reading_unit", unit)
+        if errors:
+            raise GateError(f"synthetic unit DTO invalid: {errors}")
+        assert_time_contract(unit["narrative_time"])
+        for entity in unit.get("context_entities", []):
+            entity_errors = reading_contract.validate_reading_dto(
+                "context_entity_view", entity
+            )
+            if entity_errors:
+                raise GateError(f"synthetic context entity DTO invalid: {entity_errors}")
+    for group in groups:
+        errors = reading_contract.validate_reading_dto("time_group", group)
+        if errors:
+            raise GateError(f"synthetic time group DTO invalid: {errors}")
+    return {
+        "units_checked": len(units),
+        "groups_checked": len(groups),
+        "narrative_modes": sorted({unit["narrative_time"]["mode"] for unit in units}),
+        "context_entities": sum(len(unit.get("context_entities", [])) for unit in units),
+    }
+
+
+def find_negatives(base_url: str, scale: dict[str, Any]) -> list[dict[str, Any]]:
+    """Locate the explicit unknown-time / missing-context / missing-role units."""
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/units"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["units"]
+    negatives: dict[str, dict[str, Any]] = {}
+    for index, unit in enumerate(units):
+        if "unknown_time" not in negatives and unit["narrative_time"]["mode"] == "unknown":
+            negatives["unknown_time"] = {
+                "kind": "unknown_time",
+                "stream_id": scale["stream_id"],
+                "catalog_sha": scale["catalog_sha"],
+                "unit_id": unit["unit_id"],
+            }
+        if (
+            "missing_context" not in negatives
+            and not unit.get("context_entities")
+            and index > 0
+            and units[index - 1].get("context_entities")
+        ):
+            negatives["missing_context"] = {
+                "kind": "missing_context",
+                "stream_id": scale["stream_id"],
+                "catalog_sha": scale["catalog_sha"],
+                "unit_id": unit["unit_id"],
+                "previous_context_unit_id": units[index - 1]["unit_id"],
+            }
+        for entity in unit.get("context_entities", []):
+            if "missing_role" not in negatives and not entity.get("event_roles"):
+                negatives["missing_role"] = {
+                    "kind": "missing_role",
+                    "stream_id": scale["stream_id"],
+                    "catalog_sha": scale["catalog_sha"],
+                    "unit_id": unit["unit_id"],
+                    "entity_ref": entity["entity_ref"],
+                }
+                break
+    for kind in ("unknown_time", "missing_context", "missing_role"):
+        if kind not in negatives:
+            raise GateError(f"fixture data exposes no {kind!r} negative scenario")
+    return [negatives[kind] for kind in ("unknown_time", "missing_context", "missing_role")]
+
+
+
 def _assert_units_reassemble(base_url: str, result: dict[str, Any]) -> None:
     units = result["units"]["page"]["units"]
     if not units:
@@ -701,6 +817,43 @@ def fault_checks(
     if bad_catalog not in (400, 404):
         raise GateError(f"unknown catalog must fail closed, got {bad_catalog}")
 
+    # F4: role/time contract negatives. The product schema cannot reject an
+    # events-mode time with no event reference, so the gate enforces it.
+    unknown_time = {
+        "mode": "unknown",
+        "status": "unknown",
+        "event_refs": [],
+        "from_block_id": None,
+        "observations": [],
+        "year_key": "unknown",
+        "period_key": "unknown",
+        "year_label": None,
+        "period_label": "时间未明确",
+        "precision": "unknown",
+        "continues_previous": False,
+    }
+    assert_time_contract(unknown_time)
+    faults["unknown_time_contract"] = {"passed": True}
+    try:
+        assert_time_contract({**unknown_time, "mode": "events", "status": "resolved"})
+    except GateError as exc:
+        faults["events_without_refs_rejected"] = {"passed": True, "error": str(exc)[:160]}
+    else:
+        raise GateError("events-mode time without event_refs must be rejected")
+    entity = {
+        "entity_ref": "scale_ent_1",
+        "name": "合成人物",
+        "canonical_id": None,
+        "kind": "person",
+        "importance": "primary",
+        "source_anchor_ids": [],
+        "event_roles": [],
+    }
+    entity_errors = reading_contract.validate_reading_dto("context_entity_view", entity)
+    if entity_errors:
+        raise GateError(f"context entity without role must be DTO-valid: {entity_errors}")
+    faults["context_role_optional"] = {"passed": True}
+
     evidence["faults"] = faults
     return faults
 
@@ -713,16 +866,10 @@ def fault_checks(
 def seed_scale_stream(
     stack: ComposeStack, *, units: int, groups: int
 ) -> dict[str, Any]:
-    previous = os.environ.get(SCALE_UNITS_ENV)
-    os.environ[SCALE_UNITS_ENV] = str(units)
-    os.environ[SCALE_GROUPS_ENV] = str(groups)
-    try:
-        result = stack.compose_run_script("chronicle-worker", SEED_SCRIPT)
-    finally:
-        if previous is None:
-            os.environ.pop(SCALE_UNITS_ENV, None)
-        else:
-            os.environ[SCALE_UNITS_ENV] = previous
+    script = SEED_SCRIPT.replace(SCALE_UNITS_PLACEHOLDER, str(units)).replace(
+        SCALE_GROUPS_PLACEHOLDER, str(groups)
+    )
+    result = stack.compose_run_script("chronicle-worker", script)
     return parse_scale_result(result.stdout)
 
 
@@ -737,6 +884,7 @@ def build_browser_manifest(
     base_url: str,
     scale: dict[str, Any],
     versions: list[dict[str, Any]],
+    negatives: list[dict[str, Any]],
 ) -> dict[str, Any]:
     streams = [
         {
@@ -757,6 +905,7 @@ def build_browser_manifest(
         "base_url": base_url,
         "streams": streams,
         "versions": versions,
+        "negatives": negatives,
         "scale": {
             "synthetic": True,
             "status": "measured",
@@ -807,6 +956,18 @@ def validate_browser_manifest(manifest: Any) -> dict[str, Any]:
     versions = manifest.get("versions")
     if not isinstance(versions, list) or not versions:
         raise GateError("browser fixture manifest carries no content versions")
+    negatives = manifest.get("negatives")
+    if not isinstance(negatives, list):
+        raise GateError("browser fixture manifest carries no negative scenarios")
+    kinds = {item.get("kind") for item in negatives if isinstance(item, dict)}
+    for required in ("unknown_time", "missing_context", "missing_role"):
+        if required not in kinds:
+            raise GateError(f"browser fixture manifest missing {required!r} negative")
+        for item in negatives:
+            if item.get("kind") == required:
+                for field in ("stream_id", "catalog_sha", "unit_id"):
+                    if not item.get(field):
+                        raise GateError(f"negative {required!r} missing {field!r}")
     return manifest
 
 
@@ -998,13 +1159,21 @@ def run_fixture(
         )
         evidence.checkpoint()
 
+        publication_id = works[0]["units"]["page"]["units"][0]["publication_id"]
         scale = seed_scale_stream(stack, units=5000, groups=1000)
         evidence.data["scale"] = scale
+        evidence.data["scale_contract"] = validate_scale_contract(base_url, scale)
+        negatives = find_negatives(base_url, scale)
+        evidence.data["negatives"] = negatives
         evidence.checkpoint()
 
         manifest = validate_browser_manifest(
             build_browser_manifest(
-                works, base_url=base_url, scale=scale, versions=versions
+                works,
+                base_url=base_url,
+                scale=scale,
+                versions=versions,
+                negatives=negatives,
             )
         )
         manifest_path = evidence_dir / "browser-fixture-manifest.json"

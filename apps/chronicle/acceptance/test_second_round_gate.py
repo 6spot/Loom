@@ -235,6 +235,18 @@ def sample_scale() -> dict:
     }
 
 
+def sample_negatives() -> list:
+    return [
+        {
+            "kind": kind,
+            "stream_id": sample_scale()["stream_id"],
+            "catalog_sha": sample_scale()["catalog_sha"],
+            "unit_id": "ru_" + "3" * 24,
+        }
+        for kind in ("unknown_time", "missing_context", "missing_role")
+    ]
+
+
 class BrowserManifestTests(unittest.TestCase):
     def _manifest(self, **overrides) -> dict:
         manifest = {
@@ -244,6 +256,7 @@ class BrowserManifestTests(unittest.TestCase):
             "versions": [
                 {"label": "v1", "catalog_sha": "a" * 64, "stream_id": sample_work()["stream_id"]}
             ],
+            "negatives": sample_negatives(),
             "scale": sample_scale(),
         }
         manifest.update(overrides)
@@ -261,6 +274,8 @@ class BrowserManifestTests(unittest.TestCase):
             self._manifest(scale=None),
             self._manifest(scale={**sample_scale(), "unit_count": 10}),
             self._manifest(versions=[]),
+            self._manifest(negatives=[]),
+            self._manifest(negatives=sample_negatives()[:2]),
         ):
             with self.assertRaises(GateError):
                 G.validate_browser_manifest(broken)
@@ -271,10 +286,73 @@ class BrowserManifestTests(unittest.TestCase):
             G.validate_browser_manifest(self._manifest(streams=[work]))
 
 
+class TimeAndRoleContractTests(unittest.TestCase):
+    def _unknown(self) -> dict:
+        return {
+            "mode": "unknown",
+            "status": "unknown",
+            "event_refs": [],
+            "from_block_id": None,
+            "observations": [],
+            "year_key": "unknown",
+            "period_key": "unknown",
+            "year_label": None,
+            "period_label": "时间未明确",
+            "precision": "unknown",
+            "continues_previous": False,
+        }
+
+    def test_unknown_time_passes(self) -> None:
+        G.assert_time_contract(self._unknown())
+
+    def test_events_without_refs_rejected(self) -> None:
+        with self.assertRaises(GateError):
+            G.assert_time_contract(
+                {**self._unknown(), "mode": "events", "status": "resolved"}
+            )
+
+    def test_unknown_with_refs_rejected(self) -> None:
+        with self.assertRaises(GateError):
+            G.assert_time_contract({**self._unknown(), "event_refs": ["evt_1"]})
+
+    def test_entity_without_role_is_valid(self) -> None:
+        entity = {
+            "entity_ref": "scale_ent_1",
+            "name": "合成人物",
+            "canonical_id": None,
+            "kind": "person",
+            "importance": "primary",
+            "source_anchor_ids": [],
+            "event_roles": [],
+        }
+        self.assertEqual(
+            reading_contract.validate_reading_dto("context_entity_view", entity), []
+        )
+
+
 class BoundaryTests(unittest.TestCase):
     def test_no_direct_product_writes(self) -> None:
         report = G.check_no_direct_product_writes()
         self.assertFalse(report["direct_product_writes"])
+
+    def test_scale_fixture_has_no_raw_writes(self) -> None:
+        import reading_scale_fixture
+
+        text = (HERE / "reading_scale_fixture.py").read_text(encoding="utf-8")
+        for token in (
+            "INSERT INTO",
+            "UPDATE chronicle.",
+            "DELETE FROM",
+            "CREATE TABLE",
+            "DROP TABLE",
+            "ALTER TABLE",
+        ):
+            self.assertNotIn(token, text, msg=f"scale fixture carries raw write {token!r}")
+        self.assertIn("reading_store.persist_reading_stream", reading_scale_fixture.SEED_SCRIPT)
+        self.assertIn(
+            "chapter_store.record_accepted_chapter_fenced",
+            reading_scale_fixture.SEED_SCRIPT,
+        )
 
     def test_gate_project_is_prefixed(self) -> None:
         self.assertTrue(default_gate_project("r2").startswith("chronicle-gate-"))

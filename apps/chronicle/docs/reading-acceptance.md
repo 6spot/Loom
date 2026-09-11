@@ -10,7 +10,11 @@
 - `apps/chronicle/acceptance/gate_runtime.py`：与第一轮 gate 共享的隔离 Compose /
   隔离 PostgreSQL / Studio / HTTP / 证据生命周期。
 - `apps/chronicle/acceptance/reading_scale_fixture.py`：明确合成的
-  5,000 units / 1,000 groups 规模集种子（隔离栈内的产品持久化边界 + 合成标签）。
+  5,000 units / 1,000 groups 规模集种子。它只用产品持久化 API
+  （`chapter_store.record_accepted_chapter_fenced` /
+  `chapter_store.persist_chapter_publication` /
+  `reading_store.persist_reading_stream` / `canonical_store.persist_catalog`），
+  不写任何 raw SQL。
 - `apps/chronicle/webapp/scripts/reading-flow-smoke.mjs`：真实栈上的整合浏览器 driver。
 - `apps/chronicle/webapp/tests/reading-browser/integration/**`：manifest 契约与
   flow/accessibility/performance 三个 suite。
@@ -31,6 +35,9 @@ docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
 python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
 python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v
 ```
+
+`test_second_round_gate.py` 另含 `assert_time_contract`、negative manifest 校验、
+scale fixture 无 raw write 与 scope guard。
 
 ## 2. 真实栈 fixture gate（默认含浏览器与性能）
 
@@ -53,22 +60,26 @@ gate 会：
 1. 用 `gate_runtime.ComposeStack` 起隔离 Compose 栈（PG18 + Rust `chronicle-server`
    前端 + Python `read_api` sidecar + durable worker），并起进程内确定性 0.2 fixture
    模型 HTTP provider（`host.docker.internal`）。
-2. 经真实 Studio HTTP（Rust 前端）上传冻结源、排队、处理
-   `needs_review`（fixture 固定决定）并发布。
-3. 经公开 HTTP `/api/v1/public/reading-streams` 等读回 stream/units/groups/
-   locate/event preview+targets，并做未知 locator/未知 stream 负例。
-4. 注入确定性链中失败，断言无公开半成品；重启 `chronicle-web`/`chronicle-read`
-   后断言公开 stream 不变；未知 snapshot 失败关闭。
-5. 发布第二个 revision 形成版本场景。
-6. 经产品持久化边界注入合成的 5,000 units / 1,000 groups 规模集（显式 synthetic）。
-7. 运行 `reading-flow-smoke.mjs --suite all`：多 stream、版本固定、事件预览/来源/
-   角色、时间轴、导航（深链接/back/forward/刷新/失效 locator）、触屏、键盘、
-   reduced-motion、200% 字体、四个 viewport、Long Task、mounted unit 上界与
-   locate 恢复预算。缺 manifest/scene/合成集会显式失败。
+2. 经真实 Studio HTTP（Rust 前端）上传冻结源、排队、处理 `needs_review`
+   （fixture 固定决定）并发布。
+3. 经公开 HTTP 读回 stream/units/groups/locate/event preview+targets，并做未知
+   locator/stream/snapshot 负例；发布第二个 revision 形成版本场景。
+4. 注入确定性链中失败（无公开半成品）、重启后公开 stream 不变。
+5. 用产品持久化 API 注入合成的 5,000/1,000 规模集，并对单位/组 DTO 跑
+   `reading_contract.validate_reading_dto` 与 gate 的 `assert_time_contract`
+   （unknown-mode 空 `event_refs` 合法；events/mixed-mode 空 `event_refs` 拒绝）。
+6. 定位并写入显式负例：未知时间、缺失当前上下文（且前一段有上下文以证明清空）、
+   有实体但无来源角色，并在 `manifest.negatives` 校验。
+7. 运行 `reading-flow-smoke.mjs --suite all`：多 stream、版本固定、事件预览
+   hover/keyboard/touch、角色、时间轴、导航负例、触屏面板、reduced-motion、
+   200% 字体、四 viewport、44px、对比度、unknown/missing role/time 负例；性能在
+   固定 Chromium/viewport 下执行 5 次，记录每次与总体的 active/restore p95。
 
 `manifest.json` 的 `criteria` 逐项记录
-`real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`。
-`--skip-browser` 仅供本地迭代；CI 使用 `--browser-required`，任一未测即失败。
+`real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，
+`faults` 记录 6 项失败关闭（含 role/time 契约），`scale_contract` 记录合成集 DTO
+校验，`negatives` 记录三类负例单元，`browser.results[performance].evidence.runs`
+记录 5 次测量。`--skip-browser` 仅供本地迭代；CI 使用 `--browser-required`。
 
 ## 3. live 模式（T17 交付）
 

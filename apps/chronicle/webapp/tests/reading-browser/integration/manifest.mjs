@@ -63,6 +63,22 @@ export function validateManifest(manifest) {
   if (!Array.isArray(manifest.versions) || manifest.versions.length === 0) {
     throw new Error("reading-flow: fixture manifest carries no content versions");
   }
+  const negatives = manifest.negatives;
+  if (!Array.isArray(negatives) || negatives.length === 0) {
+    throw new Error("reading-flow: fixture manifest carries no negative scenarios");
+  }
+  const kinds = new Set(negatives.map((item) => item && item.kind));
+  for (const required of ["unknown_time", "missing_context", "missing_role"]) {
+    if (!kinds.has(required)) {
+      throw new Error(`reading-flow: fixture manifest missing ${required} negative`);
+    }
+    const item = negatives.find((entry) => entry && entry.kind === required);
+    for (const field of ["stream_id", "catalog_sha", "unit_id"]) {
+      if (!item[field]) {
+        throw new Error(`reading-flow: negative ${required} missing ${field}`);
+      }
+    }
+  }
   return manifest;
 }
 
