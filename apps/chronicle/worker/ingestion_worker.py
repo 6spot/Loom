@@ -79,6 +79,7 @@ import documents  # noqa: E402
 import extraction  # noqa: E402
 import model_provider  # noqa: E402
 import presentation_stage  # noqa: E402
+import narrative_stage  # noqa: E402
 import resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
 import segmentation  # noqa: E402
@@ -362,6 +363,7 @@ class JobRunner:
         allow_fake_after_real_source: bool = False,
         chapter_model: Any | None = None,
         chapter_limits: Any | None = None,
+        narrative_model: Any | None = None,
     ) -> None:
         if not isinstance(worker, str) or not worker:
             raise PersistenceError("worker must be a non-empty string")
@@ -416,6 +418,7 @@ class JobRunner:
         self.document_meta = dict(document_meta or {})
         self.allow_fake_after_real_source = allow_fake_after_real_source
         self.chapter_model = chapter_model
+        self.narrative_model = narrative_model
         self.chapter_limits = (
             chapter_limits or chapter_stage.chapter_contract.ChapterLimits()
         )
@@ -1816,12 +1819,11 @@ class JobRunner:
                 on_event=self._emit,
             )
         if stage == REAL_PRESENT_STAGE:
-            chapter_stage.execute_chapter_present(
+            return chapter_stage.execute_chapter_present(
                 self.database_url, job_id=job_id, worker=self.worker,
                 plan=plan, lease_seconds=self.lease_seconds,
                 on_event=self._emit,
             )
-            return "ok"
         raise PersistenceError(
             f"chapter pipeline owns no executor for stage {stage!r}"
         )
@@ -1912,7 +1914,9 @@ class JobRunner:
         halt = self.check_halt(job_id)
         if halt is not None:
             return halt
-        config_error = self._chapter_config_error()
+        with psycopg.connect(self.database_url) as conn:
+            narrative_scope = narrative_stage.store.job_scope(conn, job_id)
+        config_error = self._chapter_config_error() if narrative_scope is None else None
         if config_error is not None:
             with psycopg.connect(self.database_url) as conn:
                 control_plane.set_job_status_fenced(
@@ -1939,12 +1943,19 @@ class JobRunner:
             # A `running` stage is re-entry after a crash: checkpointed
             # state is authoritative, so execution resumes in place.
             self._heartbeat(job_id)
-            if self._chapter_mode_active() and stage != "prepare":
+            if narrative_scope is not None or (self._chapter_mode_active() and stage != "prepare"):
                 # C2-R1-T13: the joint natural-chapter pipeline owns every
                 # content stage. `prepare` keeps the deterministic fake
                 # executor so the frozen 8-stage authority is unchanged.
                 try:
-                    outcome = self._execute_chapter_stage(job_id, stage)
+                    if narrative_scope is not None:
+                        if stage != "present":
+                            raise PersistenceError("historical narrative job owns only present")
+                        outcome = narrative_stage.execute(self.database_url, job_id=job_id, worker=self.worker,
+                            revision_source=self.revision_source, model=self.narrative_model,
+                            lease_seconds=self.lease_seconds, scope=narrative_scope)
+                    else:
+                        outcome = self._execute_chapter_stage(job_id, stage)
                 except LeaseLost:
                     raise
                 except Exception as exc:
@@ -2007,12 +2018,12 @@ class JobRunner:
                             control_plane.advance_stage_fenced(
                                 conn, job_id=job_id, stage=stage,
                                 status="needs_review", worker=self.worker,
-                                error="chapter resolution review pending; awaiting human decisions",
+                                error=f"chapter {stage} review pending; awaiting human decisions",
                             )
                             control_plane.set_job_status_fenced(
                                 conn, job_id=job_id, status="needs_review",
                                 worker=self.worker,
-                                error="chapter resolution review pending; awaiting human decisions",
+                                error=f"chapter {stage} review pending; awaiting human decisions",
                             )
                     return "needs_review"
                 return outcome  # cancelled / stopped: checkpoints stay as written
@@ -2414,6 +2425,7 @@ def run_once(
     allow_fake_after_real_source: bool = False,
     chapter_model: Any | None = None,
     chapter_limits: Any | None = None,
+    narrative_model: Any | None = None,
 ) -> tuple[uuid.UUID, str] | None:
     """Claim one job (queued, expired-lease, or lease-less running) and run it.
 
@@ -2450,6 +2462,7 @@ def run_once(
         allow_fake_after_real_source=allow_fake_after_real_source,
         chapter_model=chapter_model,
         chapter_limits=chapter_limits,
+        narrative_model=narrative_model,
     )
     return claimed, runner.execute_job(claimed)
 
@@ -2475,6 +2488,7 @@ def run_forever(
     allow_fake_after_real_source: bool = False,
     chapter_model: Any | None = None,
     chapter_limits: Any | None = None,
+    narrative_model: Any | None = None,
 ) -> dict[str, int]:
     """Claim and execute jobs until stopped; returns an outcome tally."""
     stop = stop or threading.Event()
@@ -2497,6 +2511,7 @@ def run_forever(
                 allow_fake_after_real_source=allow_fake_after_real_source,
                 chapter_model=chapter_model,
                 chapter_limits=chapter_limits,
+                narrative_model=narrative_model,
             )
         except PersistenceConflict:
             # Lost a claim race against a concurrent worker; keep polling.
@@ -2603,6 +2618,7 @@ def main(argv: list[str] | None = None) -> int:
     extraction_model, presentation_model = model_provider.models_from_env()
     chapter_model = chapter_stage.chapter_model_from_env()
     chapter_limits = chapter_stage.chapter_limits_from_env()
+    narrative_model = narrative_stage.model_from_env()
     chapter_stage.require_production_entry(
         source_dir=source_dir,
         extraction_model=extraction_model,
@@ -2649,6 +2665,7 @@ def main(argv: list[str] | None = None) -> int:
         presentation_model=presentation_model,
         chapter_model=chapter_model,
         chapter_limits=chapter_limits,
+        narrative_model=narrative_model,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

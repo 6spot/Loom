@@ -221,7 +221,7 @@ def _decode_cursor(raw: str) -> dict[str, Any]:
 def _scope_filter(
     spec: dict[str, Any], *, include_status: bool, alias: str = "ri",
 ) -> tuple[str, list[Any]]:
-    where = f"{alias}.payload->>'scope' = 'resolution'"
+    where = f"{alias}.payload->>'scope' IN ('resolution', 'narrative')"
     params: list[Any] = []
     if include_status and spec["status"] != "all":
         where += f" AND {alias}.status = %s"
@@ -274,6 +274,8 @@ def _scope_open_count(conn, *, spec: dict[str, Any]) -> int:
 
 
 def _candidate_key_of(payload: dict[str, Any], index: int) -> str:
+    if payload.get("scope") == "narrative":
+        return f"narrative:{payload['narrative_kind']}:{payload['candidate_sha']}"
     key = payload.get("candidate_key")
     if isinstance(key, str) and key:
         return key
@@ -285,6 +287,10 @@ def _candidate_key_of(payload: dict[str, Any], index: int) -> str:
 
 
 def _immutable_candidate_entry(payload: dict[str, Any], index: int) -> dict[str, Any]:
+    if payload.get("scope") == "narrative":
+        return {"candidate_key": _candidate_key_of(payload, index), "scope": "narrative",
+                "narrative_kind": payload["narrative_kind"], "candidate_sha": payload["candidate_sha"]}
+
     def _ref(value: Any) -> dict[str, str] | None:
         if not isinstance(value, dict):
             return None
@@ -726,6 +732,12 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
     }
     if plan_fingerprint is not None:
         item["plan_fingerprint"] = plan_fingerprint
+    if payload.get("scope") == "narrative":
+        item["narrative_kind"] = payload["narrative_kind"]
+        item["candidate_sha"] = payload["candidate_sha"]
+        item["left_label"] = "多史料事实核对" if payload["narrative_kind"] == "facts" else "综合正文审核"
+        item["right_label"] = None
+        item["decision"] = {key: decision[key] for key in ("decision", "rationale", "content_sha") if key in decision} if decision else None
     return item
 
 
@@ -741,13 +753,22 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
-        WHERE ri.review_id = %s AND ri.payload->>'scope' = 'resolution'
+        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative')
         """,
         (review_id,),
     ).fetchall()
     if not rows:
-        raise _NotFound(f"unknown resolution review {review_id}")
+        raise _NotFound(f"unknown review {review_id}")
     item = _summary(rows[0], conn)
+    if item["scope"] == "narrative":
+        import narrative_store
+        item["narrative"] = narrative_store.review_detail(conn, review_id)
+        if item["narrative"] is None:
+            raise _NotFound("narrative candidate unavailable")
+        if item["narrative"]["kind"] == "prose":
+            item["narrative"]["facts"] = narrative_store.approved_content(
+                narrative_store.read_candidate(conn, item["job_id"], "facts"))
+        return item
     link_kind = str(item.get("link_kind") or "")
     item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)
     item["right_context"] = _side_context(conn, item.get("right"), link_kind=link_kind)
@@ -1512,6 +1533,8 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     (bundle_sha, ref) and the revision read via the lookup helpers).
     """
     item = _detail(conn, review_id)
+    if item["scope"] == "narrative":
+        return item
     try:
         identity = _review_identity(conn, review_id)
     except _NotFound:
@@ -1632,6 +1655,16 @@ def _route(
             raise _BadRequest(f"request body must be a JSON object: {exc}") from exc
         if not isinstance(payload, dict):
             raise _BadRequest("request body must be a JSON object")
+        import narrative_store
+        if narrative_store.review_detail(conn, review_id) is not None:
+            if set(payload) - {"decision", "rationale", "candidate_sha", "content", "reviewed_conclusion_ids"}:
+                raise _BadRequest("unknown narrative decision field")
+            narrative_store.decide(conn, review_id=review_id,
+                candidate_sha=payload.get("candidate_sha"), decision=payload.get("decision"),
+                rationale=payload.get("rationale"), content=payload.get("content"),
+                reviewed_conclusion_ids=payload.get("reviewed_conclusion_ids"))
+            return 200, "application/json; charset=utf-8", _json_bytes(
+                {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)})
         decision = payload.get("decision")
         rationale = payload.get("rationale")
         confidence = payload.get("confidence", resolve_publish.CONFIDENCE_INITIAL_UNCERTAIN)

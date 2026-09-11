@@ -119,6 +119,16 @@ describe("reading history entries", () => {
     const store = new ReadingHistoryStore(new ReadingStorage(raw));
     expect(store.findEntry(locator("2"))).toBeNull();
   });
+
+  it("restores the most recently updated position while keeping a pinned history entry", () => {
+    const store = new ReadingHistoryStore(new ReadingStorage(memoryStorage()));
+    const first = { history_key: "hkA", locator: locator("2"), relative_offset: 0.1, focus_id: null, source_expanded: false };
+    store.saveEntry(first);
+    store.saveEntry({ ...first, history_key: "hkB", relative_offset: 0.3 });
+    store.saveEntry({ ...first, relative_offset: 0.7 });
+    expect(store.findEntry(locator("2"))?.relative_offset).toBeCloseTo(0.7);
+    expect(store.findEntry(locator("2"), ["hkB"])?.relative_offset).toBeCloseTo(0.3);
+  });
 });
 
 describe("return tokens and bounded stack", () => {

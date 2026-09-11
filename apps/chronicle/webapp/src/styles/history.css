@@ -1,0 +1,40 @@
+.history-reading { overflow-wrap: anywhere; }
+/* Keep the last loaded paragraph alignable with the reading reference line,
+ * including while the next page is in flight and at the true end of history. */
+.history-body { min-width: 0; overflow-anchor: none; padding-bottom: 70dvh; }
+.history-paragraph { margin: 0 0 1.55rem; font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif; font-size: 1.15rem; line-height: 2.1; letter-spacing: .025em; }
+.history-paragraph:focus { outline: none; }
+.history-paragraph:focus-visible { outline: 1px solid var(--public-accent); outline-offset: .5rem; }
+.history-uncertain { color: #666b65; text-decoration: underline dotted #8c9188; text-underline-offset: .28em; }
+.history-axis { position: sticky; top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); max-height: calc(100dvh - 11rem); overflow-y: auto; scrollbar-width: thin; }
+.history-axis ol { list-style: none; margin: 0; padding: 0; }
+.history-axis li { border-left: 1px solid var(--public-line); }
+.history-axis button { display: flex; width: 100%; min-height: 3rem; flex-direction: column; justify-content: center; gap: .35rem; padding: .6rem .85rem; border: 0; text-align: left; background: transparent; color: var(--public-muted); font: inherit; font-size: .82rem; cursor: pointer; }
+.history-axis small { font-size: .75rem; }
+.history-axis button[aria-current] { color: var(--public-accent); box-shadow: inset 2px 0 var(--public-accent); }
+.history-axis-open { display: none; }
+.history-reading-status, .history-reading-end { color: var(--public-muted); font-size: .8rem; margin: 2rem 0; }
+.history-reading-end { text-align: center; margin: 5rem 0 3rem; }
+.history-load-error { font-size: .9rem; line-height: 1.75; }
+.history-load-previous { margin: 0 0 1.5rem; color: var(--public-muted); }
+.history-event { position: relative; }
+.history-event-word { border: 0; padding: 0; background: transparent; color: #825045; font: inherit; letter-spacing: inherit; line-height: inherit; cursor: pointer; text-align: inherit; }
+.history-uncertain .history-event-word { color: inherit; }
+.history-event-preview { position: absolute; left: 0; top: 1.7em; z-index: 3; display: flex; flex-direction: column; gap: .4rem; width: min(20rem, 72vw); padding: 1rem 1.25rem; background: #faf8f3; box-shadow: 0 6px 28px #292d2b22; border: 1px solid #deddd4; border-radius: 6px; color: #292d2b; font: .85rem/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+.history-event-preview small { color: var(--public-muted); }
+.history-event-preview > span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.history-event-preview .public-text-button { justify-content: flex-start; padding-left: 0; color: var(--public-accent); }
+.history-evidence { font-size: .95rem; line-height: 1.8; }
+.history-evidence-question { font-weight: 500; }
+.history-evidence-label, .history-evidence-reason { font-size: .8rem; color: var(--public-muted); }
+.history-evidence section { margin-top: 2rem; border-top: 1px solid var(--public-line); }
+.history-evidence blockquote { margin: .7rem 0; padding-left: 1rem; border-left: 2px solid var(--public-line); font-family: "Songti SC", serif; }
+.history-tools-excerpt { font-family: "Songti SC", serif; line-height: 2; }
+.history-fact-links { display: flex; flex-wrap: wrap; gap: .5rem; }
+.history-entry-excerpt { grid-column: 1 / -1; color: var(--public-muted); font-size: .85rem; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 767px) {
+  .history-desktop-axis, .history-desktop-time { display: none; }
+  .history-axis-open { display: inline-flex; padding-left: 0; color: var(--public-muted); font-size: .8rem; }
+  .history-paragraph { font-size: 1.08rem; line-height: 2.05; }
+  .history-event-preview { position: fixed; left: 1.5rem; right: 1.5rem; top: auto; bottom: 2rem; width: auto; }
+}

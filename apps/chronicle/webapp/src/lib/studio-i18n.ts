@@ -19,6 +19,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DECISION_LABELS: Record<ReviewDecision, string> = {
+  approve: "审核通过",
+  reject: "驳回",
   same_entity: "同一实体",
   not_same: "明确不同",
   uncertain: "证据不足，暂不确定",

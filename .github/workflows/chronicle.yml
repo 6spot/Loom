@@ -19,11 +19,20 @@ on:
       - "apps/chronicle/docs/chapter-acceptance.md"
       - "apps/chronicle/docs/final-acceptance.md"
       - "apps/chronicle/corpus/first-round/**"
+      - "apps/chronicle/corpus/reading-enhancement/**"
+      - "apps/chronicle/corpus/test_corroboration_cases.py"
       - "apps/chronicle/persistence/chapter_contract.py"
       - "apps/chronicle/persistence/chapter_plan.py"
       - "apps/chronicle/persistence/assembly.py"
       - "apps/chronicle/persistence/review_subjects.py"
       - "apps/chronicle/worker/fixture_model.py"
+      - "apps/chronicle/persistence/*narrative*"
+      - "apps/chronicle/persistence/migrations/0008_*"
+      - "apps/chronicle/worker/*narrative*"
+      - "apps/chronicle/read_api/history.py"
+      - "apps/chronicle/read_api/studio_*.py"
+      - "apps/chronicle/webapp/src/**"
+      - "apps/chronicle/webapp/scripts/*component-smoke.mjs"
   pull_request: {}
 
 permissions:
@@ -74,6 +83,10 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
               case "$path" in
+                apps/chronicle/persistence/*narrative*|apps/chronicle/persistence/migrations/0008_*|apps/chronicle/worker/*narrative*|apps/chronicle/worker/ingestion_worker.py|apps/chronicle/read_api/history.py|apps/chronicle/read_api/studio_*.py|apps/chronicle/corpus/reading-enhancement/*|apps/chronicle/corpus/test_corroboration_cases.py|apps/chronicle/webapp/src/*|apps/chronicle/webapp/scripts/*component-smoke.mjs)
+                  relevant=true
+                  break
+                  ;;
                 .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/webapp/src/styles/reading-*.css|apps/chronicle/webapp/src/components/reading/*|apps/chronicle/webapp/src/pages/public/Reading*.tsx|apps/chronicle/webapp/src/lib/reading-*.ts|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
                   relevant=true
                   break
@@ -172,6 +185,27 @@ jobs:
       - name: Second-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
 
+      - name: Reviewed historical narrative contracts and PostgreSQL pipeline
+        run: |
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_corroboration_cases.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative_contract.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_narrative_pipeline_postgres.py' -v
+
+      - name: Public reading and Studio components (synthetic HTTP fixtures)
+        run: |
+          set -euo pipefail
+          npm --prefix apps/chronicle/webapp test
+          npm --prefix apps/chronicle/webapp run dev -- --host 127.0.0.1 --port 5174 --strictPort > /tmp/chronicle-component-vite.log 2>&1 &
+          chronicle_vite_pid=$!
+          trap 'kill "$chronicle_vite_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5174/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5174 --suite all --output /tmp/chronicle-reading-components
+          node apps/chronicle/webapp/scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5174
+          node apps/chronicle/webapp/scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5174
+
       - name: Validate reading browser driver and suites
         run: |
           set -euo pipefail
@@ -232,5 +266,3 @@ jobs:
             assert run["max_long_task_ms"] < bm["budgets"]["max_long_task_ms"], run
             assert run["request_counts"]["preview"] == 0, run
           PY
-
-

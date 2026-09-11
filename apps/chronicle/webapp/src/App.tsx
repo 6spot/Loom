@@ -1,8 +1,12 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import HistoricalTimeBar from "./components/HistoricalTimeBar";
 import { StudioAuthProvider, useStudioAuth } from "./lib/studio-auth";
-import { withHistoricalTime, worldPathFromSearch } from "./lib/historical-time";
+import { withHistoricalTime } from "./lib/historical-time";
+import ChronicleIcon from "./components/ChronicleIcon";
+import PublicDialog from "./components/PublicDialog";
+import HomePage from "./pages/public/HomePage";
+import HistoryPage from "./pages/public/HistoryPage";
 import { chapterPath, readingPath } from "./lib/routes";
 import EntityPage from "./pages/public/EntityPage";
 import EventPage from "./pages/public/EventPage";
@@ -19,6 +23,7 @@ import "./styles/world.css";
 import "./styles/studio.css";
 import "./styles/review-evidence.css";
 import "./styles/chapter-reader.css";
+import "./styles/public-reading.css";
 
 const StudioLayout = lazy(() => import("./pages/studio/StudioLayout"));
 const StudioHomePage = lazy(() => import("./pages/studio/StudioHomePage"));
@@ -40,43 +45,56 @@ function StudioGuard({ children }: { children: JSX.Element }) {
 function PublicChrome({ children, timeBar = true }: { children: React.ReactNode; timeBar?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const worldHref = worldPathFromSearch(location.search);
+  const [tool, setTool] = useState<"search" | "menu" | null>(null);
+  const reading = location.pathname.startsWith("/read/") || location.pathname === "/history";
+  useEffect(() => setTool(null), [location.pathname, location.search]);
   return (
-    <>
+    <div className={`public-site${reading ? " public-site-reading" : ""}`}>
+      <a className="public-skip-link" href="#app">跳到正文</a>
       <header className="site-header">
-        <Link className="brand" to={worldHref} aria-label="Chronicle 历史世界首页">
+        <Link className="brand" to="/" aria-label="Chronicle 首页">
           <span className="brand-mark" aria-hidden="true">纪</span>
-          <span><strong>Chronicle</strong><small>source-grounded history</small></span>
+          <span><strong>Chronicle</strong></span>
         </Link>
         <nav className="site-nav" aria-label="主要导航">
-          <Link to={worldHref}>世界</Link>
-          <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link>
-          <Link to={withHistoricalTime("/search", location.search)}>搜索</Link>
-          <Link to="/chapters">篇章</Link>
-          <Link to="/read">连续阅读</Link>
-          <Link to="/studio">Studio</Link>
+          <Link to="/" aria-current={location.pathname === "/" ? "page" : undefined}>探索</Link>
+          <button className="public-icon-button" type="button" aria-label="搜索历史" onClick={() => setTool("search")}><ChronicleIcon name="search" /></button>
+          <button className="public-icon-button" type="button" aria-label="更多导航" onClick={() => setTool("menu")}><ChronicleIcon name="more" /></button>
         </nav>
+      </header>
+      {timeBar ? <HistoricalTimeBar /> : null}
+      <main id="app" className="app-shell" tabIndex={-1}>{children}</main>
+      {tool === "search" ? <PublicDialog title="寻找一段历史" onClose={() => setTool(null)} compact>
         <form
-          className="global-search"
+          className="history-search"
           action="/search"
           method="get"
           role="search"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            const path = `/search?q=${encodeURIComponent(String(form.get("q") ?? "").trim())}`;
-            navigate(withHistoricalTime(path, location.search));
+            const query = String(form.get("q") ?? "").trim();
+            if (query) {
+              setTool(null);
+              navigate(withHistoricalTime(`/search?q=${encodeURIComponent(query)}`, location.search));
+            }
           }}
         >
-          <label htmlFor="global-search-q">搜索人物、地点或事件</label>
-          <input id="global-search-q" name="q" autoComplete="off" placeholder="曹操、赤壁之战、江陵…" />
-          <button className="primary-button" type="submit">搜索</button>
+          <label className="public-sr-only" htmlFor="global-search-q">搜索人物、地点或事件</label>
+          <input id="global-search-q" name="q" autoComplete="off" placeholder="时期、事件、人物或地点" data-dialog-initial-focus />
+          <button className="public-icon-button" type="submit" aria-label="搜索"><ChronicleIcon name="search" /></button>
         </form>
-      </header>
-      {timeBar ? <HistoricalTimeBar /> : null}
-      <main id="app" className="app-shell" aria-live="polite">{children}</main>
-      <footer className="site-footer"><p>Canonical identity 用于导航；史料原文、Claim、证据与不确定性保持独立可见。Historical Moment 只描述当前语料表示，不声称完整历史世界状态。</p></footer>
-    </>
+      </PublicDialog> : null}
+      {tool === "menu" ? <PublicDialog title="探索与资料" onClose={() => setTool(null)} compact>
+        <nav className="public-menu" aria-label="更多导航">
+          <Link to="/timeline">历史时刻</Link>
+          <Link to="/history">连续历史正文</Link>
+          <Link to="/read">史料译文</Link>
+          <Link to="/chapters">史料原文</Link>
+          <Link to="/studio">内容管理</Link>
+        </nav>
+      </PublicDialog> : null}
+    </div>
   );
 }
 
@@ -130,7 +148,8 @@ export default function App() {
           <Route path="sources" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioSourcesPage /></Suspense></StudioGuard>} />
           <Route path="coverage" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioCoveragePage /></Suspense></StudioGuard>} />
         </Route>
-        <Route path="/" element={<Navigate to="/world?year=208" replace />} />
+        <Route path="/" element={<PublicChrome timeBar={false}><HomePage /></PublicChrome>} />
+        <Route path="/history" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />
         <Route path="/world" element={<PublicChrome><WorldPage /></PublicChrome>} />
         <Route path="/timeline" element={<PublicChrome><TimelinePage /></PublicChrome>} />
         <Route path="/search" element={<PublicChrome><SearchPage /></PublicChrome>} />

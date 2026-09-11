@@ -1,0 +1,389 @@
+{
+  "schema": "chronicle.corroboration-acceptance-cases",
+  "version": "0.1",
+  "coordinate_unit": "unicode_code_point",
+  "cases": [
+    {
+      "case_id": "alliance_same_work",
+      "kind": "real",
+      "question": "孙刘是否并力抗曹？",
+      "comparison": "support",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 4724,
+          "end": 4742,
+          "quote": "權遣周瑜、程普等水軍數萬，與先主并力",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 2304,
+          "end": 2324,
+          "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "两传均记孙刘并力；同书互见"
+      ],
+      "forbidden": [
+        "两篇传记就是两份独立来源"
+      ],
+      "reason": "身份同一性由已审核 canonical 关系提供，不能由相同名字或来源数量创建。"
+    },
+    {
+      "case_id": "fire_details",
+      "kind": "real",
+      "question": "黄盖火攻怎样补充赤壁战果？",
+      "comparison": "supplement",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 2356,
+          "end": 2885,
+          "quote": "瑜部將黃蓋曰：「今寇眾我寡，難與持久。然觀操軍船艦，首尾相接，可燒而走也。」乃取蒙沖鬥艦數十艘，實以薪草，膏油灌其中。裹以帷幕，上建牙旗，先書報曹公，欺以欲降。〈《江表傳》載蓋書曰：「蓋受孫氏厚恩，常為將帥，見遇不薄。然顧天下事有大勢，用江東六郡山越之人，以當中國百萬之眾，眾寡不敵，海內所共見也。東方將吏，無有愚智，皆知其不可，惟周瑜、魯肅偏懷淺戇，意未解耳。今日歸命，是其實計。瑜所督領，自易摧破。交鋒之日，蓋為前部，當因事變化，效命在近。」曹公特見行人，密問之，口敕曰：「但恐汝詐耳。蓋若信實，當授爵賞，超於前後也。」〉又豫備走舸，各系大船後，因引次俱前。曹公軍吏士皆延頸觀望，指言蓋降。蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。〈《江表傳》曰：至戰日，蓋先取輕利艦十舫，載燥荻枯柴積其中，灌以魚膏，赤幔覆之，建旌旗龍幡於艦上。時東南風急，因以十艦最著前，中江舉帆，蓋舉火白諸校，使眾兵齊聲大叫曰：「降焉！」操軍人皆出營立觀。去北軍二里餘，同時發火，火烈風猛，往船如箭，飛埃絕爛，燒盡北船，延及岸邊營柴。瑜等率輕銳尋繼其後，雷鼓大進，北軍大壞，曹公退走。〉備與瑜等復共追。曹公留曹仁等守江陵城。",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 5114,
+          "end": 5131,
+          "quote": "與曹公戰於赤壁，大破之，焚其舟船。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "本传对战果和火攻过程详略不同"
+      ],
+      "forbidden": [
+        "另一传未写黄盖，故黄盖火攻不存在"
+      ],
+      "reason": "未提及并非反证，细节的归属仍是具体来源。"
+    },
+    {
+      "case_id": "cao_letter",
+      "kind": "real",
+      "question": "曹操自称焚船撤退是否就是唯一原因？",
+      "comparison": "attributed_dispute",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 4138,
+          "end": 4170,
+          "quote": "後書與權曰：「赤壁之役，值有疾病，孤燒船自退，橫使周瑜虛獲此名。",
+          "attribution": "裴注引《江表传》记录的曹操书信"
+        }
+      ],
+      "allowed": [
+        "明确转述书信如此主张，原因判断可保留存疑"
+      ],
+      "forbidden": [
+        "正文无归属地断言曹操主动焚船且周瑜无战功"
+      ],
+      "reason": "陈述存在与陈述所言为事实分开审核。"
+    },
+    {
+      "case_id": "liu_hesitation",
+      "kind": "real",
+      "question": "刘备是否观望而未肯随周瑜？",
+      "comparison": "dispute",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 5012,
+          "end": 5113,
+          "quote": "備雖深愧異瑜，而心未許之能必破北軍也，故差池在後，將二千人與羽、飛俱，未肯係瑜，蓋為進退之計也。孫盛曰：劉備雄才，處必亡之地，告急於吳，而獲奔助，無緣復顧望江渚而懷後計。江表傳之言，當是吳人欲專美之辭。",
+          "attribution": "裴注引《江表传》，并附孙盛批评"
+        }
+      ],
+      "allowed": [
+        "保留江表传说法与孙盛对它的反驳"
+      ],
+      "forbidden": [
+        "按多数或模型信心直接裁定一方造假"
+      ],
+      "reason": "这是有明确反驳的案例，不能与单纯补充叙述混淆。"
+    },
+    {
+      "case_id": "su_strategy",
+      "kind": "real",
+      "question": "鲁肃和诸葛亮的行动是否互相否定？",
+      "comparison": "supplement",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 1349,
+          "end": 1430,
+          "quote": "肅徑迎之，到當陽長阪，與備會，宣騰權旨，及陳江東強固，勸備與權並力。備甚歡悅。時諸葛亮與備相隨。肅謂亮曰「我子瑜友也」，即共定交。備遂到夏口，遣亮使權，肅亦反命。",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 1431,
+          "end": 1559,
+          "quote": "臣松之案：劉備與權並力，共拒中國，皆肅之本謀。又語諸葛亮曰「我子瑜友也」，則亮已亟聞肅言矣。而〈蜀書亮傳〉曰：「亮以連橫之略說權，權乃大喜。」如似此計始出於亮。若二國史官，各記所聞，競欲稱揚本國容美，各取其功。今此二書，同出一人，而舛互若此，非載述之體也。",
+          "attribution": "裴松之关于史书归功的评论"
+        }
+      ],
+      "allowed": [
+        "建言、出使可并存；唯一首倡者是另一问题"
+      ],
+      "forbidden": [
+        "把出使与建言直接当作互斥事实"
+      ],
+      "reason": "结论和明确性限定到问题，不能因功劳讨论把联盟本身一起标为不可信。"
+    },
+    {
+      "case_id": "concurrent_offices",
+      "kind": "real",
+      "question": "周瑜偏将军与南郡太守是否冲突？",
+      "comparison": "concurrent_state",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 3108,
+          "end": 3121,
+          "quote": "權拜瑜偏將軍，領南郡太守。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "同阶段保存两条 office"
+      ],
+      "forbidden": [
+        "只选一个官职",
+        "把兼任视为来源冲突"
+      ],
+      "reason": "官职与兼职必须分条，原文明确领任。"
+    },
+    {
+      "case_id": "zhou_unknown_year",
+      "kind": "real",
+      "question": "南郡后的任职和周瑜病卒能否强补年份？",
+      "comparison": "unknown_time",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 3108,
+          "end": 3482,
+          "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。劉備以左將軍領荊州牧，治公安，備詣京見權，瑜上疏曰：「劉備以梟雄之姿，而有關羽、張飛熊虎之將，必非久屈為人用者。愚謂大計宜徙備置吳，盛為築宮室，多其美女玩好，以娛其耳目，分此二人，各置一方，使如瑜者得挾與攻戰，大事可定也。今猥割土地以資業之，聚此三人，俱在疆場，恐蛟龍得雲雨，終非池中物也。」權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。是時劉璋為益州牧。外有張魯寇侵，瑜乃詣京見權曰：「今曹操新折衄，方憂在腹心，未能與將軍連兵相事也。乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。瑜還江陵為行裝，而道於巴丘病卒，〈臣松之案，瑜欲取蜀，還江陵治嚴，所卒之處，應在今之巴陵，與前所鎮巴丘，名同處異也。〉時年三十六。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "保留段内顺序，年月不足时为空"
+      ],
+      "forbidden": [
+        "凭常识填209或210年并称本章明确提供"
+      ],
+      "reason": "这段来源没有给出精确年号，年龄不能单独补出公历年。"
+    },
+    {
+      "case_id": "baqiu_places",
+      "kind": "real",
+      "question": "两处巴丘可以因同名合并吗？",
+      "comparison": "not_same_place",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 824,
+          "end": 849,
+          "quote": "瑜之所鎮，應在今巴丘縣也，與後所（平）巴丘處不同。",
+          "attribution": "裴松之地名考订"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 3450,
+          "end": 3475,
+          "quote": "所卒之處，應在今之巴陵，與前所鎮巴丘，名同處異也。",
+          "attribution": "裴松之地名考订"
+        }
+      ],
+      "allowed": [
+        "保留同名异地及考订归属"
+      ],
+      "forbidden": [
+        "自动把先前驻地等同病卒地点"
+      ],
+      "reason": "注者明确指出名同处异；现代地名另需依据。"
+    },
+    {
+      "case_id": "su_succession",
+      "kind": "real",
+      "question": "两份遗书措辞不同是否等于继任事实冲突？",
+      "comparison": "supplement",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 2284,
+          "end": 2705,
+          "quote": "周瑜病困，上疏曰：「當今天下，方有事役，是瑜乃心夙夜所憂，願至尊先慮未然，然後康樂。今既與曹操為敵，劉備近在公安，邊境密邇，百姓未附，宜得良將以鎮撫之。魯肅智略足任，乞以代瑜。瑜隕踣之日，所懷盡矣。」〈《江表傳》載：初瑜疾困，與權箋曰：「瑜以凡才，昔受討逆殊特之遇，委以腹心，遂荷榮任，統御兵馬，志執鞭弭，自效戎行。規定巴蜀，次取襄陽，憑賴威靈，謂若在握。至以不謹，道遇暴疾，昨自醫療，日加無損。人生有死，修短命矣，誠不足惜，但恨微志未展，不復奉教命耳。方今曹公在北，疆埸未靜，劉備寄寓，有似養虎，天下之事，未知終始，此朝士旰食之秋，至尊垂慮之日也。魯肅忠烈，臨事不苟，可以代瑜。人之將死，其言也善，儻或可採，瑜死不朽矣。」案此箋與本傳所載，意旨雖同，其辭乖異耳。〉即拜肅奮武校尉，代瑜領兵。瑜士眾四千餘人。奉邑四縣，皆屬焉。令程普領南郡太守。肅初住江陵，後下屯陸口，威恩大行，眾增萬餘人，拜漢昌太守、偏將軍。十九年，從權破皖城，轉橫江將軍。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "推荐和继任有记载；引书措辞差异单独保留"
+      ],
+      "forbidden": [
+        "同旨异辞直接判同一继任不存在"
+      ],
+      "reason": "正文与注引保留关系，不能把转引数计为独立见证。"
+    },
+    {
+      "case_id": "yizhou_transition",
+      "kind": "real",
+      "question": "刘备入蜀时是否已经控制益州？",
+      "comparison": "phase_change",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 6295,
+          "end": 6471,
+          "quote": "先主留諸葛亮、關羽等據荊州，將步卒數万人入益州。至涪，璋自出迎，相見甚歡。張松令法正白先主，及謀臣龐統進說，便可於會所襲璋。先主曰：「此大事也，不可倉卒。」璋推先主行大司馬，領司隸校尉；先主亦推璋行鎮西大將軍，領益州牧。璋增先主兵，使擊張魯，又令督白水軍。先主並軍三萬餘人，車甲器械資貨甚盛。是歲，璋還成都。先主北到葭萌，未即討魯，厚樹恩德，以收眾心。",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 7058,
+          "end": 7179,
+          "quote": "十九年夏，雒城破，〈《益部耆舊雜記》曰：劉璋遣張任、劉璝率精兵拒捍先主於涪，為先主所破，退與璋子循守雒城。任勒兵出於雁橋，戰复敗。禽任。先主聞任之忠勇，令軍降之，任厲聲曰：「老臣終不復事二主矣。」乃殺之。先主嘆惜焉。〉進圍成都數十日，璋出降。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "入蜀、交战、成都出降后状态分阶段"
+      ],
+      "forbidden": [
+        "整段211至214年一律显示刘备控制益州"
+      ],
+      "reason": "正文可以连续，状态生效范围须精确；这些阶段不必各成导航入口。"
+    },
+    {
+      "case_id": "jingzhou_partition",
+      "kind": "real",
+      "question": "荆州三郡交涉时能否提前套用最后分界？",
+      "comparison": "phase_change",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 7687,
+          "end": 7823,
+          "quote": "二十年，孫權以先主已得益州，使使報欲得荊州。先主言：「須得涼州，當以荊州相與。」權忿之，乃遣呂蒙襲奪長沙、零陵、桂陽三郡。先主引兵五萬下公安，令關羽入益陽。是歲，曹公定漢中，張魯遁走巴西。先主聞之，與權連和，分荊州、江夏、長沙、桂陽東屬，南郡、零陵、武陵西屬，引軍還江州。",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 3350,
+          "end": 3363,
+          "quote": "備遂割湘水為界，於是罷軍。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "分界状态在连和后生效，前面的交涉仍保留"
+      ],
+      "forbidden": [
+        "战争开始即显示最终郡界",
+        "把军事参与等同控制全荆州"
+      ],
+      "reason": "行政归属与实际控制分维度，且不跳过过渡过程。"
+    },
+    {
+      "case_id": "hanzhong_titles",
+      "kind": "real",
+      "question": "汉中王与大司马怎样显示？",
+      "comparison": "separate_dimensions",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "start": 8988,
+          "end": 9003,
+          "quote": "封備漢中王，拜大司馬，董齊六軍",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "title=汉中王；office=大司马"
+      ],
+      "forbidden": [
+        "一个 title 值写汉中王、大司马",
+        "称帝后继续自动显示大司马"
+      ],
+      "reason": "同一任命文书不意味着不同维度可以合成一个状态。"
+    },
+    {
+      "case_id": "short_quote_scope",
+      "kind": "real",
+      "question": "代瑜领兵这一短句能否支持四千余人的具体数字？",
+      "comparison": "partial_support",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 2617,
+          "end": 2630,
+          "quote": "即拜肅奮武校尉，代瑜領兵。",
+          "attribution": "正文"
+        },
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-lu-su.txt",
+          "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+          "start": 2630,
+          "end": 2647,
+          "quote": "瑜士眾四千餘人。奉邑四縣，皆屬焉。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "数字引用后一句或含两句的完整锚点"
+      ],
+      "forbidden": [
+        "只引用代瑜领兵就声称已证实所有部众数字"
+      ],
+      "reason": "引用存在和语义支持分开检查；完整章提供背景但不能用错引用。"
+    },
+    {
+      "case_id": "curated_navigation",
+      "kind": "real",
+      "question": "后人的任用细节是否必须成为首页锚点？",
+      "comparison": "editorial_scope",
+      "sources": [
+        {
+          "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "start": 4920,
+          "end": 5006,
+          "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。峻卒，全琮表峻子護為將。權曰：「昔走曹操，拓有荊州，皆是公瑾，常不忘之。初聞峻亡，仍欲用護，聞護性行危險，用之適為作禍，故便止之。",
+          "attribution": "正文"
+        }
+      ],
+      "allowed": [
+        "细节保留在来源或相应叙事中；只按覆盖范围选择重要导航"
+      ],
+      "forbidden": [
+        "每条提取 Event 必须生成一个入口",
+        "把后人任用塞到周瑜或鲁肃生前阶段"
+      ],
+      "reason": "导航选择不是删除事实或改写事件时间，也不建立身份等价。"
+    }
+  ]
+}

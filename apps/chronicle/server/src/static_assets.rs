@@ -92,6 +92,11 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioReviewDetailPage.js"
     ),
     asset!(
+        "/assets/StudioReviewDetailPage.css",
+        "text/css; charset=utf-8",
+        "dist/assets/StudioReviewDetailPage.css"
+    ),
+    asset!(
         "/assets/StudioSourcesPage.js",
         "text/javascript; charset=utf-8",
         "dist/assets/StudioSourcesPage.js"
@@ -181,6 +186,9 @@ fn is_spa_path(path: &str) -> bool {
     if path == "/search" || path == "/search/" {
         return true;
     }
+    if path == "/history" || path == "/history/" {
+        return true;
+    }
     // Public chapter reader (C2-R1-T17): directory plus one immutable
     // publication detail. Deeper nesting is not a reader route.
     if path == "/chapters" || path == "/chapters/" {
@@ -244,6 +252,8 @@ mod tests {
     #[test]
     fn spa_paths_resolve_to_shell() {
         for path in [
+            "/history",
+            "/history/",
             "/",
             "/world",
             "/world/",

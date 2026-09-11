@@ -169,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     extraction_model, presentation_model = worker.model_provider.models_from_env()
     segmentation_config, extraction_config = production_configs()
     chapter_limits, chapter_model = chapter_configs()
+    narrative_model = worker.narrative_stage.model_from_env()
     chapter_stage.require_production_entry(
         source_dir=source_dir,
         extraction_model=extraction_model,
@@ -234,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
         extraction_config=extraction_config,
         chapter_model=chapter_model,
         chapter_limits=chapter_limits,
+        narrative_model=narrative_model,
         on_event=lambda event, payload: print(
             f"chronicle-worker: {event} {payload}", flush=True
         ),

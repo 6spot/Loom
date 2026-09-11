@@ -1,0 +1,26 @@
+.narrative-review { padding-bottom: 6rem; }
+.nr-form { display: grid; gap: 1.5rem; border: 0; min-width: 0; padding: 0; margin: 0; }
+.narrative-review label { display: flex; flex-direction: column; gap: .45rem; font-size: .9rem; line-height: 1.6; }
+.narrative-review input:not([type="checkbox"]), .narrative-review select, .narrative-review textarea { width: 100%; min-width: 0; border: 1px solid #d7dcd6; border-radius: 5px; padding: .65rem .75rem; background: #fff; color: #272e2c; font: inherit; }
+.narrative-review textarea { resize: vertical; line-height: 1.8; }
+.nr-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.nr-question-nav { position: sticky; top: .5rem; z-index: 2; display: flex; align-items: end; gap: 1rem; background: #f5f7f4; padding: .8rem; border: 1px solid #dde3dc; border-radius: 6px; }
+.nr-question-nav label { flex: 1; }
+.nr-question-nav span { font-size: .8rem; white-space: nowrap; padding-bottom: .75rem; }
+.nr-evidence-editor { border: 1px solid #dae1d9; padding: 1rem; border-radius: 6px; }
+.nr-evidence blockquote { margin: 1rem 0; padding: .7rem 1rem; border-left: 2px solid #a7b5a4; background: #f5f7f2; font-family: "Songti SC", serif; font-size: 1rem; line-height: 2; white-space: pre-wrap; }
+.nr-full-source { margin-top: 1rem; padding: 1rem; border: 1px solid #dce3d9; font-family: "Songti SC", serif; font-size: 1rem; line-height: 2; white-space: pre-wrap; max-height: 32rem; overflow-y: auto; }
+.nr-checks { display: flex; flex-wrap: wrap; gap: .8rem 1.5rem; align-items: center; }
+.nr-checks label, label.nr-confirm { flex-direction: row; align-items: baseline; }
+.nr-prose { border-top: 1px solid #d9dfd7; padding-top: 1rem; }
+.nr-prose textarea { font-family: "Songti SC", serif; font-size: 1.05rem; line-height: 2; margin: .5rem 0; }
+.nr-prose details, .nr-scope { background: #f6f8f3; border: 1px solid #e0e5da; padding: .85rem 1rem; border-radius: 5px; }
+.nr-entry { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1rem; align-items: end; }
+.nr-actions { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: flex-end; align-items: center; gap: .75rem; flex-wrap: wrap; margin: 1.5rem -1rem -4rem; padding: 1rem max(1rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)); background: #f8faf7f5; border-top: 1px solid #d7ded3; box-shadow: 0 -3px 12px #25351e0b; }
+.nr-actions > a { margin-right: auto; }
+@media (max-width: 767px) {
+  .nr-field-grid, .nr-entry { grid-template-columns: 1fr; }
+  .nr-question-nav { position: static; align-items: start; flex-direction: column; }
+  .nr-question-nav label { width: 100%; }
+  .nr-actions { gap: .5rem; }
+}

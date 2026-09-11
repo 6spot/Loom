@@ -133,7 +133,9 @@ export function clampRelativeOffset(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function parseEntry(raw: string | null): ReadingHistoryEntry | null {
+type LocatorValidator = (value: unknown) => value is ReadingLocator;
+
+function parseEntry(raw: string | null, validate: LocatorValidator): ReadingHistoryEntry | null {
   if (!raw) return null;
   let value: unknown;
   try {
@@ -144,7 +146,7 @@ function parseEntry(raw: string | null): ReadingHistoryEntry | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.history_key !== "string") return null;
-  if (!isReadingLocator(candidate.locator)) return null;
+  if (!validate(candidate.locator)) return null;
   if (typeof candidate.relative_offset !== "number") return null;
   if (candidate.focus_id !== null && typeof candidate.focus_id !== "string") return null;
   if (typeof candidate.source_expanded !== "boolean") return null;
@@ -185,13 +187,13 @@ export function createReturnToken(randomBytes: RandomBytes = defaultRandomBytes)
   return `rt_${hex}`;
 }
 
-function parseReturnTarget(raw: unknown): ReturnTarget | null {
+function parseReturnTarget(raw: unknown, validate: LocatorValidator): ReturnTarget | null {
   if (typeof raw !== "object" || raw === null) return null;
   const candidate = raw as Record<string, unknown>;
   if (typeof candidate.token !== "string" || !RETURN_TOKEN_PATTERN.test(candidate.token)) {
     return null;
   }
-  if (!isReadingLocator(candidate.locator)) return null;
+  if (!validate(candidate.locator)) return null;
   if (typeof candidate.created_at !== "number") return null;
   return {
     token: candidate.token,
@@ -209,6 +211,7 @@ export interface RememberResult {
 }
 
 export interface ReadingHistoryStoreOptions {
+  readonly validateLocator?: LocatorValidator;
   readonly now?: () => number;
   readonly randomBytes?: RandomBytes;
   readonly maxEntries?: number;
@@ -226,6 +229,7 @@ export class ReadingHistoryStore {
   private readonly maxEntries: number;
   private readonly maxBytes: number;
   private readonly ttlMs: number;
+  private readonly validateLocator: LocatorValidator;
 
   constructor(
     private readonly storage: ReadingStorage,
@@ -236,6 +240,7 @@ export class ReadingHistoryStore {
     this.maxEntries = options.maxEntries ?? RETURN_STACK_LIMIT;
     this.maxBytes = options.maxBytes ?? RETURN_STACK_MAX_BYTES;
     this.ttlMs = options.ttlMs ?? RETURN_TOKEN_TTL_MS;
+    this.validateLocator = options.validateLocator ?? isReadingLocator;
   }
 
   saveEntry(entry: ReadingHistoryEntry): StorageOutcome {
@@ -243,14 +248,19 @@ export class ReadingHistoryStore {
       ...entry,
       relative_offset: clampRelativeOffset(entry.relative_offset),
     };
-    return this.storage.set(
+    const result = this.storage.set(
       historyEntryKey(entry.history_key, entry.locator),
       JSON.stringify(normalized),
     );
+    // An index to the existing entry; Storage.key() enumeration is not a
+    // recency guarantee when an earlier history entry is updated on return.
+    if (result.ok) this.storage.set(historyEntryKey("latest", entry.locator), JSON.stringify(normalized));
+    return result;
   }
 
   loadEntry(historyKey: string, locator: ReadingLocator): ReadingHistoryEntry | null {
-    return parseEntry(this.storage.get(historyEntryKey(historyKey, locator)));
+    const entry = parseEntry(this.storage.get(historyEntryKey(historyKey, locator)), this.validateLocator);
+    return entry && entry.locator.stream_id === locator.stream_id && entry.locator.catalog_sha === locator.catalog_sha && entry.locator.unit_id === locator.unit_id ? entry : null;
   }
 
   /**
@@ -262,10 +272,12 @@ export class ReadingHistoryStore {
       const found = this.loadEntry(key, locator);
       if (found) return found;
     }
+    const latest = this.loadEntry("latest", locator);
+    if (latest) return latest;
     let match: ReadingHistoryEntry | null = null;
     for (const key of this.storage.keys()) {
       if (!key.startsWith("entry.")) continue;
-      const entry = parseEntry(this.storage.get(key));
+      const entry = parseEntry(this.storage.get(key), this.validateLocator);
       if (!entry) continue;
       if (
         entry.locator.stream_id === locator.stream_id &&
@@ -289,13 +301,13 @@ export class ReadingHistoryStore {
     }
     if (!Array.isArray(value)) return [];
     return value
-      .map((item) => parseReturnTarget(item))
+      .map((item) => parseReturnTarget(item, this.validateLocator))
       .filter((item): item is ReturnTarget => item !== null);
   }
 
   /** 记住回到本 locator 的返回目标；返回 token 与是否成功持久化。 */
   rememberReturn(locator: ReadingLocator): RememberResult {
-    if (!isReadingLocator(locator)) {
+    if (!this.validateLocator(locator)) {
       return { token: "", persisted: false, outcome: storageOutcome(new Error("invalid locator")) };
     }
     const token = createReturnToken(this.randomBytes);

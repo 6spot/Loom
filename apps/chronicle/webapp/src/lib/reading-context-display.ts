@@ -72,6 +72,7 @@ export interface ReadingContextDisplay {
 }
 
 export interface ReadingContextDisplayOptions {
+  readonly primaryOnly?: boolean;
   readonly expanded?: Partial<Record<ContextGroupKey, boolean>>;
   readonly limits?: Partial<Record<ContextGroupKey, number>>;
 }
@@ -221,7 +222,10 @@ export function buildReadingContextDisplay(
     const limit = options.limits?.[groupKey] ?? DEFAULT_CONTEXT_LIMITS[groupKey] ?? null;
     const expanded = options.expanded?.[groupKey] === true;
     const items = buckets.map(toItem);
-    const visible = limit === null || expanded ? items : items.slice(0, limit);
+    const eligible = options.primaryOnly && !expanded
+      ? items.filter((item) => item.importance === "primary")
+      : items;
+    const visible = limit === null || expanded ? eligible : eligible.slice(0, limit);
 
     groups.push({
       key: groupKey,

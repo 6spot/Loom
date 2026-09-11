@@ -120,11 +120,10 @@ export default function StudioReviewPage() {
     <div className="studio-stack" data-view="studio-review">
       <div className="studio-page-heading">
         <div>
-          <p className="studio-eyebrow">C2 · 人工消歧关口</p>
+          <p className="studio-eyebrow">身份与内容审核</p>
           <h1>人工审核队列</h1>
           <p className="studio-muted">
-            系统把指向同一已发布身份/事件的重复问题组织成审核批次，但批次本身不代表同一身份；“证据不足，暂不确定”始终不会触发合并。
-            范围与位置保存在地址栏，刷新或返回后恢复；翻页使用服务端稳定游标。
+            身份审核判断是否同一人或同一次事件；事实核对比较具体记载；正文审核决定最终叙述与阅读入口。每种决定分别保留。
           </p>
         </div>
         <div className="studio-row-actions">
@@ -137,8 +136,8 @@ export default function StudioReviewPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>消歧审核</CardTitle>
-          <CardDescription>每一行代表一个需要人判断的语义审核主题；主题可以包含多个底层候选，但不会跨越未经证明的身份关系。</CardDescription>
+          <CardTitle>待核对内容</CardTitle>
+          <CardDescription>选择一个审核项查看完整上下文，可在页底保存并继续下一项。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="studio-filter-row" role="group" aria-label="审核状态过滤">
@@ -197,18 +196,17 @@ export default function StudioReviewPage() {
                   <div className="studio-stack studio-stack-tight">
                     <div className="studio-row-title">
                       <Badge>{reviewStatusLabel(review.status)}</Badge>
-                      <Badge>{reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : reviewLinkKindLabel(review.link_kind)}</Badge>
                       <strong>{review.document.title}</strong>
                       <span className="studio-muted">第 {review.document.revision_no} 版</span>
                       {review.review_id === currentId ? <Badge>上次位置</Badge> : null}
                     </div>
                     <div>
                       <strong>{review.left_label ?? "已发布侧记录"}</strong>
-                      <span className="studio-muted"> ↔ </span>
-                      <strong>{review.right_label ?? "本次来源记录"}</strong>
+                      {review.scope !== "narrative" ? <><span className="studio-muted"> ↔ </span><strong>{review.right_label ?? "本次来源记录"}</strong></> : null}
                     </div>
                     <div className="studio-muted">
-                      {groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
+                      {review.scope === "narrative" ? "完整章节语境 · 结论、依据与版本固定" : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
                       {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
                       {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
                       {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}

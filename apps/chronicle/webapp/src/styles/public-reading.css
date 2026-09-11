@@ -1,0 +1,155 @@
+/* Shared public surface. Era-specific art is supplied by saved background assets. */
+.public-site,
+.public-dialog {
+  --public-paper: #faf8f3;
+  --public-ink: #292d2b;
+  --public-muted: #696e67;
+  --public-line: #e5e3db;
+  --public-accent: #884d41;
+  color: var(--public-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.public-site { min-height: 100dvh; background: var(--public-paper); }
+.public-site .site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.5rem;
+  padding: .65rem max(1.25rem, calc((100vw - 1320px) / 2));
+  border-bottom: 1px solid var(--public-line);
+  box-shadow: none;
+  background: rgb(250 248 243 / 97%);
+  backdrop-filter: none;
+}
+.public-site .brand { gap: .65rem; color: var(--public-ink); }
+.public-site .brand-mark { width: 2rem; height: 2rem; border-radius: 3px; background: var(--public-accent); color: #fffdf8; font-family: "Songti SC", serif; font-size: 1.25rem; }
+.public-site .brand strong { font-family: Georgia, serif; font-size: 1.05rem; font-weight: 400; letter-spacing: .04em; }
+.public-site .site-nav { display: flex; gap: .6rem; align-items: center; margin: 0; }
+.public-site .site-nav a { padding: .65rem; font-size: .85rem; color: var(--public-muted); }
+.public-site .site-nav a[aria-current="page"] { color: var(--public-ink); }
+.public-site .app-shell { width: min(100%, 1360px); max-width: none; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+.public-site .app-shell:focus { outline: none; }
+.public-site-reading .app-shell { padding-top: 0; }
+.public-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.public-skip-link { position: fixed; top: .5rem; left: 1rem; transform: translateY(-160%); z-index: 100; background: var(--public-paper); padding: .65rem; }
+.public-skip-link:focus { transform: none; }
+.public-icon-button,
+.public-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: .5rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: .85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.public-icon-button svg,
+.public-text-button svg,
+.history-home svg { width: 1.15rem; height: 1.15rem; flex-shrink: 0; }
+.public-icon-button:active,
+.public-text-button:active { background: #eeeae2; }
+.public-site :focus-visible,
+.public-dialog :focus-visible { outline: 2px solid var(--public-accent); outline-offset: 4px; }
+.public-dialog {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 3rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--public-line);
+  border-radius: 8px;
+  background: var(--public-paper);
+  box-shadow: 0 16px 60px #252a291c;
+  overscroll-behavior: contain;
+}
+.public-dialog::backdrop { background: #21292545; }
+.public-dialog-compact { width: min(32rem, calc(100vw - 2rem)); }
+.public-dialog-heading { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1.25rem; background: var(--public-paper); border-bottom: 1px solid var(--public-line); }
+.public-dialog-heading h2 { margin: 0; font-size: .95rem; font-weight: 500; }
+.public-dialog-heading .public-icon-button { font-size: 1.5rem; }
+.public-dialog-content { padding: 1.5rem; overflow-wrap: anywhere; }
+.public-menu { display: flex; flex-direction: column; }
+.public-menu a { min-height: 2.75rem; display: flex; align-items: center; color: var(--public-ink); text-decoration: none; border-bottom: 1px solid var(--public-line); }
+.history-home { max-width: 56rem; margin: 4.5rem auto 0; }
+.home-heading h1 { margin: 0; font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: clamp(1.6rem, 3vw, 2.15rem); font-weight: 500; letter-spacing: .06em; line-height: 1.5; }
+.home-heading p { margin: .75rem 0 0; color: var(--public-muted); font-size: .9rem; }
+.history-search { display: flex; align-items: center; gap: .5rem; width: 100%; border-bottom: 1px solid #b9b9ae; }
+.history-home > .history-search { max-width: 36rem; margin: 2.5rem 0 4rem; }
+.history-search input { min-width: 0; width: 100%; height: 3rem; padding: .5rem 0; border: 0; border-radius: 0; background: transparent; color: var(--public-ink); font: inherit; font-size: 1rem; }
+.history-search input::placeholder { color: var(--public-muted); }
+.home-section { margin-top: 3rem; }
+.home-section h2 { margin: 0 0 1.25rem; font-size: .8rem; color: var(--public-muted); font-weight: 400; letter-spacing: .05em; }
+.home-years { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .75rem 1.5rem; }
+.home-year { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; padding: .7rem 0; border: 0; border-top: 1px solid var(--public-line); color: var(--public-ink); background: transparent; cursor: pointer; font-family: Georgia, "Songti SC", serif; font-size: 1.6rem; text-align: left; }
+.home-year small { margin-left: .35rem; font-family: inherit; font-size: .75rem; color: var(--public-muted); }
+.home-year svg { color: var(--public-muted); }
+.home-entries { display: grid; grid-template-columns: 1fr 1fr; column-gap: 3rem; }
+.history-entry { display: grid; grid-template-columns: 1fr auto; gap: .45rem 1rem; min-width: 0; min-height: 6.5rem; padding: 1.2rem 0; text-align: left; text-decoration: none; border: 0; border-top: 1px solid var(--public-line); border-radius: 0; background: transparent; color: var(--public-ink); font: inherit; cursor: pointer; }
+.history-entry:hover strong, .history-entry:focus-visible strong { color: var(--public-accent); }
+.history-entry-time { grid-column: 1 / -1; color: var(--public-muted); font-size: .75rem; }
+.history-entry strong { font-family: "Songti SC", "Noto Serif CJK SC", serif; font-weight: 500; font-size: 1.15rem; line-height: 1.65; overflow-wrap: anywhere; }
+.history-entry svg { align-self: center; color: var(--public-muted); }
+.home-section > .public-text-button { margin-top: 1rem; padding-left: 0; color: var(--public-muted); }
+.home-status { margin-top: 3rem; color: var(--public-muted); font-size: .9rem; }
+.reading-entry-anchor .ret-picker { margin: 0; }
+
+/* The continuous text owns the page; navigation stays at its edges. */
+.public-site .rpage { padding: 0 0 4rem; }
+.public-site .rpage-compact { min-height: 3.5rem; padding: .2rem 0; border-bottom-color: transparent; background: var(--public-paper); backdrop-filter: none; }
+.public-site .rpage-compact-time { font-size: .8rem; font-weight: 400; color: var(--public-muted); }
+.rpage-tools { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
+.public-site .rpage-grid { grid-template-columns: minmax(100px, 140px) minmax(0, 38rem) minmax(210px, 250px); gap: clamp(1.5rem, 4vw, 4rem); margin-top: 2rem; }
+.public-site .rpage-main { max-width: 38rem; }
+.public-site .rcw-window { padding: 0 0 8rem; }
+.public-site .rcw-units { gap: 1.4rem; }
+.public-site .rpage-main .rcw-unit-text { font-size: 1.125rem; line-height: 2.05; font-weight: 400; letter-spacing: .025em; }
+.public-site .rpage-context-column { position: sticky; top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); align-self: start; max-height: calc(100dvh - var(--rpage-chrome-top, 4.5rem) - 7rem); overflow-y: auto; scrollbar-width: thin; }
+.public-site .rax-axis { top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); --rax-active: var(--public-accent); --rax-line: var(--public-line); }
+.public-site .rax-list { max-height: calc(100dvh - var(--rpage-chrome-top, 4.5rem) - 7rem); }
+.public-site .rax-item { border-left-width: 1px; padding-left: .9rem; }
+.public-site .rax-group[data-active="true"] { border-color: transparent; background: transparent; color: var(--public-accent); }
+.public-site .rax-item:has(.rax-group[data-active="true"]) { border-left: 2px solid var(--public-accent); padding-left: calc(.9rem - 1px); }
+.public-site .rax-period { font-size: .8rem; }
+.public-site .rax-year { font-size: .85rem; }
+.public-site .rax-count { display: none; }
+.reading-nearby { margin-bottom: 2rem; }
+.reading-nearby h2 { margin: 0 0 .6rem; font-size: .75rem; font-weight: 400; color: var(--public-muted, #696e67); }
+.reading-nearby ol { list-style: none; margin: 0; padding: 0; }
+.reading-nearby button { display: flex; flex-direction: column; justify-content: center; gap: .2rem; width: 100%; min-height: 2.75rem; padding: .5rem 0; border: 0; background: transparent; color: #696e67; font: inherit; font-size: .85rem; text-align: left; cursor: pointer; }
+.reading-nearby button[aria-current="location"] { color: #884d41; }
+.reading-nearby small { font-size: .7rem; }
+.reading-tool-sources { display: flex; flex-direction: column; gap: .5rem; }
+.reading-tool-sources > p { color: var(--public-muted); font-size: .8rem; line-height: 1.6; }
+.reading-tool-sources .public-text-button { justify-content: flex-start; }
+@media (hover: hover) and (pointer: fine) {
+  .public-icon-button:hover, .public-text-button:hover { background: #eeeae2; }
+  .history-entry:hover strong, .home-year:hover, .public-menu a:hover { color: var(--public-accent); }
+  .reading-nearby button:hover { color: #884d41; }
+}
+@media (max-width: 1199px) {
+  .public-site .rpage-grid { grid-template-columns: minmax(90px, 125px) minmax(0, 38rem); gap: 2rem; }
+}
+@media (max-width: 767px) {
+  .public-site .site-header { min-height: 3.75rem; padding: .4rem 1rem; }
+  .public-site .app-shell { padding: 1.5rem 1.25rem 3rem; }
+  .public-site-reading .app-shell { padding-top: 0; }
+  .history-home { margin-top: 2.5rem; }
+  .history-home > .history-search { margin-bottom: 3rem; }
+  .home-entries { grid-template-columns: 1fr; }
+  .home-years { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .home-year { font-size: 1.35rem; gap: .25rem; }
+  .home-year svg { width: .85rem; }
+  .public-site .rpage-grid { grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: .75rem; }
+  .public-site .rpage-main .rcw-unit-text { font-size: 1.0625rem; line-height: 2; }
+  .public-site .rax-axis { position: static; }
+  .public-site .rax-toggle { padding-left: 0; border: 0; background: transparent; color: var(--public-muted); font-size: .8rem; }
+  .public-dialog-content { padding: 1.25rem; }
+}

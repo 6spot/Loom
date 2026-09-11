@@ -1,4 +1,6 @@
 import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { historyPath, historyTimeLabel, loadHistory } from "../../lib/history-api";
 import { useSearch } from "../../lib/queries";
 import { formatTime } from "../../lib/routes";
 import { withHistoricalTime } from "../../lib/historical-time";
@@ -39,6 +41,8 @@ export default function SearchPage() {
   const location = useLocation();
   const q = (searchParams.get("q") ?? "").trim();
   const search = useSearch(`?${searchParams.toString()}`);
+  const history = useQuery({ queryKey: ["history", "directory", "latest"], queryFn: () => loadHistory(), staleTime: 30_000 });
+  const entries = history.data?.entry_points.filter((entry) => q && entry.label.includes(q)) ?? [];
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -61,6 +65,7 @@ export default function SearchPage() {
     <section data-view="search">
       <header className="page-header"><p className="eyebrow">Search</p><h1>“{data.query?.q ?? q}” 的搜索结果</h1><p className="lede">同一 canonical 对象只出现一次；展开“为什么命中”可以看到具体来源表示和匹配字段。</p></header>
       {form}
+      {history.data && entries.length ? <section className="home-section" aria-label="历史正文阅读入口"><h2>在历史正文中阅读</h2><div className="home-entries">{entries.map((entry) => <Link className="history-entry" key={`${entry.kind}:${entry.paragraph_id}`} to={historyPath({ version: history.data!.version, paragraph_id: entry.paragraph_id })}><span className="history-entry-time">{historyTimeLabel(entry)}</span><strong>{entry.label}</strong><span className="history-entry-excerpt">{entry.excerpt}</span></Link>)}</div></section> : null}
       <div className="page-stats"><span>共 {page.total ?? items.length} 个 canonical 结果</span><span>显示 {page.returned ?? items.length} 个</span></div>
       {items.length ? <><div className="search-results">{items.map((item) => item.kind === "entity" ? <EntityCard key={item.canonical_id} item={item} timeSearch={location.search} /> : <EventCard key={item.canonical_id} item={item} timeSearch={location.search} />)}</div>{page.has_more ? <p className="muted">还有更多匹配；当前只展示前 {page.returned} 条，可收窄查询词。</p> : null}</> : <section className="state-card empty-card"><h2>没有找到匹配结果</h2><p className="muted">这只表示当前 Chronicle 语料里没有词面命中，不代表历史上不存在相关人物或事件。</p></section>}
     </section>

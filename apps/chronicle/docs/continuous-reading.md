@@ -1,6 +1,8 @@
 # Chronicle 第二轮：连续阅读数据与导航契约
 
-状态：**已拆分的实施目标，尚未实现**。父 Issue [#549](https://github.com/6spot/Loom/issues/549)，执行与文件归属见 [第二轮台账](../../../docs/tasks/chronicle/second-round/README.md)。第一轮 [章节契约](chapter-production.md) 仍独立交付；下述 0.2 扩展由第二轮任务负责。
+范围：**第二轮按来源连续阅读的数据与导航契约**。父 Issue [#549](https://github.com/6spot/Loom/issues/549)，任务范围与文件归属见 [第二轮任务规划](../../../docs/tasks/chronicle/second-round/README.md)。第一轮 [章节契约](chapter-production.md) 仍独立交付；下述 0.2 扩展由第二轮任务负责。
+
+2026-09-11 确认的多史料综合叙事目标见 [historical-narrative-design.md](historical-narrative-design.md)：正序连续阅读，事件／时期入口只定位而不筛选正文，直接替换正式前台。它需要新增叙事生成、结论证据、审核发布与定位合同；本文的 Reading Stream 仍表示来源译文，不因页面调整而改变其语义。
 
 ## 1. 阅读组织与权限
 

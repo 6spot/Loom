@@ -37,6 +37,8 @@ export interface ReadingContentProps {
   readonly chapterTitle?: string | null;
   /** true 时在正文前渲染章边界标题（仅章首 unit）。 */
   readonly showChapterHeading?: boolean;
+  /** 连续阅读将依据集中在阅读工具中；独立来源窗口可保留段内入口。 */
+  readonly showSources?: boolean;
   readonly expandedAnchorId?: string | null;
   readonly sourceClient?: ChapterSourceClient;
   readonly renderEvent?: ReadingEventRenderer;
@@ -69,6 +71,7 @@ export default function ReadingContent({
   unit,
   chapterTitle,
   showChapterHeading = false,
+  showSources = true,
   expandedAnchorId = null,
   sourceClient,
   renderEvent,
@@ -119,7 +122,7 @@ export default function ReadingContent({
         )}
       </p>
 
-      {anchors.length > 0 ? (
+      {showSources && anchors.length > 0 ? (
         <footer className="rcw-unit-sources">
           <p className="rcw-source-label">原文依据 · 按需查看，保持原出版物版本</p>
           <div className="rcw-source-buttons">
