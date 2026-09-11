@@ -5,12 +5,15 @@ Narrow persistence for complete natural-chapter joint products behind
 ``chapter-production.md`` sections 5/7:
 
 - :func:`record_accepted_chapter_fenced` accepts only a fully validated
-  ``chronicle.chapter-artifact / 0.1`` (the T01 artifact is the sole
-  accepted input) and commits the artifact row, the chunk accepted
-  pointer, and the chunk ``completed`` status in one lease-fenced
-  transaction. Partial products, wrong revisions, unknown producing
-  runs, lost leases, and hash conflicts are rejected; repeating the
-  identical artifact is idempotent.
+  ``chronicle.chapter-artifact / 0.1`` or ``/ 0.2`` (the T01 artifact is
+  the sole accepted input) and commits the artifact row, the chunk
+  accepted pointer, and the chunk ``completed`` status in one
+  lease-fenced transaction. A 0.2 candidate is validated and accepted
+  only through the T01 ``reading_contract`` (keeping its
+  program-resolved reading annotations), a 0.1 candidate through the
+  frozen first-round contract. Partial products, wrong revisions,
+  unknown producing runs, lost leases, and hash conflicts are rejected;
+  repeating the identical artifact is idempotent.
 - :func:`read_accepted_chapters` / :func:`read_accepted_chapter` return
   already-accepted complete results so a restarted worker resumes from
   the accepted artifact instead of creating a second chapter queue/run.
@@ -55,6 +58,7 @@ if str(HERE) not in sys.path:
 
 import chapter_contract as chapter_contract  # noqa: E402
 import control_plane as control_plane  # noqa: E402
+import reading_contract as reading_contract  # noqa: E402
 from common import (  # noqa: E402
     LeaseLost,
     PersistenceConflict,
@@ -118,10 +122,11 @@ def record_accepted_chapter_fenced(
     """Accept one complete chapter joint product under the job lease.
 
     The candidate is always re-validated against this exact request via
-    the T01 contract; a caller-supplied report can never substitute for
-    that check. On success the accepted artifact row, the chunk accepted
-    pointer (``checkpoint.accepted_chapter_artifact``), and the chunk
-    ``completed`` status commit atomically. Repeating the identical
+    the owning T01 contract (0.1 ``chapter_contract`` or 0.2
+    ``reading_contract``); a caller-supplied report can never substitute
+    for that check. On success the accepted artifact row, the chunk
+    accepted pointer (``checkpoint.accepted_chapter_artifact``), and the
+    chunk ``completed`` status commit atomically. Repeating the identical
     artifact returns its SHA without new rows; the same ``(job,
     chapter)`` with different content raises ``PersistenceConflict``
     (``immutable_artifact_conflict``).
@@ -146,12 +151,34 @@ def record_accepted_chapter_fenced(
         raise PersistenceError(f"producing_run run_id is not a UUID: {run_id!r}") from exc
 
     # Fail closed before touching the database: partial products, hash
-    # drift, and chapter/request mismatches never reach a transaction.
-    artifact = chapter_contract.accept_chapter_candidate(
-        request, candidate, producing_run={**producing_run, "run_id": str(producing_run_id)}
-    )
-    if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") != ARTIFACT_VERSION:
-        raise PersistenceError("accepted artifact must be chronicle.chapter-artifact/0.1")
+    # drift, and chapter/request mismatches never reach a transaction. The
+    # candidate generation selects its own owner: 0.1 stays with the frozen
+    # first-round validator, 0.2 is consumed only through the T01
+    # ``reading_contract`` validator so the accepted artifact keeps the
+    # program-resolved reading annotations and unit IDs.
+    accepted_run = {**producing_run, "run_id": str(producing_run_id)}
+    candidate_version = candidate.get("version")
+    if candidate_version == reading_contract.CANDIDATE_VERSION:
+        artifact = reading_contract.accept_reading_candidate(
+            request, candidate, producing_run=accepted_run
+        )
+    elif candidate_version == chapter_contract.CANDIDATE_VERSION:
+        artifact = chapter_contract.accept_chapter_candidate(
+            request, candidate, producing_run=accepted_run
+        )
+    else:
+        raise PersistenceError(
+            "chapter candidate version must be "
+            f"{chapter_contract.CANDIDATE_VERSION!r} or "
+            f"{reading_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
+        )
+    if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (
+        ARTIFACT_VERSION,
+        reading_contract.ARTIFACT_VERSION,
+    ):
+        raise PersistenceError(
+            "accepted artifact must be chronicle.chapter-artifact/0.1 or /0.2"
+        )
     chapter_id = artifact["chapter_id"]
     if not isinstance(chapter_id, str) or not chapter_id:
         raise PersistenceError("accepted artifact chapter_id must be a non-empty string")
