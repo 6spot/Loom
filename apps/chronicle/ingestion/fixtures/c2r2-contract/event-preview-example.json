@@ -1,0 +1,35 @@
+{
+  "event_id": "evt_000000000000000000000001",
+  "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+  "name": "赤壁之戰",
+  "sources": [
+    {
+      "source_title": "contract fixture",
+      "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+      "observations": [
+        {
+          "event_ref": "evt_001",
+          "original_text": "建安十三年",
+          "source_calendar": {
+            "system": "chinese_lunisolar_regnal",
+            "era": "建安",
+            "era_year": 13,
+            "season": null,
+            "month": null,
+            "day": null
+          },
+          "normalized": null,
+          "precision": "year"
+        }
+      ],
+      "excerpt": "周瑜在赤壁擊敗曹操。",
+      "excerpt_more": true,
+      "original_entry": {
+        "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+        "anchor_id": "anc_b_003"
+      }
+    }
+  ],
+  "source_count": 3,
+  "has_more_sources": true
+}

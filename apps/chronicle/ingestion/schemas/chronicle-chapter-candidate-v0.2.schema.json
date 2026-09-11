@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.2.schema.json",
+  "title": "Chronicle Chapter Candidate v0.2 (model-generated part only)",
+  "description": "Machine contract for chronicle.chapter-candidate / 0.2. Adds the second-round 'reading' block on top of the frozen first-round joint product. The v0.1 root is NOT embedded via allOf (its version const and additionalProperties=false would make 0.2 impossible); instead the unchanged first-round definitions are reused by $ref. Only the reading block and its source-local temp refs are new; canonical IDs, stream/unit IDs, coordinates, hashes and URLs must never appear here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "version", "chapter_id", "bundle", "translation",
+    "mentions", "record_sources", "reading", "warnings"
+  ],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-candidate"},
+    "version": {"const": "0.2"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "bundle": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/staged_bundle"},
+    "translation": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/translation"},
+    "mentions": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/mention"}
+    },
+    "record_sources": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/record_source"}
+    },
+    "reading": {"$ref": "#/$defs/reading"},
+    "warnings": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/warning"}
+    }
+  },
+  "$defs": {
+    "translation_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quote", "occurrence"],
+      "properties": {
+        "quote": {"type": "string", "minLength": 1},
+        "occurrence": {"type": "integer", "minimum": 1}
+      }
+    },
+    "source_selection": {
+      "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/selection"
+    },
+    "narrative_time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "event_refs", "from_block_id", "source_selections"],
+      "properties": {
+        "mode": {"enum": ["events", "inherit", "mixed", "unknown"]},
+        "event_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "from_block_id": {"type": ["string", "null"]},
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "maxItems": 16
+        }
+      }
+    },
+    "event_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "span_id", "selection", "status", "target_ref", "candidate_refs",
+        "relation", "source_selections"
+      ],
+      "properties": {
+        "span_id": {"type": "string", "pattern": "^es_[0-9]{3,}$"},
+        "selection": {"$ref": "#/$defs/translation_selection"},
+        "status": {"enum": ["resolved", "ambiguous", "unresolved"]},
+        "target_ref": {"type": ["string", "null"]},
+        "candidate_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "relation": {"enum": ["current", "retrospective", "foreshadow", "background", "uncertain"]},
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    "event_role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_ref", "participant_index"],
+      "properties": {
+        "event_ref": {"type": "string", "minLength": 1},
+        "participant_index": {"type": "integer", "minimum": 0}
+      }
+    },
+    "context_entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_ref", "importance", "source_selections", "event_roles"],
+      "properties": {
+        "entity_ref": {"type": "string", "minLength": 1},
+        "importance": {"enum": ["primary", "other"]},
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "event_roles": {"type": "array", "items": {"$ref": "#/$defs/event_role"}}
+      }
+    },
+    "reading_unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["block_id", "narrative_time", "current_event_refs", "event_spans", "context_entities"],
+      "properties": {
+        "block_id": {"type": "string", "minLength": 1},
+        "narrative_time": {"$ref": "#/$defs/narrative_time"},
+        "current_event_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "event_spans": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/event_span"},
+          "maxItems": 64
+        },
+        "context_entities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/context_entity"},
+          "maxItems": 128
+        }
+      }
+    },
+    "reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["units", "warnings"],
+      "properties": {
+        "units": {"type": "array", "items": {"$ref": "#/$defs/reading_unit"}, "minItems": 1},
+        "warnings": {
+          "type": "array",
+          "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/warning"}
+        }
+      }
+    }
+  }
+}
