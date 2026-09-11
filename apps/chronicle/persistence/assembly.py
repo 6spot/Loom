@@ -1411,9 +1411,30 @@ def _validate_accepted_chapter_artifact(
                     f"{owner} entity record {temp_id!r} has resolution status "
                     f"{resolution.get('status')!r}; assembly input must be unresolved/temp-ID-only"
                 )
+    # ``artifact_sha256`` is the accepted product's own canonical hash. The
+    # 0.2 contract (reading_contract.accept_reading_candidate) binds it to the
+    # artifact *core* excluding ``reading_units``, and the accepted reading
+    # unit IDs were derived from that value; recomputing a whole-artifact hash
+    # here would silently disagree with the artifact the model accepted. The
+    # 0.1 artifact carries no stored hash, so its whole-artifact hash is used.
+    artifact_sha256 = sha256_json(artifact)
     reading: dict[str, Any] | None = None
     reading_units: list[dict[str, Any]] = []
     if version == CHAPTER_READING_ARTIFACT_VERSION:
+        accepted_sha = artifact.get("artifact_sha256")
+        if not isinstance(accepted_sha, str) or not accepted_sha:
+            raise PersistenceError(f"{owner} 0.2 artifact is missing artifact_sha256")
+        core = {
+            key: value
+            for key, value in artifact.items()
+            if key not in ("artifact_sha256", "reading_units")
+        }
+        if sha256_json(core) != accepted_sha:
+            raise PersistenceError(
+                f"{owner} artifact core does not match artifact_sha256; "
+                "tampered or unaccepted products are rejected"
+            )
+        artifact_sha256 = accepted_sha
         reading = candidate.get("reading")
         if not isinstance(reading, dict) or not isinstance(reading.get("units"), list):
             raise PersistenceError(f"{owner} 0.2 candidate is missing its reading.units")
@@ -1457,7 +1478,7 @@ def _validate_accepted_chapter_artifact(
         "anchors": list(artifact["anchors"]),
         "candidate_sha256": artifact["candidate_sha256"],
         "request_fingerprint": artifact["request_fingerprint"],
-        "artifact_sha256": sha256_json(artifact),
+        "artifact_sha256": artifact_sha256,
         "reading": reading,
         "reading_units": reading_units,
     }
@@ -1566,6 +1587,7 @@ def assemble_chapters(
     revision_id, source_sha256 = plan_revision
     normalized_sha256 = chapter_plan["normalized_sha256"]
     id_map: dict[tuple[int, str], str] = {}
+    revision_ref_owner: dict[str, tuple[int, str]] = {}
     chapter_by_ref: dict[str, str] = {}
     local_to_revision: dict[str, str] = {}
     provenance: dict[str, dict[str, Any]] = {}
@@ -1584,6 +1606,12 @@ def assemble_chapters(
             key = (chapter_index, old)
             if key in id_map and id_map[key] != new:
                 raise PersistenceError(f"remapped ID conflict at {key!r} (fail closed)")
+            owner = revision_ref_owner.get(new)
+            if owner is not None and owner != key:
+                raise PersistenceError(
+                    f"remapped ID collision at {new!r} between {owner!r} and {key!r} (fail closed)"
+                )
+            revision_ref_owner[new] = key
             id_map[key] = new
 
     for item in ordered:
@@ -1677,8 +1705,12 @@ def assemble_chapters(
     out_record_sources: list[dict[str, Any]] = []
     merged_anchors: list[dict[str, Any]] = []
     # ``(chapter_index, chapter-local block_id) -> revision block_id``: the
-    # reading projection joins its units onto these remapped blocks.
+    # reading projection joins its units onto these remapped blocks. The
+    # reverse owner map fails closed when two distinct local blocks would
+    # collide, and blocks are emitted in source order (never re-sorted by the
+    # generated ID).
     block_id_map: dict[tuple[int, str], str] = {}
+    block_revision_owner: dict[str, str] = {}
 
     for item in ordered:
         chapter_id = item["chapter_id"]
@@ -1695,13 +1727,26 @@ def assemble_chapters(
                     f"chapter {chapter_index} translation block must be a JSON object"
                 )
             local_block = block.get("block_id")
-            out = copy.deepcopy(block)
-            out["block_id"] = _remapped_translation_block_id(chapter_index, local_block, position)
             if not isinstance(local_block, str) or not local_block:
                 raise PersistenceError(
                     f"chapter {chapter_index} translation block at {position} requires a block_id"
                 )
-            block_id_map[(chapter_index, local_block)] = out["block_id"]
+            block_key = (chapter_index, local_block)
+            if block_key in block_id_map:
+                raise PersistenceError(
+                    f"chapter {chapter_index} repeats translation block {local_block!r} (fail closed)"
+                )
+            out = copy.deepcopy(block)
+            revision_block = _remapped_translation_block_id(chapter_index, local_block, position)
+            owner = block_revision_owner.get(revision_block)
+            if owner is not None and owner != local_block:
+                raise PersistenceError(
+                    f"chapter {chapter_index} local blocks {owner!r} and {local_block!r} "
+                    f"both remap to {revision_block!r}; refusing an ambiguous block ID"
+                )
+            block_revision_owner[revision_block] = local_block
+            block_id_map[block_key] = revision_block
+            out["block_id"] = revision_block
             out["chapter_id"] = chapter_id
             out["chapter_index"] = chapter_index
             entity_refs = []
@@ -1905,7 +1950,10 @@ def assemble_chapters(
                     }
                 )
 
-    translation_blocks.sort(key=lambda b: (b["chapter_index"], b["block_id"]))
+    # Source order is preserved: chapters are processed in chapter_index
+    # order and blocks in the chapter's own translation order. Re-sorting by
+    # the generated block ID would both reorder non-standard source IDs and
+    # hide collisions behind a canonical-looking order.
     out_mentions.sort(key=lambda m: (m["chapter_index"], m["mention_id"]))
     out_record_sources.sort(key=lambda e: (e["record_ref"], e["chapter_index"]))
     merged_anchors.sort(

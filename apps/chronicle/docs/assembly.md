@@ -179,9 +179,19 @@ Key contracts:
   only carries `text_hash` and program-sliced segments that reassemble the
   chapter publication's block text; reading never copies a new body
   authority. Every block must appear exactly once or the compile fails.
+  Assembly emits translation blocks and reading units in source order
+  (never re-sorted by the generated block ID) and fails closed when two
+  distinct local block IDs would remap to the same revision block ID.
+- **The accepted canonical hash is authoritative.** For 0.2 products the
+  `artifact_sha256` computed by `accept_reading_candidate` over the
+  artifact *core* (excluding `reading_units`) is validated and reused for
+  unit IDs and provenance; assembly never substitutes a whole-artifact
+  hash. For 0.1 products, which carry no stored hash, the whole-artifact
+  hash remains.
 - **Unique `unit_id` after remap.** `unit_id` is recomputed from
-  `(revision_id, chapter_id, remapped block_id, chapter artifact_sha256)`;
-  cross-chapter duplicate local IDs and hash collisions are rejected.
+  `(revision_id, chapter_id, remapped block_id, accepted artifact_sha256)`;
+  cross-chapter duplicate local IDs, remapped ID collisions and hash
+  collisions are rejected.
 - **Canonical binding is membership, never a name.** Revision refs are
   bound to canonical Entity/Event IDs only through this revision's catalog
   representations. Unknown/unrepresented refs stay unresolved (`null`);

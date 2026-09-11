@@ -220,8 +220,11 @@ def _artifact(
         candidate["reading"] = reading
         artifact["reading"] = reading
         artifact["reading_sha256"] = sha256_json(reading)
-        artifact["reading_units"] = reading_units
     artifact["candidate_sha256"] = sha256_json(candidate)
+    if version == "0.2":
+        # Accepted 0.2 hash binds the artifact core excluding reading_units.
+        artifact["artifact_sha256"] = sha256_json(dict(artifact))
+        artifact["reading_units"] = reading_units
     return artifact
 
 
@@ -287,7 +290,7 @@ class ReadingRemapTests(unittest.TestCase):
             first_unit["context_entities"][0]["event_roles"][0]["event_ref"],
         )
         # Provenance keys are kept for the compiler.
-        self.assertEqual(sha256_json(first), first_unit["artifact_sha256"])
+        self.assertEqual(first["artifact_sha256"], first_unit["artifact_sha256"])
         self.assertEqual("t_001", first_unit["chapter_block_id"])
 
     def test_inherit_from_block_remaps_to_revision_block(self) -> None:
@@ -387,6 +390,90 @@ class ReadingAssemblyFailureTests(unittest.TestCase):
         bad["reading_units"][0]["current_event_refs"] = []
         with self.assertRaises(PersistenceError):
             A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+
+
+class AcceptedHashAndBlockOrderTests(unittest.TestCase):
+    """Regression: the accepted canonical hash and source block order win."""
+
+    def test_accepted_artifact_hash_is_preserved_not_recomputed(self) -> None:
+        first, second, plan = _two_chapter_artifacts()
+        result = A.assemble_chapters(accepted_artifacts=[first, second], chapter_plan=plan)
+        expected = {"ch_000": first["artifact_sha256"], "ch_001": second["artifact_sha256"]}
+        for unit in result["reading_units"]:
+            self.assertEqual(expected[unit["chapter_id"]], unit["artifact_sha256"])
+        self.assertEqual(expected, result["report"]["chapter_artifacts"])
+        # The canonical hash excludes reading_units: a whole-artifact hash
+        # (the old bug) must differ and therefore be rejected as drift.
+        self.assertNotEqual(first["artifact_sha256"], sha256_json(first))
+
+    def test_tampered_accepted_artifact_hash_fails_closed(self) -> None:
+        first, _, _ = _two_chapter_artifacts()
+        bad = copy.deepcopy(first)
+        bad["artifact_sha256"] = "0" * 64
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+
+    def test_colliding_remapped_block_ids_fail_closed(self) -> None:
+        artifact = _artifact(
+            "ch_000",
+            entities=[_entity("ent_001", "曹操")],
+            events=[],
+            blocks=[_block("foo", "第一。", ["ent_001"], []), _block("t_001", "第二。", ["ent_001"], [])],
+            reading_units=[_reading_unit("foo", "第一。"), _reading_unit("t_001", "第二。")],
+        )
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+
+    def test_duplicate_local_block_ids_fail_closed(self) -> None:
+        artifact = _artifact(
+            "ch_000",
+            entities=[_entity("ent_001", "曹操")],
+            events=[],
+            blocks=[_block("t_001", "第一。", ["ent_001"], []), _block("t_001", "第二。", ["ent_001"], [])],
+            reading_units=[_reading_unit("t_001", "第一。")],
+        )
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+
+    def test_colliding_remapped_entity_ids_fail_closed(self) -> None:
+        artifact = _artifact(
+            "ch_000",
+            entities=[_entity("foo", "曹操"), _entity("ent_001", "劉備")],
+            events=[],
+            blocks=[_block("t_001", "曹操。", ["foo", "ent_001"], [])],
+            reading_units=[_reading_unit("t_001", "曹操。", entity_ref="foo", mode="unknown")],
+        )
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+
+    def test_source_order_is_preserved_for_nonstandard_block_ids(self) -> None:
+        artifact = _artifact(
+            "ch_000",
+            entities=[_entity("ent_001", "曹操")],
+            events=[_event("evt_001", "戰役", participants=["ent_001"], time=_time())],
+            blocks=[
+                _block("t_100", "第一。", ["ent_001"], ["evt_001"]),
+                _block("t_001", "第二。", ["ent_001"], ["evt_001"]),
+            ],
+            reading_units=[_reading_unit("t_100", "第一。"), _reading_unit("t_001", "第二。")],
+        )
+        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+        self.assertEqual(
+            ["t_000100", "t_000001"],
+            [block["block_id"] for block in result["translation_blocks"]],
+        )
+        self.assertEqual(
+            ["第一。", "第二。"],
+            [block["text"] for block in result["translation_blocks"]],
+        )
+        self.assertEqual(
+            ["t_000100", "t_000001"],
+            [unit["block_id"] for unit in result["reading_units"]],
+        )
+        self.assertEqual(
+            ["t_100", "t_001"],
+            [unit["chapter_block_id"] for unit in result["reading_units"]],
+        )
 
 
 if __name__ == "__main__":

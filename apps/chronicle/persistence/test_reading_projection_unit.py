@@ -264,7 +264,7 @@ def _artifact(
         "warnings": [],
         "reading": reading,
     }
-    return {
+    artifact = {
         "schema": "chronicle.chapter-artifact",
         "version": "0.2",
         "chapter_id": chapter_id,
@@ -272,14 +272,19 @@ def _artifact(
         "source_sha256": SHA,
         "normalized_sha256": NORM,
         "candidate": candidate,
-        "candidate_sha256": sha256_json(candidate),
         "anchors": [_anchor(chapter_id, f"anc_{chapter_id}")],
         "request_fingerprint": f"fp-{chapter_id}",
         "producing_run": {"run_id": f"run-{chapter_id}", "model": "m", "prompt_schema_version": "v"},
         "reading": reading,
         "reading_sha256": sha256_json(reading),
-        "reading_units": reading_units,
     }
+    artifact["candidate_sha256"] = sha256_json(candidate)
+    # Accepted 0.2 hash binds the artifact core excluding reading_units
+    # (reading_contract.accept_reading_candidate); reading_units never
+    # participates in the canonical artifact hash.
+    artifact["artifact_sha256"] = sha256_json(artifact)
+    artifact["reading_units"] = reading_units
+    return artifact
 
 
 def _plan(chapter_ids: list[str]) -> dict:
@@ -839,6 +844,48 @@ class FailClosedTests(unittest.TestCase):
         )
         with self.assertRaises(PersistenceError):
             _compile([plain], plan, catalog)
+
+
+class AcceptedHashAndOrderRegressionTests(unittest.TestCase):
+    """Regression: accepted canonical hash and source order drive the rows."""
+
+    def test_accepted_artifact_hash_is_used_for_unit_id(self) -> None:
+        request = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+        artifact = _real_fixture_artifact()
+        projection = RealFixtureCompilationTests()._compile_real()
+        self.assertNotEqual(artifact["artifact_sha256"], sha256_json(artifact))
+        for unit in projection["units"]:
+            self.assertEqual(artifact["artifact_sha256"], unit["artifact_sha256"])
+            self.assertEqual(
+                RC.unit_id_for(
+                    revision_id=request["revision_id"],
+                    chapter_id=unit["chapter_id"],
+                    block_id=unit["block_id"],
+                    artifact_sha256=artifact["artifact_sha256"],
+                ),
+                unit["unit_id"],
+            )
+
+    def test_source_order_is_preserved_for_nonstandard_block_ids(self) -> None:
+        artifact = _artifact(
+            CH0,
+            entities=[_entity("ent_001", "曹操")],
+            events=[_event("evt_001", "戰役", participants=["ent_001"], time=_time())],
+            blocks=[
+                _block("t_100", "第一。", ["ent_001"], ["evt_001"]),
+                _block("t_001", "第二。", ["ent_001"], ["evt_001"]),
+            ],
+            reading_units=[_unit("t_100", "第一。", contexts=[]), _unit("t_001", "第二。", contexts=[])],
+        )
+        catalog = _catalog(
+            {"ent_000001": _canonical("e", 1)}, {"evt_000001": _canonical("f", 1)}
+        )
+        projection = _compile([artifact], _plan([CH0]), catalog)
+        self.assertEqual(["t_000100", "t_000001"], [unit["block_id"] for unit in projection["units"]])
+        self.assertEqual(
+            ["第一。", "第二。"],
+            ["".join(segment["text"] for segment in unit["segments"]) for unit in projection["units"]],
+        )
 
 
 if __name__ == "__main__":

@@ -469,9 +469,10 @@ def compile_reading_projection(
     }
     source_title = bundle.get("source", {}).get("title")
 
-    ordered_units = sorted(
-        assembled_reading, key=lambda unit: (unit.get("chapter_index", 0), unit.get("block_id", ""))
-    )
+    # Assembly emits units in source order (chapter order, then the chapter's
+    # own block order). Keep that order; re-sorting by the generated revision
+    # block ID would reorder non-standard source IDs and mask collisions.
+    ordered_units = list(assembled_reading)
 
     # -- coverage: every translation block exactly once, in source order ----
     expected_blocks = [record["block_id"] for record in assembled["translation_blocks"]]
