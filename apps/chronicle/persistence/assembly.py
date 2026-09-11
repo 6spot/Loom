@@ -86,9 +86,17 @@ CHAPTER_REPORT_VERSION = "0.1"
 CHAPTER_ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
 CHAPTER_ARTIFACT_VERSION = "0.1"
 
+#: Reading-enriched accepted chapter artifact marker (C2-R2-T01/T03 output).
+#: The 0.2 artifact keeps every 0.1 field and adds the joint ``reading``
+#: annotations plus the program-resolved ``reading_units`` (T04 input).
+CHAPTER_READING_ARTIFACT_VERSION = "0.2"
+
 #: Model-generatable chapter candidate marker (embedded in artifacts).
 CHAPTER_CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
 CHAPTER_CANDIDATE_VERSION = "0.1"
+
+#: Reading-enriched model candidate marker (embedded in 0.2 artifacts).
+CHAPTER_READING_CANDIDATE_VERSION = "0.2"
 
 _T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
 _MENTION_ID_RE = re.compile(r"^m_(\d+)$")
@@ -1296,11 +1304,21 @@ def _validate_accepted_chapter_artifact(
     owner = f"accepted_artifacts[{position}]"
     if not isinstance(artifact, dict):
         raise PersistenceError(f"{owner} must be a JSON object")
-    if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or artifact.get("version") != CHAPTER_ARTIFACT_VERSION:
+    version = artifact.get("version")
+    if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or version not in (
+        CHAPTER_ARTIFACT_VERSION,
+        CHAPTER_READING_ARTIFACT_VERSION,
+    ):
         raise PersistenceError(
-            f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/{CHAPTER_ARTIFACT_VERSION}; "
+            f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/"
+            f"{CHAPTER_ARTIFACT_VERSION} or {CHAPTER_READING_ARTIFACT_VERSION}; "
             "unaccepted or wrong-generation products are rejected"
         )
+    candidate_version = (
+        CHAPTER_READING_CANDIDATE_VERSION
+        if version == CHAPTER_READING_ARTIFACT_VERSION
+        else CHAPTER_CANDIDATE_VERSION
+    )
     for key in ("chapter_id", "revision_id", "source_sha256", "normalized_sha256",
                 "candidate_sha256", "request_fingerprint"):
         if not isinstance(artifact.get(key), str) or not artifact.get(key):
@@ -1308,9 +1326,9 @@ def _validate_accepted_chapter_artifact(
     candidate = artifact.get("candidate")
     if not isinstance(candidate, dict):
         raise PersistenceError(f"{owner} is missing its accepted candidate")
-    if candidate.get("schema") != CHAPTER_CANDIDATE_SCHEMA or candidate.get("version") != CHAPTER_CANDIDATE_VERSION:
+    if candidate.get("schema") != CHAPTER_CANDIDATE_SCHEMA or candidate.get("version") != candidate_version:
         raise PersistenceError(
-            f"{owner} candidate must be {CHAPTER_CANDIDATE_SCHEMA}/{CHAPTER_CANDIDATE_VERSION}"
+            f"{owner} candidate must be {CHAPTER_CANDIDATE_SCHEMA}/{candidate_version}"
         )
     if sha256_json(candidate) != artifact["candidate_sha256"]:
         raise PersistenceError(
@@ -1393,11 +1411,61 @@ def _validate_accepted_chapter_artifact(
                     f"{owner} entity record {temp_id!r} has resolution status "
                     f"{resolution.get('status')!r}; assembly input must be unresolved/temp-ID-only"
                 )
+    # ``artifact_sha256`` is the accepted product's own canonical hash. The
+    # 0.2 contract (reading_contract.accept_reading_candidate) binds it to the
+    # artifact *core* excluding ``reading_units``, and the accepted reading
+    # unit IDs were derived from that value; recomputing a whole-artifact hash
+    # here would silently disagree with the artifact the model accepted. The
+    # 0.1 artifact carries no stored hash, so its whole-artifact hash is used.
+    artifact_sha256 = sha256_json(artifact)
+    reading: dict[str, Any] | None = None
+    reading_units: list[dict[str, Any]] = []
+    if version == CHAPTER_READING_ARTIFACT_VERSION:
+        accepted_sha = artifact.get("artifact_sha256")
+        if not isinstance(accepted_sha, str) or not accepted_sha:
+            raise PersistenceError(f"{owner} 0.2 artifact is missing artifact_sha256")
+        core = {
+            key: value
+            for key, value in artifact.items()
+            if key not in ("artifact_sha256", "reading_units")
+        }
+        if sha256_json(core) != accepted_sha:
+            raise PersistenceError(
+                f"{owner} artifact core does not match artifact_sha256; "
+                "tampered or unaccepted products are rejected"
+            )
+        artifact_sha256 = accepted_sha
+        reading = candidate.get("reading")
+        if not isinstance(reading, dict) or not isinstance(reading.get("units"), list):
+            raise PersistenceError(f"{owner} 0.2 candidate is missing its reading.units")
+        reading_sha = artifact.get("reading_sha256")
+        if not isinstance(reading_sha, str) or not reading_sha:
+            raise PersistenceError(f"{owner} 0.2 artifact is missing reading_sha256")
+        if sha256_json(reading) != reading_sha:
+            raise PersistenceError(
+                f"{owner} reading bytes do not match reading_sha256; "
+                "tampered or unaccepted products are rejected"
+            )
+        resolved = artifact.get("reading_units")
+        if not isinstance(resolved, list):
+            raise PersistenceError(f"{owner} 0.2 artifact is missing reading_units")
+        if len(resolved) != len(reading["units"]):
+            raise PersistenceError(
+                f"{owner} reading_units count {len(resolved)} does not match "
+                f"candidate reading units {len(reading['units'])}"
+            )
+        for unit_index, unit in enumerate(resolved):
+            if not isinstance(unit, dict) or not isinstance(unit.get("block_id"), str) or not unit["block_id"]:
+                raise PersistenceError(
+                    f"{owner} reading_units[{unit_index}] must name a translation block_id"
+                )
+        reading_units = list(resolved)
     return {
         "chapter_id": artifact["chapter_id"],
         "revision_id": artifact["revision_id"],
         "source_sha256": artifact["source_sha256"],
         "normalized_sha256": artifact["normalized_sha256"],
+        "artifact_version": version,
         "candidate": candidate,
         "bundle": bundle,
         "source": source,
@@ -1410,7 +1478,9 @@ def _validate_accepted_chapter_artifact(
         "anchors": list(artifact["anchors"]),
         "candidate_sha256": artifact["candidate_sha256"],
         "request_fingerprint": artifact["request_fingerprint"],
-        "artifact_sha256": sha256_json(artifact),
+        "artifact_sha256": artifact_sha256,
+        "reading": reading,
+        "reading_units": reading_units,
     }
 
 
@@ -1422,7 +1492,9 @@ def assemble_chapters(
     """Assemble accepted chapter artifacts into one revision-staged bundle.
 
     Inputs are the T01 accepted artifacts (``chronicle.chapter-artifact /
-    0.1``) plus the T03 chapter plan. Every expected chapter must have
+    0.1``) or the reading-enriched T01/T03 artifacts (``0.2``) plus the T03
+    chapter plan; one assembly call never mixes the two generations. Every
+    expected chapter must have
     exactly one accepted artifact: missing chapters, extra chapters,
     duplicate chapters, mixed revisions, or unaccepted/tampered products
     fail closed instead of producing a partial book bundle.
@@ -1480,6 +1552,13 @@ def assemble_chapters(
             )
     if len({(item["revision_id"], item["source_sha256"]) for item in normalized}) != 1:
         raise PersistenceError("assembly artifacts span multiple revisions/source hashes (fail closed)")
+    artifact_versions = {item["artifact_version"] for item in normalized}
+    if len(artifact_versions) != 1:
+        raise PersistenceError(
+            f"assembly artifacts mix generation versions {sorted(artifact_versions)}; "
+            "refusing to mix 0.1 and 0.2 chapter products"
+        )
+    reading_path = artifact_versions == {CHAPTER_READING_ARTIFACT_VERSION}
 
     expected_ids = [c["chapter_id"] for c in plan_chapters]
     seen_ids: set[str] = set()
@@ -1508,6 +1587,7 @@ def assemble_chapters(
     revision_id, source_sha256 = plan_revision
     normalized_sha256 = chapter_plan["normalized_sha256"]
     id_map: dict[tuple[int, str], str] = {}
+    revision_ref_owner: dict[str, tuple[int, str]] = {}
     chapter_by_ref: dict[str, str] = {}
     local_to_revision: dict[str, str] = {}
     provenance: dict[str, dict[str, Any]] = {}
@@ -1526,6 +1606,12 @@ def assemble_chapters(
             key = (chapter_index, old)
             if key in id_map and id_map[key] != new:
                 raise PersistenceError(f"remapped ID conflict at {key!r} (fail closed)")
+            owner = revision_ref_owner.get(new)
+            if owner is not None and owner != key:
+                raise PersistenceError(
+                    f"remapped ID collision at {new!r} between {owner!r} and {key!r} (fail closed)"
+                )
+            revision_ref_owner[new] = key
             id_map[key] = new
 
     for item in ordered:
@@ -1618,6 +1704,13 @@ def assemble_chapters(
     out_mentions: list[dict[str, Any]] = []
     out_record_sources: list[dict[str, Any]] = []
     merged_anchors: list[dict[str, Any]] = []
+    # ``(chapter_index, chapter-local block_id) -> revision block_id``: the
+    # reading projection joins its units onto these remapped blocks. The
+    # reverse owner map fails closed when two distinct local blocks would
+    # collide, and blocks are emitted in source order (never re-sorted by the
+    # generated ID).
+    block_id_map: dict[tuple[int, str], str] = {}
+    block_revision_owner: dict[str, str] = {}
 
     for item in ordered:
         chapter_id = item["chapter_id"]
@@ -1634,8 +1727,26 @@ def assemble_chapters(
                     f"chapter {chapter_index} translation block must be a JSON object"
                 )
             local_block = block.get("block_id")
+            if not isinstance(local_block, str) or not local_block:
+                raise PersistenceError(
+                    f"chapter {chapter_index} translation block at {position} requires a block_id"
+                )
+            block_key = (chapter_index, local_block)
+            if block_key in block_id_map:
+                raise PersistenceError(
+                    f"chapter {chapter_index} repeats translation block {local_block!r} (fail closed)"
+                )
             out = copy.deepcopy(block)
-            out["block_id"] = _remapped_translation_block_id(chapter_index, local_block, position)
+            revision_block = _remapped_translation_block_id(chapter_index, local_block, position)
+            owner = block_revision_owner.get(revision_block)
+            if owner is not None and owner != local_block:
+                raise PersistenceError(
+                    f"chapter {chapter_index} local blocks {owner!r} and {local_block!r} "
+                    f"both remap to {revision_block!r}; refusing an ambiguous block ID"
+                )
+            block_revision_owner[revision_block] = local_block
+            block_id_map[block_key] = revision_block
+            out["block_id"] = revision_block
             out["chapter_id"] = chapter_id
             out["chapter_index"] = chapter_index
             entity_refs = []
@@ -1703,7 +1814,146 @@ def assemble_chapters(
                 )
             merged_anchors.append(copy.deepcopy(anchor))
 
-    translation_blocks.sort(key=lambda b: (b["chapter_index"], b["block_id"]))
+    # -- reading annotations through the same mapping (C2-R2-T04) -------------
+    # The reading projection consumes these remapped units: chapter-local
+    # refs are lifted into revision refs exactly like every other reference,
+    # so cross-chapter names/local IDs can never be joined by name or leak a
+    # chapter-local identity into the published reading index.
+    assembled_reading_units: list[dict[str, Any]] = []
+    if reading_path:
+        for item in ordered:
+            chapter_id = item["chapter_id"]
+            chapter_index = plan_by_id[chapter_id]["chapter_index"]
+
+            def _map_reading(local: Any, chapter_index: int = chapter_index) -> Any:
+                if isinstance(local, str) and (chapter_index, local) in id_map:
+                    return id_map[(chapter_index, local)]
+                return local
+
+            def _map_block(local: Any, chapter_index: int = chapter_index) -> Any:
+                if isinstance(local, str) and (chapter_index, local) in block_id_map:
+                    return block_id_map[(chapter_index, local)]
+                return local
+
+            for unit in item["reading_units"]:
+                local_block = unit.get("block_id")
+                revision_block = block_id_map.get((chapter_index, local_block))
+                if revision_block is None:
+                    raise PersistenceError(
+                        f"chapter {chapter_index} reading unit references unknown block {local_block!r}"
+                    )
+                narrative = unit.get("narrative_time")
+                narrative = narrative if isinstance(narrative, dict) else {}
+                from_block = narrative.get("from_block_id")
+                mapped_from = _map_block(from_block) if from_block is not None else None
+                if from_block is not None and mapped_from == from_block:
+                    raise PersistenceError(
+                        f"chapter {chapter_index} reading unit {local_block!r} inherits "
+                        f"from unknown block {from_block!r}"
+                    )
+                mapped_event_refs: list[str] = []
+                for ref in narrative.get("event_refs") or []:
+                    mapped = _map_reading(ref)
+                    if not isinstance(mapped, str) or mapped not in event_ids:
+                        raise PersistenceError(
+                            f"chapter {chapter_index} reading unit time ref {ref!r} "
+                            "does not resolve to an event of this revision"
+                        )
+                    mapped_event_refs.append(mapped)
+                mapped_current_refs: list[str] = []
+                for ref in unit.get("current_event_refs") or []:
+                    mapped = _map_reading(ref)
+                    if not isinstance(mapped, str) or mapped not in event_ids:
+                        raise PersistenceError(
+                            f"chapter {chapter_index} reading unit current ref {ref!r} "
+                            "does not resolve to an event of this revision"
+                        )
+                    mapped_current_refs.append(mapped)
+                resolved_spans: list[dict[str, Any]] = []
+                for span in unit.get("resolved_spans") or []:
+                    if not isinstance(span, dict):
+                        continue
+                    out_span = copy.deepcopy(span)
+                    target = span.get("target_ref")
+                    mapped_target = _map_reading(target) if target is not None else None
+                    if target is not None and (
+                        not isinstance(mapped_target, str) or mapped_target not in event_ids
+                    ):
+                        raise PersistenceError(
+                            f"chapter {chapter_index} reading span {span.get('span_id')!r} "
+                            f"references unknown event {target!r}"
+                        )
+                    out_span["target_ref"] = mapped_target
+                    mapped_candidates: list[str] = []
+                    for ref in span.get("candidate_refs") or []:
+                        mapped = _map_reading(ref)
+                        if not isinstance(mapped, str) or mapped not in event_ids:
+                            raise PersistenceError(
+                                f"chapter {chapter_index} reading span "
+                                f"{span.get('span_id')!r} candidate {ref!r} is unknown"
+                            )
+                        mapped_candidates.append(mapped)
+                    out_span["candidate_refs"] = mapped_candidates
+                    resolved_spans.append(out_span)
+                context_entities: list[dict[str, Any]] = []
+                for context in unit.get("context_entities") or []:
+                    if not isinstance(context, dict):
+                        continue
+                    entity_ref = context.get("entity_ref")
+                    mapped_entity = _map_reading(entity_ref)
+                    if not isinstance(mapped_entity, str) or mapped_entity not in entity_ids:
+                        raise PersistenceError(
+                            f"chapter {chapter_index} reading context references unknown "
+                            f"entity {entity_ref!r}"
+                        )
+                    roles: list[dict[str, Any]] = []
+                    for role in context.get("event_roles") or []:
+                        if not isinstance(role, dict):
+                            continue
+                        event_ref = role.get("event_ref")
+                        mapped_event = _map_reading(event_ref)
+                        if not isinstance(mapped_event, str) or mapped_event not in event_ids:
+                            raise PersistenceError(
+                                f"chapter {chapter_index} reading context role references "
+                                f"unknown event {event_ref!r}"
+                            )
+                        role = dict(role)
+                        role["event_ref"] = mapped_event
+                        roles.append(role)
+                    context_entities.append(
+                        {
+                            "entity_ref": mapped_entity,
+                            "importance": context.get("importance"),
+                            "event_roles": roles,
+                        }
+                    )
+                assembled_reading_units.append(
+                    {
+                        "unit_id": unit.get("unit_id"),
+                        "chapter_id": chapter_id,
+                        "chapter_index": chapter_index,
+                        "artifact_sha256": item["artifact_sha256"],
+                        "block_id": revision_block,
+                        "chapter_block_id": local_block,
+                        "text_hash": unit.get("text_hash"),
+                        "narrative_time": {
+                            "mode": narrative.get("mode"),
+                            "event_refs": mapped_event_refs,
+                            "from_block_id": mapped_from,
+                            "source_selections": copy.deepcopy(
+                                narrative.get("source_selections") or []
+                            ),
+                        },
+                        "current_event_refs": mapped_current_refs,
+                        "resolved_spans": resolved_spans,
+                        "context_entities": context_entities,
+                    }
+                )
+
+    # Source order is preserved: chapters are processed in chapter_index
+    # order and blocks in the chapter's own translation order. Re-sorting by
+    # the generated block ID would both reorder non-standard source IDs and
+    # hide collisions behind a canonical-looking order.
     out_mentions.sort(key=lambda m: (m["chapter_index"], m["mention_id"]))
     out_record_sources.sort(key=lambda e: (e["record_ref"], e["chapter_index"]))
     merged_anchors.sort(
@@ -1858,6 +2108,7 @@ def assemble_chapters(
         "mentions": sum(len(item["mentions"]) for item in ordered),
         "record_sources": sum(len(item["record_sources"]) for item in ordered),
         "anchors": sum(len(item["anchors"]) for item in ordered),
+        "reading_units": sum(len(item["reading_units"]) for item in ordered),
     }
     report = {
         "schema": CHAPTER_REPORT_SCHEMA,
@@ -1866,7 +2117,9 @@ def assemble_chapters(
         "contract_version": CONTRACT_VERSION,
         "schema_version": SCHEMA_VERSION,
         "candidate_schema": CHAPTER_CANDIDATE_SCHEMA,
-        "candidate_version": CHAPTER_CANDIDATE_VERSION,
+        "candidate_version": (
+            CHAPTER_READING_CANDIDATE_VERSION if reading_path else CHAPTER_CANDIDATE_VERSION
+        ),
         "plan_version": CHAPTER_PLAN_VERSION,
         "revision": {
             "revision_id": revision_id,
@@ -1902,6 +2155,7 @@ def assemble_chapters(
                     "mentions": len(item["mentions"]),
                     "record_sources": len(item["record_sources"]),
                     "anchors": len(item["anchors"]),
+                    "reading_units": len(item["reading_units"]),
                 },
             }
             for item in ordered
@@ -1917,6 +2171,7 @@ def assemble_chapters(
                 "record_sources": len(out_record_sources),
                 "anchors": len(merged_anchors),
                 "warnings": len(warnings),
+                "reading_units": len(assembled_reading_units),
             },
         },
         "chapter_by_ref": dict(sorted(chapter_by_ref.items())),
@@ -1935,5 +2190,6 @@ def assemble_chapters(
         "mentions": out_mentions,
         "record_sources": out_record_sources,
         "anchors": merged_anchors,
+        "reading_units": assembled_reading_units,
         "report": report,
     }
