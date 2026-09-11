@@ -116,6 +116,29 @@ def _strings(value):
             yield from _strings(item)
 
 
+def recommendation_violations(bundle: dict) -> list:
+    """Return (case_id, index) for recommendation/posthumous items breaking the contract.
+
+    ``person-state-reading.md`` §3.2 requires recommendations and posthumous grants
+    to be qualified in-phase observations only: ``operation=attest``, never entering
+    the person's current identity, and keeping the recommending actor visible.
+    """
+    violations = []
+    for case in bundle["cases"]:
+        for index, item in enumerate(case["expected"]):
+            if item.get("qualification") not in ("recommendation", "posthumous"):
+                continue
+            actor = item.get("actor")
+            if (
+                item["operation"] != "attest"
+                or item["enters_identity"]
+                or not actor
+                or actor not in item.get("display", "")
+            ):
+                violations.append((case["id"], index))
+    return violations
+
+
 class BundleTests(unittest.TestCase):
     def test_bundle_shape_counts_and_unique_ids(self) -> None:
         bundle = _load()
@@ -249,6 +272,32 @@ class IdentityBoundaryTests(unittest.TestCase):
             self.assertTrue(case["empty_state"])
             self.assertEqual(case["expected"], [])
             self.assertEqual(case["refs"], [])
+
+
+class RecommendationInvariantTests(unittest.TestCase):
+    def test_recommendations_are_attested_observations_not_current_appointments(self) -> None:
+        bundle = _load()
+        self.assertEqual(recommendation_violations(bundle), [])
+        recommended = [
+            (case["id"], item["value"])
+            for case in bundle["cases"]
+            for item in case["expected"]
+            if item.get("qualification") == "recommendation"
+        ]
+        self.assertGreaterEqual(len(recommended), 3, recommended)
+
+    def test_recommendation_invariant_detects_a_current_appointment(self) -> None:
+        bundle = _load()
+        target = next(
+            item
+            for case in bundle["cases"]
+            for item in case["expected"]
+            if item.get("qualification") == "recommendation"
+        )
+        self.assertEqual(recommendation_violations(bundle), [])
+        target["operation"] = "start"
+        target["enters_identity"] = True
+        self.assertTrue(recommendation_violations(bundle))
 
 
 class EvidenceClassTests(unittest.TestCase):

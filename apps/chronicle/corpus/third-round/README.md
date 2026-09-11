@@ -46,6 +46,10 @@
 - 原因码至少含 `tenure_unproven`、`order_unknown`、`source_disagreement`、
   `attribution_uncertain`、`evidence_uncertain`，另加 `phase_not_reached`、
   `phase_not_begun` 表示未来／尚未开始。
+- `qualification=recommendation`（以及 `posthumous`）按
+  [person-state-reading.md](../../docs/person-state-reading.md) §3.2 只能作限定的本段
+  记载：`operation=attest`、`enters_identity=false`，并以 `actor` 保留表荐者；不得建立
+  生前当前任职。`test_third_round_cases.py` 对全部推荐条目强制该不变量。
 
 ## 覆盖
 

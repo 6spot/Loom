@@ -260,15 +260,16 @@
           "value": "豫州刺史",
           "relation": null,
           "target": null,
-          "operation": "start",
+          "actor": "陶谦",
+          "operation": "attest",
           "qualification": "recommendation",
           "certainty": "clear",
-          "enters_identity": true,
+          "enters_identity": false,
           "reason_code": null,
           "attribution": "正文",
           "surface": "謙表先主為豫州刺史",
           "proven_by": 1,
-          "display": "豫州刺史（陶谦表荐，明確）"
+          "display": "陶谦表荐先主为豫州刺史（限定记载，明確）"
         }
       ],
       "empty_state": false,
@@ -492,15 +493,16 @@
           "value": "鎮東將軍",
           "relation": null,
           "target": null,
-          "operation": "start",
+          "actor": "曹操",
+          "operation": "attest",
           "qualification": "recommendation",
           "certainty": "clear",
-          "enters_identity": true,
+          "enters_identity": false,
           "reason_code": null,
           "attribution": "正文",
           "surface": "曹公表先主為鎮東將軍",
           "proven_by": 0,
-          "display": "镇东将军（曹操表荐，明確）"
+          "display": "曹操表荐先主为镇东将军（限定记载，明確）"
         },
         {
           "dimension": "title",
@@ -762,7 +764,8 @@
           "value": "荊州刺史",
           "relation": null,
           "target": "劉琦",
-          "operation": "start",
+          "actor": "刘备",
+          "operation": "attest",
           "qualification": "recommendation",
           "certainty": "clear",
           "enters_identity": false,
@@ -770,7 +773,7 @@
           "attribution": "正文",
           "surface": "先主表琦為荊州刺史",
           "proven_by": 0,
-          "display": "刘备表刘琦为荆州刺史（被表荐者为刘琦）"
+          "display": "刘备表荐刘琦为荆州刺史（限定记载，被表荐者刘琦）"
         }
       ],
       "empty_state": false,
