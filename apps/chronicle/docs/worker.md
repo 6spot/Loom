@@ -100,13 +100,20 @@ unchanged. Thin orchestration lives in
   transaction under the unified advisory lock: latest catalog by
   `publication_sequence` (never `imported_at`), lease re-verified
   under the lock, frozen plan re-validated exactly, terminal decision
-  required for every candidate. The lease check is expiry-aware: a
-  lock wait that outlives `lease_expires_at` fails closed even
-  without a takeover. For a 0.2 reading book it also compiles the T04
-  projection and persists the whole T05 reading index (stream, units,
-  time groups, event occurrences) **inside the same transaction**,
-  after the catalog and every chapter publication and before the
-  publish checkpoint. The compiled stream identity is derived
+  required for every candidate. The lease check is expiry-aware on the
+  live clock (`clock_timestamp`, not transaction-start `now()`): it is
+  re-asserted after the expensive catalog/assembly computation, after
+  the reading compile, and again immediately before the commit, so a
+  lease that expires mid-transaction (or is taken over) fails closed
+  with `LeaseLost` and rolls back every write instead of committing on
+  a stale lease. For a 0.2 reading book the caller's T03 `chapter_plan`
+  is strictly bound to the persisted T03/assembled record
+  (`plan_sha256`, revision binding, plan geometry) and the re-assembled
+  bundle must equal the persisted `assembled-source-bundle` hash before
+  it also compiles the T04 projection and persists the whole T05 reading
+  index (stream, units, time groups, event occurrences) **inside the
+  same transaction**, after the catalog and every chapter publication and
+  before the publish checkpoint. The compiled stream identity is derived
   deterministically from the revision, so recompiling and replaying
   the same revision reuses the exact stream/units without a second
   model call. Catalog, every chapter publication, canonical maps,
@@ -305,8 +312,13 @@ one catalog, every complete chapter and one reading stream whose units
 reassemble the published blocks; recompiling replays the same
 stream/units without a model call; injected faults after the catalog,
 after the chapters, inside the reading index and before the publish
-checkpoint leave zero public rows; and a drifted chapter plan is
-rejected with no public content. The compile/store helpers are covered
-by `persistence/test_reading_projection_unit.py` and
+checkpoint leave zero public rows; a chapter plan that drifts from the
+persisted T03/assembled record (`normalized_sha256`, `source_sha256`,
+`revision_id`, `plan_sha256` or chapter geometry) is rejected with no
+public content; and a lease that expires while the injected
+assemble/reading compile runs fails closed with `LeaseLost` before the
+first public write / stream write, rolling every row back. The
+compile/store helpers are covered by
+`persistence/test_reading_projection_unit.py` and
 `persistence/test_reading_store_postgres.py`; the stream/event read APIs
 belong to T07/T08.

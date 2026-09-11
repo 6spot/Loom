@@ -30,6 +30,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -49,7 +50,7 @@ import chapter_contract  # noqa: E402
 import chapter_plan  # noqa: E402
 import chapter_store  # noqa: E402
 import control_plane  # noqa: E402
-from common import PersistenceError  # noqa: E402
+from common import LeaseLost, PersistenceError  # noqa: E402
 from migrations import apply_migrations  # noqa: E402
 
 import chapter_stage as stage  # noqa: E402
@@ -641,6 +642,138 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
                 R.publish_chapters(conn, job_id=job_id, worker=WORKER)
             conn.rollback()
         self.assertEqual(0, self._public_counts()["canonical_catalogs"])
+
+    def test_plan_binding_drift_is_rejected_without_public_content(self) -> None:
+        """Top-level plan drift must not reach the reading manifest.
+
+        Reproduces the reviewer's case: rewriting the plan's
+        ``normalized_sha256`` (which assembly never validated) previously
+        published a reading stream with the wrong hash. The plan is now bound
+        to the persisted T03/assembled record, so every drift fails closed.
+        """
+        text = TEXT_DISTINCT
+        job_id, revision_id, _source_sha, plan, _model = self._run_to_publish(text)
+
+        def _drifting_plan(mutate):
+            drifted = json.loads(json.dumps(plan))
+            mutate(drifted)
+            return drifted
+
+        cases = (
+            ("normalized_sha256", lambda p: p.update({"normalized_sha256": "f" * 64})),
+            ("source_sha256", lambda p: p.update({"source_sha256": "e" * 64})),
+            ("revision_id", lambda p: p.update({"revision_id": str(uuid.uuid4())})),
+            ("plan_sha256", lambda p: p.update({"plan_sha256": "0" * 64})),
+            (
+                "chapter geometry",
+                lambda p: p["chapters"][0].update(
+                    {"start": int(p["chapters"][0]["start"]) + 1}
+                ),
+            ),
+        )
+        for label, mutate in cases:
+            drifted = _drifting_plan(mutate)
+            with psycopg.connect(self.database_url) as conn:
+                with self.assertRaises(PersistenceError, msg=label):
+                    R.publish_chapters(
+                        conn, job_id=job_id, worker=WORKER, chapter_plan=drifted
+                    )
+                conn.rollback()
+            counts = self._public_counts()
+            for table, count in counts.items():
+                self.assertEqual(
+                    0, count, f"{table} leaked after {label} drift"
+                )
+            self.assertIsNone(self._reading_stream_row(revision_id))
+
+        # The genuine plan still publishes (the rejected attempts wrote nothing).
+        result = self._publish(job_id, plan)
+        self.assertIn("reading_stream_id", result)
+        self.assertEqual(1, self._public_counts()["reading_streams"])
+
+    # -- lease expiry during the publish transaction ---------------------
+
+    def _shorten_lease(self, job_id, seconds: int) -> None:
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute(
+                "UPDATE chronicle.ingestion_jobs "
+                "SET lease_expires_at = clock_timestamp() + make_interval(secs => %s) "
+                "WHERE job_id = %s",
+                (seconds, job_id),
+            )
+            conn.commit()
+
+    def _assert_no_public_content(self, revision_id) -> None:
+        for table, count in self._public_counts().items():
+            self.assertEqual(0, count, f"{table} leaked public rows")
+        self.assertIsNone(self._reading_stream_row(revision_id))
+
+    def test_lease_expiry_during_assemble_fails_before_first_public_write(self) -> None:
+        """A lease that expires while assemble runs cannot commit.
+
+        The lease is only 2 s while the injected assemble sleeps 3 s, so the
+        live-clock fence between the expensive computation and the first
+        public write must fail closed and roll back every row.
+        """
+        text = TEXT_DISTINCT
+        job_id, revision_id, _source_sha, plan, _model = self._run_to_publish(text)
+        self._shorten_lease(job_id, 2)
+
+        original = R.chapter_assembly.assemble_chapters
+
+        def slow_assemble(*args, **kwargs):
+            time.sleep(3.0)
+            return original(*args, **kwargs)
+
+        with mock.patch.object(
+            R.chapter_assembly, "assemble_chapters", slow_assemble
+        ):
+            with psycopg.connect(self.database_url) as conn:
+                with self.assertRaises(LeaseLost):
+                    R.publish_chapters(
+                        conn, job_id=job_id, worker=WORKER, chapter_plan=plan
+                    )
+                conn.rollback()
+        self._assert_no_public_content(revision_id)
+
+        # Renewing the lease and retrying publishes normally (fence, not data).
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute(
+                "UPDATE chronicle.ingestion_jobs SET lease_expires_at = "
+                "clock_timestamp() + interval '300 seconds' WHERE job_id = %s",
+                (job_id,),
+            )
+            conn.commit()
+        self.assertIn("reading_stream_id", self._publish(job_id, plan))
+
+    def test_lease_expiry_during_reading_compile_fails_before_stream_write(self) -> None:
+        """A lease that expires inside the reading compile cannot commit.
+
+        Catalog and chapter publications are already written in the
+        transaction when the compile runs; the live-clock fence after the
+        compile must raise ``LeaseLost`` and roll all of them back instead of
+        committing a catalog + chapters with no/partial reading index.
+        """
+        text = TEXT_DISTINCT
+        job_id, revision_id, _source_sha, plan, _model = self._run_to_publish(text)
+        self._shorten_lease(job_id, 2)
+
+        original = R.reading_projection.compile_reading_projection
+
+        def slow_compile(*args, **kwargs):
+            time.sleep(3.0)
+            return original(*args, **kwargs)
+
+        with mock.patch.object(
+            R.reading_projection, "compile_reading_projection", slow_compile
+        ):
+            with psycopg.connect(self.database_url) as conn:
+                with self.assertRaises(LeaseLost):
+                    R.publish_chapters(
+                        conn, job_id=job_id, worker=WORKER, chapter_plan=plan
+                    )
+                conn.rollback()
+        self._assert_no_public_content(revision_id)
 
 
 if __name__ == "__main__":

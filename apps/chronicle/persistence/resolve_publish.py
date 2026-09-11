@@ -1119,6 +1119,125 @@ def reading_stream_seed(revision_id: uuid.UUID | str) -> str:
     return str(uuid.UUID(int=value))
 
 
+def require_unexpired_lease(conn, *, job_id: uuid.UUID, worker: str) -> None:
+    """Lease fence on the live wall clock, re-asserting ownership.
+
+    ``control_plane.require_job_lease`` checks the owner only (expiry is
+    ignored by contract), and PostgreSQL ``now()`` is fixed at transaction
+    start, so an expensive assemble/reading compile inside the publish
+    transaction could outlive the lease while both the initial check and the
+    later fenced writes still pass. This helper re-checks the owner and the
+    expiry with ``clock_timestamp()``, so a lease that expires during the
+    transaction (or is taken over) fails closed before any further public
+    write or the commit.
+    """
+    control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
+    lease_row = conn.execute(
+        "SELECT lease_expires_at FROM chronicle.ingestion_jobs WHERE job_id = %s",
+        (job_id,),
+    ).fetchone()
+    now = conn.execute("SELECT clock_timestamp()").fetchone()[0]
+    if lease_row is None or lease_row[0] is None or lease_row[0] <= now:
+        raise LeaseLost(
+            f"worker {worker!r} holds no unexpired lease for job {job_id}; "
+            "refusing to publish after a long assemble/compile (renew and "
+            "re-enter instead of committing on a stale lease)"
+        )
+
+
+def require_chapter_plan_binding(
+    *,
+    chapter_plan: dict[str, Any],
+    assembled_payload: dict[str, Any],
+    assembled_sha256: str,
+    job_id: uuid.UUID,
+) -> None:
+    """Bind the published chapter plan to the persisted T03/assembled record.
+
+    The reading manifest must never carry caller-supplied bytes that differ
+    from what was assembled and accepted. The persisted
+    ``assembled-source-bundle`` output records the T03 ``plan_sha256``, the
+    exact revision binding and plan geometry, plus the assembled bundle hash.
+    Comparing the caller's plan and the recorded bundle against that record
+    rejects any top-level or per-chapter plan drift (e.g. a rewritten
+    ``normalized_sha256``) before a single reading row is written.
+    """
+    if not isinstance(chapter_plan, dict) or not chapter_plan:
+        raise PersistenceError(
+            f"job {job_id} has no chapter plan to bind to the assembled output"
+        )
+    if not isinstance(assembled_payload, dict):
+        raise PersistenceError(
+            f"job {job_id} assembled output payload must be an object"
+        )
+    recorded_bundle_sha = assembled_payload.get("bundle_sha256")
+    if recorded_bundle_sha is not None and recorded_bundle_sha != assembled_sha256:
+        raise PersistenceError(
+            f"job {job_id} assembled output records bundle "
+            f"{recorded_bundle_sha!r} but carries {assembled_sha256!r}; "
+            "refusing to publish drifted evidence"
+        )
+    report = assembled_payload.get("report")
+    if not isinstance(report, dict):
+        raise PersistenceError(
+            f"job {job_id} assembled output carries no report; refusing to "
+            "publish unverifiable reading metadata"
+        )
+    revision = report.get("revision")
+    if not isinstance(revision, dict):
+        raise PersistenceError(
+            f"job {job_id} assembled report carries no revision binding"
+        )
+    for key in ("revision_id", "source_sha256", "normalized_sha256"):
+        if str(chapter_plan.get(key)) != str(revision.get(key)):
+            raise PersistenceError(
+                f"chapter plan {key} drift: supplied "
+                f"{chapter_plan.get(key)!r} but persisted revision records "
+                f"{revision.get(key)!r}; refusing to publish"
+            )
+    recorded_plan = report.get("plan")
+    if not isinstance(recorded_plan, dict):
+        raise PersistenceError(
+            f"job {job_id} assembled report carries no plan binding"
+        )
+    if chapter_plan.get("plan_sha256") != recorded_plan.get("plan_sha256"):
+        raise PersistenceError(
+            "chapter plan plan_sha256 drift: supplied "
+            f"{chapter_plan.get('plan_sha256')!r} but persisted records "
+            f"{recorded_plan.get('plan_sha256')!r}; refusing to publish"
+        )
+    if chapter_plan.get("version") != chapter_assembly.CHAPTER_PLAN_VERSION:
+        raise PersistenceError(
+            f"chapter plan version {chapter_plan.get('version')!r} is not "
+            f"{chapter_assembly.CHAPTER_PLAN_VERSION!r}"
+        )
+
+    def _geometry(chapters: Any) -> dict[str, tuple[Any, ...]]:
+        result: dict[str, tuple[Any, ...]] = {}
+        for chapter in chapters or []:
+            if not isinstance(chapter, dict):
+                raise PersistenceError("chapter plan chapter must be an object")
+            chapter_id = chapter.get("chapter_id")
+            if not isinstance(chapter_id, str) or not chapter_id:
+                raise PersistenceError("chapter plan chapter requires chapter_id")
+            result[chapter_id] = (
+                chapter.get("chapter_index"),
+                chapter.get("title"),
+                chapter.get("start"),
+                chapter.get("end"),
+            )
+        return result
+
+    if _geometry(chapter_plan.get("chapters")) != _geometry(
+        recorded_plan.get("chapters")
+    ):
+        raise PersistenceError(
+            f"job {job_id} chapter plan geometry (chapter_id/index/title/"
+            "start/end) drifts from the persisted assembled plan; refusing "
+            "to publish"
+        )
+
+
 def _ordered_chapter_publications(
     projection: dict[str, Any], publication_by_chapter: dict[str, Any]
 ) -> list[str]:
@@ -1330,13 +1449,22 @@ def publish_chapters(
     plan and its evidence are kept, nothing is auto-passed.
 
     When the accepted chapters are 0.2 reading artifacts, the caller must
-    pass the exact T03 ``chapter_plan`` used for the accepted products. In
-    that case the same transaction compiles the immutable reading
-    projection (T04) and persists the whole reading stream/units/groups/
-    occurrences (T05) before the checkpoint commits, so a job either
-    publishes catalog + complete chapters + full reading index together or
-    publishes nothing. A 0.1 job keeps the first-round behavior and writes
-    no reading rows.
+    pass the exact T03 ``chapter_plan`` used for the accepted products; the
+    plan is strictly bound to the persisted T03/assembled record
+    (:func:`require_chapter_plan_binding`) and the re-assembled bundle must
+    equal the persisted assembled bundle, so caller-supplied drift can never
+    reach the reading manifest. In that case the same transaction compiles
+    the immutable reading projection (T04) and persists the whole reading
+    stream/units/groups/occurrences (T05) before the checkpoint commits, so a
+    job either publishes catalog + complete chapters + full reading index
+    together or publishes nothing. A 0.1 job keeps the first-round behavior
+    and writes no reading rows.
+
+    The lease is re-verified on the live clock (``clock_timestamp``) after
+    the expensive catalog/assembly computation, after the reading compile and
+    again immediately before the commit, so a lease that expires while the
+    transaction is computing fails closed with :class:`LeaseLost` and rolls
+    back every write instead of committing public content.
     """
     if not isinstance(worker, str) or not worker:
         raise PersistenceError("worker must be a non-empty string")
@@ -1351,25 +1479,7 @@ def publish_chapters(
         # extends a lease that expired while queued. Ownership alone is
         # not enough (`require_job_lease` ignores expiry by contract),
         # so an expired lease fails closed here even without a takeover.
-        control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
-        lease_row = conn.execute(
-            """
-            SELECT lease_expires_at FROM chronicle.ingestion_jobs
-            WHERE job_id = %s
-            """,
-            (job_id,),
-        ).fetchone()
-        now = conn.execute("SELECT now()").fetchone()[0]
-        if (
-            lease_row is None
-            or lease_row[0] is None
-            or lease_row[0] <= now
-        ):
-            raise LeaseLost(
-                f"worker {worker!r} holds no unexpired lease for job "
-                f"{job_id}; refusing to publish after the lock wait "
-                "(renew and re-enter instead of using a stale lease)"
-            )
+        require_unexpired_lease(conn, job_id=job_id, worker=worker)
 
         job_row = conn.execute(
             """
@@ -1423,12 +1533,22 @@ def publish_chapters(
             raise PersistenceError(
                 f"job {job_id} has no assembled chapter bundle output"
             )
-        bundle = assembled_row[0].get("bundle")
+        assembled_payload = assembled_row[0]
+        bundle = assembled_payload.get("bundle")
         if not isinstance(bundle, dict):
             raise PersistenceError(
                 f"job {job_id} assembled output carries no source bundle"
             )
         assembled_sha256 = sha256_json(bundle)
+        if reading_path:
+            # Never compile reading metadata from a caller plan that drifts
+            # from the persisted T03/assembled evidence.
+            require_chapter_plan_binding(
+                chapter_plan=chapter_plan,
+                assembled_payload=assembled_payload,
+                assembled_sha256=assembled_sha256,
+                job_id=job_id,
+            )
 
         plan_row = conn.execute(
             """
@@ -1546,10 +1666,20 @@ def publish_chapters(
                 accepted_artifacts=[entry["artifact"] for entry in accepted],
                 chapter_plan=chapter_plan,
             )
+            if sha256_json(assembled_for_publish.get("bundle")) != assembled_sha256:
+                raise PersistenceError(
+                    f"job {job_id} re-assembled bundle does not match the "
+                    "persisted assembled bundle; refusing to publish reading "
+                    "metadata compiled from drifted bytes"
+                )
             for block in assembled_for_publish.get("translation_blocks") or []:
                 reading_blocks_by_chapter.setdefault(
                     str(block.get("chapter_id")), []
                 ).append(block)
+
+        # Re-fence on the live clock after the expensive catalog/assembly
+        # computation and before the first public write.
+        require_unexpired_lease(conn, job_id=job_id, worker=worker)
 
         canonical_store.persist_catalog(conn, catalog)
         publication_ids: list[str] = []
@@ -1602,6 +1732,10 @@ def publish_chapters(
                 artifact_sha256_by_chapter=artifact_sha256_by_chapter,
                 bundle_label=new_label,
             )
+            # The reading compile is expensive; an expired lease here must
+            # never write a public stream row (the whole transaction rolls
+            # back, including the catalog and chapters already written).
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
             stream_id = reading_store.persist_reading_stream(conn, stream_payload)
             reading = {
                 "reading_stream_id": str(stream_id),
@@ -1610,6 +1744,10 @@ def publish_chapters(
                 "reading_occurrence_count": int(projection["counts"]["occurrences"]),
             }
 
+        # Final live-clock fence immediately before the fenced output,
+        # checkpoint and commit: no public content may commit on a lease
+        # that expired during the expensive compile.
+        require_unexpired_lease(conn, job_id=job_id, worker=worker)
         control_plane.record_output_fenced(
             conn, job_id=job_id, revision_id=revision_id,
             worker=worker,
