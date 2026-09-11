@@ -11,9 +11,11 @@ import {
   fetchReadingJSON,
   fetchReadingStreamUnits,
   loadReadingEventPreview,
+  loadReadingEventTargets,
   ReadingAbortError,
   ReadingApiError,
   readingEventPreviewPath,
+  readingEventTargetsCacheKey,
   readingEventTargetsPath,
   readingKeys,
   readingStreamDetailPath,
@@ -132,6 +134,19 @@ describe("reading query keys isolate snapshots", () => {
     });
     expect(() => unitLocator(STREAM_A, "bad", UNIT_A)).toThrow(ReadingApiError);
   });
+
+  it("includes the effective locate limit (default 20) in the key", () => {
+    const made = readingStreamLocatePath(STREAM_A, { catalog: CATALOG_A, unitId: UNIT_A });
+    expect(made).toContain("limit=20");
+    const defaulted = readingKeys.locate(STREAM_A, { catalog: CATALOG_A, unitId: UNIT_A });
+    const limited = readingKeys.locate(STREAM_A, {
+      catalog: CATALOG_A,
+      unitId: UNIT_A,
+      limit: 5,
+    });
+    expect(defaulted).toContain(20);
+    expect(defaulted).not.toEqual(limited);
+  });
 });
 
 describe("reading fetch error handling", () => {
@@ -215,6 +230,52 @@ describe("reading preview cache is snapshot-scoped", () => {
     expect(calls).toHaveLength(2);
     expect(cache.has(eventPreviewCacheKey(CATALOG_A, EVENT_A))).toBe(true);
     expect(cache.has(eventPreviewCacheKey(CATALOG_B, EVENT_A))).toBe(true);
+  });
+});
+
+describe("reading targets cache includes full pagination identity", () => {
+  it("distinguishes cursor, limit and snapshot in the cache key", () => {
+    const base = readingEventTargetsCacheKey(EVENT_A, { catalog: CATALOG_A });
+    const paged = readingEventTargetsCacheKey(EVENT_A, { catalog: CATALOG_A, cursor: "c1" });
+    const limited = readingEventTargetsCacheKey(EVENT_A, { catalog: CATALOG_A, limit: 50 });
+    const otherSnapshot = readingEventTargetsCacheKey(EVENT_A, { catalog: CATALOG_B });
+    expect(base).not.toEqual(paged);
+    expect(base).not.toEqual(limited);
+    expect(base).not.toEqual(otherSnapshot);
+    expect(paged).toContain("c1");
+  });
+
+  it("issues a separate request for each cursor and each limit", async () => {
+    const cache = new ReadingPreviewCache();
+    const calls = stubFetch(() =>
+      jsonResponse({
+        event_id: EVENT_A,
+        catalog_sha: CATALOG_A,
+        targets: [],
+        current_count: 0,
+        mention_count: 0,
+        next_cursor: null,
+        has_more: false,
+      }),
+    );
+
+    await loadReadingEventTargets(EVENT_A, { catalog: CATALOG_A }, undefined, cache);
+    await loadReadingEventTargets(EVENT_A, { catalog: CATALOG_A }, undefined, cache);
+    await loadReadingEventTargets(
+      EVENT_A,
+      { catalog: CATALOG_A, cursor: "c1" },
+      undefined,
+      cache,
+    );
+    await loadReadingEventTargets(EVENT_A, { catalog: CATALOG_A, limit: 50 }, undefined, cache);
+
+    // 首页重复调用命中缓存；换 cursor / limit 各自发一次新请求。
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toContain("limit=20");
+    expect(calls[0]).not.toContain("cursor=");
+    expect(calls[1]).toContain("cursor=c1");
+    expect(calls[2]).toContain("limit=50");
+    expect(cache.size).toBe(3);
   });
 });
 

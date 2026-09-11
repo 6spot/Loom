@@ -326,6 +326,7 @@ export const readingKeys = {
       requireStreamId(streamId),
       requireCatalog(query.catalog),
       requireUnitId(query.unitId),
+      query.limit ?? 20,
     ] as const,
   preview: (eventId: string, catalog: string) =>
     [
@@ -449,6 +450,21 @@ export function fetchReadingEventTargets(
 // ---------------------------------------------------------------------------
 
 /**
+ * Targets 缓存 key = 快照 + 事件 + 完整分页身份（limit/cursor）。分页请求
+ * 与首页共享 key 会把旧页当成新页，因此 limit 与 cursor 必须进入 key。
+ */
+export function readingEventTargetsCacheKey(
+  eventId: string,
+  query: ReadingEventQuery,
+): string {
+  const base = eventTargetsCacheKey(
+    requireCatalog(query.catalog),
+    requireCanonicalEventId(eventId),
+  );
+  return `${base}:${query.limit ?? 20}:${query.cursor ?? ""}`;
+}
+
+/**
  * 按 catalog + event 缓存的 preview/targets 加载器：同一个 event 在不同
  * snapshot 下各自一条记录，换 snapshot 不会复用旧正文/预览。底层缓存合并
  * 并发同请求并做 LRU 淘汰（reading-preview-cache.ts）。
@@ -469,7 +485,7 @@ export function loadReadingEventTargets(
   init?: RequestInit,
   cache: ReadingPreviewCache = readingPreviewCache,
 ): Promise<EventTargetPage> {
-  const key = eventTargetsCacheKey(requireCatalog(query.catalog), requireCanonicalEventId(eventId));
+  const key = readingEventTargetsCacheKey(eventId, query);
   return cache.load<EventTargetPage>(key, () => fetchReadingEventTargets(eventId, query, init));
 }
 
