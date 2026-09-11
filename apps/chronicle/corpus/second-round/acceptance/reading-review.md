@@ -26,7 +26,7 @@ Multica LM-39），父任务 C2-R2（#549）。本文件记录**真实 provider 
 | --- | --- | --- |
 | 原件 sha256 | `a5dc345f…36076` | `b9831c28…e18bd` |
 | revision | `32dc1f0f-8e0b-4e4a-ba85-5f6fb2156910` | `5883698e-b051-4ab9-9c87-c940f09d142e` |
-| job | `dd993219-…7ff722`（4 次 job attempt） | `6ad9112d-…6e9e`（2 次 job attempt） |
+| job | `dd993219-…7ff722`（claim 4＝retry 2＋resume 1） | `6ad9112d-…6e9e`（claim 2＝retry 0＋resume 1） |
 | 发布 unit / group | 66 / 5 | 64 / 1 |
 | narrative_time 模式 | events 25，unknown 37，mixed 2，inherit 2 | unknown 64 |
 | 非 unknown 的 `year_key` | 0 | 0 |
@@ -39,13 +39,26 @@ Multica LM-39），父任务 C2-R2（#549）。本文件记录**真实 provider 
 
 ## 真实内容缺陷（保留原失败证据）
 
-1. **0.2 生成反复 fail-closed**。三國志 job 第 1、2 次 attempt 的 chunk 1
-   分别因既有合同规则失败并被拒绝：
+1. **0.2 生成反复 fail-closed**。三國志 chunk 1 的前两次 claim 分别因既有
+   合同规则失败并被拒绝：
    - `reading_time: reading.units[N] inherit mode must not carry current_event_refs`
      （`reading_contract.py:890`）；
    - `chapter: anchors: mention 'm_008' quote occurs 0 time(s) … occurrence=1 was requested`。
-   直到第 4 次 job attempt 才通过；資治通鑑也用了 2 次。原始错误见
-   `run-live-r2.json` 的 `streams[].job_evidence.chunk_runs[].error`。
+   第三次 claim 才通过。原始错误见 `run-live-r2.json` 的
+   `streams[].job_evidence.chunk_runs[].error`。
+
+   **claim 与 retry 口径核对**：`run-live-r2.json` 记录三國志 `claim_count=4`、
+   `max_attempts=3`，二者不矛盾也不代表 retry 超限：
+   - `claim_count` 是 `ingestion_jobs.attempt` 的原始 claim 计数；
+     `control_plane.retry_job` 仅在 `attempt >= max_attempts` 时拒绝重试，本次
+     retry 只用了 2 次（claim 2、3），未越界；
+   - 第 4 次 claim 是 `needs_review` 审核后的 `resume`（`resume_job` 不占用
+     retry 预算），故三國志＝retry 2 + resume 1 = claim 4，資治通鑑＝retry 0 +
+     resume 1 = claim 2；
+   - T03 章节纠错上限 `ChapterLimits.max_correction_rounds` 固定为 1，单次 claim
+     内最多 2 次模型尝试（initial + 1 correction）后 fail-closed，对应错误串
+     “failed closed after 2 attempt(s)”；三者是不同计数器（见
+     `run-live-r2.json.generation_limits`）。
 2. **叙事时间全部未解析**。两部的所有 130 个 unit 的 `year_key` 都是
    `unknown`/`mixed:unknown`，包括資治通鑑中明写的
    `孝献皇帝庚建安十一年（丙戌，西元二〇六年）`（`units[4]`，mode `unknown`）。
@@ -88,9 +101,27 @@ Multica LM-39），父任务 C2-R2（#549）。本文件记录**真实 provider 
 - 真实 provider 的 token 用量/成本未由 gate 采集，仅有调用时长（各 stage
   时间戳见 `run-live-r2.json`）。
 
-## 后续
+## 归属交接（required ownership handoffs）
 
-发现属生成/投影合同问题，按任务边界交由相应叶修复并重新验证受影响合同
-（生成侧见 T03 联合章节生成，时间/事件/上下文投影见 T04/T05/T07/T14），
-修复后由 T17 重跑本复核。不得以 fixture PASS 或本文件的部分结论替代
-第二轮验收。
+缺陷按任务边界交由下列叶修复；本文件与 `run-live-r2.json.ownership_handoffs`
+是交接记录。**在这些修复交付、并在全新隔离环境重跑 live、且独立内容复核通过
+之前，不得声称 LM-39 验收通过。**
+
+| 归属 | Issue | 缺陷 |
+| --- | --- | --- |
+| C2-R2-T03 完整章联合生成 | LM-25 / #572 | `inherit` 单元携带 `current_event_refs`、anchor occurrence/block 不匹配、反复 fail-closed；accepted 阅读单元缺 event span/context 输出 |
+| C2-R2-T04 注解 remap/时间分组 | LM-26 / #573 | `year_key` 全未解析（unknown/mixed:unknown）、无年分组、来源本地 event ref 未 remap 成 canonical 公开 id |
+| C2-R2-T05 阅读 stream 持久化 | LM-27 / #574 | 已发布单元无 event span、无 `context_entities` |
+| C2-R2-T07 locate/分页 | LM-29 / #576 | 需在有效时间/事件索引存在后重验 locate/分页 |
+| C2-R2-T08 事件预览/反查 | LM-30 / #577 | 来源本地 event id 与 canonical 公开 id 的 preview/targets 及返回原 unit 合同 |
+| C2-R2-T14 当前片段上下文 | LM-36 / #583 | active unit `context_entities` 为空，人物/地点无从呈现 |
+
+T13/LM-35 是这些字段的下游 UI 消费方，不是缺失生产数据的首要归属。
+
+## 回归证据
+
+本次失败的 live 运行作为**回归证据保留**（`run-live-r2.json`，
+`acceptance_claimed=false`）：修复后必须在全新隔离环境重跑，四章、12+ 真实
+核对点、事件/其他来源/原文返回、桌面/键盘/触屏/窄屏流程与独立内容复核全部
+通过，才可进入 LM-39 验收。不得以 fixture PASS 或本文件的部分结论替代第二轮
+验收。

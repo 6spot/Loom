@@ -87,7 +87,6 @@
       ],
       "job_evidence": {
         "status": "completed",
-        "attempts": 4,
         "max_attempts": 3,
         "stages": [
           {
@@ -424,7 +423,11 @@
             "right_label": "孫權",
             "decision": "same_entity"
           }
-        ]
+        ],
+        "claim_count": 4,
+        "retry_claims": 2,
+        "resume_claims": 1,
+        "attempt_accounting_note": "claim_count is the raw ingestion_jobs.attempt claim counter, not the retry budget. control_plane.retry_job refuses a retry only while attempt >= max_attempts (3); the extra claim is the needs_review -> resume claim, which resume_job does not charge to the retry budget. So retry_claims stayed within max_attempts."
       }
     },
     {
@@ -460,7 +463,6 @@
       ],
       "job_evidence": {
         "status": "completed",
-        "attempts": 2,
         "max_attempts": 3,
         "stages": [
           {
@@ -545,7 +547,11 @@
             "right_label": "曹操",
             "decision": "same_entity"
           }
-        ]
+        ],
+        "claim_count": 2,
+        "retry_claims": 0,
+        "resume_claims": 1,
+        "attempt_accounting_note": "claim_count is the raw ingestion_jobs.attempt claim counter, not the retry budget. control_plane.retry_job refuses a retry only while attempt >= max_attempts (3); the extra claim is the needs_review -> resume claim, which resume_job does not charge to the retry budget. So retry_claims stayed within max_attempts."
       }
     }
   ],
@@ -563,5 +569,62 @@
     "Independent human/strong-reviewer confirmation of the real content is pending.",
     "Live desktop/keyboard/touch/narrow reading walkthrough and event-preview return to the original unit were not run because the published content lacks event spans and context entities.",
     "Real provider token usage/cost is not captured by the gate; only call timings are observable (see per-job stage timestamps)."
-  ]
+  ],
+  "generation_limits": {
+    "job_max_attempts": 3,
+    "job_max_attempts_scope": "bounds failing retries in control_plane.retry_job; resume after needs_review is a separate claim",
+    "chapter_max_correction_rounds": 1,
+    "chapter_max_correction_rounds_scope": "T03 chapter_contract.ChapterLimits.max_correction_rounds is fixed at 1, so one chunk run makes at most 2 model attempts (initial + 1 correction) before failing closed",
+    "observed_chunk_runs_chunk1": 3
+  },
+  "ownership_handoffs": [
+    {
+      "task": "C2-R2-T03",
+      "issue": "LM-25",
+      "github_issue": 572,
+      "owned_failure": "Full-chapter 0.2 generation and reading-annotation output: `inherit` units carrying `current_event_refs`, anchor occurrence/block mismatches, repeated fail-closed runs (chunk needed 3 job claims), and missing event spans/context in the accepted reading units.",
+      "route": "generation/producer"
+    },
+    {
+      "task": "C2-R2-T04",
+      "issue": "LM-26",
+      "github_issue": 573,
+      "owned_failure": "narrative-time grouping and local-to-canonical event remapping: all year_key values unresolved (unknown/mixed:unknown), no year groups, and source-local event refs not remapped to canonical public ids.",
+      "route": "projection compiler"
+    },
+    {
+      "task": "C2-R2-T05",
+      "issue": "LM-27",
+      "github_issue": 574,
+      "owned_failure": "persisted reading stream segments/context/event membership: published units carry no event spans and no context_entities.",
+      "route": "persistence"
+    },
+    {
+      "task": "C2-R2-T07",
+      "issue": "LM-29",
+      "github_issue": 576,
+      "owned_failure": "locate/pagination re-verification once valid time/event indexes exist.",
+      "route": "read API verification"
+    },
+    {
+      "task": "C2-R2-T08",
+      "issue": "LM-30",
+      "github_issue": 577,
+      "owned_failure": "event preview/targets contract across source-local vs canonical event ids and canonical back-navigation.",
+      "route": "read API"
+    },
+    {
+      "task": "C2-R2-T14",
+      "issue": "LM-36",
+      "github_issue": 583,
+      "owned_failure": "active-unit context verification (context_entities empty at the source of the reading unit).",
+      "route": "producer/projection"
+    }
+  ],
+  "ownership_note": "T13/LM-35 is downstream UI consumption of these fields, not the first owner of the missing producer data.",
+  "regression_evidence": {
+    "preserved": true,
+    "description": "This failed live run is preserved as regression evidence. Fixes must be delivered by the owning leaves before a fresh live rerun on a new isolated environment; the rerun plus independent content review must pass before any LM-39 acceptance claim."
+  },
+  "acceptance_claimed": false
 }
