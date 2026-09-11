@@ -26,7 +26,7 @@ export type ReviewStatus = "open" | "resolved" | "dismissed";
 export type ReviewLinkKind = "entity" | "event";
 export type EntityReviewDecision = "same_entity" | "not_same" | "uncertain";
 export type EventReviewDecision = "same_occurrence" | "related_occurrence" | "not_same" | "uncertain";
-export type ReviewDecision = EntityReviewDecision | EventReviewDecision;
+export type ReviewDecision = EntityReviewDecision | EventReviewDecision | "approve" | "reject";
 
 export interface DocumentSummary {
   document_id: string;
@@ -272,7 +272,9 @@ export interface ReviewSummary {
   job_status: JobStatus;
   revision_id: string;
   document: ReviewDocumentContext;
-  scope: "resolution";
+  scope: "resolution" | "narrative";
+  narrative_kind?: "facts" | "prose";
+  candidate_sha?: string;
   link_kind: ReviewLinkKind;
   review_subject_id?: string | null;
   review_subject_version?: string | null;
@@ -294,6 +296,7 @@ export interface ReviewSummary {
 }
 
 export interface ReviewDetail extends ReviewSummary {
+  narrative?: import("./narrative-types").NarrativeReviewData;
   left_context: ReviewRecordContext;
   right_context: ReviewRecordContext;
   left_contexts?: ReviewRecordContext[];
@@ -585,6 +588,29 @@ export async function mutateJob(
 }
 
 const REVIEWS_API = "/api/v1/studio/jobs/reviews";
+
+export async function submitNarrativeDecision(auth: string | null, reviewId: string, payload: {
+  candidate_sha: string; decision: "approve" | "reject"; rationale: string;
+  content: import("./narrative-types").NarrativeContent; reviewed_conclusion_ids: string[];
+}): Promise<ReviewDetail> {
+  return (await studioRequest<ReviewResponse>(auth, `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  })).review;
+}
+
+export interface NarrativeSourceChoices {
+  catalog_sha: string | null;
+  items: Array<{ publication_id: string; document_title: string; chapter_id: string; revision_no: number; title: string }>;
+  has_more: boolean; offset: number;
+}
+export function listNarrativeSources(auth: string | null, offset = 0): Promise<NarrativeSourceChoices> {
+  return studioRequest(auth, `/api/v1/studio/jobs/history/sources?limit=50&offset=${offset}`);
+}
+export async function queueNarrative(auth: string | null, catalogSha: string, publicationIds: string[]): Promise<JobDetail> {
+  return (await studioRequest<JobResponse>(auth, "/api/v1/studio/jobs/history", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ catalog_sha: catalogSha, publication_ids: publicationIds }),
+  })).job;
+}
 
 export async function listReviewPage(
   auth: string | null,

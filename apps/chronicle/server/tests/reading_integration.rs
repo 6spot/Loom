@@ -107,6 +107,18 @@ async fn reading_paths_map_to_the_python_v0_contract() {
 
     let cases = [
         (
+            format!("/api/v1/public/history?version={CATALOG}"),
+            format!("/v0/history?version={CATALOG}"),
+        ),
+        (
+            format!("/api/v1/public/history/paragraphs?version={CATALOG}&at=hp_deadbeef&limit=20"),
+            format!("/v0/history/paragraphs?version={CATALOG}&at=hp_deadbeef&limit=20"),
+        ),
+        (
+            format!("/api/v1/public/history/conclusions/f1?version={CATALOG}"),
+            format!("/v0/history/conclusions/f1?version={CATALOG}"),
+        ),
+        (
             format!("/api/v1/public/reading-streams?catalog={CATALOG}&limit=20"),
             format!("/v0/reading-streams?catalog={CATALOG}&limit=20"),
         ),

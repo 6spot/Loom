@@ -869,6 +869,17 @@ def cancel_job(conn, *, job_id: uuid.UUID) -> None:
             """,
             (_utcnow(), job_id),
         )
+        # A cancelled narrative can never be accepted or resumed. Keep its
+        # frozen candidate for audit, but remove the non-actionable gate from
+        # the operator's pending queue in the same job-before-review lock order.
+        conn.execute(
+            """UPDATE chronicle.review_items
+               SET status = 'dismissed', resolved_at = %s,
+                   payload = payload || '{"dismissal":"job_cancelled"}'::jsonb
+               WHERE job_id = %s AND status = 'open'
+                 AND payload->>'scope' = 'narrative'""",
+            (_utcnow(), job_id),
+        )
 
 
 def retry_job(conn, *, job_id: uuid.UUID) -> None:

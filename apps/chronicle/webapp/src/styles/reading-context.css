@@ -1,19 +1,19 @@
 .chr-context-panel { display: flex; flex-direction: column; gap: 1.75rem; color: #292d2b; }
-.chr-context-group-title { margin: 0 0 .55rem; color: #71746d; font-size: .75rem; font-weight: 400; }
+.chr-context-group-title { margin: 0 0 .55rem; color: #696e67; font-size: .75rem; font-weight: 400; }
 .chr-context-list { list-style: none; margin: 0; padding: 0; }
 .chr-context-item { border-bottom: 1px solid #e5e3db; }
 .chr-context-row { display: grid; grid-template-columns: minmax(3em, auto) 1fr; align-items: baseline; gap: .3rem .75rem; width: 100%; min-height: 2.75rem; padding: .8rem 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
 button.chr-context-row { cursor: pointer; }
 .chr-context-name { font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: .95rem; font-weight: 600; }
-.chr-context-unknown { color: #71746d; font-size: .75rem; line-height: 1.7; }
+.chr-context-unknown { color: #696e67; font-size: .75rem; line-height: 1.7; }
 .chr-context-states { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; line-height: 1.7; }
 .chr-context-state { display: flex; align-items: baseline; gap: .3rem; }
-.chr-context-state[data-certainty="uncertain"] { color: #71746d; }
+.chr-context-state[data-certainty="uncertain"] { color: #696e67; }
 .chr-context-state small { white-space: nowrap; font-size: .65rem; }
 .chr-state-mark { font-size: .45rem; }
-.chr-context-expand { min-height: 2.75rem; padding: .5rem 0; border: 0; background: transparent; color: #71746d; font: inherit; font-size: .75rem; cursor: pointer; }
-.chr-context-empty { color: #71746d; font-size: .8rem; line-height: 1.8; }
-.chr-context-source-details { font-size: .75rem; color: #71746d; padding-bottom: .5rem; }
+.chr-context-expand { min-height: 2.75rem; padding: .5rem 0; border: 0; background: transparent; color: #696e67; font: inherit; font-size: .75rem; cursor: pointer; }
+.chr-context-empty { color: #696e67; font-size: .8rem; line-height: 1.8; }
+.chr-context-source-details { font-size: .75rem; color: #696e67; padding-bottom: .5rem; }
 .chr-context-source-details summary { min-height: 2.75rem; display: flex; align-items: center; cursor: pointer; }
 .chr-context-row:focus-visible, .chr-context-expand:focus-visible { outline: 2px solid #884d41; outline-offset: 3px; }
 @media (hover: hover) and (pointer: fine) { button.chr-context-row:hover .chr-context-name, .chr-context-expand:hover { color: #884d41; } }

@@ -180,6 +180,7 @@ services:
       CHRONICLE_MODEL_INPUT_BUDGET_CHARS: ${CHRONICLE_MODEL_INPUT_BUDGET_CHARS:-16384}
       CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
       CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
+      CHRONICLE_NARRATIVE_MODEL: ${CHRONICLE_NARRATIVE_MODEL:-}
       # C2-R1: formal joint chapter model entry consumed by
       # chapter_stage.chapter_model_from_env. Without this passthrough
       # the worker container never sees CHRONICLE_CHAPTER_MODEL, so the

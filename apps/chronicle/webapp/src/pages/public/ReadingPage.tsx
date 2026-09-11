@@ -613,7 +613,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
             publicationId={sourcePanel.publicationId}
             anchorId={sourcePanel.anchorId}
             anchorLabel={sourcePanel.label}
-            onClose={() => setSourcePanel(null)}
+            onClose={() => { setSourcePanel(null); setToolsUnit(null); }}
           />
         </div> : toolsUnit ? <div className="reading-tool-sources">
           <p>{chapterTitles[toolsUnit.chapter_id] ?? "本段史料"}</p>

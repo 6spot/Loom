@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
+import HistoryReturnLink from "../../components/HistoryReturnLink";
 import EventReadingEntry from "../../components/EventReadingEntry";
 export { mergeEventTargetPages } from "../../components/EventReadingEntry";
 import { useEvent } from "../../lib/queries";
@@ -88,12 +89,12 @@ export default function EventPage() {
         <Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span>
         <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>事件</span>
       </div>
-      <EventReadingEntry
+      <HistoryReturnLink fallback={<EventReadingEntry
         key={`${data.canonical_event_id}:${catalog ?? ""}`}
         eventId={data.canonical_event_id}
         catalog={catalog}
         returnLocator={returnLocator}
-      />
+      />} />
       <header className="page-header">
         <p className="eyebrow">Canonical Event</p>
         <h1>{data.display?.title ?? "未命名事件"}</h1>

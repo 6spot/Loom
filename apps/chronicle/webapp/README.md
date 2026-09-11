@@ -8,6 +8,7 @@ surface.
 
 ```text
 /                        history entry points and search
+/history                 published synthesized history, fixed version/paragraph
 /world                   public grounded Historical Moment / World page
 /timeline                public Timeline
 /search                  public Search
@@ -19,7 +20,7 @@ surface.
 /chapters/{publicationId} pinned chapter and original evidence
 /studio                  Studio overview (authenticated)
 /studio/imports          import operations
-/studio/review           resolution review
+/studio/review           identity, corroboration and narrative review
 /studio/sources          source/corpus operations
 /studio/coverage         corpus Coverage visibility
 /studio/login            Studio login (HTTP Basic credentials, tab-session only)
@@ -70,6 +71,9 @@ GET /api/v1/public/timeline
 GET /api/v1/public/search
 GET /api/v1/public/events/{id}
 GET /api/v1/public/entities/{id}
+GET /api/v1/public/history[?version]
+GET /api/v1/public/history/paragraphs?version&at|start&limit
+GET /api/v1/public/history/conclusions/{id}?version
 GET /api/v1/studio/status   (Studio only, HTTP Basic, server-enforced)
 ```
 
@@ -115,10 +119,12 @@ npm run smoke:dist
 
 ## Public reading surface
 
-The production homepage offers historical entry points and search. An event
-entry locates a confirmed occurrence in the pinned reading catalog; it does not
-filter or replace the surrounding text. Multiple precise targets remain an
-explicit choice, and a retrospective mention is never chosen automatically.
+The production homepage consumes only the reviewed narrative's curated
+entry_points, not the full extracted Event list. An event or period locates a
+paragraph in one immutable history version and leaves earlier/later prose
+available. `/history?version=<sha>&at=<hp_id>` has separate IDs and storage from
+the original source stream. Both reuse `useReadingPosition`; navigation does
+not create a second position controller.
 
 The source reading page uses the existing single position controller. The left
 time axis and right nearby events/context follow its active paragraph. Tablets
@@ -126,11 +132,20 @@ and phones expose the same context through a modal. Evidence is available in
 Reading materials, with exact publication/anchor references and focus restored
 on dismissal. Event participation never supplies missing offices or allegiance.
 The current source API has no reviewed state facts; absent states remain absent.
+Synthesized history supplies accepted state conclusions scoped to the exact
+phase. Current actions are not substituted for missing offices or control.
+Its first envelope is 256 paragraphs; cross-batch global stitching is deferred.
 
 Component behavior is verified with the existing synthetic browser suite:
 
 ```bash
 node scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5173 --suite all --output /tmp/chronicle-reading-ui-qa
+node scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5173
+node scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5173
 ```
 
 This component suite does not substitute for the real-stack content gate.
+
+Vite defaults to the local Rust API at port 8080. Set
+`CHRONICLE_DEV_UPSTREAM=http://127.0.0.1:<port>` when testing an isolated
+Chronicle stack; source credentials and model API keys never enter Vite env.

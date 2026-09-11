@@ -39,6 +39,8 @@ import {
   type StorageLike,
 } from "../lib/reading-history";
 
+let historySequence = 0;
+
 export interface ReadingUnitSnapshot {
   readonly unitId: string;
   readonly ordinal: number;
@@ -55,6 +57,9 @@ export interface ReadingLocateResult {
 export interface ReadingUrlStrategy {
   parse(url: string): ReadingUrlParse;
   build(locator: ReadingLocator): string;
+  /** Adapter validates its own scope/version/item IDs; source defaults stay strict. */
+  validate?: (value: unknown) => value is ReadingLocator;
+  storagePrefix?: string;
 }
 
 export const DEFAULT_READING_URL_STRATEGY: ReadingUrlStrategy = {
@@ -66,7 +71,7 @@ export interface ReadingPositionOptions {
   /** active unit 的叙事时间/上下文来源，禁止模型/组件各自维护第二份状态。 */
   readonly getUnit: (unitId: string) => ReadingUnitSnapshot | null;
   /** 精确 locate：返回目标 unit 所在页的 unit ids，或 null 表示失效。 */
-  readonly locate: (locator: ReadingLocator) => Promise<ReadingLocateResult | null>;
+  readonly locate: (locator: ReadingLocator, signal?: AbortSignal) => Promise<ReadingLocateResult | null>;
   /** 窗口加载：确保目标页已进入内容窗口（可选）。 */
   readonly loadWindow?: (locator: ReadingLocator) => void | Promise<void>;
   /** 自定义滚动到 unit 内相对位置；缺省用 DOM 元素测量。 */
@@ -171,12 +176,13 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     () =>
       new ReadingStorage(
         options.storage === undefined ? defaultSessionStorage() : options.storage,
+        strategy.storagePrefix,
       ),
-    [options.storage],
+    [options.storage, strategy.storagePrefix],
   );
   const store = useMemo(
-    () => new ReadingHistoryStore(storageAdapter, randomBytes ? { randomBytes } : {}),
-    [storageAdapter, randomBytes],
+    () => new ReadingHistoryStore(storageAdapter, { randomBytes, validateLocator: strategy.validate }),
+    [storageAdapter, randomBytes, strategy.validate],
   );
   const storageAvailable = useMemo(() => storageAdapter.available(), [storageAdapter]);
 
@@ -197,7 +203,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const strategyRef = useRef(strategy);
   const mountedRef = useRef(false);
   const requestSeqRef = useRef(0);
-  const historySeqRef = useRef(0);
+  const operationAbortRef = useRef<AbortController | null>(null);
   const historyKeyRef = useRef("");
   const activeRef = useRef<{ unitId: string; ordinal: number } | null>(null);
   // 导航状态用 ref 同步跟踪，避免 rAF/滚动回调在 React 重渲染前读到过期的 state。
@@ -231,8 +237,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   );
 
   const nextHistoryKey = useCallback(() => {
-    historySeqRef.current += 1;
-    return `hk${historySeqRef.current}`;
+    historySequence += 1;
+    return `hk${Date.now().toString(36)}_${historySequence}`;
   }, []);
 
   const selectorFor = useCallback(
@@ -285,7 +291,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       catalog_sha: current.catalog,
       unit_id: active.unitId,
     };
-    return isReadingLocator(locator) ? locator : null;
+    return (strategyRef.current.validate ?? isReadingLocator)(locator) ? locator : null;
   }, []);
 
   const writeUrl = useCallback(
@@ -295,7 +301,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       if (mode === "push") {
         window.history.pushState({ readingHistoryKey: historyKey }, "", url);
       } else {
-        window.history.replaceState({ readingHistoryKey: historyKey }, "", url);
+        window.history.replaceState({ ...window.history.state, readingHistoryKey: historyKey }, "", url);
       }
     },
     [],
@@ -404,12 +410,14 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
    */
   const beginOperation = useCallback((): number => {
     requestSeqRef.current += 1;
+    operationAbortRef.current?.abort();
+    operationAbortRef.current = new AbortController();
     return requestSeqRef.current;
   }, []);
 
   const applyLocator = useCallback(
     async (locator: ReadingLocator, detail: RestoreDetail, preallocatedSeq?: number) => {
-      if (!isReadingLocator(locator)) {
+      if (!(strategyRef.current.validate ?? isReadingLocator)(locator)) {
         commitState({ issue: readingIssue("invalid_unit", "refusing non-typed locator") });
         return;
       }
@@ -420,7 +428,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
 
       let located: ReadingLocateResult | null;
       try {
-        located = await optionsRef.current.locate(locator);
+        located = await optionsRef.current.locate(locator, operationAbortRef.current?.signal);
       } catch (error) {
         if (seq !== requestSeqRef.current || !mountedRef.current) return;
         commitState({
@@ -430,7 +438,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         return;
       }
       if (seq !== requestSeqRef.current || !mountedRef.current) return;
-      if (!located) {
+      if (!located || located.locator.stream_id !== locator.stream_id ||
+          located.locator.catalog_sha !== locator.catalog_sha || located.locator.unit_id !== locator.unit_id ||
+          !located.unitIds.includes(locator.unit_id)) {
         commitState({
           navigationState: "idle",
           issue: readingIssue("snapshot_mismatch", "locate returned no page for locator"),
@@ -490,8 +500,15 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         ) as HTMLElement | null;
         trigger?.focus();
       }
+      if (detail.push && !detail.focusId && typeof document !== "undefined") {
+        const target = document.querySelector(selectorFor(locator.unit_id)) as HTMLElement | null;
+        if (target) {
+          target.tabIndex = -1;
+          target.focus({ preventScroll: true });
+        }
+      }
     },
-    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, ordinalOf],
+    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, ordinalOf, selectorFor],
   );
 
   const refreshActive = useCallback(() => {
@@ -515,7 +532,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       if (navStateRef.current !== "idle") {
         setNavState("settled");
       }
-      if (changed) scheduleSettleUrl();
+      // Scrolling within one long paragraph also changes the return position.
+      scheduleSettleUrl();
     }
   }, [
     commitState,
@@ -534,6 +552,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     schedulerRef.current?.cancel();
     if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       requestSeqRef.current += 1;
+      operationAbortRef.current?.abort();
       setNavState("user_scrolled");
     }
   }, [setNavState]);
@@ -654,21 +673,23 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     (): { token: string; locator: ReadingLocator; persisted: boolean } | null => {
       const locator = currentLocator();
       if (!locator) return null;
+      saveHistoryEntry(measureRelativeOffset(locator.unit_id), null, false);
       const result = storeRef.current.rememberReturn(locator);
       if (!result.token) return null;
       return { token: result.token, locator, persisted: result.persisted };
     },
-    [currentLocator],
+    [currentLocator, saveHistoryEntry, measureRelativeOffset],
   );
 
   const restoreReturnToken = useCallback(
     (token: string): ReadingLocator | null => {
       const locator = storeRef.current.resolveReturn(token);
       if (!locator) return null;
+      const entry = storeRef.current.findEntry(locator);
       void applyLocator(locator, {
-        relativeOffset: 0,
-        focusId: null,
-        sourceExpanded: false,
+        relativeOffset: entry?.relative_offset ?? 0,
+        focusId: entry?.focus_id ?? null,
+        sourceExpanded: entry?.source_expanded ?? false,
         push: true,
       });
       return locator;
@@ -687,10 +708,11 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   useEffect(() => {
     mountedRef.current = true;
     schedulerRef.current = createFrameScheduler();
-    historyKeyRef.current = nextHistoryKey();
+    historyKeyRef.current = typeof window !== "undefined" && typeof window.history.state?.readingHistoryKey === "string"
+      ? window.history.state.readingHistoryKey : nextHistoryKey();
     if (typeof window !== "undefined") {
       window.history.replaceState(
-        { readingHistoryKey: historyKeyRef.current },
+        { ...window.history.state, readingHistoryKey: historyKeyRef.current },
         "",
         window.location.href,
       );
@@ -720,6 +742,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     return () => {
       mountedRef.current = false;
       requestSeqRef.current += 1;
+      operationAbortRef.current?.abort();
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("wheel", onUserIntent);
       window.removeEventListener("touchstart", onUserIntent);

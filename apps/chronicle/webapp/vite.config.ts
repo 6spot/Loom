@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 // C1-T9: one build serves public Chronicle routes and /studio/* routes.
 // Deterministic asset filenames (no content hash) so the Rust
@@ -7,7 +7,9 @@ import { defineConfig } from "vite";
 // include_bytes! (hashed names cannot be named statically).
 // Output goes to ../web/dist and is committed so `cargo test` works
 // without a Node toolchain.
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, ".", "CHRONICLE_");
+  return {
   plugins: [react()],
   build: {
     outDir: "../web/dist",
@@ -23,8 +25,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:8080",
-      "/v0": "http://127.0.0.1:8080",
+      "/api": env.CHRONICLE_DEV_UPSTREAM || "http://127.0.0.1:8080",
+      "/v0": env.CHRONICLE_DEV_UPSTREAM || "http://127.0.0.1:8080",
     },
   },
+  };
 });

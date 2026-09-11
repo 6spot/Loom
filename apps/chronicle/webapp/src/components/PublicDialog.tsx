@@ -19,6 +19,7 @@ export default function PublicDialog({ title, children, onClose, compact = false
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     dialog.showModal();
+    dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]")?.focus();
     return () => {
       dialog.close();
       document.body.style.overflow = overflow;

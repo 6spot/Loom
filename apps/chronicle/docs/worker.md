@@ -161,6 +161,50 @@ injection (the pinned C1 segmentation/extraction tests rely on that),
 while a real source without models keeps the explicit extract failure
 instead of falling back.
 
+### Reviewed multi-source historical narrative
+
+Set `CHRONICLE_NARRATIVE_MODEL` alongside the chapter model, using the same
+`CHRONICLE_MODEL_ENDPOINT`, API key and timeout. This enables an explicit
+Studio operation; importing another chapter does not automatically regenerate
+the public history. Source files must remain available through
+`CHRONICLE_SOURCE_DIR` for complete, hash-verified chapter context.
+
+In Studio → imports, select complete published chapters and create a historical
+narrative job. It is an ordinary IngestionJob whose other stages are skipped.
+Its `present` stage first creates a facts ReviewItem. Review the questions,
+source relationships, phase boundaries and every conclusion, then approve and
+continue. The worker creates prose using the accepted facts. Read and edit the
+prose and selected navigation entries in the second review before continuing
+to publication. The UI keeps save/next actions reachable on long pages and
+allows conclusion splitting and phase/evidence editing.
+
+The worker keeps model calls outside transactions and renews its lease on a
+separate short connection. Each candidate permits up to three complete
+generation/correction attempts; responses and diagnostics use the existing
+ingestion output log. Accepted candidates are reused on resume. Publication
+and completion commit together under the existing publication lock and an
+expiry-aware lease check. A rejected draft cancels its job; cancellation
+dismisses open narrative reviews without deleting their audit records.
+
+The five-claim budget includes two normal review resumptions plus three
+execution opportunities. After transient failures use the existing retry
+operation. Changed source catalogs require a fresh selection and fresh review,
+not automatic adoption of old decisions. The complete application contract,
+capacity and versioned APIs are in [source-corroboration.md](source-corroboration.md).
+
+Focused verification, with the canonical PG18 test environment:
+
+```bash
+python3 -m unittest discover -s apps/chronicle/corpus -p 'test_corroboration_cases.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative_contract.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_narrative_pipeline_postgres.py' -v
+```
+
+These deterministic tests use explicit test models. Real historical content
+also requires inspecting the generated facts and prose against the selected
+complete sources, through both review gates; format or browser tests are not
+a substitute for that content review.
+
 ## How durability works
 
 1. **Claim.** `claim_job` takes one `queued` job — or one `running` job

@@ -62,6 +62,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(public_reading),
         )
         .route("/api/v1/public/reading-events/{*rest}", any(public_reading))
+        .route("/api/v1/public/history", any(public_reading))
+        .route("/api/v1/public/history/{*rest}", any(public_reading))
         .route("/v0/timeline", any(legacy_proxy))
         .route("/v0/search", any(legacy_proxy))
         .route("/v0/events/{id}", any(legacy_proxy))

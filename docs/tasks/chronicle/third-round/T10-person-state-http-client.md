@@ -12,7 +12,7 @@ depends_on: [C2-R3-T07, C2-R3-T09, C2-R3-T02, C2-R2-T09]
 
 [Issue #628](https://github.com/6spot/Loom/issues/628) 给出实施步骤。让生产前端通过已有Rust入口消费人物资料和阶段审核，保持公开/Studio权限、来源版本及类型一致。
 
-- 输入：T07/T09领域API、T01类型、T02的0.3注册；现有Rust public/studio代理与原文reader。
+- 输入：T07/T09领域API、T01类型、T02的0.3注册；已有 history-api.ts、narrative-types.ts、Rust public/studio代理与原文reader。
 - 交付：Python/Rust路由；typed client固定 getReadingPeople / getPersonStates / getPersonStateEvidence / submitPersonStateAssessment，现有 listReviewPage 增加 review_scope；端到端HTTP合同测试。
 - 前置：[C2-R3-T07](https://github.com/6spot/Loom/issues/625)、[C2-R3-T09](https://github.com/6spot/Loom/issues/627)、[C2-R3-T02](https://github.com/6spot/Loom/issues/620)、[C2-R2-T09](https://github.com/6spot/Loom/issues/578)
 
@@ -34,6 +34,8 @@ depends_on: [C2-R3-T07, C2-R3-T09, C2-R3-T02, C2-R2-T09]
 - `apps/chronicle/docs/server.md`
 
 本轮共享HTTP/client唯一owner；T11/T12通过props/回调独立开发，T13在本任务后接App/SPA和static assets。
+
+主阅读复用 C2-R2E 的 version/paragraph 接口与 `clear|uncertain` 类型，不用来源 stream/unit 包装综合正文。共用事实审核沿用 narrative ReviewItem 分派；任何来源阶段评估都不跳过最终结论审核。原文继续经已有 source reader，浏览器不直连 sidecar。
 
 ## 验收
 

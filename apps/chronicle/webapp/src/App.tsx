@@ -6,6 +6,7 @@ import { withHistoricalTime } from "./lib/historical-time";
 import ChronicleIcon from "./components/ChronicleIcon";
 import PublicDialog from "./components/PublicDialog";
 import HomePage from "./pages/public/HomePage";
+import HistoryPage from "./pages/public/HistoryPage";
 import { chapterPath, readingPath } from "./lib/routes";
 import EntityPage from "./pages/public/EntityPage";
 import EventPage from "./pages/public/EventPage";
@@ -45,7 +46,7 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
   const navigate = useNavigate();
   const location = useLocation();
   const [tool, setTool] = useState<"search" | "menu" | null>(null);
-  const reading = location.pathname.startsWith("/read/");
+  const reading = location.pathname.startsWith("/read/") || location.pathname === "/history";
   useEffect(() => setTool(null), [location.pathname, location.search]);
   return (
     <div className={`public-site${reading ? " public-site-reading" : ""}`}>
@@ -80,14 +81,15 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
           }}
         >
           <label className="public-sr-only" htmlFor="global-search-q">搜索人物、地点或事件</label>
-          <input id="global-search-q" name="q" autoComplete="off" placeholder="时期、事件、人物或地点" autoFocus />
+          <input id="global-search-q" name="q" autoComplete="off" placeholder="时期、事件、人物或地点" data-dialog-initial-focus />
           <button className="public-icon-button" type="submit" aria-label="搜索"><ChronicleIcon name="search" /></button>
         </form>
       </PublicDialog> : null}
       {tool === "menu" ? <PublicDialog title="探索与资料" onClose={() => setTool(null)} compact>
         <nav className="public-menu" aria-label="更多导航">
           <Link to="/timeline">历史时刻</Link>
-          <Link to="/read">已收录正文</Link>
+          <Link to="/history">连续历史正文</Link>
+          <Link to="/read">史料译文</Link>
           <Link to="/chapters">史料原文</Link>
           <Link to="/studio">内容管理</Link>
         </nav>
@@ -147,6 +149,7 @@ export default function App() {
           <Route path="coverage" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioCoveragePage /></Suspense></StudioGuard>} />
         </Route>
         <Route path="/" element={<PublicChrome timeBar={false}><HomePage /></PublicChrome>} />
+        <Route path="/history" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />
         <Route path="/world" element={<PublicChrome><WorldPage /></PublicChrome>} />
         <Route path="/timeline" element={<PublicChrome><TimelinePage /></PublicChrome>} />
         <Route path="/search" element={<PublicChrome><SearchPage /></PublicChrome>} />

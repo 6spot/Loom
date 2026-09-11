@@ -12,8 +12,8 @@ depends_on: [C2-R3-T08, C2-R3-T10, C2-R3-T11, C2-R3-T12, C2-R2-T15]
 
 [Issue #631](https://github.com/6spot/Loom/issues/631) 给出实施步骤。把已验收的模块接入真正阅读/Studio页面，保证滚动、返回、刷新、迟到请求与审核草稿都对应同一上下文。
 
-- 输入：生产0.3与API、T11/T12组件、R2唯一ReadingPosition/ReadingPage、R1 review-session；D02设计。
-- 交付：单controller驱动的阶段查询hook、生产人物区与状态审核分派、匹配web/dist/static注册及集成回归。
+- 输入：生产0.3与API、T11/T12组件、C2-R2E HistoryPage 与唯一 useReadingPosition、review-session 及 NarrativeReviewPanel；D02正式组件场景。
+- 交付：单controller驱动的阶段联动、紧凑人物／地点状态、独立人物详情及主历史往返、状态审核分派、匹配web/dist/static注册及集成回归。
 - 前置：[C2-R3-T08](https://github.com/6spot/Loom/issues/626)、[C2-R3-T10](https://github.com/6spot/Loom/issues/628)、[C2-R3-T11](https://github.com/6spot/Loom/issues/629)、[C2-R3-T12](https://github.com/6spot/Loom/issues/630)、[C2-R2-T15](https://github.com/6spot/Loom/issues/584)
 
 语义与接口以 [人物阶段资料契约](../../../../apps/chronicle/docs/person-state-reading.md) §§5.1、7–8 为准；全轮任务图见 [README](README.md)。task 记录需求与实施边界，任务状态由当前任务管理工具维护。
@@ -21,8 +21,10 @@ depends_on: [C2-R3-T08, C2-R3-T10, C2-R3-T11, C2-R3-T12, C2-R2-T15]
 ## 文件归属
 
 - `apps/chronicle/webapp/src/hooks/usePersonStateContext.ts（新）`
-- `apps/chronicle/webapp/src/pages/public/ReadingPage.tsx`
-- `apps/chronicle/webapp/src/pages/public/EntityPage.tsx（仅阅读上下文入口）`
+- `apps/chronicle/webapp/src/pages/public/HistoryPage.tsx`
+- `apps/chronicle/webapp/src/pages/public/ReadingPage.tsx（来源阅读接线）`
+- `apps/chronicle/webapp/src/pages/public/EntityPage.tsx（人物介绍、经历与身份演变时间轴）`
+- `apps/chronicle/webapp/src/components/HistoryReturnLink.tsx`
 - `apps/chronicle/webapp/src/pages/studio/StudioReviewPage.tsx`
 - `apps/chronicle/webapp/src/pages/studio/StudioReviewDetailPage.tsx`
 - `apps/chronicle/webapp/src/lib/review-session.ts（scope与判别draft）`
@@ -44,6 +46,8 @@ depends_on: [C2-R3-T08, C2-R3-T10, C2-R3-T11, C2-R3-T12, C2-R2-T15]
 
 - [ ] 滚动/主动跳转/后退前进/刷新始终显示同一locator的资料，预览旧事不切阶段，迟到结果不覆盖新段。
 - [ ] 无逐人N+1或前端累计/撤销历史状态，正文在数据故障时保持可读。
+- [ ] 人物详情能读有据介绍、查看按时间发展的经历及身份变化；从历史进入保留阶段，返回恢复原段和段内偏移，直接进入不捏造当前年份。
+- [ ] 主阅读默认人物、地点各占紧凑单行并显示状态；事件／时期仅为少量定位入口，不作为正文过滤条件。
 - [ ] 混合审核过滤/草稿/连续操作互不串型，保存决定来自服务端且页底可继续。
 - [ ] 生产页面与dist/static资源一致，全部相关前端/Rust检查通过；没有第二套controller。
 

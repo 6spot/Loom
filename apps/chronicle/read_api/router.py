@@ -26,6 +26,7 @@ from reading_events import (
     event_targets,
 )
 from search import search_catalog
+from history import dispatch_history
 
 
 def _single(query: dict[str, list[str]], name: str) -> str | None:
@@ -203,6 +204,9 @@ def dispatch(
     try:
         if path == "/healthz":
             return 200, {"status": "ok"}
+
+        if path == "/v0/history" or path.startswith("/v0/history/"):
+            return 200, dispatch_history(repo.conn, path, raw_query)
 
         if path == "/v0/timeline":
             query = parse_qs(raw_query, keep_blank_values=True)

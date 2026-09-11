@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChapterReaderApiError,
-  chapterSourcePath,
   chapterReaderKeys,
   classifyChapterError,
   createStaleGuard,
@@ -125,7 +124,7 @@ export default function ChapterSourceReference({
         <div>
           <p className="chr-eyebrow">原文依据 · 按需加载</p>
           <h3>{anchorLabel ?? anchorId}</h3>
-          <p className="chr-muted">请求 {chapterSourcePath(publicationId, anchorId, { view })}，只读，不触发模型。</p>
+          <p className="chr-muted">引用已标出，可展开整章查看上下文。</p>
         </div>
         <button
           ref={closeButtonRef}

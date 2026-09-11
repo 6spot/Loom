@@ -24,14 +24,14 @@ from typing import Any
 
 from common import PersistenceError
 
-#: Legacy first-round prompt template version (0.1 joint product). Kept so
-#: first-round regression re-asks and fingerprints stay byte-stable.
-PROMPT_VERSION = "c2r1-chapter-prompt-v10"
+#: Whole-chapter prompt template version (0.1 joint product).
+#: Persisted earlier runs retain their own template version and fingerprint.
+PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v1"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v2"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -125,6 +125,17 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
 - Keep persons/places/polities, event time and participant roles, and source
   evidence grounded in the chapter text. Every required source block listed in
   REQUIRED BLOCKS must appear in at least one translation block's source_block_ids.
+- Separate an occurrence from a detail about it. Keep one coherent battle,
+  campaign, diplomatic episode, or political transition together when the
+  chapter supports that scope; do not create a separate Event for every sentence,
+  quotation, evaluation, or background state. A person's office or a place's
+  affiliation may be a Claim on that Entity without inventing a new Event.
+  Distinct occurrences must remain distinct; do not merge merely because a
+  broader title looks cleaner. Preserve source-supported subordinate episodes
+  with parent_event_ref where appropriate.
+- Extraction records are not public navigation anchors. Important reader entry
+  points are selected and reviewed later from the synthesized narrative; do not
+  label every appointment, remark, or minor movement as a major event.
 - Time precision is never invented: normalized month/day stay null; a normalized
   year appears only with an exact verified source mapping, otherwise null.
 - VERBATIM GROUNDING PROCEDURE (no exceptions):

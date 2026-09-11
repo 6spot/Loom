@@ -8,17 +8,21 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 
 # Chronicle 第三轮：人物身份与关系随阅读阶段变化
 
+2026-09-12 范围调整：[C2-R2E 增强阶段](../reading-enhancement/README.md) / [#658](https://github.com/6spot/Loom/issues/658) 直接实现多史料核对、两次审核、综合正文和紧凑状态。其 [#659](https://github.com/6spot/Loom/issues/659) 固定真实案例，[#660](https://github.com/6spot/Loom/issues/660) 固定共用合同。本轮消费已审核结论和 `{version, paragraph_id, phase_id}`，扩展有据任期算法及独立人物页。
+
+下方 17 项保留原模块划分，D02/T01/T05/T09/T10/T11/T13 的接口与页面要求已按本次交接修订。来源 0.3 候选仍是任期推理输入，不能直接充当综合正文或最终历史结论。共享契约具备后可启动相应独立模块；最终接线／验收依赖真实综合正文及读取接口，不给所有任务增加整个增强轮完成的笼统前置。任务状态由当前任务工具维护。
+
 父协调 Issue [#550](https://github.com/6spot/Loom/issues/550)，总规划 [#547](https://github.com/6spot/Loom/issues/547)。本轮拆为 **2项准备任务＋15项实现/验收任务**。此索引记录需求、输入、文件归属与验收顺序；任务状态由当前任务管理工具维护。
 
-产品语义以 [person-state-reading.md](../../../../apps/chronicle/docs/person-state-reading.md) 为准。本次交付的是设计和任务拆分，下面的产品能力由子任务实施。
+产品语义以 [person-state-reading.md](../../../../apps/chronicle/docs/person-state-reading.md) 为准。下列任务负责 R2E 共用链路之外的专门任期推理与人物页；不能把已交付的紧凑状态侧栏当作完整 R3。
 
 ## 已收敛的范围
 
 - 官职、爵号和明确的效力/归附关系，按有原文支持的叙事阶段显示，稳定人物身份不随头衔改变。
 - 每项分别有“明确/不明确”标记；弱化项保持可读可查，不凭confidence染色，不把未知、未来、结束和没有材料混为一谈。
-- 当时身份、本段角色、本段变化分开；同年不同阶段、兼任、多阶段过程、回看、来源分歧有明确规则。
+- 默认侧栏只列当时身份及地点状态；行动、角色与身份变化进入人物详情。内部阶段精确到状态变化，前台入口只挑重要事件／时期。
 - 在同一完整章0.3联合产物中抽取，按章集中核对阶段依据，发布前编译，阅读消费固定版本。
-- 沿用R2人物区/移动入口、唯一controller和既有原文阅读器；背景图产品、长期联盟、亲缘图谱和全生平重建保持各自后续范围。
+- 沿用 HistoryPage、移动入口、唯一 controller 和既有原文阅读器；人物页提供介绍和有据经历时间轴，不要求穷尽生平。背景图产品、长期联盟、亲缘图谱保持各自后续范围。
 
 ## 任务图
 
@@ -27,8 +31,8 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 | Task | Issue | 前置 | 交付 |
 | --- | --- | --- | --- |
 | [D01](D01-person-state-cases.md) | [#617](https://github.com/6spot/Loom/issues/617) | [C2-R1-T02](https://github.com/6spot/Loom/issues/552) | 真实人物变化链与阶段反例语料 |
-| [D02](D02-person-state-interaction-design.md) | [#618](https://github.com/6spot/Loom/issues/618) | 无 | 人物阶段资料与依据审核的桌面、窄屏交互设计 |
-| [T01](T01-person-state-contract.md) | [#619](https://github.com/6spot/Loom/issues/619) | [C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571) | 0.3 阶段资料 schema、校验器与前后端共享类型 |
+| [D02](D02-person-state-interaction-design.md) | [#618](https://github.com/6spot/Loom/issues/618) | 无 | 正式组件中的紧凑状态、独立人物页及依据审核交互场景 |
+| [T01](T01-person-state-contract.md) | [#619](https://github.com/6spot/Loom/issues/619) | [C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) | 0.3 来源阶段 schema、共用结论及综合位置扩展、共享类型 |
 | [T02](T02-person-state-generation.md) | [#620](https://github.com/6spot/Loom/issues/620) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R2-T03](https://github.com/6spot/Loom/issues/572) | 完整章联合生成阶段事实并接入现有 provider |
 | [T03](T03-person-state-assembly.md) | [#621](https://github.com/6spot/Loom/issues/621) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R2-T04](https://github.com/6spot/Loom/issues/573) | 跨章阶段依据 remap 与不可变证据组装 |
 | [T04](T04-person-state-projection.md) | [#622](https://github.com/6spot/Loom/issues/622) | [C2-R3-T03](https://github.com/6spot/Loom/issues/621) | 按叙事阶段编译身份、变化与两档明确性 |
@@ -36,11 +40,11 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 | [T06](T06-person-state-review-core.md) | [#624](https://github.com/6spot/Loom/issues/624) | [C2-R3-T04](https://github.com/6spot/Loom/issues/622)、[C2-R3-T05](https://github.com/6spot/Loom/issues/623)、[C2-R1-T08](https://github.com/6spot/Loom/issues/558) | 按章冻结阶段依据审核与评估产物 |
 | [T07](T07-person-state-review-api.md) | [#625](https://github.com/6spot/Loom/issues/625) | [C2-R3-T06](https://github.com/6spot/Loom/issues/624)、[C2-R1-T09](https://github.com/6spot/Loom/issues/559)、[C2-R1-T10](https://github.com/6spot/Loom/issues/560) | 混合审核队列、阶段依据详情与原文 API |
 | [T08](T08-person-state-publication.md) | [#626](https://github.com/6spot/Loom/issues/626) | [C2-R3-T02](https://github.com/6spot/Loom/issues/620)、[C2-R3-T04](https://github.com/6spot/Loom/issues/622)、[C2-R3-T06](https://github.com/6spot/Loom/issues/624)、[C2-R2-T06](https://github.com/6spot/Loom/issues/575) | 将阶段审核与人物投影接入唯一生产发布事务 |
-| [T09](T09-person-state-read-api.md) | [#627](https://github.com/6spot/Loom/issues/627) | [C2-R3-T04](https://github.com/6spot/Loom/issues/622)、[C2-R3-T05](https://github.com/6spot/Loom/issues/623)、[C2-R2-T07](https://github.com/6spot/Loom/issues/576)、[C2-R2-T08](https://github.com/6spot/Loom/issues/577) | 当前阅读片段的人物摘要、阶段详情与依据查询 |
+| [T09](T09-person-state-read-api.md) | [#627](https://github.com/6spot/Loom/issues/627) | [C2-R3-T04](https://github.com/6spot/Loom/issues/622)、[C2-R3-T05](https://github.com/6spot/Loom/issues/623)、[C2-R2-T07](https://github.com/6spot/Loom/issues/576)、[C2-R2-T08](https://github.com/6spot/Loom/issues/577)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) | 固定综合版本的人物、地点状态及依据查询，来源 unit 分支保持独立含义 |
 | [T10](T10-person-state-http-client.md) | [#628](https://github.com/6spot/Loom/issues/628) | [C2-R3-T07](https://github.com/6spot/Loom/issues/625)、[C2-R3-T09](https://github.com/6spot/Loom/issues/627)、[C2-R3-T02](https://github.com/6spot/Loom/issues/620)、[C2-R2-T09](https://github.com/6spot/Loom/issues/578) | 统一接入阶段 API、Rust 边界与 typed client |
-| [T11](T11-person-state-reader-components.md) | [#629](https://github.com/6spot/Loom/issues/629) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R3-D02](https://github.com/6spot/Loom/issues/618)、[C2-R2-T14](https://github.com/6spot/Loom/issues/583) | 阅读人物区的身份、角色、变化与两档标记组件 |
+| [T11](T11-person-state-reader-components.md) | [#629](https://github.com/6spot/Loom/issues/629) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R3-D02](https://github.com/6spot/Loom/issues/618)、[C2-R2-T14](https://github.com/6spot/Loom/issues/583) | 紧凑人物／地点状态及人物详情时间轴组件，逐项明确性标记 |
 | [T12](T12-person-state-review-components.md) | [#630](https://github.com/6spot/Loom/issues/630) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R3-D02](https://github.com/6spot/Loom/issues/618)、[C2-R1-T11](https://github.com/6spot/Loom/issues/561)、[C2-R1-T12](https://github.com/6spot/Loom/issues/562) | 按章阶段依据审核表单与连续操作组件 |
-| [T13](T13-person-state-page-integration.md) | [#631](https://github.com/6spot/Loom/issues/631) | [C2-R3-T08](https://github.com/6spot/Loom/issues/626)、[C2-R3-T10](https://github.com/6spot/Loom/issues/628)、[C2-R3-T11](https://github.com/6spot/Loom/issues/629)、[C2-R3-T12](https://github.com/6spot/Loom/issues/630)、[C2-R2-T15](https://github.com/6spot/Loom/issues/584) | 统一接入阅读阶段联动、混合审核页面与生产构建 |
+| [T13](T13-person-state-page-integration.md) | [#631](https://github.com/6spot/Loom/issues/631) | [C2-R3-T08](https://github.com/6spot/Loom/issues/626)、[C2-R3-T10](https://github.com/6spot/Loom/issues/628)、[C2-R3-T11](https://github.com/6spot/Loom/issues/629)、[C2-R3-T12](https://github.com/6spot/Loom/issues/630)、[C2-R2-T15](https://github.com/6spot/Loom/issues/584) | HistoryPage 状态联动、独立人物页及原位往返、混合审核与生产构建 |
 | [T14](T14-person-state-automated-gate.md) | [#632](https://github.com/6spot/Loom/issues/632) | [C2-R3-T13](https://github.com/6spot/Loom/issues/631)、[C2-R2-T16](https://github.com/6spot/Loom/issues/585) | 阶段资料整链、审核交互与阅读性能自动验收 |
 | [T15](T15-person-state-live-acceptance.md) | [#633](https://github.com/6spot/Loom/issues/633) | [C2-R3-T14](https://github.com/6spot/Loom/issues/632)、[C2-R2-T17](https://github.com/6spot/Loom/issues/586) | 真实整章人物阶段资料与阅读体验独立验收 |
 
@@ -48,6 +52,8 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 flowchart LR
   D01["D01 真实案例"] --> T01["T01 契约/类型/基座"]
   R201["R2-T01/T02"] --> T01
+  R2ED02["R2E-D02 共用结论与综合位置"] --> T01
+  R2ED02 --> T09
   D02["D02 交互设计"] --> T11["T11 阅读组件"]
   D02 --> T12["T12 审核组件"]
   T01 --> T02["T02 整章生成"]
@@ -95,12 +101,12 @@ flowchart LR
 | 文件/入口 | 本轮所有者与交接 |
 | --- | --- |
 | third-round/cases 与只读定位检查 | D01 |
-| docs/design/person-states 静态设计 | D02 |
+| 正式人物组件的桌面／窄屏场景及交互矩阵 | D02 |
 | 新0.3 schemas、person_state_contract.py、person-state-types.ts、共享browser suite注册 | T01；后续模块消费同一契约 |
 | chapter_contract版本注册、prompt/extraction/provider/fixture_model | T02；R2-T03之后接手 |
 | assembly.py 与 person_state_assembly.py | T03；R2-T04之后接手 |
 | person_state_projection.py | T04；审核/发布/API共用 |
-| 0008迁移与 person_state_store.py | T05；外层事务由T08持有 |
+| 0009迁移与 person_state_store.py | T05；外层事务由T08持有 |
 | person_state_review.py | T06；不改身份合并规则 |
 | studio_person_states.py 与 studio_reviews领域队列 | T07 |
 | chapter_stage/resolve_publish/chapter_store生产接线 | T08；唯一生产发布owner |
@@ -108,7 +114,7 @@ flowchart LR
 | 顶层router、Rust API、typed clients、source 0.3适配 | T10 |
 | 阅读人物组件/局部CSS/自己的scene与spec | T11；ReadingContextPanel从R2-T14接手 |
 | 阶段审核组件/局部CSS/自己的scene与spec | T12 |
-| ReadingPage/Studio页、review-session、查询hook、App/SPA/build/dist/static assets | T13；server app.rs从T10顺序接手 |
+| HistoryPage/EntityPage/来源ReadingPage/Studio页、查询hook、App/SPA/build/dist | T13；server app.rs从T10顺序接手 |
 | CI、gate_runtime、第三轮整链和person-state-acceptance运行指南 | T14；从R2-T16接手共享生命周期/CI |
 | 真实运行报告与验收结果索引 | T15；person-state-acceptance.md在T14之后接手 |
 

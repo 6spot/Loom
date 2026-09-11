@@ -188,7 +188,8 @@ def handler_class(
                     declared = int(self.headers.get("Content-Length") or 0)
                 except ValueError:
                     declared = 0
-                if declared > 65536:
+                limit = 3 * 1024 * 1024 if kind == "review" else 65536
+                if declared > limit:
                     payload = (
                         json.dumps(
                             {
@@ -196,7 +197,7 @@ def handler_class(
                                 "version": "0.1",
                                 "error": {
                                     "code": "payload_too_large",
-                                    "message": f"{kind} request body exceeds 64 KiB",
+                                    "message": f"{kind} request body exceeds {limit} bytes",
                                 },
                             },
                             ensure_ascii=False,

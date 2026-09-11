@@ -280,6 +280,28 @@ def dispatch_jobs(
 def _route(conn, control_plane, *, method, path, raw_query, body):
     query = parse_qs(raw_query, keep_blank_values=True)
 
+    if path == STUDIO_JOBS_PREFIX + "/history/sources":
+        import narrative_store
+        if method != "GET" or set(query) - {"limit", "offset"}:
+            raise _BadRequest("history sources accepts GET with limit/offset")
+        try:
+            limit, offset = int(_single(query, "limit") or "50"), int(_single(query, "offset") or "0")
+        except ValueError as exc:
+            raise _BadRequest("invalid source page") from exc
+        return 200, "application/json; charset=utf-8", _json_bytes(narrative_store.list_source_choices(conn, limit=limit, offset=offset))
+    if path == STUDIO_JOBS_PREFIX + "/history":
+        import narrative_store
+        if method != "POST" or query:
+            raise _BadRequest("history generation accepts POST without query parameters")
+        try:
+            payload = json.loads(body)
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise _BadRequest("history generation requires a JSON object") from exc
+        if not isinstance(payload, dict) or set(payload) != {"catalog_sha", "publication_ids"}:
+            raise _BadRequest("history generation requires catalog_sha and publication_ids")
+        job_id = narrative_store.queue_narrative(conn, **payload)
+        return _job_response(conn, control_plane, job_id=job_id, status=201)
+
     if path == STUDIO_JOBS_PREFIX:
         if method == "GET":
             return _list_jobs(conn, control_plane, query=query)

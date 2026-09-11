@@ -43,6 +43,20 @@ Events can expose sourced causal explanations, contributing factors, structural 
 
 Historical claims must preserve source provenance, confidence, uncertainty, disagreement, and dating precision. Missing data must never be presented as proof that nothing happened.
 
+The primary historical prose synthesizes multiple sources into a new, continuous
+narrative. Users enter through periods, people, places and events; source books
+and chapters provide evidence rather than the main navigation structure. Every
+significant conclusion must be traceable to the original material, with attributed
+accounts, interpretations and disagreements preserved. Content is reviewed and
+published before public reading. Reading proceeds chronologically. Period and
+event entries locate a passage without filtering the surrounding narrative;
+reading continues across those boundaries wherever published content exists.
+The contextual sidebar shows each person's or place's state at the current
+passage. A separate person page provides detailed life history. Confirmed
+requirements, person-page responsibilities and gaps beyond the source-based R2
+contract are documented in
+[historical-narrative-design.md](historical-narrative-design.md).
+
 ### What If
 
 Counterfactual simulation is a later capability. Historical truth before a fork and simulated outcomes after a fork must always be visually and semantically separated.

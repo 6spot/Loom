@@ -143,6 +143,13 @@ both unset, Studio stays fail-closed (503) and public reads keep working.
 Content reaches the deployment exclusively through Studio uploads and the
 chapter pipeline — never through a default seed.
 
+Publishing source chapters makes their translations and canonical records
+available. To populate the continuous-history homepage, configure
+`CHRONICLE_NARRATIVE_MODEL` on the worker, select published complete chapters
+in Studio → imports, and complete the facts and prose reviews. These are
+separate explicit steps: source publication alone does not approve a new
+synthesized article. See [worker.md](worker.md) for the production procedure.
+
 ### Explicit C0 fixture regression
 
 The retained C0-T7 acceptance dataset (武帝纪 + 吴主传, 66 entities /
@@ -155,7 +162,7 @@ python3 -m unittest discover -s apps/chronicle/persistence -p 'test_real_dataset
 ```
 
 Run database-backed suites per
-[`docs/development/postgres-tests.md`](../../../development/postgres-tests.md)
+[`docs/development/postgres-tests.md`](../../../docs/development/postgres-tests.md)
 (PG18 control service, isolated test databases). Do not reintroduce a
 default seed to make the deployment "look populated".
 

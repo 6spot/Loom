@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
+import NarrativeProductionPanel from "../../components/studio/NarrativeProductionPanel";
 import { studioStatusLabel } from "../../lib/studio-i18n";
 import {
   createDocument,
@@ -184,6 +185,7 @@ export default function StudioImportsPage() {
         </Button>
       </div>
 
+      <NarrativeProductionPanel />
       <div className="studio-grid studio-grid-wide">
         <Card>
           <CardHeader>

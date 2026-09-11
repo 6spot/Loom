@@ -109,6 +109,8 @@ Task state belongs to the current task-management tool.
 
 ## Third delivery round after C1
 
+The [reading enhancement phase](reading-enhancement/README.md), C2-R2E / [#658](https://github.com/6spot/Loom/issues/658), now supplies cross-source conclusion review and synthesized historical reading before final R3 integration. Its first tasks are real-source cases [#659](https://github.com/6spot/Loom/issues/659) and the shared contract/R3 handoff [#660](https://github.com/6spot/Loom/issues/660). This is a separate scope from the original R2 delivery. R3 modules may proceed once their specific contracts are available; task state remains in the current task-management tool.
+
 The [third-round task index](third-round/README.md) covers #550 with two
 preparation tasks and 15 implementation/acceptance tasks. Source-grounded
 offices, titles and affiliations follow the active narrative phase, with
@@ -116,3 +118,4 @@ per-item clear/unclear markers, chapter-level evidence review and pinned reads.
 The product contract is [person-state-reading.md](../../../apps/chronicle/docs/person-state-reading.md).
 Preparation and disjoint modules can proceed according to the dependency
 graph; shared publication, routing and page integration have ordered owners.
+The original R3 split is being revised by C2-R2E-D02 to cover compact current-state rows, place state, a separate person page and the new narrative locator. Existing task names do not imply those extensions are already implemented.

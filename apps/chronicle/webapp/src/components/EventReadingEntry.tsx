@@ -156,7 +156,7 @@ function PinnedEventReadingEntry({
       ) : null}
       {targets && targets.targets.length > 0 ? (
         <ReadingTargetPicker
-          mode={anchor ? "locate" : "other"}
+          mode="other"
           targets={targets.targets}
           currentCount={targets.current_count}
           mentionCount={targets.mention_count}

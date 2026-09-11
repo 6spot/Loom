@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
+import HistoryReturnLink from "../../components/HistoryReturnLink";
 import { useEntity } from "../../lib/queries";
 import { formatTime, readPath } from "../../lib/routes";
 import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
@@ -88,7 +89,7 @@ export default function EntityPage() {
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
       <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>实体</span></div>
-      <ReadingReturnBar returnLocator={returnLocator} />
+      <HistoryReturnLink fallback={<ReadingReturnBar returnLocator={returnLocator} />} />
       <header className="page-header">
         <p className="eyebrow">Canonical Entity</p>
         <h1>{data.display?.name ?? "未命名实体"}</h1>
