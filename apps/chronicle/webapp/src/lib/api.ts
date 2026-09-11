@@ -45,12 +45,15 @@ export function searchPath(query: SearchQuery): string {
   return `/api/v1/public/search?${params.toString()}`;
 }
 
-export function eventPath(id: string): string {
-  return `/api/v1/public/events/${encodeURIComponent(id)}`;
+/** Optional `catalog` snapshot pins detail to the fixed exploration range. */
+export function eventPath(id: string, catalog?: string | null): string {
+  const base = `/api/v1/public/events/${encodeURIComponent(id)}`;
+  return catalog ? `${base}?catalog=${encodeURIComponent(catalog)}` : base;
 }
 
-export function entityPath(id: string): string {
-  return `/api/v1/public/entities/${encodeURIComponent(id)}`;
+export function entityPath(id: string, catalog?: string | null): string {
+  const base = `/api/v1/public/entities/${encodeURIComponent(id)}`;
+  return catalog ? `${base}?catalog=${encodeURIComponent(catalog)}` : base;
 }
 
 export function timelinePathFromSearch(search: string): string {

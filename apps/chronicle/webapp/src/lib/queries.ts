@@ -20,18 +20,18 @@ export function useHistoricalMoment(search: string) {
   });
 }
 
-export function useEvent(id: string | undefined) {
+export function useEvent(id: string | undefined, catalog?: string | null) {
   return useQuery<EventDetail, ApiError>({
-    queryKey: ["event", id],
-    queryFn: () => fetchJSON<EventDetail>(eventPath(id ?? "")),
+    queryKey: ["event", id, catalog ?? null],
+    queryFn: () => fetchJSON<EventDetail>(eventPath(id ?? "", catalog)),
     enabled: !!id,
   });
 }
 
-export function useEntity(id: string | undefined) {
+export function useEntity(id: string | undefined, catalog?: string | null) {
   return useQuery<EntityDetail, ApiError>({
-    queryKey: ["entity", id],
-    queryFn: () => fetchJSON<EntityDetail>(entityPath(id ?? "")),
+    queryKey: ["entity", id, catalog ?? null],
+    queryFn: () => fetchJSON<EntityDetail>(entityPath(id ?? "", catalog)),
     enabled: !!id,
   });
 }

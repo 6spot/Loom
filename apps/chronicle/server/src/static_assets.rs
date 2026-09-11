@@ -189,6 +189,14 @@ fn is_spa_path(path: &str) -> bool {
     if let Some(rest) = path.strip_prefix("/chapters/") {
         return is_single_segment(rest);
     }
+    // Continuous reading (C2-R2-T15): `/read` directory plus one immutable
+    // stream detail. Deeper nesting is not a reader route.
+    if path == "/read" || path == "/read/" {
+        return true;
+    }
+    if let Some(rest) = path.strip_prefix("/read/") {
+        return is_single_segment(rest);
+    }
     // The Studio shell itself is public because it carries no privileged
     // data; every Studio API is authenticated server-side. Nested detail
     // routes are still shell-only navigation and never bypass API auth.
@@ -246,6 +254,10 @@ mod tests {
             "/chapters/",
             "/chapters/00000000-0000-7000-8000-000000000000",
             "/chapters/00000000-0000-7000-8000-000000000000/",
+            "/read",
+            "/read/",
+            "/read/00000000-0000-7000-8000-000000000000",
+            "/read/00000000-0000-7000-8000-000000000000/",
             "/events/some-id",
             "/events/some-id/",
             "/entities/some-id",
@@ -362,6 +374,7 @@ mod tests {
             "/events/a/b",
             "/entities/",
             "/chapters/a/b",
+            "/read/a/b",
             "/etc/passwd",
             "/../web/index.html",
             "/app.mjs.map",

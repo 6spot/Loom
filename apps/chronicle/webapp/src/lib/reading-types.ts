@@ -1,7 +1,7 @@
 // Chronicle 第二轮连续阅读共享 DTO 与组件回调类型（C2-R2-T01）。
 //
-// 与 `apps/chronicle/ingestion/schemas/chronicle-reading-v0.1.schema.json`
-// 及 `apps/chronicle/persistence/reading_contract.py` 的公开 DTO 一一对应。
+// 与 Chronicle ingestion 的 chronicle-reading-v0.1.schema.json 及 persistence
+// 层的 reading_contract.py 公开 DTO 一一对应（浏览器不经 DB/artifact authority）。
 // 这些类型只描述服务端已编译的结果：canonical ID、hash、坐标、cursor 与
 // 分组 key 都由程序计算，浏览器不重新切词或按 UTF-16 偏移猜测事件位置。
 //

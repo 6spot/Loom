@@ -126,6 +126,17 @@ export function ChapterDetailView({
         <p className="chr-muted">
           全文共 {blocks.length} 段，一次读完；引用默认收起，点击才请求原文。
         </p>
+        <p className="chr-muted">
+          需要按叙事时间连续推进与事件跳转时，可
+          <a
+            className="chr-ref-link"
+            data-test="chapter-reading-entry"
+            href="/read"
+            style={{ marginLeft: "0.35rem" }}
+          >
+            进入连续阅读
+          </a>
+        </p>
       </header>
       <div className="chr-single-column">
         {blocks.map((block, index) => (
