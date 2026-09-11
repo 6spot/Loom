@@ -3,7 +3,7 @@
 // 固定「每自然章一份階段依據包、包內按人物看變化、共用階段依據單列、批量確認＋
 // 逐項例外、頁底保存並下一項、錯誤保留草稿」的交互；不掛接 Studio 路由或真實 API。
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { REVIEW_PACKAGE } from "./data";
 import type { Assessment, ReviewPackage } from "./types";
 import { ASSESSMENT_LABELS, AttributionTag, EffectBadge } from "./StateBits";
@@ -35,13 +35,22 @@ export default function ReviewHarness() {
   const [lastAction, setLastAction] = useState("");
 
   const pkg = PACKAGES[packageIndex];
-  const draftFor = (candidateId: string, fallback: Assessment): Draft =>
-    drafts[candidateId] ?? { assessment: fallback, rationale: "" };
 
-  const exceptionCount = useMemo(
-    () => Object.keys(drafts).filter((id) => drafts[id].assessment !== "supported" || drafts[id].rationale.trim().length > 0).length,
-    [drafts],
-  );
+  // 切換審核包時隔離草稿：不同包即使復用同一 candidate id 也不沿用上一包的值。
+  useEffect(() => {
+    setDrafts({});
+  }, [pkg.reviewId]);
+
+  // 有效評估 = 使用者覆寫，否則回退到候選的默認評估（可能不是 supported）。
+  const effectiveDraft = (change: (typeof pkg.changes)[number]): Draft =>
+    drafts[change.candidateId] ?? { assessment: change.defaultAssessment, rationale: "" };
+  const isException = (change: (typeof pkg.changes)[number]): boolean => {
+    const draft = effectiveDraft(change);
+    return draft.assessment !== "supported" || draft.rationale.trim().length > 0;
+  };
+
+  // 計數必須反映真實狀態：默認非 supported 或帶理由的項都是例外。
+  const exceptionCount = pkg.changes.filter(isException).length;
   const batchCovered = pkg.changes.length - exceptionCount;
   const byPerson = useMemo(() => {
     const groups = new Map<string, typeof pkg.changes>();
@@ -51,11 +60,16 @@ export default function ReviewHarness() {
     return [...groups.entries()];
   }, [pkg]);
 
-  const setDraft = (candidateId: string, fallback: Assessment, patch: Partial<Draft>) =>
-    setDrafts((current) => ({ ...current, [candidateId]: { ...draftFor(candidateId, fallback), ...patch } }));
+  const setDraft = (change: (typeof pkg.changes)[number], patch: Partial<Draft>) =>
+    setDrafts((current) => ({ ...current, [change.candidateId]: { ...effectiveDraft(change), ...patch } }));
 
+  // 批量確認明確覆蓋包內每一個候選為 supported，逐項例外再覆寫。
   const batchConfirmSupported = () => {
-    setDrafts({});
+    setDrafts(
+      Object.fromEntries(
+        pkg.changes.map((change) => [change.candidateId, { assessment: "supported" as Assessment, rationale: "" }]),
+      ),
+    );
     setLastAction(`batch:${pkg.reviewId}`);
     setSaveState("idle");
   };
@@ -127,15 +141,15 @@ export default function ReviewHarness() {
             <h2>{person}</h2>
             <ul>
               {changes.map((change) => {
-                const draft = draftFor(change.candidateId, change.defaultAssessment);
-                const isException = draft.assessment !== "supported" || draft.rationale.trim().length > 0;
+                const draft = effectiveDraft(change);
+                const exception = isException(change);
                 return (
                   <li
                     className="pstate-review-change"
                     data-test="review-change"
                     data-candidate-id={change.candidateId}
                     data-assessment={draft.assessment}
-                    data-exception={isException ? "true" : "false"}
+                    data-exception={exception ? "true" : "false"}
                     key={change.candidateId}
                   >
                     <div className="pstate-review-change-head">
@@ -157,11 +171,7 @@ export default function ReviewHarness() {
                         <select
                           data-test="review-assessment"
                           value={draft.assessment}
-                          onChange={(event) =>
-                            setDraft(change.candidateId, change.defaultAssessment, {
-                              assessment: event.target.value as Assessment,
-                            })
-                          }
+                          onChange={(event) => setDraft(change, { assessment: event.target.value as Assessment })}
                         >
                           {ASSESSMENTS.map((assessment) => (
                             <option value={assessment} key={assessment}>
@@ -177,9 +187,7 @@ export default function ReviewHarness() {
                           data-test="review-rationale"
                           value={draft.rationale}
                           placeholder="例外或暫時跳過的理由"
-                          onChange={(event) =>
-                            setDraft(change.candidateId, change.defaultAssessment, { rationale: event.target.value })
-                          }
+                          onChange={(event) => setDraft(change, { rationale: event.target.value })}
                         />
                       </label>
                     </div>
@@ -232,6 +240,8 @@ export default function ReviewHarness() {
             data-test="review-skip"
             onClick={() => {
               setSkipped((current) => [...current, pkg.reviewId]);
+              // 暫時跳過切項時清掉本包草稿，避免下一包復用同一 candidate id 時沿用。
+              setDrafts({});
               setLastAction(`skip:${pkg.reviewId}`);
               setPackageIndex((index) => (index + 1) % PACKAGES.length);
             }}

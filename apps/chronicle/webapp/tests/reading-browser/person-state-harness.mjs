@@ -289,15 +289,46 @@ async function reviewSuite(ctx) {
   ctx.check("review-changes", (await page.locator('[data-test="review-change"]').count()) >= 5);
   ctx.check("review-effect-badges", (await page.locator('[data-test="review-effect"]').count()) >= 5);
   ctx.check("review-attribution", (await page.locator('[data-test="review-change"] [data-test="person-state-attribution"]').count()) >= 5);
-  ctx.check("review-batch-count", /批量覆蓋 \d+ 項/.test(await page.locator('[data-test="review-batch-count"]').innerText()));
+  const countText = () => page.locator('[data-test="review-batch-count"]').innerText();
+  ctx.check("review-batch-count", /批量覆蓋 \d+ 項/.test(await countText()));
   ctx.check("review-default-supported", (await page.locator('[data-candidate-id="cand-zy-office"]').getAttribute("data-assessment")) === "supported");
 
-  // 逐項例外：改評估＋理由，批量覆蓋計數變化。
+  // 回歸：計數必須反映真實評估，默認 uncertain/disputed 也要計入例外。
+  ctx.check(
+    "review-initial-count-reflects-defaults",
+    /批量覆蓋 4 項，逐項例外 2 項（共 6 項）/.test(await countText()),
+    await countText(),
+  );
+  ctx.check(
+    "review-initial-unsupported-defaults",
+    (await page.locator('[data-candidate-id="cand-lb-office"]').getAttribute("data-assessment")) === "uncertain" &&
+      (await page.locator('[data-candidate-id="cand-nj-control"]').getAttribute("data-assessment")) === "disputed",
+  );
+
+  // 回歸：批量確認必須實際把包內候選覆蓋為 supported，而不是只清掉覆寫。
+  await page.locator('[data-test="review-batch-confirm"]').click();
+  const batchAllSupported = await page.$$eval('[data-test="review-change"]', (nodes) =>
+    nodes.every(
+      (node) => node.getAttribute("data-assessment") === "supported" && node.getAttribute("data-exception") === "false",
+    ),
+  );
+  ctx.check("review-batch-confirm-covers-supported", batchAllSupported);
+  ctx.check(
+    "review-batch-count-after-batch",
+    /批量覆蓋 6 項，逐項例外 0 項（共 6 項）/.test(await countText()),
+    await countText(),
+  );
+
+  // 逐項例外：批量後再覆寫單項，計數回到 5/1 且只影響該候選。
   const exception = page.locator('[data-candidate-id="cand-lb-office"]');
   await exception.locator('[data-test="review-assessment"]').selectOption("disputed");
   await exception.locator('[data-test="review-rationale"]').fill("奏章自稱，未證明收訖");
   ctx.check("review-exception-marked", (await exception.getAttribute("data-exception")) === "true");
-  ctx.check("review-exception-count", /逐項例外 1 項/.test(await page.locator('[data-test="review-batch-count"]').innerText()));
+  ctx.check(
+    "review-exception-count",
+    /批量覆蓋 5 項，逐項例外 1 項（共 6 項）/.test(await countText()),
+    await countText(),
+  );
 
   await ctx.screenshot(page, "review-1440");
 
@@ -317,6 +348,34 @@ async function reviewSuite(ctx) {
   const reviewIdAfter = await page.locator('[data-test="review-panel"]').getAttribute("data-review-id");
   ctx.check("review-save-advances", reviewIdBefore !== reviewIdAfter, `${reviewIdBefore} -> ${reviewIdAfter}`);
   ctx.check("review-next-item-clears-draft", (await page.locator('[data-test="review-rationale"]').first().inputValue()) === "");
+
+  // 回歸：「暫時跳過」切包必須清理本包草稿，不能讓下一包同 candidate id 沿用。
+  const skipCandidate = page.locator('[data-candidate-id="cand-lb-office"]');
+  await skipCandidate.locator('[data-test="review-assessment"]').selectOption("disputed");
+  await skipCandidate.locator('[data-test="review-rationale"]').fill("上一包草稿不應沿用");
+  const reviewIdBeforeSkip = await page.locator('[data-test="review-panel"]').getAttribute("data-review-id");
+  await page.locator('[data-test="review-skip"]').click();
+  await page.waitForTimeout(200);
+  const reviewIdAfterSkip = await page.locator('[data-test="review-panel"]').getAttribute("data-review-id");
+  ctx.check("review-skip-advances", reviewIdBeforeSkip !== reviewIdAfterSkip, `${reviewIdBeforeSkip} -> ${reviewIdAfterSkip}`);
+  const skippedCandidate = page.locator('[data-candidate-id="cand-lb-office"]');
+  ctx.check(
+    "review-skip-clears-rationale",
+    (await skippedCandidate.locator('[data-test="review-rationale"]').inputValue()) === "",
+    "下一包沿用了上一包理由",
+  );
+  ctx.check(
+    "review-skip-resets-assessment",
+    (await skippedCandidate.getAttribute("data-assessment")) === "uncertain",
+    await skippedCandidate.getAttribute("data-assessment"),
+  );
+  ctx.check(
+    "review-skip-count-reflects-defaults",
+    /批量覆蓋 4 項，逐項例外 2 項（共 6 項）/.test(await countText()),
+    await countText(),
+  );
+  ctx.check("review-skip-keeps-pending", await page.locator('[data-test="review-skipped"]').isVisible());
+  await ctx.screenshot(page, "review-skip-cleared");
 
   // 頁底固定操作區：捲到底仍可見且可操作。
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
