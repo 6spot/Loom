@@ -24,7 +24,7 @@ depends_on: []
 - `apps/chronicle/webapp/tests/reading-browser/person-state-harness.mjs`
 - 本任务的交互矩阵与浏览器证据；公共组件由 T11/T12 按文件交接实施。
 
-可与 D01 并行，不依赖其新案例完成。使用既有 token 与 Vite 场景入口；App、全局 CSS、package/lock 和 dist 统一由 T13 接线。
+可与 D01 并行，不依赖其新案例完成。使用既有 token 与 Vite 场景入口；App、全局 CSS、package/lock 和 dist 统一由 T13 接线。共用 harness 场景由本任务先固定，T01 随后串行接手注册与类型适配；二者不同时修改这些文件。
 
 ## 验收
 

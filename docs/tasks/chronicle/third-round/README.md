@@ -32,7 +32,7 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 | --- | --- | --- | --- |
 | [D01](D01-person-state-cases.md) | [#617](https://github.com/6spot/Loom/issues/617) | [C2-R1-T02](https://github.com/6spot/Loom/issues/552) | 真实人物变化链与阶段反例语料 |
 | [D02](D02-person-state-interaction-design.md) | [#618](https://github.com/6spot/Loom/issues/618) | 无 | 正式组件中的紧凑状态、独立人物页及依据审核交互场景 |
-| [T01](T01-person-state-contract.md) | [#619](https://github.com/6spot/Loom/issues/619) | [C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) | 0.3 来源阶段 schema、共用结论及综合位置扩展、共享类型 |
+| [T01](T01-person-state-contract.md) | [#619](https://github.com/6spot/Loom/issues/619) | [C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R3-D02](https://github.com/6spot/Loom/issues/618)、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) | 0.3 来源阶段 schema、共用结论及综合位置扩展、共享类型 |
 | [T02](T02-person-state-generation.md) | [#620](https://github.com/6spot/Loom/issues/620) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R2-T03](https://github.com/6spot/Loom/issues/572) | 完整章联合生成阶段事实并接入现有 provider |
 | [T03](T03-person-state-assembly.md) | [#621](https://github.com/6spot/Loom/issues/621) | [C2-R3-T01](https://github.com/6spot/Loom/issues/619)、[C2-R2-T04](https://github.com/6spot/Loom/issues/573) | 跨章阶段依据 remap 与不可变证据组装 |
 | [T04](T04-person-state-projection.md) | [#622](https://github.com/6spot/Loom/issues/622) | [C2-R3-T03](https://github.com/6spot/Loom/issues/621) | 按叙事阶段编译身份、变化与两档明确性 |
@@ -56,6 +56,7 @@ flowchart LR
   R2ED02 --> T09
   D02["D02 交互设计"] --> T11["T11 阅读组件"]
   D02 --> T12["T12 审核组件"]
+  D02 --> T01
   T01 --> T02["T02 整章生成"]
   T01 --> T03["T03 证据组装"]
   T01 --> T05["T05 存储"]

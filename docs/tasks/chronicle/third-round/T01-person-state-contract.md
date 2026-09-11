@@ -3,7 +3,7 @@ task: C2-R3-T01
 issue: 619
 kind: leaf
 parent: C2-R3
-depends_on: [C2-R3-D01, C2-R2-T01, C2-R2-T02, C2-R2E-D02]
+depends_on: [C2-R3-D01, C2-R3-D02, C2-R2-T01, C2-R2-T02, C2-R2E-D02]
 ---
 
 # 0.3 阶段资料 schema、校验器与前后端共享类型
@@ -14,7 +14,7 @@ depends_on: [C2-R3-D01, C2-R2-T01, C2-R2-T02, C2-R2E-D02]
 
 - 输入：D01 cases；R2 的 0.2 candidate/artifact 与组件 scene/runner；C2-R2E `source-corroboration.md`、`narrative_contract.py` 和 `narrative-types.ts` 的已审核结论及综合位置。
 - 交付：0.3 candidate/artifact schemas、person-state schema、person_state_contract.py、person-state-types.ts、正反例；纯函数与审核/读取 DTO 固定，浏览器基座注册第三轮独立 suite。
-- 前置：[C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) 的结论、综合位置及明确性合同；不要求整个 R2E 结束。
+- 前置：[C2-R3-D01](https://github.com/6spot/Loom/issues/617)、[C2-R3-D02](https://github.com/6spot/Loom/issues/618) 的共用 harness 场景交接、[C2-R2-T01](https://github.com/6spot/Loom/issues/570)、[C2-R2-T02](https://github.com/6spot/Loom/issues/571)、[C2-R2E-D02](https://github.com/6spot/Loom/issues/660) 的结论、综合位置及明确性合同；不要求整个 R2E 结束。
 
 语义与接口以 [人物阶段资料契约](../../../../apps/chronicle/docs/person-state-reading.md) §§2–7 为准；全轮任务图见 [README](README.md)。task 记录需求与实施边界，任务状态由当前任务管理工具维护。
 
@@ -34,7 +34,7 @@ depends_on: [C2-R3-D01, C2-R2-T01, C2-R2-T02, C2-R2E-D02]
 - `apps/chronicle/webapp/tests/fixtures/reading/scenes/person-state-harness/**（新）`
 - `apps/chronicle/webapp/tests/reading-browser/person-state-harness.mjs（新）`
 
-完成后 T02/T03/T05/T11/T12 可按各自其他前置并行。共享 schema/types/runner 只由本任务修改；后续新增字段回此契约统一处理。新 production 版本注册交给 T02。
+完成后 T02/T03/T05/T11/T12 可按各自其他前置并行。共用 harness 场景在 D02 后串行接手，保留既有交互证据；共享 schema/types/runner 只由本任务修改；后续新增字段回此契约统一处理。新 production 版本注册交给 T02。
 
 ## 验收
 
