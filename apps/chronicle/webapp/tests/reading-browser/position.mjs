@@ -214,6 +214,28 @@ export async function run(ctx) {
     (await page.evaluate(() => new URLSearchParams(window.location.search).get("at"))) === activeBeforeLocateFailure,
   );
 
+  // 10d. locate 成功后、loadWindow/DOM 就绪前用户滚动取消：不得提交目标 URL/locator。
+  await page.click('[data-test="position-nav-axis"]');
+  await waitForActive(page, 10);
+  await page.click('[data-test="position-slow-window-nav"]');
+  await page.evaluate(() => window.dispatchEvent(new WheelEvent("wheel", { deltaY: 240 })));
+  await scrollToUnit(page, 4);
+  await waitForActive(page, 4);
+  await page.waitForTimeout(1000);
+  ctx.check(
+    "cancel-during-loadwindow-keeps-active-unit",
+    (await activeUnitId(page)) === ru(4),
+    `active=${await activeUnitId(page)}`,
+  );
+  const atAfterCancel = await page.evaluate(() => new URLSearchParams(window.location.search).get("at"));
+  ctx.check("cancel-during-loadwindow-does-not-commit-target-url", atAfterCancel !== ru(25), `at=${atAfterCancel}`);
+  ctx.check("cancel-during-loadwindow-url-matches-active", atAfterCancel === ru(4), `at=${atAfterCancel}`);
+  ctx.check("cancel-during-loadwindow-no-issue", (await text(page, '[data-test="position-issue"]')) === "");
+  ctx.check(
+    "cancel-during-loadwindow-settles-idle",
+    (await text(page, '[data-test="position-nav-state"]')) === "idle",
+  );
+
   ctx.check("no-page-error", pageErrors.length === 0, pageErrors.join(";"));
 
   // 11. storage 不可用：URL 定位仍可用，token 安全降级。

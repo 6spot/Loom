@@ -144,6 +144,7 @@ interface FixtureProps {
 function PositionFixture({ params }: FixtureProps): ReactElement {
   const storageMode = params.get("storage") === "off" ? null : undefined;
   const slowNextRef = useRef(false);
+  const slowWindowNextRef = useRef(false);
   const [returnResult, setReturnResult] = useState<string>("");
   const [returnTokens, setReturnTokens] = useState<string[]>([]);
   const [previewCount, setPreviewCount] = useState(0);
@@ -180,17 +181,28 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
     [],
   );
 
+  // 受控慢窗口加载：locate 已成功，但就绪等待期间允许用户滚动取消。
+  const loadWindow = useCallback(async (locator: ReadingLocator): Promise<void> => {
+    void locator;
+    const slow = slowWindowNextRef.current;
+    slowWindowNextRef.current = false;
+    if (slow) {
+      await new Promise((resolve) => window.setTimeout(resolve, 800));
+    }
+  }, []);
+
   const options: ReadingPositionOptions = useMemo(
     () => ({
       getUnit,
       locate,
       resolveStart,
+      loadWindow,
       storage: storageMode,
       urlStrategy: FIXTURE_URL_STRATEGY,
       headerHeight: HEADER_HEIGHT,
       settleDelayMs: 120,
     }),
-    [getUnit, locate, resolveStart, storageMode],
+    [getUnit, locate, resolveStart, loadWindow, storageMode],
   );
 
   const controller = useReadingPosition(options);
@@ -243,6 +255,15 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
 
   const failLocate = () => {
     const target = UNITS[29]!;
+    controller.navigate({
+      kind: "locate",
+      locator: { stream_id: STREAM_ID, catalog_sha: CATALOG_SHA, unit_id: target.unitId },
+    });
+  };
+
+  const slowWindowNavigate = () => {
+    slowWindowNextRef.current = true;
+    const target = UNITS[25]!;
     controller.navigate({
       kind: "locate",
       locator: { stream_id: STREAM_ID, catalog_sha: CATALOG_SHA, unit_id: target.unitId },
@@ -304,6 +325,9 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
         </button>
         <button type="button" data-test="position-fail-locate" onClick={failLocate}>
           失败定位 u29
+        </button>
+        <button type="button" data-test="position-slow-window-nav" onClick={slowWindowNavigate}>
+          慢窗口定位 u25
         </button>
         <button type="button" data-test="position-scroll-u02" onClick={() => naturalScrollTo(2)}>
           自然滚动 u02

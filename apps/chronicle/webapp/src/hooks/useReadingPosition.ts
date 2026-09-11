@@ -438,15 +438,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         return;
       }
 
-      const key = detail.historyKey ?? (detail.push ? nextHistoryKey() : historyKeyRef.current);
-      historyKeyRef.current = key;
-      commitState({
-        stream: locator.stream_id,
-        catalog: locator.catalog_sha,
-        locator,
-      });
-      writeUrl(locator, detail.push ? "push" : "replace", key);
-
+      // 就绪等待期间不提交 URL/history/controller locator：用户滚动、loadWindow
+      // 失败或 DOM 超时一旦取消本次操作，旧状态原样保留，不会出现 URL 指向已取消
+      // 目标而 active unit 仍停留在旧段的错配。
       try {
         await optionsRef.current.loadWindow?.(locator);
       } catch {
@@ -464,16 +458,24 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         return;
       }
 
-      scrollToTarget(locator.unit_id, detail.relativeOffset);
+      // 所有异步等待完成且序号仍为当前：同步原子提交 URL/history/controller。
+      const key = detail.historyKey ?? (detail.push ? nextHistoryKey() : historyKeyRef.current);
+      historyKeyRef.current = key;
       const ordinal = ordinalOf(locator.unit_id);
       activeRef.current = { unitId: locator.unit_id, ordinal };
+      const unit = optionsRef.current.getUnit(locator.unit_id) ?? null;
       commitState({
+        stream: locator.stream_id,
+        catalog: locator.catalog_sha,
+        locator,
         activeUnitId: locator.unit_id,
         activeOrdinal: ordinal,
-        activeUnit: optionsRef.current.getUnit(locator.unit_id) ?? null,
-        navigationState: "idle",
+        activeUnit: unit,
       });
-      optionsRef.current.onActiveUnitChange?.(optionsRef.current.getUnit(locator.unit_id) ?? null);
+      writeUrl(locator, detail.push ? "push" : "replace", key);
+      scrollToTarget(locator.unit_id, detail.relativeOffset);
+      commitState({ navigationState: "idle" });
+      optionsRef.current.onActiveUnitChange?.(unit);
       storeRef.current.saveEntry({
         history_key: key,
         locator,
