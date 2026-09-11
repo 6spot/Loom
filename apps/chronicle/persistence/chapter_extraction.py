@@ -51,8 +51,15 @@ import chapter_contract as C
 import chapter_prompt as P
 from common import PersistenceError
 
-#: Version of this whole-chapter extraction pipeline step.
+try:
+    import reading_contract as R
+except ImportError:  # pragma: no cover - package import path
+    from . import reading_contract as R  # type: ignore[no-redef]
+
+#: Version of this whole-chapter extraction pipeline step. The 0.1 path is
+#: frozen; the 0.2 path adds reading annotations and is the new production.
 EXTRACTION_VERSION = "c2r1-extraction-v1"
+READING_EXTRACTION_VERSION = "c2r2-extraction-v1"
 
 #: Prompt template version bound into every attempt and producing run.
 PROMPT_VERSION = P.PROMPT_VERSION
@@ -61,8 +68,19 @@ PROMPT_VERSION = P.PROMPT_VERSION
 CANDIDATE_SCHEMA = P.CANDIDATE_SCHEMA
 CANDIDATE_VERSION = P.CANDIDATE_VERSION
 
+#: Reading candidate marker (second round).
+READING_CANDIDATE_VERSION = P.READING_CANDIDATE_VERSION
+
 #: Transport-retry ownership marker: this layer never retries transport.
 TRANSPORT_RETRIES_HERE = 0
+
+
+def prompt_version_for(candidate_version: str) -> str:
+    return P.prompt_version_for(candidate_version)
+
+
+def request_candidate_version(request: dict[str, Any]) -> str:
+    return P.request_candidate_version(request)
 
 
 class ChapterModelProvider(Protocol):
@@ -102,19 +120,88 @@ def fingerprints_for(
     *,
     model_name: str,
     limits: C.ChapterLimits,
+    candidate_version: str | None = None,
 ) -> dict[str, Any]:
-    """Bind limits/model/schema/source/plan versions for one execution."""
-    return {
+    """Bind limits/model/schema/source/plan versions for one execution.
+
+    ``candidate_version`` selects which contract/prompt/limits binding is
+    recorded so 0.1 and 0.2 runs stay distinguishable in run history.
+    """
+    version = candidate_version or C.PRODUCTION_CANDIDATE_VERSION
+    prompt_version = prompt_version_for(version)
+    extraction_version = (
+        READING_EXTRACTION_VERSION if version == READING_CANDIDATE_VERSION
+        else EXTRACTION_VERSION
+    )
+    fingerprints = {
         "request_fingerprint": C.request_fingerprint(request),
         "limits": limits.to_dict(),
         "model": model_name,
-        "prompt_version": PROMPT_VERSION,
-        "extraction_version": EXTRACTION_VERSION,
-        "candidate_schema": f"{CANDIDATE_SCHEMA}/{CANDIDATE_VERSION}",
+        "prompt_version": prompt_version,
+        "extraction_version": extraction_version,
+        "candidate_schema": f"{CANDIDATE_SCHEMA}/{version}",
         "source_sha256": request.get("source_sha256"),
         "normalized_sha256": request.get("normalized_sha256"),
         "plan_version": request.get("plan_version"),
         "chapter_id": request.get("chapter_id"),
+    }
+    if version == READING_CANDIDATE_VERSION:
+        fingerprints["reading_schema"] = f"{R.READING_SCHEMA}/{R.READING_VERSION}"
+        fingerprints["reading_limits"] = R.ReadingLimits().to_dict()
+    return fingerprints
+
+
+def _validate_candidate(
+    request: dict[str, Any], candidate: dict[str, Any], *, candidate_version: str
+) -> dict[str, Any]:
+    """Dispatch acceptance validation to the registered version owner.
+
+    0.1 stays with the frozen first-round ``chapter_contract`` validator;
+    0.2 is consumed only through the T01 ``reading_contract`` validator so
+    no second set of reading checks exists.
+    """
+    if candidate_version == READING_CANDIDATE_VERSION:
+        return R.validate_reading_annotations(request, candidate)
+    return C.validate_chapter_candidate(request, candidate)
+
+
+def _accept_candidate(
+    request: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    candidate_version: str,
+    producing_run: dict[str, Any],
+    report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if candidate_version == READING_CANDIDATE_VERSION:
+        return R.accept_reading_candidate(
+            request, candidate, producing_run=producing_run, report=report
+        )
+    return C.accept_chapter_candidate(
+        request, candidate, producing_run=producing_run, report=report
+    )
+
+
+def _flatten_report_errors(report: dict[str, Any]) -> list[str]:
+    if report.get("schema") == "chronicle.reading-validation":
+        return R.flatten_reading_errors(report)
+    return C.flatten_validation_errors(report)
+
+
+def _error_categories(report: dict[str, Any]) -> dict[str, int]:
+    """Count non-empty validation categories for consumer-side triage.
+
+    Lets a consumer tell a missing reading unit, an overlapping span, a
+    wrong current-time basis, a bad reference, etc. apart without
+    re-parsing the free-form message.
+    """
+    categories = report.get("errors")
+    if not isinstance(categories, dict):
+        return {}
+    return {
+        str(name): len(messages)
+        for name, messages in categories.items()
+        if isinstance(messages, list) and messages
     }
 
 
@@ -190,10 +277,14 @@ def _failure(
     model_name: str,
     limits: C.ChapterLimits,
     correction_rounds_used: int = 0,
+    candidate_version: str | None = None,
 ) -> dict[str, Any]:
     fingerprints = None
     try:
-        fingerprints = fingerprints_for(request, model_name=model_name, limits=limits)
+        fingerprints = fingerprints_for(
+            request, model_name=model_name, limits=limits,
+            candidate_version=candidate_version,
+        )
         fingerprint = fingerprints["request_fingerprint"]
     except Exception:  # fail closed even when the request itself is malformed
         fingerprints = {"request_fingerprint": None}
@@ -210,12 +301,19 @@ def _failure(
     }
 
 
-def _producing_run(*, model_name: str, request_fingerprint: str) -> dict[str, Any]:
-    digest = sha256_text(f"{request_fingerprint}|{model_name}|{PROMPT_VERSION}")[:16]
+def _producing_run(
+    *,
+    model_name: str,
+    request_fingerprint: str,
+    candidate_version: str | None = None,
+) -> dict[str, Any]:
+    version = candidate_version or C.PRODUCTION_CANDIDATE_VERSION
+    prompt_version = prompt_version_for(version)
+    digest = sha256_text(f"{request_fingerprint}|{model_name}|{prompt_version}")[:16]
     return {
         "run_id": f"chapter-extract-{digest}",
         "model": model_name,
-        "prompt_schema_version": PROMPT_VERSION,
+        "prompt_schema_version": prompt_version,
     }
 
 
@@ -254,6 +352,17 @@ def extract_chapter(
             limits=limits if isinstance(limits, C.ChapterLimits) else C.ChapterLimits(),
         )
     try:
+        candidate_version = request_candidate_version(request)
+    except PersistenceError as exc:
+        return _failure(
+            code="unsupported_candidate_version",
+            message=str(exc),
+            attempts=[],
+            request=request,
+            model_name=model_name,
+            limits=limits if isinstance(limits, C.ChapterLimits) else C.ChapterLimits(),
+        )
+    try:
         active_limits = _limits_for(request, limits)
     except PersistenceError as exc:
         return _failure(
@@ -263,6 +372,7 @@ def extract_chapter(
             request=request,
             model_name=model_name,
             limits=C.ChapterLimits(),
+            candidate_version=candidate_version,
         )
 
     text = request.get("normalized_text")
@@ -274,6 +384,7 @@ def extract_chapter(
             request=request,
             model_name=model_name,
             limits=active_limits,
+            candidate_version=candidate_version,
         )
     if len(text) > active_limits.max_source_chars:
         return _failure(
@@ -287,6 +398,7 @@ def extract_chapter(
             request=request,
             model_name=model_name,
             limits=active_limits,
+            candidate_version=candidate_version,
         )
 
     try:
@@ -299,6 +411,7 @@ def extract_chapter(
             request=request,
             model_name=model_name,
             limits=active_limits,
+            candidate_version=candidate_version,
         )
     if len(prompt) > active_limits.max_prompt_chars:
         return _failure(
@@ -312,9 +425,13 @@ def extract_chapter(
             request=request,
             model_name=model_name,
             limits=active_limits,
+            candidate_version=candidate_version,
         )
 
-    fingerprints = fingerprints_for(request, model_name=model_name, limits=active_limits)
+    fingerprints = fingerprints_for(
+        request, model_name=model_name, limits=active_limits,
+        candidate_version=candidate_version,
+    )
     attempts: list[dict[str, Any]] = []
     candidate: dict[str, Any] | None = None
 
@@ -479,7 +596,9 @@ def extract_chapter(
                     "transport_retries": TRANSPORT_RETRIES_HERE,
                 }
             continue
-        report = C.validate_chapter_candidate(request, candidate)
+        report = _validate_candidate(
+            request, candidate, candidate_version=candidate_version
+        )
         attempts.append(
             _attempt(
                 kind=kind, prompt=prompt, raw_response=raw_response,
@@ -487,12 +606,14 @@ def extract_chapter(
             )
         )
         if report.get("passed"):
-            artifact = C.accept_chapter_candidate(
+            artifact = _accept_candidate(
                 request,
                 candidate,
+                candidate_version=candidate_version,
                 producing_run=_producing_run(
                     model_name=model_name,
                     request_fingerprint=fingerprints["request_fingerprint"],
+                    candidate_version=candidate_version,
                 ),
             )
             return {
@@ -510,7 +631,7 @@ def extract_chapter(
         try:
             prompt = P.render_chapter_prompt(
                 request,
-                validation_errors=flatten_validation_errors(report),
+                validation_errors=_flatten_report_errors(report),
                 previous_candidate=candidate,
             )
         except PersistenceError as exc:
@@ -555,11 +676,13 @@ def extract_chapter(
 
     last = attempts[-1] if attempts else None
     detail = "no model attempt was recorded"
+    categories: dict[str, int] = {}
     if last is not None:
         if last.get("parse_error"):
             detail = last["parse_error"]
         elif last.get("validation") is not None:
-            detail = "; ".join(flatten_validation_errors(last["validation"]))
+            detail = "; ".join(_flatten_report_errors(last["validation"]))
+            categories = _error_categories(last["validation"])
     correction_rounds_used = sum(1 for a in attempts if a.get("kind") == "correction")
     return {
         "accepted": False,
@@ -570,6 +693,11 @@ def extract_chapter(
             "message": (
                 f"chapter extraction failed closed after {len(attempts)} attempt(s): {detail}"
             ),
+            # Consumer-side triage: which contract categories failed (for
+            # example reading_coverage / reading_spans / reading_time), so a
+            # missing annotation or overlapping span is checkable without
+            # parsing the free-form message.
+            "categories": categories,
         },
         "request_fingerprint": fingerprints["request_fingerprint"],
         "fingerprints": fingerprints,
@@ -590,6 +718,10 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
     attempts = result.get("attempts")
     if not isinstance(attempts, list) or not attempts:
         return ["result carries no attempt history"]
+    try:
+        candidate_version = request_candidate_version(request)
+    except PersistenceError as exc:
+        return [f"stored request declares no usable candidate version: {exc}"]
     for position, attempt in enumerate(attempts, 1):
         if not isinstance(attempt, dict):
             mismatches.append(f"attempt {position} is not a JSON object")
@@ -604,7 +736,9 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
             mismatches.append(f"attempt {position} no longer parses: {exc}")
             continue
         try:
-            report = C.validate_chapter_candidate(request, candidate)
+            report = _validate_candidate(
+                request, candidate, candidate_version=candidate_version
+            )
         except Exception as exc:  # fail closed on any replay breakage
             mismatches.append(f"attempt {position} no longer validates: {exc}")
             continue
@@ -614,7 +748,7 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
                 f"{stored.get('passed')!r} vs replay {report.get('passed')!r}"
             )
             continue
-        if set(flatten_validation_errors(report)) != set(flatten_validation_errors(stored)):
+        if set(_flatten_report_errors(report)) != set(_flatten_report_errors(stored)):
             mismatches.append(f"attempt {position} replay disagrees on error set")
     if result.get("accepted") and not any(
         isinstance(a, dict)

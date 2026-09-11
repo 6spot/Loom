@@ -462,8 +462,12 @@ _CHAPTER_T05_REQUIRED_MARKER = (
     "REQUIRED BLOCKS (every listed block must be covered "
     "by translation source_block_ids)\n"
 )
-_CHAPTER_T05_BLOCKS_MARKER = "CHAPTER BLOCKS"
-_CHAPTER_T05_TEXT_MARKER = "FULL CHAPTER TEXT"
+# Anchored to the renderer's exact section headers: bare "CHAPTER BLOCKS" /
+# "FULL CHAPTER TEXT" also appear in the TRANSLATION_RULES prose, and
+# ``str.find`` would otherwise match the rule sentence instead of the
+# section (the fixture then reports zero blocks and fails closed).
+_CHAPTER_T05_BLOCKS_MARKER = "CHAPTER BLOCKS (the whole chapter"
+_CHAPTER_T05_TEXT_MARKER = "FULL CHAPTER TEXT (verbatim"
 _CHAPTER_T05_TEXT_START = "---BEGIN CHAPTER---\n"
 _CHAPTER_T05_TEXT_END = "\n---END CHAPTER---"
 _CHAPTER_T05_BLOCK_RE = re.compile(
@@ -872,6 +876,124 @@ def build_chapter_candidate(
     }
 
 
+def _reading_block_for(
+    base: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the 0.2 ``reading`` block over a fixture 0.1 base candidate.
+
+    Every unit is grounded in the request text and the base candidate's own
+    temp refs: narrative time, current events, (empty) event spans and
+    context entities. Coordinates/IDs stay program-computed, so the model
+    never writes them. The result is meant for the T01 reading validator.
+    """
+    text = _require_text(request.get("normalized_text"), "fixture reading chapter text")
+    blocks = request.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise PersistenceError("fixture reading chapter request blocks must be non-empty")
+    bundle = base["bundle"]
+    events = bundle.get("events") or []
+    if len(events) != 1:
+        raise PersistenceError(
+            "fixture reading candidate requires exactly one bundle event"
+        )
+    event = events[0]
+    event_id = event["temp_id"]
+    participants = event.get("participants") or []
+    participant_index = {
+        participant.get("entity_ref"): index
+        for index, participant in enumerate(participants)
+        if isinstance(participant, dict)
+    }
+    entity_mentions = {
+        entity["temp_id"]: str(entity["mentions"][0]["text"])
+        for entity in bundle.get("entities") or []
+        if isinstance(entity, dict) and entity.get("mentions")
+    }
+    entity_refs = [entity["temp_id"] for entity in bundle.get("entities") or []]
+
+    units: list[dict[str, Any]] = []
+    for translation_block in base["translation"]["blocks"]:
+        block_event_refs = {
+            ref.get("ref")
+            for ref in translation_block.get("event_refs") or []
+            if isinstance(ref, dict)
+        }
+        has_event = event_id in block_event_refs
+        time_selection = _chapter_selection_for(
+            quote=entity_mentions[entity_refs[0]],
+            text=text,
+            blocks=blocks,
+            owner="fixture reading narrative_time",
+        )
+        context_entities: list[dict[str, Any]] = []
+        for position, entity_ref in enumerate(entity_refs):
+            roles: list[dict[str, Any]] = []
+            if has_event and entity_ref in participant_index:
+                roles.append(
+                    {
+                        "event_ref": event_id,
+                        "participant_index": participant_index[entity_ref],
+                    }
+                )
+            context_entities.append(
+                {
+                    "entity_ref": entity_ref,
+                    "importance": "primary" if position == 0 else "other",
+                    "source_selections": [
+                        _chapter_selection_for(
+                            quote=entity_mentions[entity_ref],
+                            text=text,
+                            blocks=blocks,
+                            owner=f"fixture reading context {entity_ref!r}",
+                        )
+                    ],
+                    "event_roles": roles,
+                }
+            )
+        if has_event:
+            narrative_time = {
+                "mode": "events",
+                "event_refs": [event_id],
+                "from_block_id": None,
+                "source_selections": [time_selection],
+            }
+            current_event_refs = [event_id]
+        else:
+            narrative_time = {
+                "mode": "unknown",
+                "event_refs": [],
+                "from_block_id": None,
+                "source_selections": [],
+            }
+            current_event_refs = []
+            context_entities = []
+        units.append(
+            {
+                "block_id": translation_block["block_id"],
+                "narrative_time": narrative_time,
+                "current_event_refs": current_event_refs,
+                "event_spans": [],
+                "context_entities": context_entities,
+            }
+        )
+    return {"units": units, "warnings": []}
+
+
+def build_reading_chapter_candidate(
+    request: dict[str, Any], spec: dict[str, Any]
+) -> dict[str, Any]:
+    """Build a deterministic 0.2 reading candidate for one fixture chapter.
+
+    Reuses the frozen 0.1 builder for the joint product and adds the reading
+    annotation block, so the first-round sub-document and the second-round
+    annotations are generated together from one whole-chapter request.
+    """
+    base = build_chapter_candidate(request, spec)
+    base["version"] = "0.2"
+    base["reading"] = _reading_block_for(base, request)
+    return base
+
+
 def _chapter_header_lines(prompt: str, marker: str, description: str) -> str:
     """Return the JSON paragraph following a production prompt marker."""
     start = prompt.find(marker)
@@ -1087,5 +1209,40 @@ def models_from_chapter_fixture_pack(
     version = _require_text(payload.get("model_version"), "chapter fixture model_version")
     return FixtureChapterModel(
         name=f"fixture:{version}:{CHAPTER_MODEL_SUFFIX}",
+        chapters=tuple(payload["chapters"]),
+    )
+
+
+#: Suffix distinguishing the 0.2 reading fixture provider name from 0.1.
+READING_CHAPTER_MODEL_SUFFIX = "reading-chapter"
+
+
+@dataclass(frozen=True)
+class FixtureReadingChapterModel(FixtureChapterModel):
+    """Deterministic 0.2 joint + reading-candidate provider.
+
+    Same request parsing and fail-closed chapter binding as the 0.1 fixture,
+    but each chapter emits ``chronicle.chapter-candidate / 0.2`` with a
+    reading annotation block over the whole chapter. Acceptance runs the T01
+    ``reading_contract`` validator, never a weaker parallel check.
+    """
+
+    def build_for_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(request, dict):
+            raise PersistenceError("fixture reading chapter request must be an object")
+        chapter_id = request.get("chapter_id")
+        if not isinstance(chapter_id, str) or not chapter_id:
+            raise PersistenceError("fixture reading chapter request requires chapter_id")
+        return build_reading_chapter_candidate(request, self.spec_for(chapter_id))
+
+
+def models_from_reading_chapter_fixture_pack(
+    path: Path | str,
+) -> FixtureReadingChapterModel:
+    """Load one explicit development 0.2 reading chapter fixture pack."""
+    payload = _load_chapter_pack(path)
+    version = _require_text(payload.get("model_version"), "chapter fixture model_version")
+    return FixtureReadingChapterModel(
+        name=f"fixture:{version}:{READING_CHAPTER_MODEL_SUFFIX}",
         chapters=tuple(payload["chapters"]),
     )
