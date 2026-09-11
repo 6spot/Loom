@@ -228,6 +228,88 @@ When `LOOM_TEST_POSTGRES_URL` is unset, the tests follow the
 repository-local default `postgresql://loom:loom@127.0.0.1:15432/loom_control`
 and start/reuse `tools/postgres-test.sh up` if needed.
 
+## Continuous-reading streams (C2-R2-T05)
+
+The seventh migration (`0007_chronicle_reading_streams.sql`, owned by
+C2-R2-T05) adds the immutable reading index from
+`continuous-reading.md` sections 4/5 without touching any first-round table,
+without copying translation text, source anchors, entity tables or model
+runs, and without relaxing the 0006 chapter guards:
+
+- `chronicle.reading_streams` — UUIDv7 `stream_id`, unique `revision_id`,
+  `origin_catalog_sha`, `manifest_sha`, the `content_sha256` digest of the
+  complete normalized compiled input, the ordered `chapter_publication_ids`,
+  unit/group counts and the immutable `manifest`. One revision has exactly one
+  stream.
+- `chronicle.reading_units` — `(stream_id, ordinal)` primary key, globally
+  unique `unit_id`, `publication_id`/`artifact_sha256`/`chapter_id`/`block_id`,
+  `text_hash`, the compiled `narrative_time`/`segments`/`context_entities`
+  and `source_anchor_ids`. The body text is never duplicated: it stays in the
+  referenced first-round `chapter_publications` row.
+- `chronicle.reading_time_groups` — `(stream_id, ordinal)` primary key,
+  unique `group_id`, first/last unit ordinal and the precompiled display
+  fields. Pagination reuses the fixed `group_id`; it never rebuilds a title.
+- `chronicle.reading_event_occurrences` — `stream_id`/`unit_ordinal`,
+  `event_kind` (`span` or `current`), `span_id`, `canonical_event_id`,
+  `relation` and the source `(bundle_label, record_ref)`. It is the exact
+  reverse index for "which published positions talk about this event".
+
+All four tables are append-only (mutation triggers) and enforce their
+references at the database: the stream trigger proves every
+`chapter_publication_ids` element exists, is unique, belongs to the stream's
+own revision/document and was published under the stream's `origin_catalog_sha`
+(a publication from a later catalog can never enter an older snapshot); the
+unit trigger proves the publication is part of the stream and its
+artifact/chapter match; the group trigger proves first/last units exist and the
+covered units share one `group_id`; the occurrence trigger proves the source
+representation is listed by the stream's origin catalog payload.
+
+`apps/chronicle/persistence/reading_store.py` owns the tables:
+
+- `persist_reading_stream(conn, stream)` — writes the stream, units, groups
+  and occurrences **inside the caller's already-open transaction**. It never
+  opens or commits a transaction and never takes a second worker lease, so
+  T06's unique publish transaction can commit the catalog, every chapter
+  publication and the whole reading index atomically. The accepted compiled
+  stream is a plain JSON object with `revision_id`, `document_id`,
+  `origin_catalog_sha`, `manifest`, `chapter_publication_ids`, ordered
+  `units`, ordered `groups` and `event_occurrences`. The T04 compiler is its
+  producer. Replay is idempotent only when the **complete** normalized input
+  matches the stored `content_sha256`: changing any unit, group, occurrence or
+  publication binding — even while keeping the manifest bytes — raises
+  `PersistenceConflict` (`immutable_stream_conflict`).
+- `read_reading_stream` / `list_reading_streams` / `read_reading_unit` /
+  `read_reading_units` / `read_reading_groups` / `read_event_occurrences` —
+  SELECT-only, bounded helpers. Ordinal and group pages use indexed keyset
+  ranges with `limit + 1`; event reverse lookup uses the
+  `reading_event_occurrences_event_idx` index. No helper reads the whole body
+  corpus and slices it in Python. Every helper accepts an optional snapshot
+  catalog and then enforces the same visibility guard, so an exact unit read
+  cannot leak a later stream through an older snapshot.
+
+Snapshot visibility never uses wall-clock time. A stream is in range for a
+snapshot when its origin catalog's `publication_sequence` is `<=` the
+snapshot's; event occurrences are additionally restricted to the exact
+`(canonical_id, bundle, ref)` members of the snapshot catalog **payload**, so
+an old snapshot never sees a later representation or stream even for the same
+canonical id. The global representation tables are never consulted on a read.
+
+```bash
+python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_store_postgres.py' -v
+python3 tools/check_storage_sql_ownership.py
+```
+
+When `LOOM_TEST_POSTGRES_URL` is unset, the reading-store test follows the
+same repository-local control database and `tools/postgres-test.sh up`
+fallback as the other persistence suites. Its fixture seeds two sources,
+multiple revisions and multiple catalogs; that is an explicit test loading
+path, not a second production success path.
+
+The worker/publication wiring and the chapter completeness gate belong to
+T06; the stream/event read APIs belong to T07/T08. Both reuse these helpers
+instead of building a second read or write path.
+
 ## Boundary to C0-T10
 
 C0-T10 may read these Chronicle-owned tables through a Chronicle repository/read-model module. It must preserve the same three-layer distinction when assembling Timeline, Event Detail, and Entity Detail responses. C0-T10 must not turn persistence rows into synthetic historical truth or collapse unresolved Resolution decisions.
