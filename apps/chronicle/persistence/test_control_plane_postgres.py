@@ -564,6 +564,7 @@ class ControlPlanePostgresTests(unittest.TestCase):
                     "0004_chronicle_c1_segmentation.sql",
                     "0005_chronicle_c1_reader_presentations.sql",
                     "0006_chronicle_chapters.sql",
+                    "0007_chronicle_reading_streams.sql",
                 ],
             )
 

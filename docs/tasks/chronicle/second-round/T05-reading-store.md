@@ -29,3 +29,4 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 ## Progress Log
 
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
+- 2026-09-11 — Implemented `0007_chronicle_reading_streams.sql`, `reading_store.py` and `test_reading_store_postgres.py`; documented the store in `apps/chronicle/docs/persistence.md`. Focused PG18 run: 11/11 reading-store tests pass, storage SQL ownership check passes, chapter/control-plane/presentation/document/v0 suites still pass. Worker wiring (T06) and read APIs (T07/T08) remain downstream.
