@@ -531,6 +531,38 @@ class ReadingStorePostgresTests(unittest.TestCase):
                 conn.execute("SELECT count(*) FROM chronicle.reading_streams").fetchone()[0], 1
             )
 
+    def test_replay_with_changed_compiled_bytes_conflicts(self) -> None:
+        """Identical manifest is not enough: changed unit bytes must conflict."""
+        with self._connect_ready() as conn:
+            event_id = _uuid7()
+            ctx, catalog = self._source_with_catalog(
+                conn,
+                label="a",
+                title="甲书",
+                blocks=["正文一。"],
+                events=[(event_id, [("src-a", "evt_001")])],
+            )
+            stream = self._build_stream(ctx, catalog_sha=catalog)
+            with conn.transaction():
+                stream_id = reading_store.persist_reading_stream(conn, stream)
+
+            variant = copy.deepcopy(stream)
+            original_hash = variant["units"][0]["text_hash"]
+            variant["units"][0]["text_hash"] = _sha256("drifted-text")
+            self.assertEqual(variant["manifest"], stream["manifest"])
+            with self.assertRaises(PersistenceConflict):
+                with conn.transaction():
+                    reading_store.persist_reading_stream(conn, variant)
+
+            self.assertEqual(
+                conn.execute("SELECT count(*) FROM chronicle.reading_streams").fetchone()[0], 1
+            )
+            stored = conn.execute(
+                "SELECT text_hash FROM chronicle.reading_units WHERE stream_id = %s",
+                (stream_id,),
+            ).fetchone()
+            self.assertEqual(stored[0], original_hash)
+
     def test_caller_rollback_leaves_no_rows(self) -> None:
         with self._connect_ready() as conn:
             event_id = _uuid7()
@@ -589,6 +621,52 @@ class ReadingStorePostgresTests(unittest.TestCase):
             self.assertEqual(
                 conn.execute("SELECT count(*) FROM chronicle.reading_streams").fetchone()[0], 0
             )
+
+    def test_publication_from_other_catalog_rejected(self) -> None:
+        """A publication from a later catalog can never enter an older snapshot."""
+        with self._connect_ready() as conn:
+            event_id = _uuid7()
+            catalog_1 = self._seed_catalog(
+                conn, events=[(event_id, [("src-a", "evt_001")])]
+            )
+            ctx = self._seed_source(
+                conn, label="a", title="甲书", blocks=["正文一。"], catalog_sha=catalog_1
+            )
+            catalog_2 = self._seed_catalog(
+                conn, events=[(_uuid7(), [("src-a", "evt_002")])]
+            )
+            self.assertNotEqual(catalog_1, catalog_2)
+
+            stream = self._build_stream(ctx, catalog_sha=catalog_2)
+            # The store's fail-closed pre-check.
+            with self.assertRaises(PersistenceConflict):
+                with conn.transaction():
+                    reading_store.persist_reading_stream(conn, stream)
+            self.assertEqual(
+                conn.execute("SELECT count(*) FROM chronicle.reading_streams").fetchone()[0], 0
+            )
+
+            # The database binding trigger is the second fence.
+            with self.assertRaises(Exception):
+                with conn.transaction():
+                    conn.execute(
+                        """
+                        INSERT INTO chronicle.reading_streams(
+                            stream_id, revision_id, document_id, origin_catalog_sha,
+                            manifest_sha, content_sha256, chapter_publication_ids,
+                            unit_count, group_count, manifest
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, '{}'::jsonb)
+                        """,
+                        (
+                            _uuid7(),
+                            ctx["revision_id"],
+                            ctx["document_id"],
+                            catalog_2,
+                            _sha256("manifest"),
+                            _sha256("content"),
+                            [ctx["publication_id"]],
+                        ),
+                    )
 
     def test_unknown_block_rejected(self) -> None:
         with self._connect_ready() as conn:
@@ -806,6 +884,33 @@ class ReadingStorePostgresTests(unittest.TestCase):
                 reading_store.read_reading_stream(
                     conn, stream_id=stream_b_id, snapshot_catalog_sha="0" * 64
                 )
+
+            # Exact unit reads and ordinal pages enforce the same guard.
+            with self.assertRaises(PersistenceError):
+                reading_store.read_reading_unit(
+                    conn,
+                    stream_id=stream_b_id,
+                    unit_id="ru_b_0",
+                    snapshot_catalog_sha=catalog_1,
+                )
+            with self.assertRaises(PersistenceError):
+                reading_store.read_reading_units(
+                    conn, stream_id=stream_b_id, snapshot_catalog_sha=catalog_1
+                )
+            visible_unit = reading_store.read_reading_unit(
+                conn,
+                stream_id=stream_b_id,
+                unit_id="ru_b_0",
+                snapshot_catalog_sha=catalog_2,
+            )
+            self.assertEqual(visible_unit["ordinal"], 0)
+            # Without a snapshot the helper keeps its existing exact behavior.
+            self.assertEqual(
+                reading_store.read_reading_unit(
+                    conn, stream_id=stream_b_id, unit_id="ru_b_0"
+                )["ordinal"],
+                0,
+            )
 
     # -- concurrency ---------------------------------------------------
 

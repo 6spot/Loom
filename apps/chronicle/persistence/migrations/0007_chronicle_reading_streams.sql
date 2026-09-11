@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS chronicle.reading_streams (
     origin_catalog_sha text NOT NULL CHECK (origin_catalog_sha ~ '^[0-9a-f]{64}$')
         REFERENCES chronicle.canonical_catalogs(artifact_sha256) ON DELETE RESTRICT,
     manifest_sha text NOT NULL CHECK (manifest_sha ~ '^[0-9a-f]{64}$'),
+    content_sha256 text NOT NULL CHECK (content_sha256 ~ '^[0-9a-f]{64}$'),
     chapter_publication_ids uuid[] NOT NULL
         CHECK (cardinality(chapter_publication_ids) > 0),
     unit_count integer NOT NULL CHECK (unit_count >= 0),
@@ -183,9 +184,10 @@ CREATE TRIGGER forbid_reading_occurrence_mutation
 
 -- ---------------------------------------------------------------------------
 -- Binding backstops: an array column cannot carry a foreign key, so the stream
--- trigger proves every chapter publication exists, is unique and belongs to
--- the stream's own revision/document. This is the second fence behind the
--- store's fail-closed pre-checks.
+-- trigger proves every chapter publication exists, is unique, belongs to the
+-- stream's own revision/document, and was published under the stream's origin
+-- catalog. This is the second fence behind the store's fail-closed pre-checks;
+-- a publication from a later catalog must never enter an earlier snapshot.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chronicle.enforce_reading_stream_binding()
 RETURNS trigger AS $$
@@ -194,6 +196,7 @@ DECLARE
     publication uuid;
     pub_revision uuid;
     pub_document uuid;
+    pub_catalog text;
     distinct_publications integer;
 BEGIN
     SELECT document_id INTO revision_document
@@ -209,7 +212,8 @@ BEGIN
     END IF;
 
     FOREACH publication IN ARRAY NEW.chapter_publication_ids LOOP
-        SELECT revision_id, document_id INTO pub_revision, pub_document
+        SELECT revision_id, document_id, catalog_sha256
+          INTO pub_revision, pub_document, pub_catalog
           FROM chronicle.chapter_publications WHERE publication_id = publication;
         IF NOT FOUND THEN
             RAISE EXCEPTION 'chronicle.reading_streams chapter publication % does not exist', publication;
@@ -217,6 +221,9 @@ BEGIN
         IF pub_revision IS DISTINCT FROM NEW.revision_id
            OR pub_document IS DISTINCT FROM NEW.document_id THEN
             RAISE EXCEPTION 'chronicle.reading_streams chapter publication % belongs to another revision/document', publication;
+        END IF;
+        IF pub_catalog IS DISTINCT FROM NEW.origin_catalog_sha THEN
+            RAISE EXCEPTION 'chronicle.reading_streams chapter publication % was not published under origin catalog %', publication, NEW.origin_catalog_sha;
         END IF;
     END LOOP;
     RETURN NEW;

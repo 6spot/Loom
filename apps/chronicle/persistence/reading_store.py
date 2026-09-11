@@ -9,18 +9,22 @@ Narrow, immutable persistence for the reading projection fixed by
   in the *caller's* already-open transaction. It never opens a second
   transaction, never commits, and never acquires a second worker lease: the
   unique publish transaction (and its catalog advisory lock) belongs to T06.
-- The write is idempotent on ``revision_id``: replaying the same compiled
-  manifest returns the same ``stream_id``; the same revision with different
-  bytes raises :class:`PersistenceConflict`. A missing chapter publication,
-  a cross-revision unit, a dangling time group and an event representation
-  that the origin catalog payload does not list are all rejected fail-closed
-  before any row is written (the 0007 triggers are the second fence).
-- ``read_reading_stream`` / ``list_reading_streams`` / ``read_reading_units``
-  / ``read_reading_group`` / ``read_reading_groups`` / ``read_event_occurrences``
+- The write is idempotent on ``revision_id`` only when the *complete*
+  normalized compiled input matches: replaying the same units, groups,
+  occurrences and publication bindings returns the same ``stream_id``;
+  changing any of them — even while keeping the manifest bytes — raises
+  :class:`PersistenceConflict`. A missing chapter publication, a publication
+  from another revision or another catalog, a cross-revision unit, a dangling
+  time group and an event representation that the origin catalog payload does
+  not list are all rejected fail-closed before any row is written (the 0007
+  triggers are the second fence).
+- ``read_reading_stream`` / ``list_reading_streams`` / ``read_reading_unit``
+  / ``read_reading_units`` / ``read_reading_groups`` / ``read_event_occurrences``
   are SELECT-only, bounded helpers. Ordinal pages use indexed keyset ranges
   with ``limit + 1``; event reverse lookup uses the
   ``reading_event_occurrences_event_idx`` index. No helper reads the whole
-  body corpus and slices it in Python.
+  body corpus and slices it in Python. Every helper accepts an optional
+  snapshot catalog and then enforces ``_require_visible_stream``.
 
 Snapshot visibility (``continuous-reading.md`` section 5) is decided by two
 immutable facts, never by wall-clock time:
@@ -190,12 +194,15 @@ def _normalize_compiled_stream(conn, stream: dict[str, Any]) -> dict[str, Any]:
         )
     membership = _catalog_event_membership(_require_object(catalog_row[0], "catalog payload"))
 
-    # Every chapter publication must exist, be unique, and belong to this very
-    # revision/document. Array elements cannot carry a foreign key, so the
-    # store proves it here.
+    # Every chapter publication must exist, be unique, belong to this very
+    # revision/document, and have been published under the stream's origin
+    # catalog. Array elements cannot carry a foreign key, so the store proves it
+    # here; a publication from a later catalog must never enter an earlier
+    # snapshot.
     publication_rows = conn.execute(
         """
-        SELECT publication_id, revision_id, document_id, artifact_sha256, chapter_id, payload
+        SELECT publication_id, revision_id, document_id, artifact_sha256, chapter_id, payload,
+               catalog_sha256
         FROM chronicle.chapter_publications
         WHERE publication_id = ANY (%s)
         """,
@@ -211,6 +218,11 @@ def _normalize_compiled_stream(conn, stream: dict[str, Any]) -> dict[str, Any]:
         if row[1] != revision_id or row[2] != document_id:
             raise PersistenceConflict(
                 f"stream chapter publication {publication_id} belongs to another revision/document"
+            )
+        if row[6] != catalog_sha:
+            raise PersistenceConflict(
+                f"stream chapter publication {publication_id} was published under catalog "
+                f"{row[6]}, not origin catalog {catalog_sha}"
             )
 
     revision_row = conn.execute(
@@ -241,7 +253,7 @@ def _normalize_compiled_stream(conn, stream: dict[str, Any]) -> dict[str, Any]:
             "stream chapter_publication_ids must equal the ordered publications of the units"
         )
 
-    return {
+    normalized = {
         "revision_id": revision_id,
         "document_id": document_id,
         "origin_catalog_sha": catalog_sha,
@@ -252,6 +264,61 @@ def _normalize_compiled_stream(conn, stream: dict[str, Any]) -> dict[str, Any]:
         "groups": groups,
         "event_occurrences": occurrences,
     }
+    normalized["content_sha256"] = _content_sha256(normalized)
+    return normalized
+
+
+def _content_sha256(normalized: dict[str, Any]) -> str:
+    """Digest the complete normalized compiled input, not just the manifest.
+
+    A replay may reuse a stream only when this digest matches the stored one;
+    changing any unit, group, occurrence or publication binding — even with an
+    identical manifest — is an immutability conflict.
+    """
+    return sha256_json(
+        {
+            "revision_id": str(normalized["revision_id"]),
+            "document_id": str(normalized["document_id"]),
+            "origin_catalog_sha": normalized["origin_catalog_sha"],
+            "manifest_sha": normalized["manifest_sha"],
+            "manifest": normalized["manifest"],
+            "chapter_publication_ids": [
+                str(value) for value in normalized["chapter_publication_ids"]
+            ],
+            "units": [
+                {
+                    "ordinal": unit["ordinal"],
+                    "unit_id": unit["unit_id"],
+                    "publication_id": str(unit["publication_id"]),
+                    "artifact_sha256": unit["artifact_sha256"],
+                    "chapter_id": unit["chapter_id"],
+                    "block_id": unit["block_id"],
+                    "text_hash": unit["text_hash"],
+                    "group_id": unit["group_id"],
+                    "narrative_time": unit["narrative_time"],
+                    "segments": unit["segments"],
+                    "context_entities": unit["context_entities"],
+                    "source_anchor_ids": unit["source_anchor_ids"],
+                    "continues_previous": unit["continues_previous"],
+                }
+                for unit in normalized["units"]
+            ],
+            "groups": normalized["groups"],
+            "event_occurrences": [
+                {
+                    "unit_id": occurrence["unit_id"],
+                    "ordinal": occurrence["ordinal"],
+                    "event_kind": occurrence["event_kind"],
+                    "span_id": occurrence["span_id"],
+                    "canonical_event_id": str(occurrence["canonical_event_id"]),
+                    "relation": occurrence["relation"],
+                    "bundle_label": occurrence["bundle_label"],
+                    "record_ref": occurrence["record_ref"],
+                }
+                for occurrence in normalized["event_occurrences"]
+            ],
+        }
+    )
 
 
 def _catalog_event_membership(payload: dict[str, Any]) -> set[tuple[str, str, str]]:
@@ -522,18 +589,23 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
     revision_id = normalized["revision_id"]
     manifest = normalized["manifest"]
     manifest_sha = normalized["manifest_sha"]
+    content_sha256 = normalized["content_sha256"]
 
     existing = conn.execute(
-        "SELECT stream_id, manifest_sha, manifest FROM chronicle.reading_streams"
-        " WHERE revision_id = %s",
+        "SELECT stream_id, manifest_sha, manifest, content_sha256"
+        " FROM chronicle.reading_streams WHERE revision_id = %s",
         (revision_id,),
     ).fetchone()
     if existing is not None:
-        if existing[1] == manifest_sha and existing[2] == manifest:
+        if (
+            existing[1] == manifest_sha
+            and existing[2] == manifest
+            and existing[3] == content_sha256
+        ):
             return existing[0]
         raise PersistenceConflict(
             f"immutable_stream_conflict: revision {revision_id} already has reading stream "
-            f"{existing[0]} with a different manifest"
+            f"{existing[0]} with different compiled bytes"
         )
 
     stream_id = _new_id()
@@ -543,8 +615,9 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
                 """
                 INSERT INTO chronicle.reading_streams(
                     stream_id, revision_id, document_id, origin_catalog_sha,
-                    manifest_sha, chapter_publication_ids, unit_count, group_count, manifest
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    manifest_sha, content_sha256, chapter_publication_ids,
+                    unit_count, group_count, manifest
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     stream_id,
@@ -552,6 +625,7 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
                     normalized["document_id"],
                     normalized["origin_catalog_sha"],
                     manifest_sha,
+                    content_sha256,
                     normalized["chapter_publication_ids"],
                     len(normalized["units"]),
                     len(normalized["groups"]),
@@ -568,19 +642,20 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
 
         if isinstance(exc, _errors.UniqueViolation):
             row = conn.execute(
-                "SELECT stream_id, manifest_sha, manifest FROM chronicle.reading_streams"
-                " WHERE revision_id = %s",
+                "SELECT stream_id, manifest_sha, manifest, content_sha256"
+                " FROM chronicle.reading_streams WHERE revision_id = %s",
                 (revision_id,),
             ).fetchone()
             if (
                 row is not None
                 and row[1] == manifest_sha
                 and row[2] == manifest
+                and row[3] == content_sha256
             ):
                 return row[0]
             raise PersistenceConflict(
                 f"immutable_stream_conflict: revision {revision_id} is already published "
-                "with different bytes"
+                "with different compiled bytes"
             ) from exc
         raise
     return stream_id
@@ -790,11 +865,24 @@ def list_reading_streams(
 
 
 def read_reading_unit(
-    conn, *, stream_id: uuid.UUID, unit_id: str
+    conn,
+    *,
+    stream_id: uuid.UUID,
+    unit_id: str,
+    snapshot_catalog_sha: str | None = None,
 ) -> dict[str, Any]:
-    """Return one exact unit without scanning from the start of the stream."""
+    """Return one exact unit without scanning from the start of the stream.
+
+    When ``snapshot_catalog_sha`` is supplied the stream must be visible in
+    that snapshot, exactly like the ordinal page helper, so a locate/read on a
+    later stream can never leak through an older exploration snapshot.
+    """
     stream_id = _require_uuid(stream_id, "stream_id")
     unit_id = _require_text(unit_id, "unit_id")
+    if snapshot_catalog_sha is not None:
+        _require_visible_stream(
+            conn, stream_id=stream_id, snapshot_catalog_sha=snapshot_catalog_sha
+        )
     row = conn.execute(
         _UNIT_SELECT + " WHERE stream_id = %s AND unit_id = %s",
         (stream_id, unit_id),

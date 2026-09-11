@@ -237,9 +237,10 @@ without copying translation text, source anchors, entity tables or model
 runs, and without relaxing the 0006 chapter guards:
 
 - `chronicle.reading_streams` — UUIDv7 `stream_id`, unique `revision_id`,
-  `origin_catalog_sha`, `manifest_sha`, the ordered
-  `chapter_publication_ids`, unit/group counts and the immutable `manifest`.
-  One revision has exactly one stream.
+  `origin_catalog_sha`, `manifest_sha`, the `content_sha256` digest of the
+  complete normalized compiled input, the ordered `chapter_publication_ids`,
+  unit/group counts and the immutable `manifest`. One revision has exactly one
+  stream.
 - `chronicle.reading_units` — `(stream_id, ordinal)` primary key, globally
   unique `unit_id`, `publication_id`/`artifact_sha256`/`chapter_id`/`block_id`,
   `text_hash`, the compiled `narrative_time`/`segments`/`context_entities`
@@ -255,12 +256,13 @@ runs, and without relaxing the 0006 chapter guards:
 
 All four tables are append-only (mutation triggers) and enforce their
 references at the database: the stream trigger proves every
-`chapter_publication_ids` element exists, is unique and belongs to the
-stream's own revision/document; the unit trigger proves the publication is
-part of the stream and its artifact/chapter match; the group trigger proves
-first/last units exist and the covered units share one `group_id`; the
-occurrence trigger proves the source representation is listed by the stream's
-origin catalog payload.
+`chapter_publication_ids` element exists, is unique, belongs to the stream's
+own revision/document and was published under the stream's `origin_catalog_sha`
+(a publication from a later catalog can never enter an older snapshot); the
+unit trigger proves the publication is part of the stream and its
+artifact/chapter match; the group trigger proves first/last units exist and the
+covered units share one `group_id`; the occurrence trigger proves the source
+representation is listed by the stream's origin catalog payload.
 
 `apps/chronicle/persistence/reading_store.py` owns the tables:
 
@@ -272,15 +274,18 @@ origin catalog payload.
   stream is a plain JSON object with `revision_id`, `document_id`,
   `origin_catalog_sha`, `manifest`, `chapter_publication_ids`, ordered
   `units`, ordered `groups` and `event_occurrences`. The T04 compiler is its
-  producer. Replaying the identical manifest for the same revision returns
-  the same `stream_id` with no new rows; different bytes raise
+  producer. Replay is idempotent only when the **complete** normalized input
+  matches the stored `content_sha256`: changing any unit, group, occurrence or
+  publication binding — even while keeping the manifest bytes — raises
   `PersistenceConflict` (`immutable_stream_conflict`).
 - `read_reading_stream` / `list_reading_streams` / `read_reading_unit` /
   `read_reading_units` / `read_reading_groups` / `read_event_occurrences` —
   SELECT-only, bounded helpers. Ordinal and group pages use indexed keyset
   ranges with `limit + 1`; event reverse lookup uses the
   `reading_event_occurrences_event_idx` index. No helper reads the whole body
-  corpus and slices it in Python.
+  corpus and slices it in Python. Every helper accepts an optional snapshot
+  catalog and then enforces the same visibility guard, so an exact unit read
+  cannot leak a later stream through an older snapshot.
 
 Snapshot visibility never uses wall-clock time. A stream is in range for a
 snapshot when its origin catalog's `publication_sequence` is `<=` the
