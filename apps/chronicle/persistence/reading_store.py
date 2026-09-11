@@ -580,11 +580,20 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
     commit the catalog, every chapter publication and the whole reading index
     atomically.
 
-    Return value is the immutable ``stream_id``. Replaying the identical
-    compiled manifest for the same revision returns the existing id with no
-    new rows; different bytes for an already-published revision raise
-    :class:`PersistenceConflict` (``immutable_stream_conflict``).
+    Return value is the immutable ``stream_id``. A caller (the T06 publish
+    transaction) may supply the compiled ``stream_id`` so the row identity
+    always equals the compiled manifest/unit identity; when absent the store
+    allocates one. Replaying the identical compiled manifest for the same
+    revision returns the existing id with no new rows; different bytes for an
+    already-published revision raise :class:`PersistenceConflict`
+    (``immutable_stream_conflict``).
     """
+    supplied_stream_id = stream.get("stream_id")
+    if supplied_stream_id is None:
+        stream_id = _new_id()
+    else:
+        stream_id = _require_uuid7(supplied_stream_id, "stream stream_id")
+
     normalized = _normalize_compiled_stream(conn, stream)
     revision_id = normalized["revision_id"]
     manifest = normalized["manifest"]
@@ -608,7 +617,6 @@ def persist_reading_stream(conn, stream: dict[str, Any]) -> uuid.UUID:
             f"{existing[0]} with different compiled bytes"
         )
 
-    stream_id = _new_id()
     try:
         with conn.transaction(savepoint_name="reading_stream_insert"):
             conn.execute(

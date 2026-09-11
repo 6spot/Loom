@@ -63,6 +63,7 @@ import chapter_extraction as chapter_extraction  # noqa: E402
 import chapter_plan as chapter_plan  # noqa: E402
 import chapter_prompt as chapter_prompt  # noqa: E402
 import chapter_store as chapter_store  # noqa: E402
+import reading_contract as reading_contract  # noqa: E402
 import resolution_store as resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
 import staged_store as staged_store  # noqa: E402
@@ -175,6 +176,45 @@ def require_production_entry(
         )
 
 
+#: Candidate generation bound to each model family. The live production
+#: provider emits 0.2 reading annotations by default; the frozen first-round
+#: development fixture emits 0.1.
+CANDIDATE_VERSIONS = (
+    chapter_contract.CANDIDATE_VERSION,
+    reading_contract.CANDIDATE_VERSION,
+)
+
+
+def candidate_version_for_model(model: Any) -> str:
+    """Return the chapter-candidate generation a model produces.
+
+    An explicit ``candidate_version`` on the provider wins. Otherwise a
+    development fixture is recognized by its ``fixture:<version>:<kind>``
+    name (the reading fixture is ``reading-chapter``); every other provider is
+    the live joint model, whose production default is the 0.2 reading
+    contract. This is the only place the worker decides which candidate
+    version a planned request must declare, so the request, prompt, model
+    strict format and acceptance validator always agree.
+    """
+    if model is None:
+        return reading_contract.CANDIDATE_VERSION
+    declared = getattr(model, "candidate_version", None)
+    if declared is not None:
+        if declared not in CANDIDATE_VERSIONS:
+            raise PersistenceError(
+                f"chapter model declares unsupported candidate version {declared!r}"
+            )
+        return str(declared)
+    import fixture_model as fixture_model  # noqa: E402
+
+    name = str(getattr(model, "name", ""))
+    if name.endswith(":" + fixture_model.READING_CHAPTER_MODEL_SUFFIX):
+        return reading_contract.CANDIDATE_VERSION
+    if name.endswith(":" + fixture_model.CHAPTER_MODEL_SUFFIX):
+        return chapter_contract.CANDIDATE_VERSION
+    return reading_contract.CANDIDATE_VERSION
+
+
 # ---------------------------------------------------------------------------
 # Planning: revision binding, plan, and program-owned requests
 # ---------------------------------------------------------------------------
@@ -212,12 +252,22 @@ def plan_job_chapters(
     source_sha256: str,
     binding: dict[str, Any],
     limits: chapter_contract.ChapterLimits,
+    candidate_version: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Plan natural chapters and build one program-owned request per chapter.
 
     Pure compute (no database, no model): the T03 plan plus one T01
     request per chapter in plan order. Hash drift between the supplied
     text and the immutable revision binding fails closed.
+
+    ``candidate_version`` selects the joint candidate generation the
+    requests declare (0.1 first round, 0.2 reading annotations); it defaults
+    to the frozen 0.1 generation so existing callers are unchanged, while the
+    worker passes the model's version through
+    :func:`candidate_version_for_model` so a live reading run plans 0.2. The
+    request's declared version is the single signal the prompt renderer, the
+    model strict format and the acceptance validator all read, so a run
+    cannot mix the 0.1 and 0.2 contracts.
 
     The T01 identity check requires ``normalized_sha256`` to hash to
     the request's chapter ``normalized_text``; the T03 builder carries
@@ -227,6 +277,12 @@ def plan_job_chapters(
     without changing the T03 helper itself. ``revision_id`` /
     ``source_sha256`` / ``chapter_id`` keep the revision-level binding.
     """
+    version = candidate_version or chapter_contract.CANDIDATE_VERSION
+    if version not in CANDIDATE_VERSIONS:
+        raise PersistenceError(
+            f"chapter candidate version must be one of {list(CANDIDATE_VERSIONS)}, "
+            f"got {version!r}"
+        )
     normalized_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
     locator = {
         "revision_id": str(binding["revision_id"]),
@@ -258,6 +314,11 @@ def plan_job_chapters(
                 "the plan"
             )
         request["normalized_sha256"] = slice_sha256
+        # Bind the exact candidate generation this execution must produce.
+        request["schema_versions"] = {
+            "candidate": version,
+            "bundle": "0.1",
+        }
         requests.append(request)
     return plan, requests
 
@@ -1067,9 +1128,11 @@ def execute_chapter_present(
     Every planned chapter must have exactly one publication bound to
     its accepted artifact/revision; the publication payload must carry
     the complete ordered translation blocks (never a blurb or a
-    first-paragraph summary). Optional person/event presentations stay
-    independent: they neither block nor substitute for the complete
-    translation here.
+    first-paragraph summary). A 0.2 book must additionally expose one
+    reading stream that binds exactly these publications, so ``present``
+    never verifies chapters while a partial reading index is public.
+    Optional person/event presentations stay independent: they neither
+    block nor substitute for the complete translation here.
     """
     _heartbeat(
         database_url, job_id=job_id, worker=worker,
@@ -1112,6 +1175,39 @@ def execute_chapter_present(
             f"job {job_id} chapters {missing} have no publication; "
             "refusing to present before atomic publish"
         )
+    # A 0.2 book must also expose its immutable reading stream in the same
+    # publication: present verifies the stream binds exactly this job's
+    # published chapters (never a second/partial reading index).
+    reading_stream_id: str | None = None
+    if {entry["artifact"].get("version") for entry in accepted} == {"0.2"}:
+        with psycopg.connect(database_url) as conn:
+            stream_row = conn.execute(
+                """
+                SELECT stream_id, chapter_publication_ids, unit_count, group_count
+                FROM chronicle.reading_streams WHERE revision_id = %s
+                """,
+                (uuid.UUID(str(plan["revision_id"])),),
+            ).fetchone()
+        if stream_row is None:
+            raise PersistenceError(
+                f"job {job_id} published 0.2 chapters but has no reading "
+                "stream; refusing present"
+            )
+        stream_ids = {str(value) for value in stream_row[1]}
+        published_ids = {
+            item["publication_id"] for item in published if item["chapter_id"] in expected
+        }
+        if stream_ids != published_ids:
+            raise PersistenceError(
+                f"job {job_id} reading stream {stream_row[0]} binds "
+                "different chapter publications; refusing present"
+            )
+        if int(stream_row[2]) < 1 or int(stream_row[3]) < 1:
+            raise PersistenceError(
+                f"job {job_id} reading stream {stream_row[0]} carries no "
+                "units/groups; refusing present"
+            )
+        reading_stream_id = str(stream_row[0])
     with psycopg.connect(database_url) as conn:
         control_plane.write_stage_checkpoint_fenced(
             conn, job_id=job_id, stage="present", worker=worker,
@@ -1122,6 +1218,7 @@ def execute_chapter_present(
                     item["publication_id"] for item in published
                     if item["chapter_id"] in expected
                 ),
+                "reading_stream_id": reading_stream_id,
                 "verified_only": True,
                 "authoritative": False,
             },
@@ -1146,6 +1243,7 @@ def load_chapter_inputs(
     job_id: uuid.UUID,
     revision_source: Callable[[uuid.UUID], tuple[str, str] | None],
     limits: chapter_contract.ChapterLimits,
+    candidate_version: str | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     """Load and plan the immutable revision text for a job.
 
@@ -1154,6 +1252,10 @@ def load_chapter_inputs(
     T03 plan is accepted; any drift fails closed instead of planning
     the wrong bytes. Pure compute apart from short verification reads:
     no transaction is held open across the source callback.
+
+    ``candidate_version`` defaults to the 0.1 first-round generation so
+    existing callers are unchanged; the worker selects the model's version
+    through :func:`candidate_version_for_model` so a reading run plans 0.2.
     """
     # No connection is open across this call: a slow source read holds
     # no row lock and hides no lease expiry.
@@ -1175,6 +1277,7 @@ def load_chapter_inputs(
     plan, requests = plan_job_chapters(
         text=text, source_sha256=source_sha256,
         binding=binding, limits=limits,
+        candidate_version=candidate_version,
     )
     return text, binding, plan, requests
 
@@ -1298,6 +1401,7 @@ def execute_chapter_publish(
     *,
     job_id: uuid.UUID,
     worker: str,
+    plan: dict[str, Any] | None = None,
     lease_seconds: int,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
@@ -1308,6 +1412,11 @@ def execute_chapter_publish(
     publish stage and the job in ``failed`` with that evidence while the
     frozen plan stays untouched — never auto-passed or rebuilt.
     Raises :class:`LeaseLost` when this worker no longer holds the lease.
+
+    ``plan`` is the exact T03 chapter plan for this revision. It is
+    required when the accepted chapters carry 0.2 reading artifacts, so
+    the atomic publish can compile and persist the reading index in the
+    same transaction; a 0.1 job ignores it.
     """
     with psycopg.connect(database_url) as conn:
         control_plane.heartbeat_job_strict(
@@ -1316,7 +1425,7 @@ def execute_chapter_publish(
         )
     with psycopg.connect(database_url) as conn:
         result = resolve_publish.publish_chapters(
-            conn, job_id=job_id, worker=worker
+            conn, job_id=job_id, worker=worker, chapter_plan=plan
         )
         conn.commit()
     if on_event is not None:

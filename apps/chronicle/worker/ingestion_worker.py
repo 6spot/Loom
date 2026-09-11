@@ -1759,6 +1759,9 @@ class JobRunner:
             self.database_url, job_id=job_id,
             revision_source=self.revision_source,
             limits=self.chapter_limits,
+            candidate_version=chapter_stage.candidate_version_for_model(
+                self.chapter_model
+            ),
         )
         self._chapter_inputs_cache[job_id] = loaded
         return loaded
@@ -1809,7 +1812,8 @@ class JobRunner:
         if stage == REAL_PUBLISH_STAGE:
             return chapter_stage.execute_chapter_publish(
                 self.database_url, job_id=job_id, worker=self.worker,
-                lease_seconds=self.lease_seconds, on_event=self._emit,
+                plan=plan, lease_seconds=self.lease_seconds,
+                on_event=self._emit,
             )
         if stage == REAL_PRESENT_STAGE:
             chapter_stage.execute_chapter_present(

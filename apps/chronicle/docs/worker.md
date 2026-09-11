@@ -82,6 +82,13 @@ unchanged. Thin orchestration lives in
   exact request/candidate pair and the producing-run fingerprint; an
   accepted run whose checkpoint commit never landed is adopted from
   its complete stored request/response with zero new model calls.
+  `candidate_version_for_model` selects the candidate generation a
+  model produces: the live joint provider and the reading fixture plan
+  0.2 (reading annotations), the frozen first-round fixture stays 0.1.
+  The planned request declares that version, so prompt, strict output
+  format and acceptance validator always agree; a 0.2 candidate is
+  accepted only through the T01 `reading_contract`, keeping its
+  program-resolved reading units.
 - `assemble` requires every expected accepted chapter (T07; partial
   books fail closed) and records one revision bundle output.
 - `resolve` freezes the mixed review plan (`chapter_pair` +
@@ -95,16 +102,27 @@ unchanged. Thin orchestration lives in
   under the lock, frozen plan re-validated exactly, terminal decision
   required for every candidate. The lease check is expiry-aware: a
   lock wait that outlives `lease_expires_at` fails closed even
-  without a takeover. Catalog, every chapter publication,
-  canonical maps, catalog output, and publish checkpoint/completed
-  commit together; any fault rolls back all public content. A moved
-  baseline raises `publication_plan_stale`: the frozen plan and its
-  evidence are kept, nothing is auto-passed or rebuilt (a follow-up
-  job must replan). All catalog writers (chapter publish, legacy
-  publish, dataset import) take the same lock.
+  without a takeover. For a 0.2 reading book it also compiles the T04
+  projection and persists the whole T05 reading index (stream, units,
+  time groups, event occurrences) **inside the same transaction**,
+  after the catalog and every chapter publication and before the
+  publish checkpoint. The compiled stream identity is derived
+  deterministically from the revision, so recompiling and replaying
+  the same revision reuses the exact stream/units without a second
+  model call. Catalog, every chapter publication, canonical maps,
+  catalog output, reading index and publish checkpoint/completed
+  commit together; any fault rolls back all public content (no
+  partial reading index). A moved baseline raises
+  `publication_plan_stale`: the frozen plan and its evidence are kept,
+  nothing is auto-passed or rebuilt (a follow-up job must replan). All
+  catalog writers (chapter publish, legacy publish, dataset import)
+  take the same lock.
 - `present` only verifies the published complete translation blocks;
   it never re-translates and never substitutes a blurb for the full
-  text.
+  text. A 0.2 book additionally verifies that exactly one reading
+  stream binds this job's chapter publications with at least one
+  unit/group, so `present` never passes while a partial reading index
+  is public.
 
 ### Production chapter schema / provider / limits entry
 
@@ -263,6 +281,7 @@ staged/resolution/canonical historical-knowledge path.
 ## Verification
 
 ```bash
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_chapter_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_worker_budget_unit.py' -v
@@ -279,3 +298,15 @@ core: candidates, decisions, publication boundaries) and
 `worker/test_resolve_publish_postgres.py` (durable review-gated
 resume plus unattended disjoint publication); see
 `review-publication.md` for the contract.
+
+The T06 reading publication path is covered by
+`worker/test_reading_pipeline_postgres.py`: the full 0.2 chain publishes
+one catalog, every complete chapter and one reading stream whose units
+reassemble the published blocks; recompiling replays the same
+stream/units without a model call; injected faults after the catalog,
+after the chapters, inside the reading index and before the publish
+checkpoint leave zero public rows; and a drifted chapter plan is
+rejected with no public content. The compile/store helpers are covered
+by `persistence/test_reading_projection_unit.py` and
+`persistence/test_reading_store_postgres.py`; the stream/event read APIs
+belong to T07/T08.
