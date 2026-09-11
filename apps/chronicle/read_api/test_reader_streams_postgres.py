@@ -673,8 +673,9 @@ class ReaderStreamsPostgresTests(unittest.TestCase):
                 "catalog_sha": fixture["catalog"],
                 "unit_id": target["unit_id"],
             })
-            self.assertEqual(page["unit"]["ordinal"], 4900)
+            self.assertEqual(page["target_ordinal"], 4900)
             self.assertEqual(page["units"][0]["ordinal"], 4900)
+            self.assertEqual(page["units"][0]["unit_id"], target["unit_id"])
             self.assertTrue(all(unit["ordinal"] >= 4900 for unit in page["units"]))
             self.assertEqual(page["group_ordinal"], 49)
             self.assertTrue(any(kwargs.get("after_ordinal") == 4899 for kwargs in captured))
@@ -685,6 +686,37 @@ class ReaderStreamsPostgresTests(unittest.TestCase):
             )
             self.assertEqual(group_page["page"]["groups"][0]["group_id"], target["group_id"])
             self.assertEqual(group_page["page"]["groups"][0]["ordinal"], 49)
+
+    def test_locate_page_respects_page_budget(self) -> None:
+        """Regression: the final locate payload, metadata included, is <=2 MiB.
+
+        The target's full unit is no longer duplicated outside the budgeted
+        unit list, and the 2 MiB cap is measured on the serialized locate
+        page, never truncating the target unit.
+        """
+        with self._connect_ready() as conn:
+            block_text = "a" * 200_000
+            blocks = [f"{block_text}{index}" for index in range(11)]
+            fixture = self._single_source_stream(conn, label="locate-big", blocks=blocks)
+            stream_id = fixture["stream_id"]
+
+            for target_ordinal in (0, 7, 10):
+                target = fixture["stream"]["units"][target_ordinal]
+                page = reader_streams.locate_unit(
+                    conn, stream_id=stream_id, unit_id=target["unit_id"], limit=20
+                )["page"]
+                self.assertLessEqual(len(canonical_json_bytes(page)), 2 * 1024 * 1024)
+                self.assertNotIn("unit", page)
+                self.assertEqual(page["locator"]["unit_id"], target["unit_id"])
+                self.assertEqual(page["target_ordinal"], target_ordinal)
+                self.assertEqual(page["units"][0]["unit_id"], target["unit_id"])
+                self.assertEqual(page["units"][0]["ordinal"], target_ordinal)
+                for unit in page["units"]:
+                    self.assertEqual(
+                        "".join(segment["text"] for segment in unit["segments"]),
+                        blocks[unit["ordinal"]],
+                    )
+                self.assertTrue(page["units"])
 
     # -- groups ---------------------------------------------------------
 

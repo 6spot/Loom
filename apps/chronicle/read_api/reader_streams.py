@@ -518,12 +518,17 @@ def _finalize_unit_page(
     catalog_sha: str,
     limit: int,
     unit_count: int,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Attach cursors/continuation and enforce the 2 MiB page budget.
 
-    Units are dropped whole from the tail until the page fits; a unit is
-    never truncated and the target/first unit is always kept.
+    ``extra`` fields (the locate metadata) are merged into every candidate
+    page before its serialized size is measured, so the *final* payload the
+    caller serializes — not just the bare unit list — stays within
+    ``page_max_bytes``. Units are dropped whole from the tail until it fits;
+    a unit is never truncated and the first unit is always kept.
     """
+    extra_fields = dict(extra or {})
     while True:
         if dtos:
             first_ordinal = dtos[0]["ordinal"]
@@ -569,6 +574,7 @@ def _finalize_unit_page(
                 else None
             ),
         }
+        page.update(extra_fields)
         if len(dtos) <= 1 or _page_bytes(page) <= _LIMITS.page_max_bytes:
             return page
         dtos.pop()
@@ -583,6 +589,7 @@ def _build_unit_page(
     limit: int,
     after_ordinal: int | None = None,
     before_ordinal: int | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     page_result = _reading_store.read_reading_units(
         conn,
@@ -594,7 +601,10 @@ def _build_unit_page(
     )
     dtos: list[dict[str, Any]] = []
     used = 0
-    budget = _LIMITS.page_max_bytes - _CURSOR_MARGIN_BYTES
+    overhead = _CURSOR_MARGIN_BYTES + (
+        _page_bytes(extra) if extra else 0
+    )
+    budget = _LIMITS.page_max_bytes - overhead
     for unit in page_result["items"]:
         dto = _unit_dto(unit, stream_id=str(stream_id), catalog_sha=catalog_sha)
         size = len(canonical_json_bytes(dto))
@@ -608,6 +618,7 @@ def _build_unit_page(
         catalog_sha=catalog_sha,
         limit=limit,
         unit_count=unit_count,
+        extra=extra,
     )
 
 
@@ -836,15 +847,6 @@ def locate_unit(
         raise ReadingStreamNotFound(str(exc)) from exc
 
     ordinal = target["ordinal"]
-    target_dto = _unit_dto(target, stream_id=str(stream_uuid), catalog_sha=catalog)
-    page = _build_unit_page(
-        conn,
-        stream_id=stream_uuid,
-        catalog_sha=catalog,
-        unit_count=metadata["unit_count"],
-        limit=limit,
-        after_ordinal=ordinal - 1 if ordinal > 0 else None,
-    )
 
     group_row = conn.execute(
         """
@@ -858,19 +860,34 @@ def locate_unit(
             f"reading unit {unit_id} has no time group in stream {stream_uuid}"
         )
     group_ordinal = int(group_row[0])
-    page["locator"] = {
-        "stream_id": str(stream_uuid),
-        "catalog_sha": catalog,
-        "unit_id": unit_id,
+    # Locate metadata is folded into the page *before* the 2 MiB budget is
+    # applied, so the final serialized payload stays within the page cap.
+    # The target itself is page["units"][0] (and locator); it is deliberately
+    # not duplicated as a second full copy.
+    locate_meta = {
+        "locator": {
+            "stream_id": str(stream_uuid),
+            "catalog_sha": catalog,
+            "unit_id": unit_id,
+        },
+        "target_ordinal": ordinal,
+        "group_id": target["group_id"],
+        "group_ordinal": group_ordinal,
+        "group_cursor": encode_group_cursor(
+            kind="at",
+            stream_id=str(stream_uuid),
+            catalog_sha=catalog,
+            ordinal=group_ordinal,
+        ),
     }
-    page["unit"] = target_dto
-    page["group_id"] = target["group_id"]
-    page["group_ordinal"] = group_ordinal
-    page["group_cursor"] = encode_group_cursor(
-        kind="at",
-        stream_id=str(stream_uuid),
+    page = _build_unit_page(
+        conn,
+        stream_id=stream_uuid,
         catalog_sha=catalog,
-        ordinal=group_ordinal,
+        unit_count=metadata["unit_count"],
+        limit=limit,
+        after_ordinal=ordinal - 1 if ordinal > 0 else None,
+        extra=locate_meta,
     )
     return _envelope(
         schema=_LOCATE_SCHEMA,
