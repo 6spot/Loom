@@ -31,7 +31,7 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v2"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v3"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -160,6 +160,27 @@ READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (0.2 only; every unit is
 Add one top-level "reading" object beside bundle/translation/mentions/record_sources:
 reading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per
 translation block, in the SAME order, no missing or duplicate block_id.
+Read the whole chapter before producing the joint product. Carry its supported
+persons, places, polities and coherent events into the bundle and translation refs,
+then annotate the translated passages using those same refs. Unknown dates do not
+erase the people or places a passage clearly identifies. Empty arrays are legitimate
+only where that passage supplies no supported object or event phrase; they are not
+a shortcut for an entire biography, campaign, or annalistic chapter.
+Use natural paragraph breaks at changes of narrative time or action, usually 80-500
+Chinese characters; longer quotations may remain together. This is one whole-chapter
+response, never independent paragraph translations. Do not create an Event for each
+paragraph or turn minor details into navigation anchors.
+SOURCE DATE FIELDS: in each non-null Event.time.source_calendar, return system, era,
+era_year, season, month, day, inherited_fields. Use null for unsupported components;
+season is spring|summer|autumn|winter|null, month is 1..12|null, day may preserve a
+source sexagenary label. Preserve the regnal era/year even without a Gregorian
+conversion (normalized may be null). A date heading may govern the following main
+narrative in this same chapter until an explicit transition; record context-derived
+components in inherited_fields and ground them in the actual source. Missing a
+repeated year is not by itself evidence that the chapter leaves the date unknown.
+Keep time.original_text a VERBATIM temporal expression; never stitch a new date
+phrase from separate source passages. Do not borrow dates from cited flashbacks or
+invent a Gregorian year/month/day. A genuinely undated event keeps time null.
 reading unit (field names are exact):
   block_id: the translation block this unit annotates.
   narrative_time: {mode, event_refs[], from_block_id, source_selections[]}.
@@ -167,21 +188,23 @@ reading unit (field names are exact):
       own source time is observed here, and must be non-empty and a subset of
       current_event_refs; from_block_id is null.
     mode "inherit": the block continues an earlier block's time; from_block_id names an
-      EARLIER block of THIS chapter and event_refs is empty; the chain must end at an
-      "events" block.
+      EARLIER block of THIS chapter; BOTH event_refs and current_event_refs are empty,
+      and event_roles must also be empty. The chain must end at an "events" block.
+      If this block narrates a dated event with current_event_refs, use "events"
+      instead. Inherit only a source-supported continuation, never a convenient date.
     mode "mixed":   the block deliberately observes several current events at once;
       event_refs lists every current_event_ref and there are at least two.
     mode "unknown": the block has no usable time; event_refs and current_event_refs are
       empty, from_block_id null, source_selections empty.
-    Do NOT invent Gregorian time. Keep the event's own source_calendar/original_text
-    (era/era_year/month/day/season) exactly as the source writes it; when the event has
+    Do NOT invent Gregorian time. Keep the event's own source_calendar fields and
+    verbatim original_text distinct as described above; when the event has
     no usable time keep it unknown rather than defaulting to a nearby year. A
     retrospective / foreshadow / background span never supplies the unit's current time.
     source_selections must contain 1..16 verbatim source selections for non-unknown
     modes and be empty for unknown.
   current_event_refs: ONLY the events this block is currently narrating (not every event
     mentioned); each must be an existing evt_* in this block's translation event_refs.
-  event_spans: [] or a list of {span_id, selection, status, target_ref, candidate_refs,
+  event_spans: a list of {span_id, selection, status, target_ref, candidate_refs,
     relation, source_selections}. span_id is es_001, es_002, ... Each span points at the
     exact words in THIS translation block: selection = {quote, occurrence} where quote
     is copied character-for-character from that unit's translated block text and
@@ -189,17 +212,25 @@ reading unit (field names are exact):
     no candidate_refs) | ambiguous (target_ref null, >=2 candidate_refs) | unresolved
     (target_ref null). relation is current | retrospective | foreshadow | background |
     uncertain. Spans must not overlap each other and must not rewrite the block text.
-    source_selections (1..16) support the span from the ORIGINAL source.
-  context_entities: [] or a list of {entity_ref, importance, source_selections,
+    source_selections (1..16) support the span from the ORIGINAL source. Select the
+    translated event name or short occurrence phrase (for example a supported
+    battle phrase), not a bare person's name as a proxy for that person's event.
+    Include a grounded event phrase when present; use [] if none is supported.
+  context_entities: a list of {entity_ref, importance, source_selections,
     event_roles}. entity_ref is an existing ent_* supported by this block's
     entity_refs or by a current event's participants/places; importance is primary|other.
     source_selections (1..16) prove the source supports this object in this block.
     event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref
     and participant_index is that entity's original participant position in the event
     (0-based); the program copies the role text from the participant record, so never
-    write a role string yourself.
-  A valid empty annotation is event_spans: [] and context_entities: []; never drop the
-  unit, invent a canonical ID, or move a reading annotation to a later page/request.
+    write a role string yourself. Include the main people/places actually involved
+    here, even when narrative_time is unknown or inherit (then event_roles is []).
+    Do not include every chapter entity or promote someone mentioned only as distant
+    background to primary. Use [] where this passage has no supported context entity.
+  Never drop the unit, invent a canonical ID, or move a reading annotation to a
+  later page/request. When correcting a failure, retain all supported events,
+  context entities and spans; repair the faulty references/selections rather than
+  emptying the arrays to avoid validation.
 COORDINATE / ID DISCIPLINE: the model writes only block_id, evt_*/ent_* temp refs, span
 ids (es_*) and {quote, occurrence} selections. Never write start/end offsets, unit_id,
 stream_id, canonical_id, UUIDs, or URLs — the program computes all coordinates and IDs.
@@ -207,9 +238,9 @@ READING UNIT EXAMPLE (shape only):
 {"block_id":"t_001","narrative_time":{"mode":"events","event_refs":["evt_001"],
  "from_block_id":null,"source_selections":[{"first_block_id":"b_001","last_block_id":"b_001",
  "quote":"建安十三年","occurrence":1}]},"current_event_refs":["evt_001"],
- "event_spans":[{"span_id":"es_001","selection":{"quote":"曹操","occurrence":1},
+ "event_spans":[{"span_id":"es_001","selection":{"quote":"进驻江陵","occurrence":1},
  "status":"resolved","target_ref":"evt_001","candidate_refs":[],"relation":"current",
- "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
+ "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"屯江陵",
  "occurrence":1}]}],"context_entities":[{"entity_ref":"ent_001","importance":"primary",
  "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
  "occurrence":1}],"event_roles":[{"event_ref":"evt_001","participant_index":0}]}]}'''
