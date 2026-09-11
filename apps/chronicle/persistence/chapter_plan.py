@@ -492,17 +492,15 @@ def plan_chapters(
 
     _verify_tiling(text=text, chapters=chapters, filename=filename)
 
-    plan_sha256 = hashlib.sha256(
-        canonical_json_bytes(
-            {
-                "version": PLAN_VERSION,
-                "revision_id": locator["revision_id"],
-                "source_sha256": locator["source_sha256"],
-                "normalized_sha256": locator["normalized_sha256"],
-                "chapters": chapters,
-            }
-        )
-    ).hexdigest()
+    plan_sha256 = plan_sha256_for(
+        {
+            "version": PLAN_VERSION,
+            "revision_id": locator["revision_id"],
+            "source_sha256": locator["source_sha256"],
+            "normalized_sha256": locator["normalized_sha256"],
+            "chapters": chapters,
+        }
+    )
     return {
         "version": PLAN_VERSION,
         "plan_sha256": plan_sha256,
@@ -515,6 +513,32 @@ def plan_chapters(
         "chapter_count": len(chapters),
         "chapters": chapters,
     }
+
+
+def plan_sha256_for(plan: dict[str, Any]) -> str:
+    """Recompute the canonical T03 plan hash from a plan object.
+
+    The hash is the single authority for plan integrity: it covers
+    ``version``, the revision binding and the complete ``chapters`` array,
+    including every chapter's ``blocks`` (with each ``content_sha256``) and
+    ``required_block_ids``. A caller that holds a plan can therefore verify
+    it against a persisted ``plan_sha256`` without re-reading the source
+    text; tampering with any covered field changes the recomputation even
+    when the supplied ``plan_sha256`` string is left untouched.
+    """
+    if not isinstance(plan, dict):
+        raise PersistenceError("chapter plan must be a JSON object")
+    return hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "version": plan.get("version"),
+                "revision_id": plan.get("revision_id"),
+                "source_sha256": plan.get("source_sha256"),
+                "normalized_sha256": plan.get("normalized_sha256"),
+                "chapters": plan.get("chapters"),
+            }
+        )
+    ).hexdigest()
 
 
 def build_chapter_request(

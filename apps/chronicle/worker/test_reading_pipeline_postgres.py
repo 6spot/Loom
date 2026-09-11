@@ -670,6 +670,34 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
                     {"start": int(p["chapters"][0]["start"]) + 1}
                 ),
             ),
+            # In-chapter covered fields: the canonical plan hash covers every
+            # chapter block, so tampering them while keeping the original
+            # plan_sha256 must still be rejected.
+            (
+                "chapter block content_sha256",
+                lambda p: p["chapters"][0]["blocks"][0].update(
+                    {"content_sha256": "0" * 64}
+                ),
+            ),
+            (
+                "chapter block range",
+                lambda p: p["chapters"][0]["blocks"][0].update(
+                    {"start": int(p["chapters"][0]["blocks"][0]["start"]) + 1}
+                ),
+            ),
+            (
+                "required_block_ids",
+                lambda p: p["chapters"][0].update({"required_block_ids": []}),
+            ),
+            (
+                "re-hashed block drift",
+                lambda p: (
+                    p["chapters"][0]["blocks"][0].update(
+                        {"content_sha256": "1" * 64}
+                    ),
+                    p.update({"plan_sha256": chapter_plan.plan_sha256_for(p)}),
+                ),
+            ),
         )
         for label, mutate in cases:
             drifted = _drifting_plan(mutate)

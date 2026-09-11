@@ -89,6 +89,7 @@ from psycopg.types.json import Jsonb  # noqa: E402
 
 import assembly as chapter_assembly  # noqa: E402
 import canonical_store  # noqa: E402
+import chapter_plan as _chapter_plan  # noqa: E402
 import chapter_store as chapter_store  # noqa: E402
 import publication_v0  # noqa: E402
 import reading_contract as reading_contract  # noqa: E402
@@ -1158,9 +1159,13 @@ def require_chapter_plan_binding(
     from what was assembled and accepted. The persisted
     ``assembled-source-bundle`` output records the T03 ``plan_sha256``, the
     exact revision binding and plan geometry, plus the assembled bundle hash.
-    Comparing the caller's plan and the recorded bundle against that record
-    rejects any top-level or per-chapter plan drift (e.g. a rewritten
-    ``normalized_sha256``) before a single reading row is written.
+    The binding recomputes the canonical T03 plan hash over the caller's
+    complete plan (including every chapter's ``blocks`` and
+    ``required_block_ids``) and requires it to match the plan's own declared
+    hash and the persisted hash, so any covered-field drift (a rewritten
+    ``normalized_sha256``, a chapter block ``content_sha256``, a block range,
+    ...) is rejected before a single reading row is written even when the
+    supplied ``plan_sha256`` string is left untouched.
     """
     if not isinstance(chapter_plan, dict) or not chapter_plan:
         raise PersistenceError(
@@ -1200,10 +1205,25 @@ def require_chapter_plan_binding(
         raise PersistenceError(
             f"job {job_id} assembled report carries no plan binding"
         )
-    if chapter_plan.get("plan_sha256") != recorded_plan.get("plan_sha256"):
+    # The plan hash is the integrity authority: recompute the T03 canonical
+    # hash over the caller's complete plan (version, revision binding and the
+    # full chapters array including each chapter's blocks) and require it to
+    # match both the plan's own declared hash and the persisted plan hash. A
+    # tampered covered field (e.g. a chapter block content_sha256 or block
+    # range) changes the recomputation even when the supplied plan_sha256
+    # string is left in place.
+    recomputed_plan_sha = _chapter_plan.plan_sha256_for(chapter_plan)
+    if recomputed_plan_sha != chapter_plan.get("plan_sha256"):
         raise PersistenceError(
-            "chapter plan plan_sha256 drift: supplied "
-            f"{chapter_plan.get('plan_sha256')!r} but persisted records "
+            f"job {job_id} chapter plan content does not match its own "
+            f"plan_sha256 (recomputed {recomputed_plan_sha!r}, declared "
+            f"{chapter_plan.get('plan_sha256')!r}); refusing to publish a "
+            "tampered plan"
+        )
+    if recomputed_plan_sha != recorded_plan.get("plan_sha256"):
+        raise PersistenceError(
+            f"job {job_id} chapter plan plan_sha256 drift: recomputed "
+            f"{recomputed_plan_sha!r} but persisted records "
             f"{recorded_plan.get('plan_sha256')!r}; refusing to publish"
         )
     if chapter_plan.get("version") != chapter_assembly.CHAPTER_PLAN_VERSION:

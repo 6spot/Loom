@@ -107,11 +107,15 @@ unchanged. Thin orchestration lives in
   lease that expires mid-transaction (or is taken over) fails closed
   with `LeaseLost` and rolls back every write instead of committing on
   a stale lease. For a 0.2 reading book the caller's T03 `chapter_plan`
-  is strictly bound to the persisted T03/assembled record
-  (`plan_sha256`, revision binding, plan geometry) and the re-assembled
-  bundle must equal the persisted `assembled-source-bundle` hash before
-  it also compiles the T04 projection and persists the whole T05 reading
-  index (stream, units, time groups, event occurrences) **inside the
+  is strictly bound to the persisted T03/assembled record: the canonical
+  T03 `plan_sha256` is recomputed over the complete plan (version,
+  revision binding and every chapter's blocks/`content_sha256`/
+  `required_block_ids`) and must match both the plan's own declared hash
+  and the persisted hash, the revision binding and plan geometry are
+  compared, and the re-assembled bundle must equal the persisted
+  `assembled-source-bundle` hash before it also compiles the T04
+  projection and persists the whole T05 reading index (stream, units,
+  time groups, event occurrences) **inside the
   same transaction**, after the catalog and every chapter publication and
   before the publish checkpoint. The compiled stream identity is derived
   deterministically from the revision, so recompiling and replaying
@@ -314,8 +318,11 @@ stream/units without a model call; injected faults after the catalog,
 after the chapters, inside the reading index and before the publish
 checkpoint leave zero public rows; a chapter plan that drifts from the
 persisted T03/assembled record (`normalized_sha256`, `source_sha256`,
-`revision_id`, `plan_sha256` or chapter geometry) is rejected with no
-public content; and a lease that expires while the injected
+`revision_id`, `plan_sha256`, chapter geometry, or an in-chapter covered
+field such as a block `content_sha256`/range/`required_block_ids` even
+when the supplied `plan_sha256` is left untouched or re-hashed) is
+rejected with no public content; and a lease that expires while the
+injected
 assemble/reading compile runs fails closed with `LeaseLost` before the
 first public write / stream write, rolling every row back. The
 compile/store helpers are covered by
