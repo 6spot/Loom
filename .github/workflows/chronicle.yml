@@ -9,6 +9,12 @@ on:
       - ".github/workflows/chronicle.yml"
       - "apps/chronicle/acceptance/first_round_gate.py"
       - "apps/chronicle/acceptance/test_first_round_gate.py"
+      - "apps/chronicle/acceptance/gate_runtime.py"
+      - "apps/chronicle/acceptance/second_round_gate.py"
+      - "apps/chronicle/acceptance/test_second_round_gate.py"
+      - "apps/chronicle/webapp/scripts/reading-flow-smoke.mjs"
+      - "apps/chronicle/webapp/tests/reading-browser/integration/**"
+      - "apps/chronicle/docs/reading-acceptance.md"
       - "apps/chronicle/docs/chapter-acceptance.md"
       - "apps/chronicle/docs/final-acceptance.md"
       - "apps/chronicle/corpus/first-round/**"
@@ -67,7 +73,7 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
               case "$path" in
-                .github/workflows/chronicle.yml|apps/chronicle/acceptance/first_round_gate.py|apps/chronicle/acceptance/test_first_round_gate.py|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
+                .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
                   relevant=true
                   break
                   ;;
@@ -113,3 +119,77 @@ jobs:
             --source-pack apps/chronicle/corpus/first-round/source-pack.json \
             --evidence-dir /tmp/chronicle-first-round-offline
           python3 -c "import json; m=json.load(open('/tmp/chronicle-first-round-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m"
+
+  second-round-gate:
+    name: Second-round reading offline gate (fixture)
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install gate dependencies
+        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Second-round gate unit tests
+        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
+
+      - name: Validate reading browser driver and suites
+        run: |
+          set -euo pipefail
+          for file in \
+            apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/manifest.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/runner.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/flow.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/accessibility.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/performance.mjs; do
+            node --check "$file"
+          done
+
+      - name: Second-round reading offline gate (fixture mode)
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'CHRONICLE_POSTGRES_PASSWORD=ci-offline-gate' \
+            'CHRONICLE_ADMIN_USER=admin' \
+            'CHRONICLE_ADMIN_PASSWORD=ci-offline-gate' \
+            > /tmp/chronicle-second-round-test.env
+          python3 apps/chronicle/acceptance/second_round_gate.py \
+            --mode fixture \
+            --env-file /tmp/chronicle-second-round-test.env \
+            --source-pack apps/chronicle/corpus/first-round/source-pack.json \
+            --evidence-dir /tmp/chronicle-r2-offline \
+            --skip-browser
+          python3 -c "import json; m=json.load(open('/tmp/chronicle-r2-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m; assert len(m['works'])>=1 and len(m['faults'])>=1, m; json.load(open('/tmp/chronicle-r2-offline/browser-fixture-manifest.json'))"
+
