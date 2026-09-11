@@ -10,7 +10,7 @@ depends_on: [C2-R3-T01, C2-R2-T03]
 
 ## 范围与交接
 
-[Issue #620](https://github.com/6spot/Loom/issues/620) 给出实施步骤。一次完整自然章的翻译/抽取同时产出 0.3 阶段资料，保留归属、完整上下文和现有失败/恢复审计。
+[Issue #620](https://github.com/6spot/Loom/issues/620) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。一次完整自然章的翻译/抽取同时产出 0.3 阶段资料，保留归属、完整上下文和现有失败/恢复审计。
 
 - 输入：T01 schemas/validator；现有整章 request、ChapterLimits、模型 provider、accepted artifact；D01 真实例子作为 prompt 核对材料。
 - 交付：生产0.3的唯一版本注册与 provider 接线；valid/invalid/repair fixtures及运输重试回归。
@@ -31,6 +31,14 @@ depends_on: [C2-R3-T01, C2-R2-T03]
 - `apps/chronicle/docs/extraction.md`
 
 可与 T03/T05 及独立 UI 并行。只接生成与验收，不改 assembly、迁移、publish worker 或路由；T08 接生产流程。
+
+## 实施步骤
+
+1. 在同一整章 prompt/schema 中加入阶段事实、证据和阅读绑定，明确父祖/引述主体、同章称谓共用 ref、角色与长期状态的区别。
+2. 候选保留 unassessed；提示模型只返回 local refs 与来源支持，不返回明确性或跨来源 identity 结论。
+3. 沿用一次联合生成加最多一次完整章修正；修正仍含完整章和有界错误，不能只重生状态数组或逐段调用。
+4. 版本/规则/limits 进入 fingerprint 与 run 审计；通过 T01 validator 后整体接受，缺 person_states、容量/截断/未知枚举整体失败。
+5. 更新 deterministic fixture provider 的0.3输出和 schema 适配，固定失败/修正/重试样例；不以 fixture 当真实翻译质量。
 
 ## 验收
 

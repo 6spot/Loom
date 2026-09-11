@@ -10,7 +10,9 @@ children: [C2-R3-D01, C2-R3-D02, C2-R3-T01, C2-R3-T02, C2-R3-T03, C2-R3-T04, C2-
 
 2026-09-12 范围调整：[C2-R2E 增强阶段](../reading-enhancement/README.md) / [#658](https://github.com/6spot/Loom/issues/658) 直接实现多史料核对、两次审核、综合正文和紧凑状态。其 [#659](https://github.com/6spot/Loom/issues/659) 固定真实案例，[#660](https://github.com/6spot/Loom/issues/660) 固定共用合同。本轮消费已审核结论和 `{version, paragraph_id, phase_id}`，扩展有据任期算法及独立人物页。
 
-下方 17 项保留原模块划分，D02/T01/T05/T09/T10/T11/T13 的接口与页面要求已按本次交接修订。来源 0.3 候选仍是任期推理输入，不能直接充当综合正文或最终历史结论。共享契约具备后可启动相应独立模块；最终接线／验收依赖真实综合正文及读取接口，不给所有任务增加整个增强轮完成的笼统前置。任务状态由当前任务工具维护。
+下方 17 项保留原模块划分。每份本地任务说明保留目标、输入输出、文件归属、具体实施步骤与验收要求，可从本目录直接阅读；对应 GitHub Issue 记录同一任务的需求与验收上下文。任务状态由当前任务工具维护。
+
+来源 0.3 候选仍是任期推理输入，不能直接充当综合正文或最终历史结论。共享契约具备后可启动相应独立模块；最终接线／验收依赖真实综合正文及读取接口，不给所有任务增加整个增强轮完成的笼统前置。
 
 父协调 Issue [#550](https://github.com/6spot/Loom/issues/550)，总规划 [#547](https://github.com/6spot/Loom/issues/547)。本轮拆为 **2项准备任务＋15项实现/验收任务**。此索引记录需求、输入、文件归属与验收顺序；任务状态由当前任务管理工具维护。
 
@@ -87,6 +89,17 @@ flowchart LR
 
 图突出本轮依赖和最终接线；表格列出每项完整跨轮前置。[第一轮](../first-round/README.md)负责完整章/身份审核/引用，[第二轮](../second-round/README.md)负责阅读unit/controller/snapshot。第三轮设计或fixture通过不替代前两轮的真实内容验收。
 
+## 开工交接核查（2026-09-12）
+
+#661 已合并，综合正文、两次审核、精选入口与基础状态是本轮的现有输入。首批下发 #617 / #618，之后由 #619 固定共享合同，再按下表的具体依赖开放其他任务。
+
+- #619 必须固定“来源阶段证据／推理结果 → 综合事实核对输入 → 已审核结论 → 综合段落状态”的交接，并先同步 canonical 契约；来源 phase 与综合 phase 不靠同年、同名事件或序号关联。
+- #622 提供带原始依据和评估归属的纯编译输出；#626 同时负责来源发布接线和把这些结果送入既有显式综合任务。来源依据审核不能替代综合事实及正文的两次审核。
+- #625 / #628 / #631 扩展混合审核时保留现有 `narrative` 的 facts/prose 项、决定表单和草稿。#619 先明确队列默认范围及 `all` 的含义；不得因只加入 person_state 而使现有综合审核消失。
+- #632 / #633 的完成条件包含正式 HistoryPage、独立人物页及原位返回，记录 `version/paragraph_id/phase_id`。只跑通来源章节、ReadingPage 或 stream/unit 不算第三轮整链验收。
+
+以上补充落实既有 [source-corroboration.md](https://github.com/6spot/Loom/blob/main/apps/chronicle/docs/source-corroboration.md) 与人物阶段资料合同，不另建事实权威或发布链；各叶 Issue 的实施步骤已补充对应交接。
+
 ## 并行批次与可评阅节点
 
 1. **先交真实案例和页面设计：D01、D02可并行。** 现有古文足够，D02用已提交原文核对点和标明synthetic的交互数据开始，不等待补传材料。
@@ -103,14 +116,14 @@ flowchart LR
 | --- | --- |
 | third-round/cases 与只读定位检查 | D01 |
 | 正式人物组件的桌面／窄屏场景及交互矩阵 | D02 |
-| 新0.3 schemas、person_state_contract.py、person-state-types.ts、共享browser suite注册 | T01；后续模块消费同一契约 |
+| 新0.3 schemas、person_state_contract.py、person-state-types.ts、人物契约对应条款、共享browser suite注册 | T01；先同步综合输入与审核范围，后续模块消费同一契约 |
 | chapter_contract版本注册、prompt/extraction/provider/fixture_model | T02；R2-T03之后接手 |
 | assembly.py 与 person_state_assembly.py | T03；R2-T04之后接手 |
 | person_state_projection.py | T04；审核/发布/API共用 |
 | 0009迁移与 person_state_store.py | T05；外层事务由T08持有 |
 | person_state_review.py | T06；不改身份合并规则 |
 | studio_person_states.py 与 studio_reviews领域队列 | T07 |
-| chapter_stage/resolve_publish/chapter_store生产接线 | T08；唯一生产发布owner |
+| chapter_stage/resolve_publish/chapter_store、narrative_stage/narrative_store及共用输入适配 | T08；来源发布及现有显式综合任务的生产接线；共享合同由T01先固定 |
 | reading_people.py | T09；使用T05查询接口 |
 | 顶层router、Rust API、typed clients、source 0.3适配 | T10 |
 | 阅读人物组件/局部CSS/自己的scene与spec | T11；ReadingContextPanel从R2-T14接手 |
@@ -128,9 +141,10 @@ flowchart LR
 | D01 | T01/T15：case_id、真实/合成、source hash/selector、人物/阶段/显示预期/禁止结果 |
 | T01 | 各模块：0.3 schema、Python/TS DTO、评估候选键、状态键、cursor/大小/排序与browser fixture协议 |
 | T03 | T04/T06/T08：同一revision ref map及保留原章归属的evidence manifest |
-| T04 | T06/T08：compile_person_state_projection；T08/T09：已编译状态和catalog分歧索引 |
+| T04 | T06/T08：compile_person_state_projection及带原文／评估归属的综合核对输入；T08/T09：已编译来源状态和catalog分歧索引 |
 | T05 | T06/T08：不可变评估/manifest/index写入；T09：list_unit_people/list_unit_person_states/list_state_item_evidence |
 | T06 | T07/T08：build/open/resolve/collect阶段依据审核接口；不承担身份合并 |
+| T08 | 既有显式综合任务：冻结来源阶段依据，facts/prose两次审核后发布同版本正文／状态／引用；不以来源审核替代综合审核 |
 | T07/T09 | T10：领域dispatcher和错误/分页合同，不直接挂顶层HTTP |
 | T10 | T13：getReadingPeople/getPersonStates/getPersonStateEvidence/submitPersonStateAssessment与review_scope |
 | T11/T12 | T13：受控props和来源/事件/提交回调；组件不拥有全局历史或审核状态 |

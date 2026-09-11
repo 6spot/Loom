@@ -10,7 +10,7 @@ depends_on: [C2-R3-T01, C2-R2-T05]
 
 ## 范围与交接
 
-[Issue #623](https://github.com/6spot/Loom/issues/623) 给出实施步骤。在 Chronicle 产品库保存不可变评估与有界读取索引，为唯一发布事务提供可组合的存取接口。
+[Issue #623](https://github.com/6spot/Loom/issues/623) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。在 Chronicle 产品库保存不可变评估与有界读取索引，为唯一发布事务提供可组合的存取接口。
 
 - 输入：T01 DTO/键/上限；R2 reading_store、stream/unit/publication 关联；现有迁移和 transaction 约定。
 - 交付：0009迁移、person_state_store.py及PG合同测试；提供 persist_person_state_assessments / persist_person_state_manifest / persist_person_state_disagreements / list_unit_people / list_unit_person_states / list_state_item_evidence，具体参数由T01类型固定；事务由调用方持有。
@@ -26,6 +26,14 @@ depends_on: [C2-R3-T01, C2-R2-T05]
 - `apps/chronicle/docs/persistence.md`
 
 可与 T02/T03/T04 并行。只写本轮新表和本 store；不改既有 migrations、canonical_store/worker。T08 在既有事务调用。
+
+## 实施步骤
+
+1. 建立来源阶段评估／投影及分歧索引，来源分支以 FK／唯一键绑定原 publication/unit/hash；综合分支绑定共用 narrative version/paragraph/phase 与结论引用，不复制第二套正文或结论表。0008 已被历史叙事占用，新建 0009。
+2. 提供 persist/read 接口，允许外层事务组合，内部不得提前 commit 使部分状态公开。
+3. 相同hash/payload写入幂等；同键不同payload拒绝。保留原章/Claim表，不复制正文或canonical实体。
+4. 来源索引保留 stream/unit/person 与 catalog/事实键；综合状态索引使用固定 version/phase/entity，具体查询签名由 T01 统一。实现稳定 keyset+limit+1，不先读全部历史再切片。
+5. PG测试覆盖回滚、重复写、不同stream/unit/canonical成员越界、缺父记录、分页完整性和catalog隔离；验证全新库按现有迁移链启动。
 
 ## 验收
 
