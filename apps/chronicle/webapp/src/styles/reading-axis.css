@@ -1,0 +1,211 @@
+/* C2-R2-T11 阅读时间轴样式（组件自包含，未挂接 App，不进生产 dist）。
+ *
+ * 全部选择器以 .rax- 前缀限定在轴容器内，不写全局元素选择器，不覆盖
+ * chronicle.css / studio.css / world.css / chapter-reader.css。
+ *
+ * 布局：桌面左侧 sticky 窄轴（140–180px），平板更窄，手机折叠为可展开列表；
+ * 窄屏不挤压正文。轴线低对比，当前区段有清晰文字与形状提示。
+ */
+
+.rax-axis {
+  --rax-ink: #3d4448;
+  --rax-muted: #667074;
+  --rax-line: #d8d0c2;
+  --rax-active: #7a5a2e;
+  --rax-active-bg: #f4ecdd;
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+  width: 100%;
+  min-width: 0;
+  max-width: 11rem;
+  color: var(--rax-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.rax-axis *,
+.rax-axis *::before,
+.rax-axis *::after {
+  box-sizing: border-box;
+}
+
+.rax-toggle {
+  display: none;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rax-line);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: var(--rax-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rax-toggle:focus-visible,
+.rax-group:focus-visible,
+.rax-load-more:focus-visible {
+  outline: 2px solid var(--rax-active);
+  outline-offset: 2px;
+}
+
+.rax-panel {
+  margin-top: 0.5rem;
+}
+
+.rax-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+}
+
+.rax-item {
+  position: relative;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--rax-line);
+}
+
+.rax-year {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--rax-muted);
+}
+
+.rax-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rax-group:hover {
+  background: #f8f4ea;
+}
+
+.rax-group[data-active="true"] {
+  border-color: var(--rax-active);
+  background: var(--rax-active-bg);
+  color: var(--rax-active);
+  font-weight: 600;
+}
+
+.rax-period {
+  font-size: 0.92rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.rax-period-continued {
+  font-size: 0.8rem;
+  color: var(--rax-muted);
+}
+
+.rax-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.rax-badge {
+  padding: 0 0.3rem;
+  border: 1px solid var(--rax-line);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--rax-muted);
+  background: #fffdf8;
+}
+
+.rax-badge-retro {
+  border-color: #b08a55;
+  color: #7a5a2e;
+  background: #f6eddc;
+}
+
+.rax-count {
+  font-size: 0.68rem;
+  color: var(--rax-muted);
+}
+
+.rax-load-more {
+  margin-top: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--rax-line);
+  border-radius: 8px;
+  background: #fffdf8;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rax-load-more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.rax-loading,
+.rax-empty {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--rax-muted);
+}
+
+/* 平板：保留窄轴，正文优先取得空间。 */
+@media (max-width: 1199px) {
+  .rax-axis {
+    max-width: 9rem;
+  }
+
+  .rax-period {
+    font-size: 0.85rem;
+  }
+}
+
+/* 手机：单栏，轴折叠为可展开列表，不再与正文并排。 */
+@media (max-width: 767px) {
+  .rax-axis {
+    position: static;
+    max-width: none;
+  }
+
+  .rax-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .rax-panel[data-open="false"] {
+    display: none;
+  }
+
+  .rax-panel {
+    margin-top: 0.5rem;
+    border: 1px solid var(--rax-line);
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 0.4rem;
+  }
+
+  .rax-list {
+    max-height: 55vh;
+  }
+}
