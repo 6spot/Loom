@@ -7,8 +7,10 @@
 ## 入口
 
 - `apps/chronicle/acceptance/second_round_gate.py`：统一薄入口，`--mode fixture|live`。
-- `apps/chronicle/acceptance/gate_runtime.py`：与第一轮 gate 共享的 Compose/隔离库/
-  Studio/HTTP/证据生命周期。
+- `apps/chronicle/acceptance/gate_runtime.py`：与第一轮 gate 共享的隔离 Compose /
+  隔离 PostgreSQL / Studio / HTTP / 证据生命周期。
+- `apps/chronicle/acceptance/reading_scale_fixture.py`：明确合成的
+  5,000 units / 1,000 groups 规模集种子（隔离栈内的产品持久化边界 + 合成标签）。
 - `apps/chronicle/webapp/scripts/reading-flow-smoke.mjs`：真实栈上的整合浏览器 driver。
 - `apps/chronicle/webapp/tests/reading-browser/integration/**`：manifest 契约与
   flow/accessibility/performance 三个 suite。
@@ -20,7 +22,7 @@ mise install
 python3 -m pip install -r apps/chronicle/persistence/requirements.txt
 npm --prefix apps/chronicle/webapp ci
 npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
-bash tools/postgres-test.sh up      # 仓库管理的 PG18 控制服务 127.0.0.1:15432
+docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
 ```
 
 ## 1. 单元/边界测试（离线，CI）
@@ -30,7 +32,7 @@ python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_
 python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v
 ```
 
-## 2. 离线整链 gate（真实 Python/PG + fixture provider）
+## 2. 真实栈 fixture gate（默认含浏览器与性能）
 
 ```bash
 printf '%s\n' \
@@ -43,47 +45,32 @@ python3 apps/chronicle/acceptance/second_round_gate.py \
   --mode fixture \
   --env-file /tmp/chronicle-second-round-test.env \
   --source-pack apps/chronicle/corpus/first-round/source-pack.json \
-  --evidence-dir /tmp/chronicle-r2-offline
-```
-
-fixture 模式在 PG18 控制服务上创建隔离库、应用产品迁移，用生产 `chapter_plan`
-规划冻结源包、构造逐字 grounded 的 0.2 整章 fixture pack，经
-`worker.run_once`（显式注入 `FixtureReadingChapterModel`）跑完
-extract/assemble/resolve/publish，再经生产 T07/T08 读入口读回
-stream/units/groups/locate/event preview/targets，并做失败注入。它：
-- 不直接写产品表（仅隔离库 provisioning 与只读 SELECT 使用 psycopg）；
-- 输出 `manifest.json` 与 `browser-fixture-manifest.json`；
-- 明确标记 `fixture_only` 与非 live 免责声明。
-
-`--allow-dirty` 仅供本地迭代；CI/验收必须干净 checkout。
-
-## 3. 整合浏览器 gate（真实栈）
-
-`reading-flow-smoke.mjs` 只操作仍在运行的栈，需要同一栈的数据库包含第 2 步发布的
-stream（manifest 中的 `stream_id`/`catalog_sha`）：
-
-```bash
-python3 apps/chronicle/acceptance/second_round_gate.py \
-  --mode fixture \
-  --env-file /tmp/chronicle-second-round-test.env \
-  --source-pack apps/chronicle/corpus/first-round/source-pack.json \
   --evidence-dir /tmp/chronicle-r2-offline \
-  --base-url http://127.0.0.1:18080
-
-# 或只跑 driver：
-node apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
-  --base-url http://127.0.0.1:18080 \
-  --fixture-manifest /tmp/chronicle-r2-offline/browser-fixture-manifest.json \
-  --suite flow|accessibility|performance|all \
-  --output /tmp/chronicle-r2-browser
+  --browser-required
 ```
 
-`flow` 覆盖滚动/active unit/事件预览/深链接/刷新/失效 locator；`accessibility`
-覆盖四个 viewport、200% 字体/缩放、键盘、reduced-motion、44px 控件与 WCAG AA 对比度；
-`performance` 覆盖 active→侧栏 p95、restore p95、mounted unit 上界、Long Task 与
-5000 units/1000 groups 合成集。缺 manifest/scene/合成集会显式失败，不会静默 PASS。
+gate 会：
+1. 用 `gate_runtime.ComposeStack` 起隔离 Compose 栈（PG18 + Rust `chronicle-server`
+   前端 + Python `read_api` sidecar + durable worker），并起进程内确定性 0.2 fixture
+   模型 HTTP provider（`host.docker.internal`）。
+2. 经真实 Studio HTTP（Rust 前端）上传冻结源、排队、处理
+   `needs_review`（fixture 固定决定）并发布。
+3. 经公开 HTTP `/api/v1/public/reading-streams` 等读回 stream/units/groups/
+   locate/event preview+targets，并做未知 locator/未知 stream 负例。
+4. 注入确定性链中失败，断言无公开半成品；重启 `chronicle-web`/`chronicle-read`
+   后断言公开 stream 不变；未知 snapshot 失败关闭。
+5. 发布第二个 revision 形成版本场景。
+6. 经产品持久化边界注入合成的 5,000 units / 1,000 groups 规模集（显式 synthetic）。
+7. 运行 `reading-flow-smoke.mjs --suite all`：多 stream、版本固定、事件预览/来源/
+   角色、时间轴、导航（深链接/back/forward/刷新/失效 locator）、触屏、键盘、
+   reduced-motion、200% 字体、四个 viewport、Long Task、mounted unit 上界与
+   locate 恢复预算。缺 manifest/scene/合成集会显式失败。
 
-## 4. live 模式（T17 交付）
+`manifest.json` 的 `criteria` 逐项记录
+`real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`。
+`--skip-browser` 仅供本地迭代；CI 使用 `--browser-required`，任一未测即失败。
+
+## 3. live 模式（T17 交付）
 
 ```bash
 python3 apps/chronicle/acceptance/second_round_gate.py \
@@ -95,23 +82,23 @@ python3 apps/chronicle/acceptance/second_round_gate.py \
 
 live 严格禁用 `CHRONICLE_MODEL_FIXTURE_PACK`/`CHRONICLE_CHAPTER_FIXTURE_PACK`，要求
 完整 provider 身份（含 `CHRONICLE_CHAPTER_MODEL`）与交互式终端，只输出 READY 交接；
-真实 provider 调用与人工审核由 T17 在受控会话中执行，人工核对期间保留隔离栈。
+真实 provider 调用与人工审核由 T17 在受控会话中执行。
+
+## 4. 发布原子性补充证据
+
+生产 worker 的 `--fail-stage` 只作用于 legacy fake executor，无法在真实 0.2
+publish 阶段注入失败。发布事务的“失败不泄漏半成品”由产品拥有的
+`apps/chronicle/worker/test_reading_pipeline_postgres.py` 的
+`test_publish_faults_leave_no_partial_public_content` 覆盖，CI 同 job 运行：
+
+```bash
+python3 -m unittest discover -s apps/chronicle/worker \
+  -p 'test_reading_pipeline_postgres.py' -v -k publish_faults
+```
 
 ## 隔离栈与清理
 
-`gate_runtime.ComposeStack` 以 `COMPOSE_PROJECT_NAME=chronicle-gate-*` 和全新
+`ComposeStack` 以 `COMPOSE_PROJECT_NAME=chronicle-gate-*` 和全新
 `CHRONICLE_DATA_DIR` 启停，`down -v` 清理；不会触碰操作者的默认 Compose 项目或
-仓库管理的 PG 测试服务。隔离数据库在 gate 结束时 `DROP DATABASE ... WITH (FORCE)`。
-
-## 边界与已知未验证项
-
-- 第一轮 `first_round_gate.py` 保留原语义，仅改用 `gate_runtime` 的共享 helper；
-  生产契约与性能阈值未放宽。
-- 0.2 整章链在 fixture 模式经产品 Python 入口 + PG 跑通；Rust HTTP 前端与浏览器
-  行为需要已运行的栈，本任务实现 driver/manifest/CI 接线，真实栈运行证据由
-  T17 汇总。
-- 5000 units/1000 groups 合成集必须由 `performance` suite 在真实栈上测量；
-  gate 在缺该集时显式记录 `not_measured` 并保持门禁失败，不伪造通过。
-- worker 的 `CHRONICLE_CHAPTER_FIXTURE_PACK` 当前只选择 0.1 fixture provider；
-  经 Compose worker 跑 0.2 fixture 需要 T03/T06 增加注入点，属超出本任务写入
-  边界的改动，已按 `second_round_gate.py` 的显式注入路径规避。
+仓库管理的 PG 测试服务。gate 尽最大努力移除 `stack-data`（容器生成的 root
+属主文件可能残留，可用 `docker run --rm -v <dir>:/x alpine rm -rf /x/*` 清理）。

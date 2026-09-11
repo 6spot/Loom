@@ -44,6 +44,25 @@ export function validateManifest(manifest) {
       throw new Error(`reading-flow: stream unit_count must be a positive integer`);
     }
   }
+  const scale = manifest.scale;
+  if (!scale || typeof scale !== "object" || !scale.stream_id) {
+    throw new Error("reading-flow: fixture manifest carries no synthetic scale stream");
+  }
+  if (!Number.isInteger(scale.unit_count) || !Number.isInteger(scale.group_count)) {
+    throw new Error("reading-flow: synthetic scale stream must declare unit_count/group_count");
+  }
+  const budgets = manifest.budgets || {};
+  const targetUnits = budgets.target_units || 5000;
+  const targetGroups = budgets.target_groups || 1000;
+  if (scale.unit_count < targetUnits) {
+    throw new Error(`reading-flow: scale unit_count ${scale.unit_count} < ${targetUnits}`);
+  }
+  if (scale.group_count < targetGroups) {
+    throw new Error(`reading-flow: scale group_count ${scale.group_count} < ${targetGroups}`);
+  }
+  if (!Array.isArray(manifest.versions) || manifest.versions.length === 0) {
+    throw new Error("reading-flow: fixture manifest carries no content versions");
+  }
   return manifest;
 }
 

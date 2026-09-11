@@ -4,20 +4,23 @@
 Covers the gate decision/boundary logic owned by this task, without a live
 stack:
 
-- the fixture pack is deterministic, grounded verbatim in the planned chapter
-  text, and bound to the product revision identity;
-- the fixture/live provider guards fail closed (live model in fixture mode,
-  fixture material/credentials in live mode, missing joint chapter model);
-- the browser fixture manifest is required and must be complete, so a missing
-  fixture/scene/manifest fails the harness instead of silently passing;
+- the deterministic fixture candidate is grounded verbatim in the planned
+  chapter text and carries one resolved event span the browser can exercise;
+- the candidate passes the owning T01 reading validator;
+- the fixture/live provider guards fail closed (fixture packs in fixture mode,
+  live model in live mode, endpoint credentials, missing joint model);
+- the browser fixture manifest is required and must be complete (streams,
+  content versions and the synthetic 5,000/1,000 scale set), so a missing
+  fixture/scale/manifest fails the harness instead of silently passing;
 - the orchestrator carries no direct product-table writes;
 - the live entry refuses automatic decisions, non-interactive review and
   execution;
 - the isolated Compose project name is prefixed so a gate never touches an
-  operator deployment.
+  operator deployment;
+- the synthetic scale seed result marker is parsed fail-closed.
 
-The real PG18 reading chain is exercised by the gate itself (fixture mode)
-and by the product PostgreSQL suites; it is not faked here.
+The real Rust/Python/PG + browser chain is exercised by the gate itself
+(fixture mode); it is not faked here.
 
 Run::
 
@@ -27,7 +30,6 @@ Run::
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -50,6 +52,12 @@ for path in (
 
 import second_round_gate as G  # noqa: E402
 from gate_runtime import Evidence, GateError, default_gate_project  # noqa: E402
+from reading_scale_fixture import parse_scale_result  # noqa: E402
+
+import chapter_contract  # noqa: E402
+import chapter_plan  # noqa: E402
+import fixture_model  # noqa: E402
+import reading_contract  # noqa: E402
 
 GATE = HERE / "second_round_gate.py"
 SOURCE_PACK = REPO / "apps/chronicle/corpus/first-round/source-pack.json"
@@ -81,22 +89,26 @@ def live_env(directory: Path, extra: str = "") -> Path:
     )
 
 
-def tiny_upload() -> dict:
-    raw = TINY_TEXT.encode("utf-8")
-    return {
-        "work": "Fixture書",
-        "upload": "tiny.md",
-        "path": "/nonexistent/tiny.md",
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "bytes": len(raw),
-        "chars": len(TINY_TEXT),
-        "text": TINY_TEXT,
-    }
+def tiny_request() -> dict:
+    import hashlib
 
-
-def tiny_planned() -> dict:
     revision_id = uuid.uuid5(uuid.NAMESPACE_URL, "c2r2-test")
-    return G.plan_upload(tiny_upload(), revision_id)
+    digest = hashlib.sha256(TINY_TEXT.encode("utf-8")).hexdigest()
+    locator = {
+        "revision_id": str(revision_id),
+        "source_sha256": digest,
+        "normalized_sha256": digest,
+    }
+    plan = chapter_plan.plan_chapters(
+        TINY_TEXT, locator, "tiny.md", limits=chapter_contract.ChapterLimits()
+    )
+    request = chapter_plan.build_chapter_request(
+        plan, 0, TINY_TEXT, limits=chapter_contract.ChapterLimits()
+    )
+    request["normalized_sha256"] = hashlib.sha256(
+        request["normalized_text"].encode("utf-8")
+    ).hexdigest()
+    return request
 
 
 def run_gate(*args: str, stdin_data: str | None = None) -> subprocess.CompletedProcess:
@@ -110,36 +122,40 @@ def run_gate(*args: str, stdin_data: str | None = None) -> subprocess.CompletedP
 
 
 class FixtureConstructionTests(unittest.TestCase):
-    def test_pack_is_deterministic_and_bound_to_revision(self) -> None:
-        planned = tiny_planned()
-        first = G.reading_fixture_pack(planned, "Fixture書")
-        second = G.reading_fixture_pack(planned, "Fixture書")
-        self.assertEqual(first, second)
-        self.assertEqual(first["schema"], "chronicle.chapter-fixture-pack")
-        self.assertEqual(first["version"], "0.1")
-        self.assertEqual(len(first["chapters"]), len(planned["plan"]["chapters"]))
-        for chapter in first["chapters"]:
-            self.assertEqual(chapter["revision_id"], planned["plan"]["revision_id"])
+    def test_grounded_spec_is_bound_to_request(self) -> None:
+        request = tiny_request()
+        spec = G.grounded_spec(request, "Fixture書")
+        self.assertEqual(spec["chapter_id"], request["chapter_id"])
+        self.assertEqual(spec["revision_id"], request["revision_id"])
+        for entity in spec["entities"]:
+            self.assertIn(entity["mention"], request["normalized_text"])
 
-    def test_pack_mentions_are_grounded_in_chapter_text(self) -> None:
-        from chapter_contract import ChapterLimits
-        import chapter_plan
+    def test_fixture_candidate_passes_owning_validator(self) -> None:
+        request = tiny_request()
+        candidate = fixture_model.build_reading_chapter_candidate(
+            request, G.grounded_spec(request, "Fixture書")
+        )
+        G.add_resolved_span(candidate, request)
+        report = reading_contract.validate_reading_annotations(request, candidate)
+        self.assertTrue(
+            report.get("passed"),
+            msg="; ".join(reading_contract.flatten_reading_errors(report)),
+        )
+        spans = [
+            span
+            for unit in candidate["reading"]["units"]
+            for span in unit.get("event_spans", [])
+        ]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0]["span_id"], "es_001")
+        self.assertEqual(spans[0]["status"], "resolved")
+        self.assertTrue(spans[0]["target_ref"])
 
-        planned = tiny_planned()
-        plan, text = planned["plan"], planned["text"]
-        pack = G.reading_fixture_pack(planned, "Fixture書")
-        self.assertEqual(len(pack["chapters"]), len(plan["chapters"]))
-        for index, chapter in enumerate(pack["chapters"]):
-            request = chapter_plan.build_chapter_request(
-                plan, index, text, limits=ChapterLimits()
-            )
-            for entity in chapter["entities"]:
-                self.assertIn(entity["mention"], request["normalized_text"])
-
-    def test_fixture_mode_refuses_live_model(self) -> None:
-        with self.assertRaises(GateError) as ctx:
-            G.require_fixture_env({"CHRONICLE_CHAPTER_MODEL": "live"})
-        self.assertIn("CHRONICLE_CHAPTER_MODEL", str(ctx.exception))
+    def test_fixture_mode_refuses_fixture_packs(self) -> None:
+        with self.assertRaises(GateError):
+            G.require_fixture_env({"CHRONICLE_MODEL_FIXTURE_PACK": "/tmp/x.json"})
+        with self.assertRaises(GateError):
+            G.require_fixture_env({"CHRONICLE_CHAPTER_FIXTURE_PACK": "/tmp/x.json"})
         G.require_fixture_env({})
 
 
@@ -195,46 +211,64 @@ class LiveProviderGuardTests(unittest.TestCase):
         self.assertFalse(provider["fixture_mode"])
 
 
+def sample_work() -> dict:
+    return {
+        "stream_id": "0192aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee",
+        "catalog_sha": "a" * 64,
+        "source_title": "Fixture",
+        "unit_count": 3,
+        "group_count": 1,
+        "first_unit_id": "ru_" + "0" * 24,
+        "event_ids": ["0192aaaa-bbbb-7ccc-8ddd-ffffffffffff"],
+    }
+
+
+def sample_scale() -> dict:
+    return {
+        "synthetic": True,
+        "stream_id": "0192aaaa-bbbb-7ccc-8ddd-000000000000",
+        "catalog_sha": "b" * 64,
+        "unit_count": 5000,
+        "group_count": 1000,
+        "first_unit_id": "ru_" + "1" * 24,
+        "last_unit_id": "ru_" + "2" * 24,
+    }
+
+
 class BrowserManifestTests(unittest.TestCase):
-    def test_missing_manifest_fields_fail_closed(self) -> None:
-        with self.assertRaises(GateError):
-            G.validate_browser_manifest(None)
-        with self.assertRaises(GateError):
-            G.validate_browser_manifest({"schema": "wrong"})
-        with self.assertRaises(GateError):
-            G.validate_browser_manifest(
-                {"schema": G.BROWSER_MANIFEST_SCHEMA, "streams": []}
-            )
-        with self.assertRaises(GateError):
-            G.validate_browser_manifest(
-                {
-                    "schema": G.BROWSER_MANIFEST_SCHEMA,
-                    "streams": [
-                        {
-                            "stream_id": "x",
-                            "catalog_sha": "short",
-                            "first_unit_id": "ru_0",
-                            "unit_count": 1,
-                            "group_count": 1,
-                        }
-                    ],
-                }
-            )
+    def _manifest(self, **overrides) -> dict:
+        manifest = {
+            "schema": G.BROWSER_MANIFEST_SCHEMA,
+            "version": G.BROWSER_MANIFEST_VERSION,
+            "streams": [sample_work()],
+            "versions": [
+                {"label": "v1", "catalog_sha": "a" * 64, "stream_id": sample_work()["stream_id"]}
+            ],
+            "scale": sample_scale(),
+        }
+        manifest.update(overrides)
+        return manifest
 
     def test_valid_manifest_passes(self) -> None:
-        work = {
-            "stream_id": "0192aaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee",
-            "catalog_sha": "a" * 64,
-            "source_title": "Fixture",
-            "unit_count": 3,
-            "group_count": 1,
-            "first_unit_id": "ru_" + "0" * 24,
-            "event_ids": [],
-        }
-        manifest = G.build_browser_manifest([work], base_url=None)
+        manifest = self._manifest()
         self.assertIs(G.validate_browser_manifest(manifest), manifest)
-        self.assertTrue(manifest["performance"]["synthetic"])
-        self.assertEqual(manifest["performance"]["target_units"], 5000)
+
+    def test_missing_manifest_fields_fail_closed(self) -> None:
+        for broken in (
+            None,
+            {"schema": "wrong"},
+            self._manifest(streams=[]),
+            self._manifest(scale=None),
+            self._manifest(scale={**sample_scale(), "unit_count": 10}),
+            self._manifest(versions=[]),
+        ):
+            with self.assertRaises(GateError):
+                G.validate_browser_manifest(broken)
+
+    def test_short_catalog_fails(self) -> None:
+        work = {**sample_work(), "catalog_sha": "short"}
+        with self.assertRaises(GateError):
+            G.validate_browser_manifest(self._manifest(streams=[work]))
 
 
 class BoundaryTests(unittest.TestCase):
@@ -255,6 +289,12 @@ class BoundaryTests(unittest.TestCase):
             self.assertFalse((directory / "manifest.json").is_file())
             stored = json.loads((directory / "manifest.partial.json").read_text())
             self.assertEqual(stored["result"], "FAIL")
+
+    def test_scale_result_marker_parses(self) -> None:
+        stdout = 'noise\nGATE_SCALE_RESULT={"stream_id": "s", "unit_count": 5000}\n'
+        self.assertEqual(parse_scale_result(stdout)["unit_count"], 5000)
+        with self.assertRaises(RuntimeError):
+            parse_scale_result("no marker here")
 
 
 class LiveCliTests(unittest.TestCase):

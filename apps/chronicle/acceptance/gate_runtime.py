@@ -650,6 +650,7 @@ class ComposeStack:
         compose_file: str = "compose.chronicle.yaml",
         base_url: str | None = None,
         worker_lease_seconds: int = 15,
+        extra_files: Sequence[str] | None = None,
     ) -> None:
         self.repo = repo
         self.env_file = env_file
@@ -658,6 +659,7 @@ class ComposeStack:
         self.compose_file = compose_file
         self.base_url = base_url
         self.worker_lease_seconds = worker_lease_seconds
+        self.extra_files = list(extra_files or [])
         self.started = False
 
     def env(self, worker_id: str | None = None) -> dict[str, str]:
@@ -669,13 +671,7 @@ class ComposeStack:
             merged["CHRONICLE_WORKER_ID"] = worker_id
         return merged
 
-    def compose(
-        self,
-        args: Iterable[str],
-        *,
-        worker_id: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
+    def _command(self, args: Iterable[str]) -> list[str]:
         cmd = [
             "docker",
             "compose",
@@ -683,9 +679,63 @@ class ComposeStack:
             str(self.env_file),
             "-f",
             self.compose_file,
-            *args,
         ]
-        return run(cmd, cwd=self.repo, env=self.env(worker_id), check=check)
+        for extra in self.extra_files:
+            cmd += ["-f", extra]
+        return [*cmd, *args]
+
+    def compose(
+        self,
+        args: Iterable[str],
+        *,
+        worker_id: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        return run(self._command(args), cwd=self.repo, env=self.env(worker_id), check=check)
+
+    def compose_run_script(
+        self,
+        service: str,
+        script: str,
+        *,
+        worker_id: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a Python script inside a one-off service container via stdin.
+
+        The script executes with the image's product modules and the service's
+        ``CHRONICLE_DATABASE_URL``; no host filesystem or raw SQL is needed
+        for the synthetic tooling.
+        """
+        result = subprocess.run(
+            self._command(["run", "--rm", "-T", service, "python3", "-"]),
+            cwd=self.repo,
+            env=self.env(worker_id),
+            input=script,
+            text=True,
+            capture_output=True,
+        )
+        if check and result.returncode != 0:
+            raise GateError(
+                f"compose run {service} script failed ({result.returncode}):\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+        return result
+
+    def compose_run(
+        self,
+        service: str,
+        cmd: Sequence[str],
+        *,
+        worker_id: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a one-off command in a service container (no stdin)."""
+        return self.compose(
+            ["run", "--rm", "-T", service, *cmd],
+            worker_id=worker_id,
+            check=check,
+        )
 
     def up(self, *, build: bool = False, profile: str = "worker") -> None:
         args = ["--profile", profile, "up", "-d"]
@@ -693,6 +743,15 @@ class ComposeStack:
             args.append("--build")
         self.compose(args)
         self.started = True
+
+    def stop_service(self, service: str) -> None:
+        self.compose(["--profile", "worker", "stop", service], check=False)
+
+    def start_service(self, service: str) -> None:
+        self.compose(["--profile", "worker", "start", service])
+
+    def restart(self, *services: str) -> None:
+        self.compose(["--profile", "worker", "restart", *services])
 
     def exec_(
         self, service: str, cmd: Sequence[str], *, worker_id: str | None = None

@@ -9,50 +9,49 @@ Unified thin orchestration entry for the second-round acceptance loop::
         --source-pack apps/chronicle/corpus/first-round/source-pack.json \
         --evidence-dir /tmp/chronicle-r2-offline
 
-``fixture`` mode is a real, isolated offline chain: it plans the frozen
-first-round source pack with the production ``chapter_plan`` entry, builds a
-deterministic 0.2 whole-chapter reading fixture pack grounded verbatim in the
-planned chapter text, runs the real joint chapter pipeline
-(``worker.run_once`` with the explicit ``FixtureReadingChapterModel``) through
-extract/assemble/resolve/publish against an isolated PostgreSQL 18 database,
-and reads the published stream/units/groups/events back through the production
-T07/T08 read entries. Fixture results are explicitly labelled non-live and can
-never prove real content correctness.
+``fixture`` mode runs the real deployed stack through the shared
+``gate_runtime`` lifecycle: an isolated Docker Compose project (PostgreSQL 18,
+Rust ``chronicle-server`` front, Python ``read_api`` sidecar, durable worker)
+plus an in-gate deterministic 0.2 model provider served over HTTP. The gate
+uploads the frozen sources through the authenticated Studio HTTP boundary,
+queues jobs, lets the real worker publish, reads the result through the public
+Rust HTTP reading routes, injects fail-closed faults, restarts the stack, seeds
+the explicitly synthetic 5,000-unit/1,000-group scale stream, and finally runs
+the real-browser ``reading-flow-smoke.mjs`` suite against the running front.
+No product row is written with raw SQL by this module (the synthetic scale
+fixture is a separately labelled module).
 
-``live`` mode performs the strict prechecks for a real-provider run (fixture
-exclusion, complete provider identity, Compose config, interactive review) and
-stops with a READY handoff for T17. It never calls a real provider and never
-auto-decides review identity.
-
-The gate reuses the ``gate_runtime`` lifecycle shared with the first-round
-gate; it never writes product tables with raw SQL, and it never constructs a
-successful result outside the product acceptance entries.
+``live`` mode performs the strict prechecks for a real-provider run and stops
+with a READY handoff for T17; it never calls a real provider.
 """
 
 from __future__ import annotations
 
 import argparse
-import copy
+import hashlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import threading
+import time
 import urllib.parse
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 GATE_SCHEMA = "chronicle.second-round-gate-evidence"
-GATE_VERSION = "0.1"
+GATE_VERSION = "0.2"
 BROWSER_MANIFEST_SCHEMA = "chronicle.reading-flow-fixture"
-BROWSER_MANIFEST_VERSION = "0.1"
+BROWSER_MANIFEST_VERSION = "0.2"
 FIXTURE_DISCLAIMER = (
     "fixture mode is deterministic offline orchestration only; "
     "it is NOT live content proof and MUST NOT be cited as real "
     "translation/reading-annotation correctness evidence"
 )
-DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
 VIEWPORTS = (
     {"name": "desktop-1440", "width": 1440, "height": 900},
     {"name": "tablet-1024", "width": 1024, "height": 768},
@@ -77,28 +76,34 @@ for _path in (str(HERE), str(PERSISTENCE_DIR), str(WORKER_DIR), str(READ_API_DIR
         sys.path.insert(0, _path)
 
 from gate_runtime import (  # noqa: E402
+    ComposeStack,
     Evidence,
     GateError,
-    IsolatedDatabase,
+    basic_auth,
     candidate_commit,
+    default_gate_project,
+    json_http,
     load_env_file,
     load_source_pack,
+    queue_job,
     require_live_config,
+    require_status,
+    reviews_for_job,
     safe_provider,
-    sha256_text,
+    upload_revision,
     verify_pack_manifest_hashes,
+    wait_health,
+    wait_job,
     write_json,
 )
+from reading_scale_fixture import (  # noqa: E402
+    SCALE_GROUPS_ENV,
+    SCALE_UNITS_ENV,
+    SEED_SCRIPT,
+    parse_scale_result,
+)
 
-import chapter_contract  # noqa: E402
-import chapter_plan  # noqa: E402
-import control_plane  # noqa: E402
 import fixture_model  # noqa: E402
-import ingestion_worker as worker  # noqa: E402
-import resolve_publish  # noqa: E402
-from repository import ChronicleReadRepository  # noqa: E402
-
-import router as read_router  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +114,9 @@ import router as read_router  # noqa: E402
 def check_no_direct_product_writes() -> dict[str, Any]:
     """Prove this orchestrator never writes product rows with raw SQL.
 
-    Product mutation must go through the worker/publish/read acceptance
-    entries. Raw INSERT/UPDATE/DELETE/CREATE/DROP/ALTER statements are
-    refused here. Statement-free ``psycopg`` use for isolated-database
-    provisioning (owned by ``gate_runtime``) and read-only SELECTs is
-    allowed.
+    Product mutation must go through the deployed stack's public HTTP or the
+    product acceptance entries. Raw INSERT/UPDATE/DELETE/CREATE/DROP/ALTER
+    statements are refused here.
     """
     lines = Path(__file__).read_text(encoding="utf-8").splitlines()
     scanning = True
@@ -145,11 +148,16 @@ def check_no_direct_product_writes() -> dict[str, Any]:
 
 
 def require_fixture_env(config: dict[str, str]) -> None:
-    """Fixture mode never calls a live provider, so inject the exclusion."""
-    if config.get("CHRONICLE_CHAPTER_MODEL", "").strip():
+    """Fixture mode never calls a real live provider."""
+    if config.get("CHRONICLE_MODEL_FIXTURE_PACK", "").strip():
         raise GateError(
-            "fixture mode refuses CHRONICLE_CHAPTER_MODEL; a fixture run must "
-            "use the injected reading fixture provider, never a live model"
+            "fixture mode refuses CHRONICLE_MODEL_FIXTURE_PACK; the gate's own "
+            "HTTP fixture provider is the only fixture source"
+        )
+    if config.get("CHRONICLE_CHAPTER_FIXTURE_PACK", "").strip():
+        raise GateError(
+            "fixture mode refuses CHRONICLE_CHAPTER_FIXTURE_PACK; the gate's "
+            "own HTTP fixture provider is the only fixture source"
         )
 
 
@@ -174,12 +182,11 @@ def require_live_env(config: dict[str, str]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Fixture construction (deterministic, verbatim-grounded)
+# Deterministic 0.2 fixture provider served over the real provider protocol
 # ---------------------------------------------------------------------------
 
 
 def pick_unique_mention(text: str, blocked: set[str]) -> str:
-    """Find a short verbatim substring occurring exactly once in the text."""
     for length in (6, 8, 10, 12):
         step = max(1, length // 2)
         for start in range(0, max(0, len(text) - length), step):
@@ -193,357 +200,530 @@ def pick_unique_mention(text: str, blocked: set[str]) -> str:
     raise GateError("no unique verbatim mention found in chapter text")
 
 
-def plan_upload(upload: dict[str, Any], revision_id: uuid.UUID) -> dict[str, Any]:
-    """Plan one upload with the production chapter planner.
-
-    The plan is bound to the revision identity created by the product, so the
-    fixture pack and the worker replan produce the same chapter identities.
-    """
-    text = upload["text"]
-    locator = {
-        "revision_id": str(revision_id),
-        "source_sha256": upload["sha256"],
-        "normalized_sha256": sha256_text(text),
-    }
-    try:
-        plan = chapter_plan.plan_chapters(
-            text,
-            locator,
-            Path(upload["upload"]).name,
-            limits=chapter_contract.ChapterLimits(),
-        )
-    except Exception as exc:  # noqa: BLE001 - product failures are gate failures
-        raise GateError(f"plan_chapters failed for {upload['upload']!r}: {exc}") from exc
-    return {"upload": upload, "plan": plan, "text": text}
-
-
-def reading_fixture_pack(planned: dict[str, Any], source_title: str) -> dict[str, Any]:
-    """Build a deterministic 0.2 reading fixture pack for one planned work."""
-    plan = planned["plan"]
-    text = planned["text"]
-    used: set[str] = set()
-    chapters: list[dict[str, Any]] = []
-    limits = chapter_contract.ChapterLimits()
-    for chapter in plan["chapters"]:
-        request = chapter_plan.build_chapter_request(
-            plan, chapter["chapter_index"], text, limits=limits
-        )
-        mention = pick_unique_mention(request["normalized_text"], used)
-        used.add(mention)
-        chapters.append(
-            {
-                "chapter_id": chapter["chapter_id"],
-                "revision_id": plan["revision_id"],
-                "source_title": source_title,
-                "translation_text": f"fixture白話譯文（{mention}）非真實譯文",
-                "entities": [{"mention": mention, "type": "person", "name": mention}],
-                "event": {"type": "battle", "title": f"fixture事件（{mention}）"},
-                "predicate": "affected",
-            }
-        )
+def grounded_spec(request: dict[str, Any], source_title: str) -> dict[str, Any]:
+    text = request["normalized_text"]
+    mention = pick_unique_mention(text, set())
     return {
-        "schema": "chronicle.chapter-fixture-pack",
-        "version": "0.1",
-        "model_version": "c2r2-reading-gate",
-        "chapters": chapters,
+        "chapter_id": request["chapter_id"],
+        "revision_id": request["revision_id"],
+        "source_title": source_title,
+        "translation_text": f"fixture白話譯文（{mention}）非真實譯文",
+        "entities": [{"mention": mention, "type": "person", "name": mention}],
+        "event": {"type": "battle", "title": f"fixture事件（{mention}）"},
+        "predicate": "affected",
     }
 
 
-def load_reading_fixture_model(pack: dict[str, Any], pack_path: Path) -> Any:
-    write_json(pack_path, pack)
-    return fixture_model.models_from_reading_chapter_fixture_pack(pack_path)
+def add_resolved_span(candidate: dict[str, Any], request: dict[str, Any]) -> None:
+    """Attach one resolved event span so the browser can exercise previews.
+
+    The deterministic fixture builder leaves spans empty; the acceptance gate
+    adds a single grounded span (selection quote present in the translation
+    block, source selection present in the chapter blocks) so event
+    preview/targets are reachable on the real stack. The owning T01 validator
+    still rejects anything ungrounded.
+    """
+    units = candidate.get("reading", {}).get("units", [])
+    blocks = candidate.get("translation", {}).get("blocks", [])
+    events = candidate.get("bundle", {}).get("events", [])
+    mentions = candidate.get("mentions", [])
+    if not units or not events or not mentions:
+        return
+    event_ref = events[0]["temp_id"]
+    mention = str(mentions[0].get("surface") or "")
+    if not mention:
+        return
+    for unit in units:
+        block = next(
+            (item for item in blocks if item.get("block_id") == unit.get("block_id")),
+            None,
+        )
+        if block is None or mention not in block.get("text", ""):
+            continue
+        selection = fixture_model._chapter_selection_for(
+            quote=mention,
+            text=request["normalized_text"],
+            blocks=request["blocks"],
+            owner="gate reading span",
+        )
+        unit["event_spans"] = [
+            {
+                "span_id": "es_001",
+                "selection": {"quote": mention, "occurrence": 1},
+                "status": "resolved",
+                "target_ref": event_ref,
+                "candidate_refs": [],
+                "relation": "current",
+                "source_selections": [selection],
+            }
+        ]
+        unit["current_event_refs"] = [event_ref]
+        return
+
+
+def fixture_candidate(prompt: str) -> str:
+    request = fixture_model._chapter_request_from_t05_prompt(prompt)
+    candidate = fixture_model.build_reading_chapter_candidate(
+        request, grounded_spec(request, "gate-fixture")
+    )
+    add_resolved_span(candidate, request)
+    return json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
+
+
+class FixtureModelProvider:
+    """The in-gate HTTP provider implementing the Responses-style protocol."""
+
+    def __init__(self, port: int) -> None:
+        self.port = port
+        self.server: ThreadingHTTPServer | None = None
+        self.thread: threading.Thread | None = None
+        self.calls = 0
+        #: When set, any prompt containing this token receives a malformed
+        #: candidate so the gate can inject a deterministic mid-chain failure.
+        self.fail_token: str | None = None
+
+    def _handler(self) -> type[BaseHTTPRequestHandler]:
+        provider = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args: Any) -> None:
+                return
+
+            def do_POST(self) -> None:  # noqa: N802
+                length = int(self.headers.get("Content-Length", "0"))
+                try:
+                    body = json.loads(self.rfile.read(length).decode("utf-8"))
+                    prompt = str(body.get("input", ""))
+                    if provider.fail_token and provider.fail_token in prompt:
+                        text = '{"broken": true}'
+                    else:
+                        text = fixture_candidate(prompt)
+                    provider.calls += 1
+                    payload = {
+                        "status": "completed",
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [{"type": "output_text", "text": text}],
+                            }
+                        ],
+                    }
+                    self._respond(200, payload)
+                except Exception as exc:  # noqa: BLE001 - fail closed over HTTP
+                    self._respond(
+                        500,
+                        {"status": "failed", "error": {"message": str(exc)[:500]}},
+                    )
+
+            def _respond(self, status: int, payload: dict[str, Any]) -> None:
+                raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        return Handler
+
+    def start(self) -> None:
+        self.server = ThreadingHTTPServer(("0.0.0.0", self.port), self._handler())
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def stop(self) -> None:
+        if self.server is not None:
+            self.server.shutdown()
+            self.server.server_close()
+        if self.thread is not None:
+            self.thread.join(timeout=5)
+
+
+def free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 # ---------------------------------------------------------------------------
-# Real offline chain (Python + PostgreSQL product entries)
+# Stack environment + lifecycle
 # ---------------------------------------------------------------------------
 
 
-def queue_work(
-    database_url: str, upload: dict[str, Any]
-) -> tuple[uuid.UUID, uuid.UUID]:
-    import psycopg  # noqa: PLC0415
+def write_stack_env(
+    source_env: Path, out: Path, *, endpoint: str, web_port: int
+) -> Path:
+    config = load_env_file(source_env)
+    config.setdefault("CHRONICLE_POSTGRES_USER", "chronicle")
+    config.setdefault("CHRONICLE_POSTGRES_DB", "chronicle")
+    config["CHRONICLE_PORT"] = str(web_port)
+    config["CHRONICLE_BIND_IP"] = "127.0.0.1"
+    config["CHRONICLE_MODEL_ENDPOINT"] = endpoint
+    config["CHRONICLE_CHAPTER_MODEL"] = "gate-fixture-chapter"
+    config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
+        "CHRONICLE_MODEL_TIMEOUT_SECONDS", "180"
+    )
+    for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):
+        config.pop(key, None)
+    out.write_text(
+        "".join(f"{key}={value}\n" for key, value in sorted(config.items())),
+        encoding="utf-8",
+    )
+    return out
 
-    with psycopg.connect(database_url) as conn:
-        document_id = control_plane.create_document(
-            conn, title=Path(upload["upload"]).name
+
+def write_worker_override(path: Path) -> Path:
+    path.write_text(
+        "services:\n"
+        "  chronicle-worker:\n"
+        "    extra_hosts:\n"
+        '      - "host.docker.internal:host-gateway"\n',
+        encoding="utf-8",
+    )
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Studio HTTP boundary
+# ---------------------------------------------------------------------------
+
+
+def create_document(base_url: str, auth: str, title: str) -> dict[str, Any]:
+    body = json.dumps({"title": title}, ensure_ascii=False).encode("utf-8")
+    status, payload = json_http(
+        base_url,
+        "/api/v1/studio/documents",
+        method="POST",
+        body=body,
+        content_type="application/json",
+        auth=auth,
+    )
+    require_status(status, 201, payload, "create document")
+    return payload["document"]
+
+
+def resolve_open_reviews(
+    base_url: str, auth: str, job_id: str, evidence: dict[str, Any]
+) -> None:
+    open_items = reviews_for_job(base_url, auth, job_id, "open")
+    if not open_items:
+        return
+    resolved = []
+    for item in open_items:
+        allowed = list(item.get("allowed_decisions") or [])
+        decision = "same" if "same" in allowed else (allowed[0] if allowed else "uncertain")
+        status, payload = json_http(
+            base_url,
+            f"/api/v1/studio/jobs/reviews/{item['review_id']}/decision",
+            method="POST",
+            body=json.dumps(
+                {
+                    "decision": decision,
+                    "rationale": "fixture mode fixed decision",
+                    "confidence": 1.0,
+                }
+            ).encode("utf-8"),
+            content_type="application/json",
+            auth=auth,
         )
-        revision_id, _ = control_plane.create_revision(
-            conn,
-            document_id=document_id,
-            source_sha256=upload["sha256"],
-            source_bytes=upload["bytes"],
-            source_media_type="text/markdown",
-            filename=Path(upload["upload"]).name,
-        )
-        job_id = control_plane.queue_job(conn, revision_id=revision_id)
-        conn.commit()
-    return job_id, revision_id
+        require_status(status, 200, payload, "review decision")
+        resolved.append({"review_id": item["review_id"], "decision": decision})
+    evidence.setdefault("review_decisions", []).extend(resolved)
 
 
-def run_work_chain(
-    database_url: str,
-    upload: dict[str, Any],
-    *,
-    stage_dir: Path,
-    worker_id: str = "c2r2-gate",
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Drive one work through the real chain to publication, then read it."""
-    job_id, revision_id = queue_work(database_url, upload)
-    planned = plan_upload(upload, revision_id)
-    pack = reading_fixture_pack(
-        planned, source_title=str(upload["upload"])
-    )
-    model = load_reading_fixture_model(
-        pack, stage_dir / f"reading-fixture-{upload['sha256'][:12]}.json"
-    )
-    text = planned["text"]
-    source_sha = upload["sha256"]
-    claimed = worker.run_once(
-        database_url,
-        worker=worker_id,
-        revision_source=lambda _job: (text, source_sha),
-        chapter_model=model,
-        chapter_limits=chapter_contract.ChapterLimits(),
-        job_id=job_id,
-    )
-    if claimed is None:
-        raise GateError(f"worker did not claim queued job {job_id}")
-    _, outcome = claimed
-    if outcome != "completed":
-        raise GateError(f"reading chain did not complete: outcome={outcome!r}")
-    result = read_published_stream(database_url, revision_id=revision_id, job_id=job_id)
-    return result, planned
-
-
-def _connect(database_url: str) -> Any:
-    import psycopg  # noqa: PLC0415
-
-    return psycopg.connect(database_url)
-
-
-def _dispatch(repo: ChronicleReadRepository, path: str, query: str) -> dict[str, Any]:
-    status, payload = read_router.dispatch(repo, "GET", path, query)
-    if status != 200:
-        raise GateError(f"read route {path}?{query} returned HTTP {status}: {payload}")
-    return payload
-
-
-def read_published_stream(
-    database_url: str, *, revision_id: uuid.UUID, job_id: uuid.UUID
+def publish_upload(
+    base_url: str, auth: str, upload: dict[str, Any], evidence: dict[str, Any]
 ) -> dict[str, Any]:
-    import psycopg  # noqa: PLC0415
-
-    with psycopg.connect(database_url) as conn:
-        catalog = resolve_publish.read_latest_catalog(conn)
-        if catalog is None:
-            raise GateError("publication produced no canonical catalog")
-        catalog_sha = resolve_publish.sha256_json(catalog)
-        row = conn.execute(
-            """
-            SELECT stream_id, unit_count, group_count
-            FROM chronicle.reading_streams WHERE revision_id = %s
-            """,
-            (revision_id,),
-        ).fetchone()
-        if row is None:
-            raise GateError("publication produced no reading stream")
-        stream_id = str(row[0])
-        event_rows = conn.execute(
-            """
-            SELECT DISTINCT canonical_event_id
-            FROM chronicle.reading_event_occurrences WHERE stream_id = %s
-            """,
-            (row[0],),
-        ).fetchall()
-        event_ids = [str(item[0]) for item in event_rows]
-        repo = ChronicleReadRepository(conn)
-        actions: dict[str, Any] = {
-            "job_id": str(job_id),
-            "revision_id": str(revision_id),
-            "catalog_sha": catalog_sha,
-            "stream_id": stream_id,
-            "unit_count": int(row[1]),
-            "group_count": int(row[2]),
-            "event_ids": sorted(event_ids),
-        }
-        actions["directory"] = _dispatch(
-            repo, "/v0/reading-streams", f"catalog={catalog_sha}"
-        )
-        actions["detail"] = _dispatch(
-            repo, f"/v0/reading-streams/{stream_id}", f"catalog={catalog_sha}"
-        )
-        actions["units"] = _dispatch(
-            repo,
-            f"/v0/reading-streams/{stream_id}/units",
-            f"catalog={catalog_sha}&limit=50",
-        )
-        actions["groups"] = _dispatch(
-            repo,
-            f"/v0/reading-streams/{stream_id}/groups",
-            f"catalog={catalog_sha}&limit=100",
-        )
-    _assert_units_reassemble(actions, database_url=database_url)
-    _assert_locate(actions, database_url=database_url)
-    if event_ids:
-        _assert_event_views(actions, database_url=database_url)
-    return actions
-
-
-def _assert_units_reassemble(actions: dict[str, Any], *, database_url: str) -> None:
-    units = actions["units"]["page"]["units"]
-    if not units:
-        raise GateError("reading stream exposed no units")
-    if actions["directory"]["page"]["streams"] == []:
-        raise GateError("reading directory is empty after publication")
-    with _connect(database_url) as db:
-        for unit in units:
-            joined = "".join(
-                segment.get("text", "")
-                for segment in unit.get("segments", [])
-                if "text" in segment
-            )
-            row = db.execute(
-                """
-                SELECT segments FROM chronicle.reading_units
-                WHERE stream_id = %s AND unit_id = %s
-                """,
-                (uuid.UUID(actions["stream_id"]), unit["unit_id"]),
-            ).fetchone()
-            if row is None:
-                raise GateError(f"unit {unit['unit_id']} missing from the store")
-            stored = "".join(
-                segment.get("text", "")
-                for segment in row[0]
-                if "text" in segment
-            )
-            if joined != stored or not joined:
-                raise GateError(
-                    f"unit {unit['unit_id']} API segments do not reassemble the stored text"
-                )
-
-
-def _assert_locate(actions: dict[str, Any], *, database_url: str) -> None:
-    first = actions["units"]["page"]["units"][0]
-    located = _dispatch(
-        ChronicleReadRepository(_connect(database_url)),
-        f"/v0/reading-streams/{actions['stream_id']}/locate",
-        f"catalog={actions['catalog_sha']}&unit_id={first['unit_id']}&limit=5",
+    document = create_document(
+        base_url, auth, upload["work"] or Path(upload["upload"]).name
     )
-    if located["page"]["units"][0]["unit_id"] != first["unit_id"]:
-        raise GateError("locate did not return the exact requested unit")
-    status, payload = read_router.dispatch(
-        ChronicleReadRepository(_connect(database_url)),
-        "GET",
-        f"/v0/reading-streams/{actions['stream_id']}/locate",
-        f"catalog={actions['catalog_sha']}&unit_id=ru_{'0' * 24}&limit=5",
+    published = publish_revision(
+        base_url, auth, document["document_id"], Path(upload["path"]), "c2r2-gate", evidence
     )
-    if status != 404:
+    published["upload"] = upload["upload"]
+    return published
+
+
+def publish_revision(
+    base_url: str,
+    auth: str,
+    document_id: str,
+    source: Path,
+    source_label: str,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    revision = upload_revision(base_url, auth, document_id, source, source_label)
+    job = queue_job(base_url, auth, revision["revision_id"])
+    current = wait_job(
+        base_url,
+        auth,
+        job["job_id"],
+        wanted={"completed", "needs_review"},
+        timeout_seconds=1800,
+        idle_timeout_seconds=600,
+    )
+    if current.get("status") == "needs_review":
+        resolve_open_reviews(base_url, auth, job["job_id"], evidence)
+        job_action = json_http(
+            base_url,
+            f"/api/v1/studio/jobs/{job['job_id']}/resume",
+            method="POST",
+            body=b"{}",
+            content_type="application/json",
+            auth=auth,
+        )
+        require_status(job_action[0], 200, job_action[1], "job resume")
+        current = wait_job(
+            base_url,
+            auth,
+            job["job_id"],
+            wanted={"completed"},
+            timeout_seconds=1800,
+            idle_timeout_seconds=600,
+        )
+    if current.get("status") != "completed":
+        raise GateError(f"job {job['job_id']} did not complete: {current.get('status')}")
+    return {
+        "document_id": document_id,
+        "revision_id": revision["revision_id"],
+        "job_id": job["job_id"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public HTTP reads
+# ---------------------------------------------------------------------------
+
+
+def public_json(base_url: str, path: str, *, timeout_seconds: int = 60) -> dict[str, Any]:
+    deadline = time.time() + timeout_seconds
+    while True:
+        status, payload = json_http(base_url, path)
+        if status == 200:
+            return payload
+        if status in (502, 503) and time.time() < deadline:
+            time.sleep(1)
+            continue
+        raise GateError(f"{path} returned HTTP {status}: {payload}")
+
+
+def collect_stream(
+    base_url: str, revision_id: str, catalog_sha: str
+) -> dict[str, Any]:
+    directory = public_json(base_url, f"/api/v1/public/reading-streams?catalog={catalog_sha}")
+    items = directory["page"]["streams"]
+    match = next(
+        (item for item in items if item.get("revision_id") == revision_id), None
+    )
+    if match is None:
         raise GateError(
-            f"unknown locator must fail closed with 404, got {status}: {payload}"
+            f"published revision {revision_id} is missing from the public directory"
         )
-    actions["locate"] = located
-    actions["unknown_locator_status"] = status
-
-
-def _assert_event_views(actions: dict[str, Any], *, database_url: str) -> None:
-    event_id = actions["event_ids"][0]
-    repo = ChronicleReadRepository(_connect(database_url))
-    actions["event_preview"] = _dispatch(
-        repo,
-        f"/v0/reading-events/{event_id}/preview",
-        f"catalog={actions['catalog_sha']}",
+    stream_id = match["stream_id"]
+    result: dict[str, Any] = {
+        "stream_id": stream_id,
+        "catalog_sha": catalog_sha,
+        "revision_id": revision_id,
+        "unit_count": int(match["unit_count"]),
+        "group_count": int(match["group_count"]),
+        "directory": directory,
+    }
+    result["detail"] = public_json(
+        base_url, f"/api/v1/public/reading-streams/{stream_id}?catalog={catalog_sha}"
     )
-    actions["event_targets"] = _dispatch(
-        repo,
-        f"/v0/reading-events/{event_id}/targets",
-        f"catalog={actions['catalog_sha']}&limit=20",
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{stream_id}/units?catalog={catalog_sha}&limit=50",
     )
+    result["units"] = units
+    result["groups"] = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{stream_id}/groups?catalog={catalog_sha}&limit=100",
+    )
+    first = units["page"]["units"][0]
+    result["first_unit_id"] = first["unit_id"]
+    result["locate"] = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{stream_id}/locate"
+        f"?catalog={catalog_sha}&unit_id={first['unit_id']}&limit=5",
+    )
+    event_ids = _event_ids_from_units(units["page"]["units"])
+    result["event_ids"] = event_ids
+    if event_ids:
+        result["event_preview"] = public_json(
+            base_url,
+            f"/api/v1/public/reading-events/{event_ids[0]}/preview?catalog={catalog_sha}",
+        )
+        result["event_targets"] = public_json(
+            base_url,
+            f"/api/v1/public/reading-events/{event_ids[0]}/targets?catalog={catalog_sha}&limit=20",
+        )
+    _assert_units_reassemble(base_url, result)
+    _assert_negative_locator(base_url, result)
+    return result
 
 
-# ---------------------------------------------------------------------------
-# Fault injection (fail-closed proofs)
-# ---------------------------------------------------------------------------
+def _event_ids_from_units(units: list[dict[str, Any]]) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for unit in units:
+        for segment in unit.get("segments", []):
+            if segment.get("kind") != "event":
+                continue
+            span = segment.get("span") or {}
+            event_id = span.get("target_event_id")
+            if event_id and event_id not in seen:
+                seen.add(event_id)
+                found.append(event_id)
+    return found
+
+
+def _assert_units_reassemble(base_url: str, result: dict[str, Any]) -> None:
+    units = result["units"]["page"]["units"]
+    if not units:
+        raise GateError("published stream exposed no units")
+    for unit in units:
+        joined = "".join(
+            segment.get("text", "")
+            for segment in unit.get("segments", [])
+            if "text" in segment
+        )
+        if not joined:
+            raise GateError(f"unit {unit.get('unit_id')} rendered no text")
+    if result["locate"]["page"]["units"][0]["unit_id"] != result["first_unit_id"]:
+        raise GateError("public locate did not return the exact requested unit")
+    page = result["detail"].get("page")
+    if not isinstance(page, dict) or page.get("chapters") is None:
+        raise GateError("stream detail carries no chapter directory")
 
 
 def _unknown_uuid7() -> uuid.UUID:
-    """A syntactically valid UUIDv7 that no fixture ever publishes."""
     raw = bytearray(uuid.uuid4().bytes)
     raw[6] = (raw[6] & 0x0F) | 0x70
     raw[8] = (raw[8] & 0x3F) | 0x80
     return uuid.UUID(bytes=bytes(raw))
 
 
+def _assert_negative_locator(base_url: str, result: dict[str, Any]) -> None:
+    status, payload = json_http(
+        base_url,
+        f"/api/v1/public/reading-streams/{result['stream_id']}/locate"
+        f"?catalog={result['catalog_sha']}&unit_id=ru_{'0' * 24}&limit=5",
+    )
+    if status != 404:
+        raise GateError(f"unknown locator must fail closed with 404, got {status}: {payload}")
+    result["unknown_locator_status"] = status
+    status, payload = json_http(
+        base_url, f"/api/v1/public/reading-streams/{_unknown_uuid7()}"
+    )
+    if status != 404:
+        raise GateError(f"unknown stream must fail closed with 404, got {status}: {payload}")
+    result["unknown_stream_status"] = status
+
+
+# ---------------------------------------------------------------------------
+# Fault injection on the real stack
+# ---------------------------------------------------------------------------
+
+
 def fault_checks(
-    database_url: str, planned: dict[str, Any], *, stage_dir: Path
+    stack: ComposeStack,
+    base_url: str,
+    auth: str,
+    upload: dict[str, Any],
+    *,
+    provider: FixtureModelProvider,
+    evidence_dir: Path,
+    evidence: dict[str, Any],
 ) -> dict[str, Any]:
-    import psycopg  # noqa: PLC0415
-
     faults: dict[str, Any] = {}
-    plan = planned["plan"]
-    text = planned["text"]
-    limits = chapter_contract.ChapterLimits()
+    before = public_json(base_url, "/api/v1/public/reading-streams")
+    before_ids = [item["stream_id"] for item in before["page"]["streams"]]
 
-    # F1: a fixture pack whose chapter identity drifted is refused before any
-    # model call can produce a candidate.
-    bogus = reading_fixture_pack(planned, source_title="fixture")
-    bogus["chapters"] = [
-        dict(item, chapter_id=f"ch_{index:024x}")
-        for index, item in enumerate(bogus["chapters"])
+    # F1: a deterministic mid-chain model failure leaves no public half-product
+    # and no readable stream for the failed revision. The production worker's
+    # --fail-stage plan only scripts the legacy fake executor, so the gate
+    # injects the failure through its own provider instead.
+    token = "GATEFAULTTOKEN"
+    fault_source = evidence_dir / "fault-source.md"
+    fault_source.write_text(
+        upload["text"] + f"\n\n{token}\n", encoding="utf-8"
+    )
+    provider.fail_token = token
+    try:
+        document = create_document(base_url, auth, "fault-source")
+        revision = upload_revision(
+            base_url, auth, document["document_id"], fault_source, "c2r2-fault"
+        )
+        job = queue_job(base_url, auth, revision["revision_id"])
+        failed = wait_job(
+            base_url, auth, job["job_id"], wanted={"failed"}, timeout_seconds=600
+        )
+    finally:
+        provider.fail_token = None
+    after_failed = public_json(base_url, "/api/v1/public/reading-streams")
+    after_ids = [item["stream_id"] for item in after_failed["page"]["streams"]]
+    if failed.get("status") != "failed":
+        raise GateError("injected chain failure did not fail the job")
+    if [item for item in after_ids if item not in before_ids]:
+        raise GateError("failed chain leaked a public reading stream")
+    rev_stream = [
+        item
+        for item in after_failed["page"]["streams"]
+        if item.get("revision_id") == revision["revision_id"]
     ]
-    bogus_model = load_reading_fixture_model(bogus, stage_dir / "drifted-pack.json")
-    request = chapter_plan.build_chapter_request(plan, 0, text, limits=limits)
-    try:
-        bogus_model.build_for_request(request)
-    except Exception as exc:  # noqa: BLE001
-        faults["fixture_identity_drift"] = {"passed": True, "error": str(exc)[:200]}
-    else:
-        raise GateError("drifted fixture pack must fail closed")
+    if rev_stream:
+        raise GateError("failed revision became publicly readable")
+    faults["chain_failure_no_partial"] = {
+        "passed": True,
+        "job_status": "failed",
+        "error": (failed.get("error") or "")[:200],
+    }
 
-    # F2: a plan whose chapter content hash drifted can never publish and
-    # leaks no partial reading stream.
-    with psycopg.connect(database_url) as conn:
-        before = conn.execute(
-            "SELECT count(*) FROM chronicle.reading_streams"
-        ).fetchone()[0]
-        drifted = copy.deepcopy(plan)
-        drifted["chapters"][0]["content_sha256"] = "1" * 64
-        try:
-            resolve_publish.publish_chapters(
-                conn, job_id=uuid.uuid4(), worker="fault", chapter_plan=drifted
-            )
-        except Exception as exc:  # noqa: BLE001
-            faults["drifted_plan_refused"] = {"passed": True, "error": str(exc)[:200]}
-        else:
-            raise GateError("drifted chapter plan must fail closed")
-        after = conn.execute(
-            "SELECT count(*) FROM chronicle.reading_streams"
-        ).fetchone()[0]
-        if after != before:
-            raise GateError("failed publish leaked a reading stream")
-
-    # F3: an unknown stream is not silently replaced by the newest snapshot.
-    with psycopg.connect(database_url) as conn:
-        repo = ChronicleReadRepository(conn)
-        status, payload = read_router.dispatch(
-            repo, "GET", f"/v0/reading-streams/{_unknown_uuid7()}", ""
+    # F2: restart/redeploy keeps the published stream readable.
+    stack.restart("chronicle-web", "chronicle-read")
+    wait_health(base_url, timeout_seconds=180)
+    after_restart = public_json(base_url, "/api/v1/public/reading-streams")
+    restart_ids = [item["stream_id"] for item in after_restart["page"]["streams"]]
+    if restart_ids != before_ids:
+        raise GateError(
+            f"public streams changed across restart: {before_ids} -> {restart_ids}"
         )
-        if status != 404:
-            raise GateError(
-                f"unknown stream must fail closed with 404, got {status}: {payload}"
-            )
-        faults["unknown_stream_refused"] = {"passed": True, "status": status}
+    faults["restart_preserves_streams"] = {"passed": True, "streams": len(restart_ids)}
 
-    # F4: a missing fixture pack is refused, never treated as empty success.
-    try:
-        fixture_model.models_from_reading_chapter_fixture_pack(
-            stage_dir / "no-such-pack.json"
-        )
-    except Exception as exc:  # noqa: BLE001
-        faults["missing_fixture_refused"] = {"passed": True, "error": str(exc)[:200]}
-    else:
-        raise GateError("missing fixture pack must fail closed")
+    # F3: unknown snapshot and unknown locator fail closed via public HTTP.
+    bad_catalog, _ = json_http(
+        base_url, f"/api/v1/public/reading-streams?catalog={'0' * 64}"
+    )
+    faults["unknown_snapshot_refused"] = {
+        "passed": bad_catalog in (400, 404),
+        "status": bad_catalog,
+    }
+    if bad_catalog not in (400, 404):
+        raise GateError(f"unknown catalog must fail closed, got {bad_catalog}")
+
+    evidence["faults"] = faults
     return faults
+
+
+# ---------------------------------------------------------------------------
+# Synthetic scale fixture
+# ---------------------------------------------------------------------------
+
+
+def seed_scale_stream(
+    stack: ComposeStack, *, units: int, groups: int
+) -> dict[str, Any]:
+    previous = os.environ.get(SCALE_UNITS_ENV)
+    os.environ[SCALE_UNITS_ENV] = str(units)
+    os.environ[SCALE_GROUPS_ENV] = str(groups)
+    try:
+        result = stack.compose_run_script("chronicle-worker", SEED_SCRIPT)
+    finally:
+        if previous is None:
+            os.environ.pop(SCALE_UNITS_ENV, None)
+        else:
+            os.environ[SCALE_UNITS_ENV] = previous
+    return parse_scale_result(result.stdout)
 
 
 # ---------------------------------------------------------------------------
@@ -552,7 +732,11 @@ def fault_checks(
 
 
 def build_browser_manifest(
-    works: list[dict[str, Any]], *, base_url: str | None
+    works: list[dict[str, Any]],
+    *,
+    base_url: str,
+    scale: dict[str, Any],
+    versions: list[dict[str, Any]],
 ) -> dict[str, Any]:
     streams = [
         {
@@ -562,7 +746,7 @@ def build_browser_manifest(
             "unit_count": work["unit_count"],
             "group_count": work["group_count"],
             "first_unit_id": work["first_unit_id"],
-            "event_ids": work["event_ids"],
+            "event_ids": work.get("event_ids", []),
         }
         for work in works
     ]
@@ -572,19 +756,21 @@ def build_browser_manifest(
         "generated_by": "C2-R2-T16",
         "base_url": base_url,
         "streams": streams,
-        "viewports": list(VIEWPORTS),
-        "budgets": dict(PERF_BUDGETS),
-        "performance": {
+        "versions": versions,
+        "scale": {
             "synthetic": True,
-            "status": "not_measured",
+            "status": "measured",
+            "stream_id": scale["stream_id"],
+            "catalog_sha": scale["catalog_sha"],
+            "unit_count": scale["unit_count"],
+            "group_count": scale["group_count"],
+            "first_unit_id": scale["first_unit_id"],
+            "last_unit_id": scale["last_unit_id"],
             "target_units": PERF_BUDGETS["target_units"],
             "target_groups": PERF_BUDGETS["target_groups"],
-            "reason": (
-                "the 5,000-unit/1,000-group synthetic set must be measured on "
-                "the running real stack by the performance browser suite; a "
-                "missing set must fail the gate, not silently pass"
-            ),
         },
+        "viewports": list(VIEWPORTS),
+        "budgets": dict(PERF_BUDGETS),
     }
 
 
@@ -605,6 +791,22 @@ def validate_browser_manifest(manifest: Any) -> dict[str, Any]:
                 raise GateError(f"browser fixture stream missing {key!r}: {stream}")
         if len(str(stream["catalog_sha"])) != 64:
             raise GateError("browser fixture catalog_sha must be 64 hex chars")
+    scale = manifest.get("scale")
+    if not isinstance(scale, dict) or not scale.get("stream_id"):
+        raise GateError("browser fixture manifest carries no synthetic scale stream")
+    if int(scale.get("unit_count", 0)) < PERF_BUDGETS["target_units"]:
+        raise GateError(
+            "synthetic scale stream is below the 5,000-unit target: "
+            f"{scale.get('unit_count')}"
+        )
+    if int(scale.get("group_count", 0)) < PERF_BUDGETS["target_groups"]:
+        raise GateError(
+            "synthetic scale stream is below the 1,000-group target: "
+            f"{scale.get('group_count')}"
+        )
+    versions = manifest.get("versions")
+    if not isinstance(versions, list) or not versions:
+        raise GateError("browser fixture manifest carries no content versions")
     return manifest
 
 
@@ -614,8 +816,8 @@ def run_browser_driver(
     script = REPO / "apps" / "chronicle" / "webapp" / "scripts" / "reading-flow-smoke.mjs"
     if not script.is_file():
         raise GateError(f"browser driver is missing: {script}")
-    if not base_url:
-        raise GateError("browser driver requires a running stack base URL")
+    if not shutil.which("node"):
+        raise GateError("node is required to run the reading browser driver")
     output_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         [
@@ -637,8 +839,8 @@ def run_browser_driver(
     (output_dir / "driver.log").write_text(
         result.stdout + "\n" + result.stderr, encoding="utf-8"
     )
-    payload_path = output_dir / "result.json"
     payload: Any = None
+    payload_path = output_dir / "result.json"
     if payload_path.is_file():
         payload = json.loads(payload_path.read_text(encoding="utf-8"))
     if result.returncode != 0:
@@ -652,7 +854,7 @@ def run_browser_driver(
 
 
 # ---------------------------------------------------------------------------
-# Fixture mode
+# Fixture mode (real stack)
 # ---------------------------------------------------------------------------
 
 
@@ -663,10 +865,10 @@ def run_fixture(
     argv: list[str],
     *,
     allow_dirty: bool,
-    control_url: str,
-    base_url: str | None,
+    build: bool,
     run_browser: bool,
     browser_required: bool,
+    keep_stack: bool,
 ) -> dict[str, Any]:
     evidence = Evidence(
         evidence_dir,
@@ -679,9 +881,8 @@ def run_fixture(
             "command": argv,
         },
     )
-    stage_dir = evidence_dir / "fixture"
-    stage_dir.mkdir(parents=True, exist_ok=True)
-    database: IsolatedDatabase | None = None
+    stack: ComposeStack | None = None
+    provider = FixtureModelProvider(free_port())
     try:
         evidence.data["no_direct_product_writes"] = check_no_direct_product_writes()
         evidence.data["candidate"] = candidate_commit(REPO)
@@ -703,41 +904,108 @@ def run_fixture(
         evidence.data["source"] = verify_pack_manifest_hashes(
             loaded["pack"], loaded["uploads"], corpus_root
         )
+
+        provider.start()
+        endpoint = f"http://host.docker.internal:{provider.port}/v1/responses"
+        stack_env = write_stack_env(
+            env_file, evidence_dir / "stack.env", endpoint=endpoint, web_port=18080
+        )
+        override = write_worker_override(evidence_dir / "compose.gate.yaml")
+        data_dir = evidence_dir / "stack-data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        base_url = "http://127.0.0.1:18080"
+        stack = ComposeStack(
+            repo=REPO,
+            env_file=stack_env,
+            project=default_gate_project("r2"),
+            data_dir=data_dir,
+            base_url=base_url,
+            worker_lease_seconds=30,
+            extra_files=[str(override)],
+        )
+        stack.up(build=build)
+        wait_health(base_url, timeout_seconds=300)
+        config = load_env_file(stack_env)
+        auth = basic_auth(config["CHRONICLE_ADMIN_USER"], config["CHRONICLE_ADMIN_PASSWORD"])
+        evidence.data["stack"] = {
+            "project": stack.project,
+            "base_url": base_url,
+            "fixture_endpoint": endpoint,
+            "image_built": build,
+        }
         evidence.checkpoint()
 
-        database = IsolatedDatabase(control_url)
-        database.create()
-        database_url = database.database_url or ""
-        evidence.data["database"] = {
-            "control_host": control_url.split("@")[-1],
-            "isolated_name": database.name,
-            "migrations": "apps/chronicle/persistence/migrations",
-        }
-
         works: list[dict[str, Any]] = []
-        first_planned: dict[str, Any] | None = None
+        published_meta: list[dict[str, Any]] = []
         for upload in loaded["uploads"]:
-            result, planned = run_work_chain(
-                database_url, upload, stage_dir=stage_dir
+            published = publish_upload(base_url, auth, upload, evidence.data)
+            published_meta.append(published)
+            latest = public_json(base_url, "/api/v1/public/reading-streams")
+            source_catalog = latest["snapshot"]["catalog_sha"]
+            collected = collect_stream(
+                base_url, published["revision_id"], source_catalog
             )
-            if first_planned is None:
-                first_planned = planned
-            result["source_title"] = upload["work"] or Path(upload["upload"]).name
-            result["first_unit_id"] = result["units"]["page"]["units"][0]["unit_id"]
-            works.append(result)
+            collected["source_title"] = upload["work"] or Path(upload["upload"]).name
+            collected["job_id"] = published["job_id"]
+            works.append(collected)
             evidence.data["works"] = works
             evidence.checkpoint()
 
-        if first_planned is None:
-            raise GateError("source pack produced no planned work")
+        # Content-version scenario: publish a second revision of the first
+        # work so the browser can prove a pinned old reference does not jump
+        # to the newest stream.
+        version_source = evidence_dir / "version-2.md"
+        version_source.write_text(
+            loaded["uploads"][0]["text"] + "\n\n版本二新增段落。\n", encoding="utf-8"
+        )
+        v2 = publish_revision(
+            base_url,
+            auth,
+            published_meta[0]["document_id"],
+            version_source,
+            "c2r2-v2",
+            evidence.data,
+        )
+        v2_catalog = public_json(
+            base_url, "/api/v1/public/reading-streams"
+        )["snapshot"]["catalog_sha"]
+        v2_stream = collect_stream(base_url, v2["revision_id"], v2_catalog)
+        v2_stream["source_title"] = "version-2"
+        works.append(v2_stream)
+        evidence.data["works"] = works
+        versions = [
+            {
+                "label": "v1",
+                "catalog_sha": works[0]["catalog_sha"],
+                "stream_id": works[0]["stream_id"],
+            },
+            {
+                "label": "v2",
+                "catalog_sha": v2_catalog,
+                "stream_id": v2_stream["stream_id"],
+            },
+        ]
+        evidence.checkpoint()
 
         evidence.data["faults"] = fault_checks(
-            database_url, first_planned, stage_dir=stage_dir
+            stack,
+            base_url,
+            auth,
+            loaded["uploads"][0],
+            provider=provider,
+            evidence_dir=evidence_dir,
+            evidence=evidence.data,
         )
         evidence.checkpoint()
 
+        scale = seed_scale_stream(stack, units=5000, groups=1000)
+        evidence.data["scale"] = scale
+        evidence.checkpoint()
+
         manifest = validate_browser_manifest(
-            build_browser_manifest(works, base_url=base_url)
+            build_browser_manifest(
+                works, base_url=base_url, scale=scale, versions=versions
+            )
         )
         manifest_path = evidence_dir / "browser-fixture-manifest.json"
         write_json(manifest_path, manifest)
@@ -745,9 +1013,11 @@ def run_fixture(
             "path": str(manifest_path),
             "schema": manifest["schema"],
             "streams": len(manifest["streams"]),
+            "scale_units": manifest["scale"]["unit_count"],
+            "scale_groups": manifest["scale"]["group_count"],
         }
 
-        if run_browser and base_url:
+        if run_browser:
             evidence.data["browser"] = run_browser_driver(
                 manifest_path,
                 base_url=base_url,
@@ -756,26 +1026,15 @@ def run_fixture(
             )
         elif browser_required:
             raise GateError(
-                "a browser run was required but no --base-url was supplied; "
-                "start the real Rust/Python stack and re-run"
+                "a browser run was required but --skip-browser was set"
             )
         else:
             evidence.data["browser"] = {
-                "ran": False,
-                "reason": "no --base-url supplied; browser suite not exercised",
+                "ok": False,
+                "reason": "browser suite skipped by --skip-browser",
             }
-        evidence.data["performance"] = {
-            "synthetic": True,
-            "status": "not_measured",
-            "target_units": PERF_BUDGETS["target_units"],
-            "target_groups": PERF_BUDGETS["target_groups"],
-            "budgets": dict(PERF_BUDGETS),
-            "reason": (
-                "the 5,000-unit/1,000-group performance set must be measured "
-                "on the running real stack by the performance browser suite; "
-                "record it or keep the task incomplete"
-            ),
-        }
+
+        measured = bool(evidence.data["browser"].get("ok"))
         evidence.data["criteria"] = {
             "real_stack_offline_chain": "PASS",
             "negative_faults": (
@@ -783,18 +1042,19 @@ def run_fixture(
                 if all(item.get("passed") for item in evidence.data["faults"].values())
                 else "FAIL"
             ),
-            "browser_interaction": (
-                "PASS" if evidence.data["browser"].get("ok") else "NOT_RUN"
-            ),
-            "performance_budget": "NOT_MEASURED",
+            "browser_interaction": "PASS" if measured else "NOT_RUN",
+            "performance_budget": "PASS" if measured else "NOT_MEASURED",
         }
+        if browser_required and not measured:
+            raise GateError("browser/performance evidence was required but not produced")
         return evidence.finish("PASS")
     except GateError as exc:
         evidence.fail(str(exc))
         raise
     finally:
-        if database is not None:
-            database.drop()
+        provider.stop()
+        if stack is not None and not keep_stack:
+            stack.down()
 
 
 # ---------------------------------------------------------------------------
@@ -905,11 +1165,6 @@ def run_live(
                 "record the T17 content acceptance; fixture PASS is not proof",
             ],
             "provider_calls_by_t16": 0,
-            "stack_lifecycle": (
-                "the T17 operator starts the isolated stack through "
-                "gate_runtime.ComposeStack; this handoff never leaves a "
-                "half-started stack"
-            ),
         }
         evidence.data["result"] = "READY"
         write_json(evidence.manifest_path, evidence.data)
@@ -933,24 +1188,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source-pack", required=True)
     parser.add_argument("--evidence-dir", required=True)
     parser.add_argument(
-        "--control-url",
-        default=None,
-        help="PostgreSQL 18 control URL (defaults to LOOM_TEST_POSTGRES_URL)",
-    )
-    parser.add_argument(
-        "--base-url",
-        default=None,
-        help="running Rust front base URL for the browser driver",
+        "--build",
+        action="store_true",
+        help="fixture only: build the Chronicle image before starting the stack",
     )
     parser.add_argument(
         "--skip-browser",
         action="store_true",
-        help="fixture only: do not run the browser driver",
+        help="fixture only: do not run the browser suite",
     )
     parser.add_argument(
         "--browser-required",
         action="store_true",
-        help="fixture only: fail unless the browser driver runs",
+        help="fixture only: fail unless the browser suite runs and passes",
+    )
+    parser.add_argument(
+        "--keep-stack",
+        action="store_true",
+        help="fixture only: keep the Compose stack for inspection",
     )
     parser.add_argument(
         "--allow-dirty",
@@ -984,27 +1239,18 @@ def main(argv: list[str] | None = None) -> int:
         raise GateError(f"source pack not found: {pack_path}")
 
     if args.mode == "fixture":
-        control_url = (
-            args.control_url
-            or os.environ.get("LOOM_TEST_POSTGRES_URL")
-            or DEFAULT_CONTROL_URL
-        )
         evidence = run_fixture(
             env_file,
             pack_path,
             evidence_dir,
             full_argv,
             allow_dirty=args.allow_dirty,
-            control_url=control_url,
-            base_url=args.base_url,
+            build=args.build,
             run_browser=not args.skip_browser,
             browser_required=args.browser_required,
+            keep_stack=args.keep_stack,
         )
         print(f"second-round gate: PASS evidence={evidence_dir / 'manifest.json'}")
-        print(
-            f"works={len(evidence.get('works', []))} "
-            f"faults={len(evidence.get('faults', {}))} mode=fixture (NOT live proof)"
-        )
         return 0
     run_live(
         env_file,

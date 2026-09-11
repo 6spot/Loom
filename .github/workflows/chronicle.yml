@@ -12,6 +12,7 @@ on:
       - "apps/chronicle/acceptance/gate_runtime.py"
       - "apps/chronicle/acceptance/second_round_gate.py"
       - "apps/chronicle/acceptance/test_second_round_gate.py"
+      - "apps/chronicle/acceptance/reading_scale_fixture.py"
       - "apps/chronicle/webapp/scripts/reading-flow-smoke.mjs"
       - "apps/chronicle/webapp/tests/reading-browser/integration/**"
       - "apps/chronicle/docs/reading-acceptance.md"
@@ -73,7 +74,7 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
               case "$path" in
-                .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
+                .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/webapp/src/styles/reading-*.css|apps/chronicle/webapp/src/components/reading/*|apps/chronicle/webapp/src/pages/public/Reading*.tsx|apps/chronicle/webapp/src/lib/reading-*.ts|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
                   relevant=true
                   break
                   ;;
@@ -121,7 +122,7 @@ jobs:
           python3 -c "import json; m=json.load(open('/tmp/chronicle-first-round-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m"
 
   second-round-gate:
-    name: Second-round reading offline gate (fixture)
+    name: Second-round reading real-stack + browser gate (fixture)
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
@@ -157,9 +158,16 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
 
       - name: Install gate dependencies
         run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+
+      - name: Install webapp and Playwright
+        run: |
+          npm --prefix apps/chronicle/webapp ci
+          npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
 
       - name: Second-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
@@ -177,7 +185,13 @@ jobs:
             node --check "$file"
           done
 
-      - name: Second-round reading offline gate (fixture mode)
+      - name: Build Chronicle image
+        run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
+
+      - name: Product publish-atomicity fault test
+        run: python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v -k publish_faults
+
+      - name: Second-round real-stack browser gate (fixture mode)
         run: |
           set -euo pipefail
           printf '%s\n' \
@@ -190,6 +204,18 @@ jobs:
             --env-file /tmp/chronicle-second-round-test.env \
             --source-pack apps/chronicle/corpus/first-round/source-pack.json \
             --evidence-dir /tmp/chronicle-r2-offline \
-            --skip-browser
-          python3 -c "import json; m=json.load(open('/tmp/chronicle-r2-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m; assert len(m['works'])>=1 and len(m['faults'])>=1, m; json.load(open('/tmp/chronicle-r2-offline/browser-fixture-manifest.json'))"
+            --browser-required
+          python3 - <<'PY'
+          import json
+          m = json.load(open("/tmp/chronicle-r2-offline/manifest.json"))
+          c = m["criteria"]
+          assert m["result"] == "PASS" and m["mode"] == "fixture" and m["fixture_only"], m
+          assert c["real_stack_offline_chain"] == "PASS", c
+          assert c["negative_faults"] == "PASS", c
+          assert c["browser_interaction"] == "PASS", c
+          assert c["performance_budget"] == "PASS", c
+          assert m["scale"]["unit_count"] >= 5000 and m["scale"]["group_count"] >= 1000, m["scale"]
+          assert m["browser"]["ok"] is True, m["browser"]
+          PY
+
 

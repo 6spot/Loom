@@ -13,6 +13,7 @@ import {
   type ReadingEventSegment,
   type ReadingUnit,
 } from "../../lib/reading-types";
+import "../../styles/reading-content.css";
 
 export interface ReadingEventSlot {
   readonly segment: ReadingEventSegment;
