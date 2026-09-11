@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import ReadingTargetPicker from "../../components/reading/ReadingTargetPicker";
@@ -65,8 +65,32 @@ function useReadingReturn(search: string): ReadingLocator | null {
 }
 
 /**
+ * 合并事件目标分页：按 (span_id, unit_id) 去重追加，游标与计数以最新页为准。
+ * 纯函数，保证 EventPage 与事件预览卡使用同一份“分页不能把首批当全部”的语义。
+ */
+export function mergeEventTargetPages(
+  current: EventTargetPage | null,
+  next: EventTargetPage,
+): EventTargetPage {
+  if (!current) return next;
+  const seen = new Set(current.targets.map((target) => `${target.span_id}:${target.unit_id}`));
+  const merged = [...current.targets];
+  for (const target of next.targets ?? []) {
+    const key = `${target.span_id}:${target.unit_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(target);
+  }
+  return {
+    ...next,
+    targets: merged,
+  };
+}
+
+/**
  * 事件详情 → 连续正文入口。优先恢复阅读返回 token；没有 token 时显示目录入口，
  * 并在已知 catalog 时列出该事件的精确正文位置（current/mention 分开）。
+ * targets 为游标分页：首批之后由用户显式「加载更多位置」继续取，绝不把首批当全部。
  */
 function EventReadingEntry({
   eventId,
@@ -82,6 +106,9 @@ function EventReadingEntry({
   const [targets, setTargets] = useState<EventTargetPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const moreSeqRef = useRef(0);
 
   useEffect(() => {
     if (catalogSha || !eventId) return;
@@ -103,6 +130,10 @@ function EventReadingEntry({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setTargets(null);
+    setLoadingMore(false);
+    setMoreError(null);
+    moreSeqRef.current += 1;
     loadReadingEventTargets(eventId, { catalog: catalogSha, limit: 20 })
       .then((page) => {
         if (!cancelled) setTargets(page);
@@ -117,6 +148,28 @@ function EventReadingEntry({
       cancelled = true;
     };
   }, [catalogSha, eventId]);
+
+  const loadMore = () => {
+    const cursor = targets?.next_cursor;
+    if (!catalogSha || !cursor || loadingMore) return;
+    moreSeqRef.current += 1;
+    const token = moreSeqRef.current;
+    setLoadingMore(true);
+    setMoreError(null);
+    loadReadingEventTargets(eventId, { catalog: catalogSha, cursor, limit: 20 })
+      .then((page) => {
+        if (moreSeqRef.current !== token) return;
+        setTargets((current) => mergeEventTargetPages(current, page));
+      })
+      .catch((cause: unknown) => {
+        if (moreSeqRef.current === token) {
+          setMoreError(cause instanceof Error ? cause.message : "更多位置暂时读不出来");
+        }
+      })
+      .finally(() => {
+        if (moreSeqRef.current === token) setLoadingMore(false);
+      });
+  };
 
   const choose = (target: EventTarget) => {
     if (!catalogSha) return;
@@ -147,7 +200,14 @@ function EventReadingEntry({
           mentionCount={targets.mention_count}
           onChoose={choose}
           hasMore={targets.has_more}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
         />
+      ) : null}
+      {moreError ? (
+        <p className="muted" data-test="event-reading-more-error" role="alert">
+          {moreError}
+        </p>
       ) : null}
       {targets && targets.targets.length === 0 && !loading ? (
         <p className="muted" data-test="event-reading-empty">暂无已收录的正文位置。</p>
