@@ -92,6 +92,14 @@ No additional configuration is needed.
 (`c2r1-chapters-v1`); it never calls the model, never mutates the source
 candidate, and never touches the worker.
 
+The same function also accepts reading-enriched 0.2 artifacts
+(`chronicle.chapter-artifact / 0.2`, T01/T03) and adds a `reading_units`
+output beside the bundle. All reading event/entity/time/role/source refs
+are lifted through the same `(chapter_index, local_ref) -> revision_ref`
+map as every other reference, and reading unit `block_id`s are remapped to
+the revision translation block IDs, so cross-chapter duplicate local IDs
+can never collide. One call never mixes 0.1 and 0.2 chapter products.
+
 ```text
 accepted chapter artifacts (one per planned chapter, one revision)
 + chapter plan (expected chapter set, revision triple)
@@ -142,3 +150,63 @@ Verification:
 ```bash
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_assembly_unit.py' -v
 ```
+
+## Reading projection (C2-R2-T04)
+
+`compile_reading_projection(...)` in
+`apps/chronicle/persistence/reading_projection.py` is the pre-publication,
+DB-free, model-free compiler that turns accepted 0.2 chapter artifacts
+plus the canonical catalog into the immutable reading rows. It is the only
+place reading units, time groups and event positions are compiled; T06
+calls it inside the atomic publish transaction and never re-implements the
+grouping or the ref mapping.
+
+```text
+accepted 0.2 artifacts (one per planned chapter)
+        │  assembly.assemble_chapters → one (chapter_index, local_ref) map
+        │  + catalog representations of this revision's bundle label
+        ▼
+compile_reading_projection → units (ReadingUnit DTO, verbatim segments)
+        │                   + consecutive time groups + continuation
+        │                   + current/mention occurrence rows
+        ▼
+{units, groups, occurrences, manifest, manifest_sha256}
+```
+
+Key contracts:
+
+- **One unit per translation block, in source order, verbatim.** A unit
+  only carries `text_hash` and program-sliced segments that reassemble the
+  chapter publication's block text; reading never copies a new body
+  authority. Every block must appear exactly once or the compile fails.
+- **Unique `unit_id` after remap.** `unit_id` is recomputed from
+  `(revision_id, chapter_id, remapped block_id, chapter artifact_sha256)`;
+  cross-chapter duplicate local IDs and hash collisions are rejected.
+- **Canonical binding is membership, never a name.** Revision refs are
+  bound to canonical Entity/Event IDs only through this revision's catalog
+  representations. Unknown/unrepresented refs stay unresolved (`null`);
+  two representations of the same ref that disagree fail closed.
+- **Narrative time is this source's `Event.time`.** Events/inherit/mixed/
+  unknown, exact Gregorian vs source-calendar keys, `year_only`, opaque
+  leap months and BCE/CE all reuse the T01 `reading_contract` compiler; no
+  canonical aggregate min/max year is used. Inherit chains must terminate
+  at an earlier same-chapter `events` unit; cycles and broken chains fail
+  closed.
+- **Consecutive groups only.** `group_id` binds the first unit and period
+  key and stays fixed across pagination; flashbacks keep their narrative
+  order and are not globally merged by year.
+- **Current vs mention.** Resolved spans bound to a canonical event become
+  occurrence rows; `relation=current` keeps the exact position, every
+  other span relation is recorded as a mention. Spans without a canonical
+  binding stay as unresolved segments and never get a name-based link.
+- **Snapshot discipline.** The projection carries no future/latest
+  pointer and no unit above `unit_max_bytes`; a contradiction rejects the
+  whole compile instead of returning partial rows.
+
+Verification:
+
+```bash
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_projection_unit.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_assembly_unit.py' -v
+```
+
