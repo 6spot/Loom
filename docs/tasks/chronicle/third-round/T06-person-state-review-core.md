@@ -10,7 +10,7 @@ depends_on: [C2-R3-T04, C2-R3-T05, C2-R1-T08]
 
 ## 范围与交接
 
-[Issue #624](https://github.com/6spot/Loom/issues/624) 给出实施步骤。在已有身份审核之后按章集中核对阶段依据，记录明确/不明确所需的评估而不改变人物合并权威。
+[Issue #624](https://github.com/6spot/Loom/issues/624) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。在已有身份审核之后按章集中核对阶段依据，记录明确/不明确所需的评估而不改变人物合并权威。
 
 - 输入：T03 evidence、T04 compiler预览、T05 store；已完成的Resolution决定及其hash、base catalog、现有ReviewItem/job lock。
 - 交付：person_state_review.py：build_person_state_review_plan / open_person_state_reviews / resolve_person_state_review / collect_person_state_assessments；每章候选完整覆盖的不可变plan和assessment artifact。
@@ -25,6 +25,15 @@ depends_on: [C2-R3-T04, C2-R3-T05, C2-R1-T08]
 - `apps/chronicle/persistence/test_person_state_review_postgres.py（新）`
 
 T07 接审核DTO/API，T08 接worker，本任务不抢写他们的入口。可与 T09/独立 UI 并行。
+
+## 实施步骤
+
+1. 按一个自然章一个stage_gate包组织facts和共用phase/binding/order/continuity/dispute依据，候选键只覆盖一次，不按显示名称建立组。
+2. plan绑定accepted/assembled hashes、最终Resolution hashes、base catalog与候选集合；resume精确adopt，无新模型调用、无重开旧身份审查。
+3. 实现supported/uncertain/disputed/rejected默认值和逐条例外；校验键覆盖、评估枚举、理由、来源前提，未审不能默认supported。
+4. 使用T04生成审核效果预览；批准授任不自动批准后续所有阶段；跨来源对照仅取冻结base catalog的有依据候选。
+5. 同一job锁下验证并提交决定、终态和审计；缺失/重复/越界/版本漂移/重复提交及不合法明确性返回具体冲突，不留下半条决定。
+6. 收集不可变评估artifact；显式不明确允许发布，暂时跳过保留open，dismissed只产生uncertain；不得修改canonical links或accepted Claim。
 
 ## 验收
 

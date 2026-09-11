@@ -10,7 +10,7 @@ depends_on: [C2-R3-T01, C2-R2-T04]
 
 ## 范围与交接
 
-[Issue #621](https://github.com/6spot/Loom/issues/621) 给出实施步骤。将各章 local 阶段资料送入同一 revision namespace，保留原始归属并提供确定的状态证据输入。
+[Issue #621](https://github.com/6spot/Loom/issues/621) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。将各章 local 阶段资料送入同一 revision namespace，保留原始归属并提供确定的状态证据输入。
 
 - 输入：全部预期0.3 accepted artifacts；R2/R1 已有 chapter→revision ref map 和 reading manifest；T01 类型。
 - 交付：person_state_assembly.py 及 assembled report 的 evidence manifest/来源映射；不分配 canonical ID。
@@ -26,6 +26,14 @@ depends_on: [C2-R3-T01, C2-R2-T04]
 - `apps/chronicle/docs/assembly.md`
 
 可与 T02/T05 并行。assembly.py 从 R2-T04 顺序接手；T08 只调用，不二次实现映射。
+
+## 实施步骤
+
+1. 扩展现有 assembly report，复用同一带 kind 的 local→revision map，统一处理人物、官职/爵号对象、关系对象、事件和 Claim。
+2. 阶段/事实/顺序/持续/分歧的 local ID 用章绑定命名空间；保留每个原始 chapter/ref、artifact/source hash 与 anchors，避免不同章 sf_001 碰撞。
+3. unit phase 仍对应原译文 block/reading unit；不按年月重排正文，不借跨章邻接补时间。
+4. 检查全部预期章恰好一次，缺章/多余章/混0.2/0.3/悬空refs/重复键/hash不符整体拒绝；同输入输出 hash 稳定。
+5. 为后续审查与 compiler 提供全部 source provenance；不根据同名人或职位自动合并，也不读取 DB 找“最像”的对象。
 
 ## 验收
 

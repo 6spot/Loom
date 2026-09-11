@@ -10,7 +10,7 @@ depends_on: [C2-R3-T04, C2-R3-T05, C2-R2-T07, C2-R2-T08, C2-R2E-D02]
 
 ## 范围与交接
 
-[Issue #627](https://github.com/6spot/Loom/issues/627) 给出实施步骤。按固定综合版本及段落有界返回人物、地点的阶段资料，保持正文、状态和依据一致。原书阅读 unit 的扩展保持来源专用含义。
+[Issue #627](https://github.com/6spot/Loom/issues/627) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。按固定综合版本及段落有界返回人物、地点的阶段资料，保持正文、状态和依据一致。原书阅读 unit 的扩展保持来源专用含义。
 
 - 输入：T04已编译结果、T05索引；C2-R2E history API 的 version/paragraph/phase 和结论引用；原书专用分支才消费 R2 stream/unit/catalog。
 - 交付：reading_people.py 的 dispatch_reading_people；people摘要与states/证据分页领域API及PG测试，不注册HTTP外层。
@@ -26,6 +26,14 @@ depends_on: [C2-R3-T04, C2-R3-T05, C2-R2-T07, C2-R2-T08, C2-R2E-D02]
 
 可与 T06/T07/T08 及前端模块并行。只消费store，路由/client由T10统一接线。
 
+## 实施步骤
+
+1. 综合正文校验 version/paragraph/phase、结论与本段主体成员；只读取该发布版本，不用 latest Entity Presentation 补状态。来源 unit 接口继续校验 stream/unit/catalog 和源 publication；两种位置不能互猜。
+2. 摘要一次返回当前段落重要人物与地点，按合同有界分页；人物默认展示官职／爵号／效力，地点返回行政归属／实际控制，附总数与详情入口。变化和行动进入详情，不占默认状态行。 SQL和数据库驱动保留在T05 store，通过上述查询接口消费，不在read_api新开SQL路径。
+3. 详情按section/phase分页返回完整项及有界evidence；evidence分页绑定同一item/版本，不把首16条冒充全部。
+4. 来源阅读分支只组合请求 catalog 中预先记录的适用分歧；综合阅读只用 publication version 已冻结的结论与分歧，不叠加最新 catalog。GET 不进行新语义判断、模型调用或回填写入。
+5. 实现稳定keyset、响应预算、scope绑定cursor、404错成员、400参数、409内部缺失；测试新旧catalog、不同stream同名人、后发布来源与future项隔离。
+
 ## 验收
 
 - [ ] 同一locator得到稳定资料，人物集合与本段context一致，未来/结束项不被API重新加回。
@@ -34,6 +42,7 @@ depends_on: [C2-R3-T04, C2-R3-T05, C2-R2-T07, C2-R2-T08, C2-R2E-D02]
 - [ ] 分页可遍历所有人/身份/变化/依据，摘要省略显式可见，响应和查询都有界。
 - [ ] 旧snapshot不混入后发布来源，分歧归属与anchor所属publication正确。
 - [ ] 空资料、未知阶段和读取故障明确区分，所有GET无模型/写入/临时推断。
+- [ ] 综合正文不按年份／同名事件猜测来源 unit；地点到访／参战不推导控制，未记载不补最终头衔。
 
 ## 验证要求
 

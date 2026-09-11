@@ -10,7 +10,7 @@ depends_on: [C2-R3-T01, C2-R3-D02, C2-R1-T11, C2-R1-T12]
 
 ## 范围与交接
 
-[Issue #630](https://github.com/6spot/Loom/issues/630) 给出实施步骤。让操作者读懂人物变化及时间依据，集中核对与逐项例外都能在长页面连续完成。
+[Issue #630](https://github.com/6spot/Loom/issues/630) 对应本任务；具体实施步骤、文件归属和验收要求保留在下文。让操作者读懂人物变化及时间依据，集中核对与逐项例外都能在长页面连续完成。
 
 - 输入：D02审核设计、T01 frozen review/decision DTO与browser runner；R1 ReviewEvidencePanel和连续审核约定。
 - 交付：PersonStateReviewPanel、显示helper与自己的scene/spec；props为review/draft/onDraftChange/onSubmit/onSkip/onReturn，不挂接Studio页面。
@@ -28,6 +28,14 @@ depends_on: [C2-R3-T01, C2-R3-D02, C2-R1-T11, C2-R1-T12]
 - `apps/chronicle/webapp/tests/reading-browser/person-state-review.mjs（新）`
 
 可与 T11/后端并行。复用只读来源组件，现有review-session、studio-api、StudioReviewPage/Detail均由T13/T10按序接手。
+
+## 实施步骤
+
+1. 每章包按人物呈现事实/变化链，共用阶段依据单列；保留原文归属及批量/例外实际覆盖数量。
+2. 提供supported/uncertain/disputed/rejected及按candidate_id的例外，呈现当前身份/此前记载/结束的预测效果与依据。
+3. 默认/例外draft使用明确typed数据；切换plan/item时不沿用旧值，来源分页失败不影响输入，限定语不藏在技术详情。
+4. 表单接受外部save/skip/next/return回调，固定操作区；提交中禁重复，400/409/503/未知结果保留draft并说明核对服务端状态。
+5. 用真实浏览器验证长章页底连续处理、所有候选可达、例外不串条目、窗口/整章原文、窄屏与键盘。
 
 ## 验收
 
