@@ -34,9 +34,21 @@ describe("studio code is route-split from public navigation", () => {
     expect(app).toContain("./pages/public/ChapterPage");
   });
 
+  it("App.tsx wires the public reading routes", () => {
+    const root = new URL("..", import.meta.url).pathname;
+    const app = readFileSync(`${root}src/App.tsx`, "utf-8");
+    expect(app).toContain('to="/read"');
+    expect(app).toContain('path="/read"');
+    expect(app).toContain('path="/read/:streamId"');
+    expect(app).toContain("./pages/public/ReadingIndexPage");
+    expect(app).toContain("./pages/public/ReadingPage");
+    // 阅读页不重复顶层 HistoricalTimeBar。
+    expect(app).toContain("timeBar={false}");
+  });
+
   it("public pages never import the shadcn studio foundation", () => {
     const root = new URL("..", import.meta.url).pathname;
-    const publicPages = ["TimelinePage.tsx", "EventPage.tsx", "EntityPage.tsx", "SearchPage.tsx", "ChapterIndexPage.tsx", "ChapterPage.tsx"];
+    const publicPages = ["TimelinePage.tsx", "EventPage.tsx", "EntityPage.tsx", "SearchPage.tsx", "ChapterIndexPage.tsx", "ChapterPage.tsx", "ReadingIndexPage.tsx", "ReadingPage.tsx"];
     for (const page of publicPages) {
       const content = readFileSync(`${root}src/pages/public/${page}`, "utf-8");
       expect(content).not.toContain("components/ui");

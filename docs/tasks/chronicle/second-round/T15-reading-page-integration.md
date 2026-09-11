@@ -30,3 +30,4 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 ## Progress Log
 
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
+- 2026-09-11 — Implemented under LM-37: `/read` directory and `/read/{stream_id}?catalog=&at=` page wired to the T09 client, T10 window, T11 axis, T12 controller, T13 event preview and T14 context panel; catalog-aware event/entity details with return-token recovery; Rust SPA shell serves `/read`; matching `web/dist` committed. Detailed results recorded in the delivery PR.

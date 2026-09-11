@@ -29,15 +29,28 @@ Primary navigation:
 A global search / question box is always available.
 
 In the current React front the public nav is 世界 / 时间线 / 搜索 / 篇章 /
-Studio. 篇章 (`/chapters`) lists published immutable reading versions;
-`/chapters/{publication_id}` renders the complete single-column vernacular
-text with on-demand source references (see chapter-production §§7–8).
-Direct open and refresh of both paths serve the SPA shell from the Rust
-front; API failures stay typed JSON and never fall back to the shell.
+连续阅读 / Studio. 篇章 (`/chapters`) lists published immutable reading
+versions; `/chapters/{publication_id}` renders the complete single-column
+vernacular text with on-demand source references (see chapter-production
+§§7–8). Direct open and refresh of both paths serve the SPA shell from the
+Rust front; API failures stay typed JSON and never fall back to the shell.
 Reader states: loading, empty directory, 404 for unpublished or unknown
 versions, request error with retry, source panel (window → chapter-wide)
-with close restoring the reading position. Second-round timeline/event
-hover/figure-tense surfaces remain out of scope.
+with close restoring the reading position.
+
+Continuous reading (second round, C2-R2-T15) adds `/read` and
+`/read/{stream_id}?catalog={sha}&at={unit_id}`. `/read` lists published
+reading streams and fixes the exploration snapshot; entering a stream
+combines the content window, the narrative-time side axis, the single active
+unit controller, event-word previews and the current-person/place panel.
+The reading page replaces the global HistoricalTimeBar with a compact bar
+showing only the active unit's server-compiled narrative time; an explicit
+“在历史时间线查看” link converts a single exact normalized year into the
+existing timeline filter, and never rewrites the reading URL. Event and
+entity detail pages accept an optional `catalog` snapshot and can return to
+the exact reading locator through a same-site return token. Direct deep
+links, refresh and browser back/forward are supported. Longer-term tracks,
+map and why surfaces remain out of scope.
 
 Contextual surfaces can expose:
 

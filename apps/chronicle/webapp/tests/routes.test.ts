@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { chapterPath, chaptersPath, formatTime, formatYear, isStudioPath, safeRouteFor } from "../src/lib/routes";
+import {
+  chapterPath,
+  chaptersPath,
+  formatTime,
+  formatYear,
+  isStudioPath,
+  readPath,
+  readingPath,
+  safeRouteFor,
+} from "../src/lib/routes";
 
 describe("public routes", () => {
   it("maps World/Timeline/Event/Entity/Search URLs", () => {
@@ -30,6 +39,29 @@ describe("public routes", () => {
     expect(chaptersPath()).toBe("/chapters");
     expect(chapterPath("00000000-0000-7000-8000-000000000000")).toBe(
       "/chapters/00000000-0000-7000-8000-000000000000",
+    );
+  });
+
+  it("maps the continuous reading directory and stream detail URLs", () => {
+    expect(safeRouteFor("/read")).toEqual({ view: "read", id: null });
+    expect(safeRouteFor("/read/")).toEqual({ view: "read", id: null });
+    expect(safeRouteFor("/read/00000000-0000-7000-8000-000000000000")).toEqual({
+      view: "reading",
+      id: "00000000-0000-7000-8000-000000000000",
+    });
+    expect(safeRouteFor("/read/00000000-0000-7000-8000-000000000000/")).toEqual({
+      view: "reading",
+      id: "00000000-0000-7000-8000-000000000000",
+    });
+    expect(safeRouteFor("/read/a/b")).toEqual({ view: "not_found", id: null });
+  });
+
+  it("builds snapshot-pinned continuous reading hrefs", () => {
+    expect(readPath()).toBe("/read");
+    expect(readingPath("stream-1")).toBe("/read/stream-1");
+    expect(readingPath("stream-1", "a".repeat(64))).toBe(`/read/stream-1?catalog=${"a".repeat(64)}`);
+    expect(readingPath("stream-1", "a".repeat(64), "ru_0123456789abcdef01234567")).toBe(
+      `/read/stream-1?catalog=${"a".repeat(64)}&at=ru_0123456789abcdef01234567`,
     );
   });
 

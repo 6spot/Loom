@@ -1,10 +1,14 @@
+import { useMemo } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import { useEntity } from "../../lib/queries";
-import { formatTime } from "../../lib/routes";
+import { formatTime, readPath } from "../../lib/routes";
 import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
 import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
 import type { Representation, TrajectoryEvent } from "../../lib/types";
+import { buildReadingUrl, readReturnToken } from "../../lib/reading-location";
+import { ReadingHistoryStore, ReadingStorage } from "../../lib/reading-history";
+import type { ReadingLocator } from "../../lib/reading-types";
 
 function EntityRepresentation({ rep }: { rep: Representation }) {
   const entity = rep.entity ?? {};
@@ -35,10 +39,42 @@ function involvementChips(involvements: TrajectoryEvent["source_involvements"] =
   return chips;
 }
 
+function useReadingReturn(search: string): ReadingLocator | null {
+  return useMemo(() => {
+    const token = readReturnToken(search);
+    if (!token || typeof window === "undefined") return null;
+    try {
+      const store = new ReadingHistoryStore(new ReadingStorage(window.sessionStorage));
+      return store.resolveReturn(token);
+    } catch {
+      return null;
+    }
+  }, [search]);
+}
+
+function ReadingReturnBar({ returnLocator }: { returnLocator: ReadingLocator | null }) {
+  return (
+    <div className="reading-entry" data-test="entity-reading-entry">
+      {returnLocator ? (
+        <Link className="primary-link" data-test="reading-return" to={buildReadingUrl(returnLocator)}>
+          返回阅读
+        </Link>
+      ) : (
+        <Link className="primary-link" data-test="reading-enter" to={readPath()}>
+          进入相关正文
+        </Link>
+      )}
+    </div>
+  );
+}
+
 export default function EntityPage() {
   const { id } = useParams();
   const location = useLocation();
-  const entity = useEntity(id);
+  const params = new URLSearchParams(location.search.startsWith("?") ? location.search.slice(1) : location.search);
+  const catalog = params.get("catalog");
+  const returnLocator = useReadingReturn(location.search);
+  const entity = useEntity(id, catalog);
 
   if (entity.isPending) return <LoadingState label="实体" />;
   if (entity.isError) return <ErrorState code={entity.error.code} message={entity.error.message} />;
@@ -52,6 +88,7 @@ export default function EntityPage() {
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
       <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>实体</span></div>
+      <ReadingReturnBar returnLocator={returnLocator} />
       <header className="page-header">
         <p className="eyebrow">Canonical Entity</p>
         <h1>{data.display?.name ?? "未命名实体"}</h1>

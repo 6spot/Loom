@@ -35,6 +35,8 @@ export type PublicRoute =
   | { view: "search"; id: null }
   | { view: "chapters"; id: null }
   | { view: "chapter"; id: string }
+  | { view: "read"; id: null }
+  | { view: "reading"; id: string }
   | { view: "not_found"; id: null };
 
 export function routeFor(pathname: string): PublicRoute {
@@ -43,6 +45,9 @@ export function routeFor(pathname: string): PublicRoute {
   if (path === "/timeline") return { view: "timeline", id: null };
   if (path === "/search") return { view: "search", id: null };
   if (path === "/chapters") return { view: "chapters", id: null };
+  if (path === "/read") return { view: "read", id: null };
+  const reading = path.match(/^\/read\/([^/]+)$/);
+  if (reading) return { view: "reading", id: decodeURIComponent(reading[1]) };
   const chapter = path.match(/^\/chapters\/([^/]+)$/);
   if (chapter) return { view: "chapter", id: decodeURIComponent(chapter[1]) };
   const event = path.match(/^\/events\/([^/]+)$/);
@@ -72,4 +77,24 @@ export function chaptersPath(): string {
 
 export function chapterPath(publicationId: string): string {
   return `/chapters/${encodeURIComponent(publicationId)}`;
+}
+
+/// Continuous reading entries (C2-R2-T15). `/read` is the directory; the
+/// per-stream page always pins the exploration snapshot via `catalog` and
+/// optionally points at one immutable unit via `at`.
+export function readPath(): string {
+  return "/read";
+}
+
+export function readingPath(
+  streamId: string,
+  catalogSha?: string | null,
+  unitId?: string | null,
+): string {
+  const path = `${readPath()}/${encodeURIComponent(streamId)}`;
+  const params = new URLSearchParams();
+  if (catalogSha) params.set("catalog", catalogSha);
+  if (unitId) params.set("at", unitId);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }

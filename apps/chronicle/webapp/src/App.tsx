@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import HistoricalTimeBar from "./components/HistoricalTimeBar";
 import { StudioAuthProvider, useStudioAuth } from "./lib/studio-auth";
 import { withHistoricalTime, worldPathFromSearch } from "./lib/historical-time";
-import { chapterPath } from "./lib/routes";
+import { chapterPath, readingPath } from "./lib/routes";
 import EntityPage from "./pages/public/EntityPage";
 import EventPage from "./pages/public/EventPage";
 import SearchPage from "./pages/public/SearchPage";
@@ -11,6 +11,8 @@ import TimelinePage from "./pages/public/TimelinePage";
 import WorldPage from "./pages/public/WorldPage";
 import ChapterIndexPage from "./pages/public/ChapterIndexPage";
 import ChapterPage from "./pages/public/ChapterPage";
+import ReadingIndexPage from "./pages/public/ReadingIndexPage";
+import ReadingPage from "./pages/public/ReadingPage";
 import { NotFoundState } from "./components/shared";
 import "./styles/chronicle.css";
 import "./styles/world.css";
@@ -35,7 +37,7 @@ function StudioGuard({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function PublicChrome({ children }: { children: React.ReactNode }) {
+function PublicChrome({ children, timeBar = true }: { children: React.ReactNode; timeBar?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const worldHref = worldPathFromSearch(location.search);
@@ -51,6 +53,7 @@ function PublicChrome({ children }: { children: React.ReactNode }) {
           <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link>
           <Link to={withHistoricalTime("/search", location.search)}>搜索</Link>
           <Link to="/chapters">篇章</Link>
+          <Link to="/read">连续阅读</Link>
           <Link to="/studio">Studio</Link>
         </nav>
         <form
@@ -70,7 +73,7 @@ function PublicChrome({ children }: { children: React.ReactNode }) {
           <button className="primary-button" type="submit">搜索</button>
         </form>
       </header>
-      <HistoricalTimeBar />
+      {timeBar ? <HistoricalTimeBar /> : null}
       <main id="app" className="app-shell" aria-live="polite">{children}</main>
       <footer className="site-footer"><p>Canonical identity 用于导航；史料原文、Claim、证据与不确定性保持独立可见。Historical Moment 只描述当前语料表示，不声称完整历史世界状态。</p></footer>
     </>
@@ -97,6 +100,22 @@ function ChapterDetailRoute() {
   return <ChapterPage key={publicationId} publicationId={publicationId} />;
 }
 
+function ReadingIndexRoute() {
+  const navigate = useNavigate();
+  return (
+    <ReadingIndexPage
+      onSelectStream={(item, catalog) => navigate(readingPath(item.stream_id, catalog))}
+      hrefForStream={(streamId, catalog) => readingPath(streamId, catalog)}
+    />
+  );
+}
+
+function ReadingDetailRoute() {
+  const { streamId } = useParams();
+  if (!streamId) return <NotFoundState />;
+  return <ReadingPage key={streamId} streamId={streamId} />;
+}
+
 export default function App() {
   return (
     <StudioAuthProvider>
@@ -119,6 +138,8 @@ export default function App() {
         <Route path="/entities/:id" element={<PublicChrome><EntityPage /></PublicChrome>} />
         <Route path="/chapters" element={<PublicChrome><ChapterIndexRoute /></PublicChrome>} />
         <Route path="/chapters/:publicationId" element={<PublicChrome><ChapterDetailRoute /></PublicChrome>} />
+        <Route path="/read" element={<PublicChrome timeBar={false}><ReadingIndexRoute /></PublicChrome>} />
+        <Route path="/read/:streamId" element={<PublicChrome timeBar={false}><ReadingDetailRoute /></PublicChrome>} />
         <Route path="*" element={<PublicChrome><NotFoundState /></PublicChrome>} />
       </Routes>
     </StudioAuthProvider>

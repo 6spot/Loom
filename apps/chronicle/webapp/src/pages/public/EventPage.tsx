@@ -1,10 +1,16 @@
-import { Link, useLocation, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
+import ReadingTargetPicker from "../../components/reading/ReadingTargetPicker";
 import { useEvent } from "../../lib/queries";
-import { formatTime } from "../../lib/routes";
+import { formatTime, readPath, readingPath } from "../../lib/routes";
 import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
 import { ClaimsBlock, DECISION_LABEL, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
 import type { Participant, Representation } from "../../lib/types";
+import { buildReadingUrl, readReturnToken } from "../../lib/reading-location";
+import { ReadingHistoryStore, ReadingStorage } from "../../lib/reading-history";
+import { fetchReadingStreams, loadReadingEventTargets } from "../../lib/reading-api";
+import type { EventTarget, EventTargetPage, ReadingLocator } from "../../lib/reading-types";
 
 function LinkedEntity({ item, sourceLabel }: { item: Participant; sourceLabel: string }) {
   const location = useLocation();
@@ -44,10 +50,119 @@ function EventRepresentation({ rep }: { rep: Representation }) {
   );
 }
 
+/** 从 sessionStorage 的 return token 恢复本站 typed locator；缺失/失效返回 null。 */
+function useReadingReturn(search: string): ReadingLocator | null {
+  return useMemo(() => {
+    const token = readReturnToken(search);
+    if (!token || typeof window === "undefined") return null;
+    try {
+      const store = new ReadingHistoryStore(new ReadingStorage(window.sessionStorage));
+      return store.resolveReturn(token);
+    } catch {
+      return null;
+    }
+  }, [search]);
+}
+
+/**
+ * 事件详情 → 连续正文入口。优先恢复阅读返回 token；没有 token 时显示目录入口，
+ * 并在已知 catalog 时列出该事件的精确正文位置（current/mention 分开）。
+ */
+function EventReadingEntry({
+  eventId,
+  catalog,
+  returnLocator,
+}: {
+  eventId: string;
+  catalog: string | null;
+  returnLocator: ReadingLocator | null;
+}) {
+  const navigate = useNavigate();
+  const [catalogSha, setCatalogSha] = useState<string | null>(catalog);
+  const [targets, setTargets] = useState<EventTargetPage | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (catalogSha || !eventId) return;
+    let cancelled = false;
+    fetchReadingStreams({ limit: 1 })
+      .then((envelope) => {
+        if (!cancelled) setCatalogSha(envelope.snapshot.catalog_sha);
+      })
+      .catch(() => {
+        /* 无 snapshot 时仍可退回目录入口 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogSha, eventId]);
+
+  useEffect(() => {
+    if (!catalogSha) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    loadReadingEventTargets(eventId, { catalog: catalogSha, limit: 20 })
+      .then((page) => {
+        if (!cancelled) setTargets(page);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "正文位置暂时读不出来");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogSha, eventId]);
+
+  const choose = (target: EventTarget) => {
+    if (!catalogSha) return;
+    navigate(readingPath(target.stream_id, catalogSha, target.unit_id));
+  };
+
+  return (
+    <section className="panel reading-entry" data-test="event-reading-entry">
+      <div className="panel-heading"><h2>进入相关正文</h2><span className="count">连续阅读</span></div>
+      {returnLocator ? (
+        <Link className="primary-link" data-test="reading-return" to={buildReadingUrl(returnLocator)}>
+          返回阅读
+        </Link>
+      ) : (
+        <Link className="primary-link" data-test="reading-enter-directory" to={readPath()}>
+          浏览连续阅读目录
+        </Link>
+      )}
+      {loading ? <p className="muted" data-test="event-reading-loading">正在读取正文位置…</p> : null}
+      {error ? (
+        <p className="muted" data-test="event-reading-error" role="alert">{error}</p>
+      ) : null}
+      {targets && targets.targets.length > 0 ? (
+        <ReadingTargetPicker
+          mode="other"
+          targets={targets.targets}
+          currentCount={targets.current_count}
+          mentionCount={targets.mention_count}
+          onChoose={choose}
+          hasMore={targets.has_more}
+        />
+      ) : null}
+      {targets && targets.targets.length === 0 && !loading ? (
+        <p className="muted" data-test="event-reading-empty">暂无已收录的正文位置。</p>
+      ) : null}
+    </section>
+  );
+}
+
 export default function EventPage() {
   const { id } = useParams();
   const location = useLocation();
-  const event = useEvent(id);
+  const params = new URLSearchParams(location.search.startsWith("?") ? location.search.slice(1) : location.search);
+  const catalog = params.get("catalog");
+  const returnLocator = useReadingReturn(location.search);
+  const event = useEvent(id, catalog);
 
   if (event.isPending) return <LoadingState label="事件" />;
   if (event.isError) return <ErrorState code={event.error.code} message={event.error.message} />;
@@ -65,6 +180,11 @@ export default function EventPage() {
         <Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span>
         <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>事件</span>
       </div>
+      <EventReadingEntry
+        eventId={data.canonical_event_id}
+        catalog={catalog}
+        returnLocator={returnLocator}
+      />
       <header className="page-header">
         <p className="eyebrow">Canonical Event</p>
         <h1>{data.display?.title ?? "未命名事件"}</h1>

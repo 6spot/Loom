@@ -31,7 +31,7 @@ export default function TimelinePage() {
 
   return (
     <section data-view="timeline">
-      <header className="page-header"><p className="eyebrow">Timeline</p><h1>历史时间线</h1><p className="lede">每张卡片代表一个 canonical Event。多个史料描述同一 occurrence 时只出现一次，来源与证据在详情页继续展开。</p></header>
+      <header className="page-header"><p className="eyebrow">Timeline</p><h1>历史时间线</h1><p className="lede">每张卡片代表一个 canonical Event。多个史料描述同一 occurrence 时只出现一次，来源与证据在详情页继续展开。</p><p className="lede"><Link to="/read" data-test="timeline-reading-entry">进入连续阅读</Link>，可沿连续正文与侧边叙事时间轴推进，并从事件词预览跳转回来。</p></header>
       <form
         className="filter-panel"
         action="/timeline"

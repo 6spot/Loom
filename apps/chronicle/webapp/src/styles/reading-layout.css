@@ -1,0 +1,268 @@
+/* C2-R2-T15 连续阅读页面布局（目录 + 三列/两列/单栏正文优先）。
+ *
+ * 选择器以 .rpage- 前缀限定在阅读页面内，不覆盖 chronicle.css / chapter-reader.css /
+ * reading-*.css。组件（正文窗口、侧边轴、事件预览、当前片段）各自负责内部样式；
+ * 本文件只负责页面骨架、compact bar 与响应式列宽。
+ *
+ * 合同：桌面 >=1200px 三列（140–180 轴 / <=42rem 正文 / 220–260 人物地点），
+ * 总宽不超过 1440px；768–1199px 两列；<768px 单栏，时间与人物地点入口收进
+ * sticky compact bar。窄屏不出现压缩的三栏。
+ */
+
+.rpage,
+.rpage-index {
+  --rpage-ink: #1f2528;
+  --rpage-muted: #667074;
+  --rpage-line: #d8d0c2;
+  --rpage-paper: #fbf8f1;
+  --rpage-paper-strong: #fffdf8;
+  --rpage-accent: #7d2f2f;
+
+  box-sizing: border-box;
+  color: var(--rpage-ink);
+}
+
+.rpage *,
+.rpage *::before,
+.rpage *::after,
+.rpage-index *,
+.rpage-index *::before,
+.rpage-index *::after {
+  box-sizing: border-box;
+}
+
+.rpage-eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--rpage-muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rpage-muted {
+  color: var(--rpage-muted);
+}
+
+/* ---------------------------------------------------------------- 目录页 */
+
+.rpage-index {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.75rem 1rem 3rem;
+}
+
+.rpage-index-heading h1 {
+  margin: 0 0 0.35rem;
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: 1.6rem;
+}
+
+.rpage-index-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rpage-index-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rpage-line);
+  border-radius: 14px;
+  background: var(--rpage-paper-strong);
+}
+
+.rpage-index-title {
+  color: var(--rpage-accent);
+  font-size: 1.05rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.rpage-index-title:hover,
+.rpage-index-title:focus-visible {
+  text-decoration: underline;
+}
+
+.rpage-index-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+}
+
+.rpage-load-more {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--rpage-line);
+  border-radius: 999px;
+  background: var(--rpage-paper-strong);
+  color: var(--rpage-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rpage-state-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rpage-line);
+  border-radius: 14px;
+  background: var(--rpage-paper-strong);
+}
+
+/* ------------------------------------------------------------- 阅读页骨架 */
+
+.rpage {
+  padding: 0 1rem 4rem;
+}
+
+.rpage-compact {
+  position: sticky;
+  top: var(--rpage-chrome-top, 0px);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--rpage-line);
+  background: rgb(251 248 241 / 96%);
+  backdrop-filter: blur(4px);
+}
+
+.rpage-compact-time {
+  color: var(--rpage-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.rpage-compact-link {
+  color: var(--rpage-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rpage-compact-link:hover,
+.rpage-compact-link:focus-visible {
+  text-decoration: underline;
+}
+
+.rpage-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 42rem) minmax(220px, 260px);
+  justify-content: center;
+  gap: 1.75rem;
+  max-width: 1440px;
+  margin: 1.5rem auto 0;
+}
+
+.rpage-axis-column {
+  min-width: 0;
+}
+
+.rpage-main {
+  min-width: 0;
+  max-width: 42rem;
+}
+
+.rpage-context-column {
+  min-width: 0;
+}
+
+/* 正文可读性：默认 18px / 1.85，窄屏不小于 17px。 */
+.rpage-main .rcw-unit-text {
+  font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-size: 18px;
+  line-height: 1.85;
+}
+
+/* 平板：保留窄轴与正文，人物地点移到按需面板。 */
+@media (max-width: 1199px) {
+  .rpage-grid {
+    grid-template-columns: minmax(120px, 150px) minmax(0, 42rem);
+    gap: 1.25rem;
+  }
+
+  .rpage-context-column {
+    display: none;
+  }
+}
+
+/* 窄屏：单栏正文，compact bar 承载时间与人物地点入口。 */
+@media (max-width: 767px) {
+  .rpage {
+    padding: 0 0.75rem 4rem;
+  }
+
+  .rpage-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    margin-top: 0.5rem;
+  }
+
+  .rpage-axis-column {
+    margin-bottom: 0.5rem;
+  }
+
+  .rpage-main .rcw-unit-text {
+    font-size: 17px;
+  }
+}
+
+/* 状态与错误 */
+
+.rpage-loading,
+.rpage-resolving,
+.rpage-issue,
+.rpage-error {
+  max-width: 42rem;
+  margin: 1.5rem auto;
+}
+
+.rpage-error {
+  padding: 1.5rem;
+  border: 1px solid var(--rpage-line);
+  border-radius: 16px;
+  background: var(--rpage-paper-strong);
+  text-align: center;
+}
+
+.rpage-issue {
+  padding: 0.85rem 1rem;
+  border: 1px solid #e3c9a3;
+  border-radius: 12px;
+  background: #fdf4e3;
+}
+
+.rpage-error-link {
+  color: var(--rpage-accent);
+  font-weight: 700;
+}
+
+.rpage-source-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(31 37 40 / 32%);
+}
+
+.rpage-source-panel > * {
+  width: min(56rem, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--rpage-paper-strong);
+}

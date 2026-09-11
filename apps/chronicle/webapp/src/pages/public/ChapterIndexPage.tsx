@@ -120,6 +120,17 @@ export function ChapterIndexView({
         <p className="chr-eyebrow">篇章目录</p>
         <h1>已发布篇章</h1>
         <p className="chr-muted">每个条目都是不可变的阅读版本（publication_id）。</p>
+        <p className="chr-muted">
+          连续阅读完整正文：
+          <a
+            className="chr-ref-link"
+            data-test="chapter-index-reading"
+            href="/read"
+            style={{ marginLeft: "0.35rem" }}
+          >
+            进入连续阅读目录
+          </a>
+        </p>
       </header>
       <ol className="chr-index-list">
         {items.map((item) => (
