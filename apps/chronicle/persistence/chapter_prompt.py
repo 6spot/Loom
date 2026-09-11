@@ -24,13 +24,21 @@ from typing import Any
 
 from common import PersistenceError
 
-#: Version of the whole-chapter prompt template rendered here. Bound into
-#: the producing run of every accepted artifact.
+#: Legacy first-round prompt template version (0.1 joint product). Kept so
+#: first-round regression re-asks and fingerprints stay byte-stable.
 PROMPT_VERSION = "c2r1-chapter-prompt-v10"
+
+#: Reading-annotation (0.2) prompt template version. Bound into the
+#: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
+#: distinguishable in run history.
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v1"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
 CANDIDATE_VERSION = "0.1"
+
+#: Reading-annotation candidate version (second round).
+READING_CANDIDATE_VERSION = "0.2"
 
 #: Offset unit for every block coordinate in the rendered chapter.
 OFFSET_UNIT = "chars-normalized-utf8"
@@ -136,6 +144,64 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   quote, mention surface, alias, and time.original_text must reuse the exact
   source characters. A Simplified character where the source has Traditional
   (or vice versa) is a grounding failure, not a spelling variant.'''
+
+READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (0.2 only; every unit is explained by the WHOLE chapter)
+Add one top-level "reading" object beside bundle/translation/mentions/record_sources:
+reading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per
+translation block, in the SAME order, no missing or duplicate block_id.
+reading unit (field names are exact):
+  block_id: the translation block this unit annotates.
+  narrative_time: {mode, event_refs[], from_block_id, source_selections[]}.
+    mode "events":  the block narrates current events; event_refs lists the events whose
+      own source time is observed here, and must be non-empty and a subset of
+      current_event_refs; from_block_id is null.
+    mode "inherit": the block continues an earlier block's time; from_block_id names an
+      EARLIER block of THIS chapter and event_refs is empty; the chain must end at an
+      "events" block.
+    mode "mixed":   the block deliberately observes several current events at once;
+      event_refs lists every current_event_ref and there are at least two.
+    mode "unknown": the block has no usable time; event_refs and current_event_refs are
+      empty, from_block_id null, source_selections empty.
+    Do NOT invent Gregorian time. Keep the event's own source_calendar/original_text
+    (era/era_year/month/day/season) exactly as the source writes it; when the event has
+    no usable time keep it unknown rather than defaulting to a nearby year. A
+    retrospective / foreshadow / background span never supplies the unit's current time.
+    source_selections must contain 1..16 verbatim source selections for non-unknown
+    modes and be empty for unknown.
+  current_event_refs: ONLY the events this block is currently narrating (not every event
+    mentioned); each must be an existing evt_* in this block's translation event_refs.
+  event_spans: [] or a list of {span_id, selection, status, target_ref, candidate_refs,
+    relation, source_selections}. span_id is es_001, es_002, ... Each span points at the
+    exact words in THIS translation block: selection = {quote, occurrence} where quote
+    is copied character-for-character from that unit's translated block text and
+    occurrence counts from 1 within that block. status resolved (single target_ref,
+    no candidate_refs) | ambiguous (target_ref null, >=2 candidate_refs) | unresolved
+    (target_ref null). relation is current | retrospective | foreshadow | background |
+    uncertain. Spans must not overlap each other and must not rewrite the block text.
+    source_selections (1..16) support the span from the ORIGINAL source.
+  context_entities: [] or a list of {entity_ref, importance, source_selections,
+    event_roles}. entity_ref is an existing ent_* supported by this block's
+    entity_refs or by a current event's participants/places; importance is primary|other.
+    source_selections (1..16) prove the source supports this object in this block.
+    event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref
+    and participant_index is that entity's original participant position in the event
+    (0-based); the program copies the role text from the participant record, so never
+    write a role string yourself.
+  A valid empty annotation is event_spans: [] and context_entities: []; never drop the
+  unit, invent a canonical ID, or move a reading annotation to a later page/request.
+COORDINATE / ID DISCIPLINE: the model writes only block_id, evt_*/ent_* temp refs, span
+ids (es_*) and {quote, occurrence} selections. Never write start/end offsets, unit_id,
+stream_id, canonical_id, UUIDs, or URLs — the program computes all coordinates and IDs.
+READING UNIT EXAMPLE (shape only):
+{"block_id":"t_001","narrative_time":{"mode":"events","event_refs":["evt_001"],
+ "from_block_id":null,"source_selections":[{"first_block_id":"b_001","last_block_id":"b_001",
+ "quote":"建安十三年","occurrence":1}]},"current_event_refs":["evt_001"],
+ "event_spans":[{"span_id":"es_001","selection":{"quote":"曹操","occurrence":1},
+ "status":"resolved","target_ref":"evt_001","candidate_refs":[],"relation":"current",
+ "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
+ "occurrence":1}]}],"context_entities":[{"entity_ref":"ent_001","importance":"primary",
+ "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
+ "occurrence":1}],"event_roles":[{"event_ref":"evt_001","participant_index":0}]}]}'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
@@ -284,6 +350,44 @@ def _render_blocks(request: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def request_candidate_version(request: dict[str, Any]) -> str:
+    """Return the candidate version a request must produce.
+
+    Requests that do not declare a candidate version default to the
+    registered production version (0.2 reading joint product); an
+    unregistered version fails closed here instead of guessing.
+    """
+    versions = request.get("schema_versions") if isinstance(request, dict) else None
+    if isinstance(versions, dict) and isinstance(versions.get("candidate"), str):
+        version = versions["candidate"]
+    else:
+        version = READING_CANDIDATE_VERSION
+    if version not in (CANDIDATE_VERSION, READING_CANDIDATE_VERSION):
+        raise PersistenceError(f"unsupported chapter-candidate version {version!r}")
+    return version
+
+
+def prompt_version_for(candidate_version: str) -> str:
+    """Return the prompt template version bound to a candidate version."""
+    if candidate_version == READING_CANDIDATE_VERSION:
+        return READING_PROMPT_VERSION
+    if candidate_version == CANDIDATE_VERSION:
+        return PROMPT_VERSION
+    raise PersistenceError(f"unsupported chapter-candidate version {candidate_version!r}")
+
+
+def _joint_guide_for(candidate_version: str) -> str:
+    """Render the joint-product shape guide for one candidate version."""
+    if candidate_version == CANDIDATE_VERSION:
+        return JOINT_PRODUCT_GUIDE
+    return JOINT_PRODUCT_GUIDE.replace(
+        'version="0.1"', 'version="0.2"'
+    ).replace(
+        "bundle, translation, mentions, record_sources, warnings.",
+        "bundle, translation, mentions, record_sources, reading, warnings.",
+    )
+
+
 def render_chapter_prompt(
     request: dict[str, Any],
     *,
@@ -296,9 +400,19 @@ def render_chapter_prompt(
     full normalized text verbatim, including the tail — for both the
     initial call and the single bounded correction. A correction appends
     the compacted diagnostics plus the previous candidate and requires one
-    complete regenerated chapter product.
+    complete regenerated chapter product. Requests that declare candidate
+    version 0.2 also carry the reading-annotation guide; both the initial
+    and the correction round explain every unit from the whole chapter.
     """
     request = _require_request(request)
+    candidate_version = request_candidate_version(request)
+    prompt_version = prompt_version_for(candidate_version)
+    joint_guide = _joint_guide_for(candidate_version)
+    reading_guide = (
+        "\n\n" + READING_ANNOTATION_GUIDE
+        if candidate_version == READING_CANDIDATE_VERSION
+        else ""
+    )
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
@@ -308,6 +422,10 @@ def render_chapter_prompt(
     if validation_errors is not None:
         diagnostics = compact_validation_errors(validation_errors)
         prev_chars = _translation_chars(previous_candidate)
+        if candidate_version == READING_CANDIDATE_VERSION:
+            repaired = "the joint bundle, mentions, record_sources and reading annotations"
+        else:
+            repaired = "the joint bundle, mentions and record_sources"
         preserve = ""
         if prev_chars:
             # Live regression (C2-R1-T19 live rounds): the bounded correction
@@ -327,16 +445,16 @@ def render_chapter_prompt(
                 "translation.blocks through unchanged (same block_ids, same order, "
                 "same full text). Do NOT rewrite, shorten, or re-summarize the "
                 "translation; the diagnostics below concern the joint bundle, "
-                "mentions, record_sources and time fields — repair those and keep "
-                "the translation verbatim.\n"
+                "mentions, record_sources, reading and time fields — repair those "
+                "and keep the translation verbatim.\n"
             )
         correction = (
             "\nCORRECTION RE-ASK\n"
             "The prior chapter product failed deterministic validation. Return one "
             "complete corrected chapter product covering the SAME whole chapter below: "
-            "full faithful translation plus the joint bundle, mentions, and "
-            "record_sources. Repair every listed issue. Do NOT translate only the "
-            "failed segment and splice it back, and do NOT drop the chapter tail.\n"
+            "full faithful translation plus " + repaired + ". Repair every listed "
+            "issue. Do NOT translate only the failed segment and splice it back, and "
+            "do NOT drop the chapter tail.\n"
             + preserve
             + "VALIDATION DIAGNOSTICS\n"
             + _json(diagnostics)
@@ -356,11 +474,11 @@ def render_chapter_prompt(
         "plan_version": request.get("plan_version"),
         "limits": request.get("limits"),
         "schema_versions": request.get("schema_versions"),
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": prompt_version,
     }
     return f'''You are Chronicle whole-chapter joint translation and extraction. Return exactly one compact JSON object and no prose/Markdown.
 
-{JOINT_PRODUCT_GUIDE}
+{joint_guide}{reading_guide}
 
 {REFERENCE_RULES}
 

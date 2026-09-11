@@ -53,6 +53,27 @@ RESOLUTION_VERSION = "0.2"
 #: Chapter plan version bound into requests.
 PLAN_VERSION = "c2r1-chapters-v1"
 
+# ---------------------------------------------------------------------------
+# Production version registration (C2-R2-T03)
+# ---------------------------------------------------------------------------
+# chapter_contract owns only the version *registry* after the first round:
+# which candidate/artifact schema/version pairs exist and which one the
+# production chain must emit. The 0.1 pair stays frozen and is validated by
+# this module's first-round validator; the 0.2 pair adds reading annotations
+# and its pure validator/acceptance live in the T01 ``reading_contract``
+# module. Consumers (``chapter_extraction``) dispatch to that validator
+# rather than re-implementing a second set of checks.
+
+#: Candidate versions registered for the production chain (frozen first).
+CANDIDATE_VERSIONS = ("0.1", "0.2")
+#: Artifact versions registered for the production chain (frozen first).
+ARTIFACT_VERSIONS = ("0.1", "0.2")
+
+#: Version new production emits (reading annotations on top of the joint
+#: product). New production never silently downgrades to 0.1.
+PRODUCTION_CANDIDATE_VERSION = "0.2"
+PRODUCTION_ARTIFACT_VERSION = "0.2"
+
 #: Offset unit for every chapter/block/anchor coordinate.
 OFFSET_UNIT = "chars-normalized-utf8"
 
@@ -104,8 +125,29 @@ RESOLUTION_V02_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-resolution-v0.2.schema.json"
 )
 
+# 0.2 schema locations are registered here by filename/$id only; their
+# cross-file $ref resolution belongs to the T01 ``reading_contract`` loader.
+CANDIDATE_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.2.schema.json"
+ARTIFACT_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.2.schema.json"
+CANDIDATE_V02_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.2.schema.json"
+)
+ARTIFACT_V02_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json"
+)
 
-@lru_cache(maxsize=3)
+#: Registry mapping each production version to its schema file/$id.
+_CANDIDATE_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
+    "0.1": (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
+    "0.2": (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
+}
+_ARTIFACT_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
+    "0.1": (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
+    "0.2": (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
+}
+
+
+@lru_cache(maxsize=8)
 def _load_schema(path_str: str, expected_id: str) -> dict[str, Any]:
     path = Path(path_str)
     try:
@@ -133,6 +175,40 @@ def artifact_schema() -> dict[str, Any]:
 def resolution_v02_schema() -> dict[str, Any]:
     """Return the canonical resolution-links v0.2 JSON Schema."""
     return _load_schema(str(RESOLUTION_V02_SCHEMA_PATH), RESOLUTION_V02_SCHEMA_ID)
+
+
+def candidate_schema_for(version: str) -> dict[str, Any]:
+    """Return the registered chapter-candidate schema for ``version``.
+
+    Only shape is resolved here (no cross-file 0.2 ``$ref`` binding); the
+    T01 ``reading_contract`` owns the 0.2 $ref registry used to validate a
+    real candidate.
+    """
+    entry = _CANDIDATE_SCHEMA_REGISTRY.get(version)
+    if entry is None:
+        raise PersistenceError(
+            f"unregistered chapter-candidate version {version!r}; "
+            f"known: {list(CANDIDATE_VERSIONS)}"
+        )
+    path, schema_id = entry
+    return _load_schema(str(path), schema_id)
+
+
+def artifact_schema_for(version: str) -> dict[str, Any]:
+    """Return the registered chapter-artifact schema for ``version``."""
+    entry = _ARTIFACT_SCHEMA_REGISTRY.get(version)
+    if entry is None:
+        raise PersistenceError(
+            f"unregistered chapter-artifact version {version!r}; "
+            f"known: {list(ARTIFACT_VERSIONS)}"
+        )
+    path, schema_id = entry
+    return _load_schema(str(path), schema_id)
+
+
+def candidate_schema_registry() -> dict[str, str]:
+    """Return ``{version: schema $id}`` for every registered candidate."""
+    return {version: schema_id for version, (_p, schema_id) in _CANDIDATE_SCHEMA_REGISTRY.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -1656,9 +1732,13 @@ def validate_review_page(page: dict[str, Any]) -> list[str]:
 
 __all__ = [
     "ARTIFACT_SCHEMA",
+    "ARTIFACT_VERSIONS",
     "ARTIFACT_VERSION",
     "CANDIDATE_SCHEMA",
+    "CANDIDATE_VERSIONS",
     "CANDIDATE_VERSION",
+    "PRODUCTION_ARTIFACT_VERSION",
+    "PRODUCTION_CANDIDATE_VERSION",
     "ChapterLimits",
     "ENTITY_REVIEW_DECISIONS",
     "EVENT_REVIEW_DECISIONS",
@@ -1671,7 +1751,10 @@ __all__ = [
     "accept_chapter_candidate",
     "anchor_id_for",
     "artifact_schema",
+    "artifact_schema_for",
     "candidate_schema",
+    "candidate_schema_for",
+    "candidate_schema_registry",
     "collect_anchors",
     "example_assembled_mapping",
     "example_batch_context",

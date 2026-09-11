@@ -15,6 +15,7 @@ canonical validator.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 FORMAT_NAME = "chronicle_extraction_bundle"
@@ -814,10 +815,208 @@ def chapter_candidate_model_schema() -> dict[str, Any]:
     }
 
 
-def chapter_candidate_text_format() -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Reading-annotation chapter candidate projection (C2-R2-T03)
+# ---------------------------------------------------------------------------
+# Strict Responses projection of ``chronicle.chapter-candidate / 0.2``: the
+# 0.1 joint product above plus the second-round ``reading`` block. It reuses
+# the frozen 0.1 projection and adds only reading shapes; the T01
+# ``reading_contract`` validator remains the acceptance authority. As with
+# the projections above, program-bound values (unit/stream/canonical IDs,
+# coordinates, hashes) are absent by construction.
+
+#: The wire format name is intentionally shared with the 0.1 projection:
+#: Responses constraints are identified by name, and the emitted candidate
+#: carries the authoritative version. Keeping one name avoids a second,
+#: parallel provider format while the strict schema itself changes with the
+#: contract version.
+READING_CHAPTER_CANDIDATE_FORMAT_NAME = CHAPTER_CANDIDATE_FORMAT_NAME
+
+
+def _reading_translation_selection() -> dict[str, Any]:
     return {
-        "type": "json_schema",
-        "name": CHAPTER_CANDIDATE_FORMAT_NAME,
-        "schema": chapter_candidate_model_schema(),
-        "strict": True,
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["quote", "occurrence"],
+        "properties": {
+            "quote": {"type": "string", "minLength": 1},
+            "occurrence": {"type": "integer", "minimum": 1},
+        },
     }
+
+
+def _reading_narrative_time() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["mode", "event_refs", "from_block_id", "source_selections"],
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["events", "inherit", "mixed", "unknown"],
+            },
+            "event_refs": {"type": "array", "items": {"type": "string"}},
+            "from_block_id": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "source_selections": {
+                "type": "array",
+                "items": _chapter_selection(),
+                "maxItems": 16,
+            },
+        },
+    }
+
+
+def _reading_event_span() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "span_id",
+            "selection",
+            "status",
+            "target_ref",
+            "candidate_refs",
+            "relation",
+            "source_selections",
+        ],
+        "properties": {
+            "span_id": {"type": "string", "pattern": "^es_[0-9]{3,}$"},
+            "selection": _reading_translation_selection(),
+            "status": {
+                "type": "string",
+                "enum": ["resolved", "ambiguous", "unresolved"],
+            },
+            "target_ref": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "candidate_refs": {"type": "array", "items": {"type": "string"}},
+            "relation": {
+                "type": "string",
+                "enum": [
+                    "current",
+                    "retrospective",
+                    "foreshadow",
+                    "background",
+                    "uncertain",
+                ],
+            },
+            "source_selections": {
+                "type": "array",
+                "items": _chapter_selection(),
+                "minItems": 1,
+                "maxItems": 16,
+            },
+        },
+    }
+
+
+def _reading_event_role() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["event_ref", "participant_index"],
+        "properties": {
+            "event_ref": {"type": "string", "minLength": 1},
+            "participant_index": {"type": "integer", "minimum": 0},
+        },
+    }
+
+
+def _reading_context_entity() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["entity_ref", "importance", "source_selections", "event_roles"],
+        "properties": {
+            "entity_ref": {"type": "string", "minLength": 1},
+            "importance": {"type": "string", "enum": ["primary", "other"]},
+            "source_selections": {
+                "type": "array",
+                "items": _chapter_selection(),
+                "minItems": 1,
+                "maxItems": 16,
+            },
+            "event_roles": {
+                "type": "array",
+                "items": _reading_event_role(),
+            },
+        },
+    }
+
+
+def _reading_unit() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "block_id",
+            "narrative_time",
+            "current_event_refs",
+            "event_spans",
+            "context_entities",
+        ],
+        "properties": {
+            "block_id": {"type": "string", "minLength": 1},
+            "narrative_time": _reading_narrative_time(),
+            "current_event_refs": {"type": "array", "items": {"type": "string"}},
+            "event_spans": {
+                "type": "array",
+                "items": _reading_event_span(),
+                "maxItems": 64,
+            },
+            "context_entities": {
+                "type": "array",
+                "items": _reading_context_entity(),
+                "maxItems": 128,
+            },
+        },
+    }
+
+
+def reading_chapter_candidate_model_schema() -> dict[str, Any]:
+    """Return the strict model-generation subset of chapter-candidate 0.2.
+
+    The frozen 0.1 projection is reused verbatim; the second-round change is
+    the required ``reading`` block (one unit per translation block, source-local
+    refs only) and the version const.
+    """
+    schema = copy.deepcopy(chapter_candidate_model_schema())
+    warning = schema["properties"]["warnings"]
+    schema["properties"]["version"] = {"type": "string", "const": "0.2"}
+    schema["properties"]["reading"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["units", "warnings"],
+        "properties": {
+            "units": {
+                "type": "array",
+                "items": _reading_unit(),
+                "minItems": 1,
+            },
+            "warnings": copy.deepcopy(warning),
+        },
+    }
+    schema["required"] = list(schema["required"]) + ["reading"]
+    return schema
+
+
+def chapter_candidate_text_format_for(candidate_version: str) -> dict[str, Any]:
+    """Return the strict chapter-candidate output format for one version."""
+    if candidate_version == "0.2":
+        return {
+            "type": "json_schema",
+            "name": READING_CHAPTER_CANDIDATE_FORMAT_NAME,
+            "schema": reading_chapter_candidate_model_schema(),
+            "strict": True,
+        }
+    if candidate_version == "0.1":
+        return {
+            "type": "json_schema",
+            "name": CHAPTER_CANDIDATE_FORMAT_NAME,
+            "schema": chapter_candidate_model_schema(),
+            "strict": True,
+        }
+    raise ValueError(f"unsupported chapter-candidate version {candidate_version!r}")
+
+
+def chapter_candidate_text_format() -> dict[str, Any]:
+    """Return the production (0.2 reading) chapter-candidate output format."""
+    return chapter_candidate_text_format_for("0.2")

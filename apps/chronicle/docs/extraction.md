@@ -166,3 +166,63 @@ Key contracts:
 
 Unit suite: `persistence/test_chapter_extraction_unit.py` (fake
 `complete(prompt)->str` callable covering all branches).
+
+## Whole-chapter joint translation/extraction + reading annotations (C2-R2-T03)
+
+> 本节描述 C2-R2 生产 0.2 联合路径（Issue #572，Task C2-R2-T03）。
+> 契约权威见 [continuous-reading.md](continuous-reading.md) §§2–3；本节只说明
+> 生成/provider 落点，不复制规范。上文 C2-R1 的 0.1 小节保持不变。
+
+New production emits `chronicle.chapter-candidate / 0.2` — the frozen 0.1
+joint product (full translation + staged bundle + mentions + record_sources)
+plus one `reading` block — in the *same* whole-chapter request. There is no
+per-segment call and no read-time semantic annotation.
+
+- **Version registration.** `persistence/chapter_contract.py` owns the
+  candidate/artifact version registry after the first round:
+  `CANDIDATE_VERSIONS = ("0.1", "0.2")`, `PRODUCTION_CANDIDATE_VERSION =
+  "0.2"`, schema paths/IDs for both, and `candidate_schema_for(...)` /
+  `artifact_schema_for(...)`. 0.1 stays frozen; the 0.2 validator is **not**
+  reimplemented here.
+- **One whole-chapter call + at most one whole-chapter correction.**
+  `chapter_prompt.render_chapter_prompt` renders the 0.2 reading guide on
+  top of the joint guide (main narrative vs. retrospective spans,
+  translation quotes + occurrences, context entities and event roles,
+  unknown/inherited time, original-calendar fidelity) and carries the full
+  normalized text in both the initial and the correction prompt.
+  `chapter_extraction.extract_chapter` dispatches acceptance by request
+  version: 0.1 → `chapter_contract`, 0.2 → the T01
+  `reading_contract.validate_reading_annotations` /
+  `accept_reading_candidate`. A 0.2 request can never silently downgrade to
+  0.1; an unregistered version fails closed as
+  `unsupported_candidate_version` before any model call.
+- **Consumer-side error categories.** A full-validation failure records
+  `error.categories` (for example `reading_coverage`, `reading_spans`,
+  `reading_time`, `reading_refs`, `reading_context`) so a missing unit, an
+  overlapping span, or a wrong current-time basis is checkable without
+  parsing the free-form message. Metadata errors reject the joint product
+  instead of returning translation-only success.
+- **Fingerprints/run history.** `fingerprints` records
+  `candidate_schema` (`.../0.1` vs `.../0.2`), `prompt_version`
+  (`c2r1-chapter-prompt-v10` vs `c2r2-chapter-prompt-v1`),
+  `extraction_version`, and — for 0.2 — `reading_schema` /
+  `reading_limits`, so model/contract/limit versions stay distinguishable.
+- **Provider/fixture parity.** `worker/extraction_model_schema.py` keeps the
+  frozen 0.1 projection and adds `reading_chapter_candidate_model_schema()`
+  with the required `reading` block; `chapter_candidate_text_format()`
+  returns the production 0.2 format and
+  `chapter_candidate_text_format_for(version)` selects either.
+  `model_provider.build_chapter_model(..., candidate_version=...)` defaults
+  to 0.2 and keeps the 4 MiB response cap / explicit output-token budget.
+  `fixture_model.build_reading_chapter_candidate` /
+  `models_from_reading_chapter_fixture_pack` emit the same 0.2 shape from
+  one whole-chapter request.
+- **Still worker-owned.** Model run identity, lease-fenced persistence, the
+  atomic publish transaction, and the plan's `schema_versions` selection
+  remain with the worker/publication task (T06); this task delivers the
+  generation and provider layer only.
+
+Unit suites: `persistence/test_reading_extraction_unit.py`,
+`worker/test_reading_model_schema_unit.py`,
+`worker/test_reading_provider_unit.py`; the 0.1 first-round regression
+suites above stay in place.

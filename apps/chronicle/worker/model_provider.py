@@ -35,15 +35,20 @@ from common import PersistenceError
 try:
     from extraction_model_schema import (
         chapter_candidate_text_format,
+        chapter_candidate_text_format_for,
         extraction_text_format,
     )
     from presentation_model_schema import presentation_text_format
 except ImportError:  # pragma: no cover - package import path
     from .extraction_model_schema import (
         chapter_candidate_text_format,
+        chapter_candidate_text_format_for,
         extraction_text_format,
     )
     from .presentation_model_schema import presentation_text_format
+
+#: Chapter candidate version new production emits (reading annotations).
+PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.2"
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 # Legacy C1 extraction/presentation transport bound. Kept at 2 MiB so the
@@ -425,20 +430,24 @@ def build_chapter_model(
     max_output_tokens: int = DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS,
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS,
+    candidate_version: str | None = None,
 ) -> ResponsesHTTPModel:
     """Build the chapter-production provider for one joint generation call.
 
     The request carries the chapter-candidate strict format (only
     model-generatable fields) plus the chapter-production §3 output token
-    budget and 4 MiB response byte cap. Acceptance still runs the T01
-    canonical validator on the returned text; this factory only constrains
-    generation and transport. Legacy extraction/presentation providers keep
-    their own 2 MiB default and are unaffected.
+    budget and 4 MiB response byte cap. ``candidate_version`` selects the
+    strict contract; it defaults to the registered production version (0.2
+    reading annotations). Acceptance still runs the matching T01/reading
+    validator on the returned text; this factory only constrains generation
+    and transport. Legacy extraction/presentation providers keep their own
+    2 MiB default and are unaffected.
 
     Worker selection and environment wiring belong to C2-R1-T13/T16; this
     helper exists so that wiring can construct the provider without
     duplicating the chapter envelope.
     """
+    version = candidate_version or PRODUCTION_CHAPTER_CANDIDATE_VERSION
     return ResponsesHTTPModel(
         name=name,
         endpoint=endpoint,
@@ -447,6 +456,6 @@ def build_chapter_model(
         max_response_bytes=max_response_bytes,
         max_attempts=max_attempts,
         retry_backoff_seconds=retry_backoff_seconds,
-        text_format=chapter_candidate_text_format(),
+        text_format=chapter_candidate_text_format_for(version),
         max_output_tokens=max_output_tokens,
     )
