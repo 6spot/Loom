@@ -1,0 +1,1067 @@
+{
+  "schema": "chronicle.third-round-person-state-cases",
+  "version": "0.1",
+  "pack_id": "c2-r3-d01-person-state-cases-v1",
+  "task": "C2-R3-D01",
+  "issue": 617,
+  "parent_issue": 550,
+  "round": "R3",
+  "derived_from": "c2-r1-t02-first-round-v1",
+  "coordinate_unit": "unicode_code_point",
+  "contract": "apps/chronicle/docs/person-state-reading.md",
+  "rule": "real entries must relocate every ref into the frozen first-round file at [start,end) as the 1-based occurrence over Unicode code points, and each expected item with a surface must show that surface in its referenced quote; synthetic entries carry synthetic=true, must never be cited as a source observation, and must not invent historical wording; every entry is an evidence_class=human-content-review expectation, never a real model or backend result; allowed/forbidden follow apps/chronicle/docs/person-state-reading.md sections 2-3 and 9; ancestor/father offices, action roles and future titles never enter the person's current identity",
+  "reason_codes": {
+    "tenure_unproven": "已证明先前任职，但缺少继续有效的依据，且没有已证明的结束",
+    "order_unknown": "不知道一次记载在当前阶段之前还是之后",
+    "source_disagreement": "有依据指向同一问题和可比较阶段的不同主张",
+    "attribution_uncertain": "引述／裴注／奏章归属未定，不能去掉限定语",
+    "evidence_uncertain": "有可定位材料，但结论、任期或先后尚不能确定",
+    "phase_not_reached": "有证据但属于当前阶段之后（未来头衔），不得提前",
+    "phase_not_begun": "已证明尚未开始，或已证明结束后尚未再次授任"
+  },
+  "sources": [
+    {
+      "key": "xianzhu-liubei",
+      "work": "三國志",
+      "chapter": "蜀書·先主傳",
+      "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+      "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "chars": 12572,
+      "page_title": "三國志/卷32",
+      "oldid": 2583378
+    },
+    {
+      "key": "zhou-yu",
+      "work": "三國志",
+      "chapter": "吳書·周瑜傳",
+      "file": "sources/sanguozhi-054-zhou-yu.txt",
+      "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "chars": 5018,
+      "page_title": "三國志/卷54",
+      "oldid": 2387393
+    },
+    {
+      "key": "lu-su",
+      "work": "三國志",
+      "chapter": "吳書·魯肅傳",
+      "file": "sources/sanguozhi-054-lu-su.txt",
+      "sha256": "1550e1735f44eda7adb9bf27f4ed2cbc9c2185baf6634400140cd52ac312553d",
+      "chars": 3583,
+      "page_title": "三國志/卷54",
+      "oldid": 2387393
+    },
+    {
+      "key": "zztj-065",
+      "work": "資治通鑑",
+      "chapter": "卷第六十五（漢紀五十七，建安十一年至十三年）",
+      "file": "sources/zizhi-tongjian-065-quan.txt",
+      "sha256": "c7f80c6baff73a0caa0bbf365117b9ae91892da590ab3830392deb9bcb46fd38",
+      "chars": 10680,
+      "page_title": "資治通鑑/卷065",
+      "oldid": 2306420
+    }
+  ],
+  "real_case_count": 13,
+  "synthetic_case_count": 6,
+  "cases": [
+    {
+      "id": "R3C01",
+      "category": "appointment",
+      "synthetic": false,
+      "title": "周瑜授建威中郎將：授任者與阶段各有依据",
+      "question": "「策親自迎瑜，授建威中郎將」能否为周瑜建立一个有来源的授任状态？",
+      "subject": "周瑜",
+      "phase": "建安三年·还吴",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "建威中郎將",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "授建威中郎將",
+          "proven_by": 0,
+          "display": "建威中郎將（明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把授任者孙策记为周瑜自己的官职或身份",
+        "用后文「偏將軍」「南郡太守」替换本阶段职务",
+        "由常识补出授任月份或结束时间"
+      ],
+      "observation": "原文能证明：建安三年还吴阶段，孙策授周瑜建威中郎将，同时给出兵骑数量；不能证明：该职的结束时间，也不能证明此前周瑜没有其他职务（前后任职另行定位）。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "策親自迎瑜，授建威中郎將",
+          "occurrence": 1,
+          "start": 537,
+          "end": 549,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C02",
+      "category": "concurrent-office",
+      "synthetic": false,
+      "title": "周瑜兼任：偏将军与南郡太守并存",
+      "question": "「權拜瑜偏將軍，領南郡太守」应保留为两条并存职务，还是只留一个？",
+      "subject": "周瑜",
+      "phase": "赤壁后·屯据江陵",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "偏將軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "偏將軍",
+          "proven_by": 0,
+          "display": "偏將軍（明確）"
+        },
+        {
+          "dimension": "office",
+          "value": "南郡太守",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "領南郡太守",
+          "proven_by": 0,
+          "display": "领南郡太守（明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "按官阶只保留一个官职",
+        "把兼任当作来源冲突而记为不明确",
+        "让新职务清空此前有据的职务"
+      ],
+      "observation": "原文能证明：孙权同时拜周瑜偏将军并领南郡太守，两职在同一阶段并存；不能证明：两职各自的明确结束时间，也不能由兼任推断周瑜此前没有其他职务。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "權拜瑜偏將軍，領南郡太守",
+          "occurrence": 1,
+          "start": 3108,
+          "end": 3120,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C03",
+      "category": "event-role",
+      "synthetic": false,
+      "title": "「瑜為前部大督」是行动角色，不是长期身份",
+      "question": "「十三年春，權討江夏，瑜為前部大督」能否作为周瑜的长期官职写入当前身份？",
+      "subject": "周瑜",
+      "phase": "建安十三年·讨江夏",
+      "expected": [
+        {
+          "dimension": "action_role",
+          "value": "前部大督",
+          "relation": null,
+          "target": "江夏之战",
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": false,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "瑜為前部大督",
+          "proven_by": 0,
+          "display": "前部大督（行动角色，记入经历时间轴）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把行动角色「前部大督」作为周瑜长期官职或当前身份",
+        "由一次军事指挥自动继承为其他职务"
+      ],
+      "observation": "原文能证明：建安十三年春讨江夏之役中周瑜为前部大督；不能证明：这是一个长期官职、会延续到赤壁之后或之后阶段仍有效。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "十三年春，權討江夏，瑜為前部大督",
+          "occurrence": 1,
+          "start": 1323,
+          "end": 1339,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C04",
+      "category": "transfer",
+      "synthetic": false,
+      "title": "刘备去楷归谦：定向关系变化",
+      "question": "「先主遂去楷歸謙」能证明刘备的哪一段效力／归附关系发生变化？",
+      "subject": "劉備",
+      "phase": "救徐州·屯小沛",
+      "expected": [
+        {
+          "dimension": "affiliation",
+          "value": null,
+          "relation": "attached_to",
+          "target": "陶謙",
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "去楷歸謙",
+          "proven_by": 0,
+          "display": "归附陶谦（明確）"
+        },
+        {
+          "dimension": "affiliation",
+          "value": null,
+          "relation": "serves",
+          "target": "田楷",
+          "operation": "end",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "去楷歸謙",
+          "proven_by": 0,
+          "display": "离开田楷（明確）"
+        },
+        {
+          "dimension": "office",
+          "value": "豫州刺史",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "recommendation",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "謙表先主為豫州刺史",
+          "proven_by": 1,
+          "display": "豫州刺史（陶谦表荐，明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把田楷或陶谦的官职记成刘备自己的官职",
+        "把「表先主为豫州刺史」写成刘备自称或朝廷实授",
+        "让转投结束刘备全部既有关系"
+      ],
+      "observation": "原文能证明：刘备离开田楷、归附陶谦，并由陶谦表为豫州刺史，两个对象和方向都明确；不能证明：此次转投的具体月份，也不能由陶谦表荐推断朝廷已实授。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "先主遂去楷歸謙",
+          "occurrence": 1,
+          "start": 1151,
+          "end": 1158,
+          "attribution": "正文"
+        },
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "謙表先主為豫州刺史，屯小沛",
+          "occurrence": 1,
+          "start": 1159,
+          "end": 1172,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C05",
+      "category": "resignation",
+      "synthetic": false,
+      "title": "刘备上还印绶：奏章自述，只结束对应官爵",
+      "question": "「謹拜章因驛上還所假左將軍、宜城亭侯印綬」如何影响刘备当时身份？",
+      "subject": "劉備",
+      "phase": "上还印绶（汉中王前后奏章）",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "左將軍",
+          "relation": null,
+          "target": null,
+          "operation": "end",
+          "qualification": "reported",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "奏章自述",
+          "surface": "上還所假左將軍",
+          "proven_by": 0,
+          "display": "辞还左将军（奏章自述，明確）"
+        },
+        {
+          "dimension": "title",
+          "value": "宜城亭侯",
+          "relation": null,
+          "target": null,
+          "operation": "end",
+          "qualification": "reported",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "奏章自述",
+          "surface": "宜城亭侯印綬",
+          "proven_by": 0,
+          "display": "辞还宜城亭侯（奏章自述，明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "去掉「奏章自述」限定并把辞还当作朝廷已收讫",
+        "由此结束刘备的效忠／归附等全部关系",
+        "把「上還」理解为罢免或来源冲突"
+      ],
+      "observation": "原文能证明：奏章第一人称自述已拜章上还所假左将军与宜城亭侯印绶；不能证明：朝廷是否收讫、其他来源是否承认，也不能据此结束与该官爵无关的关系。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "謹拜章因驛上還所假左將軍、宜城亭侯印綬",
+          "occurrence": 1,
+          "start": 9716,
+          "end": 9735,
+          "attribution": "奏章自述"
+        }
+      ]
+    },
+    {
+      "id": "R3C06",
+      "category": "ancestor-office",
+      "synthetic": false,
+      "title": "周瑜从祖父与父亲的官职不属于周瑜身份",
+      "question": "「從祖父景，景子忠，皆為漢太尉」与「父異，洛陽令」中的官职能否记到周瑜当时身份？",
+      "subject": "周瑜",
+      "phase": "周瑜传开篇·家世",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "太尉",
+          "relation": null,
+          "target": "周景",
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": null,
+          "enters_identity": false,
+          "reason_code": "attribution_uncertain",
+          "attribution": "正文·周瑜家世",
+          "surface": "皆為漢太尉",
+          "proven_by": 0,
+          "display": "周景为汉太尉（家世，不计入周瑜身份）"
+        },
+        {
+          "dimension": "office",
+          "value": "洛陽令",
+          "relation": null,
+          "target": "周異",
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": null,
+          "enters_identity": false,
+          "reason_code": "attribution_uncertain",
+          "attribution": "正文·周瑜家世",
+          "surface": "洛陽令",
+          "proven_by": 1,
+          "display": "周异为洛阳令（家世，不计入周瑜身份）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把周景／周异的太尉、洛阳令计为周瑜当时身份",
+        "由家世官职推断周瑜本人的任职高低"
+      ],
+      "observation": "原文能证明：周瑜从祖父周景、周景之子周忠皆为汉太尉，父亲周异为洛阳令；不能证明：周瑜本人此阶段拥有这些官职。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "從祖父景，景子忠，皆為漢太尉",
+          "occurrence": 1,
+          "start": 12,
+          "end": 26,
+          "attribution": "正文"
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "父異，洛陽令",
+          "occurrence": 1,
+          "start": 267,
+          "end": 273,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C07",
+      "category": "annotation-attribution",
+      "synthetic": false,
+      "title": "《江表传》裴注给鼓吹：保留引书归属",
+      "question": "「策又給瑜鼓吹，為治館舍，贈賜莫與為比」的赐礼归属层是什么？",
+      "subject": "周瑜",
+      "phase": "建安三年·还吴",
+      "expected": [
+        {
+          "dimension": "none",
+          "value": "鼓吹／馆舍赏赐",
+          "relation": null,
+          "target": null,
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": false,
+          "reason_code": null,
+          "attribution": "裴注引《江表傳》",
+          "surface": "策又給瑜鼓吹",
+          "proven_by": 0,
+          "display": "孙策给鼓吹馆舍（裴注引《江表传》，不并入正文身份）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把裴注引《江表传》的赏赐改写成陈寿正文官职断语",
+        "去掉《江表传》归属只留结论"
+      ],
+      "observation": "原文能证明：裴注所引《江表传》记孙策给周瑜鼓吹、馆舍并厚赐；不能证明：这是陈寿正文对官职的断言，也不能把赏赐折算成具体职级。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "策又給瑜鼓吹，為治館舍，贈賜莫與為比",
+          "occurrence": 1,
+          "start": 570,
+          "end": 588,
+          "attribution": "裴注引《江表傳》"
+        }
+      ]
+    },
+    {
+      "id": "R3C08",
+      "category": "recommendation",
+      "synthetic": false,
+      "title": "曹操表刘备为镇东将军：表荐与实授分开",
+      "question": "「曹公表先主為鎮東將軍，封宜城亭侯」是实授还是表荐？",
+      "subject": "劉備",
+      "phase": "建安元年·许都",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "鎮東將軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "recommendation",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "曹公表先主為鎮東將軍",
+          "proven_by": 0,
+          "display": "镇东将军（曹操表荐，明確）"
+        },
+        {
+          "dimension": "title",
+          "value": "宜城亭侯",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "封宜城亭侯",
+          "proven_by": 0,
+          "display": "宜城亭侯（明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把曹操的表荐写成刘备自称",
+        "把表荐当作已由朝廷实授而不加限定",
+        "由爵号推断具体封地边界"
+      ],
+      "observation": "原文能证明：建安元年曹操表刘备为镇东将军并封宜城亭侯；不能证明：朝廷批准的确切时间，也不能由侯号推出实际食邑范围。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "曹公表先主為鎮東將軍，封宜城亭侯，是歲建安元年也",
+          "occurrence": 1,
+          "start": 1583,
+          "end": 1607,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C09",
+      "category": "cross-chapter-concurrent",
+      "synthetic": false,
+      "title": "周瑜传中记刘备：左将军与荆州牧并存",
+      "question": "周瑜传「劉備以左將軍領荊州牧，治公安」能否为刘备建立两条并存身份？",
+      "subject": "劉備",
+      "phase": "赤壁后·公安",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "左將軍",
+          "relation": null,
+          "target": null,
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文·周瑜傳",
+          "surface": "左將軍",
+          "proven_by": 0,
+          "display": "左将军（明確）"
+        },
+        {
+          "dimension": "office",
+          "value": "荊州牧",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文·周瑜傳",
+          "surface": "領荊州牧",
+          "proven_by": 0,
+          "display": "领荆州牧（明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "用后来的「漢中王」覆盖本阶段身份",
+        "因跨章记载而改写刘备传的原文归属",
+        "只保留一个官职"
+      ],
+      "observation": "原文能证明：赤壁后刘备以左将军领荆州牧、治公安，两职并存；不能证明：荆州牧的确切终结时间，也不能把周瑜传的记载当成刘备传正文的重复。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "劉備以左將軍領荊州牧，治公安",
+          "occurrence": 1,
+          "start": 3142,
+          "end": 3156,
+          "attribution": "正文·周瑜傳"
+        }
+      ]
+    },
+    {
+      "id": "R3C10",
+      "category": "phase-change",
+      "synthetic": false,
+      "title": "先主复领益州牧：入蜀后新阶段，不覆盖刘璋阶段",
+      "question": "「先主复領益州牧」与原刘璋时期的益州牧是否为同一段任职？",
+      "subject": "劉備",
+      "phase": "定蜀后·成都",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "益州牧",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "enters_identity": true,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "先主复領益州牧",
+          "proven_by": 0,
+          "display": "复领益州牧（定蜀后新阶段，明確）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把「复领」并入定蜀前的旧阶段",
+        "把刘璋的益州牧身份记成刘备身份",
+        "用益州牧覆盖赤壁／公安阶段身份"
+      ],
+      "observation": "原文能证明：定蜀之后刘备再次领益州牧，属新阶段；不能证明：这与此前推刘璋领益州牧是同一段任职，也不能证明任期的精确起止日。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "先主复領益州牧",
+          "occurrence": 1,
+          "start": 7567,
+          "end": 7574,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3C11",
+      "category": "source-disagreement",
+      "synthetic": false,
+      "title": "刘备领荆州刺史？《英雄记》与《魏书》主张不同",
+      "question": "裴注中「表病，上備領荊州刺史」（《英雄记》）与「託國於備」（《魏书》）是否构成可记录的分歧？",
+      "subject": "劉備",
+      "phase": "建安十三年·刘表卒",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "荊州刺史",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "reported",
+          "certainty": "uncertain",
+          "enters_identity": true,
+          "reason_code": "source_disagreement",
+          "attribution": "裴注引《英雄記》",
+          "surface": "上備領荊州刺史",
+          "proven_by": 0,
+          "display": "据《英雄记》刘表上刘备领荆州刺史（存疑）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "只取一方并标为明確",
+        "按引书先后或卷次选「赢家」",
+        "把裴松之的评论当作当事实授"
+      ],
+      "observation": "原文能证明：《英雄记》记刘表上刘备领荆州刺史，《魏书》记刘表托国于备，两说对同一问题主张不同；不能证明：何者为史实，也不能只凭引书数量定论。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "表病，上備領荊州刺史",
+          "occurrence": 1,
+          "start": 3715,
+          "end": 3725,
+          "attribution": "裴注引《英雄記》"
+        },
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "託國於備",
+          "occurrence": 1,
+          "start": 3734,
+          "end": 3738,
+          "attribution": "裴注引《魏書》"
+        }
+      ]
+    },
+    {
+      "id": "R3C12",
+      "category": "commentary-attribution",
+      "synthetic": false,
+      "title": "裴松之评论：「拒曹公实始鲁肃」是后论",
+      "question": "「臣松之以為建計拒曹公，實始魯肅」能否作为周瑜当期的官职或事迹事实？",
+      "subject": "周瑜",
+      "phase": "赤壁决策·裴松之评论",
+      "expected": [
+        {
+          "dimension": "none",
+          "value": "拒曹公之谋首倡者",
+          "relation": null,
+          "target": "魯肅",
+          "operation": "attest",
+          "qualification": "quotation",
+          "certainty": "uncertain",
+          "enters_identity": false,
+          "reason_code": "attribution_uncertain",
+          "attribution": "裴松之评论",
+          "surface": "臣松之以為建計拒曹公，實始魯肅",
+          "proven_by": 0,
+          "display": "裴松之评论：建计拒曹公实始鲁肃（后论，存疑）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把后人评论当作建安十三年当期事实",
+        "由该评论给周瑜或鲁肃追加官职／身份",
+        "在正文层去掉「臣松之以为」归属"
+      ],
+      "observation": "原文能证明：裴松之评论认为建计拒曹公实际始于鲁肃；不能证明：这是陈寿正文的当期记载，也不能由此给任何一方追加职务。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "臣松之以為建計拒曹公，實始魯肅",
+          "occurrence": 1,
+          "start": 2164,
+          "end": 2179,
+          "attribution": "裴松之评论"
+        }
+      ]
+    },
+    {
+      "id": "R3C13",
+      "category": "recommendation-actor",
+      "synthetic": false,
+      "title": "先主表琦为荆州刺史：表荐者的职务不随之产生",
+      "question": "「先主表琦為荊州刺史」能否作为刘备自己领荆州刺史的依据？",
+      "subject": "劉備",
+      "phase": "赤壁后·南征四郡",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "荊州刺史",
+          "relation": null,
+          "target": "劉琦",
+          "operation": "start",
+          "qualification": "recommendation",
+          "certainty": "clear",
+          "enters_identity": false,
+          "reason_code": null,
+          "attribution": "正文",
+          "surface": "先主表琦為荊州刺史",
+          "proven_by": 0,
+          "display": "刘备表刘琦为荆州刺史（被表荐者为刘琦）"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把刘琦的荆州刺史记成刘备自己的官职",
+        "由表荐行为推断刘备已领荆州刺史",
+        "把推荐记成被推荐人自称"
+      ],
+      "observation": "原文能证明：刘备表刘琦为荆州刺史，被表荐者是刘琦；不能证明：刘备本人因此获得荆州刺史，也不能证明朝廷是否批准。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "先主表琦為荊州刺史，又南征四郡",
+          "occurrence": 1,
+          "start": 5247,
+          "end": 5262,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3N01",
+      "category": "same-year-order-unknown",
+      "synthetic": true,
+      "title": "合成边界：同年两职的先后不可由同章并列推定",
+      "question": "「瑜為前部大督」与「權拜瑜偏將軍」是否可因同见周瑜传且都在建安十三年附近，断为同一阶段并存？",
+      "subject": "周瑜",
+      "phase": null,
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "偏將軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "uncertain",
+          "enters_identity": false,
+          "reason_code": "order_unknown",
+          "attribution": "合成反例（引用真实原文为素材）",
+          "surface": null,
+          "proven_by": null,
+          "display": "阶段未明确：不得断言两职同年并存"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把同章并列或同年近似当作严格先后依据",
+        "给两条记载合并一个明確阶段并进入当前身份",
+        "发明月份或具体日期补足顺序"
+      ],
+      "observation": "合成反例：引用真实原文只为提供周瑜两职的实体，本任务不主张任何新的史料。两段记载没有可比较的日期范围，按契约不得由同年、同事件或相邻正文序号推出严格先后。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "十三年春，權討江夏，瑜為前部大督",
+          "occurrence": 1,
+          "start": 1323,
+          "end": 1339,
+          "attribution": "正文"
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "權拜瑜偏將軍，領南郡太守",
+          "occurrence": 1,
+          "start": 3108,
+          "end": 3120,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3N02",
+      "category": "cross-chapter-retrospective",
+      "synthetic": true,
+      "title": "合成边界：跨章回溯注文不得切换当前阶段",
+      "question": "先主传后段裴注回溯「周瑜為南郡太守」时，能否把当前阅读阶段切到周瑜南郡太守阶段？",
+      "subject": "周瑜",
+      "phase": "先主传·公安阶段中的回溯注文",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "南郡太守",
+          "relation": null,
+          "target": null,
+          "operation": "attest",
+          "qualification": "quotation",
+          "certainty": "uncertain",
+          "enters_identity": false,
+          "reason_code": "order_unknown",
+          "attribution": "裴注引《江表傳》·回溯",
+          "surface": null,
+          "proven_by": null,
+          "display": "回溯注文保持为材料，不切换当前阶段"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "因跨章回溯注文把当前阶段切换为南郡太守阶段",
+        "把回溯注文当作先主传当期的事实断言",
+        "沿用上一段人物身份而不重新按段取阶段"
+      ],
+      "observation": "合成反例：真实原文说明先主传裴注确实提到周瑜为南郡太守，但该处是回溯／旁及材料；本任务主张的是按段阶段绑定，不新增史料。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "周瑜為南郡太守，分南岸地以給備",
+          "occurrence": 1,
+          "start": 5170,
+          "end": 5185,
+          "attribution": "裴注引《江表傳》"
+        }
+      ]
+    },
+    {
+      "id": "R3N03",
+      "category": "re-appointment-after-end",
+      "synthetic": true,
+      "title": "合成边界：明确结束后的再次授任另起一段",
+      "question": "奏章辞还左将军、宜城亭侯后，后文再次出现相同官爵字样，是否可继续旧任职？",
+      "subject": "劉備",
+      "phase": "辞还之后",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "左將軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "certainty": "uncertain",
+          "enters_identity": false,
+          "reason_code": "phase_not_begun",
+          "attribution": "合成反例（引用真实原文为素材）",
+          "surface": null,
+          "proven_by": null,
+          "display": "结束后的再次授任须另起新段，不自动延续旧任期"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "把结束后的同名字样直接接回旧任职并标为明確",
+        "用同名官爵自动重建状态键",
+        "把辞还当作罢免或结束全部关系"
+      ],
+      "observation": "合成反例：真实原文证明奏章自述上还左将军、宜城亭侯印绶为对应项的结束；本任务由此主张结束后再次授任须形成新段，不主张任何新的历史事实。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "xianzhu-liubei",
+          "file": "sources/sanguozhi-032-xianzhu-liubei.txt",
+          "sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+          "quote": "謹拜章因驛上還所假左將軍、宜城亭侯印綬",
+          "occurrence": 1,
+          "start": 9716,
+          "end": 9735,
+          "attribution": "奏章自述"
+        }
+      ]
+    },
+    {
+      "id": "R3N04",
+      "category": "future-title",
+      "synthetic": true,
+      "title": "合成边界：未来头衔不得泄漏到早期阶段",
+      "question": "周瑜早期授「建威中郎將」阶段能否显示后来的「偏將軍」「領南郡太守」？",
+      "subject": "周瑜",
+      "phase": "建安三年·还吴",
+      "expected": [
+        {
+          "dimension": "office",
+          "value": "偏將軍",
+          "relation": null,
+          "target": null,
+          "operation": "attest",
+          "qualification": "ordinary",
+          "certainty": null,
+          "enters_identity": false,
+          "reason_code": "phase_not_reached",
+          "attribution": "合成反例（引用后段真实原文为素材）",
+          "surface": null,
+          "proven_by": null,
+          "display": "未来头衔不进入早期当时身份"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "用最终或未来称号填充早期「当时身份」",
+        "从后段记载向前段泄漏头衔",
+        "为早期阶段补出不存在的官职"
+      ],
+      "observation": "合成反例：早期「策親自迎瑜，授建威中郎將」与后段「權拜瑜偏將軍，領南郡太守」都是真实原文，本任务只主张阶段隔离，不新增史料。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "策親自迎瑜，授建威中郎將",
+          "occurrence": 1,
+          "start": 537,
+          "end": 549,
+          "attribution": "正文"
+        },
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "權拜瑜偏將軍，領南郡太守",
+          "occurrence": 1,
+          "start": 3108,
+          "end": 3120,
+          "attribution": "正文"
+        }
+      ]
+    },
+    {
+      "id": "R3N05",
+      "category": "empty-state",
+      "synthetic": true,
+      "title": "合成边界：无材料是「暂无记载」，不是不明确的虚构身份",
+      "question": "某人物在某阶段没有相应材料时，应显示「暂无记载」还是生成一条不明确的官职？",
+      "subject": "魯肅",
+      "phase": "建安初·出场前（无阶段材料）",
+      "expected": [],
+      "empty_state": true,
+      "forbidden": [
+        "为凑数生成不明确的虚构官职或头衔",
+        "沿用上一人物／上一段身份",
+        "把「暂无记载」与「阶段未明确」混为一谈"
+      ],
+      "observation": "合成空态：本任务不主张任何真实材料；按契约没有相应材料时显示「暂无记载」，不是一条不明确的虚构身份，也不沿用上一段身份。",
+      "evidence_class": "human-content-review",
+      "refs": []
+    },
+    {
+      "id": "R3N06",
+      "category": "opposing-source",
+      "synthetic": true,
+      "title": "合成边界：对立来源不得由模型或导入顺序裁定",
+      "question": "《江表传》所记曹操书信自称烧船自退，与周瑜传火攻记载对立，能否直接裁定一方？",
+      "subject": "周瑜",
+      "phase": "赤壁后·曹操书信",
+      "expected": [
+        {
+          "dimension": "none",
+          "value": "曹操书信主张烧船自退",
+          "relation": null,
+          "target": "曹操",
+          "operation": "attest",
+          "qualification": "quotation",
+          "certainty": "uncertain",
+          "enters_identity": false,
+          "reason_code": "source_disagreement",
+          "attribution": "裴注引《江表傳》所载书信",
+          "surface": null,
+          "proven_by": null,
+          "display": "保留双方主张，裁定为存疑"
+        }
+      ],
+      "empty_state": false,
+      "forbidden": [
+        "按模型 confidence 或导入时间选「赢家」",
+        "据单一书信改写周瑜传正文火攻记载",
+        "把书信中的自述当作无归属的事实断言"
+      ],
+      "observation": "合成反例：真实原文证明《江表传》载曹操书信如此主张；本任务只主张分歧须记录为不明确，不裁定史实，也不新增史料。",
+      "evidence_class": "human-content-review",
+      "refs": [
+        {
+          "source_key": "zhou-yu",
+          "file": "sources/sanguozhi-054-zhou-yu.txt",
+          "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+          "quote": "後書與權曰：「赤壁之役，值有疾病，孤燒船自退，橫使周瑜虛獲此名。",
+          "occurrence": 1,
+          "start": 4138,
+          "end": 4170,
+          "attribution": "裴注引《江表傳》所载曹操书信"
+        }
+      ]
+    }
+  ]
+}
