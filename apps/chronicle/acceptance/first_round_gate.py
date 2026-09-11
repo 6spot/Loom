@@ -37,7 +37,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import os
 import shutil
@@ -64,6 +63,20 @@ for _path in (str(HERE), str(PERSISTENCE_DIR), str(WORKER_DIR)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
+# Shared gate runtime: process/HTTP/source-pack/evidence helpers extracted so
+# the second-round reading gate reuses this exact lifecycle instead of a copy.
+from gate_runtime import (  # noqa: E402
+    GateError,
+    candidate_commit,
+    load_env_file,
+    load_source_pack,
+    normalize_upload_bytes,
+    sha256_bytes,
+    sha256_text,
+    verify_pack_manifest_hashes,
+    write_json,
+)
+
 import chapter_contract as C01  # noqa: E402
 import chapter_plan as T03  # noqa: E402
 import assembly as T07  # noqa: E402
@@ -72,40 +85,9 @@ from common import PersistenceError, sha256_json  # noqa: E402
 from fixture_model import build_chapter_candidate  # noqa: E402
 
 
-class GateError(RuntimeError):
-    pass
-
-
 # ---------------------------------------------------------------------------
 # Small helpers (stdlib only; no product imports, no DB)
 # ---------------------------------------------------------------------------
-
-
-def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def load_env_file(path: Path) -> dict[str, str]:
-    try:
-        raw_lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        raise GateError(f"env file is not readable: {path}: {exc}") from exc
-    values: dict[str, str] = {}
-    for raw in raw_lines:
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        values[key] = value
-    return values
 
 
 def check_no_direct_db_writes() -> dict[str, Any]:
@@ -143,139 +125,8 @@ def check_no_direct_db_writes() -> dict[str, Any]:
     return {"direct_db_writes": False, "checked_tokens": len(forbidden)}
 
 
-def candidate_commit(repo: Path) -> dict[str, Any]:
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo,
-            text=True,
-            capture_output=True,
-            check=True,
-        ).stdout.strip()
-        dirty = bool(
-            subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=repo,
-                text=True,
-                capture_output=True,
-                check=True,
-            ).stdout.strip()
-        )
-    except (subprocess.CalledProcessError, OSError) as exc:
-        raise GateError(f"cannot determine candidate commit: {exc}") from exc
-    return {"commit": commit, "git_clean": not dirty}
-
-
-def write_json(path: Path, payload: Any) -> None:
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-
-
-def normalize_upload_bytes(raw: bytes) -> str:
-    try:
-        text = bytes(raw).decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise GateError(f"upload is not valid UTF-8: {exc}") from exc
-    if text.startswith("\ufeff"):
-        text = text[1:]
-    return text.replace("\r\n", "\n").replace("\r", "\n")
-
-
 def revision_id_for(label: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"c2r1-first-round-gate:{label}"))
-
-
-# ---------------------------------------------------------------------------
-# Source-pack handling (shared by fixture and live prechecks)
-# ---------------------------------------------------------------------------
-
-
-def load_source_pack(pack_path: Path, corpus_root: Path) -> dict[str, Any]:
-    try:
-        pack = json.loads(pack_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise GateError(f"cannot read source pack {pack_path}: {exc}") from exc
-    if not isinstance(pack, dict):
-        raise GateError(f"source pack must be a JSON object: {pack_path}")
-    if pack.get("schema") != "chronicle.corpus-source-pack":
-        raise GateError(
-            f"source pack schema must be chronicle.corpus-source-pack, "
-            f"got {pack.get('schema')!r}"
-        )
-    works = pack.get("works")
-    if not isinstance(works, list) or not works:
-        raise GateError("source pack carries no works/uploads")
-    uploads: list[dict[str, Any]] = []
-    for work in works:
-        if not isinstance(work, dict):
-            raise GateError("source pack work entry must be an object")
-        upload_rel = work.get("upload")
-        if not isinstance(upload_rel, str) or not upload_rel:
-            raise GateError("source pack work entry is missing its upload path")
-        upload_path = (corpus_root / upload_rel).resolve()
-        try:
-            raw = upload_path.read_bytes()
-        except OSError as exc:
-            raise GateError(f"upload file is missing: {upload_path}: {exc}") from exc
-        text = normalize_upload_bytes(raw)
-        uploads.append(
-            {
-                "work": work.get("work"),
-                "upload": upload_rel,
-                "path": str(upload_path),
-                "sha256": sha256_bytes(raw),
-                "bytes": len(raw),
-                "chars": len(text),
-                "text": text,
-            }
-        )
-    return {"pack": pack, "uploads": uploads}
-
-
-def verify_pack_manifest_hashes(
-    pack: dict[str, Any], uploads: list[dict[str, Any]], corpus_root: Path
-) -> dict[str, Any]:
-    """Cross-check upload hashes against the frozen T02 ingest manifest."""
-    manifest_path = corpus_root / "ingest-manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise GateError(
-            f"cannot read ingest manifest {manifest_path}: {exc}"
-        ) from exc
-    expected = {
-        str(item.get("ingest_file")): str(item.get("sha256"))
-        for item in manifest.get("uploads", [])
-        if isinstance(item, dict)
-    }
-    checked: list[dict[str, Any]] = []
-    for upload in uploads:
-        want = expected.get(upload["upload"])
-        if want is None:
-            raise GateError(
-                f"upload {upload['upload']!r} is not registered in "
-                "ingest-manifest.json; refusing unregistered sources"
-            )
-        if want != upload["sha256"]:
-            raise GateError(
-                f"upload {upload['upload']!r} hash drift: manifest {want} "
-                f"vs actual {upload['sha256']}"
-            )
-        checked.append(
-            {
-                "upload": upload["upload"],
-                "sha256": upload["sha256"],
-                "bytes": upload["bytes"],
-                "chars": upload["chars"],
-            }
-        )
-    return {
-        "manifest": "ingest-manifest.json",
-        "pack_id": pack.get("pack_id"),
-        "uploads": checked,
-    }
 
 
 # ---------------------------------------------------------------------------

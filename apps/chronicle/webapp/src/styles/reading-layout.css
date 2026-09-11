@@ -213,6 +213,13 @@
     margin-bottom: 0.5rem;
   }
 
+  /* A backdrop-filter creates a containing block for position: fixed, which
+   * traps the compact 人物地点 bottom sheet inside the sticky bar. Drop it on
+   * narrow screens so the panel anchors to the viewport and stays dismissible. */
+  .rpage-compact {
+    backdrop-filter: none;
+  }
+
   .rpage-main .rcw-unit-text {
     font-size: 17px;
   }

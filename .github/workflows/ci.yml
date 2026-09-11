@@ -191,7 +191,7 @@ jobs:
               esac
 
               case "$path" in
-                apps/chronicle/persistence/*|apps/chronicle/read_api/*|apps/chronicle/worker/*|apps/chronicle/ingestion/*)
+                apps/chronicle/persistence/*|apps/chronicle/read_api/*|apps/chronicle/worker/*|apps/chronicle/ingestion/*|apps/chronicle/acceptance/*)
                   chronicle_python=true
                   ;;
               esac
@@ -404,7 +404,8 @@ jobs:
             apps/chronicle/persistence \
             apps/chronicle/read_api \
             apps/chronicle/worker \
-            apps/chronicle/ingestion
+            apps/chronicle/ingestion \
+            apps/chronicle/acceptance
 
       - name: Ingestion prototype unit tests
         if: needs.changes.outputs.chronicle_python == 'true'
