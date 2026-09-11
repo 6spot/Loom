@@ -21,10 +21,13 @@ export interface ReadingEventPreviewProps {
   readonly targets: EventTargetPage | null;
   readonly loading: boolean;
   readonly error: string | null;
+  readonly targetsError: string | null;
+  readonly targetsLoading: boolean;
   readonly picker: ReadingTargetPickerMode | null;
   readonly selectedUnitId?: string | null;
   readonly canViewEvent: boolean;
   readonly onRetry: () => void;
+  readonly onRetryTargets: () => void;
   readonly onViewEvent: () => void;
   readonly onLocate: () => void;
   readonly onOtherRecords: () => void;
@@ -87,10 +90,13 @@ export default function ReadingEventPreview({
   targets,
   loading,
   error,
+  targetsError,
+  targetsLoading,
   picker,
   selectedUnitId = null,
   canViewEvent,
   onRetry,
+  onRetryTargets,
   onViewEvent,
   onLocate,
   onOtherRecords,
@@ -174,6 +180,30 @@ export default function ReadingEventPreview({
               其他记载
             </button>
           </div>
+
+          {targetsError ? (
+            <div
+              className="rev-error rev-targets-error"
+              data-test="reading-event-targets-error"
+              role="alert"
+              aria-label="事件位置载入失败"
+            >
+              <p className="rev-error-text">{targetsError}</p>
+              <button
+                type="button"
+                className="rev-button rev-button-retry"
+                data-test="reading-event-targets-retry"
+                onClick={onRetryTargets}
+              >
+                重试位置
+              </button>
+            </div>
+          ) : null}
+          {targetsLoading && !targetsError ? (
+            <p className="rev-loading" data-test="reading-event-targets-loading" role="status">
+              位置载入中…
+            </p>
+          ) : null}
         </>
       ) : null}
 

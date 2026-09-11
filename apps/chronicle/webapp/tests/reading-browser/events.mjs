@@ -345,6 +345,57 @@ async function runReducedMotion(ctx) {
   ctx.check("reduced-motion 不做位移动画", animation === "none", `animation=${animation}`);
 }
 
+async function runTargetsFailure(ctx) {
+  const page = await ctx.openScene("events-targets-failure", { viewport: { width: 1280, height: 900 } });
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+  await page.waitForSelector('[data-test="events-fixture"]');
+
+  await page.locator(TRIGGER).hover();
+  await page.waitForSelector('[data-test="reading-event-preview-name"]', { timeout: 10000 });
+  ctx.check("preview 成功仍显示事件名", (await page.locator(PREVIEW_NAME).textContent()) === "赤壁之戰");
+  ctx.check(
+    "preview 成功仍显示来源摘录",
+    (await page.locator('[data-test="reading-event-preview-excerpt"]').count()) >= 1,
+  );
+
+  await page.waitForSelector('[data-test="reading-event-targets-error"]', { timeout: 10000 });
+  ctx.check(
+    "targets 失败有可访问错误区",
+    (await page.getAttribute('[data-test="reading-event-targets-error"]', "role")) === "alert",
+  );
+  ctx.check("提供显式重试按钮", (await page.locator('[data-test="reading-event-targets-retry"]').count()) === 1);
+  ctx.check("preview 内容未被 targets 失败清空", (await page.locator(PREVIEW_NAME).textContent()) === "赤壁之戰");
+
+  // 错误态下点击「定位发生位置」会再取一次而不是静默无动作（本次仍受控失败）。
+  await page.locator('[data-test="reading-event-preview-locate"]').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-test="events-call-counts"]')?.getAttribute("data-target") === "2" &&
+      document.querySelector('[data-test="reading-event-targets-error"]') !== null,
+    undefined,
+    { timeout: 10000 },
+  );
+  ctx.check("错误态点击定位会重试", (await page.locator('[data-test="reading-event-targets-error"]').count()) === 1);
+  ctx.check("targets 未就绪前不跳转", (await action(page)).kind === "");
+
+  // 点显式重试按钮恢复位置列表（第三次请求成功）。
+  await page.locator('[data-test="reading-event-targets-retry"]').click();
+  await page.waitForSelector('[data-test="reading-event-targets-error"]', { state: "detached", timeout: 10000 });
+  const recovered = await counts(page);
+  ctx.check("重试确实重新请求 targets", recovered.target === 3, JSON.stringify(recovered));
+  ctx.check("重试后错误消失", (await page.locator('[data-test="reading-event-targets-error"]').count()) === 0);
+
+  // 恢复后可选择并定位到精确正文位置。
+  await page.waitForSelector(TARGET_OPTION, { timeout: 10000 });
+  ctx.check("恢复后位置可选", (await page.locator(TARGET_OPTION).count()) === 1);
+  await page.locator(TARGET_OPTION).click();
+  const nav = await action(page);
+  ctx.check("恢复后定位到 target 正文位置", nav.kind === "locate" && nav.unit === unitId(21), JSON.stringify(nav));
+  ctx.check("无未捕获页面异常", pageErrors.length === 0, pageErrors.join("; "));
+  await ctx.screenshot(page, "targets-failure");
+}
+
 export async function run(ctx) {
   await runResolved(ctx);
   await runRepeat(ctx);
@@ -353,6 +404,7 @@ export async function run(ctx) {
   await runUncertain(ctx);
   await runLate(ctx);
   await runFailure(ctx);
+  await runTargetsFailure(ctx);
   await runKeyboard(ctx);
   await runTouch(ctx);
   await runReducedMotion(ctx);

@@ -22,6 +22,8 @@ export interface SceneEventResponse {
   readonly targetDelayMs?: number;
   /** 前 N 次 preview 请求受控失败，之后成功（用于重试场景）。 */
   readonly previewFailures?: number;
+  /** 前 N 次 targets 请求受控失败，之后成功（用于位置重试场景）。 */
+  readonly targetFailures?: number;
 }
 
 export interface EventsSceneProps {
@@ -88,8 +90,13 @@ export function EventsScene({
     record(eventId, "target");
     const response = responses[eventId];
     const delay = response?.targetDelayMs ?? 0;
+    const limit = response?.targetFailures ?? 0;
     return new Promise((resolve, reject) => {
       window.setTimeout(() => {
+        if (takeFailure(eventId, "target", limit)) {
+          reject(new Error(`controlled target failure for ${eventId}`));
+          return;
+        }
         if (!response) {
           reject(new Error(`no fixture targets for ${eventId}`));
           return;

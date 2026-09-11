@@ -150,6 +150,22 @@ const scenes: ReadingScene[] = [
     ),
   },
   {
+    name: "events-targets-failure",
+    suite: "events",
+    label: "preview 成功但 targets 失败：显式错误与可访问重试",
+    synthetic: true,
+    render: () => (
+      <EventsScene
+        heading="事件词：位置载入失败与重试"
+        unitText={RESOLVED_UNIT_TEXT}
+        segments={RESOLVED_SENTENCE}
+        responses={{
+          [EVENT_RED_CLIFFS]: { preview: SINGLE_PREVIEW, targets: SINGLE_TARGETS, targetFailures: 2 },
+        }}
+      />
+    ),
+  },
+  {
     name: "events-reduced-motion",
     suite: "events",
     label: "reduced-motion：开合不做位移动画",

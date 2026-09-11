@@ -128,12 +128,15 @@ export default function ReadingEventTrigger({
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const requestIdRef = useRef(0);
+  const targetsRequestIdRef = useRef(0);
   const moreRequestIdRef = useRef(0);
   const openRef = useRef(false);
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [targetsLoading, setTargetsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [targetsError, setTargetsError] = useState<string | null>(null);
   const [preview, setPreview] = useState<EventPreview | null>(null);
   const [targets, setTargets] = useState<EventTargetPage | null>(null);
   const [picker, setPicker] = useState<ReadingTargetPickerMode | null>(null);
@@ -157,10 +160,12 @@ export default function ReadingEventTrigger({
     (restoreFocus: boolean) => {
       clearTimers();
       requestIdRef.current += 1;
+      targetsRequestIdRef.current += 1;
       moreRequestIdRef.current += 1;
       setOpen(false);
       setPicker(null);
       setLoading(false);
+      setTargetsLoading(false);
       setLoadingMore(false);
       if (restoreFocus) triggerRef.current?.focus();
     },
@@ -171,9 +176,13 @@ export default function ReadingEventTrigger({
     async (id: string) => {
       requestIdRef.current += 1;
       const token = requestIdRef.current;
+      targetsRequestIdRef.current += 1;
+      const targetsToken = targetsRequestIdRef.current;
       moreRequestIdRef.current += 1;
       setLoading(true);
+      setTargetsLoading(true);
       setError(null);
+      setTargetsError(null);
       setPreview(null);
       setTargets(null);
       setPicker(null);
@@ -191,18 +200,23 @@ export default function ReadingEventTrigger({
             throw cause;
           },
         );
+      // preview 与 targets 各自独立作废：targets 失败不得清空已成功的 preview。
       const targetsRequest = cache
         .load(eventTargetsCacheKey(catalogSha, id), () => loadTargets(id))
         .then(
           (value) => {
-            if (requestIdRef.current === token) setTargets(value);
+            if (targetsRequestIdRef.current === targetsToken) setTargets(value);
             return value;
           },
-          () => null,
+          (cause: unknown) => {
+            if (targetsRequestIdRef.current === targetsToken) setTargetsError(errorMessage(cause));
+            return null;
+          },
         );
 
       await Promise.allSettled([previewRequest, targetsRequest]);
       if (requestIdRef.current === token) setLoading(false);
+      if (targetsRequestIdRef.current === targetsToken) setTargetsLoading(false);
     },
     [cache, catalogSha, loadPreview, loadTargets],
   );
@@ -227,12 +241,15 @@ export default function ReadingEventTrigger({
   // span/事件变化：作废旧请求并重置，避免上一个事件的数据或迟到响应用到新词。
   useEffect(() => {
     requestIdRef.current += 1;
+    targetsRequestIdRef.current += 1;
     moreRequestIdRef.current += 1;
     setOpen(false);
     setPreview(null);
     setTargets(null);
     setError(null);
+    setTargetsError(null);
     setLoading(false);
+    setTargetsLoading(false);
     setPicker(null);
   }, [eventId, span.span_id]);
 
@@ -354,6 +371,30 @@ export default function ReadingEventTrigger({
     void loadData(eventId);
   };
 
+  // 只重取 targets，不丢弃已成功的 preview；供错误提示与「定位/其他记载」共用。
+  const handleRetryTargets = useCallback(() => {
+    if (eventId === null) return;
+    cache.delete(eventTargetsCacheKey(catalogSha, eventId));
+    targetsRequestIdRef.current += 1;
+    const token = targetsRequestIdRef.current;
+    setTargetsError(null);
+    setTargets(null);
+    setTargetsLoading(true);
+    void cache
+      .load(eventTargetsCacheKey(catalogSha, eventId), () => loadTargets(eventId))
+      .then(
+        (value) => {
+          if (targetsRequestIdRef.current === token) setTargets(value);
+        },
+        (cause: unknown) => {
+          if (targetsRequestIdRef.current === token) setTargetsError(errorMessage(cause));
+        },
+      )
+      .finally(() => {
+        if (targetsRequestIdRef.current === token) setTargetsLoading(false);
+      });
+  }, [cache, catalogSha, eventId, loadTargets]);
+
   const handleViewEvent = () => {
     if (eventId === null || locator === null) return;
     onNavigate({ kind: "event", locator, event_id: eventId });
@@ -371,21 +412,24 @@ export default function ReadingEventTrigger({
   };
 
   const handleLocate = () => {
-    if (!targets) {
-      setPicker("locate");
+    setPicker("locate");
+    if (targetsError) {
+      // 错误已可见；这里再取一次而不是静默无动作。
+      handleRetryTargets();
       return;
     }
+    if (!targets) return;
     const currentTargets = targets.targets.filter((target) => target.relation === "current");
     if (targets.current_count === 1 && currentTargets.length === 1) {
       chooseTarget(currentTargets[0]);
       return;
     }
-    setPicker("locate");
     if (targets.has_more && currentTargets.length === 0) void handleLoadMore();
   };
 
   const handleOtherRecords = () => {
     setPicker("other");
+    if (targetsError) handleRetryTargets();
   };
 
   const handleLoadMore = async () => {
@@ -489,10 +533,13 @@ export default function ReadingEventTrigger({
           targets={targets}
           loading={loading}
           error={error}
+          targetsError={targetsError}
+          targetsLoading={targetsLoading}
           picker={picker}
           selectedUnitId={selectedUnitId}
           canViewEvent={locator !== null}
           onRetry={handleRetry}
+          onRetryTargets={handleRetryTargets}
           onViewEvent={handleViewEvent}
           onLocate={handleLocate}
           onOtherRecords={handleOtherRecords}
