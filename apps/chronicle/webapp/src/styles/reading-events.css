@@ -1,0 +1,360 @@
+/* C2-R2-T13 正文事件词预览样式（组件自包含，未挂接 App，不进生产 dist）。
+ *
+ * 全部选择器以 .rev- 前缀限定在触发词 / 预览容器内，不写全局元素选择器，
+ * 不覆盖 chronicle.css / studio.css / world.css / chapter-reader.css。
+ *
+ * 布局与交互见 reading-experience.md §5：正文仍是普通文本，事件词只有克制的
+ * 下划线/颜色提示；桌面为锚定卡片，窄屏为底部面板；开合只用 <=160ms 的
+ * opacity/transform，不改变正文高度。
+ */
+
+.rev-trigger {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #8a3b1f;
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.rev-trigger:hover {
+  color: #b0441c;
+  text-decoration-thickness: 2px;
+}
+
+.rev-trigger:focus-visible {
+  outline: 2px solid #8a3b1f;
+  outline-offset: 2px;
+}
+
+.rev-trigger[data-open="true"] {
+  background: #f6e8db;
+  color: #6f2d13;
+}
+
+/* 非 resolved：不冒充唯一链接，用虚线 + 装饰性问号提示不确定。 */
+.rev-trigger-uncertain {
+  color: #6b6660;
+  text-decoration: underline dotted #a49a8c;
+  cursor: help;
+}
+
+.rev-trigger-uncertain::after {
+  content: "？";
+  font-size: 0.62em;
+  vertical-align: super;
+  margin-left: 0.1em;
+  color: #a49a8c;
+}
+
+.rev-card {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  padding: 0.85rem 0.95rem 0.95rem;
+  border: 1px solid #d8cdba;
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #3d4448;
+  box-shadow: 0 10px 30px rgba(60, 48, 30, 0.18);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  transform-origin: top left;
+  animation: rev-open 140ms ease-out both;
+}
+
+.rev-card *,
+.rev-card *::before,
+.rev-card *::after {
+  box-sizing: border-box;
+}
+
+.rev-card[data-variant="panel"] {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 72vh;
+  border-radius: 16px 16px 0 0;
+  transform-origin: bottom center;
+  animation: rev-open-panel 150ms ease-out both;
+}
+
+@keyframes rev-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rev-open-panel {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 用户偏好或组件显式 reduced-motion：不做位移动画与过渡。 */
+.rev-card[data-reduced-motion="true"] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rev-card {
+    animation: none;
+  }
+}
+
+.rev-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.rev-name {
+  margin: 0;
+  padding-right: 1.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2f3437;
+  overflow-wrap: anywhere;
+}
+
+.rev-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b6660;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rev-close:hover {
+  background: #f3ecdf;
+}
+
+.rev-close:focus-visible,
+.rev-button:focus-visible,
+.rev-target-option:focus-visible,
+.rev-picker-load-more:focus-visible {
+  outline: 2px solid #8a3b1f;
+  outline-offset: 2px;
+}
+
+.rev-loading,
+.rev-source-count,
+.rev-source-note,
+.rev-source-time,
+.rev-target-group-title {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b6660;
+}
+
+.rev-error {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #d9a79a;
+  border-radius: 8px;
+  background: #fdf1ee;
+}
+
+.rev-error-text {
+  margin: 0 0 0.45rem;
+  color: #8a2f1c;
+}
+
+.rev-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rev-source {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e5dccb;
+  border-radius: 8px;
+  background: #fbf7ee;
+}
+
+.rev-source-title {
+  margin: 0 0 0.15rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3d4448;
+  overflow-wrap: anywhere;
+}
+
+.rev-source-excerpt {
+  margin: 0.25rem 0 0;
+  color: #454b4f;
+  overflow-wrap: anywhere;
+}
+
+.rev-divergence {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid #b08a55;
+  border-radius: 4px;
+  background: #f6eddc;
+  font-size: 0.78rem;
+  color: #6f4d1f;
+  overflow-wrap: anywhere;
+}
+
+.rev-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.rev-button,
+.rev-picker-load-more {
+  min-height: 44px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #cbbfa8;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #3d4448;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rev-button:hover,
+.rev-picker-load-more:hover {
+  background: #f4ecdd;
+}
+
+.rev-button:disabled,
+.rev-picker-load-more:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rev-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid #e5dccb;
+}
+
+.rev-picker-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3d4448;
+}
+
+.rev-picker-empty {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: #f3ecdf;
+  color: #6f4d1f;
+  overflow-wrap: anywhere;
+}
+
+.rev-target-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rev-target-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rev-target-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.5rem;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #e0d6c4;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rev-target-option:hover {
+  background: #f8f4ea;
+}
+
+.rev-target-option[data-selected="true"] {
+  border-color: #8a3b1f;
+  background: #f6e8db;
+}
+
+.rev-target-source {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rev-target-chapter,
+.rev-target-excerpt {
+  grid-column: 1 / -1;
+  color: #5a6165;
+  overflow-wrap: anywhere;
+}
+
+.rev-target-relation {
+  justify-self: end;
+  padding: 0 0.3rem;
+  border: 1px solid #d8cdba;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  color: #6b6660;
+  white-space: nowrap;
+}
+
+.rev-target-option[data-relation="mention"] .rev-target-relation {
+  border-style: dashed;
+}
+
+.rev-picker-load-more {
+  align-self: flex-start;
+}
