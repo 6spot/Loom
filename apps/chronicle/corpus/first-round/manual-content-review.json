@@ -1,0 +1,210 @@
+{
+  "blockers": [
+    "independent Reviewer completed all 13 real T02 cases: 13 pass / 0 fail / 0 pending (C04 accepted after the T08 place-anchor fix produced the sole within_revision event candidate f9e37a9d, evt_000003 先主傳 ↔ evt_001003 周瑜傳, terminal same_occurrence). Overall T19 is still not_passed and awaits final acceptance; T19/#548 remain open.",
+    "final candidate and provenance: candidate c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808 (origin/main, contains #637/#638/#639/#640). Runtime delta vs 57fe539 is only review-flow-smoke.mjs (test tooling). Provenance rebuilt on c10ba6a: /srv/loom-t19-evidence/c10ba6aa/fp-provenance.json — deployed image loom-chronicle:t19-c10ba6aa (id sha256:60d530a2…), source revision sha256 match a5dc345f… (SG) / b9831c28… (ZZ), publication artifact hashes, real-backend PASS log hash, deployed on project chronicle-t19-c10ba6aa / port 8092.",
+    "canonical review-flow-smoke.mjs --mode real-backend PASS on the live server (real login/open/select/submit/readback status=resolved), achieved with the candidate SHA's script after #639 (terminal-item navigation) and #640 (readback Basic auth); this PASS is attributed to c10ba6a, not to 57fe539.",
+    "primary happy-path content evidence (run candidate 57fe539, runtime identical to c10ba6a): SG publication 01a08c36 (先主傳 15872/1.26, 周瑜傳 6963/1.38, 魯肅傳 5244/1.46) + ZZ publication 01a08c46 (14718, 64 blocks); Reader 4/4 PASS (43/16/10/64 blocks); worker restart/takeover resumed mid-extract (job attempt 2, lease re-claimed).",
+    "canonical-stability Publish fail-closed (event round, two existing canonical ids) classified per apps/chronicle/docs/publication.md as expected negative-path / fail-closed PASS evidence (acceptance §24); not a T19 blocker.",
+    "supporting same-source re-imports used to exercise the canonical real-backend review: ZZ2 01a08c53 and SG2 01a08ca7 published; ZZ3 publish_plan_stale and ZZ4 extraction failure retained as failed runs (evidence preserved, not deleted).",
+    "overall verdict remains not_passed; no self-certification of PASSED; T19/#548 not closed."
+  ],
+  "candidate_commit": "c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808",
+  "evidence_notes": [
+    "v10 round evidence dirs: /srv/loom-t19-evidence/7e637dd3/ (API-decided content-complete) and .../browser-round/ (real-browser decisions)",
+    "current real-browser record (candidate 7e637dd, prompt v10): SG job 5ee49e77 43/43 + ZZ job 3417517d 1/1 decided via ad-hoc playwright open/fill/submit (88 before/after screenshots, shots-sg/ and shots/), API open 0, FINAL snapshots in reviews-sg-FINAL/ and reviews-FINAL/; publications 01a08b08 (先主傳 16312/1.30, 周瑜傳 7068/1.41, 魯肅傳 5169/1.44) and 01a08ad9 (14718/1.37)",
+    "API-decided content-complete round (same candidate): SG job e4e952f0 publication 01a08a8e, ZZ job 9b31a529 publication 01a08a66; job-sg2-FINAL.json is the PRE-DECISION needs_review snapshot and job-sg2-resumed.json is the 21/21 resolved terminal record",
+    "canonical review-flow-smoke.mjs remains mocked-API-only; ad-hoc browser driver evidence is not canonical-script coverage (gap retained)",
+    "event-merge: ZZ2 (09870dff) fail-closed on multi-canonical collapse; ZZ3 (099d018b), ZZ-v10 (9b31a529), and browser-round ZZ (3417517d) joins published; both terminal outcomes retained",
+    "historical round evidence dirs (0bb5c6a0 SG3/ZZ3, 5024be17, 855a1dc0) retained separately and marked historical in acceptance sections 12-19",
+    "explicit unmet requirements (acceptance section 24, with reproducible commands): (1) canonical-stability Publish FAIL/closure is an owning-layer by-design fail-closed boundary (publication_v0._build_canonical_records); terminal evidence ZZ2 5024be17/job-zztj-2-FINAL.json and event-round 7e637dd3/event-round/job-FINAL.json; not changed in T19 scope. (2) current C04 event evidence path: no same_revision 先主傳↔周瑜傳 赤壁 candidate in current rounds; current material is published translations 01a08b08 plus historical SG3 same_occurrence; independent reviewer judgment required. (3) canonical review-flow-smoke.mjs real-backend coverage out of T19 scope.",
+    "C04 current source-grounded material (acceptance section 25): original quotes 與曹公戰於赤壁，大破之 / 遇於赤壁; current SG publication 01a08b08 revision d848e43a translations - 先主傳 t_013(b_025)/t_015(b_029), 周瑜傳 t_008(b_101)/t_011(b_107); bundle entity 赤壁 linked cross-bundle in fdeec79e (d848 ent_001010 with 86ac/21cd) but no same_revision 先主↔周瑜 event candidate. The 848a296f cross-book 赤壁 result is NOT the C04 pair. Section 24 items 1 (canonical-stability) and 3 (review-flow real-backend) are formally escalated to their owning layers; independent reviewer to judge C04 and the 13 cases.",
+    "independent Reviewer C04 finding (head 0c03ab3, acceptance section 25.5): translation evidence at 01a08b08 matched the anchors, but no current same-revision 先主傳↔周瑜傳 event candidate exists; 848a296f (cross-book) and historical SG3 same_occurrence are not substitutes, so the C04 cross-chapter event link cannot be independently accepted (not PASS). Case stays pending; T19 did not relax fail-closed or mocked-only contracts.",
+    "source-grounded appendix for all 13 cases added at acceptance section 26: exact original anchors with chars-normalized-utf8 [start,end) offsets (verified against cases.json/sources) plus current publication pointers SG 01a08b08 (revision d848e43a) and ZZ 01a08ad9; no pass/fail pre-filled, pending preserved.",
+    "independent-review worksheet added at acceptance section 27 for all 13 cases: original anchor, current translation window, and reference/event/boundary notes, with verdict/rationale/evidence cells intentionally blank. No verdict prefilled; C04 event link remains 'not independently accepted' per section 25.5. Owner decisions for the two escalated items have not arrived yet and will be recorded when available.",
+    "section 27 revised: each reference/event/boundary entry is now either a checkable observation or an explicitly labeled [hypothesis]; pre-judgments removed (C07 merge recommendation, C08/C09 'position correct', C11/C12 completeness claims, C13 synchronicity claim). Verdict/rationale/evidence cells remain blank; C04 missing event candidate and the two ownership escalations unchanged; 13 pending / 0/13 / not_passed preserved.",
+    "deterministic replay added at acceptance section 28: pure-repo source-window command (reads cases.json offsets from frozen sources) and server translation-window script /srv/loom-t19-evidence/7e637dd3/case_windows.py (output case_windows.out, 13/13 with 0 MISSING). Generates comparison windows only; no verdicts written.",
+    "locator/hash packet added at acceptance section 29 (case_hashes.py -> case_hashes.out, 73 lines): per-case source-window sha, translation artifact/revision/block/window sha, plus HEAD/TAIL hashes and annotation counts (典略=7, 江表传=7). Locator-only; no verdicts written; C04 unaccepted unchanged; 13 pending / 0/13 preserved.",
+    "full-context + reference/event locator packet added at acceptance section 30 (case_context.py -> case_context.out, 124 lines, run inside worker container with CHRONICLE_DATABASE_URL): per-case ±250-char context with sha plus bundle entity/event/claim record_sources anchors for the case's source blocks. Locator-only; no verdicts written; C04 unaccepted unchanged; 13 pending / 0/13 preserved.",
+    "full-chapter pair packet added at acceptance section 31 (chapter_pairs.py; chapter-<name>-src.txt / -trans.txt / -align.tsv + chapter_pairs.out): complete original and current translation per chapter with sha256 (sg0 12591/16312, sg1 5030/7068, sg2 3594/5169, zz 10715/14718; zz translation is a single block mapped to all 127 source blocks). Locator-only; no verdicts; C04 unaccepted; 13 pending / 0/13 preserved.",
+    "sentence-level reading index added at acceptance section 32 (chapter_index.py; source-blocks.tsv + translation-sentences.tsv): deterministic char offsets and sha16 per source block and per translation sentence. Resolves the ZZ single-block alignment limitation (zz 127 source blocks / 1 translation block / 492 translation sentences). Locator-only; no verdicts; C04 unaccepted; 13 pending / 0/13 preserved.",
+    "one-command deterministic replay added at acceptance section 33: regen_review_bundle.sh regenerates the 25-file core review bundle (windows, hashes, full context + reference/event locators, full-chapter pairs/alignment, sentence index); with the four §34 side-by-side files the current manifest has 29 files and 0 missing. Input-consistency only; no verdicts; C04 unaccepted; package snapshot was 13 pending / 0/13.",
+    "side-by-side reading companion added at acceptance section 34 (chapter-<name>-sidebyside.md, included in regen_review_bundle.sh; manifest now 29 files, 0 missing): SG pairs each source block with referencing translation blocks; ZZ single block is a clearly labeled proportional/ordinal locator (not an alignment claim). Locator-only; no verdicts; C04 unaccepted; 13 pending / 0/13 preserved.",
+    "independent Reviewer content pass completed against sections 23 and 25-34: C01-C03 and C05-C13 pass; C04 fails because the current candidate has no same-revision 先主傳↔周瑜傳 event candidate. All 13 real cases now have reviewer/conclusion/evidence fields; canonical verdict remains not_passed with 12 pass, 1 fail, 0 pending."
+  ],
+  "cases": [
+    {
+      "case_id": "T02-C01",
+      "category": "same-chapter-appellation",
+      "conclusion": "PASS — the opening establishes 先主 as 劉備, and the later same-chapter reference remains the same person.",
+      "evidence": "acceptance.md §26 C01; §34 chapter-sg0-sidebyside.md; case_windows.out/case_context.out T02-C01; publication 01a08b08 SG 先主傳",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "先主傳同章指代：先主/備"
+    },
+    {
+      "case_id": "T02-C02",
+      "category": "same-chapter-appellation",
+      "conclusion": "PASS — 周瑜字公瑾 is stated at the opening and the later 公瑾 reference is retained as the same-chapter appellation.",
+      "evidence": "acceptance.md §26 C02; §34 chapter-sg1-sidebyside.md; case_windows.out/case_context.out T02-C02; publication 01a08b08 SG 周瑜傳",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "周瑜傳同章稱謂：周瑜/公瑾"
+    },
+    {
+      "case_id": "T02-C03",
+      "category": "same-chapter-appellation",
+      "conclusion": "PASS — 魯肅字子敬 is stated at the opening, and the dialogue addressing 子敬 is correctly rendered as addressing 魯肅.",
+      "evidence": "acceptance.md §26 C03; §34 chapter-sg2-sidebyside.md; case_windows.out/case_context.out T02-C03; publication 01a08b08 SG 魯肅傳",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "魯肅傳同章稱謂：魯肅/子敬"
+    },
+    {
+      "case_id": "T02-C04",
+      "category": "cross-chapter-recurrence",
+      "conclusion": "PASS — the tightened T08 place-anchor rule produces the required same-revision 先主傳↔周瑜傳 event candidate: sole within_revision event candidate f9e37a9d (evt_000003 赤壁之戰擊破曹操水軍 ↔ evt_001003 赤壁之戰, shared place 赤壁 via the candidate's title/place anchor), terminal same_occurrence in the real run. Both chapter translations contain the 赤壁 accounts.",
+      "evidence": "acceptance.md §0/§24/§35; run candidate 57fe539 (code equals c10ba6a runtime), SG job effb5ac1, review f9e37a9d, publication 01a08c36; evidence /srv/loom-t19-evidence/57fe5390 and /srv/loom-t19-evidence/c10ba6aa (fp-provenance.json)",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "赤壁跨章復現（先主傳↔周瑜傳）"
+    },
+    {
+      "case_id": "T02-C05",
+      "category": "cross-book-same-event",
+      "conclusion": "PASS — the Zhou Yu account and the Tongjian account both describe the Red Cliffs encounter, with matching participants and event context; the current cross-book event review is terminal.",
+      "evidence": "acceptance.md §26 C05 and §22 cross_book×event result; §34 chapter-sg1-sidebyside.md/chapter-zz-sidebyside.md; case_windows.out/case_context.out T02-C05; publications 01a08b08 and 01a08ad9",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "跨書同事件：赤壁（吳書↔通鑑）"
+    },
+    {
+      "case_id": "T02-C06",
+      "category": "cross-book-same-person",
+      "conclusion": "PASS — both books identify 周瑜 and 程普 as the commanders acting with 劉備 against 曹操; the current cross-book entity review is terminal, while identity merge remains governed by review rather than automatic inference.",
+      "evidence": "acceptance.md §26 C06 and §22 cross_book×entity result; §34 chapter-sg1-sidebyside.md/chapter-zz-sidebyside.md; case_windows.out/case_context.out T02-C06; publications 01a08b08 and 01a08ad9",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "跨書同人：周瑜受命督軍"
+    },
+    {
+      "case_id": "T02-C07",
+      "category": "place-ambiguity",
+      "conclusion": "PASS — the translation preserves 南郡 and 江陵 as distinct textual references and does not assert that the commandery and city are identical; uncertain/non-merge handling is correct.",
+      "evidence": "acceptance.md §26 C07; §34 chapter-zz-sidebyside.md; case_windows.out/case_context.out T02-C07; publication 01a08ad9",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "地點歧義：南郡/江陵（須保留uncertain）"
+    },
+    {
+      "case_id": "T02-C08",
+      "category": "annotation-attribution",
+      "conclusion": "PASS — the angle-bracketed annotation and the attribution 《典略》说 are preserved, so the quoted genealogy is not presented as the main text's unqualified claim.",
+      "evidence": "acceptance.md §26 C08; §34 chapter-sg0-sidebyside.md; case_windows.out/case_context.out T02-C08; publication 01a08b08 SG 先主傳",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "嵌注歸屬：先主傳《典略》注"
+    },
+    {
+      "case_id": "T02-C09",
+      "category": "annotation-attribution",
+      "conclusion": "PASS — the translation retains 《江表传》 as the source attribution for the account of Sun Ce's honors to Zhou Yu, distinct from surrounding main-text statements.",
+      "evidence": "acceptance.md §26 C09; §34 chapter-sg1-sidebyside.md; case_windows.out/case_context.out T02-C09; publication 01a08b08 SG 周瑜傳",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "嵌注歸屬：周瑜傳《江表傳》注"
+    },
+    {
+      "case_id": "T02-C10",
+      "category": "no-direct-claim",
+      "conclusion": "PASS — 馬超 is mentioned within Zhou Yu's strategic explanation of Cao操's rear concern; the translation does not invent a direct action/event claim for 馬超, and no current ZZ person entity is asserted.",
+      "evidence": "acceptance.md §26 C10; §34 chapter-zz-sidebyside.md; case_windows.out/case_context.out T02-C10; publication 01a08ad9",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "無直接Claim：卷65馬超僅背景提及"
+    },
+    {
+      "case_id": "T02-C11",
+      "category": "head-completeness",
+      "conclusion": "PASS — all four current chapter files begin with their chapter/title material and the recorded opening anchors; the side-by-side and manifest inputs show no head truncation.",
+      "evidence": "acceptance.md §26 C11; §31–§34 chapter-*-src.txt/chapter-*-trans.txt and sidebyside files; case_windows.out/case_context.out T02-C11; review-bundle-manifest.json",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "首部完整：三傳開篇與通鑑卷首"
+    },
+    {
+      "case_id": "T02-C12",
+      "category": "tail-completeness",
+      "conclusion": "PASS — the required ending text is present, including the closed embedded quotation in 先主傳 and the final 太守 sentence in 通鑑; the recorded tails show no truncation at the acceptance anchors.",
+      "evidence": "acceptance.md §26 C12; §31–§34 chapter-*-src.txt/chapter-*-trans.txt and sidebyside files; case_windows.out/case_context.out T02-C12; review-bundle-manifest.json",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "尾部完整：先主傳讖語尾與通鑑卷末"
+    },
+    {
+      "case_id": "T02-C13",
+      "category": "commentary-attribution",
+      "conclusion": "PASS — the translation explicitly introduces 習鑿齒评论说, preserving the later historian's commentary attribution rather than treating it as a contemporaneous event statement.",
+      "evidence": "acceptance.md §26 C13; §34 chapter-zz-sidebyside.md; case_windows.out/case_context.out T02-C13; publication 01a08ad9",
+      "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+      "status": "pass",
+      "title": "史論歸屬：習鑿齒論曰"
+    },
+    {
+      "case_id": "T02-N01",
+      "category": "synthetic-negative",
+      "conclusion": "synthetic negative control; zero hits in the four source files by construction; must never be cited as a source observation",
+      "evidence": null,
+      "reviewer": null,
+      "status": "not_applicable",
+      "title": "合成負例（非原書記載）：江陵太守劉備"
+    }
+  ],
+  "companion_record": "apps/chronicle/corpus/first-round/acceptance.md",
+  "issue": 569,
+  "legacy_tracker_note": "#541 is a regression-discovery source only; no conclusion is recorded here and the old tracker is not closed by this file",
+  "pack_id": "c2-r1-t02-first-round-v1",
+  "ref_details_in": "apps/chronicle/corpus/first-round/cases.json",
+  "review_method": "independent per-chapter full-text and annotation check by a human or an independent stronger reviewer; the implementing model must not self-certify content correctness",
+  "schema": "chronicle.first-round-manual-content-review",
+  "sources": [
+    {
+      "ingest_file": "ingest/sanguozhi-three-chapters.md",
+      "ingest_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+      "source_files": [
+        "sources/sanguozhi-032-xianzhu-liubei.txt",
+        "sources/sanguozhi-054-zhou-yu.txt",
+        "sources/sanguozhi-054-lu-su.txt"
+      ],
+      "work": "三國志"
+    },
+    {
+      "ingest_file": "ingest/zizhi-tongjian-065.md",
+      "ingest_sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
+      "source_files": [
+        "sources/zizhi-tongjian-065-quan.txt"
+      ],
+      "work": "資治通鑑"
+    }
+  ],
+  "status_counts": {
+    "fail": 0,
+    "not_applicable": 1,
+    "pass": 13,
+    "pending": 0
+  },
+  "task": "C2-R1-T19",
+  "verdict": "not_passed",
+  "version": "0.1",
+  "reviewer": "Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a)",
+  "reviewer_instructions": {
+    "purpose": "Independent per-case content verdict ledger for the 13 real T02 cases. Only an independent reviewer fills these fields; the implementing agent must not.",
+    "fields_per_case": {
+      "status": "pending | pass | fail  (starts pending; reviewer-only transition)",
+      "conclusion": "reviewer's verdict text or null",
+      "evidence": "reviewer's source-grounded evidence location(s) or null",
+      "reviewer": "independent reviewer identity or null"
+    },
+    "inputs": "acceptance.md sections 23 and 25-34 provide original anchors, full-chapter texts, sentence-level index, side-by-side companion, reference/event locators, windows and hashes; review-bundle-manifest.json lists the replay inputs.",
+    "invariants": "Reviewer fill status: COMPLETED 2026-09-10 by Reviewer (agent 54d5eed4-ef01-479d-9a80-1bc6e55cca2a). status_counts = 12 pass / 1 fail (T02-C04) / 0 pending (+1 not_applicable synthetic N01); reviewer set; overall verdict stays not_passed. Before that fill the invariants were 13 pending / 0 pass / 0 fail / reviewer null."
+  }
+}

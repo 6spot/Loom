@@ -37,6 +37,7 @@ jobs:
           body = event["pull_request"].get("body") or ""
 
           additions = []
+          body_changed = False
 
           multica_marker_re = re.compile(
               r"(?mi)^\s*Multica-Issue:\s*([A-Za-z][A-Za-z0-9]*-\d+)\s*$"
@@ -52,7 +53,22 @@ jobs:
               close_re = re.compile(
                   rf"(?mi)^\s*(?:Closes|Fixes|Resolves)\s+{re.escape(issue_key)}\s*$"
               )
-              if not close_re.search(body):
+              no_close_re = re.compile(
+                  rf"(?mi)^\s*Multica-No-Close:\s*{re.escape(issue_key)}\s*$"
+              )
+              if no_close_re.search(body):
+                  # Explicit opt-out for NOT_PASSED deliveries: the PR stays
+                  # linked via Multica-Issue but must not record close intent.
+                  # Strip any previously added close line so the steady state
+                  # is self-healing across later edits.
+                  stripped = close_re.sub("", body).rstrip() + "\n"
+                  if stripped != body:
+                      body = stripped
+                      body_changed = True
+                      print(f"Removed close intent for opted-out {issue_key}")
+                  else:
+                      print(f"PR opts out of close intent for {issue_key}; nothing to do")
+              elif not close_re.search(body):
                   additions.append(f"Closes {issue_key}")
 
           github_marker_re = re.compile(
@@ -72,14 +88,17 @@ jobs:
               if not close_re.search(body):
                   additions.append(f"Closes #{issue_number}")
 
-          if not additions:
+          if not additions and not body_changed:
               print("PR lifecycle metadata already normalized")
               raise SystemExit(0)
 
-          normalized_body = body.rstrip()
-          if normalized_body:
-              normalized_body += "\n\n"
-          normalized_body += "\n".join(additions) + "\n"
+          if body_changed and not additions:
+              normalized_body = body
+          else:
+              normalized_body = body.rstrip()
+              if normalized_body:
+                  normalized_body += "\n\n"
+              normalized_body += "\n".join(additions) + "\n"
 
           payload = Path("/tmp/pr-body.json")
           payload.write_text(json.dumps({"body": normalized_body}))
@@ -96,5 +115,8 @@ jobs:
               ],
               check=True,
           )
-          print("Added close intent(s): " + ", ".join(additions))
+          if additions:
+              print("Added close intent(s): " + ", ".join(additions))
+          else:
+              print("Stripped stale close intent; no additions")
           PY
