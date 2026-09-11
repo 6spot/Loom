@@ -1,0 +1,154 @@
+{
+  "unit_id": "ru_4a473bb4ca9cee92e759f35a",
+  "ordinal": 1,
+  "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+  "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+  "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+  "chapter_id": "ch_756922e9af0d759d29d7475f",
+  "block_id": "t_002",
+  "artifact_sha256": "60dd869d4e15f773b0444f074a4414594e7c5cc016edcf870eaaee5e1b1b1065",
+  "text_hash": "fef3e6cee4eb352d560ea3724743b5184594b04a7a7d3f5fec6e6ed2d9d5de2f",
+  "source_anchor_ids": [
+    "anc_b_002",
+    "anc_b_003"
+  ],
+  "segments": [
+    {
+      "kind": "event",
+      "text": "𠀋操",
+      "span": {
+        "span_id": "es_003",
+        "text": "𠀋操",
+        "start": 0,
+        "end": 2,
+        "status": "resolved",
+        "relation": "current",
+        "target_ref": "evt_004",
+        "target_event_id": "evt_000000000000000000000004",
+        "candidate_refs": []
+      }
+    },
+    {
+      "kind": "text",
+      "text": "在赤壁"
+    },
+    {
+      "kind": "event",
+      "text": "閱兵",
+      "span": {
+        "span_id": "es_001",
+        "text": "閱兵",
+        "start": 5,
+        "end": 7,
+        "status": "resolved",
+        "relation": "current",
+        "target_ref": "evt_004",
+        "target_event_id": "evt_000000000000000000000004",
+        "candidate_refs": []
+      }
+    },
+    {
+      "kind": "text",
+      "text": "；周瑜在"
+    },
+    {
+      "kind": "event",
+      "text": "赤壁",
+      "span": {
+        "span_id": "es_002",
+        "text": "赤壁",
+        "start": 11,
+        "end": 13,
+        "status": "resolved",
+        "relation": "current",
+        "target_ref": "evt_001",
+        "target_event_id": "evt_000000000000000000000001",
+        "candidate_refs": []
+      }
+    },
+    {
+      "kind": "text",
+      "text": "擊敗曹操。"
+    }
+  ],
+  "narrative_time": {
+    "mode": "events",
+    "status": "resolved",
+    "event_refs": [
+      "evt_004",
+      "evt_001"
+    ],
+    "from_block_id": null,
+    "observations": [
+      {
+        "event_ref": "evt_001",
+        "original_text": "建安十三年",
+        "source_calendar": {
+          "system": "chinese_lunisolar_regnal",
+          "era": "建安",
+          "era_year": 13,
+          "season": null,
+          "month": null,
+          "day": null
+        },
+        "normalized": null,
+        "precision": "year"
+      }
+    ],
+    "year_key": "regnal:建安:13",
+    "period_key": "regnal:建安:13:year",
+    "year_label": "建安13年",
+    "period_label": "（月份未明确）",
+    "precision": "year",
+    "continues_previous": false
+  },
+  "context_entities": [
+    {
+      "entity_ref": "ent_001",
+      "name": "曹操",
+      "canonical_id": "ent_000000000000000000000001",
+      "kind": "person",
+      "importance": "primary",
+      "source_anchor_ids": [
+        "anc_ent_001"
+      ],
+      "event_roles": [
+        {
+          "event_ref": "evt_001",
+          "role": "commander",
+          "participant_index": 0
+        }
+      ]
+    },
+    {
+      "entity_ref": "ent_002",
+      "name": "周瑜",
+      "canonical_id": "ent_000000000000000000000002",
+      "kind": "person",
+      "importance": "primary",
+      "source_anchor_ids": [
+        "anc_ent_002"
+      ],
+      "event_roles": [
+        {
+          "event_ref": "evt_001",
+          "role": "commander",
+          "participant_index": 1
+        }
+      ]
+    },
+    {
+      "entity_ref": "ent_003",
+      "name": "赤壁",
+      "canonical_id": "ent_000000000000000000000003",
+      "kind": "place",
+      "importance": "other",
+      "source_anchor_ids": [
+        "anc_ent_003"
+      ],
+      "event_roles": []
+    }
+  ],
+  "group_id": "tg_05d326ed5a7a5fc7",
+  "continues_previous": false
+}

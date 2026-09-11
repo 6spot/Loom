@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json",
+  "title": "Chronicle Chapter Artifact v0.2 (program-accepted output)",
+  "description": "Accepted second-round chapter artifact produced only by accept_reading_candidate from a passing 0.2 candidate. Keeps the first-round binding (candidate, hashes, anchors, fingerprint, producing run) and adds program-resolved translation spans plus reading annotations. The v0.1 root is intentionally not allOf-ed; unchanged definitions are reused by $ref.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "version", "chapter_id", "revision_id", "source_sha256",
+    "normalized_sha256", "candidate", "candidate_sha256", "anchors",
+    "request_fingerprint", "producing_run", "artifact_sha256", "reading",
+    "reading_sha256", "reading_units"
+  ],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-artifact"},
+    "version": {"const": "0.2"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "revision_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate": {"type": "object"},
+    "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchors": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/anchor"}
+    },
+    "request_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "producing_run": {
+      "$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/producing_run"
+    },
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reading": {"$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/reading"},
+    "reading_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reading_units": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/resolved_reading_unit"}
+    }
+  },
+  "$defs": {
+    "resolved_event_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "span_id", "block_id", "start", "end", "quote", "quote_sha256",
+        "status", "relation", "target_ref", "candidate_refs"
+      ],
+      "properties": {
+        "span_id": {"type": "string", "minLength": 1},
+        "block_id": {"type": "string", "minLength": 1},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1},
+        "quote": {"type": "string", "minLength": 1},
+        "quote_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "status": {"enum": ["resolved", "ambiguous", "unresolved"]},
+        "relation": {"enum": ["current", "retrospective", "foreshadow", "background", "uncertain"]},
+        "target_ref": {"type": ["string", "null"]},
+        "candidate_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "resolved_segment": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": {"const": "text"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text", "span_id", "start", "end"],
+          "properties": {
+            "kind": {"const": "event"},
+            "text": {"type": "string", "minLength": 1},
+            "span_id": {"type": "string", "minLength": 1},
+            "start": {"type": "integer", "minimum": 0},
+            "end": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "resolved_context_entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_ref", "importance", "event_roles"],
+      "properties": {
+        "entity_ref": {"type": "string", "minLength": 1},
+        "importance": {"enum": ["primary", "other"]},
+        "event_roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event_ref", "role", "participant_index"],
+            "properties": {
+              "event_ref": {"type": "string", "minLength": 1},
+              "role": {"type": "string", "minLength": 1},
+              "participant_index": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "resolved_reading_unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit_id", "ordinal", "block_id", "text_hash", "artifact_sha256",
+        "narrative_time", "current_event_refs", "resolved_spans",
+        "context_entities", "segments"
+      ],
+      "properties": {
+        "unit_id": {"type": "string", "pattern": "^ru_[0-9a-f]{24}$"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "block_id": {"type": "string", "minLength": 1},
+        "text_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "narrative_time": {
+          "$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/narrative_time"
+        },
+        "current_event_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "resolved_spans": {"type": "array", "items": {"$ref": "#/$defs/resolved_event_span"}},
+        "context_entities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/resolved_context_entity"}
+        },
+        "segments": {"type": "array", "items": {"$ref": "#/$defs/resolved_segment"}, "minItems": 1}
+      }
+    }
+  }
+}

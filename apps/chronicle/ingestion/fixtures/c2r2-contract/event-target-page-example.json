@@ -1,0 +1,46 @@
+{
+  "event_id": "evt_000000000000000000000001",
+  "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+  "targets": [
+    {
+      "event_id": "evt_000000000000000000000001",
+      "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+      "relation": "current",
+      "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+      "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "chapter_title": "contract chapter",
+      "source_title": "contract fixture",
+      "unit_id": "ru_4a473bb4ca9cee92e759f35a",
+      "span_id": "es_002",
+      "locator": {
+        "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+        "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+        "unit_id": "ru_4a473bb4ca9cee92e759f35a"
+      },
+      "excerpt": "赤壁"
+    },
+    {
+      "event_id": "evt_000000000000000000000001",
+      "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+      "relation": "mention",
+      "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+      "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "chapter_title": "contract chapter",
+      "source_title": "contract fixture",
+      "unit_id": "ru_4a473bb4ca9cee92e759f35a",
+      "span_id": "es_003",
+      "locator": {
+        "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+        "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+        "unit_id": "ru_4a473bb4ca9cee92e759f35a"
+      },
+      "excerpt": "敗操於赤壁"
+    }
+  ],
+  "current_count": 1,
+  "mention_count": 1,
+  "next_cursor": null,
+  "has_more": false
+}

@@ -1,0 +1,332 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-reading-v0.1.schema.json",
+  "title": "Chronicle Reading DTOs v0.1 (application-owned projection)",
+  "description": "Machine shape for the second-round continuous-reading public DTOs fixed by C2-R2-T01: ReadingLocator, ReadingUnit, StreamPage, TimeGroup, EventPreview and EventTarget plus their nested value objects. Definitions are validated individually via '#/$defs/<name>'. Nothing here is model-generatable: canonical IDs, hashes, offsets, cursor envelopes and grouping keys are computed by the program. Byte/count budgets live in reading_contract.ReadingLimits and are enforced by the pure validators, not by JSON Schema.",
+  "$comment": "This is a definition bundle. Consumers validate one DTO at a time with {'$defs': schema['$defs'], '$ref': '#/$defs/<name>'}.",
+  "$defs": {
+    "uuid7": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "unit_id": {
+      "type": "string",
+      "pattern": "^ru_[0-9a-f]{24}$"
+    },
+    "group_id": {
+      "type": "string",
+      "pattern": "^tg_[0-9a-f]{16}$"
+    },
+    "chapter_id": {
+      "type": "string",
+      "pattern": "^ch_[0-9a-f]{24}$"
+    },
+    "reading_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stream_id", "catalog_sha", "unit_id"],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/uuid7"},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "unit_id": {"$ref": "#/$defs/unit_id"}
+      }
+    },
+    "time_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_ref", "original_text", "source_calendar", "normalized", "precision"],
+      "properties": {
+        "event_ref": {"type": ["string", "null"]},
+        "original_text": {"type": "string", "minLength": 1},
+        "source_calendar": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": {
+            "system": {"enum": ["chinese_lunisolar_regnal", "proleptic_gregorian", "unknown"]},
+            "era": {"type": ["string", "null"]},
+            "era_year": {"type": ["integer", "null"]},
+            "season": {"type": ["string", "null"]},
+            "month": {"type": ["integer", "null"]},
+            "day": {"type": ["integer", "string", "null"]}
+          }
+        },
+        "normalized": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": {
+            "calendar": {"const": "proleptic_gregorian"},
+            "year": {"type": ["integer", "null"]},
+            "month": {"type": ["integer", "null"]},
+            "day": {"type": ["integer", "null"]},
+            "precision": {"enum": ["day", "month", "year", "range", "unknown"]},
+            "conversion_status": {"enum": ["exact", "year_only", "partial", "unresolved"]},
+            "approximate": {"type": "boolean"}
+          }
+        },
+        "precision": {
+          "enum": ["day", "month", "year", "range", "mixed", "unknown", "approximate"]
+        }
+      }
+    },
+    "narrative_time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode", "status", "event_refs", "from_block_id", "observations",
+        "year_key", "period_key", "year_label", "period_label",
+        "precision", "continues_previous"
+      ],
+      "properties": {
+        "mode": {"enum": ["events", "inherit", "mixed", "unknown"]},
+        "status": {"enum": ["resolved", "mixed", "unknown"]},
+        "event_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "from_block_id": {"type": ["string", "null"]},
+        "observations": {"type": "array", "items": {"$ref": "#/$defs/time_observation"}},
+        "year_key": {"type": "string", "minLength": 1},
+        "period_key": {"type": "string", "minLength": 1},
+        "year_label": {"type": ["string", "null"]},
+        "period_label": {"type": "string", "minLength": 1},
+        "precision": {
+          "enum": ["day", "month", "year", "range", "mixed", "unknown", "approximate"]
+        },
+        "continues_previous": {"type": "boolean"}
+      }
+    },
+    "event_span_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "span_id", "text", "start", "end", "status", "relation",
+        "target_ref", "target_event_id", "candidate_refs"
+      ],
+      "properties": {
+        "span_id": {"type": "string", "minLength": 1},
+        "text": {"type": "string", "minLength": 1},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["resolved", "ambiguous", "unresolved"]},
+        "relation": {"enum": ["current", "retrospective", "foreshadow", "background", "uncertain"]},
+        "target_ref": {"type": ["string", "null"]},
+        "target_event_id": {"type": ["string", "null"]},
+        "candidate_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "context_entity_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_ref", "name", "canonical_id", "kind", "importance",
+        "source_anchor_ids", "event_roles"
+      ],
+      "properties": {
+        "entity_ref": {"type": "string", "minLength": 1},
+        "name": {"type": ["string", "null"]},
+        "canonical_id": {"type": ["string", "null"]},
+        "kind": {
+          "enum": ["person", "place", "polity", "organization", "army", "office", "group", "other"]
+        },
+        "importance": {"enum": ["primary", "other"]},
+        "source_anchor_ids": {"type": "array", "items": {"type": "string"}},
+        "event_roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event_ref", "role", "participant_index"],
+            "properties": {
+              "event_ref": {"type": "string", "minLength": 1},
+              "role": {"type": "string", "minLength": 1},
+              "participant_index": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "reading_segment": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": {"const": "text"},
+            "text": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text", "span"],
+          "properties": {
+            "kind": {"const": "event"},
+            "text": {"type": "string", "minLength": 1},
+            "span": {"$ref": "#/$defs/event_span_view"}
+          }
+        }
+      ]
+    },
+    "reading_unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit_id", "ordinal", "stream_id", "catalog_sha", "publication_id",
+        "chapter_id", "block_id", "artifact_sha256", "text_hash",
+        "source_anchor_ids", "segments", "narrative_time", "context_entities",
+        "group_id", "continues_previous"
+      ],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/unit_id"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "stream_id": {"$ref": "#/$defs/uuid7"},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "publication_id": {"$ref": "#/$defs/uuid7"},
+        "chapter_id": {"$ref": "#/$defs/chapter_id"},
+        "block_id": {"type": "string", "minLength": 1},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "text_hash": {"$ref": "#/$defs/sha256"},
+        "source_anchor_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "segments": {"type": "array", "items": {"$ref": "#/$defs/reading_segment"}, "minItems": 1},
+        "narrative_time": {"$ref": "#/$defs/narrative_time"},
+        "context_entities": {"type": "array", "items": {"$ref": "#/$defs/context_entity_view"}},
+        "group_id": {"$ref": "#/$defs/group_id"},
+        "continues_previous": {"type": "boolean"}
+      }
+    },
+    "stream_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id", "catalog_sha", "limit", "units",
+        "prev_cursor", "next_cursor", "has_previous", "has_next"
+      ],
+      "properties": {
+        "stream_id": {"$ref": "#/$defs/uuid7"},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "units": {"type": "array", "items": {"$ref": "#/$defs/reading_unit"}, "maxItems": 50},
+        "prev_cursor": {"type": ["string", "null"]},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_previous": {"type": "boolean"},
+        "has_next": {"type": "boolean"},
+        "group_continuation": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["group_id", "continues_previous"],
+          "properties": {
+            "group_id": {"$ref": "#/$defs/group_id"},
+            "continues_previous": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "time_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "group_id", "ordinal", "year_key", "period_key", "year_label",
+        "period_label", "precision", "observations", "continues_previous",
+        "first_locator", "last_locator", "unit_count"
+      ],
+      "properties": {
+        "group_id": {"$ref": "#/$defs/group_id"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "year_key": {"type": "string", "minLength": 1},
+        "period_key": {"type": "string", "minLength": 1},
+        "year_label": {"type": ["string", "null"]},
+        "period_label": {"type": "string", "minLength": 1},
+        "precision": {
+          "enum": ["day", "month", "year", "range", "mixed", "unknown", "approximate"]
+        },
+        "observations": {"type": "array", "items": {"$ref": "#/$defs/time_observation"}},
+        "continues_previous": {"type": "boolean"},
+        "first_locator": {"$ref": "#/$defs/reading_locator"},
+        "last_locator": {"$ref": "#/$defs/reading_locator"},
+        "unit_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "event_preview_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_title", "publication_id", "observations", "excerpt",
+        "excerpt_more", "original_entry"
+      ],
+      "properties": {
+        "source_title": {"type": "string", "minLength": 1},
+        "publication_id": {"type": ["string", "null"]},
+        "observations": {"type": "array", "items": {"$ref": "#/$defs/time_observation"}},
+        "excerpt": {"type": ["string", "null"], "maxLength": 160},
+        "excerpt_more": {"type": "boolean"},
+        "original_entry": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["publication_id", "anchor_id"],
+          "properties": {
+            "publication_id": {"$ref": "#/$defs/uuid7"},
+            "anchor_id": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "event_preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id", "catalog_sha", "name", "sources", "source_count",
+        "has_more_sources"
+      ],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "name": {"type": "string", "minLength": 1},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/event_preview_source"}, "maxItems": 8},
+        "source_count": {"type": "integer", "minimum": 0},
+        "has_more_sources": {"type": "boolean"}
+      }
+    },
+    "event_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id", "catalog_sha", "relation", "stream_id", "publication_id",
+        "chapter_id", "chapter_title", "source_title", "unit_id", "span_id",
+        "locator", "excerpt"
+      ],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "relation": {"enum": ["current", "mention"]},
+        "stream_id": {"$ref": "#/$defs/uuid7"},
+        "publication_id": {"$ref": "#/$defs/uuid7"},
+        "chapter_id": {"$ref": "#/$defs/chapter_id"},
+        "chapter_title": {"type": ["string", "null"]},
+        "source_title": {"type": ["string", "null"]},
+        "unit_id": {"$ref": "#/$defs/unit_id"},
+        "span_id": {"type": "string", "minLength": 1},
+        "locator": {"$ref": "#/$defs/reading_locator"},
+        "excerpt": {"type": "string", "minLength": 1}
+      }
+    },
+    "event_target_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id", "catalog_sha", "targets", "current_count",
+        "mention_count", "next_cursor", "has_more"
+      ],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"$ref": "#/$defs/sha256"},
+        "targets": {"type": "array", "items": {"$ref": "#/$defs/event_target"}, "maxItems": 50},
+        "current_count": {"type": "integer", "minimum": 0},
+        "mention_count": {"type": "integer", "minimum": 0},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"}
+      }
+    }
+  }
+}

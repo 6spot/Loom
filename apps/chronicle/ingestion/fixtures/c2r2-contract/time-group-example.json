@@ -1,0 +1,37 @@
+{
+  "group_id": "tg_05d326ed5a7a5fc7",
+  "ordinal": 0,
+  "year_key": "regnal:建安:13",
+  "period_key": "regnal:建安:13:year",
+  "year_label": "建安13年",
+  "period_label": "（月份未明确）",
+  "precision": "year",
+  "observations": [
+    {
+      "event_ref": "evt_001",
+      "original_text": "建安十三年",
+      "source_calendar": {
+        "system": "chinese_lunisolar_regnal",
+        "era": "建安",
+        "era_year": 13,
+        "season": null,
+        "month": null,
+        "day": null
+      },
+      "normalized": null,
+      "precision": "year"
+    }
+  ],
+  "continues_previous": false,
+  "first_locator": {
+    "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+    "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+    "unit_id": "ru_4a473bb4ca9cee92e759f35a"
+  },
+  "last_locator": {
+    "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+    "catalog_sha": "4c29947197b9be1907082482c45d724a4dd4216a9db18f9f6ba55b9085597401",
+    "unit_id": "ru_4a473bb4ca9cee92e759f35a"
+  },
+  "unit_count": 1
+}
