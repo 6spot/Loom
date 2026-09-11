@@ -7,11 +7,14 @@
 逐案独立结论索引：`manual-content-review.json`（本目录，与本文同次提交）。
 
 > 结论前置：**总体 verdict 仍为 NOT_PASSED（不自我认证 PASSED）**。
-> 当前口径（见 §0/§35）：最终 happy-path 在 candidate `57fe539`（运行时代码与
-> `c10ba6a` 一致）上完成——两书四章 content-complete（SG `01a08c36`：先主傳
-> 15872/1.26、周瑜傳 6963/1.38、魯肅傳 5244/1.46；ZZ `01a08c46`：14718/1.37）、
-> C04 同 revision event candidate `f9e37a9d` 终局 `same_occurrence`、Reader 4/4、
-> restart/takeover、provenance/hash；13 案独立结论 **13 pass / 0 fail / 0 pending**。
+> 当前/最终口径（见 §0/§35）：最终 candidate 为 `c10ba6a`（含 #637–#640）；主
+> happy-path 的两书四章运行数据来自**历史运行 candidate `57fe539`**
+> （runtime-equivalent：`apps/chronicle` 运行时树 hash 相同，仅
+> `review-flow-smoke.mjs` 工具脚本不同，见 `fp-runtime-equivalence.json`）——
+> 两书四章 content-complete（SG `01a08c36`：先主傳 15872/1.26、周瑜傳
+> 6963/1.38、魯肅傳 5244/1.46；ZZ `01a08c46`：14718/1.37）、C04 同 revision
+> event candidate `f9e37a9d` 终局 `same_occurrence`、Reader 4/4、restart/takeover、
+> provenance/hash；13 案独立结论 **13 pass / 0 fail / 0 pending**。
 > canonical `review-flow-smoke.mjs --mode real-backend` 在含 #639/#640 的 candidate
 > `c10ba6a` 上 PASS（不归属 `57fe539`）。canonical-stability publish fail-closed
 > 按规范分类为 expected negative-path PASS evidence（§24）。历史 `7e637dd` 轮的
@@ -23,18 +26,24 @@
 
 - 最终 candidate：`c10ba6aa3b6e9ea71b2b0e6c34402fad45be3808`（origin/main，含
   #637（T05 v7–v10 保真）/ #638（T08 地点锚点收紧）/ #639（real-backend terminal
-  提交）/ #640（real-backend readback 凭据））。与 `57fe539` 的 runtime 差异仅
-  `apps/chronicle/webapp/scripts/review-flow-smoke.mjs`（工具脚本，非服务运行时）。
-- happy-path 运行：project `chronicle-t19-57fe5390`（运行 candidate `57fe539`，
-  与 c10ba6a 运行时代码一致）；provenance 重建后部署于 candidate `c10ba6a`
-  （project `chronicle-t19-c10ba6aa`，镜像 `loom-chronicle:t19-c10ba6aa`，
-  id `sha256:60d530a2…`），端口 8092，证据
-  `/srv/loom-t19-evidence/57fe5390`（运行）与 `/srv/loom-t19-evidence/c10ba6aa`
-  （provenance）。
+  提交）/ #640（real-backend readback 凭据））。`apps/chronicle` **运行时树 hash**
+  与历史运行 candidate `57fe539` 相同（唯一差异为 `review-flow-smoke.mjs` 工具
+  脚本），见证据 `fp-runtime-equivalence.json`（逐文件 blob sha256 + runtime tree
+  sha256 + 部署镜像 id）。
+- 证据索引（全部归属 `c10ba6a`，内部闭合）：`/srv/loom-t19-evidence/c10ba6aa/`
+  — `ready/manifest.json`（live `READY`，candidate=`c10ba6a`，git_clean）、
+  `fp-final-state.json`（candidate=`c10ba6a`，project `chronicle-t19-c10ba6aa`，
+  port 8092，8 publications，resolution open=0）、`fp-provenance.json`（source/
+  publication/image/evidence hashes）、`fp-runtime-equivalence.json`（57fe539↔
+  c10ba6a runtime 等价映射，带 hash）。历史运行数据目录
+  `/srv/loom-t19-evidence/57fe5390`（运行 candidate `57fe539`）仅作历史运行记录保留。
+- 部署：provenance 重建后以 candidate `c10ba6a` 镜像
+  `loom-chronicle:t19-c10ba6aa`（id `sha256:60d530a2…`）运行 project
+  `chronicle-t19-c10ba6aa`，端口 8092。
 - 模型：`gpt-5.6-luna`。
-- 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致；重建的
-  `fp-provenance.json` 记录 source revision sha256、publication artifact sha256、
-  real-backend PASS log hash 与部署镜像 id。
+- 来源：`a5dc345f`（三國志三章）/`b9831c28`（通鑑卷65），与冻结包一致；`fp-provenance.json`
+  记录 source revision sha256、publication artifact sha256、real-backend PASS log
+  hash 与部署镜像 id。
 - 主结果：四章 content-complete（SG `01a08c36`：先主傳 15872/1.26、周瑜傳
   6963/1.38、魯肅傳 5244/1.46；ZZ `01a08c46`：14718/1.37）；C04 同 revision
   event candidate `f9e37a9d`（`evt_000003` 先主傳 ↔ `evt_001003` 周瑜傳）终局
