@@ -93,6 +93,31 @@ function summarizeRegistry(registry) {
   return summary;
 }
 
+/**
+ * 逐 unit 把渲染出的 segments 文本拼接起来，与该 unit 的 `data-text`（published DTO
+ * 的 text 字段）逐字比较；返回不匹配项。这是 continuous-reading「拼接文本必须逐字
+ * 等于原译文」的浏览器断言，禁止只检查非空。
+ */
+async function segmentTextMismatches(page) {
+  return await page.$$eval('[data-test="reading-unit"]', (units) =>
+    units
+      .map((unit) => {
+        const nodes = unit.querySelectorAll(
+          '[data-test="reading-segment"], [data-test="reading-event-span"], [data-test="reading-event-span-uncertain"]',
+        );
+        const joined = Array.from(nodes)
+          .map((node) => node.textContent || "")
+          .join("");
+        return {
+          ordinal: unit.getAttribute("data-ordinal"),
+          expected: unit.getAttribute("data-text") || "",
+          joined,
+        };
+      })
+      .filter((row) => row.joined !== row.expected),
+  );
+}
+
 async function runBaseHarnessSuite(ctx) {
   const runner = new SuiteRunner(BASE_SUITE, ctx.outputDir);
   runner.browser = ctx.browser;
@@ -138,20 +163,13 @@ async function runBaseHarnessSuite(ctx) {
     runner.check("time-groups-rendered", groupCount === 4, `expected 4 got ${groupCount}`);
     const contextCount = await page.locator('[data-test="reading-context-entity"]').count();
     runner.check("context-entities-rendered", contextCount > 0, "no context entities");
+    const initialMismatches = await segmentTextMismatches(page);
     runner.check(
-      "segments-reassemble-text",
-      await page.$$eval('[data-test="reading-unit"]', (units) =>
-        units.every((unit) => {
-          const nodes = unit.querySelectorAll(
-            '[data-test="reading-segment"], [data-test="reading-event-span"], [data-test="reading-event-span-uncertain"]',
-          );
-          const joined = Array.from(nodes)
-            .map((node) => node.textContent || "")
-            .join("");
-          return joined.length > 0;
-        }),
-      ),
+      "segments-reassemble-unit-text",
+      initialMismatches.length === 0,
+      `segment text must equal unit text: ${JSON.stringify(initialMismatches)}`,
     );
+    runner.info("initial_units_checked", unitCount);
     runner.check(
       "event-span-statuses-present",
       (await page.locator('[data-test="reading-event-span"]').count()) >= 1 &&
@@ -194,6 +212,13 @@ async function runBaseHarnessSuite(ctx) {
     await page.locator('[data-test="reading-load-next-ok"]').click();
     await page.waitForTimeout(150);
     runner.check("duplicate-page-deduped", (await page.locator('[data-test="reading-unit"]').count()) === beforeLoad + 2);
+    const loadedMismatches = await segmentTextMismatches(page);
+    runner.check(
+      "segments-reassemble-unit-text-after-load",
+      loadedMismatches.length === 0,
+      `segment text must equal unit text: ${JSON.stringify(loadedMismatches)}`,
+    );
+    runner.info("loaded_units_checked", await page.locator('[data-test="reading-unit"]').count());
 
     // 8. 小尺寸布局：320x568 无横向溢出。
     await page.setViewportSize({ width: 320, height: 568 });

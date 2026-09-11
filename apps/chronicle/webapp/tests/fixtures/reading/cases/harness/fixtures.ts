@@ -126,8 +126,9 @@ export const FIXTURE_PAGE2: ReadingUnit[] = [
     continues_previous: false,
     text: "習鑿齒論曰：曹操暫自驕伐而天下三分。",
     segments: [
-      { kind: "text", text: "習鑿齒論曰：曹操暫自驕伐而天下三分。" },
+      { kind: "text", text: "習鑿齒論曰：" },
       { kind: "event", text: "曹操", span_id: "span_fixture_0003", status: "unresolved", relation: "background" },
+      { kind: "text", text: "暫自驕伐而天下三分。" },
     ],
     context_entities: [],
     source_anchor_ids: ["anc_fixture_0005"],

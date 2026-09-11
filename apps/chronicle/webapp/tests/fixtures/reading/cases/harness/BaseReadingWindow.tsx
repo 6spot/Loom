@@ -116,6 +116,7 @@ export function BaseReadingWindow() {
             data-ordinal={unit.ordinal}
             data-active={unit.ordinal === activeOrdinal}
             data-synthetic={unit.synthetic}
+            data-text={unit.text}
             key={unit.unit_id}
           >
             <button
