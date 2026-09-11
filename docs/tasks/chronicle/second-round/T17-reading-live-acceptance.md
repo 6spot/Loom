@@ -27,7 +27,35 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 
 Run the checks specified in the linked Issue and the current [delivery guide](../../../development/task-completion.md). Record actual acceptance, test/CI results and any unavailable checks in the delivery PR.
 
+## Live acceptance status
+
+Evidence: `apps/chronicle/corpus/second-round/acceptance/run-live-r2.json` and
+`reading-review.md`.
+
+- Real `gpt-5.6-luna` 0.2 chain ran in an isolated Compose stack through Studio
+  and the public reading HTTP routes; `--mode live` preflight returned `READY`.
+- The four frozen chapters are complete and readable (三國志 66 units/5 groups;
+  資治通鑑卷65 64 units/1 group).
+- The second-round reading semantics fail on real content: every `year_key` is
+  `unknown`; body event-word segments and `context_entities` are empty; the
+  資治通鑑 chapter has no events and one group; generation needed repeated
+  fail-closed claims on the `reading_time`/anchor contract rules.
+- Claim accounting is recorded in `run-live-r2.json.generation_limits`: the raw
+  `ingestion_jobs.attempt` claim count (三國志 4, 資治通鑑 2) includes the
+  `needs_review` resume claim and does not exceed the `max_attempts=3` retry
+  budget; T03's per-chunk `max_correction_rounds` is fixed at 1 (2 model
+  attempts) before fail-closed.
+- **Not accepted / no LM-39 acceptance claim.** The failures are
+  generation/projection contract defects routed to T03/LM-25, T04/LM-26,
+  T05/LM-27, T07/LM-29, T08/LM-30 and T14/LM-36 (recorded in
+  `reading-review.md` and `run-live-r2.json.ownership_handoffs`). This failed run
+  is preserved as regression evidence; a fresh live rerun plus independent
+  content review must pass first. Independent human content confirmation, the
+  live browser walkthrough, and provider cost capture remain unverified.
+
 ## Progress Log
 
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
 - 2026-09-08 — Final gate also waits for design-preparation D01/#588. D01 delivers the reusable background skill and candidate archive only; future Studio/image-display tasks are not silently added to this acceptance scope.
+- 2026-09-11 — Ran the real-provider live acceptance on the frozen four chapters. Recorded `run-live-r2.json` and `reading-review.md`. Content acceptance failed: unresolved narrative time, no body event spans, no context entities, and fail-closed generation retries. Task remains in progress; findings require the owning leaves to fix and re-verify.
+- 2026-09-11 — Addressed Reviewer CHANGES_REQUIRED on PR #657: removed the closing LM-39 directive (kept a non-closing `Multica-Issue: LM-39` link), reconciled the recorded claim count (4) with `max_attempts=3` and T03's `max_correction_rounds=1`, preserved the failed live run as regression evidence, and recorded the ownership handoffs for T03/LM-25, T04/LM-26, T05/LM-27, T07/LM-29, T08/LM-30 and T14/LM-36. No LM-39 acceptance claim until those fixes land and a fresh live rerun plus independent review pass.
