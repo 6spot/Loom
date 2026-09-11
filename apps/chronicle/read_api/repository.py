@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections import defaultdict
 from typing import Any, Iterable
@@ -18,6 +19,8 @@ from read_common import (
 
 MAX_TIMELINE_LIMIT = 200
 
+_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+
 
 def _canonical_uuid(value: str, description: str) -> str:
     if not isinstance(value, str):
@@ -26,6 +29,80 @@ def _canonical_uuid(value: str, description: str) -> str:
         return str(uuid.UUID(value))
     except ValueError as exc:
         raise ReadModelError(f"{description} is not a valid UUID") from exc
+
+
+def _canonical_sha(value: str, description: str) -> str:
+    if not isinstance(value, str) or not _SHA_RE.match(value):
+        raise ReadModelError(
+            f"{description} must be a lowercase hex SHA-256 string"
+        )
+    return value
+
+
+class _CatalogScope:
+    """Immutable snapshot membership used to scope existing detail assembly.
+
+    The catalog payload is the only member authority (``continuous-reading.md``
+    §5): source representations, related objects, related events and
+    resolution/relation provenance are all restricted to what the chosen
+    snapshot actually lists. The global representation tables are never used to
+    widen an older snapshot.
+    """
+
+    def __init__(self, payload: Any) -> None:
+        self.event_members: dict[tuple[str, str], str] = {}
+        self.entity_members: dict[tuple[str, str], str] = {}
+        self.event_ids: set[str] = set()
+        self.entity_ids: set[str] = set()
+        self._entity_cache: dict[
+            tuple[str, str], tuple[str | None, dict[str, Any] | None]
+        ] = {}
+        if not isinstance(payload, dict):
+            return
+        for key, members, ids in (
+            ("canonical_events", self.event_members, self.event_ids),
+            ("canonical_entities", self.entity_members, self.entity_ids),
+        ):
+            for record in payload.get(key) or []:
+                if not isinstance(record, dict):
+                    continue
+                canonical_id = record.get("canonical_id")
+                if not isinstance(canonical_id, str) or not canonical_id:
+                    continue
+                canonical_id = canonical_id.lower()
+                ids.add(canonical_id)
+                for representation in record.get("representations") or []:
+                    if not isinstance(representation, dict):
+                        continue
+                    bundle = representation.get("bundle")
+                    ref = representation.get("ref")
+                    if not (
+                        isinstance(bundle, str)
+                        and bundle
+                        and isinstance(ref, str)
+                        and ref
+                    ):
+                        continue
+                    members.setdefault((bundle, ref), canonical_id)
+
+    def resolve_entity(
+        self, conn, bundle: str, ref: str
+    ) -> tuple[str | None, dict[str, Any] | None]:
+        key = (bundle, ref)
+        if key in self._entity_cache:
+            return self._entity_cache[key]
+        canonical_id = self.entity_members.get(key)
+        if canonical_id is None:
+            self._entity_cache[key] = (None, None)
+            return None, None
+        row = conn.execute(
+            "SELECT payload FROM chronicle.staged_entities"
+            " WHERE bundle_label = %s AND record_ref = %s",
+            (bundle, ref),
+        ).fetchone()
+        payload = row[0] if row is not None else None
+        self._entity_cache[key] = (canonical_id, payload)
+        return canonical_id, payload
 
 
 def _source(label: str, source_ref: str, source_title: str, source_payload: dict[str, Any]) -> dict[str, Any]:
@@ -43,7 +120,11 @@ class ChronicleReadRepository:
     def __init__(self, conn) -> None:
         self.conn = conn
 
-    def _event_rows(self, canonical_event_id: str | None = None) -> list[dict[str, Any]]:
+    def _event_rows(
+        self,
+        canonical_event_id: str | None = None,
+        scope: "_CatalogScope | None" = None,
+    ) -> list[dict[str, Any]]:
         params: tuple[Any, ...] = ()
         where = ""
         if canonical_event_id is not None:
@@ -70,7 +151,7 @@ class ChronicleReadRepository:
             """,
             params,
         ).fetchall()
-        return [
+        records = [
             {
                 "canonical_id": row[0],
                 "bundle": row[1],
@@ -82,8 +163,20 @@ class ChronicleReadRepository:
             }
             for row in rows
         ]
+        if scope is not None:
+            records = [
+                row
+                for row in records
+                if scope.event_members.get((row["bundle"], row["ref"]))
+                == row["canonical_id"]
+            ]
+        return records
 
-    def _entity_rows(self, canonical_entity_id: str | None = None) -> list[dict[str, Any]]:
+    def _entity_rows(
+        self,
+        canonical_entity_id: str | None = None,
+        scope: "_CatalogScope | None" = None,
+    ) -> list[dict[str, Any]]:
         params: tuple[Any, ...] = ()
         where = ""
         if canonical_entity_id is not None:
@@ -110,7 +203,7 @@ class ChronicleReadRepository:
             """,
             params,
         ).fetchall()
-        return [
+        records = [
             {
                 "canonical_id": row[0],
                 "bundle": row[1],
@@ -122,6 +215,24 @@ class ChronicleReadRepository:
             }
             for row in rows
         ]
+        if scope is not None:
+            records = [
+                row
+                for row in records
+                if scope.entity_members.get((row["bundle"], row["ref"]))
+                == row["canonical_id"]
+            ]
+        return records
+
+    def _catalog_scope(self, catalog_sha: str) -> "_CatalogScope":
+        catalog_sha = _canonical_sha(catalog_sha, "catalog snapshot sha")
+        row = self.conn.execute(
+            "SELECT payload FROM chronicle.canonical_catalogs WHERE artifact_sha256 = %s",
+            (catalog_sha,),
+        ).fetchone()
+        if row is None:
+            raise ReadModelNotFound(f"catalog snapshot {catalog_sha} not found")
+        return _CatalogScope(row[0])
 
     def _event_summary_from_rows(self, canonical_id: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         payloads = [row["payload"] for row in rows]
@@ -145,14 +256,18 @@ class ChronicleReadRepository:
             "source_titles": sorted({row["source_title"] for row in rows}),
         }
 
-    def _event_summary(self, canonical_event_id: str) -> dict[str, Any]:
-        rows = self._event_rows(canonical_event_id)
+    def _event_summary(
+        self, canonical_event_id: str, scope: "_CatalogScope | None" = None
+    ) -> dict[str, Any]:
+        rows = self._event_rows(canonical_event_id, scope)
         if not rows:
             raise ReadModelNotFound(f"canonical Event {canonical_event_id} not found")
         return self._event_summary_from_rows(rows[0]["canonical_id"], rows)
 
-    def _entity_summary(self, canonical_entity_id: str) -> dict[str, Any]:
-        rows = self._entity_rows(canonical_entity_id)
+    def _entity_summary(
+        self, canonical_entity_id: str, scope: "_CatalogScope | None" = None
+    ) -> dict[str, Any]:
+        rows = self._entity_rows(canonical_entity_id, scope)
         if not rows:
             raise ReadModelNotFound(f"canonical Entity {canonical_entity_id} not found")
         return self._entity_summary_from_rows(rows[0]["canonical_id"], rows)
@@ -257,7 +372,11 @@ class ChronicleReadRepository:
             for row in rows
         ]
 
-    def _canonical_entity_for_rep(self, bundle: str, ref: str) -> tuple[str | None, dict[str, Any] | None]:
+    def _canonical_entity_for_rep(
+        self, bundle: str, ref: str, scope: "_CatalogScope | None" = None
+    ) -> tuple[str | None, dict[str, Any] | None]:
+        if scope is not None:
+            return scope.resolve_entity(self.conn, bundle, ref)
         row = self.conn.execute(
             """
             SELECT r.canonical_id::text, e.payload
@@ -272,7 +391,11 @@ class ChronicleReadRepository:
             return None, None
         return row[0], row[1]
 
-    def _canonical_event_for_rep(self, bundle: str, ref: str) -> str | None:
+    def _canonical_event_for_rep(
+        self, bundle: str, ref: str, scope: "_CatalogScope | None" = None
+    ) -> str | None:
+        if scope is not None:
+            return scope.event_members.get((bundle, ref))
         row = self.conn.execute(
             """
             SELECT canonical_id::text
@@ -283,7 +406,11 @@ class ChronicleReadRepository:
         ).fetchone()
         return row[0] if row else None
 
-    def _event_resolution_links(self, representations: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _event_resolution_links(
+        self,
+        representations: Iterable[dict[str, Any]],
+        scope: "_CatalogScope | None" = None,
+    ) -> list[dict[str, Any]]:
         found: dict[tuple[str, str], tuple[Any, ...]] = {}
         for representation in representations:
             rows = self.conn.execute(
@@ -314,8 +441,10 @@ class ChronicleReadRepository:
         result = []
         for key in sorted(found):
             row = found[key]
-            left_canonical = self._canonical_event_for_rep(row[2], row[3])
-            right_canonical = self._canonical_event_for_rep(row[4], row[5])
+            left_canonical = self._canonical_event_for_rep(row[2], row[3], scope)
+            right_canonical = self._canonical_event_for_rep(row[4], row[5], scope)
+            if scope is not None and (left_canonical is None or right_canonical is None):
+                continue
             result.append(
                 {
                     "resolution_sha256": row[0],
@@ -338,7 +467,11 @@ class ChronicleReadRepository:
             )
         return result
 
-    def _entity_resolution_links(self, representations: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _entity_resolution_links(
+        self,
+        representations: Iterable[dict[str, Any]],
+        scope: "_CatalogScope | None" = None,
+    ) -> list[dict[str, Any]]:
         found: dict[tuple[str, str], tuple[Any, ...]] = {}
         for representation in representations:
             rows = self.conn.execute(
@@ -369,8 +502,10 @@ class ChronicleReadRepository:
         result = []
         for key in sorted(found):
             row = found[key]
-            left_id, _ = self._canonical_entity_for_rep(row[2], row[3])
-            right_id, _ = self._canonical_entity_for_rep(row[4], row[5])
+            left_id, _ = self._canonical_entity_for_rep(row[2], row[3], scope)
+            right_id, _ = self._canonical_entity_for_rep(row[4], row[5], scope)
+            if scope is not None and (left_id is None or right_id is None):
+                continue
             result.append(
                 {
                     "resolution_sha256": row[0],
@@ -393,7 +528,9 @@ class ChronicleReadRepository:
             )
         return result
 
-    def _event_participants(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _event_participants(
+        self, rows: list[dict[str, Any]], scope: "_CatalogScope | None" = None
+    ) -> list[dict[str, Any]]:
         grouped: dict[str, dict[str, Any]] = {}
         unresolved: list[dict[str, Any]] = []
         for row in rows:
@@ -405,7 +542,9 @@ class ChronicleReadRepository:
                 role = participant.get("role")
                 if not isinstance(entity_ref, str) or not entity_ref:
                     continue
-                canonical_id, entity_payload = self._canonical_entity_for_rep(row["bundle"], entity_ref)
+                canonical_id, entity_payload = self._canonical_entity_for_rep(
+                    row["bundle"], entity_ref, scope
+                )
                 source_role = {
                     "bundle": row["bundle"],
                     "event_ref": row["ref"],
@@ -413,6 +552,9 @@ class ChronicleReadRepository:
                     "role": role,
                 }
                 if canonical_id is None:
+                    if scope is not None:
+                        # Out-of-snapshot object: never widen the fixed details.
+                        continue
                     unresolved.append(
                         {
                             "canonical_entity_id": None,
@@ -450,16 +592,22 @@ class ChronicleReadRepository:
         result.extend(unresolved)
         return result
 
-    def _event_places(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _event_places(
+        self, rows: list[dict[str, Any]], scope: "_CatalogScope | None" = None
+    ) -> list[dict[str, Any]]:
         grouped: dict[str, dict[str, Any]] = {}
         unresolved: dict[tuple[str, str], dict[str, Any]] = {}
         for row in rows:
             for place_ref in row["payload"].get("places") or []:
                 if not isinstance(place_ref, str) or not place_ref:
                     continue
-                canonical_id, entity_payload = self._canonical_entity_for_rep(row["bundle"], place_ref)
+                canonical_id, entity_payload = self._canonical_entity_for_rep(
+                    row["bundle"], place_ref, scope
+                )
                 source_ref = {"bundle": row["bundle"], "event_ref": row["ref"], "entity_ref": place_ref}
                 if canonical_id is None:
+                    if scope is not None:
+                        continue
                     unresolved[(row["bundle"], place_ref)] = {
                         "canonical_entity_id": None,
                         "display": {"name": place_ref, "type": None},
@@ -491,7 +639,9 @@ class ChronicleReadRepository:
         result.extend(unresolved[key] for key in sorted(unresolved))
         return result
 
-    def _related_events(self, canonical_event_id: str) -> list[dict[str, Any]]:
+    def _related_events(
+        self, canonical_event_id: str, scope: "_CatalogScope | None" = None
+    ) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             """
             SELECT
@@ -509,6 +659,9 @@ class ChronicleReadRepository:
         result = []
         for relation_sha, relation_type, left_id, right_id in rows:
             other_id = right_id if left_id == canonical_event_id else left_id
+            if scope is not None and other_id not in scope.event_ids:
+                # A relation to an event outside the snapshot must not appear.
+                continue
             provenance = self.conn.execute(
                 """
                 SELECT resolution_sha256, candidate_id,
@@ -520,11 +673,18 @@ class ChronicleReadRepository:
                 """,
                 (relation_sha,),
             ).fetchall()
+            if scope is not None:
+                provenance = [
+                    item
+                    for item in provenance
+                    if scope.event_members.get((item[2], item[3])) is not None
+                    and scope.event_members.get((item[4], item[5])) is not None
+                ]
             result.append(
                 {
                     "relation_sha256": relation_sha,
                     "type": relation_type,
-                    "event": self._event_summary(other_id),
+                    "event": self._event_summary(other_id, scope),
                     "provenance": [
                         {
                             "resolution_sha256": item[0],
@@ -538,9 +698,16 @@ class ChronicleReadRepository:
             )
         return result
 
-    def event_detail(self, canonical_event_id: str) -> dict[str, Any]:
+    def event_detail(
+        self, canonical_event_id: str, *, catalog_sha: str | None = None
+    ) -> dict[str, Any]:
         canonical_event_id = _canonical_uuid(canonical_event_id, "canonical Event id")
-        rows = self._event_rows(canonical_event_id)
+        scope = self._catalog_scope(catalog_sha) if catalog_sha is not None else None
+        if scope is not None and canonical_event_id.lower() not in scope.event_ids:
+            raise ReadModelNotFound(
+                f"canonical Event {canonical_event_id} is not in snapshot {catalog_sha}"
+            )
+        rows = self._event_rows(canonical_event_id, scope)
         if not rows:
             raise ReadModelNotFound(f"canonical Event {canonical_event_id} not found")
 
@@ -564,13 +731,15 @@ class ChronicleReadRepository:
             "version": READ_SCHEMA_VERSION,
             **summary,
             "representations": representations,
-            "participants": self._event_participants(rows),
-            "places": self._event_places(rows),
-            "related_events": self._related_events(canonical_event_id),
-            "resolution_links": self._event_resolution_links(rows),
+            "participants": self._event_participants(rows, scope),
+            "places": self._event_places(rows, scope),
+            "related_events": self._related_events(canonical_event_id, scope),
+            "resolution_links": self._event_resolution_links(rows, scope),
         }
 
-    def _events_for_entity_rep(self, bundle: str, entity_ref: str) -> list[dict[str, Any]]:
+    def _events_for_entity_rep(
+        self, bundle: str, entity_ref: str, scope: "_CatalogScope | None" = None
+    ) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             """
             SELECT r.canonical_id::text, e.record_ref, e.payload
@@ -594,14 +763,29 @@ class ChronicleReadRepository:
             """,
             (bundle, entity_ref, entity_ref),
         ).fetchall()
-        return [
+        records = [
             {"canonical_event_id": row[0], "event_ref": row[1], "payload": row[2]}
             for row in rows
         ]
+        if scope is not None:
+            records = [
+                row
+                for row in records
+                if scope.event_members.get((bundle, row["event_ref"]))
+                == row["canonical_event_id"]
+            ]
+        return records
 
-    def entity_detail(self, canonical_entity_id: str) -> dict[str, Any]:
+    def entity_detail(
+        self, canonical_entity_id: str, *, catalog_sha: str | None = None
+    ) -> dict[str, Any]:
         canonical_entity_id = _canonical_uuid(canonical_entity_id, "canonical Entity id")
-        rows = self._entity_rows(canonical_entity_id)
+        scope = self._catalog_scope(catalog_sha) if catalog_sha is not None else None
+        if scope is not None and canonical_entity_id.lower() not in scope.entity_ids:
+            raise ReadModelNotFound(
+                f"canonical Entity {canonical_entity_id} is not in snapshot {catalog_sha}"
+            )
+        rows = self._entity_rows(canonical_entity_id, scope)
         if not rows:
             raise ReadModelNotFound(f"canonical Entity {canonical_entity_id} not found")
 
@@ -623,7 +807,7 @@ class ChronicleReadRepository:
                     "claims": claims,
                 }
             )
-            for event in self._events_for_entity_rep(row["bundle"], row["ref"]):
+            for event in self._events_for_entity_rep(row["bundle"], row["ref"], scope):
                 participant_roles = sorted(
                     {
                         participant.get("role")
@@ -651,7 +835,7 @@ class ChronicleReadRepository:
 
         events = []
         for event_id in sorted(event_occurrences):
-            event = self._event_summary(event_id)
+            event = self._event_summary(event_id, scope)
             event["source_involvements"] = sorted(
                 event_occurrences[event_id],
                 key=lambda item: (item["bundle"], item["event_ref"], item["entity_ref"]),
@@ -674,5 +858,5 @@ class ChronicleReadRepository:
             "representations": representations,
             "events": events,
             "claims": [all_claims[key] for key in sorted(all_claims)],
-            "resolution_links": self._entity_resolution_links(rows),
+            "resolution_links": self._entity_resolution_links(rows, scope),
         }
