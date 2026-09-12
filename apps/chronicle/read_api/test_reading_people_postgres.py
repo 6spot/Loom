@@ -6,8 +6,8 @@ Covers ``person-state-reading.md`` section 7 on top of the real T05 store:
   exactly once without reading the whole history;
 - a cursor from another stream/unit/person/phase/catalog is rejected before it
   can leak;
-- only persons present in the reading unit's own ``context_entities`` are
-  served, and a manifest that lists an outside person is an explicit 409;
+- only persons and places present in the reading unit's own ``context_entities``
+  are served, and a manifest that lists an outside member is an explicit 409;
 - an older snapshot never sees a later state manifest, while a newer catalog's
   recorded disagreement overlays as ``uncertain`` / ``source_disagreement``;
 - every GET is read-only.
@@ -318,6 +318,34 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
             "evidence_cursor": None,
         }
 
+    def _place_item(
+        self,
+        ctx,
+        place_id,
+        *,
+        fact_ref,
+        dimension="administration",
+        value="荊州",
+        controller="ent_controller",
+        phase_id="ph_001",
+        certainty="clear",
+        current=True,
+    ):
+        return P.example_place_state_item(
+            place_id=place_id,
+            name="荊州",
+            dimension=dimension,
+            value=value,
+            controller=controller,
+            certainty=certainty,
+            phase_ids=[phase_id],
+            source_facts=[self._source_fact(ctx, fact_ref, phase_id)],
+            chapter_id=ctx["chapter_id"],
+            fact_ref=fact_ref,
+            person_ref=place_id,
+            current=current,
+        )
+
     def _change(self, ctx, person_id, *, fact_ref, to_phase_id="ph_002", from_phase_id="ph_001",
                 dimension="office", value="偏將軍", operation="start", certainty="clear"):
         return {
@@ -375,6 +403,30 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
             "people": people,
         }
 
+    def _unit_with_places(
+        self,
+        ctx,
+        *,
+        unit_id,
+        unit_ordinal,
+        places,
+        place_evidence=None,
+        people=None,
+        phase_mode="single",
+        phases=None,
+    ):
+        unit = self._unit(
+            ctx,
+            unit_id=unit_id,
+            unit_ordinal=unit_ordinal,
+            people=people or [],
+            phase_mode=phase_mode,
+            phases=phases,
+        )
+        unit["places"] = list(places)
+        unit["place_evidence"] = list(place_evidence or [])
+        return unit
+
     def _manifest(self, ctx, stream_id, *, units, manifest_payload=None):
         return {
             "stream_id": stream_id,
@@ -406,6 +458,18 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
             }
             for index, person_id in enumerate(person_ids, start=1)
         ]
+
+    @staticmethod
+    def _place_context(place_id: str, *, entity_ref: str = "place_001") -> dict:
+        return {
+            "entity_ref": entity_ref,
+            "name": "荊州",
+            "canonical_id": place_id,
+            "kind": "place",
+            "importance": "primary",
+            "source_anchor_ids": [],
+            "event_roles": [],
+        }
 
     # -- tests --------------------------------------------------------------
 
@@ -487,6 +551,183 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
             cursor = evidence["next_cursor"]
         self.assertEqual(20, len(seen))
         self.assertEqual(20, len(set(seen)))
+
+    def test_place_states_and_evidence_round_trip(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="places")
+        place_id = "ent_place_canonical"
+        ctx, stream_id = self._setup_stream(
+            self.conn,
+            label="place",
+            blocks=["荊州"],
+            catalog_sha=catalog,
+            tag="v1",
+            context_by_unit={"ru_place_0": [self._place_context(place_id)]},
+        )
+        admin = self._place_item(ctx, place_id, fact_ref="pf_901", dimension="administration")
+        control = self._place_item(
+            ctx,
+            place_id,
+            fact_ref="pf_902",
+            dimension="control",
+            value="周瑜",
+        )
+        descriptors = [self._descriptor(ctx, 40), self._descriptor(ctx, 41)]
+        self._persist(
+            ctx,
+            stream_id,
+            [
+                self._unit_with_places(
+                    ctx,
+                    unit_id="ru_place_0",
+                    unit_ordinal=0,
+                    places=[control, admin],
+                    place_evidence=[
+                        {"item_id": admin["item_id"], "descriptors": descriptors}
+                    ],
+                )
+            ],
+        )
+
+        first = people.unit_places(
+            self.conn,
+            stream_id=stream_id,
+            unit_id="ru_place_0",
+            catalog_sha=catalog,
+            limit=1,
+        )
+        self.assertEqual("places", first["section"])
+        self.assertEqual(["administration"], [item["dimension"] for item in first["places"]])
+        self.assertTrue(first["has_more"])
+        with self.assertRaises(people.ReadingPeopleBadRequest):
+            people.unit_places(
+                self.conn,
+                stream_id=stream_id,
+                unit_id="ru_place_0",
+                place_id=place_id,
+                catalog_sha=catalog,
+                limit=1,
+                cursor=first["next_cursor"],
+            )
+        second = people.unit_places(
+            self.conn,
+            stream_id=stream_id,
+            unit_id="ru_place_0",
+            catalog_sha=catalog,
+            limit=1,
+            cursor=first["next_cursor"],
+        )
+        self.assertEqual(["control"], [item["dimension"] for item in second["places"]])
+        self.assertFalse(second["has_more"])
+
+        detail = people.unit_place_states(
+            self.conn,
+            stream_id=stream_id,
+            unit_id="ru_place_0",
+            place_id=place_id,
+            section="places",
+            catalog_sha=catalog,
+        )
+        self.assertEqual({admin["item_id"], control["item_id"]}, {item["item_id"] for item in detail["places"]})
+
+        evidence = people.unit_place_states(
+            self.conn,
+            stream_id=stream_id,
+            unit_id="ru_place_0",
+            place_id=place_id,
+            section="evidence",
+            item_id=admin["item_id"],
+            catalog_sha=catalog,
+            limit=1,
+        )
+        self.assertEqual(1, evidence["descriptor_count"])
+        self.assertTrue(evidence["has_more"])
+
+        base = f"/v0/reading-streams/{stream_id}/units/ru_place_0/places"
+        status, body = people.dispatch_reading_people(
+            self.conn, "GET", base, f"catalog={catalog}&limit=1"
+        )
+        self.assertEqual(200, status)
+        self.assertEqual("places", body["section"])
+        status, body = people.dispatch_reading_people(
+            self.conn,
+            "GET",
+            f"{base}/{place_id}/states",
+            f"catalog={catalog}&section=evidence&item_id={admin['item_id']}",
+        )
+        self.assertEqual(200, status)
+        self.assertEqual("evidence", body["section"])
+
+        with self.assertRaises(people.ReadingPeopleNotFound):
+            people.unit_places(
+                self.conn,
+                stream_id=stream_id,
+                unit_id="ru_place_0",
+                place_id="ent_outside",
+                catalog_sha=catalog,
+            )
+
+    def test_place_snapshot_and_disagreement_isolation(self) -> None:
+        old_catalog = self._seed_catalog(self.conn, tag="c0")
+        origin_catalog = self._seed_catalog(self.conn, tag="c1")
+        new_catalog = self._seed_catalog(self.conn, tag="c2")
+        place_id = "ent_place_canonical"
+        ctx, stream_id = self._setup_stream(
+            self.conn,
+            label="place_snapshot",
+            blocks=["荊州"],
+            catalog_sha=origin_catalog,
+            tag="v1",
+            context_by_unit={"ru_place_snapshot_0": [self._place_context(place_id)]},
+        )
+        item = self._place_item(ctx, place_id, fact_ref="pf_910")
+        self._persist(
+            ctx,
+            stream_id,
+            [
+                self._unit_with_places(
+                    ctx,
+                    unit_id="ru_place_snapshot_0",
+                    unit_ordinal=0,
+                    places=[item],
+                )
+            ],
+        )
+        kwargs = {
+            "stream_id": stream_id,
+            "unit_id": "ru_place_snapshot_0",
+        }
+        with self.assertRaises(people.ReadingPeopleNotFound):
+            people.unit_places(self.conn, catalog_sha=old_catalog, **kwargs)
+        clear = people.unit_places(self.conn, catalog_sha=origin_catalog, **kwargs)
+        self.assertEqual("clear", clear["places"][0]["certainty"])
+
+        store.persist_person_state_disagreements(
+            self.conn,
+            {
+                "catalog_sha": new_catalog,
+                "compiler_version": "person-state-compiler/0.1",
+                "disagreements": [
+                    {
+                        "disagreement_id": P.disagreement_id_for(
+                            catalog_sha=new_catalog,
+                            fact_refs=["pf_910", "pf_911"],
+                            topic="地点控制分歧",
+                        ),
+                        "topic": "地点控制分歧",
+                        "fact_refs": ["pf_910", "pf_911"],
+                        "phase_ids": ["ph_001"],
+                        "reason_codes": ["source_disagreement"],
+                        "sources": [
+                            {"fact_ref": "pf_910", "chapter_id": ctx["chapter_id"]},
+                            {"fact_ref": "pf_911", "chapter_id": ctx["chapter_id"]},
+                        ],
+                    }
+                ],
+            },
+        )
+        overlaid = people.unit_places(self.conn, catalog_sha=new_catalog, **kwargs)
+        self.assertEqual("uncertain", overlaid["places"][0]["certainty"])
+        self.assertIn("source_disagreement", overlaid["places"][0]["reason_codes"])
 
     def test_people_keyset_reaches_everyone_once(self) -> None:
         catalog = self._seed_catalog(self.conn, tag="c1")
@@ -702,18 +943,39 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
     def test_reads_are_read_only(self) -> None:
         catalog = self._seed_catalog(self.conn, tag="c1")
         person_a = _uuid7()
+        place_id = "ent_read_only_place"
         ctx, stream_id = self._setup_stream(
             self.conn, label="zhou", blocks=["瑜字公瑾"], catalog_sha=catalog, tag="v1",
-            context_by_unit={"ru_zhou_0": self._context(person_a)},
+            context_by_unit={
+                "ru_zhou_0": self._context(person_a) + [self._place_context(place_id)]
+            },
         )
         item = self._item(ctx, person_a, fact_ref="pf_001")
-        self._persist(ctx, stream_id, [self._unit(ctx, unit_id="ru_zhou_0", unit_ordinal=0, people=[
-            self._person(person_a, "周瑜", items=[item], evidence=[{"item_id": item["item_id"], "descriptors": [self._descriptor(ctx, 0)]}]),
-        ])])
+        place_item = self._place_item(ctx, place_id, fact_ref="pf_901")
+        unit = self._unit(
+            ctx,
+            unit_id="ru_zhou_0",
+            unit_ordinal=0,
+            people=[
+                self._person(
+                    person_a,
+                    "周瑜",
+                    items=[item],
+                    evidence=[{"item_id": item["item_id"], "descriptors": [self._descriptor(ctx, 0)]}],
+                )
+            ],
+        )
+        unit["places"] = [place_item]
+        unit["place_evidence"] = [
+            {"item_id": place_item["item_id"], "descriptors": [self._descriptor(ctx, 1)]}
+        ]
+        self._persist(ctx, stream_id, [unit])
         tables = (
             "person_state_assessments", "person_state_manifests",
             "person_state_unit_people", "person_state_items",
             "person_state_item_evidence", "person_state_disagreements",
+            "person_state_unit_places", "person_state_place_items",
+            "person_state_place_item_evidence",
         )
 
         def counts() -> dict[str, int]:
@@ -731,6 +993,18 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
         people.unit_person_states(
             self.conn, stream_id=stream_id, unit_id="ru_zhou_0", person_id=person_a,
             section="evidence", item_id=item["item_id"], catalog_sha=catalog,
+        )
+        people.unit_places(
+            self.conn, stream_id=stream_id, unit_id="ru_zhou_0", catalog_sha=catalog
+        )
+        people.unit_place_states(
+            self.conn,
+            stream_id=stream_id,
+            unit_id="ru_zhou_0",
+            place_id=place_id,
+            section="evidence",
+            item_id=place_item["item_id"],
+            catalog_sha=catalog,
         )
         self.assertEqual(before, counts())
 

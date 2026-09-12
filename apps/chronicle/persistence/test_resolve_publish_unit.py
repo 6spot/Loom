@@ -17,6 +17,7 @@ import sys
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 for path in (str(HERE),):
@@ -24,6 +25,7 @@ for path in (str(HERE),):
         sys.path.insert(0, path)
 
 import resolve_publish as R  # noqa: E402
+import person_state_contract as P  # noqa: E402
 from common import PersistenceError, canonical_json_bytes  # noqa: E402
 
 
@@ -392,6 +394,105 @@ class FinalResolutionTests(unittest.TestCase):
         )
         # Inputs are never mutated by finalization.
         self.assertEqual(initial[0]["entity_links"][0]["decision"], "uncertain")
+
+
+class PersonStateManifestPlaceTests(unittest.TestCase):
+    def test_manifest_carries_canonical_place_items_and_evidence(self) -> None:
+        revision_id = uuid.uuid4()
+        publication_id = str(uuid.uuid4())
+        place = P.example_place_state_item(
+            place_id="place_ref",
+            name="荊州",
+            dimension="administration",
+            value="荊州",
+            controller="ent_controller",
+            certainty="clear",
+            phase_ids=["ph_001"],
+            source_facts=[
+                {
+                    "chapter_publication_id": publication_id,
+                    "chapter_id": "ch_001",
+                    "revision_id": str(revision_id),
+                    "fact_ref": "pf_001",
+                    "claim_refs": [],
+                    "phase_id": "ph_001",
+                }
+            ],
+            chapter_id="ch_001",
+            fact_ref="pf_001",
+            person_ref="place_ref",
+            current=True,
+        )
+        descriptor = P.example_evidence_descriptor(
+            descriptor_id="desc_place",
+            source_publication_id=publication_id,
+            anchor_id="anc_0123456789abcdef",
+            quote="荊州刺史",
+            source_title="吳主傳",
+            phase_id="ph_001",
+        )
+        projection = {
+            "units": [
+                {
+                    "unit_id": "ru_001",
+                    "ordinal": 0,
+                    "block_id": "block_001",
+                    "chapter_id": "ch_001",
+                    "publication_id": publication_id,
+                    "context_entities": [
+                        {
+                            "entity_ref": "place_ref",
+                            "canonical_id": "ent_place",
+                            "kind": "place",
+                            "name": "荊州",
+                        }
+                    ],
+                }
+            ]
+        }
+        catalog = {
+            "canonical_entities": [
+                {
+                    "canonical_id": "ent_place",
+                    "canonical_name": "荊州",
+                    "representations": [{"bundle": "bundle", "ref": "place_ref"}],
+                }
+            ],
+            "canonical_events": [],
+        }
+        compiled = {
+            "people": {},
+            "places": [place],
+            "evidence": [{"item_id": place["item_id"], "descriptors": [descriptor]}],
+        }
+        with mock.patch.object(
+            R.person_state_projection,
+            "compile_person_state_projection",
+            return_value=compiled,
+        ):
+            manifest = R.build_person_state_manifest(
+                projection=projection,
+                catalog=catalog,
+                bundle_label="bundle",
+                stream_id=str(uuid.uuid4()),
+                revision_id=revision_id,
+                chapter_publication_ids=[publication_id],
+                publication_by_chapter={"ch_001": publication_id},
+                evidence={
+                    "unit_phases": [
+                        {"block_id": "block_001", "mode": "single", "phase_refs": ["ph_001"]}
+                    ],
+                    "phases": [{"phase_id": "ph_001", "label": "初"}],
+                },
+                assessments={},
+                assessment_hashes=[],
+            )
+
+        unit = manifest["units"][0]
+        self.assertEqual("ent_place", unit["places"][0]["place_id"])
+        self.assertEqual(place["item_id"], unit["places"][0]["item_id"])
+        self.assertEqual(place["item_id"], unit["place_evidence"][0]["item_id"])
+        self.assertEqual(1, manifest["manifest"]["counts"]["places"])
 
 
 class PublicationTests(unittest.TestCase):

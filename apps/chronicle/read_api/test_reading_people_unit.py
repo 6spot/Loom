@@ -30,12 +30,16 @@ STREAM = "019535d9-3df7-7000-8000-0000000000aa"
 UNIT = "ru_" + "0" * 24
 PERSON = "019535d9-3df7-7000-8000-0000000000bb"
 OTHER_PERSON = "019535d9-3df7-7000-8000-0000000000cc"
+PLACE = "ent_place"
+OTHER_PLACE = "ent_other_place"
 PUBLICATION = "019535d9-3df7-7000-8000-0000000000dd"
 CHAPTER = "ch_" + "1" * 24
 REVISION = "019535d9-3df7-7000-8000-0000000000ee"
 
 PEOPLE_PATH = f"/v0/reading-streams/{STREAM}/units/{UNIT}/people"
 STATES_PATH = f"/v0/reading-streams/{STREAM}/units/{UNIT}/people/{PERSON}/states"
+PLACES_PATH = f"/v0/reading-streams/{STREAM}/units/{UNIT}/places"
+PLACE_STATES_PATH = f"{PLACES_PATH}/{PLACE}/states"
 
 
 def _phase(phase_id: str = "ph_001", ordinal: int = 0) -> dict:
@@ -82,6 +86,22 @@ def _change(person_id: str = PERSON) -> dict:
     )
 
 
+def _place_item(place_id: str = PLACE, *, dimension: str = "administration", fact_ref: str = "pf_101") -> dict:
+    return P.example_place_state_item(
+        place_id=place_id,
+        name="荊州",
+        dimension=dimension,
+        value="荊州" if dimension == "administration" else "周瑜",
+        controller="ent_controller",
+        certainty="clear",
+        phase_ids=["ph_001"],
+        source_facts=[_source_fact()],
+        chapter_id=CHAPTER,
+        fact_ref=fact_ref,
+        current=True,
+    )
+
+
 def _person(person_id: str = PERSON, *, name: str = "周瑜", identities=None, changes=None) -> dict:
     identities = identities if identities is not None else [_item(person_id)]
     return P.example_person_summary(
@@ -124,14 +144,14 @@ def _states_page(*, section: str = "identities", items=None, changes=None, next_
     )
 
 
-def _evidence_page(descriptors, *, next_cursor=None) -> dict:
+def _evidence_page(descriptors, *, item_id=None, next_cursor=None) -> dict:
     return P.example_state_evidence_page(
         stream_id=STREAM,
         unit_id=UNIT,
         catalog_sha=SHA,
         publication_id=PUBLICATION,
         state_manifest_sha=OTHER_SHA,
-        item_id=_item()["item_id"],
+        item_id=item_id or _item()["item_id"],
         phase_id=None,
         descriptors=descriptors,
         next_cursor=next_cursor,
@@ -159,6 +179,29 @@ def _unit_with(*person_ids: str) -> dict:
     }
 
 
+def _unit_with_place(place_id: str = PLACE) -> dict:
+    return {
+        "unit_id": UNIT,
+        "context_entities": [
+            {"kind": "place", "canonical_id": place_id, "entity_ref": "place_ref", "name": "荊州"}
+        ],
+    }
+
+
+def _place_page(places, *, limit: int = 20, next_cursor=None) -> dict:
+    return P.example_place_state_page(
+        stream_id=STREAM,
+        unit_id=UNIT,
+        catalog_sha=SHA,
+        publication_id=PUBLICATION,
+        state_manifest_sha=OTHER_SHA,
+        phases=[_phase()],
+        places=places,
+        limit=limit,
+        next_cursor=next_cursor,
+    )
+
+
 class RouteAndMethodTests(unittest.TestCase):
     def test_unrelated_and_malformed_routes_return_none(self) -> None:
         for path in (
@@ -176,9 +219,13 @@ class RouteAndMethodTests(unittest.TestCase):
         route = people._match_route(STATES_PATH)
         self.assertEqual("states", route["kind"])
         self.assertEqual(PERSON, route["person_id"])
+        self.assertEqual("places", people._match_route(PLACES_PATH)["kind"])
+        route = people._match_route(PLACE_STATES_PATH)
+        self.assertEqual("place_states", route["kind"])
+        self.assertEqual(PLACE, route["place_id"])
 
     def test_non_get_is_405(self) -> None:
-        for path in (PEOPLE_PATH, STATES_PATH):
+        for path in (PEOPLE_PATH, STATES_PATH, PLACES_PATH, PLACE_STATES_PATH):
             status, body = people.dispatch_reading_people(None, "POST", path)
             self.assertEqual(405, status)
             self.assertEqual("method_not_allowed", body["error"]["code"])
@@ -193,10 +240,17 @@ class RouteAndMethodTests(unittest.TestCase):
         )
         self.assertEqual(400, status)
         self.assertIn("appear once", body["error"]["message"])
+        status, body = people.dispatch_reading_people(None, "GET", PLACES_PATH, "bogus=1")
+        self.assertEqual(400, status)
 
     def test_states_route_requires_section(self) -> None:
         status, body = people.dispatch_reading_people(
             None, "GET", STATES_PATH, f"catalog={SHA}"
+        )
+        self.assertEqual(400, status)
+        self.assertIn("section is required", body["error"]["message"])
+        status, body = people.dispatch_reading_people(
+            None, "GET", PLACE_STATES_PATH, f"catalog={SHA}"
         )
         self.assertEqual(400, status)
         self.assertIn("section is required", body["error"]["message"])
@@ -240,6 +294,24 @@ class ParameterValidationTests(unittest.TestCase):
             )
         with self.assertRaises(people.ReadingPeopleBadRequest):
             people.unit_person_states(None, section="identities", limit=0, **base)
+
+    def test_place_states_section_and_item_contract(self) -> None:
+        base = {
+            "stream_id": STREAM,
+            "unit_id": UNIT,
+            "place_id": PLACE,
+            "catalog_sha": SHA,
+        }
+        with self.assertRaises(people.ReadingPeopleBadRequest):
+            people.unit_place_states(None, section="identities", **base)
+        with self.assertRaises(people.ReadingPeopleBadRequest):
+            people.unit_place_states(None, section="evidence", **base)
+        with self.assertRaises(people.ReadingPeopleBadRequest):
+            people.unit_place_states(
+                None, section="places", item_id="psi_" + "0" * 24, **base
+            )
+        with self.assertRaises(people.ReadingPeopleBadRequest):
+            people.unit_place_states(None, section="evidence", item_id="nope", **base)
 
 
 class ErrorClassificationTests(unittest.TestCase):
@@ -308,6 +380,16 @@ class ErrorClassificationTests(unittest.TestCase):
                     person_id=PERSON,
                     section="identities",
                     catalog_sha=SHA,
+                )
+            store_call.assert_not_called()
+
+    def test_place_membership_errors(self) -> None:
+        with mock.patch.object(
+            people._reading_store, "read_reading_unit", return_value=_unit_with_place(OTHER_PLACE)
+        ), mock.patch.object(people._store, "list_unit_places") as store_call:
+            with self.assertRaises(people.ReadingPeopleNotFound):
+                people.unit_places(
+                    None, stream_id=STREAM, unit_id=UNIT, place_id=PLACE, catalog_sha=SHA
                 )
             store_call.assert_not_called()
 
@@ -407,6 +489,40 @@ class ResponseShapeAndBudgetTests(unittest.TestCase):
                 section="evidence", item_id=item["item_id"], catalog_sha=SHA,
             )
         self.assertEqual(2, page["descriptor_count"])
+
+    def test_place_page_and_evidence_pages(self) -> None:
+        place_admin = _place_item()
+        place_control = _place_item(dimension="control", fact_ref="pf_102")
+        with mock.patch.object(
+            people._reading_store, "read_reading_unit", return_value=_unit_with_place()
+        ), mock.patch.object(
+            people._store, "list_unit_places", return_value=_place_page([place_admin, place_control])
+        ):
+            page = people.unit_places(
+                None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA
+            )
+        self.assertEqual("places", page["section"])
+        self.assertEqual(2, len(page["places"]))
+        with mock.patch.object(
+            people._reading_store, "read_reading_unit", return_value=_unit_with_place()
+        ), mock.patch.object(
+            people._store,
+            "list_place_state_item_evidence",
+            return_value=_evidence_page(
+                [_descriptor(0)], item_id=place_admin["item_id"]
+            ),
+        ):
+            page = people.unit_place_states(
+                None,
+                stream_id=STREAM,
+                unit_id=UNIT,
+                place_id=PLACE,
+                section="evidence",
+                item_id=place_admin["item_id"],
+                catalog_sha=SHA,
+            )
+        self.assertEqual("evidence", page["section"])
+        self.assertEqual(1, page["descriptor_count"])
 
     def test_evidence_budget_drops_whole_descriptors(self) -> None:
         long_quote = "甲" * 18000

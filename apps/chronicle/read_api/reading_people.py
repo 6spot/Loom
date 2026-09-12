@@ -8,13 +8,18 @@ section 7. It serves the two *source reading* product GET contracts:
         ?catalog=&limit=6&cursor=
     GET /v0/reading-streams/{stream_id}/units/{unit_id}/people/{person_id}/states
         ?catalog=&section=identities|changes|evidence&phase_id=&item_id=&limit=20&cursor=
+    GET /v0/reading-streams/{stream_id}/units/{unit_id}/places
+        ?catalog=&phase_id=&limit=20&cursor=
+    GET /v0/reading-streams/{stream_id}/units/{unit_id}/places/{place_id}/states
+        ?catalog=&section=places|evidence&phase_id=&item_id=&limit=20&cursor=
 
 There is deliberately no router/client wiring and no SQL here: the top-level
 Python router, the Rust public boundary and the typed client belong to T10. The
 summary, states and evidence pages are bounded keyset reads through the T05
 store's ``list_unit_people`` / ``list_unit_person_states`` /
-``list_state_item_evidence`` entries; SQL and the database driver stay in the
-T05 store. Every read is SELECT-only and never makes a semantic judgement,
+``list_state_item_evidence`` / ``list_unit_places`` /
+``list_place_state_item_evidence`` entries; SQL and the database driver stay
+in the T05 store. Every read is SELECT-only and never makes a semantic judgement,
 calls a model or writes back.
 
 Semantics:
@@ -29,7 +34,8 @@ Semantics:
   published manifest. An older snapshot never sees a later state manifest.
 - The compiled summary members must be part of the reading unit's own
   ``context_entities``; a manifest that lists a person outside its unit context
-  is an internal inconsistency (explicit 409), never silently dropped.
+  is an internal inconsistency (explicit 409), while an addressed person/place
+  outside context is a 404. Neither is silently dropped.
 - The summary / detail / evidence pages are reduced to whole leading entries so
   the serialized response stays within ``summary_max_bytes`` /
   ``detail_max_bytes`` / ``evidence_max_bytes``; an entry is never truncated and
@@ -72,6 +78,7 @@ _PHASE_ID_RE = re.compile(r"^ph_[0-9]{3,}$")
 
 SUMMARY_SECTIONS = ("identities", "changes")
 DETAIL_SECTIONS = ("identities", "changes", "evidence")
+PLACE_SECTIONS = ("places", "evidence")
 
 #: Reserve room in a page budget for the opaque cursor and JSON envelope.
 _CURSOR_MARGIN_BYTES = 1024
@@ -91,6 +98,7 @@ _NOT_FOUND_MARKERS = (
     "unknown catalog",
     "not visible in snapshot",
     "unknown person",
+    "unknown place",
     "unknown item",
     "is not bound to this unit",
 )
@@ -181,6 +189,14 @@ def _require_section(value: Any) -> str:
     if value not in DETAIL_SECTIONS:
         raise ReadingPeopleBadRequest(
             f"section must be one of {'|'.join(DETAIL_SECTIONS)}"
+        )
+    return value
+
+
+def _require_place_section(value: Any) -> str:
+    if value not in PLACE_SECTIONS:
+        raise ReadingPeopleBadRequest(
+            f"section must be one of {'|'.join(PLACE_SECTIONS)}"
         )
     return value
 
@@ -280,6 +296,18 @@ def _context_person_ids(unit: dict[str, Any]) -> set[str]:
     return person_ids
 
 
+def _context_place_ids(unit: dict[str, Any]) -> set[str]:
+    """Return both source and canonical aliases for non-person context places."""
+    place_ids: set[str] = set()
+    for entity in unit.get("context_entities") or []:
+        if not isinstance(entity, dict) or entity.get("kind") == "person":
+            continue
+        for key in (entity.get("canonical_id"), entity.get("entity_ref")):
+            if isinstance(key, str) and key:
+                place_ids.add(key)
+    return place_ids
+
+
 # ---------------------------------------------------------------------------
 # Store call / error classification
 # ---------------------------------------------------------------------------
@@ -356,6 +384,31 @@ def _fit_summary_page(conn, page, *, stream_id, unit_id, catalog_sha, cursor):
     )
 
 
+def _fit_place_page(conn, page, *, stream_id, unit_id, place_id, phase_id, catalog_sha, cursor):
+    places = list(page["places"])
+    while places and _byte_size(
+        {**page, "places": places}
+    ) + _CURSOR_MARGIN_BYTES > _LIMITS.detail_max_bytes:
+        places = places[:-1]
+    if not places and page["places"]:
+        raise ReadingPeopleInconsistent(
+            "a single compiled place state item exceeds detail_max_bytes"
+        )
+    if len(places) == len(page["places"]):
+        return page
+    return _call_store(
+        _store.list_unit_places,
+        conn,
+        stream_id=stream_id,
+        unit_id=unit_id,
+        place_id=place_id,
+        phase_id=phase_id,
+        catalog_sha=catalog_sha,
+        limit=len(places),
+        cursor=cursor,
+    )
+
+
 def _fit_detail_page(conn, page, *, section, **scope):
     key = "items" if section == "identities" else "changes"
     rows = list(page[key])
@@ -378,7 +431,8 @@ def _fit_detail_page(conn, page, *, section, **scope):
     )
 
 
-def _fit_evidence_page(conn, page, **scope):
+def _fit_evidence_page(conn, page, *, store_func=None, **scope):
+    store_func = store_func or _store.list_state_item_evidence
     descriptors = list(page["descriptors"])
     while descriptors and _byte_size(
         {**page, "descriptors": descriptors, "descriptor_count": len(descriptors)}
@@ -391,7 +445,7 @@ def _fit_evidence_page(conn, page, **scope):
     if len(descriptors) == len(page["descriptors"]):
         return page
     return _call_store(
-        _store.list_state_item_evidence,
+        store_func,
         conn,
         limit=len(descriptors),
         **scope,
@@ -445,6 +499,136 @@ def unit_people(
         cursor=cursor,
     )
     return _validate_page("unit_people_page", page)
+
+
+def unit_places(
+    conn,
+    *,
+    stream_id: Any,
+    unit_id: Any,
+    place_id: Any | None = None,
+    catalog_sha: str | None = None,
+    phase_id: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Return one bounded page of administration/control place state items."""
+    stream_uuid = _require_uuid(stream_id, "stream_id")
+    unit_id = _require_text(unit_id, "unit_id")
+    if place_id is not None:
+        place_id = _require_text(place_id, "place_id")
+    if phase_id is not None:
+        phase_id = _require_phase_id(phase_id, "phase_id")
+    limit = _validate_limit(limit, maximum=_LIMITS.page_max_limit)
+    catalog = _resolve_catalog(conn, catalog_sha)
+    unit = _read_unit(conn, stream_uuid, unit_id, catalog)
+    context_places = _context_place_ids(unit)
+    if place_id is not None and place_id not in context_places:
+        raise ReadingPeopleNotFound(
+            f"place {place_id!r} is not part of unit {unit_id!r} context"
+        )
+    page = _call_store(
+        _store.list_unit_places,
+        conn,
+        stream_id=stream_uuid,
+        unit_id=unit_id,
+        place_id=place_id,
+        phase_id=phase_id,
+        catalog_sha=catalog,
+        limit=limit,
+        cursor=cursor,
+    )
+    for place in page["places"]:
+        if place["place_id"] not in context_places:
+            raise ReadingPeopleInconsistent(
+                f"compiled place {place['place_id']!r} is not part of unit "
+                f"{unit_id!r} context"
+            )
+    _require_compiled_items(page["places"], "place state")
+    page = _fit_place_page(
+        conn,
+        page,
+        stream_id=stream_uuid,
+        unit_id=unit_id,
+        place_id=place_id,
+        phase_id=phase_id,
+        catalog_sha=catalog,
+        cursor=cursor,
+    )
+    return _validate_page("place_state_page", page)
+
+
+def unit_place_states(
+    conn,
+    *,
+    stream_id: Any,
+    unit_id: Any,
+    place_id: Any,
+    section: Any,
+    catalog_sha: str | None = None,
+    phase_id: str | None = None,
+    item_id: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Return a place-state page or evidence page for one place."""
+    stream_uuid = _require_uuid(stream_id, "stream_id")
+    unit_id = _require_text(unit_id, "unit_id")
+    place_id = _require_text(place_id, "place_id")
+    section = _require_place_section(section)
+    if phase_id is not None:
+        phase_id = _require_phase_id(phase_id, "phase_id")
+    if section == "evidence":
+        if item_id is None:
+            raise ReadingPeopleBadRequest("section=evidence requires item_id")
+        item_id = _require_item_id(item_id, "item_id")
+    elif item_id is not None:
+        raise ReadingPeopleBadRequest(
+            "item_id is only valid together with section=evidence"
+        )
+    limit = _validate_limit(limit, maximum=_LIMITS.page_max_limit)
+    catalog = _resolve_catalog(conn, catalog_sha)
+    unit = _read_unit(conn, stream_uuid, unit_id, catalog)
+    if place_id not in _context_place_ids(unit):
+        raise ReadingPeopleNotFound(
+            f"place {place_id!r} is not part of unit {unit_id!r} context"
+        )
+    if section == "places":
+        return unit_places(
+            conn,
+            stream_id=stream_uuid,
+            unit_id=unit_id,
+            place_id=place_id,
+            catalog_sha=catalog,
+            phase_id=phase_id,
+            limit=limit,
+            cursor=cursor,
+        )
+    page = _call_store(
+        _store.list_place_state_item_evidence,
+        conn,
+        stream_id=stream_uuid,
+        unit_id=unit_id,
+        place_id=place_id,
+        item_id=item_id,
+        phase_id=phase_id,
+        catalog_sha=catalog,
+        limit=limit,
+        cursor=cursor,
+    )
+    page = _fit_evidence_page(
+        conn,
+        page,
+        store_func=_store.list_place_state_item_evidence,
+        stream_id=stream_uuid,
+        unit_id=unit_id,
+        place_id=place_id,
+        item_id=item_id,
+        phase_id=phase_id,
+        catalog_sha=catalog,
+        cursor=cursor,
+    )
+    return _validate_page("state_evidence_page", page)
 
 
 def unit_person_states(
@@ -547,6 +731,8 @@ def _match_route(path: str) -> dict[str, str] | None:
     parts = path[len(prefix):].split("/")
     if len(parts) == 4 and parts[1] == "units" and parts[3] == "people" and parts[0] and parts[2]:
         return {"kind": "people", "stream_id": parts[0], "unit_id": parts[2]}
+    if len(parts) == 4 and parts[1] == "units" and parts[3] == "places" and parts[0] and parts[2]:
+        return {"kind": "places", "stream_id": parts[0], "unit_id": parts[2]}
     if (
         len(parts) == 6
         and parts[1] == "units"
@@ -562,13 +748,28 @@ def _match_route(path: str) -> dict[str, str] | None:
             "unit_id": parts[2],
             "person_id": parts[4],
         }
+    if (
+        len(parts) == 6
+        and parts[1] == "units"
+        and parts[3] == "places"
+        and parts[5] == "states"
+        and parts[0]
+        and parts[2]
+        and parts[4]
+    ):
+        return {
+            "kind": "place_states",
+            "stream_id": parts[0],
+            "unit_id": parts[2],
+            "place_id": parts[4],
+        }
     return None
 
 
 def dispatch_reading_people(
     conn, method: str, path: str, raw_query: str = ""
 ) -> tuple[int, dict[str, Any]] | None:
-    """Dispatch the source-reading people/states product GET routes.
+    """Dispatch the source-reading people/place-state product GET routes.
 
     Returns ``None`` (not an error) when ``path`` is not one of this module's
     routes so the shared router can try the next domain dispatcher. A matched
@@ -588,6 +789,37 @@ def dispatch_reading_people(
                 unit_id=route["unit_id"],
                 catalog_sha=query.get("catalog"),
                 limit=_int_param(query, "limit", 6),
+                cursor=query.get("cursor"),
+            )
+            return 200, page
+        if route["kind"] == "places":
+            query = _scalar_query(raw_query, {"catalog", "phase_id", "limit", "cursor"})
+            page = unit_places(
+                conn,
+                stream_id=route["stream_id"],
+                unit_id=route["unit_id"],
+                catalog_sha=query.get("catalog"),
+                phase_id=query.get("phase_id"),
+                limit=_int_param(query, "limit", 20),
+                cursor=query.get("cursor"),
+            )
+            return 200, page
+        if route["kind"] == "place_states":
+            query = _scalar_query(
+                raw_query, {"catalog", "section", "phase_id", "item_id", "limit", "cursor"}
+            )
+            if "section" not in query:
+                raise ReadingPeopleBadRequest("query parameter section is required")
+            page = unit_place_states(
+                conn,
+                stream_id=route["stream_id"],
+                unit_id=route["unit_id"],
+                place_id=route["place_id"],
+                section=query["section"],
+                catalog_sha=query.get("catalog"),
+                phase_id=query.get("phase_id"),
+                item_id=query.get("item_id"),
+                limit=_int_param(query, "limit", 20),
                 cursor=query.get("cursor"),
             )
             return 200, page
@@ -619,6 +851,7 @@ def dispatch_reading_people(
 
 __all__ = [
     "DETAIL_SECTIONS",
+    "PLACE_SECTIONS",
     "PREFIX",
     "READING_VERSION",
     "ReadingPeopleBadRequest",
@@ -629,5 +862,7 @@ __all__ = [
     "dispatch_reading_people",
     "error_payload",
     "unit_people",
+    "unit_places",
+    "unit_place_states",
     "unit_person_states",
 ]

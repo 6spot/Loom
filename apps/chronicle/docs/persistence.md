@@ -312,8 +312,9 @@ instead of building a second read or write path.
 
 ## Person-state assessment, projection and disagreement index (C2-R3-T05)
 
-The ninth migration (`0009_chronicle_person_states.sql`, owned by C2-R3-T05)
-adds the third-round person-state layer from `person-state-reading.md`
+The ninth and tenth migrations (`0009_chronicle_person_states.sql` and
+`0010_chronicle_place_states.sql`, owned by C2-R3-T05)
+add the third-round person-state layer from `person-state-reading.md`
 sections 5-7 without touching any existing table, without copying body text,
 full translations, Entity/Claim tables or the job state machine, and without
 relaxing the 0007 reading immutability/snapshot fences. Connection identity is
@@ -341,8 +342,16 @@ still `CHRONICLE_DATABASE_URL`; the Loom engine database is never read.
   cross-source disagreement index. `source_keys` is the flattened
   `{chapter_id}:{fact_ref}` membership used to overlay a catalog's recorded
   explanations onto a published unit.
+- `chronicle.person_state_unit_places` — the immutable per-unit place anchor
+  used to fence administration/control items to one published place.
+- `chronicle.person_state_place_items` — the full compiled place state rows;
+  dimensions are deliberately limited to `administration` and `control`.
+  Visits, participation and other event occurrences are not promoted into
+  control state.
+- `chronicle.person_state_place_item_evidence` — source publication, anchor,
+  quote and phase descriptors for one place item.
 
-All six tables are append-only (mutation triggers). Composite foreign keys and
+All nine tables are append-only (mutation triggers). Composite foreign keys and
 unique constraints stop cross-stream / cross-unit / cross-person / cross-plan
 splices, and binding triggers prove a manifest's stream revision/catalog,
 assessment hashes and chapter publications against the stream's own snapshot.
@@ -371,6 +380,12 @@ slice it in Python:
 - `list_state_item_evidence(conn, *, stream_id, unit_id, person_id, item_id,
   phase_id=None, catalog_sha=None, limit, cursor)` — one keyset page of an
   item's evidence descriptors.
+- `list_unit_places(conn, *, stream_id, unit_id, place_id=None, phase_id=None,
+  catalog_sha=None, limit, cursor)` — one indexed keyset page of the unit's
+  administration/control place items.
+- `list_place_state_item_evidence(conn, *, stream_id, unit_id, place_id,
+  item_id, phase_id=None, catalog_sha=None, limit, cursor)` — one keyset page
+  of a place item's source evidence.
 - `list_catalog_disagreements(conn, *, catalog_sha, limit, cursor)` — one keyset
   page of one catalog's immutable disagreement index.
 
