@@ -1094,5 +1094,90 @@ class DeterminismAndBoundsTests(unittest.TestCase):
         self.assertEqual(result["counts"]["people"], 0)
 
 
+class ChapterScopeTests(unittest.TestCase):
+    """A per-unit compile must not leak another chapter's phases/facts.
+
+    The assembled ``person_states`` evidence is revision-wide, while
+    ``build_person_state_manifest`` compiles once per reading unit. Cross
+    chapter phases have no order edge, so without a chapter scope every unit
+    would treat the other chapters' facts as ``order_unknown`` and expose
+    persons that are not in that unit's context (the read API fails closed).
+    """
+
+    OTHER_CHAPTER = "ch_756922e9af0d759d29d74760"
+    OTHER_PERSON = "ent_003"
+    OTHER_PERSON_ID = "0192f0a0-0000-7000-8000-00000000cc08"
+
+    def _two_chapter_evidence(self) -> dict:
+        own = fact("pf_001", phase_ref="ph_001")
+        own["origin"] = {
+            "chapter_id": CHAPTER_ID,
+            "chapter_index": 0,
+            "origin_ref": "pf_001",
+            "anchor_ids": [ANCHOR["anchor_id"]],
+            "anchors": [ANCHOR],
+        }
+        foreign = fact("pf_002", phase_ref="ph_101")
+        foreign["person_ref"] = {"kind": "entity", "ref": self.OTHER_PERSON}
+        foreign["person_key"] = self.OTHER_PERSON
+        foreign["chapter_id"] = self.OTHER_CHAPTER
+        foreign["origin"] = {
+            "chapter_id": self.OTHER_CHAPTER,
+            "chapter_index": 1,
+            "origin_ref": "pf_002",
+            "anchor_ids": [ANCHOR["anchor_id"]],
+            "anchors": [ANCHOR],
+        }
+        return {
+            "phases": [
+                {"phase_id": "ph_001", "origin": {"chapter_id": CHAPTER_ID}},
+                {"phase_id": "ph_101", "origin": {"chapter_id": self.OTHER_CHAPTER}},
+            ],
+            "phase_orders": [
+                {
+                    "assertion_id": "po_001",
+                    "earlier_phase_ref": "ph_001",
+                    "later_phase_ref": "ph_101",
+                    "origin": {"chapter_id": CHAPTER_ID},
+                }
+            ],
+            "unit_phases": [],
+            "facts": [own, foreign],
+            "continuities": [],
+            "disagreements": [],
+        }
+
+    def test_chapter_scope_excludes_other_chapter_facts(self) -> None:
+        evidence = self._two_chapter_evidence()
+        scoped = compile_(
+            evidence,
+            {"pf_001": "supported", "pf_002": "supported"},
+            canonical_map={PERSON: PERSON_ID, self.OTHER_PERSON: self.OTHER_PERSON_ID},
+            reading_manifest=manifest(
+                current="ph_001",
+                chapter_id=CHAPTER_ID,
+                unit_phase={"mode": "single", "phase_ids": ["ph_001"]},
+            ),
+        )
+        self.assertIn("pf_001", [entry["source_facts"][0]["fact_ref"] for entry in scoped["items"]])
+        self.assertNotIn("pf_002", [entry["source_facts"][0]["fact_ref"] for entry in scoped["items"]])
+        self.assertEqual(set(scoped["people"]), {PERSON_ID})
+
+    def test_without_a_chapter_scope_the_revision_wide_evidence_leaks(self) -> None:
+        # Documents the defect the scope fixes: with no unit chapter the other
+        # chapter's fact is classified order_unknown and included.
+        evidence = self._two_chapter_evidence()
+        leaked = compile_(
+            evidence,
+            {"pf_001": "supported", "pf_002": "supported"},
+            canonical_map={PERSON: PERSON_ID, self.OTHER_PERSON: self.OTHER_PERSON_ID},
+            reading_manifest=manifest(
+                current="ph_001",
+                unit_phase={"mode": "single", "phase_ids": ["ph_001"]},
+            ),
+        )
+        self.assertIn(self.OTHER_PERSON_ID, set(leaked["people"]))
+
+
 if __name__ == "__main__":
     unittest.main()

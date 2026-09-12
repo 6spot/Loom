@@ -33,6 +33,22 @@ on:
       - "apps/chronicle/read_api/studio_*.py"
       - "apps/chronicle/webapp/src/**"
       - "apps/chronicle/webapp/scripts/*component-smoke.mjs"
+      - "apps/chronicle/acceptance/third_round_gate.py"
+      - "apps/chronicle/acceptance/test_third_round_gate.py"
+      - "apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs"
+      - "apps/chronicle/webapp/tests/reading-browser/integration/person-states/**"
+      - "apps/chronicle/docs/person-state-acceptance.md"
+      - "apps/chronicle/docs/person-state-reading.md"
+      - "apps/chronicle/persistence/person_state_*.py"
+      - "apps/chronicle/read_api/studio_person_states.py"
+      - "apps/chronicle/worker/*person_state*"
+      - "apps/chronicle/webapp/src/components/reading/PersonState*.tsx"
+      - "apps/chronicle/webapp/src/components/studio/PersonStateReviewPanel.tsx"
+      - "apps/chronicle/webapp/src/lib/person-state-*.ts"
+      - "apps/chronicle/webapp/src/pages/public/EntityPage.tsx"
+      - "apps/chronicle/webapp/src/pages/public/HistoryPage.tsx"
+      - "apps/chronicle/webapp/src/pages/studio/StudioReview*.tsx"
+      - "apps/chronicle/corpus/third-round/**"
   pull_request: {}
 
 permissions:
@@ -88,6 +104,10 @@ jobs:
                   break
                   ;;
                 .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/webapp/src/styles/reading-*.css|apps/chronicle/webapp/src/components/reading/*|apps/chronicle/webapp/src/pages/public/Reading*.tsx|apps/chronicle/webapp/src/lib/reading-*.ts|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
+                  relevant=true
+                  break
+                  ;;
+                apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/person-states/*|apps/chronicle/docs/person-state-acceptance.md|apps/chronicle/docs/person-state-reading.md|apps/chronicle/persistence/person_state_*|apps/chronicle/read_api/studio_person_states.py|apps/chronicle/worker/*person_state*|apps/chronicle/webapp/src/components/reading/PersonState*|apps/chronicle/webapp/src/components/studio/PersonStateReviewPanel.tsx|apps/chronicle/webapp/src/lib/person-state-*|apps/chronicle/webapp/src/pages/public/EntityPage.tsx|apps/chronicle/webapp/src/pages/public/HistoryPage.tsx|apps/chronicle/webapp/src/pages/studio/StudioReview*|apps/chronicle/corpus/third-round/*)
                   relevant=true
                   break
                   ;;
@@ -265,4 +285,131 @@ jobs:
             assert run["window_progression"]["active_ordinal_max"] > run["window_progression"]["active_ordinal_min"], run
             assert run["max_long_task_ms"] < bm["budgets"]["max_long_task_ms"], run
             assert run["request_counts"]["preview"] == 0, run
+          PY
+
+  third-round-gate:
+    name: Third-round person-state real-stack + browser gate (fixture)
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+
+      - name: Install gate dependencies
+        run: |
+          python3 -m pip install \
+            -r apps/chronicle/persistence/requirements.txt \
+            -r apps/chronicle/read_api/requirements.txt
+
+      - name: Install webapp and Playwright
+        run: |
+          npm --prefix apps/chronicle/webapp ci
+          npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
+
+      - name: Third-round gate unit tests
+        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_third_round_gate.py' -v
+
+      - name: Third-round person-state corpus and contract tests
+        run: |
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_third_round_cases.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_contract_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_person_state_pipeline_postgres.py' -v
+
+      - name: Register third-round component suites (r3-all)
+        run: |
+          set -euo pipefail
+          npm --prefix apps/chronicle/webapp test
+          npm --prefix apps/chronicle/webapp run dev -- --host 127.0.0.1 --port 5175 --strictPort > /tmp/chronicle-r3-vite.log 2>&1 &
+          chronicle_vite_pid=$!
+          trap 'kill "$chronicle_vite_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5175/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5175 --suite r3-all --output /tmp/chronicle-r3-components
+
+      - name: Validate person-state browser driver and suites
+        run: |
+          set -euo pipefail
+          for file in \
+            apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/person-states/manifest.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/person-states/runner.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/person-states/suites/reading.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/person-states/suites/review.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/person-states/suites/performance.mjs; do
+            node --check "$file"
+          done
+
+      - name: Build Chronicle image
+        run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
+
+      - name: Third-round real-stack person-state gate (fixture mode)
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'CHRONICLE_POSTGRES_PASSWORD=ci-offline-gate' \
+            'CHRONICLE_ADMIN_USER=admin' \
+            'CHRONICLE_ADMIN_PASSWORD=ci-offline-gate' \
+            > /tmp/chronicle-third-round-test.env
+          python3 apps/chronicle/acceptance/third_round_gate.py \
+            --mode fixture \
+            --env-file /tmp/chronicle-third-round-test.env \
+            --source-pack apps/chronicle/corpus/first-round/source-pack.json \
+            --evidence-dir /tmp/chronicle-r3-offline \
+            --browser-required
+          python3 - <<'PY'
+          import json
+          m = json.load(open("/tmp/chronicle-r3-offline/manifest.json"))
+          c = m["criteria"]
+          assert m["result"] == "PASS" and m["mode"] == "fixture" and m["fixture_only"], m
+          assert c["source_person_state_publish_chain"] == "PASS", c
+          assert c["composite_history_two_review_chain"] == "PASS", c
+          assert c["published_history_and_person_page"] == "PASS", c
+          assert c["negative_faults"] == "PASS", c
+          assert c["multi_chapter_source_state_consistency"] == "PASS", c
+          assert c["browser_interaction"] == "PASS", c
+          assert c["performance_budget"] == "PASS", c
+          assert m["history"]["version"] and m["history"]["paragraph_id"] and m["history"]["phase_id"], m["history"]
+          assert m["history"]["entity_id"] and m["history"]["state_id"], m["history"]
+          assert m["scale"]["unit_count"] >= 5000 and m["scale"]["group_count"] >= 1000, m["scale"]
+          assert m["browser"]["ok"] is True, m["browser"]
+          results = {r["suite"]: r for r in m["browser"]["results"]}
+          for suite in ("reading", "review", "performance"):
+            assert results[suite]["ok"] is True, results.get(suite)
+          perf = results["performance"]["evidence"]
+          assert perf["person_region_p95_ms"] <= 100, perf
+          assert perf["max_long_task_ms"] < 200, perf
           PY
