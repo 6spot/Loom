@@ -31,11 +31,11 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v4"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v5"
 
 #: Person-state (0.3) prompt template version. Bound into the producing run
 #: of every accepted 0.3 artifact so 0.1/0.2/0.3 runs stay distinguishable.
-PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v2"
+PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v3"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -333,6 +333,11 @@ operation "start", qualification "ordinary", attribution "narrator".'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
+# The reading/state product has more independently grounded fields than 0.1.
+# The v4 live failure had 16 errors, but the old 1,800-character envelope hid
+# two distinct context selectors. Keep a bounded, versioned envelope that can
+# carry this whole repair; the final rendered prompt still obeys ChapterLimits.
+_MAX_READING_CORRECTION_DIAGNOSTIC_CHARS = 4096
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
 _WS_RE = re.compile(r"\s+")
@@ -394,6 +399,13 @@ def compact_validation_errors(
     """
     if not isinstance(errors, list):
         return []
+    reading_product = candidate_version in (
+        READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION,
+    )
+    budget = (
+        _MAX_READING_CORRECTION_DIAGNOSTIC_CHARS
+        if reading_product else _MAX_CORRECTION_DIAGNOSTIC_CHARS
+    )
     kept: list[str] = []
     seen: set[str] = set()
     chars = 0
@@ -405,24 +417,36 @@ def compact_validation_errors(
         if " is not valid under any of the given schemas" in text:
             omitted += 1
             continue
-        text = _diagnostic_signature(text)
+        # Exact array indices are repair locations too. Distinct invalid rows
+        # must not collapse into one /* message in the new reading/state prompt.
+        if not reading_product:
+            text = _diagnostic_signature(text)
         # Preserve each repair location, both match counts and the correct
         # source block hint without repeating a long generic instruction.
         # R2 live extraction lost every reading diagnostic after repeated anchor
         # failures exhausted this bounded prompt, so the correction could not
         # repair a known context selection. The full report stays unchanged.
-        if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
-            text = _ANCHOR_MISMATCH_RE.sub(
-                r"quote: \1 matches in \2, occurrence=\3; \4 chapter matches, first block=\5",
-                text,
-            )
+        if reading_product:
+            def anchor_hint(match: re.Match[str]) -> str:
+                window_count, window, occurrence, total, first_block = match.groups()
+                # A first match among many is not evidence for the intended
+                # passage. Preserve a block hint only for a unique match.
+                location = (
+                    f", starts in {first_block}"
+                    if total == "1" else " (ambiguous; use passage context)"
+                )
+                return (
+                    f"quote: {window_count} matches in {window}, occurrence={occurrence}; "
+                    f"{total} chapter matches{location}"
+                )
+            text = _ANCHOR_MISMATCH_RE.sub(anchor_hint, text)
         if len(text) > _MAX_ONE_DIAGNOSTIC_CHARS:
             text = text[: _MAX_ONE_DIAGNOSTIC_CHARS - 24].rstrip() + " … [diagnostic shortened]"
         if text in seen:
             omitted += 1
             continue
         projected = chars + len(text) + (1 if kept else 0)
-        if len(kept) >= _MAX_CORRECTION_ERRORS or projected > _MAX_CORRECTION_DIAGNOSTIC_CHARS:
+        if len(kept) >= _MAX_CORRECTION_ERRORS or projected > budget:
             omitted += 1
             continue
         seen.add(text)
@@ -433,7 +457,7 @@ def compact_validation_errors(
             f"diagnostic_summary: {omitted} additional/repeated validator errors "
             "omitted from this repair prompt; full report remains in attempt history."
         )
-        if chars + len(note) + 1 <= _MAX_CORRECTION_DIAGNOSTIC_CHARS + 160:
+        if chars + len(note) + 1 <= budget + 160:
             kept.append(note)
     return kept
 
@@ -547,6 +571,7 @@ def render_chapter_prompt(
     *,
     validation_errors: list[str] | None = None,
     previous_candidate: dict[str, Any] | None = None,
+    preserve_translation: bool = False,
 ) -> str:
     """Render the whole-chapter joint translation/extraction prompt.
 
@@ -588,6 +613,10 @@ def render_chapter_prompt(
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
         raise PersistenceError("validation_errors must be a list of strings")
+    if preserve_translation and (
+        validation_errors is None or candidate_version == CANDIDATE_VERSION
+    ):
+        raise PersistenceError("translation preservation requires a 0.2/0.3 correction")
 
     correction = ""
     if validation_errors is not None:
@@ -603,7 +632,23 @@ def render_chapter_prompt(
         else:
             repaired = "the joint bundle, mentions and record_sources"
         preserve = ""
-        if prev_chars:
+        if preserve_translation:
+            preserve = (
+                "METADATA CORRECTION ONLY: the reported errors can be repaired without "
+                "rewriting the prose. Copy EVERY translation.blocks entry's block_id "
+                "and text verbatim, in the same order, from PREVIOUS CANDIDATE. "
+                "Do not merge, split, remove, rename, shorten, expand or reword these "
+                "blocks; the program compares their IDs, order and exact text. "
+                "You may repair source_block_ids, entity_refs, event_refs and all "
+                "dependent annotations, including moving a span to the block that "
+                "actually contains its quote. Select literal, contiguous quotes; "
+                "never rewrite prose to make a reference match. Retain supported "
+                "entities, events and annotations; do not empty annotation arrays "
+                "to silence errors. This restriction "
+                "preserves the draft during metadata repair; it does not certify "
+                "translation accuracy or completeness.\n"
+            )
+        elif prev_chars:
             # Live regression (C2-R1-T19 live rounds): the bounded correction
             # re-ask sometimes returned a condensed summary that still passed
             # structural validation, shrinking a full initial translation
@@ -655,6 +700,12 @@ def render_chapter_prompt(
             + _json(previous_candidate)
             + "\n"
         )
+        if preserve_translation:
+            correction += (
+                "FINAL REPAIR CHECK: return the complete joint JSON product. Keep "
+                "every previous translation block ID, its order and full text "
+                "unchanged; repair the listed metadata against the whole chapter.\n"
+            )
 
     header = {
         "chapter_id": request["chapter_id"],
@@ -669,6 +720,11 @@ def render_chapter_prompt(
         "schema_versions": request.get("schema_versions"),
         "prompt_version": prompt_version,
     }
+    # Keep the frozen 0.1 rendering byte-for-byte. For reading/state products,
+    # put the actual repair task AFTER the complete source, where it is not
+    # displaced by another full-chapter translation instruction/input.
+    correction_before = correction if candidate_version == CANDIDATE_VERSION else ""
+    correction_after = correction if candidate_version != CANDIDATE_VERSION else ""
     return f'''You are Chronicle whole-chapter joint translation and extraction. Return exactly one compact JSON object and no prose/Markdown.
 
 {joint_guide}{reading_guide}
@@ -676,7 +732,7 @@ def render_chapter_prompt(
 {REFERENCE_RULES}
 
 {TRANSLATION_RULES}
-{correction}
+{correction_before}
 CHAPTER REQUEST
 {_json(header)}
 
@@ -690,4 +746,4 @@ FULL CHAPTER TEXT (verbatim; the chapter tail below is part of the input)
 ---BEGIN CHAPTER---
 {request["normalized_text"]}
 ---END CHAPTER---
-'''
+''' + correction_after

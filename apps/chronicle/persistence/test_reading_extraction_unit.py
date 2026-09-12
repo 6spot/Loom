@@ -134,6 +134,46 @@ class ReadingPromptTests(unittest.TestCase):
         # Historical 0.1 prompt/repair formatting is not changed by the R2 fix.
         self.assertIn("diagnostic_summary:", P.compact_validation_errors(errors)[-1])
 
+    def test_live_v4_errors_all_reach_the_single_correction(self) -> None:
+        evidence = load(
+            HERE.parent / "corpus" / "second-round" / "acceptance",
+            "candidate-live-r2-20260912-v4.json",
+        )
+        initial = evidence["attempts"][0]
+        errors = R.flatten_reading_errors(initial["validation"])
+        self.assertEqual(len(errors), 16)
+        for version in ("0.2", "0.3"):
+            with self.subTest(version=version):
+                # The 0.3 validator nests the same reading errors in its report.
+                nested = [f"reading: {error}" for error in errors] if version == "0.3" else errors
+                diagnostics = P.compact_validation_errors(nested, candidate_version=version)
+                self.assertEqual(len(diagnostics), 16)
+                self.assertFalse(any("diagnostic_summary:" in item for item in diagnostics))
+                self.assertLessEqual(len("\n".join(diagnostics)), 4096)
+                for path in (
+                    "reading.units[19].context_entities[0].source_selections[1]",
+                    "reading.units[6].context_entities[0].source_selections[1]",
+                ):
+                    self.assertTrue(any(path in item for item in diagnostics), path)
+                self.assertTrue(any("not found anywhere" in item for item in diagnostics))
+                ambiguous = next(item for item in diagnostics if "147 chapter matches" in item)
+                self.assertIn("ambiguous", ambiguous)
+                self.assertNotIn("b_003", ambiguous)
+                unique = next(item for item in diagnostics if "record_sources 'ent_002'" in item)
+                self.assertIn("b_011", unique)
+
+    def test_reading_diagnostics_keep_distinct_schema_array_locations(self) -> None:
+        errors = [
+            f"schema_validation: /bundle/entities/{index}/aliases/0: unsupported alias"
+            for index in range(24)
+        ]
+        for version in ("0.2", "0.3"):
+            with self.subTest(version=version):
+                diagnostics = P.compact_validation_errors(errors, candidate_version=version)
+                self.assertEqual(diagnostics[:20], errors[:20])
+                self.assertIn("4 additional/repeated", diagnostics[-1])
+                self.assertNotIn("/*", "\n".join(diagnostics))
+
 
 class ReadingAcceptanceTests(unittest.TestCase):
     def test_valid_reading_product_accepted_in_one_round(self) -> None:

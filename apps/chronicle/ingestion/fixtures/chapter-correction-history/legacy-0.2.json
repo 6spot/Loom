@@ -1,0 +1,1760 @@
+{
+  "evidence_type": "synthetic_legacy_extraction_history",
+  "generator_commit": "56198e1a19c6774e67d89c81c2bd58a11e6f7cbe",
+  "description": "Executed the unchanged base chapter_prompt and chapter_extraction with two scripted fixture responses. No network/model call and no content-quality claim. Retains every attempt verbatim; artifact omitted because replay consumes attempt history.",
+  "request": {
+    "chapter_id": "ch_756922e9af0d759d29d7475f",
+    "chapter_index": 0,
+    "revision_id": "rev_c2r2_demo_001",
+    "source_sha256": "85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28",
+    "normalized_sha256": "85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28",
+    "normalized_text": "建安十三年，曹操屯江陵。𠀋操觀兵赤壁。周瑜敗操於赤壁。公聞之，王命退兵。",
+    "blocks": [
+      {
+        "block_id": "b_001",
+        "kind": "body",
+        "start": 0,
+        "end": 12
+      },
+      {
+        "block_id": "b_002",
+        "kind": "body",
+        "start": 12,
+        "end": 19
+      },
+      {
+        "block_id": "b_003",
+        "kind": "body",
+        "start": 19,
+        "end": 27
+      },
+      {
+        "block_id": "b_004",
+        "kind": "body",
+        "start": 27,
+        "end": 36
+      }
+    ],
+    "required_block_ids": [
+      "b_001",
+      "b_002",
+      "b_003",
+      "b_004"
+    ],
+    "plan_version": "c2r1-chapters-v1",
+    "limits": {
+      "max_source_chars": 32768,
+      "max_prompt_chars": 262144,
+      "max_response_chars": 524288,
+      "max_response_bytes": 4194304,
+      "max_output_tokens": 65536,
+      "max_correction_rounds": 1
+    },
+    "schema_versions": {
+      "candidate": "0.2",
+      "bundle": "0.1"
+    }
+  },
+  "result": {
+    "accepted": true,
+    "fingerprints": {
+      "request_fingerprint": "82068d2df630cc1e8f21faa6116f4ad5ac8c862c4fa1aea9321ca1348d852f34",
+      "limits": {
+        "max_source_chars": 32768,
+        "max_prompt_chars": 262144,
+        "max_response_chars": 524288,
+        "max_response_bytes": 4194304,
+        "max_output_tokens": 65536,
+        "max_correction_rounds": 1
+      },
+      "model": "offline-legacy-history-fixture",
+      "prompt_version": "c2r2-chapter-prompt-v4",
+      "extraction_version": "c2r2-extraction-v1",
+      "candidate_schema": "chronicle.chapter-candidate/0.2",
+      "source_sha256": "85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28",
+      "normalized_sha256": "85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28",
+      "plan_version": "c2r1-chapters-v1",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "reading_schema": "chronicle.reading/0.1",
+      "reading_limits": {
+        "max_block_code_points": 8192,
+        "max_event_spans": 64,
+        "max_context_entities": 128,
+        "min_source_selections": 1,
+        "max_source_selections": 16,
+        "page_min_limit": 1,
+        "page_max_limit": 50,
+        "group_max_limit": 100,
+        "page_max_bytes": 2097152,
+        "unit_max_bytes": 262144,
+        "preview_max_bytes": 65536,
+        "preview_max_sources": 8,
+        "preview_excerpt_code_points": 160,
+        "json_max_bytes": 8388608
+      }
+    },
+    "correction_rounds_used": 1,
+    "attempts": [
+      {
+        "kind": "initial",
+        "prompt": "You are Chronicle whole-chapter joint translation and extraction. Return exactly one compact JSON object and no prose/Markdown.\n\nJOINT PRODUCT SHAPE (field names are exact; this is shape guidance, not source facts)\nEmit exactly one JSON object with schema=\"chronicle.chapter-candidate\", version=\"0.2\",\nand chapter_id copied verbatim from CHAPTER REQUEST. Required top-level keys:\nbundle, translation, mentions, record_sources, reading, warnings.\nbundle: {schema_version:\"0.1\", source, entities[], events[], claims[], warnings[]}.\nUse temp_id only (src_*/ent_*/evt_*/clm_*), numbered sequentially from 001\nwithin each kind (ent_001, ent_002, ...; the numeric part must stay within\n000-999 so assembly can remap it); NEVER emit canonical `id`,\ncanonical_id, or candidate_ids.\nsource: {temp_id:\"src_*\", kind:\"source\", source_type, title, language, extraction}.\nentity: {temp_id:\"ent_*\", kind:\"entity\", type, canonical_name, aliases[], mentions:[{text}],\n  resolution:{status:\"unresolved\"}, extraction}.\nevent: {temp_id:\"evt_*\", kind:\"event\", type, title, time, participants:[{entity_ref,role}],\n  places:[entity-temp-id,...], parent_event_ref, extraction}.\nclaim: {temp_id:\"clm_*\", kind:\"claim\", subject:{kind,ref}, predicate,\n  object:{kind,ref}|{kind:literal,value}, time,\n  evidence:{text,source_ref,locator}, assessment:{status:\"unassessed\"}, extraction}.\n  subject/object entity|event references are {kind,ref} naming an existing\n  temp_id; a non-entity/event claim object is {kind:literal,value} with the\n  literal text in value (never a ref key, never a bare string).\n  subject must not be a literal.\ntranslation: {language:\"zh-CN\", blocks:[{block_id, text, source_block_ids[],\n  entity_refs:[{kind:\"entity\",ref}], event_refs:[{kind:\"event\",ref}]}]}.\nEvery translation block needs a unique block_id, non-empty text, and a non-empty\nsource_block_ids[] naming chapter blocks. Array order is meaningful.\nmentions[]: {mention_id, surface, contextual, status, target_ref, candidate_refs[], selection}.\nselection: {first_block_id, last_block_id, quote, occurrence} — both blocks in this\nchapter in legal order; quote matches the covered source text verbatim; occurrence\ncounts from 1 within that window.\nrecord_sources[]: {record_ref, record_kind, selections[]} — every Entity/Event/Claim\nneeds a non-empty selections[] entry; claim evidence.text must equal its first\nselection quote and evidence.source_ref must name the bundle source.\nwarnings[]: {type, message} — a warning never substitutes for structural validity.\nextraction: {method:\"model\", job_id, confidence}. time: null OR\n{original_text, source_calendar:{system,era?,era_year?,month?,day?,inherited_fields:[]},\n normalized:null|{calendar, year, month, day, precision, conversion_status}}.\nAllowed entity.type: person, place, polity, organization, army, office, group, other.\nAllowed event.type: political, administrative, military, battle, movement, retreat,\ndeath, birth, succession, appointment, surrender, diplomatic, epidemic,\nterritorial_change, economic, cultural, other.\nsource_calendar.system: chinese_lunisolar_regnal, proleptic_gregorian, unknown.\npredicate uses snake_case (for example stationed_at); claim subject must not be a literal.\nDo NOT copy CHAPTER REQUEST metadata keys (block kinds, hashes, limits) into records.\n\nREADING ANNOTATION SHAPE (0.2 only; every unit is explained by the WHOLE chapter)\nAdd one top-level \"reading\" object beside bundle/translation/mentions/record_sources:\nreading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per\ntranslation block, in the SAME order, no missing or duplicate block_id.\nRead the whole chapter before producing the joint product. Carry its supported\npersons, places, polities and coherent events into the bundle and translation refs,\nthen annotate the translated passages using those same refs. Unknown dates do not\nerase the people or places a passage clearly identifies. Empty arrays are legitimate\nonly where that passage supplies no supported object or event phrase; they are not\na shortcut for an entire biography, campaign, or annalistic chapter.\nUse natural paragraph breaks at changes of narrative time or action, usually 80-500\nChinese characters; longer quotations may remain together. This is one whole-chapter\nresponse, never independent paragraph translations. Do not create an Event for each\nparagraph or turn minor details into navigation anchors.\nParagraph length is a layout guide, NOT a chapter-length limit: create as many\nparagraphs as the complete source needs. Listing a source_block_id does not translate\nthat block. Preserve the full content of speeches, letters, memorials, decrees and\nembedded annotations, including each argument and its attribution. Do not replace\nthem with statements such as \"群臣上表劝进\" or \"史书有不同记载\". Those are summaries,\nnot translations of the actual memorial or each cited account.\nSOURCE DATE FIELDS: in each non-null Event.time.source_calendar, return system, era,\nera_year, season, month, day, inherited_fields. Use null for unsupported components;\nseason is spring|summer|autumn|winter|null, month is 1..12|null, day may preserve a\nsource sexagenary label. Preserve the regnal era/year even without a Gregorian\nconversion (normalized may be null). A date heading may govern the following main\nnarrative in this same chapter until an explicit transition; record context-derived\ncomponents in inherited_fields and ground them in the actual source. Missing a\nrepeated year is not by itself evidence that the chapter leaves the date unknown.\nKeep time.original_text a VERBATIM temporal expression; never stitch a new date\nphrase from separate source passages. Do not borrow dates from cited flashbacks or\ninvent a Gregorian year/month/day. A genuinely undated event keeps time null.\nreading unit (field names are exact):\n  block_id: the translation block this unit annotates.\n  narrative_time: {mode, event_refs[], from_block_id, source_selections[]}.\n    mode \"events\":  the block narrates current events; event_refs lists the events whose\n      own source time is observed here, and must be non-empty and a subset of\n      current_event_refs; from_block_id is null.\n    mode \"inherit\": the block continues an earlier block's time; from_block_id names an\n      EARLIER block of THIS chapter; BOTH event_refs and current_event_refs are empty,\n      and event_roles must also be empty. The chain must end at an \"events\" block.\n      If this block narrates a dated event with current_event_refs, use \"events\"\n      instead. Inherit only a source-supported continuation, never a convenient date.\n    mode \"mixed\":   the block deliberately observes several current events at once;\n      event_refs lists every current_event_ref and there are at least two.\n    mode \"unknown\": the block has no usable time; event_refs and current_event_refs are\n      empty, from_block_id null, source_selections empty.\n    Do NOT invent Gregorian time. Keep the event's own source_calendar fields and\n    verbatim original_text distinct as described above; when the event has\n    no usable time keep it unknown rather than defaulting to a nearby year. A\n    retrospective / foreshadow / background span never supplies the unit's current time.\n    source_selections must contain 1..16 verbatim source selections for non-unknown\n    modes and be empty for unknown.\n  current_event_refs: ONLY the events this block is currently narrating (not every event\n    mentioned); each must be an existing evt_* in this block's translation event_refs.\n  event_spans: a list of {span_id, selection, status, target_ref, candidate_refs,\n    relation, source_selections}. span_id is es_001, es_002, ... Each span points at the\n    exact words in THIS translation block: selection = {quote, occurrence} where quote\n    is copied character-for-character from that unit's translated block text and\n    occurrence counts from 1 within that block. status resolved (single target_ref,\n    no candidate_refs) | ambiguous (target_ref null, >=2 candidate_refs) | unresolved\n    (target_ref null). relation is current | retrospective | foreshadow | background |\n    uncertain. Spans must not overlap each other and must not rewrite the block text.\n    source_selections (1..16) support the span from the ORIGINAL source. Select the\n    translated event name or short occurrence phrase (for example a supported\n    battle phrase), not a bare person's name as a proxy for that person's event.\n    Include a grounded event phrase when present; use [] if none is supported.\n  context_entities: a list of {entity_ref, importance, source_selections,\n    event_roles}. entity_ref is an existing ent_* supported by this block's\n    entity_refs or by a current event's participants/places; importance is primary|other.\n    source_selections (1..16) prove the source supports this object in this block.\n    event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref\n    and participant_index is that entity's original participant position in the event\n    (0-based); the program copies the role text from the participant record, so never\n    write a role string yourself. Find the event whose temp_id equals event_ref,\n    then verify event.participants[participant_index].entity_ref equals this\n    context entity_ref. Index 0 is not a default. A place in event.places is NOT a\n    participant; keep event_roles [] unless that same entity actually occurs in the\n    event's participants array. Include the main people/places actually involved\n    here, even when narrative_time is unknown or inherit (then event_roles is []).\n    Do not include every chapter entity or promote someone mentioned only as distant\n    background to primary. Use [] where this passage has no supported context entity.\n  Never drop the unit, invent a canonical ID, or move a reading annotation to a\n  later page/request. When correcting a failure, retain all supported events,\n  context entities and spans; repair the faulty references/selections rather than\n  emptying the arrays to avoid validation.\nCOORDINATE / ID DISCIPLINE: the model writes only block_id, evt_*/ent_* temp refs, span\nids (es_*) and {quote, occurrence} selections. Never write start/end offsets, unit_id,\nstream_id, canonical_id, UUIDs, or URLs — the program computes all coordinates and IDs.\nREADING UNIT EXAMPLE (shape only):\n{\"block_id\":\"t_001\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_001\"],\n \"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\n \"quote\":\"建安十三年\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_001\"],\n \"event_spans\":[{\"span_id\":\"es_001\",\"selection\":{\"quote\":\"进驻江陵\",\"occurrence\":1},\n \"status\":\"resolved\",\"target_ref\":\"evt_001\",\"candidate_refs\":[],\"relation\":\"current\",\n \"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"屯江陵\",\n \"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\n \"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"曹操\",\n \"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":0}]}]}\nFULL-TEXT SCALE: this chapter contains 36 source characters and 4 required source blocks. A full modern-Chinese translation normally needs comparable or greater space. A much shorter overview is not an acceptable whole-chapter product. Complete the entire translation first, then annotate it; never trade away source passages to fit the bundle or reading metadata into the response.\n\n\nSAME-CHAPTER REFERENCE RULES\n- One confirmed appellation shares one local temp_id within this chapter: when the\n  chapter confirms 曹操 and 操 name the same person, both mentions resolve to the\n  same Entity (target_ref points at one ent_* record; aliases need chapter-text support).\n- An unresolvable reference stays unresolved: use status \"unresolved\" with\n  target_ref null (candidate_refs may be empty). A genuinely ambiguous surface\n  uses status \"ambiguous\" with target_ref null and at least two valid\n  candidate_refs. Never force an uncertain surface onto the most familiar person.\n- Prefer resolved over unresolved whenever the chapter confirms the referent:\n  if the chapter text confirms who or what a mention denotes (for example\n  先主 in 先主傳, or 曹公/操 where the chapter confirms 曹操), resolve the\n  mention to that Entity with target_ref. Reserve \"unresolved\" strictly for\n  references the chapter genuinely leaves unidentified; hedging every mention\n  as unresolved when referents are confirmed evades the linkage the bundle\n  exists to record.\n- Contextual forms such as 公 / 王 stay contextual mentions; they must not become\n  stable global aliases of any Entity.\n- Every mention surface must equal its selection.quote exactly.\n  surface is the mention occurrence text, never the entity display name:\n  copy selection.quote character-for-character into surface (a quote\n  '曹公征徐州' takes surface '曹公征徐州', not '曹公'; a quote '備' takes\n  surface '備', not '劉備'). A shortened, expanded, or normalized surface\n  is a grounding failure even when it names the right person.\n- Entity resolution stays unresolved in this product: emit\n  resolution:{status:\"unresolved\"} on every entity. Never invent\n  canonical_id, candidate_ids, or another status value such as \"new\";\n  identity is decided later in Studio review, never in this chapter product.\n\nFULL-TEXT FAITHFUL TRANSLATION RULES\n- Translate the WHOLE chapter body text and every embedded annotation that exists\n  in the source, in order. Do not substitute an introductory summary for the full\n  text, and do not drop the tail of the chapter.\n- Keep attribution: renderings such as 某书记载 / 裴松之按 stay with the passage\n  they belong to. Never rewrite a cited book's view or disagreement as the\n  author's own assertion.\n- Keep persons/places/polities, event time and participant roles, and source\n  evidence grounded in the chapter text. Every required source block listed in\n  REQUIRED BLOCKS must appear in at least one translation block's source_block_ids.\n- Separate an occurrence from a detail about it. Keep one coherent battle,\n  campaign, diplomatic episode, or political transition together when the\n  chapter supports that scope; do not create a separate Event for every sentence,\n  quotation, evaluation, or background state. A person's office or a place's\n  affiliation may be a Claim on that Entity without inventing a new Event.\n  Distinct occurrences must remain distinct; do not merge merely because a\n  broader title looks cleaner. Preserve source-supported subordinate episodes\n  with parent_event_ref where appropriate.\n- Extraction records are not public navigation anchors. Important reader entry\n  points are selected and reviewed later from the synthesized narrative; do not\n  label every appointment, remark, or minor movement as a major event.\n- Time precision is never invented: normalized month/day stay null; a normalized\n  year appears only with an exact verified source mapping, otherwise null.\n- VERBATIM GROUNDING PROCEDURE (no exceptions):\n  (a) every selection.quote (mentions and record_sources alike) must be copied\n  character-for-character from CHAPTER BLOCKS or FULL CHAPTER TEXT; never\n  paraphrase, abbreviate, merge, or complete a passage, and never emit a quote\n  you cannot find as an exact substring;\n  (b) set first_block_id/last_block_id to the block(s) whose [start:end) range\n  actually encloses the quote, in legal order; count occurrence only inside\n  that window; never guess a block id;\n  (c) time.original_text must be the temporal expression EXACTLY as written in\n  the source: do NOT prepend or append era, year, season, month, day, or 干支\n  from surrounding context. Context-derived fields belong ONLY in\n  source_calendar (era/era_year/month/day) and inherited_fields; anything not\n  verbatim must not appear in original_text.\n  (d) never convert script forms: the chapter source is Traditional; every\n  quote, mention surface, alias, and time.original_text must reuse the exact\n  source characters. A Simplified character where the source has Traditional\n  (or vice versa) is a grounding failure, not a spelling variant.\n\nCHAPTER REQUEST\n{\"chapter_id\":\"ch_756922e9af0d759d29d7475f\",\"chapter_index\":0,\"document_id\":null,\"limits\":{\"max_correction_rounds\":1,\"max_output_tokens\":65536,\"max_prompt_chars\":262144,\"max_response_bytes\":4194304,\"max_response_chars\":524288,\"max_source_chars\":32768},\"normalized_sha256\":\"85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28\",\"plan_version\":\"c2r1-chapters-v1\",\"prompt_version\":\"c2r2-chapter-prompt-v4\",\"revision_id\":\"rev_c2r2_demo_001\",\"schema_versions\":{\"bundle\":\"0.1\",\"candidate\":\"0.2\"},\"source_sha256\":\"85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28\",\"title\":null}\n\nREQUIRED BLOCKS (every listed block must be covered by translation source_block_ids)\n[\"b_001\",\"b_002\",\"b_003\",\"b_004\"]\n\nCHAPTER BLOCKS (the whole chapter; ranges use chars-normalized-utf8)\n[b_001 kind=body range=0:12 offset_unit=chars-normalized-utf8]\n建安十三年，曹操屯江陵。\n---END b_001---\n[b_002 kind=body range=12:19 offset_unit=chars-normalized-utf8]\n𠀋操觀兵赤壁。\n---END b_002---\n[b_003 kind=body range=19:27 offset_unit=chars-normalized-utf8]\n周瑜敗操於赤壁。\n---END b_003---\n[b_004 kind=body range=27:36 offset_unit=chars-normalized-utf8]\n公聞之，王命退兵。\n---END b_004---\n\nFULL CHAPTER TEXT (verbatim; the chapter tail below is part of the input)\n---BEGIN CHAPTER---\n建安十三年，曹操屯江陵。𠀋操觀兵赤壁。周瑜敗操於赤壁。公聞之，王命退兵。\n---END CHAPTER---\n",
+        "prompt_chars": 17428,
+        "prompt_sha256": "9364bcc92a44989bcadd1162b17ba87afe908b2fd911de35dc1e60d089945929",
+        "raw_response": "{\"schema\": \"chronicle.chapter-candidate\", \"version\": \"0.2\", \"chapter_id\": \"ch_756922e9af0d759d29d7475f\", \"bundle\": {\"schema_version\": \"0.1\", \"source\": {\"temp_id\": \"src_001\", \"kind\": \"source\", \"source_type\": \"book\", \"title\": \"contract fixture\", \"author\": null, \"language\": \"zh-CN\", \"edition\": null, \"citation\": null, \"url\": null, \"metadata\": {}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, \"entities\": [{\"temp_id\": \"ent_001\", \"kind\": \"entity\", \"type\": \"person\", \"canonical_name\": \"曹操\", \"aliases\": [\"操\"], \"mentions\": [{\"text\": \"曹操\"}, {\"text\": \"操\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_002\", \"kind\": \"entity\", \"type\": \"person\", \"canonical_name\": \"周瑜\", \"aliases\": [], \"mentions\": [{\"text\": \"周瑜\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_003\", \"kind\": \"entity\", \"type\": \"place\", \"canonical_name\": \"赤壁\", \"aliases\": [], \"mentions\": [{\"text\": \"赤壁\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_004\", \"kind\": \"entity\", \"type\": \"place\", \"canonical_name\": \"江陵\", \"aliases\": [], \"mentions\": [{\"text\": \"江陵\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"events\": [{\"temp_id\": \"evt_001\", \"kind\": \"event\", \"type\": \"battle\", \"title\": \"赤壁之戰\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}, {\"entity_ref\": \"ent_002\", \"role\": \"commander\"}], \"places\": [\"ent_003\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_002\", \"kind\": \"event\", \"type\": \"movement\", \"title\": \"屯江陵\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}], \"places\": [\"ent_004\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_003\", \"kind\": \"event\", \"type\": \"retreat\", \"title\": \"退兵\", \"summary\": null, \"time\": null, \"participants\": [], \"places\": [], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_004\", \"kind\": \"event\", \"type\": \"military\", \"title\": \"觀兵\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}], \"places\": [\"ent_003\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"claims\": [{\"temp_id\": \"clm_001\", \"kind\": \"claim\", \"subject\": {\"kind\": \"entity\", \"ref\": \"ent_001\"}, \"predicate\": \"stationed_at\", \"object\": {\"kind\": \"entity\", \"ref\": \"ent_004\"}, \"time\": null, \"evidence\": {\"text\": \"曹操屯江陵\", \"source_ref\": \"src_001\", \"locator\": {}}, \"assessment\": {\"status\": \"unassessed\", \"note\": null}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"warnings\": []}, \"translation\": {\"language\": \"zh-CN\", \"blocks\": [{\"block_id\": \"t_001\", \"text\": \"建安十三年，曹操屯兵江陵。\", \"source_block_ids\": [\"b_001\"], \"entity_refs\": [{\"kind\": \"entity\", \"ref\": \"ent_001\"}, {\"kind\": \"entity\", \"ref\": \"ent_004\"}], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_002\"}]}, {\"block_id\": \"t_002\", \"text\": \"𠀋操在赤壁閱兵；周瑜在赤壁擊敗曹操。\", \"source_block_ids\": [\"b_002\", \"b_003\"], \"entity_refs\": [{\"kind\": \"entity\", \"ref\": \"ent_001\"}, {\"kind\": \"entity\", \"ref\": \"ent_002\"}, {\"kind\": \"entity\", \"ref\": \"ent_003\"}], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_004\"}, {\"kind\": \"event\", \"ref\": \"evt_001\"}]}, {\"block_id\": \"t_003\", \"text\": \"其人聽聞後君王下令退兵。\", \"source_block_ids\": [\"b_004\"], \"entity_refs\": [], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_003\"}]}]}, \"mentions\": [{\"mention_id\": \"m_001\", \"surface\": \"曹操\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_001\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 1}}, {\"mention_id\": \"m_002\", \"surface\": \"操\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_001\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_002\", \"quote\": \"操\", \"occurrence\": 2}}, {\"mention_id\": \"m_003\", \"surface\": \"周瑜\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_002\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}}, {\"mention_id\": \"m_004\", \"surface\": \"赤壁\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_003\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}}, {\"mention_id\": \"m_005\", \"surface\": \"江陵\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_004\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}}], \"record_sources\": [{\"record_ref\": \"ent_001\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 99}, {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_002\", \"quote\": \"操\", \"occurrence\": 2}]}, {\"record_ref\": \"ent_002\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}]}, {\"record_ref\": \"ent_003\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"ent_004\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_001\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_002\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操屯江陵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_003\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_004\", \"last_block_id\": \"b_004\", \"quote\": \"王命退兵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_004\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"操觀兵赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"clm_001\", \"record_kind\": \"claim\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操屯江陵\", \"occurrence\": 1}]}], \"reading\": {\"units\": [{\"block_id\": \"t_001\", \"narrative_time\": {\"mode\": \"events\", \"event_refs\": [\"evt_002\"], \"from_block_id\": null, \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"建安十三年\", \"occurrence\": 1}]}, \"current_event_refs\": [\"evt_002\"], \"event_spans\": [], \"context_entities\": [{\"entity_ref\": \"ent_001\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_002\", \"participant_index\": 0}]}, {\"entity_ref\": \"ent_004\", \"importance\": \"other\", \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}], \"event_roles\": []}]}, {\"block_id\": \"t_002\", \"narrative_time\": {\"mode\": \"events\", \"event_refs\": [\"evt_004\", \"evt_001\"], \"from_block_id\": null, \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"觀兵赤壁\", \"occurrence\": 1}]}, \"current_event_refs\": [\"evt_004\", \"evt_001\"], \"event_spans\": [{\"span_id\": \"es_001\", \"selection\": {\"quote\": \"閱兵\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_004\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"操觀兵赤壁\", \"occurrence\": 1}]}, {\"span_id\": \"es_002\", \"selection\": {\"quote\": \"赤壁\", \"occurrence\": 2}, \"status\": \"resolved\", \"target_ref\": \"evt_001\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}]}, {\"span_id\": \"es_003\", \"selection\": {\"quote\": \"𠀋操\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_004\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"𠀋操觀兵赤壁\", \"occurrence\": 1}]}], \"context_entities\": [{\"entity_ref\": \"ent_001\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_001\", \"participant_index\": 0}]}, {\"entity_ref\": \"ent_002\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_001\", \"participant_index\": 1}]}, {\"entity_ref\": \"ent_003\", \"importance\": \"other\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}], \"event_roles\": []}]}, {\"block_id\": \"t_003\", \"narrative_time\": {\"mode\": \"unknown\", \"event_refs\": [], \"from_block_id\": null, \"source_selections\": []}, \"current_event_refs\": [], \"event_spans\": [{\"span_id\": \"es_004\", \"selection\": {\"quote\": \"退兵\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_003\", \"candidate_refs\": [], \"relation\": \"uncertain\", \"source_selections\": [{\"first_block_id\": \"b_004\", \"last_block_id\": \"b_004\", \"quote\": \"王命退兵\", \"occurrence\": 1}]}], \"context_entities\": []}], \"warnings\": []}, \"warnings\": [{\"type\": \"temporal_boundary\", \"severity\": \"info\", \"message\": \"contract fixture only\", \"refs\": []}]}",
+        "raw_response_chars": 10840,
+        "raw_response_bytes": 11241,
+        "raw_response_sha256": "eec98b8361b03050bdd3f91df498036563b1ff84554b75c86a8c966ea5c18e44",
+        "latency_ms": 0,
+        "parse_error": null,
+        "transport_error": null,
+        "validation": {
+          "schema": "chronicle.reading-validation",
+          "version": "0.1",
+          "candidate_schema": "chronicle.chapter-candidate",
+          "candidate_version": "0.2",
+          "passed": false,
+          "count": 1,
+          "errors": {
+            "schema_validation": [],
+            "chapter": [
+              "anchors: record_sources 'ent_001'[1] quote occurs 1 time(s) in ['b_001'..'b_001'] but occurrence=99 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_001': re-point first/last_block_id to the enclosing block(s) and recount"
+            ],
+            "reading_coverage": [],
+            "reading_refs": [],
+            "reading_time": [],
+            "reading_spans": [],
+            "reading_context": [],
+            "limits": [],
+            "canonical_id": []
+          }
+        },
+        "candidate": {
+          "schema": "chronicle.chapter-candidate",
+          "version": "0.2",
+          "chapter_id": "ch_756922e9af0d759d29d7475f",
+          "bundle": {
+            "schema_version": "0.1",
+            "source": {
+              "temp_id": "src_001",
+              "kind": "source",
+              "source_type": "book",
+              "title": "contract fixture",
+              "author": null,
+              "language": "zh-CN",
+              "edition": null,
+              "citation": null,
+              "url": null,
+              "metadata": {},
+              "extraction": {
+                "method": "model",
+                "job_id": "c2r2-contract",
+                "confidence": 0.9
+              }
+            },
+            "entities": [
+              {
+                "temp_id": "ent_001",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "曹操",
+                "aliases": [
+                  "操"
+                ],
+                "mentions": [
+                  {
+                    "text": "曹操"
+                  },
+                  {
+                    "text": "操"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_002",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "周瑜",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "周瑜"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_003",
+                "kind": "entity",
+                "type": "place",
+                "canonical_name": "赤壁",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "赤壁"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_004",
+                "kind": "entity",
+                "type": "place",
+                "canonical_name": "江陵",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "江陵"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "events": [
+              {
+                "temp_id": "evt_001",
+                "kind": "event",
+                "type": "battle",
+                "title": "赤壁之戰",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  },
+                  {
+                    "entity_ref": "ent_002",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_003"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_002",
+                "kind": "event",
+                "type": "movement",
+                "title": "屯江陵",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_004"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_003",
+                "kind": "event",
+                "type": "retreat",
+                "title": "退兵",
+                "summary": null,
+                "time": null,
+                "participants": [],
+                "places": [],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_004",
+                "kind": "event",
+                "type": "military",
+                "title": "觀兵",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_003"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "claims": [
+              {
+                "temp_id": "clm_001",
+                "kind": "claim",
+                "subject": {
+                  "kind": "entity",
+                  "ref": "ent_001"
+                },
+                "predicate": "stationed_at",
+                "object": {
+                  "kind": "entity",
+                  "ref": "ent_004"
+                },
+                "time": null,
+                "evidence": {
+                  "text": "曹操屯江陵",
+                  "source_ref": "src_001",
+                  "locator": {}
+                },
+                "assessment": {
+                  "status": "unassessed",
+                  "note": null
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "warnings": []
+          },
+          "translation": {
+            "language": "zh-CN",
+            "blocks": [
+              {
+                "block_id": "t_001",
+                "text": "建安十三年，曹操屯兵江陵。",
+                "source_block_ids": [
+                  "b_001"
+                ],
+                "entity_refs": [
+                  {
+                    "kind": "entity",
+                    "ref": "ent_001"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_004"
+                  }
+                ],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_002"
+                  }
+                ]
+              },
+              {
+                "block_id": "t_002",
+                "text": "𠀋操在赤壁閱兵；周瑜在赤壁擊敗曹操。",
+                "source_block_ids": [
+                  "b_002",
+                  "b_003"
+                ],
+                "entity_refs": [
+                  {
+                    "kind": "entity",
+                    "ref": "ent_001"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_002"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_003"
+                  }
+                ],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_004"
+                  },
+                  {
+                    "kind": "event",
+                    "ref": "evt_001"
+                  }
+                ]
+              },
+              {
+                "block_id": "t_003",
+                "text": "其人聽聞後君王下令退兵。",
+                "source_block_ids": [
+                  "b_004"
+                ],
+                "entity_refs": [],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_003"
+                  }
+                ]
+              }
+            ]
+          },
+          "mentions": [
+            {
+              "mention_id": "m_001",
+              "surface": "曹操",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_001",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "曹操",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_002",
+              "surface": "操",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_001",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_002",
+                "quote": "操",
+                "occurrence": 2
+              }
+            },
+            {
+              "mention_id": "m_003",
+              "surface": "周瑜",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_002",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_003",
+                "last_block_id": "b_003",
+                "quote": "周瑜",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_004",
+              "surface": "赤壁",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_003",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_002",
+                "last_block_id": "b_002",
+                "quote": "赤壁",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_005",
+              "surface": "江陵",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_004",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "江陵",
+                "occurrence": 1
+              }
+            }
+          ],
+          "record_sources": [
+            {
+              "record_ref": "ent_001",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操",
+                  "occurrence": 99
+                },
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_002",
+                  "quote": "操",
+                  "occurrence": 2
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_002",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_003",
+                  "last_block_id": "b_003",
+                  "quote": "周瑜",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_003",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_004",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "江陵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_001",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_003",
+                  "quote": "敗操於赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_002",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操屯江陵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_003",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_004",
+                  "last_block_id": "b_004",
+                  "quote": "王命退兵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_004",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "操觀兵赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "clm_001",
+              "record_kind": "claim",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操屯江陵",
+                  "occurrence": 1
+                }
+              ]
+            }
+          ],
+          "reading": {
+            "units": [
+              {
+                "block_id": "t_001",
+                "narrative_time": {
+                  "mode": "events",
+                  "event_refs": [
+                    "evt_002"
+                  ],
+                  "from_block_id": null,
+                  "source_selections": [
+                    {
+                      "first_block_id": "b_001",
+                      "last_block_id": "b_001",
+                      "quote": "建安十三年",
+                      "occurrence": 1
+                    }
+                  ]
+                },
+                "current_event_refs": [
+                  "evt_002"
+                ],
+                "event_spans": [],
+                "context_entities": [
+                  {
+                    "entity_ref": "ent_001",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_001",
+                        "last_block_id": "b_001",
+                        "quote": "曹操",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_002",
+                        "participant_index": 0
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_004",
+                    "importance": "other",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_001",
+                        "last_block_id": "b_001",
+                        "quote": "江陵",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": []
+                  }
+                ]
+              },
+              {
+                "block_id": "t_002",
+                "narrative_time": {
+                  "mode": "events",
+                  "event_refs": [
+                    "evt_004",
+                    "evt_001"
+                  ],
+                  "from_block_id": null,
+                  "source_selections": [
+                    {
+                      "first_block_id": "b_002",
+                      "last_block_id": "b_003",
+                      "quote": "觀兵赤壁",
+                      "occurrence": 1
+                    }
+                  ]
+                },
+                "current_event_refs": [
+                  "evt_004",
+                  "evt_001"
+                ],
+                "event_spans": [
+                  {
+                    "span_id": "es_001",
+                    "selection": {
+                      "quote": "閱兵",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_004",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "操觀兵赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  },
+                  {
+                    "span_id": "es_002",
+                    "selection": {
+                      "quote": "赤壁",
+                      "occurrence": 2
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_001",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_003",
+                        "quote": "敗操於赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  },
+                  {
+                    "span_id": "es_003",
+                    "selection": {
+                      "quote": "𠀋操",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_004",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "𠀋操觀兵赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  }
+                ],
+                "context_entities": [
+                  {
+                    "entity_ref": "ent_001",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_003",
+                        "quote": "敗操於赤壁",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_001",
+                        "participant_index": 0
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_002",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_003",
+                        "last_block_id": "b_003",
+                        "quote": "周瑜",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_001",
+                        "participant_index": 1
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_003",
+                    "importance": "other",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "赤壁",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": []
+                  }
+                ]
+              },
+              {
+                "block_id": "t_003",
+                "narrative_time": {
+                  "mode": "unknown",
+                  "event_refs": [],
+                  "from_block_id": null,
+                  "source_selections": []
+                },
+                "current_event_refs": [],
+                "event_spans": [
+                  {
+                    "span_id": "es_004",
+                    "selection": {
+                      "quote": "退兵",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_003",
+                    "candidate_refs": [],
+                    "relation": "uncertain",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_004",
+                        "last_block_id": "b_004",
+                        "quote": "王命退兵",
+                        "occurrence": 1
+                      }
+                    ]
+                  }
+                ],
+                "context_entities": []
+              }
+            ],
+            "warnings": []
+          },
+          "warnings": [
+            {
+              "type": "temporal_boundary",
+              "severity": "info",
+              "message": "contract fixture only",
+              "refs": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "correction",
+        "prompt": "You are Chronicle whole-chapter joint translation and extraction. Return exactly one compact JSON object and no prose/Markdown.\n\nJOINT PRODUCT SHAPE (field names are exact; this is shape guidance, not source facts)\nEmit exactly one JSON object with schema=\"chronicle.chapter-candidate\", version=\"0.2\",\nand chapter_id copied verbatim from CHAPTER REQUEST. Required top-level keys:\nbundle, translation, mentions, record_sources, reading, warnings.\nbundle: {schema_version:\"0.1\", source, entities[], events[], claims[], warnings[]}.\nUse temp_id only (src_*/ent_*/evt_*/clm_*), numbered sequentially from 001\nwithin each kind (ent_001, ent_002, ...; the numeric part must stay within\n000-999 so assembly can remap it); NEVER emit canonical `id`,\ncanonical_id, or candidate_ids.\nsource: {temp_id:\"src_*\", kind:\"source\", source_type, title, language, extraction}.\nentity: {temp_id:\"ent_*\", kind:\"entity\", type, canonical_name, aliases[], mentions:[{text}],\n  resolution:{status:\"unresolved\"}, extraction}.\nevent: {temp_id:\"evt_*\", kind:\"event\", type, title, time, participants:[{entity_ref,role}],\n  places:[entity-temp-id,...], parent_event_ref, extraction}.\nclaim: {temp_id:\"clm_*\", kind:\"claim\", subject:{kind,ref}, predicate,\n  object:{kind,ref}|{kind:literal,value}, time,\n  evidence:{text,source_ref,locator}, assessment:{status:\"unassessed\"}, extraction}.\n  subject/object entity|event references are {kind,ref} naming an existing\n  temp_id; a non-entity/event claim object is {kind:literal,value} with the\n  literal text in value (never a ref key, never a bare string).\n  subject must not be a literal.\ntranslation: {language:\"zh-CN\", blocks:[{block_id, text, source_block_ids[],\n  entity_refs:[{kind:\"entity\",ref}], event_refs:[{kind:\"event\",ref}]}]}.\nEvery translation block needs a unique block_id, non-empty text, and a non-empty\nsource_block_ids[] naming chapter blocks. Array order is meaningful.\nmentions[]: {mention_id, surface, contextual, status, target_ref, candidate_refs[], selection}.\nselection: {first_block_id, last_block_id, quote, occurrence} — both blocks in this\nchapter in legal order; quote matches the covered source text verbatim; occurrence\ncounts from 1 within that window.\nrecord_sources[]: {record_ref, record_kind, selections[]} — every Entity/Event/Claim\nneeds a non-empty selections[] entry; claim evidence.text must equal its first\nselection quote and evidence.source_ref must name the bundle source.\nwarnings[]: {type, message} — a warning never substitutes for structural validity.\nextraction: {method:\"model\", job_id, confidence}. time: null OR\n{original_text, source_calendar:{system,era?,era_year?,month?,day?,inherited_fields:[]},\n normalized:null|{calendar, year, month, day, precision, conversion_status}}.\nAllowed entity.type: person, place, polity, organization, army, office, group, other.\nAllowed event.type: political, administrative, military, battle, movement, retreat,\ndeath, birth, succession, appointment, surrender, diplomatic, epidemic,\nterritorial_change, economic, cultural, other.\nsource_calendar.system: chinese_lunisolar_regnal, proleptic_gregorian, unknown.\npredicate uses snake_case (for example stationed_at); claim subject must not be a literal.\nDo NOT copy CHAPTER REQUEST metadata keys (block kinds, hashes, limits) into records.\n\nREADING ANNOTATION SHAPE (0.2 only; every unit is explained by the WHOLE chapter)\nAdd one top-level \"reading\" object beside bundle/translation/mentions/record_sources:\nreading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per\ntranslation block, in the SAME order, no missing or duplicate block_id.\nRead the whole chapter before producing the joint product. Carry its supported\npersons, places, polities and coherent events into the bundle and translation refs,\nthen annotate the translated passages using those same refs. Unknown dates do not\nerase the people or places a passage clearly identifies. Empty arrays are legitimate\nonly where that passage supplies no supported object or event phrase; they are not\na shortcut for an entire biography, campaign, or annalistic chapter.\nUse natural paragraph breaks at changes of narrative time or action, usually 80-500\nChinese characters; longer quotations may remain together. This is one whole-chapter\nresponse, never independent paragraph translations. Do not create an Event for each\nparagraph or turn minor details into navigation anchors.\nParagraph length is a layout guide, NOT a chapter-length limit: create as many\nparagraphs as the complete source needs. Listing a source_block_id does not translate\nthat block. Preserve the full content of speeches, letters, memorials, decrees and\nembedded annotations, including each argument and its attribution. Do not replace\nthem with statements such as \"群臣上表劝进\" or \"史书有不同记载\". Those are summaries,\nnot translations of the actual memorial or each cited account.\nSOURCE DATE FIELDS: in each non-null Event.time.source_calendar, return system, era,\nera_year, season, month, day, inherited_fields. Use null for unsupported components;\nseason is spring|summer|autumn|winter|null, month is 1..12|null, day may preserve a\nsource sexagenary label. Preserve the regnal era/year even without a Gregorian\nconversion (normalized may be null). A date heading may govern the following main\nnarrative in this same chapter until an explicit transition; record context-derived\ncomponents in inherited_fields and ground them in the actual source. Missing a\nrepeated year is not by itself evidence that the chapter leaves the date unknown.\nKeep time.original_text a VERBATIM temporal expression; never stitch a new date\nphrase from separate source passages. Do not borrow dates from cited flashbacks or\ninvent a Gregorian year/month/day. A genuinely undated event keeps time null.\nreading unit (field names are exact):\n  block_id: the translation block this unit annotates.\n  narrative_time: {mode, event_refs[], from_block_id, source_selections[]}.\n    mode \"events\":  the block narrates current events; event_refs lists the events whose\n      own source time is observed here, and must be non-empty and a subset of\n      current_event_refs; from_block_id is null.\n    mode \"inherit\": the block continues an earlier block's time; from_block_id names an\n      EARLIER block of THIS chapter; BOTH event_refs and current_event_refs are empty,\n      and event_roles must also be empty. The chain must end at an \"events\" block.\n      If this block narrates a dated event with current_event_refs, use \"events\"\n      instead. Inherit only a source-supported continuation, never a convenient date.\n    mode \"mixed\":   the block deliberately observes several current events at once;\n      event_refs lists every current_event_ref and there are at least two.\n    mode \"unknown\": the block has no usable time; event_refs and current_event_refs are\n      empty, from_block_id null, source_selections empty.\n    Do NOT invent Gregorian time. Keep the event's own source_calendar fields and\n    verbatim original_text distinct as described above; when the event has\n    no usable time keep it unknown rather than defaulting to a nearby year. A\n    retrospective / foreshadow / background span never supplies the unit's current time.\n    source_selections must contain 1..16 verbatim source selections for non-unknown\n    modes and be empty for unknown.\n  current_event_refs: ONLY the events this block is currently narrating (not every event\n    mentioned); each must be an existing evt_* in this block's translation event_refs.\n  event_spans: a list of {span_id, selection, status, target_ref, candidate_refs,\n    relation, source_selections}. span_id is es_001, es_002, ... Each span points at the\n    exact words in THIS translation block: selection = {quote, occurrence} where quote\n    is copied character-for-character from that unit's translated block text and\n    occurrence counts from 1 within that block. status resolved (single target_ref,\n    no candidate_refs) | ambiguous (target_ref null, >=2 candidate_refs) | unresolved\n    (target_ref null). relation is current | retrospective | foreshadow | background |\n    uncertain. Spans must not overlap each other and must not rewrite the block text.\n    source_selections (1..16) support the span from the ORIGINAL source. Select the\n    translated event name or short occurrence phrase (for example a supported\n    battle phrase), not a bare person's name as a proxy for that person's event.\n    Include a grounded event phrase when present; use [] if none is supported.\n  context_entities: a list of {entity_ref, importance, source_selections,\n    event_roles}. entity_ref is an existing ent_* supported by this block's\n    entity_refs or by a current event's participants/places; importance is primary|other.\n    source_selections (1..16) prove the source supports this object in this block.\n    event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref\n    and participant_index is that entity's original participant position in the event\n    (0-based); the program copies the role text from the participant record, so never\n    write a role string yourself. Find the event whose temp_id equals event_ref,\n    then verify event.participants[participant_index].entity_ref equals this\n    context entity_ref. Index 0 is not a default. A place in event.places is NOT a\n    participant; keep event_roles [] unless that same entity actually occurs in the\n    event's participants array. Include the main people/places actually involved\n    here, even when narrative_time is unknown or inherit (then event_roles is []).\n    Do not include every chapter entity or promote someone mentioned only as distant\n    background to primary. Use [] where this passage has no supported context entity.\n  Never drop the unit, invent a canonical ID, or move a reading annotation to a\n  later page/request. When correcting a failure, retain all supported events,\n  context entities and spans; repair the faulty references/selections rather than\n  emptying the arrays to avoid validation.\nCOORDINATE / ID DISCIPLINE: the model writes only block_id, evt_*/ent_* temp refs, span\nids (es_*) and {quote, occurrence} selections. Never write start/end offsets, unit_id,\nstream_id, canonical_id, UUIDs, or URLs — the program computes all coordinates and IDs.\nREADING UNIT EXAMPLE (shape only):\n{\"block_id\":\"t_001\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_001\"],\n \"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\n \"quote\":\"建安十三年\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_001\"],\n \"event_spans\":[{\"span_id\":\"es_001\",\"selection\":{\"quote\":\"进驻江陵\",\"occurrence\":1},\n \"status\":\"resolved\",\"target_ref\":\"evt_001\",\"candidate_refs\":[],\"relation\":\"current\",\n \"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"屯江陵\",\n \"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\n \"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"曹操\",\n \"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":0}]}]}\nFULL-TEXT SCALE: this chapter contains 36 source characters and 4 required source blocks. A full modern-Chinese translation normally needs comparable or greater space. A much shorter overview is not an acceptable whole-chapter product. Complete the entire translation first, then annotate it; never trade away source passages to fit the bundle or reading metadata into the response.\n\n\nSAME-CHAPTER REFERENCE RULES\n- One confirmed appellation shares one local temp_id within this chapter: when the\n  chapter confirms 曹操 and 操 name the same person, both mentions resolve to the\n  same Entity (target_ref points at one ent_* record; aliases need chapter-text support).\n- An unresolvable reference stays unresolved: use status \"unresolved\" with\n  target_ref null (candidate_refs may be empty). A genuinely ambiguous surface\n  uses status \"ambiguous\" with target_ref null and at least two valid\n  candidate_refs. Never force an uncertain surface onto the most familiar person.\n- Prefer resolved over unresolved whenever the chapter confirms the referent:\n  if the chapter text confirms who or what a mention denotes (for example\n  先主 in 先主傳, or 曹公/操 where the chapter confirms 曹操), resolve the\n  mention to that Entity with target_ref. Reserve \"unresolved\" strictly for\n  references the chapter genuinely leaves unidentified; hedging every mention\n  as unresolved when referents are confirmed evades the linkage the bundle\n  exists to record.\n- Contextual forms such as 公 / 王 stay contextual mentions; they must not become\n  stable global aliases of any Entity.\n- Every mention surface must equal its selection.quote exactly.\n  surface is the mention occurrence text, never the entity display name:\n  copy selection.quote character-for-character into surface (a quote\n  '曹公征徐州' takes surface '曹公征徐州', not '曹公'; a quote '備' takes\n  surface '備', not '劉備'). A shortened, expanded, or normalized surface\n  is a grounding failure even when it names the right person.\n- Entity resolution stays unresolved in this product: emit\n  resolution:{status:\"unresolved\"} on every entity. Never invent\n  canonical_id, candidate_ids, or another status value such as \"new\";\n  identity is decided later in Studio review, never in this chapter product.\n\nFULL-TEXT FAITHFUL TRANSLATION RULES\n- Translate the WHOLE chapter body text and every embedded annotation that exists\n  in the source, in order. Do not substitute an introductory summary for the full\n  text, and do not drop the tail of the chapter.\n- Keep attribution: renderings such as 某书记载 / 裴松之按 stay with the passage\n  they belong to. Never rewrite a cited book's view or disagreement as the\n  author's own assertion.\n- Keep persons/places/polities, event time and participant roles, and source\n  evidence grounded in the chapter text. Every required source block listed in\n  REQUIRED BLOCKS must appear in at least one translation block's source_block_ids.\n- Separate an occurrence from a detail about it. Keep one coherent battle,\n  campaign, diplomatic episode, or political transition together when the\n  chapter supports that scope; do not create a separate Event for every sentence,\n  quotation, evaluation, or background state. A person's office or a place's\n  affiliation may be a Claim on that Entity without inventing a new Event.\n  Distinct occurrences must remain distinct; do not merge merely because a\n  broader title looks cleaner. Preserve source-supported subordinate episodes\n  with parent_event_ref where appropriate.\n- Extraction records are not public navigation anchors. Important reader entry\n  points are selected and reviewed later from the synthesized narrative; do not\n  label every appointment, remark, or minor movement as a major event.\n- Time precision is never invented: normalized month/day stay null; a normalized\n  year appears only with an exact verified source mapping, otherwise null.\n- VERBATIM GROUNDING PROCEDURE (no exceptions):\n  (a) every selection.quote (mentions and record_sources alike) must be copied\n  character-for-character from CHAPTER BLOCKS or FULL CHAPTER TEXT; never\n  paraphrase, abbreviate, merge, or complete a passage, and never emit a quote\n  you cannot find as an exact substring;\n  (b) set first_block_id/last_block_id to the block(s) whose [start:end) range\n  actually encloses the quote, in legal order; count occurrence only inside\n  that window; never guess a block id;\n  (c) time.original_text must be the temporal expression EXACTLY as written in\n  the source: do NOT prepend or append era, year, season, month, day, or 干支\n  from surrounding context. Context-derived fields belong ONLY in\n  source_calendar (era/era_year/month/day) and inherited_fields; anything not\n  verbatim must not appear in original_text.\n  (d) never convert script forms: the chapter source is Traditional; every\n  quote, mention surface, alias, and time.original_text must reuse the exact\n  source characters. A Simplified character where the source has Traditional\n  (or vice versa) is a grounding failure, not a spelling variant.\n\nCORRECTION RE-ASK\nThe prior chapter product failed deterministic validation. Return one complete corrected chapter product covering the SAME whole chapter below: full faithful translation plus the joint bundle, mentions, record_sources and reading annotations. Repair every listed issue. Do NOT translate only the failed segment and splice it back, and do NOT drop the chapter tail.\nFIDELITY: 43 characters is the previous draft's length, not evidence that it translates the whole chapter. Keep every faithful translated passage, its block_id and order. A reference-validation report does not certify completeness: check the entire source again and expand any omitted or condensed passages, including quoted documents and annotations. Update dependent reading annotations if expansion is necessary. Never shorten the translation while repairing references.\nVALIDATION DIAGNOSTICS\n[\"chapter: anchors: record_sources 'ent_001'[1] quote: 1 matches in ['b_001'..'b_001'], occurrence=99; 1 chapter matches, first block='b_001'\"]\nPREVIOUS CANDIDATE\n{\"bundle\":{\"claims\":[{\"assessment\":{\"note\":null,\"status\":\"unassessed\"},\"evidence\":{\"locator\":{},\"source_ref\":\"src_001\",\"text\":\"曹操屯江陵\"},\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"claim\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_004\"},\"predicate\":\"stationed_at\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"temp_id\":\"clm_001\",\"time\":null}],\"entities\":[{\"aliases\":[\"操\"],\"attributes\":{},\"canonical_name\":\"曹操\",\"description\":null,\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"entity\",\"mentions\":[{\"text\":\"曹操\"},{\"text\":\"操\"}],\"resolution\":{\"status\":\"unresolved\"},\"temp_id\":\"ent_001\",\"type\":\"person\"},{\"aliases\":[],\"attributes\":{},\"canonical_name\":\"周瑜\",\"description\":null,\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"entity\",\"mentions\":[{\"text\":\"周瑜\"}],\"resolution\":{\"status\":\"unresolved\"},\"temp_id\":\"ent_002\",\"type\":\"person\"},{\"aliases\":[],\"attributes\":{},\"canonical_name\":\"赤壁\",\"description\":null,\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"entity\",\"mentions\":[{\"text\":\"赤壁\"}],\"resolution\":{\"status\":\"unresolved\"},\"temp_id\":\"ent_003\",\"type\":\"place\"},{\"aliases\":[],\"attributes\":{},\"canonical_name\":\"江陵\",\"description\":null,\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"entity\",\"mentions\":[{\"text\":\"江陵\"}],\"resolution\":{\"status\":\"unresolved\"},\"temp_id\":\"ent_004\",\"type\":\"place\"}],\"events\":[{\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"event\",\"parent_event_ref\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"},{\"entity_ref\":\"ent_002\",\"role\":\"commander\"}],\"places\":[\"ent_003\"],\"summary\":null,\"temp_id\":\"evt_001\",\"time\":{\"normalized\":{\"approximate\":false,\"calendar\":\"proleptic_gregorian\",\"conversion_status\":\"unresolved\",\"day\":null,\"month\":null,\"precision\":\"unknown\",\"year\":null},\"original_text\":\"建安十三年\",\"source_calendar\":{\"day\":null,\"era\":\"建安\",\"era_year\":13,\"inherited_fields\":[],\"month\":null,\"season\":null,\"system\":\"chinese_lunisolar_regnal\"}},\"title\":\"赤壁之戰\",\"type\":\"battle\"},{\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"event\",\"parent_event_ref\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"}],\"places\":[\"ent_004\"],\"summary\":null,\"temp_id\":\"evt_002\",\"time\":{\"normalized\":{\"approximate\":false,\"calendar\":\"proleptic_gregorian\",\"conversion_status\":\"unresolved\",\"day\":null,\"month\":null,\"precision\":\"unknown\",\"year\":null},\"original_text\":\"建安十三年\",\"source_calendar\":{\"day\":null,\"era\":\"建安\",\"era_year\":13,\"inherited_fields\":[],\"month\":null,\"season\":null,\"system\":\"chinese_lunisolar_regnal\"}},\"title\":\"屯江陵\",\"type\":\"movement\"},{\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"event\",\"parent_event_ref\":null,\"participants\":[],\"places\":[],\"summary\":null,\"temp_id\":\"evt_003\",\"time\":null,\"title\":\"退兵\",\"type\":\"retreat\"},{\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"event\",\"parent_event_ref\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"}],\"places\":[\"ent_003\"],\"summary\":null,\"temp_id\":\"evt_004\",\"time\":{\"normalized\":{\"approximate\":false,\"calendar\":\"proleptic_gregorian\",\"conversion_status\":\"unresolved\",\"day\":null,\"month\":null,\"precision\":\"unknown\",\"year\":null},\"original_text\":\"建安十三年\",\"source_calendar\":{\"day\":null,\"era\":\"建安\",\"era_year\":13,\"inherited_fields\":[],\"month\":null,\"season\":null,\"system\":\"chinese_lunisolar_regnal\"}},\"title\":\"觀兵\",\"type\":\"military\"}],\"schema_version\":\"0.1\",\"source\":{\"author\":null,\"citation\":null,\"edition\":null,\"extraction\":{\"confidence\":0.9,\"job_id\":\"c2r2-contract\",\"method\":\"model\"},\"kind\":\"source\",\"language\":\"zh-CN\",\"metadata\":{},\"source_type\":\"book\",\"temp_id\":\"src_001\",\"title\":\"contract fixture\",\"url\":null},\"warnings\":[]},\"chapter_id\":\"ch_756922e9af0d759d29d7475f\",\"mentions\":[{\"candidate_refs\":[],\"contextual\":false,\"mention_id\":\"m_001\",\"selection\":{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"曹操\"},\"status\":\"resolved\",\"surface\":\"曹操\",\"target_ref\":\"ent_001\"},{\"candidate_refs\":[],\"contextual\":false,\"mention_id\":\"m_002\",\"selection\":{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_002\",\"occurrence\":2,\"quote\":\"操\"},\"status\":\"resolved\",\"surface\":\"操\",\"target_ref\":\"ent_001\"},{\"candidate_refs\":[],\"contextual\":false,\"mention_id\":\"m_003\",\"selection\":{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"周瑜\"},\"status\":\"resolved\",\"surface\":\"周瑜\",\"target_ref\":\"ent_002\"},{\"candidate_refs\":[],\"contextual\":false,\"mention_id\":\"m_004\",\"selection\":{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"赤壁\"},\"status\":\"resolved\",\"surface\":\"赤壁\",\"target_ref\":\"ent_003\"},{\"candidate_refs\":[],\"contextual\":false,\"mention_id\":\"m_005\",\"selection\":{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"江陵\"},\"status\":\"resolved\",\"surface\":\"江陵\",\"target_ref\":\"ent_004\"}],\"reading\":{\"units\":[{\"block_id\":\"t_001\",\"context_entities\":[{\"entity_ref\":\"ent_001\",\"event_roles\":[{\"event_ref\":\"evt_002\",\"participant_index\":0}],\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"曹操\"}]},{\"entity_ref\":\"ent_004\",\"event_roles\":[],\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"江陵\"}]}],\"current_event_refs\":[\"evt_002\"],\"event_spans\":[],\"narrative_time\":{\"event_refs\":[\"evt_002\"],\"from_block_id\":null,\"mode\":\"events\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"建安十三年\"}]}},{\"block_id\":\"t_002\",\"context_entities\":[{\"entity_ref\":\"ent_001\",\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":0}],\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"敗操於赤壁\"}]},{\"entity_ref\":\"ent_002\",\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":1}],\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"周瑜\"}]},{\"entity_ref\":\"ent_003\",\"event_roles\":[],\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"赤壁\"}]}],\"current_event_refs\":[\"evt_004\",\"evt_001\"],\"event_spans\":[{\"candidate_refs\":[],\"relation\":\"current\",\"selection\":{\"occurrence\":1,\"quote\":\"閱兵\"},\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"操觀兵赤壁\"}],\"span_id\":\"es_001\",\"status\":\"resolved\",\"target_ref\":\"evt_004\"},{\"candidate_refs\":[],\"relation\":\"current\",\"selection\":{\"occurrence\":2,\"quote\":\"赤壁\"},\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"敗操於赤壁\"}],\"span_id\":\"es_002\",\"status\":\"resolved\",\"target_ref\":\"evt_001\"},{\"candidate_refs\":[],\"relation\":\"current\",\"selection\":{\"occurrence\":1,\"quote\":\"𠀋操\"},\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"𠀋操觀兵赤壁\"}],\"span_id\":\"es_003\",\"status\":\"resolved\",\"target_ref\":\"evt_004\"}],\"narrative_time\":{\"event_refs\":[\"evt_004\",\"evt_001\"],\"from_block_id\":null,\"mode\":\"events\",\"source_selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"觀兵赤壁\"}]}},{\"block_id\":\"t_003\",\"context_entities\":[],\"current_event_refs\":[],\"event_spans\":[{\"candidate_refs\":[],\"relation\":\"uncertain\",\"selection\":{\"occurrence\":1,\"quote\":\"退兵\"},\"source_selections\":[{\"first_block_id\":\"b_004\",\"last_block_id\":\"b_004\",\"occurrence\":1,\"quote\":\"王命退兵\"}],\"span_id\":\"es_004\",\"status\":\"resolved\",\"target_ref\":\"evt_003\"}],\"narrative_time\":{\"event_refs\":[],\"from_block_id\":null,\"mode\":\"unknown\",\"source_selections\":[]}}],\"warnings\":[]},\"record_sources\":[{\"record_kind\":\"entity\",\"record_ref\":\"ent_001\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":99,\"quote\":\"曹操\"},{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_002\",\"occurrence\":2,\"quote\":\"操\"}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_002\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"周瑜\"}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_003\",\"selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"赤壁\"}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_004\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"江陵\"}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_001\",\"selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_003\",\"occurrence\":1,\"quote\":\"敗操於赤壁\"}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_002\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"曹操屯江陵\"}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_003\",\"selections\":[{\"first_block_id\":\"b_004\",\"last_block_id\":\"b_004\",\"occurrence\":1,\"quote\":\"王命退兵\"}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_004\",\"selections\":[{\"first_block_id\":\"b_002\",\"last_block_id\":\"b_002\",\"occurrence\":1,\"quote\":\"操觀兵赤壁\"}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_001\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"occurrence\":1,\"quote\":\"曹操屯江陵\"}]}],\"schema\":\"chronicle.chapter-candidate\",\"translation\":{\"blocks\":[{\"block_id\":\"t_001\",\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_002\"}],\"source_block_ids\":[\"b_001\"],\"text\":\"建安十三年，曹操屯兵江陵。\"},{\"block_id\":\"t_002\",\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_002\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_004\"},{\"kind\":\"event\",\"ref\":\"evt_001\"}],\"source_block_ids\":[\"b_002\",\"b_003\"],\"text\":\"𠀋操在赤壁閱兵；周瑜在赤壁擊敗曹操。\"},{\"block_id\":\"t_003\",\"entity_refs\":[],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_003\"}],\"source_block_ids\":[\"b_004\"],\"text\":\"其人聽聞後君王下令退兵。\"}],\"language\":\"zh-CN\"},\"version\":\"0.2\",\"warnings\":[{\"message\":\"contract fixture only\",\"refs\":[],\"severity\":\"info\",\"type\":\"temporal_boundary\"}]}\n\nCHAPTER REQUEST\n{\"chapter_id\":\"ch_756922e9af0d759d29d7475f\",\"chapter_index\":0,\"document_id\":null,\"limits\":{\"max_correction_rounds\":1,\"max_output_tokens\":65536,\"max_prompt_chars\":262144,\"max_response_bytes\":4194304,\"max_response_chars\":524288,\"max_source_chars\":32768},\"normalized_sha256\":\"85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28\",\"plan_version\":\"c2r1-chapters-v1\",\"prompt_version\":\"c2r2-chapter-prompt-v4\",\"revision_id\":\"rev_c2r2_demo_001\",\"schema_versions\":{\"bundle\":\"0.1\",\"candidate\":\"0.2\"},\"source_sha256\":\"85cf2b792b639c566b2c539e185f95636efd9fd46875a031ebab0a8767343c28\",\"title\":null}\n\nREQUIRED BLOCKS (every listed block must be covered by translation source_block_ids)\n[\"b_001\",\"b_002\",\"b_003\",\"b_004\"]\n\nCHAPTER BLOCKS (the whole chapter; ranges use chars-normalized-utf8)\n[b_001 kind=body range=0:12 offset_unit=chars-normalized-utf8]\n建安十三年，曹操屯江陵。\n---END b_001---\n[b_002 kind=body range=12:19 offset_unit=chars-normalized-utf8]\n𠀋操觀兵赤壁。\n---END b_002---\n[b_003 kind=body range=19:27 offset_unit=chars-normalized-utf8]\n周瑜敗操於赤壁。\n---END b_003---\n[b_004 kind=body range=27:36 offset_unit=chars-normalized-utf8]\n公聞之，王命退兵。\n---END b_004---\n\nFULL CHAPTER TEXT (verbatim; the chapter tail below is part of the input)\n---BEGIN CHAPTER---\n建安十三年，曹操屯江陵。𠀋操觀兵赤壁。周瑜敗操於赤壁。公聞之，王命退兵。\n---END CHAPTER---\n",
+        "prompt_chars": 28365,
+        "prompt_sha256": "a2e26284afecb2a5f87527c3e49dbe754f78416c8ea6e9928d7e30ac2511cf03",
+        "raw_response": "{\"schema\": \"chronicle.chapter-candidate\", \"version\": \"0.2\", \"chapter_id\": \"ch_756922e9af0d759d29d7475f\", \"bundle\": {\"schema_version\": \"0.1\", \"source\": {\"temp_id\": \"src_001\", \"kind\": \"source\", \"source_type\": \"book\", \"title\": \"contract fixture\", \"author\": null, \"language\": \"zh-CN\", \"edition\": null, \"citation\": null, \"url\": null, \"metadata\": {}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, \"entities\": [{\"temp_id\": \"ent_001\", \"kind\": \"entity\", \"type\": \"person\", \"canonical_name\": \"曹操\", \"aliases\": [\"操\"], \"mentions\": [{\"text\": \"曹操\"}, {\"text\": \"操\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_002\", \"kind\": \"entity\", \"type\": \"person\", \"canonical_name\": \"周瑜\", \"aliases\": [], \"mentions\": [{\"text\": \"周瑜\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_003\", \"kind\": \"entity\", \"type\": \"place\", \"canonical_name\": \"赤壁\", \"aliases\": [], \"mentions\": [{\"text\": \"赤壁\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"ent_004\", \"kind\": \"entity\", \"type\": \"place\", \"canonical_name\": \"江陵\", \"aliases\": [], \"mentions\": [{\"text\": \"江陵\"}], \"description\": null, \"attributes\": {}, \"resolution\": {\"status\": \"unresolved\"}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"events\": [{\"temp_id\": \"evt_001\", \"kind\": \"event\", \"type\": \"battle\", \"title\": \"赤壁之戰\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}, {\"entity_ref\": \"ent_002\", \"role\": \"commander\"}], \"places\": [\"ent_003\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_002\", \"kind\": \"event\", \"type\": \"movement\", \"title\": \"屯江陵\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}], \"places\": [\"ent_004\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_003\", \"kind\": \"event\", \"type\": \"retreat\", \"title\": \"退兵\", \"summary\": null, \"time\": null, \"participants\": [], \"places\": [], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}, {\"temp_id\": \"evt_004\", \"kind\": \"event\", \"type\": \"military\", \"title\": \"觀兵\", \"summary\": null, \"time\": {\"original_text\": \"建安十三年\", \"source_calendar\": {\"system\": \"chinese_lunisolar_regnal\", \"era\": \"建安\", \"era_year\": 13, \"season\": null, \"month\": null, \"day\": null, \"inherited_fields\": []}, \"normalized\": {\"calendar\": \"proleptic_gregorian\", \"year\": null, \"month\": null, \"day\": null, \"precision\": \"unknown\", \"conversion_status\": \"unresolved\", \"approximate\": false}}, \"participants\": [{\"entity_ref\": \"ent_001\", \"role\": \"commander\"}], \"places\": [\"ent_003\"], \"parent_event_ref\": null, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"claims\": [{\"temp_id\": \"clm_001\", \"kind\": \"claim\", \"subject\": {\"kind\": \"entity\", \"ref\": \"ent_001\"}, \"predicate\": \"stationed_at\", \"object\": {\"kind\": \"entity\", \"ref\": \"ent_004\"}, \"time\": null, \"evidence\": {\"text\": \"曹操屯江陵\", \"source_ref\": \"src_001\", \"locator\": {}}, \"assessment\": {\"status\": \"unassessed\", \"note\": null}, \"extraction\": {\"method\": \"model\", \"job_id\": \"c2r2-contract\", \"confidence\": 0.9}}], \"warnings\": []}, \"translation\": {\"language\": \"zh-CN\", \"blocks\": [{\"block_id\": \"t_001\", \"text\": \"建安十三年，曹操屯兵江陵。补充叙事。\", \"source_block_ids\": [\"b_001\"], \"entity_refs\": [{\"kind\": \"entity\", \"ref\": \"ent_001\"}, {\"kind\": \"entity\", \"ref\": \"ent_004\"}], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_002\"}]}, {\"block_id\": \"t_002\", \"text\": \"𠀋操在赤壁閱兵；周瑜在赤壁擊敗曹操。\", \"source_block_ids\": [\"b_002\", \"b_003\"], \"entity_refs\": [{\"kind\": \"entity\", \"ref\": \"ent_001\"}, {\"kind\": \"entity\", \"ref\": \"ent_002\"}, {\"kind\": \"entity\", \"ref\": \"ent_003\"}], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_004\"}, {\"kind\": \"event\", \"ref\": \"evt_001\"}]}, {\"block_id\": \"t_003\", \"text\": \"其人聽聞後君王下令退兵。\", \"source_block_ids\": [\"b_004\"], \"entity_refs\": [], \"event_refs\": [{\"kind\": \"event\", \"ref\": \"evt_003\"}]}]}, \"mentions\": [{\"mention_id\": \"m_001\", \"surface\": \"曹操\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_001\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 1}}, {\"mention_id\": \"m_002\", \"surface\": \"操\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_001\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_002\", \"quote\": \"操\", \"occurrence\": 2}}, {\"mention_id\": \"m_003\", \"surface\": \"周瑜\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_002\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}}, {\"mention_id\": \"m_004\", \"surface\": \"赤壁\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_003\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}}, {\"mention_id\": \"m_005\", \"surface\": \"江陵\", \"contextual\": false, \"status\": \"resolved\", \"target_ref\": \"ent_004\", \"candidate_refs\": [], \"selection\": {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}}], \"record_sources\": [{\"record_ref\": \"ent_001\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 1}, {\"first_block_id\": \"b_001\", \"last_block_id\": \"b_002\", \"quote\": \"操\", \"occurrence\": 2}]}, {\"record_ref\": \"ent_002\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}]}, {\"record_ref\": \"ent_003\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"ent_004\", \"record_kind\": \"entity\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_001\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_002\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操屯江陵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_003\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_004\", \"last_block_id\": \"b_004\", \"quote\": \"王命退兵\", \"occurrence\": 1}]}, {\"record_ref\": \"evt_004\", \"record_kind\": \"event\", \"selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"操觀兵赤壁\", \"occurrence\": 1}]}, {\"record_ref\": \"clm_001\", \"record_kind\": \"claim\", \"selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操屯江陵\", \"occurrence\": 1}]}], \"reading\": {\"units\": [{\"block_id\": \"t_001\", \"narrative_time\": {\"mode\": \"events\", \"event_refs\": [\"evt_002\"], \"from_block_id\": null, \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"建安十三年\", \"occurrence\": 1}]}, \"current_event_refs\": [\"evt_002\"], \"event_spans\": [], \"context_entities\": [{\"entity_ref\": \"ent_001\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"曹操\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_002\", \"participant_index\": 0}]}, {\"entity_ref\": \"ent_004\", \"importance\": \"other\", \"source_selections\": [{\"first_block_id\": \"b_001\", \"last_block_id\": \"b_001\", \"quote\": \"江陵\", \"occurrence\": 1}], \"event_roles\": []}]}, {\"block_id\": \"t_002\", \"narrative_time\": {\"mode\": \"events\", \"event_refs\": [\"evt_004\", \"evt_001\"], \"from_block_id\": null, \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"觀兵赤壁\", \"occurrence\": 1}]}, \"current_event_refs\": [\"evt_004\", \"evt_001\"], \"event_spans\": [{\"span_id\": \"es_001\", \"selection\": {\"quote\": \"閱兵\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_004\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"操觀兵赤壁\", \"occurrence\": 1}]}, {\"span_id\": \"es_002\", \"selection\": {\"quote\": \"赤壁\", \"occurrence\": 2}, \"status\": \"resolved\", \"target_ref\": \"evt_001\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}]}, {\"span_id\": \"es_003\", \"selection\": {\"quote\": \"𠀋操\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_004\", \"candidate_refs\": [], \"relation\": \"current\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"𠀋操觀兵赤壁\", \"occurrence\": 1}]}], \"context_entities\": [{\"entity_ref\": \"ent_001\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_003\", \"quote\": \"敗操於赤壁\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_001\", \"participant_index\": 0}]}, {\"entity_ref\": \"ent_002\", \"importance\": \"primary\", \"source_selections\": [{\"first_block_id\": \"b_003\", \"last_block_id\": \"b_003\", \"quote\": \"周瑜\", \"occurrence\": 1}], \"event_roles\": [{\"event_ref\": \"evt_001\", \"participant_index\": 1}]}, {\"entity_ref\": \"ent_003\", \"importance\": \"other\", \"source_selections\": [{\"first_block_id\": \"b_002\", \"last_block_id\": \"b_002\", \"quote\": \"赤壁\", \"occurrence\": 1}], \"event_roles\": []}]}, {\"block_id\": \"t_003\", \"narrative_time\": {\"mode\": \"unknown\", \"event_refs\": [], \"from_block_id\": null, \"source_selections\": []}, \"current_event_refs\": [], \"event_spans\": [{\"span_id\": \"es_004\", \"selection\": {\"quote\": \"退兵\", \"occurrence\": 1}, \"status\": \"resolved\", \"target_ref\": \"evt_003\", \"candidate_refs\": [], \"relation\": \"uncertain\", \"source_selections\": [{\"first_block_id\": \"b_004\", \"last_block_id\": \"b_004\", \"quote\": \"王命退兵\", \"occurrence\": 1}]}], \"context_entities\": []}], \"warnings\": []}, \"warnings\": [{\"type\": \"temporal_boundary\", \"severity\": \"info\", \"message\": \"contract fixture only\", \"refs\": []}]}",
+        "raw_response_chars": 10844,
+        "raw_response_bytes": 11255,
+        "raw_response_sha256": "417f4a72cc19c9d84b1853fa9084ccd4300474e1f1aa86aafa60b82129ad0dcc",
+        "latency_ms": 0,
+        "parse_error": null,
+        "transport_error": null,
+        "validation": {
+          "schema": "chronicle.reading-validation",
+          "version": "0.1",
+          "candidate_schema": "chronicle.chapter-candidate",
+          "candidate_version": "0.2",
+          "passed": true,
+          "count": 0,
+          "errors": {
+            "schema_validation": [],
+            "chapter": [],
+            "reading_coverage": [],
+            "reading_refs": [],
+            "reading_time": [],
+            "reading_spans": [],
+            "reading_context": [],
+            "limits": [],
+            "canonical_id": []
+          }
+        },
+        "candidate": {
+          "schema": "chronicle.chapter-candidate",
+          "version": "0.2",
+          "chapter_id": "ch_756922e9af0d759d29d7475f",
+          "bundle": {
+            "schema_version": "0.1",
+            "source": {
+              "temp_id": "src_001",
+              "kind": "source",
+              "source_type": "book",
+              "title": "contract fixture",
+              "author": null,
+              "language": "zh-CN",
+              "edition": null,
+              "citation": null,
+              "url": null,
+              "metadata": {},
+              "extraction": {
+                "method": "model",
+                "job_id": "c2r2-contract",
+                "confidence": 0.9
+              }
+            },
+            "entities": [
+              {
+                "temp_id": "ent_001",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "曹操",
+                "aliases": [
+                  "操"
+                ],
+                "mentions": [
+                  {
+                    "text": "曹操"
+                  },
+                  {
+                    "text": "操"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_002",
+                "kind": "entity",
+                "type": "person",
+                "canonical_name": "周瑜",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "周瑜"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_003",
+                "kind": "entity",
+                "type": "place",
+                "canonical_name": "赤壁",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "赤壁"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "ent_004",
+                "kind": "entity",
+                "type": "place",
+                "canonical_name": "江陵",
+                "aliases": [],
+                "mentions": [
+                  {
+                    "text": "江陵"
+                  }
+                ],
+                "description": null,
+                "attributes": {},
+                "resolution": {
+                  "status": "unresolved"
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "events": [
+              {
+                "temp_id": "evt_001",
+                "kind": "event",
+                "type": "battle",
+                "title": "赤壁之戰",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  },
+                  {
+                    "entity_ref": "ent_002",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_003"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_002",
+                "kind": "event",
+                "type": "movement",
+                "title": "屯江陵",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_004"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_003",
+                "kind": "event",
+                "type": "retreat",
+                "title": "退兵",
+                "summary": null,
+                "time": null,
+                "participants": [],
+                "places": [],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              },
+              {
+                "temp_id": "evt_004",
+                "kind": "event",
+                "type": "military",
+                "title": "觀兵",
+                "summary": null,
+                "time": {
+                  "original_text": "建安十三年",
+                  "source_calendar": {
+                    "system": "chinese_lunisolar_regnal",
+                    "era": "建安",
+                    "era_year": 13,
+                    "season": null,
+                    "month": null,
+                    "day": null,
+                    "inherited_fields": []
+                  },
+                  "normalized": {
+                    "calendar": "proleptic_gregorian",
+                    "year": null,
+                    "month": null,
+                    "day": null,
+                    "precision": "unknown",
+                    "conversion_status": "unresolved",
+                    "approximate": false
+                  }
+                },
+                "participants": [
+                  {
+                    "entity_ref": "ent_001",
+                    "role": "commander"
+                  }
+                ],
+                "places": [
+                  "ent_003"
+                ],
+                "parent_event_ref": null,
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "claims": [
+              {
+                "temp_id": "clm_001",
+                "kind": "claim",
+                "subject": {
+                  "kind": "entity",
+                  "ref": "ent_001"
+                },
+                "predicate": "stationed_at",
+                "object": {
+                  "kind": "entity",
+                  "ref": "ent_004"
+                },
+                "time": null,
+                "evidence": {
+                  "text": "曹操屯江陵",
+                  "source_ref": "src_001",
+                  "locator": {}
+                },
+                "assessment": {
+                  "status": "unassessed",
+                  "note": null
+                },
+                "extraction": {
+                  "method": "model",
+                  "job_id": "c2r2-contract",
+                  "confidence": 0.9
+                }
+              }
+            ],
+            "warnings": []
+          },
+          "translation": {
+            "language": "zh-CN",
+            "blocks": [
+              {
+                "block_id": "t_001",
+                "text": "建安十三年，曹操屯兵江陵。补充叙事。",
+                "source_block_ids": [
+                  "b_001"
+                ],
+                "entity_refs": [
+                  {
+                    "kind": "entity",
+                    "ref": "ent_001"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_004"
+                  }
+                ],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_002"
+                  }
+                ]
+              },
+              {
+                "block_id": "t_002",
+                "text": "𠀋操在赤壁閱兵；周瑜在赤壁擊敗曹操。",
+                "source_block_ids": [
+                  "b_002",
+                  "b_003"
+                ],
+                "entity_refs": [
+                  {
+                    "kind": "entity",
+                    "ref": "ent_001"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_002"
+                  },
+                  {
+                    "kind": "entity",
+                    "ref": "ent_003"
+                  }
+                ],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_004"
+                  },
+                  {
+                    "kind": "event",
+                    "ref": "evt_001"
+                  }
+                ]
+              },
+              {
+                "block_id": "t_003",
+                "text": "其人聽聞後君王下令退兵。",
+                "source_block_ids": [
+                  "b_004"
+                ],
+                "entity_refs": [],
+                "event_refs": [
+                  {
+                    "kind": "event",
+                    "ref": "evt_003"
+                  }
+                ]
+              }
+            ]
+          },
+          "mentions": [
+            {
+              "mention_id": "m_001",
+              "surface": "曹操",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_001",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "曹操",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_002",
+              "surface": "操",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_001",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_002",
+                "quote": "操",
+                "occurrence": 2
+              }
+            },
+            {
+              "mention_id": "m_003",
+              "surface": "周瑜",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_002",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_003",
+                "last_block_id": "b_003",
+                "quote": "周瑜",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_004",
+              "surface": "赤壁",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_003",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_002",
+                "last_block_id": "b_002",
+                "quote": "赤壁",
+                "occurrence": 1
+              }
+            },
+            {
+              "mention_id": "m_005",
+              "surface": "江陵",
+              "contextual": false,
+              "status": "resolved",
+              "target_ref": "ent_004",
+              "candidate_refs": [],
+              "selection": {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "江陵",
+                "occurrence": 1
+              }
+            }
+          ],
+          "record_sources": [
+            {
+              "record_ref": "ent_001",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操",
+                  "occurrence": 1
+                },
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_002",
+                  "quote": "操",
+                  "occurrence": 2
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_002",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_003",
+                  "last_block_id": "b_003",
+                  "quote": "周瑜",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_003",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "ent_004",
+              "record_kind": "entity",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "江陵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_001",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_003",
+                  "quote": "敗操於赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_002",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操屯江陵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_003",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_004",
+                  "last_block_id": "b_004",
+                  "quote": "王命退兵",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "evt_004",
+              "record_kind": "event",
+              "selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "操觀兵赤壁",
+                  "occurrence": 1
+                }
+              ]
+            },
+            {
+              "record_ref": "clm_001",
+              "record_kind": "claim",
+              "selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "曹操屯江陵",
+                  "occurrence": 1
+                }
+              ]
+            }
+          ],
+          "reading": {
+            "units": [
+              {
+                "block_id": "t_001",
+                "narrative_time": {
+                  "mode": "events",
+                  "event_refs": [
+                    "evt_002"
+                  ],
+                  "from_block_id": null,
+                  "source_selections": [
+                    {
+                      "first_block_id": "b_001",
+                      "last_block_id": "b_001",
+                      "quote": "建安十三年",
+                      "occurrence": 1
+                    }
+                  ]
+                },
+                "current_event_refs": [
+                  "evt_002"
+                ],
+                "event_spans": [],
+                "context_entities": [
+                  {
+                    "entity_ref": "ent_001",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_001",
+                        "last_block_id": "b_001",
+                        "quote": "曹操",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_002",
+                        "participant_index": 0
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_004",
+                    "importance": "other",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_001",
+                        "last_block_id": "b_001",
+                        "quote": "江陵",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": []
+                  }
+                ]
+              },
+              {
+                "block_id": "t_002",
+                "narrative_time": {
+                  "mode": "events",
+                  "event_refs": [
+                    "evt_004",
+                    "evt_001"
+                  ],
+                  "from_block_id": null,
+                  "source_selections": [
+                    {
+                      "first_block_id": "b_002",
+                      "last_block_id": "b_003",
+                      "quote": "觀兵赤壁",
+                      "occurrence": 1
+                    }
+                  ]
+                },
+                "current_event_refs": [
+                  "evt_004",
+                  "evt_001"
+                ],
+                "event_spans": [
+                  {
+                    "span_id": "es_001",
+                    "selection": {
+                      "quote": "閱兵",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_004",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "操觀兵赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  },
+                  {
+                    "span_id": "es_002",
+                    "selection": {
+                      "quote": "赤壁",
+                      "occurrence": 2
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_001",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_003",
+                        "quote": "敗操於赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  },
+                  {
+                    "span_id": "es_003",
+                    "selection": {
+                      "quote": "𠀋操",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_004",
+                    "candidate_refs": [],
+                    "relation": "current",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "𠀋操觀兵赤壁",
+                        "occurrence": 1
+                      }
+                    ]
+                  }
+                ],
+                "context_entities": [
+                  {
+                    "entity_ref": "ent_001",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_003",
+                        "quote": "敗操於赤壁",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_001",
+                        "participant_index": 0
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_002",
+                    "importance": "primary",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_003",
+                        "last_block_id": "b_003",
+                        "quote": "周瑜",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": [
+                      {
+                        "event_ref": "evt_001",
+                        "participant_index": 1
+                      }
+                    ]
+                  },
+                  {
+                    "entity_ref": "ent_003",
+                    "importance": "other",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_002",
+                        "last_block_id": "b_002",
+                        "quote": "赤壁",
+                        "occurrence": 1
+                      }
+                    ],
+                    "event_roles": []
+                  }
+                ]
+              },
+              {
+                "block_id": "t_003",
+                "narrative_time": {
+                  "mode": "unknown",
+                  "event_refs": [],
+                  "from_block_id": null,
+                  "source_selections": []
+                },
+                "current_event_refs": [],
+                "event_spans": [
+                  {
+                    "span_id": "es_004",
+                    "selection": {
+                      "quote": "退兵",
+                      "occurrence": 1
+                    },
+                    "status": "resolved",
+                    "target_ref": "evt_003",
+                    "candidate_refs": [],
+                    "relation": "uncertain",
+                    "source_selections": [
+                      {
+                        "first_block_id": "b_004",
+                        "last_block_id": "b_004",
+                        "quote": "王命退兵",
+                        "occurrence": 1
+                      }
+                    ]
+                  }
+                ],
+                "context_entities": []
+              }
+            ],
+            "warnings": []
+          },
+          "warnings": [
+            {
+              "type": "temporal_boundary",
+              "severity": "info",
+              "message": "contract fixture only",
+              "refs": []
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
