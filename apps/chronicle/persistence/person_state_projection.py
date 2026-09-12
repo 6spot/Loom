@@ -5,7 +5,10 @@ This is the T04-owned, pre-publication pure compiler described by
 C2-R3-T04 task note. It turns the C2-R3-T03 assembled and remapped
 ``person_states`` evidence plus the reviewed assessment overlay into the
 single operational rule set shared by publication, the read API and the
-review preview:
+review preview.
+
+Public functions
+----------------
 
 - :func:`compile_person_state_projection` derives the effective phases of
   ``office`` / ``title`` / ``affiliation`` facts and the two-tier
@@ -22,6 +25,23 @@ Both functions are pure: no database, network, model, UUID allocation or
 system time. Identical inputs produce byte-identical canonical JSON and
 the same ``projection_sha256``; every array has a fixed sort order.
 
+Output contract
+---------------
+
+``items`` and ``changes`` conform exactly to the T01 shared DTOs
+``state_item`` / ``state_change`` (``chronicle-person-state /
+0.1``); ``validate_person_state_dto`` accepts every emitted entry. Each
+item carries a ``source_facts`` array of the T01 ``source_fact_ref``
+shape and an ``evidence_cursor``. Traceability that the read DTO cannot
+hold lives in two companion structures keyed by ``item_id``:
+
+- ``evidence``: ``[{item_id, descriptors}]`` where each descriptor is a
+  T01 ``evidence_descriptor`` (source publication, anchor, quote,
+  attribution, source title, phase, relation).
+- ``reasoning``: the reviewed ``assessment``, the proven continuity and
+  the closing ``ended_by`` basis, plus the raw source-fact refs and
+  anchor ids for each item.
+
 Contractual inputs
 ------------------
 
@@ -29,9 +49,10 @@ Contractual inputs
 ``person_states`` block returned by
 :func:`person_state_assembly.assemble_person_state_evidence`, accepted
 either directly or wrapped under ``person_states``). Facts may carry the
-flat projection provenance produced by the T03 remap
-(``chapter_id`` / ``revision_id`` / ``chapter_publication_id`` /
-``anchor_ids``) or an ``origin`` block with the same fields.
+flat projection provenance (``chapter_id`` / ``revision_id`` /
+``chapter_publication_id`` / ``anchors`` / ``anchor_ids``) or an
+``origin`` block with the same fields, and either ``fact_ref`` or the
+assembled ``fact_id``.
 
 ``assessments`` maps a program-owned reference (``fact_ref``,
 ``assertion_id``) to one of ``supported | uncertain | disputed |
@@ -40,21 +61,26 @@ precedence edge or continuity that is not explicitly ``supported`` is
 not used, so unproven order cannot become a current identity.
 
 ``canonical_map`` resolves a local ``person_ref`` / ``value_ref`` /
-``target_ref`` to a canonical id. Missing person mappings fail closed
-(diagnostic ``unknown_person``). An optional ``labels`` sub-map (or
-``reading_manifest["entity_labels"]``) supplies display labels for values
-whose local reference has already been resolved.
+``target_ref`` to a canonical id. State keys use the canonical id, so two
+local references that map to the same office/object form one tenure.
+Missing person mappings fail closed (diagnostic ``unknown_person``). An
+optional ``labels`` sub-map (or ``reading_manifest["entity_labels"]``)
+supplies display labels for values whose local reference has already been
+resolved.
 
-``reading_manifest`` selects the unit phase context: ``current_phase_id``
-(or ``phase_id``) plus an optional ``unit_phase`` binding carrying
-``mode`` and ``phase_ids``. ``single`` keeps one phase, ``process`` shows
-every phase in the span, ``ambiguous`` returns the material without
-asserting a unity, and ``unknown`` never carries a previous phase
-forward.
+``reading_manifest`` selects the unit phase context (``current_phase_id``
+or ``phase_id`` plus an optional ``unit_phase`` binding carrying ``mode``
+and ``phase_ids``) and supplies the chapter publication/source-title
+mapping required by ``source_fact_ref`` and ``evidence_descriptor``:
+``chapter_publications`` / ``chapter_titles`` (or ``source_titles``)
+maps, ``units`` entries with ``chapter_id``/``publication_id``/
+``source_title``, or the single ``chapter_publication_id`` /
+``publication_id`` / ``source_title`` defaults.
 """
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 import person_state_contract as _contract
@@ -83,6 +109,8 @@ _NEVER_CURRENT_QUALIFICATIONS = _UNLIMITED_QUALIFICATIONS + ("self_designation",
 #: Attributions whose claim is reported rather than narrated, so it never
 #: becomes the current identity without an independent source.
 _NEVER_CURRENT_ATTRIBUTIONS = ("quotation", "hearsay")
+
+_HEX64 = set("0123456789abcdef")
 
 
 # ---------------------------------------------------------------------------
@@ -199,28 +227,84 @@ def _assertion_assessment(assessments: Any, ref: Any) -> str:
 
 def _origin(fact: dict[str, Any]) -> dict[str, Any]:
     origin = fact.get("origin") if isinstance(fact.get("origin"), dict) else {}
-    chapter_id = fact.get("chapter_id") or origin.get("chapter_id")
-    revision_id = fact.get("revision_id") or origin.get("origin_revision_id")
-    publication_id = fact.get("chapter_publication_id") or origin.get("chapter_publication_id")
-    anchors = fact.get("anchor_ids")
+
+    def pick(*keys: str) -> Any:
+        for source in (fact, origin):
+            for key in keys:
+                if source.get(key) is not None:
+                    return source.get(key)
+        return None
+
+    anchors = pick("anchors")
     if not isinstance(anchors, list):
-        anchors = origin.get("anchor_ids")
+        anchors = []
+    anchor_ids = pick("anchor_ids")
+    if not isinstance(anchor_ids, list):
+        anchor_ids = []
     return {
-        "chapter_id": chapter_id if isinstance(chapter_id, str) else None,
-        "revision_id": revision_id if isinstance(revision_id, str) else None,
-        "chapter_publication_id": publication_id if isinstance(publication_id, str) else None,
-        "anchor_ids": [a for a in (anchors or []) if isinstance(a, str)],
+        "chapter_id": pick("chapter_id"),
+        "revision_id": pick("revision_id", "origin_revision_id"),
+        "chapter_publication_id": pick("chapter_publication_id", "publication_id"),
+        "source_title": pick("source_title"),
+        "anchor_ids": [a for a in anchor_ids if isinstance(a, str)],
+        "anchors": [a for a in anchors if isinstance(a, dict)],
     }
 
 
 # ---------------------------------------------------------------------------
-# Phase order (a strict partial order, never a body-order guess)
+# Reading context (phase order + chapter publication/source-title mapping)
 # ---------------------------------------------------------------------------
 
 
-def _proven_edges(
-    phase_orders: list[dict[str, Any]], assessments: Any
-) -> list[tuple[str, str]]:
+class _Context:
+    __slots__ = (
+        "phase_ids",
+        "ordinals",
+        "descendants",
+        "mode",
+        "current_phases",
+        "current_phase_id",
+        "publications",
+        "titles",
+        "default_publication",
+        "default_title",
+        "labels",
+    )
+
+    def __init__(self) -> None:
+        self.phase_ids: list[str] = []
+        self.ordinals: dict[str, int] = {}
+        self.descendants: dict[str, set[str]] = {}
+        self.mode: str = "single"
+        self.current_phases: set[str] = set()
+        self.current_phase_id: str | None = None
+        self.publications: dict[str, str] = {}
+        self.titles: dict[str, str] = {}
+        self.default_publication: str | None = None
+        self.default_title: str | None = None
+        self.labels: dict[str, str] = {}
+
+    # -- publication / title -------------------------------------------------
+    def publication_for(self, fact: dict[str, Any], chapter_id: Any, fact_ref: str) -> str:
+        origin = _origin(fact)
+        if isinstance(origin["chapter_publication_id"], str) and origin["chapter_publication_id"]:
+            return origin["chapter_publication_id"]
+        if isinstance(chapter_id, str) and self.publications.get(chapter_id):
+            return self.publications[chapter_id]
+        if isinstance(self.default_publication, str) and self.default_publication:
+            return self.default_publication
+        raise PersistenceError(
+            f"source fact {fact_ref!r} has no chapter publication id; supply "
+            "reading_manifest.chapter_publications or chapter_publication_id"
+        )
+
+    def title_for(self, chapter_id: Any) -> str | None:
+        if isinstance(chapter_id, str) and self.titles.get(chapter_id):
+            return self.titles[chapter_id]
+        return self.default_title
+
+
+def _phase_graph(context: _Context, phase_orders: list[dict[str, Any]], assessments: Any) -> None:
     edges: list[tuple[str, str]] = []
     for order in phase_orders:
         earlier = order.get("earlier_phase_ref")
@@ -230,32 +314,104 @@ def _proven_edges(
         if _assertion_assessment(assessments, order.get("assertion_id")) != "supported":
             continue
         edges.append((earlier, later))
-    return edges
-
-
-def _descendants(phase_ids: list[str], edges: list[tuple[str, str]]) -> dict[str, set[str]]:
-    known = set(phase_ids)
-    adj: dict[str, set[str]] = {phase_id: set() for phase_id in phase_ids}
+    known = set(context.phase_ids)
+    adjacency: dict[str, set[str]] = {phase_id: set() for phase_id in context.phase_ids}
     for earlier, later in edges:
         if earlier in known and later in known:
-            adj[earlier].add(later)
-    descendants: dict[str, set[str]] = {}
-    for phase_id in phase_ids:
+            adjacency[earlier].add(later)
+    for phase_id in context.phase_ids:
         seen: set[str] = set()
-        stack = list(adj[phase_id])
+        stack = list(adjacency[phase_id])
         while stack:
             node = stack.pop()
             if node in seen:
                 continue
             seen.add(node)
-            stack.extend(adj[node])
-        descendants[phase_id] = seen
-    for phase_id in phase_ids:
-        if phase_id in descendants[phase_id]:
+            stack.extend(adjacency[node])
+        if phase_id in seen:
             raise PersistenceError(
                 f"phase precedence forms a cycle at {phase_id!r} (fail closed)"
             )
-    return descendants
+        context.descendants[phase_id] = seen
+    ordered, errors = _contract.phase_topological_order(
+        [{"phase_id": pid} for pid in context.phase_ids],
+        [
+            {"assertion_id": str(index), "earlier_phase_ref": earlier, "later_phase_ref": later}
+            for index, (earlier, later) in enumerate(edges)
+        ],
+    )
+    if errors:
+        raise PersistenceError("person-state phase order is invalid: " + "; ".join(errors))
+    context.ordinals = {phase_id: index for index, phase_id in enumerate(ordered)}
+
+
+def _current_context(context: _Context, reading_manifest: dict[str, Any]) -> None:
+    mode = "single"
+    phase_ids: list[str] = []
+    unit_phase = reading_manifest.get("unit_phase")
+    binding: dict[str, Any] | None = None
+    if isinstance(unit_phase, dict):
+        if "mode" in unit_phase or "phase_ids" in unit_phase:
+            binding = unit_phase
+        else:
+            unit_id = reading_manifest.get("unit_id")
+            candidate = unit_phase.get(unit_id) if isinstance(unit_id, str) else None
+            if isinstance(candidate, dict):
+                binding = candidate
+            elif len(unit_phase) == 1:
+                only = next(iter(unit_phase.values()))
+                if isinstance(only, dict):
+                    binding = only
+    if isinstance(binding, dict):
+        candidate_mode = binding.get("mode")
+        if candidate_mode in _PHASE_MODES:
+            mode = candidate_mode
+        phase_ids = [p for p in binding.get("phase_ids") or [] if isinstance(p, str)]
+    current = reading_manifest.get("current_phase_id") or reading_manifest.get("phase_id")
+    if not phase_ids and isinstance(current, str):
+        phase_ids = [current]
+    if not isinstance(current, str):
+        current = phase_ids[0] if phase_ids else None
+    if mode == "unknown":
+        phase_ids = []
+        current = None
+    context.mode = mode
+    context.current_phases = set(phase_ids)
+    context.current_phase_id = current
+
+
+def _chapter_maps(reading_manifest: dict[str, Any]) -> tuple[dict[str, str], dict[str, str], str | None, str | None]:
+    publications: dict[str, str] = {}
+    titles: dict[str, str] = {}
+    for unit in reading_manifest.get("units") or []:
+        if not isinstance(unit, dict):
+            continue
+        chapter_id = unit.get("chapter_id")
+        if not isinstance(chapter_id, str):
+            continue
+        if isinstance(unit.get("publication_id"), str):
+            publications.setdefault(chapter_id, unit["publication_id"])
+        if isinstance(unit.get("source_title"), str):
+            titles.setdefault(chapter_id, unit["source_title"])
+    for source, target in (
+        (reading_manifest.get("chapter_publications"), publications),
+        (reading_manifest.get("chapter_titles"), titles),
+        (reading_manifest.get("source_titles"), titles),
+    ):
+        if isinstance(source, dict):
+            target.update(
+                {k: v for k, v in source.items() if isinstance(k, str) and isinstance(v, str) and v}
+            )
+    default_publication = reading_manifest.get("chapter_publication_id") or reading_manifest.get(
+        "publication_id"
+    )
+    default_title = reading_manifest.get("source_title")
+    return (
+        publications,
+        titles,
+        default_publication if isinstance(default_publication, str) else None,
+        default_title if isinstance(default_title, str) else None,
+    )
 
 
 def _relation_to_current(
@@ -296,63 +452,40 @@ def _continuity_covers(
     return False
 
 
-def _current_context(reading_manifest: dict[str, Any]) -> tuple[str, set[str], str | None]:
-    mode = "single"
-    phase_ids: list[str] = []
-    unit_phase = reading_manifest.get("unit_phase")
-    binding: dict[str, Any] | None = None
-    if isinstance(unit_phase, dict):
-        if "mode" in unit_phase or "phase_ids" in unit_phase:
-            binding = unit_phase
-        else:
-            unit_id = reading_manifest.get("unit_id")
-            candidate = unit_phase.get(unit_id) if isinstance(unit_id, str) else None
-            if isinstance(candidate, dict):
-                binding = candidate
-            elif len(unit_phase) == 1:
-                only = next(iter(unit_phase.values()))
-                if isinstance(only, dict):
-                    binding = only
-    if isinstance(binding, dict):
-        candidate_mode = binding.get("mode")
-        if candidate_mode in _PHASE_MODES:
-            mode = candidate_mode
-        phase_ids = [p for p in binding.get("phase_ids") or [] if isinstance(p, str)]
-    current = reading_manifest.get("current_phase_id") or reading_manifest.get("phase_id")
-    if not phase_ids and isinstance(current, str):
-        phase_ids = [current]
-    if not isinstance(current, str):
-        current = phase_ids[0] if phase_ids else None
-    if mode == "unknown":
-        phase_ids = []
-        current = None
-    return mode, set(phase_ids), current
-
-
 # ---------------------------------------------------------------------------
-# State keys and record projection
+# State keys and records
 # ---------------------------------------------------------------------------
 
 
 def _state_key(fact: dict[str, Any], canonical_map: dict[str, Any], labels: dict[str, str]) -> tuple[str, ...]:
     """The program-owned state key from §3.2.
 
-    The key is ``person / dimension / value-or-object id / relation /
-    necessary qualification``. Display names, seniority and assumptions
-    about concurrent office never participate, so a new appointment can
-    never overwrite an unrelated one.
+    The key is ``person canonical id / dimension / value-or-object
+    canonical id / relation / necessary qualification``. Local references
+    are resolved through ``canonical_map`` *before* they enter the key, so
+    two local refs that name the same canonical office close the same
+    tenure. Display names, seniority and assumptions about concurrent
+    office never participate, so a new appointment can never overwrite an
+    unrelated one.
     """
     person, person_id = _resolve_person(fact, canonical_map)
     dimension = fact.get("dimension")
     relation = fact.get("relation")
     if dimension == "affiliation":
-        target = _ref_str(fact.get("target_ref")) or _ref_str(fact.get("target"))
+        target = (
+            _canonical_id(fact.get("target_ref"), canonical_map)
+            or _ref_str(fact.get("target_ref"))
+            or _canonical_id(fact.get("target"), canonical_map)
+            or _ref_str(fact.get("target"))
+        )
         value = ""
     else:
-        value = _ref_str(fact.get("value_ref")) or _display(
-            fact.get("value_ref"), labels, fact.get("value")
+        value = (
+            _canonical_id(fact.get("value_ref"), canonical_map)
+            or _ref_str(fact.get("value_ref"))
+            or _display(fact.get("value_ref"), labels, fact.get("value"))
+            or _ref_str(fact.get("value"))
         )
-        value = value or ""
         target = ""
     qualification = fact.get("qualification")
     if qualification not in _QUALIFICATIONS:
@@ -360,7 +493,7 @@ def _state_key(fact: dict[str, Any], canonical_map: dict[str, Any], labels: dict
     return (
         str(person_id or person or ""),
         str(dimension or ""),
-        str(value),
+        str(value or ""),
         str(relation or ""),
         str(target or ""),
         str(qualification),
@@ -378,57 +511,174 @@ def _core_key(key: tuple[str, ...]) -> tuple[str, ...]:
     return key[:5]
 
 
-def _source_fact(fact: dict[str, Any], fact_ref: str, phase: str | None) -> dict[str, Any]:
+def _source_fact(context: _Context, fact: dict[str, Any], fact_ref: str, phase: str) -> dict[str, Any]:
+    """Build one T01 ``source_fact_ref`` DTO entry."""
     origin = _origin(fact)
+    chapter_id = origin["chapter_id"]
+    revision_id = origin["revision_id"]
+    if not isinstance(chapter_id, str) or not chapter_id:
+        raise PersistenceError(f"source fact {fact_ref!r} has no chapter id")
+    if not isinstance(revision_id, str) or not revision_id:
+        raise PersistenceError(f"source fact {fact_ref!r} has no revision id")
+    publication = context.publication_for(fact, chapter_id, fact_ref)
+    claim_refs: list[str] = []
+    for claim in fact.get("claim_refs") or []:
+        ref = _ref_str(claim)
+        if ref and ref not in claim_refs:
+            claim_refs.append(ref)
     return {
-        "chapter_publication_id": origin["chapter_publication_id"],
-        "chapter_id": origin["chapter_id"],
-        "revision_id": origin["revision_id"],
+        "chapter_publication_id": publication,
+        "chapter_id": chapter_id,
+        "revision_id": revision_id,
         "fact_ref": fact_ref,
-        "claim_refs": [r for r in (_ref_str(c) for c in fact.get("claim_refs") or []) if r],
+        "claim_refs": claim_refs,
         "phase_id": phase,
-        "anchor_ids": origin["anchor_ids"],
     }
 
 
-def _change_record(
+def _quote_sha256(anchor: dict[str, Any], quote: str) -> str:
+    value = anchor.get("quote_sha256")
+    if isinstance(value, str) and len(value) == 64 and set(value) <= _HEX64:
+        return value
+    return hashlib.sha256(quote.encode("utf-8")).hexdigest()
+
+
+def _descriptors_for(
+    context: _Context, fact: dict[str, Any], fact_ref: str, item_id: str, phase: str
+) -> list[dict[str, Any]]:
+    """Build T01 ``evidence_descriptor`` entries from anchor payloads."""
+    origin = _origin(fact)
+    chapter_id = origin["chapter_id"]
+    publication = context.publication_for(fact, chapter_id, fact_ref)
+    title = origin["source_title"] or context.title_for(chapter_id)
+    if not isinstance(title, str) or not title:
+        return []
+    attribution = fact.get("attribution")
+    if attribution not in _ATTRIBUTIONS:
+        attribution = "narrator"
+    descriptors: list[dict[str, Any]] = []
+    for anchor in origin["anchors"]:
+        anchor_id = anchor.get("anchor_id")
+        quote = anchor.get("quote")
+        if not isinstance(anchor_id, str) or not anchor_id:
+            continue
+        if not isinstance(quote, str) or not quote:
+            continue
+        descriptors.append(
+            {
+                "descriptor_id": "psed_"
+                + sha256_json({"item_id": item_id, "anchor_id": anchor_id})[:24],
+                "source_publication_id": publication,
+                "anchor_id": anchor_id,
+                "quote": quote,
+                "quote_sha256": _quote_sha256(anchor, quote),
+                "attribution": attribution,
+                "source_title": title,
+                "phase_id": phase,
+                "relation": "support",
+            }
+        )
+    return descriptors
+
+
+def _item_id(
+    origin: dict[str, Any],
+    fact_ref: str,
+    dimension: Any,
+    phase: str,
+    person_local: str | None,
+    person_id: str,
+    operation: Any,
+) -> str:
+    return _contract.item_id_for(
+        chapter_id=str(origin["chapter_id"] or ""),
+        fact_ref=fact_ref,
+        dimension=str(dimension),
+        phase_id=str(phase),
+        person_ref=str(person_local or person_id),
+        operation=str(operation),
+    )
+
+
+def _state_item(
+    context: _Context,
     fact: dict[str, Any],
     fact_ref: str,
     person_id: str,
     person_local: str | None,
-    phase: str | None,
-    from_phase: str | None,
+    phase: str,
+    *,
     certainty: str,
     reasons: list[str],
+    current: bool,
+    value: str | None,
+    target: str | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    origin = _origin(fact)
+    item_id = _item_id(origin, fact_ref, fact.get("dimension"), phase, person_local, person_id, fact.get("operation"))
+    source_fact = _source_fact(context, fact, fact_ref, phase)
+    descriptors = _descriptors_for(context, fact, fact_ref, item_id, phase)
+    item = {
+        "item_id": item_id,
+        "person_id": person_id,
+        "dimension": fact.get("dimension"),
+        "value": value,
+        "relation": fact.get("relation"),
+        "target": target,
+        "target_id": None,
+        "qualification": fact.get("qualification") if fact.get("qualification") in _QUALIFICATIONS else "ordinary",
+        "certainty": certainty,
+        "reason_codes": reasons,
+        "reason_text": _contract._reason_text(reasons),
+        "phase_ids": [phase],
+        "current": current,
+        "source_facts": [source_fact],
+        "evidence_count": len(descriptors),
+        "evidence_cursor": None,
+    }
+    return item, descriptors, source_fact
+
+
+def _state_change(
+    context: _Context,
+    fact: dict[str, Any],
+    fact_ref: str,
+    person_id: str,
+    person_local: str | None,
+    from_phase: str | None,
+    to_phase: str,
+    certainty: str,
+    reasons: list[str],
+    value: str | None,
+    target: str | None,
 ) -> dict[str, Any]:
     origin = _origin(fact)
     return {
-        "item_id": _contract.item_id_for(
-            chapter_id=str(origin["chapter_id"] or ""),
-            fact_ref=fact_ref,
-            dimension=str(fact.get("dimension")),
-            phase_id=str(phase or ""),
-            person_ref=str(person_local or person_id),
-            operation=str(fact.get("operation")),
-        ),
+        "item_id": _item_id(origin, fact_ref, fact.get("dimension"), to_phase, person_local, person_id, fact.get("operation")),
         "person_id": person_id,
         "dimension": fact.get("dimension"),
-        "value": fact.get("value"),
+        "value": value,
         "relation": fact.get("relation"),
-        "target": fact.get("target"),
+        "target": target,
         "operation": fact.get("operation"),
-        "qualification": fact.get("qualification"),
         "from_phase_id": from_phase,
-        "to_phase_id": phase,
+        "to_phase_id": to_phase,
         "certainty": certainty,
-        "reason_codes": sorted(set(reasons)),
-        "reason_text": _contract._reason_text(sorted(set(reasons))),
-        "source_facts": [_source_fact(fact, fact_ref, phase)],
+        "reason_codes": reasons,
+        "source_facts": [_source_fact(context, fact, fact_ref, to_phase)],
     }
 
 
-def _item_certainty(reasons: list[str]) -> str:
-    return "uncertain" if reasons else "clear"
+def _display_value_target(
+    context: _Context, fact: dict[str, Any], labels: dict[str, str]
+) -> tuple[str | None, str | None]:
+    value = fact.get("value")
+    if not isinstance(value, str) or not value:
+        value = _display(fact.get("value_ref"), labels, None)
+    target = fact.get("target")
+    if not isinstance(target, str) or not target:
+        target = _display(fact.get("target_ref") or fact.get("target"), labels, None)
+    return (value if isinstance(value, str) else None, target if isinstance(target, str) else None)
 
 
 # ---------------------------------------------------------------------------
@@ -493,28 +743,18 @@ def compile_person_state_projection(
             f"person-state projection exceeds max_assertions {limits.max_assertions}"
         )
 
-    labels = _entity_labels(canonical_map, reading_manifest)
+    context = _Context()
+    context.phase_ids = sorted({p["phase_id"] for p in phases if isinstance(p.get("phase_id"), str)})
+    context.labels = _entity_labels(canonical_map, reading_manifest)
+    (
+        context.publications,
+        context.titles,
+        context.default_publication,
+        context.default_title,
+    ) = _chapter_maps(reading_manifest)
+    _phase_graph(context, phase_orders, assessments)
+    _current_context(context, reading_manifest)
 
-    phase_ids = sorted(
-        {p["phase_id"] for p in phases if isinstance(p.get("phase_id"), str)}
-    )
-    # Display ordinals follow only proven precedence; ties keep the
-    # deterministic topological position (never a caller's dict order).
-    ordered, cycle_errors = _contract.phase_topological_order(
-        [{"phase_id": pid} for pid in phase_ids],
-        [
-            {"assertion_id": str(i), "earlier_phase_ref": e, "later_phase_ref": l}
-            for i, (e, l) in enumerate(_proven_edges(phase_orders, assessments))
-            if e in set(phase_ids) and l in set(phase_ids)
-        ],
-    )
-    if cycle_errors:
-        raise PersistenceError("person-state phase order is invalid: " + "; ".join(cycle_errors))
-    ordinals = {phase_id: index for index, phase_id in enumerate(ordered)}
-
-    descendants = _descendants(phase_ids, _proven_edges(phase_orders, assessments))
-
-    mode, current_phases, current_phase_id = _current_context(reading_manifest)
     disputed_facts: set[str] = set()
     for disagreement in disagreements:
         for ref in disagreement.get("fact_refs") or []:
@@ -534,10 +774,7 @@ def compile_person_state_projection(
 
     ordered_facts = sorted(
         (f for f in facts if _fact_ref(f) is not None),
-        key=lambda f: (
-            ordinals.get(f.get("phase_ref"), 1 << 30),
-            str(_fact_ref(f)),
-        ),
+        key=lambda f: (context.ordinals.get(f.get("phase_ref"), 1 << 30), str(_fact_ref(f))),
     )
 
     # -- pass 1: project every non-end fact into a record -------------------
@@ -550,7 +787,7 @@ def compile_person_state_projection(
             diagnostic(fact_ref, "unknown_person", None)
             continue
         phase = fact.get("phase_ref") if isinstance(fact.get("phase_ref"), str) else None
-        if phase is None or phase not in set(phase_ids):
+        if phase is None or phase not in set(context.phase_ids):
             diagnostic(fact_ref, "unknown_phase", person_id)
             continue
         assessment = _assessment_for(assessments, fact_ref)
@@ -570,11 +807,11 @@ def compile_person_state_projection(
                     "person_local": person_local,
                     "phase": phase,
                     "assessment": assessment,
-                    "key": _state_key(fact, canonical_map, labels),
+                    "key": _state_key(fact, canonical_map, context.labels),
                 }
             )
             continue
-        position = _relation_to_current(phase, current_phases, descendants, mode)
+        position = _relation_to_current(phase, context.current_phases, context.descendants, context.mode)
         if position == "after":
             diagnostic(fact_ref, "phase_not_reached", person_id)
             continue
@@ -586,17 +823,26 @@ def compile_person_state_projection(
                 "person_local": person_local,
                 "phase": phase,
                 "assessment": assessment,
-                "key": _state_key(fact, canonical_map, labels),
+                "key": _state_key(fact, canonical_map, context.labels),
                 "position": position,
                 "ended": False,
-                "ended_phase": None,
+                "ended_by": [],
+                "record_ended_before_current": False,
                 "covered_by_end": False,
             }
         )
 
     # -- pass 2: let only a proven, narrated end close an earlier record ----
-    end_records: list[dict[str, Any]] = []
-    for end in sorted(end_facts, key=lambda e: (ordinals.get(e["phase"], 1 << 30), e["fact_ref"])):
+    items: list[dict[str, Any]] = []
+    changes: list[dict[str, Any]] = []
+    people_items: dict[str, list[dict[str, Any]]] = {}
+    people_evidence: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    people_reasoning: dict[str, dict[str, dict[str, Any]]] = {}
+    item_descriptors: dict[str, list[dict[str, Any]]] = {}
+    item_reasoning: dict[str, dict[str, Any]] = {}
+    for end in sorted(
+        end_facts, key=lambda e: (context.ordinals.get(e["phase"], 1 << 30), e["fact_ref"])
+    ):
         assessment = end["assessment"]
         fact = end["fact"]
         qualification = fact.get("qualification")
@@ -611,69 +857,83 @@ def compile_person_state_projection(
             core = _core_key(end["key"])
             matched: list[dict[str, Any]] = []
             for record in records:
-                if record["ended"]:
-                    continue
                 if record["person_id"] != end["person_id"]:
                     continue
                 if _core_key(record["key"]) != core:
                     continue
-                if end["phase"] != record["phase"] and end["phase"] not in descendants.get(
-                    record["phase"], set()
-                ):
-                    # The end is not proven after this record.
+                # An end only affects a record proven strictly earlier;
+                # same-phase (e.g. same-year) material is not an order proof.
+                if end["phase"] not in context.descendants.get(record["phase"], set()):
                     continue
                 matched.append(record)
-            matched.sort(key=lambda r: (ordinals.get(r["phase"], 1 << 30), r["fact_ref"]))
+            matched.sort(key=lambda r: (context.ordinals.get(r["phase"], 1 << 30), r["fact_ref"]))
             for record in matched:
                 record["ended"] = True
-                record["ended_phase"] = end["phase"]
+                record["ended_by"].append(end["fact_ref"])
             if matched:
-                last = matched[-1]
-                from_phase = last["phase"]
-                if _relation_to_current(end["phase"], current_phases, descendants, mode) in (
-                    "eq",
-                    "before",
-                    "ambiguous",
-                ) or (mode == "unknown" and not current_phases):
+                from_phase = matched[-1]["phase"]
+                end_position = _relation_to_current(
+                    end["phase"], context.current_phases, context.descendants, context.mode
+                )
+                if end_position in ("eq", "before", "ambiguous"):
                     for record in matched:
                         record["record_ended_before_current"] = True
-                else:
-                    # The proven end lies after the current phase, so the
-                    # tenure is shown as spanning the current phase.
+                elif end_position == "after":
                     for record in matched:
                         record["covered_by_end"] = True
         reasons = _end_reasons(assessment, qualification, attribution)
-        end_records.append(
-            _change_record(
-                fact,
-                end["fact_ref"],
-                end["person_id"],
-                end["person_local"],
-                end["phase"],
-                from_phase,
-                _item_certainty(reasons),
-                reasons,
-            )
+        value, target = _display_value_target(context, fact, context.labels)
+        change = _state_change(
+            context,
+            fact,
+            end["fact_ref"],
+            end["person_id"],
+            end["person_local"],
+            from_phase,
+            end["phase"],
+            _item_certainty(reasons),
+            reasons,
+            value,
+            target,
         )
+        changes.append(change)
+        descriptors = _descriptors_for(context, fact, end["fact_ref"], change["item_id"], end["phase"])
+        if descriptors:
+            item_descriptors[change["item_id"]] = descriptors
+            people_evidence.setdefault(end["person_id"], {})[change["item_id"]] = descriptors
+        item_reasoning[change["item_id"]] = {
+            "assessment": assessment,
+            "source_facts": [
+                {
+                    **change["source_facts"][0],
+                    "assessment": assessment,
+                    "anchor_ids": _origin(fact)["anchor_ids"],
+                }
+            ],
+            "continuity": [],
+            "ended_by": [],
+            "from_phase_id": from_phase,
+        }
+        people_reasoning.setdefault(end["person_id"], {})[change["item_id"]] = item_reasoning[
+            change["item_id"]
+        ]
 
     # -- pass 3: emit fresh records as items -------------------------------
-    items: list[dict[str, Any]] = []
-    changes: list[dict[str, Any]] = list(end_records)
-    people_items: dict[str, list[dict[str, Any]]] = {}
-
     for record in records:
         fact = record["fact"]
         fact_ref = record["fact_ref"]
         phase = record["phase"]
         assessment = record["assessment"]
-        qualification = fact.get("qualification") if fact.get("qualification") in _QUALIFICATIONS else "ordinary"
-        attribution = fact.get("attribution") if fact.get("attribution") in _ATTRIBUTIONS else "narrator"
+        qualification = (
+            fact.get("qualification") if fact.get("qualification") in _QUALIFICATIONS else "ordinary"
+        )
+        attribution = (
+            fact.get("attribution") if fact.get("attribution") in _ATTRIBUTIONS else "narrator"
+        )
         position = record["position"]
 
         reasons: list[str] = []
         if record.get("record_ended_before_current"):
-            # A proven end before the current phase removes the fact from
-            # the current identity but leaves it a clear historical record.
             current = False
         else:
             current = False
@@ -682,14 +942,14 @@ def compile_person_state_projection(
                     current = True
                 elif position == "before":
                     if _continuity_covers_records(
-                        fact_ref, current_phases, descendants, supported_continuities
+                        fact_ref, context.current_phases, context.descendants, supported_continuities
                     ):
                         current = True
                     elif record.get("covered_by_end"):
                         current = True
                     else:
                         reasons.append("tenure_unproven")
-            if position == "unknown" or position == "ambiguous":
+            if position in ("unknown", "ambiguous"):
                 reasons.append("order_unknown")
 
         if assessment == "disputed":
@@ -711,67 +971,76 @@ def compile_person_state_projection(
             current = False
 
         reasons = sorted(set(reasons))
-        certainty = _item_certainty(reasons)
-        origin = _origin(fact)
-        source_facts = [_source_fact(fact, fact_ref, phase)]
-        value = fact.get("value")
-        if not isinstance(value, str) or not value:
-            value = _display(fact.get("value_ref"), labels, None)
-        target = fact.get("target")
-        if not isinstance(target, str) or not target:
-            target = _display(fact.get("target_ref") or fact.get("target"), labels, None)
-
-        item = {
-            "item_id": _contract.item_id_for(
-                chapter_id=str(origin["chapter_id"] or ""),
-                fact_ref=fact_ref,
-                dimension=str(fact.get("dimension")),
-                phase_id=str(phase),
-                person_ref=str(record["person_local"] or record["person_id"]),
-                operation=str(fact.get("operation")),
-            ),
-            "person_id": record["person_id"],
-            "person_ref": record["person_local"],
-            "dimension": fact.get("dimension"),
-            "value": value,
-            "value_id": _canonical_id(fact.get("value_ref"), canonical_map),
-            "relation": fact.get("relation"),
-            "target": target,
-            "target_id": _canonical_id(fact.get("target_ref"), canonical_map),
-            "operation": fact.get("operation"),
-            "qualification": qualification,
-            "attribution": attribution,
-            "certainty": certainty,
-            "reason_codes": reasons,
-            "reason_text": _contract._reason_text(reasons),
-            "phase_ids": [phase],
-            "phase_id": phase,
-            "current": current,
-            "ended": bool(record.get("ended")),
-            "source_facts": source_facts,
-            "evidence_count": len(origin["anchor_ids"])
-            or len(source_facts[0]["claim_refs"])
-            or 1,
-        }
+        value, target = _display_value_target(context, fact, context.labels)
+        item, descriptors, source_fact = _state_item(
+            context,
+            fact,
+            fact_ref,
+            record["person_id"],
+            record["person_local"],
+            phase,
+            certainty=_item_certainty(reasons),
+            reasons=reasons,
+            current=current,
+            value=value,
+            target=target,
+        )
+        item["target_id"] = _canonical_id(fact.get("target_ref"), canonical_map)
         items.append(item)
         people_items.setdefault(record["person_id"], []).append(item)
+        if descriptors:
+            item_descriptors[item["item_id"]] = descriptors
+            people_evidence.setdefault(record["person_id"], {})[item["item_id"]] = descriptors
+        item_reasoning[item["item_id"]] = {
+            "assessment": assessment,
+            "source_facts": [
+                {
+                    **source_fact,
+                    "assessment": assessment,
+                    "anchor_ids": _origin(fact)["anchor_ids"],
+                }
+            ],
+            "continuity": [
+                {
+                    "assertion_id": c.get("assertion_id"),
+                    "start_phase_id": c.get("start_phase_ref"),
+                    "end_phase_id": c.get("end_phase_ref"),
+                }
+                for c in supported_continuities
+                if c.get("fact_ref") == fact_ref
+            ],
+            "ended_by": [
+                {
+                    "fact_ref": ref,
+                    "phase_id": next(
+                        (e["phase"] for e in end_facts if e["fact_ref"] == ref), None
+                    ),
+                    "assessment": next(
+                        (e["assessment"] for e in end_facts if e["fact_ref"] == ref), None
+                    ),
+                }
+                for ref in record.get("ended_by", [])
+            ],
+            "from_phase_id": None,
+        }
+        people_reasoning.setdefault(record["person_id"], {})[item["item_id"]] = item_reasoning[
+            item["item_id"]
+        ]
         if fact.get("operation") == "start":
-            changes.append(
-                _change_record(
-                    fact,
-                    fact_ref,
-                    record["person_id"],
-                    record["person_local"],
-                    phase,
-                    record.get("from_phase"),
-                    certainty,
-                    reasons,
-                )
+            change = _state_change(
+                context,
+                fact,
+                fact_ref,
+                record["person_id"],
+                record["person_local"],
+                None,
+                phase,
+                _item_certainty(reasons),
+                reasons,
+                value,
+                target,
             )
-
-    people_changes: dict[str, list[dict[str, Any]]] = {}
-    for change in changes:
-        people_changes.setdefault(change["person_id"], []).append(change)
+            changes.append(change)
 
     # -- places (administration / control) keep the same certainty rules ---
     place_items: list[dict[str, Any]] = []
@@ -781,12 +1050,12 @@ def compile_person_state_projection(
         if dimension not in _PLACE_DIMENSIONS:
             continue
         phase = fact.get("phase_ref") if isinstance(fact.get("phase_ref"), str) else None
-        if phase is None or phase not in set(phase_ids):
+        if phase is None or phase not in set(context.phase_ids):
             continue
         assessment = _assessment_for(assessments, fact_ref)
         if assessment == "rejected":
             continue
-        position = _relation_to_current(phase, current_phases, descendants, mode)
+        position = _relation_to_current(phase, context.current_phases, context.descendants, context.mode)
         if position == "after":
             continue
         reasons = []
@@ -799,53 +1068,69 @@ def compile_person_state_projection(
             reasons.append("order_unknown")
         reasons = sorted(set(reasons))
         origin = _origin(fact)
+        place_ref = _ref_str(fact.get("person_ref"))
+        if not place_ref:
+            continue
+        item_id = _item_id(origin, fact_ref, dimension, phase, place_ref, place_ref, fact.get("operation"))
+        descriptors = _descriptors_for(context, fact, fact_ref, item_id, phase)
+        value, target = _display_value_target(context, fact, context.labels)
         place_items.append(
             {
-                "item_id": _contract.item_id_for(
-                    chapter_id=str(origin["chapter_id"] or ""),
-                    fact_ref=fact_ref,
-                    dimension=str(dimension),
-                    phase_id=str(phase),
-                    person_ref=str(_ref_str(fact.get("person_ref")) or ""),
-                    operation=str(fact.get("operation")),
-                ),
-                "place_ref": _ref_str(fact.get("person_ref")) or fact.get("person_ref"),
+                "item_id": item_id,
+                "place_id": place_ref,
+                "name": _display(fact.get("person_ref"), context.labels, place_ref) or place_ref,
                 "dimension": dimension,
-                "value": fact.get("value") or _display(fact.get("value_ref"), labels, None),
+                "value": value,
+                "controller": target,
                 "certainty": _item_certainty(reasons),
                 "reason_codes": reasons,
                 "reason_text": _contract._reason_text(reasons),
                 "phase_ids": [phase],
                 "current": current,
-                "source_facts": [_source_fact(fact, fact_ref, phase)],
+                "source_facts": [_source_fact(context, fact, fact_ref, phase)],
+                "evidence_count": len(descriptors),
+                "evidence_cursor": None,
             }
         )
+        if descriptors:
+            item_descriptors[item_id] = descriptors
     place_items.sort(key=lambda entry: entry["item_id"])
 
     # -- per-person summaries ---------------------------------------------
+    people_changes: dict[str, list[dict[str, Any]]] = {}
+    for change in changes:
+        people_changes.setdefault(change["person_id"], []).append(change)
+
     compiled_people: dict[str, dict[str, Any]] = {}
     for person_id in sorted(set(people_items) | set(people_changes)):
         person_states = sorted(
             people_items.get(person_id, []),
             key=lambda entry: (str(entry["dimension"]), entry["item_id"]),
         )
-        person_changes = sorted(
-            people_changes.get(person_id, []), key=lambda entry: entry["item_id"]
+        person_changes = sorted(people_changes.get(person_id, []), key=lambda entry: entry["item_id"])
+        person_evidence = people_evidence.get(person_id, {})
+        codes = sorted(
+            {code for entry in person_states + person_changes for code in entry["reason_codes"]}
         )
-        codes = sorted({code for entry in person_states + person_changes for code in entry["reason_codes"]})
-        current_items = [entry for entry in person_states if entry["current"]]
         compiled_people[person_id] = {
             "person_id": person_id,
-            "phase_mode": mode,
-            "certainty": "uncertain" if any(
-                entry["certainty"] == "uncertain" for entry in person_states + person_changes
-            ) else "clear",
+            "phase_mode": context.mode,
+            "certainty": "uncertain"
+            if any(entry["certainty"] == "uncertain" for entry in person_states + person_changes)
+            else "clear",
             "reason_codes": codes,
-            "items": [entry["item_id"] for entry in person_states],
             "item_ids": [entry["item_id"] for entry in person_states],
-            "states": person_states,
+            "items": person_states,
             "changes": person_changes,
-            "current_item_ids": [entry["item_id"] for entry in current_items],
+            "evidence": [
+                {"item_id": item_id, "descriptors": person_evidence[item_id]}
+                for item_id in sorted(person_evidence)
+            ],
+            "reasoning": {
+                item_id: entry
+                for item_id, entry in sorted(people_reasoning.get(person_id, {}).items())
+            },
+            "current_item_ids": [entry["item_id"] for entry in person_states if entry["current"]],
         }
 
     units: dict[str, dict[str, Any]] = {}
@@ -857,11 +1142,7 @@ def compile_person_state_projection(
         units[block_id] = {
             "phase_mode": binding.get("mode"),
             "phase_ids": sorted(binding_phases),
-            "people": [
-                entry["item_id"]
-                for entry in items
-                if entry["phase_id"] in binding_phases
-            ],
+            "people": [entry["item_id"] for entry in items if entry["phase_ids"][0] in binding_phases],
         }
 
     diagnostics.sort(key=lambda entry: (entry["code"], entry["fact_ref"], str(entry["person_id"])))
@@ -871,16 +1152,22 @@ def compile_person_state_projection(
         "version": _contract.PERSON_STATE_VERSION,
         "contract_version": _contract.CONTRACT_VERSION,
         "compiler_version": PROJECTION_VERSION,
-        "current_phase_id": current_phase_id,
-        "phase_mode": mode,
-        "phase_order": ordered,
-        "phase_ordinals": ordinals,
+        "current_phase_id": context.current_phase_id,
+        "phase_mode": context.mode,
+        "phase_order": list(context.ordinals.keys()),
+        "phase_ordinals": dict(context.ordinals),
         "people": compiled_people,
         "units": units,
         "items": sorted(items, key=lambda entry: (entry["person_id"], entry["item_id"])),
         "changes": sorted(
-            changes, key=lambda entry: (entry["person_id"], entry["to_phase_id"] or "", entry["item_id"])
+            changes,
+            key=lambda entry: (entry["person_id"], entry["to_phase_id"] or "", entry["item_id"]),
         ),
+        "evidence": [
+            {"item_id": item_id, "descriptors": item_descriptors[item_id]}
+            for item_id in sorted(item_descriptors)
+        ],
+        "reasoning": {item_id: item_reasoning[item_id] for item_id in sorted(item_reasoning)},
         "places": place_items,
         "diagnostics": diagnostics,
         "counts": {
@@ -888,6 +1175,7 @@ def compile_person_state_projection(
             "items": len(items),
             "changes": len(changes),
             "places": len(place_items),
+            "evidence": len(item_descriptors),
             "diagnostics": len(diagnostics),
         },
     }
@@ -926,6 +1214,10 @@ def _end_reasons(assessment: str, qualification: Any, attribution: Any) -> list[
     if attribution in ("quotation", "annotation", "hearsay"):
         reasons.append("attribution_uncertain")
     return sorted(set(reasons))
+
+
+def _item_certainty(reasons: list[str]) -> str:
+    return "uncertain" if reasons else "clear"
 
 
 # ---------------------------------------------------------------------------
@@ -1055,10 +1347,7 @@ def _merge_sides(
     merged: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
     for side in list(existing) + list(incoming):
         normalized = _normalize_side(side)
-        key = (
-            str(normalized["source_publication_id"] or ""),
-            tuple(normalized["fact_refs"]),
-        )
+        key = (str(normalized["source_publication_id"] or ""), tuple(normalized["fact_refs"]))
         current = merged.get(key)
         if current is None:
             merged[key] = normalized
