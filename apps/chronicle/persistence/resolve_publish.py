@@ -1644,7 +1644,12 @@ def build_person_state_manifest(
             )
         phase_summaries = []
         for index, phase_id in enumerate(phase_refs):
-            phase = phases_by_id.get(phase_id) or {}
+            phase = phases_by_id.get(phase_id)
+            if phase is None:
+                raise PersistenceConflict(
+                    f"wrong_phase: reading unit {unit.get('unit_id')!r} binds "
+                    f"unknown phase {phase_id!r}"
+                )
             label = phase.get("label")
             if not isinstance(label, str) or not label:
                 label = phase_id
@@ -1770,6 +1775,137 @@ def build_person_state_disagreement_envelope(
         "compiler_version": person_state_projection.PROJECTION_VERSION,
         "disagreements": records,
     }
+
+
+def validate_frozen_person_state_inputs(
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    evidence: dict[str, Any],
+    accepted_artifacts: list[dict[str, Any]],
+    final_resolutions: list[dict[str, Any]],
+    base_catalog_sha256: str,
+) -> None:
+    """Re-verify the frozen 0.3 state inputs at the publication boundary.
+
+    Resolve freezes the plan over the accepted artifacts, the assembled
+    ``person_states``/evidence manifests, the final Resolution hashes and the
+    base catalog. Publish must never trust the persisted rows alone: this
+    recomputes every binding and fails closed when the accepted artifact set,
+    the resolution set, the base catalog, the assembled state hash, the
+    evidence-manifest reference mapping or the unit-phase closure drifted after
+    the review was frozen. A wrong phase binding can otherwise compile a
+    manifest with a fallback label and publish it. Any drift is a
+    :class:`PersistenceConflict` and writes nothing.
+    """
+    states = evidence.get("person_states")
+    manifests = evidence.get("evidence_manifests")
+    if not isinstance(states, dict) or not isinstance(manifests, list):
+        raise PersistenceError(
+            f"job {job_id} person-state evidence is not a frozen 0.3 assembly"
+        )
+    assembled_hash = sha256_json(states)
+    if assembled_hash != plan.get("assembled_hash"):
+        raise PersistenceConflict(
+            "state_drift: assembled person_states no longer matches the frozen "
+            f"plan assembled_hash ({assembled_hash} != {plan.get('assembled_hash')})"
+        )
+    report = evidence.get("report") if isinstance(evidence.get("report"), dict) else {}
+    reported_states_hash = report.get("person_states_sha256")
+    if reported_states_hash is not None and reported_states_hash != assembled_hash:
+        raise PersistenceConflict(
+            "state_drift: reported person_states_sha256 does not match the "
+            "assembled person_states"
+        )
+    reported_manifest_hash = report.get("evidence_manifests_sha256")
+    if reported_manifest_hash is not None and reported_manifest_hash != sha256_json(
+        manifests
+    ):
+        raise PersistenceConflict(
+            "state_drift: reported evidence_manifests_sha256 does not match the "
+            "assembled evidence manifests"
+        )
+    artifact_hashes = sorted(
+        str(artifact.get("artifact_sha256"))
+        for artifact in accepted_artifacts
+        if isinstance(artifact, dict)
+    )
+    if artifact_hashes != sorted(str(value) for value in plan.get("accepted_artifact_hashes") or []):
+        raise PersistenceConflict(
+            "state_drift: accepted artifact set no longer matches the frozen plan"
+        )
+    resolution_hashes = sorted(sha256_json(item) for item in final_resolutions)
+    if resolution_hashes != sorted(str(value) for value in plan.get("resolution_hashes") or []):
+        raise PersistenceConflict(
+            "state_drift: final Resolution hashes no longer match the frozen plan"
+        )
+    if plan.get("base_catalog_sha") != base_catalog_sha256:
+        raise PersistenceConflict(
+            "state_drift: frozen plan base catalog no longer matches the resolve baseline"
+        )
+    references = person_state_review._reference_maps(evidence)
+    for package in plan.get("packages") or []:
+        chapter_refs = references.get(package.get("chapter_id"), {})
+        for candidate in package.get("candidates") or []:
+            mapped = chapter_refs.get((candidate.get("kind"), candidate.get("item_ref")))
+            if mapped != candidate.get("revision_ref"):
+                raise PersistenceConflict(
+                    "state_drift: evidence manifest no longer maps "
+                    f"{candidate.get('kind')}:{candidate.get('item_ref')} to the "
+                    "frozen revision reference"
+                )
+
+    phase_ids = {
+        phase.get("phase_id")
+        for phase in states.get("phases") or []
+        if isinstance(phase, dict) and isinstance(phase.get("phase_id"), str)
+    }
+    # Frozen candidates carry chapter-local phase refs; resolve the manifest's
+    # local->revision mapping so a candidate that points at a phase no longer
+    # present in the assembled evidence fails closed instead of compiling with a
+    # fallback label.
+    local_phase_map: dict[tuple[Any, Any], Any] = {}
+    for manifest in manifests:
+        if not isinstance(manifest, dict):
+            continue
+        chapter_id = manifest.get("chapter_id")
+        for item in manifest.get("items") or []:
+            if not isinstance(item, dict) or item.get("kind") != "phase":
+                continue
+            local_phase_map[(chapter_id, item.get("origin_ref"))] = item.get("revision_ref")
+    for package in plan.get("packages") or []:
+        chapter_id = package.get("chapter_id")
+        for candidate in package.get("candidates") or []:
+            for local_phase in candidate.get("phase_ids") or []:
+                mapped = local_phase_map.get((chapter_id, local_phase))
+                if mapped is None or mapped not in phase_ids:
+                    raise PersistenceConflict(
+                        "wrong_phase: frozen candidate "
+                        f"{candidate.get('kind')}:{candidate.get('item_ref')} references "
+                        f"phase {local_phase!r} that is not in the assembled evidence"
+                    )
+
+    def require_phase(value: Any, owner: str) -> None:
+        if value is not None and value not in phase_ids:
+            raise PersistenceConflict(
+                f"wrong_phase: {owner} references unknown phase {value!r}"
+            )
+
+    for binding in states.get("unit_phases") or []:
+        owner = f"unit_phase {binding.get('block_id')!r}"
+        for phase_ref in binding.get("phase_refs") or []:
+            require_phase(phase_ref, owner)
+    for order in states.get("phase_orders") or []:
+        require_phase(order.get("earlier_phase_ref"), "phase_order earlier")
+        require_phase(order.get("later_phase_ref"), "phase_order later")
+    for fact in states.get("facts") or []:
+        require_phase(fact.get("phase_ref"), f"fact {fact.get('fact_id')!r}")
+    for continuity in states.get("continuities") or []:
+        require_phase(continuity.get("start_phase_ref"), "continuity start")
+        require_phase(continuity.get("end_phase_ref"), "continuity end")
+    for disagreement in states.get("disagreements") or []:
+        for phase_ref in disagreement.get("phase_refs") or []:
+            require_phase(phase_ref, f"disagreement {disagreement.get('assertion_id')!r}")
 
 
 def persist_person_state_publication(
@@ -2074,6 +2210,22 @@ def publish_chapters(
         final = build_final_chapter_resolutions(
             initials, decisions, require_complete=True
         )
+
+        if person_state_path:
+            # Re-verify every frozen state/evidence binding against the actual
+            # accepted artifacts and terminal decisions before compiling the
+            # projection: drift or a wrong phase fails closed and writes
+            # nothing public.
+            assert person_state_evidence is not None
+            assert person_state_plan is not None
+            validate_frozen_person_state_inputs(
+                job_id=job_id,
+                plan=person_state_plan,
+                evidence=person_state_evidence,
+                accepted_artifacts=[entry["artifact"] for entry in accepted],
+                final_resolutions=final,
+                base_catalog_sha256=base_catalog_sha256,
+            )
 
         latest = read_latest_catalog(conn)
         latest_sha = sha256_json(latest) if latest is not None else sha256_json(None)

@@ -127,12 +127,20 @@ unchanged. Thin orchestration lives in
   projection and persists the whole T05 reading index (stream, units,
   time groups, event occurrences) **inside the
   same transaction**, after the catalog and every chapter publication and
-  before the publish checkpoint. A 0.3 book then, in the same
-  transaction, persists the reviewed T06 assessment artifact, compiles
-  the T04 person-state projection once per reading unit with that unit's
-  frozen phase binding, and writes the immutable T05 state manifest/index
-  plus the catalog disagreement index; a missing plan, an open state
-  review, an unbound unit or an oversized item fails closed. The compiled
+  before the publish checkpoint. A 0.3 book first re-verifies every frozen
+  state binding after the final resolutions are derived: the assembled
+  ``person_states`` hash must equal the plan's ``assembled_hash``, the
+  evidence manifests must still map every frozen candidate to its
+  ``revision_ref``, the accepted-artifact and Resolution hashes and the base
+  catalog must match the plan, and every candidate/fact/order/continuity/
+  disagreement/unit-phase reference must stay inside the assembled phase
+  set (a wrong phase never compiles with a fallback label). Only then, in the
+  same transaction, it persists the reviewed T06 assessment artifact,
+  compiles the T04 person-state projection once per reading unit with that
+  unit's frozen phase binding, and writes the immutable T05 state
+  manifest/index plus the catalog disagreement index; a missing plan, an open
+  state review, an unbound unit, an oversized item, a drifted state hash or a
+  wrong-phase association fails closed with no public row. The compiled
   stream identity is derived
   deterministically from the revision, so recompiling and replaying
   the same revision reuses the exact stream/units/state-manifest without a
@@ -402,8 +410,16 @@ reading stream and whose reviewed assessment is persisted in the same
 transaction; replaying the same accepted artifacts/assessments/mapping
 reuses the identical manifest and assessment without a model call; a
 fault while writing the manifest leaves zero public rows and a clean
-retry publishes the complete set. The composite input hand-off is
-covered by `worker/test_narrative_pipeline_postgres.py` and the
-published-source assertion in the same file (a 0.2 source carries an
-explicitly empty `reviewed_person_states` list instead of inventing
-one).
+retry publishes the complete set. The same file also drives the full
+0.3 → explicit composite job chain: source publication alone exposes no
+history; the facts and prose review gates each block publication; after
+both approvals the published history text, reviewed states and conclusion
+evidence read back on one fixed `publication_version`, with the reviewed
+source states present in the frozen composite context. Two independent
+negative cases prove the publish boundary: mutating the persisted
+assembled `person_states` fails closed with `state_drift`, and a frozen
+candidate phase that is not in the assembled evidence fails closed with
+`wrong_phase`, each leaving no catalog/chapter/stream/manifest/assessment
+row. No-manifest 0.2 sources contribute an explicitly empty
+`reviewed_person_states` list (regression in
+`worker/test_narrative_pipeline_postgres.py`).
