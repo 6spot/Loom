@@ -1,0 +1,262 @@
+"""Controlled trial only: invoke the existing provider for one saved phase spec.
+
+This script never writes a Chronicle product artifact, review, or publication.
+Validated trial checkpoints are local experiment evidence, not worker checkpoints.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+from urllib import error as http_error
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--repo', type=Path, required=True)
+parser.add_argument('--env-file', type=Path, required=True)
+parser.add_argument('--spec', type=Path, required=True)
+parser.add_argument('--output', type=Path, required=True)
+args = parser.parse_args()
+sys.path[:0] = [str(args.repo / 'apps/chronicle' / p)
+               for p in ('worker', 'persistence', 'acceptance')]
+import model_provider as M
+from gate_runtime import load_env_file, require_live_config
+from jsonschema import Draft202012Validator
+
+spec_bytes = args.spec.read_bytes()
+spec = json.loads(spec_bytes)
+spec_sha = hashlib.sha256(spec_bytes).hexdigest()
+args.output.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+def save(name, value):
+    path = args.output / name
+    temporary = path.with_name(path.name + '.tmp')
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    temporary.chmod(0o600)
+    os.replace(temporary, path)
+
+from chapter_contract import resolve_selection
+
+verified_inputs = {}
+for item in spec['input_files']:
+    input_path = args.spec.parent / item['path']
+    if hashlib.sha256(input_path.read_bytes()).hexdigest() != item['sha256']:
+        raise SystemExit('Input artifact changed; refusing run/reuse: ' + item['role'])
+    verified_inputs[item['role']] = json.loads(input_path.read_text())
+source_plan = verified_inputs['source_plan']
+source_request = source_plan['source_request']
+source_blocks = {b['block_id']: b for b in source_request['blocks']}
+translated_by_id = {b['translation_id']: b for b in verified_inputs['translation_input']['blocks']}
+grounded_anchors = []
+
+def validate(value):
+    errors = [f'{list(e.path)}: {e.message}'
+              for e in Draft202012Validator(spec['json_schema']).iter_errors(value)]
+    if errors:
+        return errors
+    grounded_anchors.clear()
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            if set(node) == {'first_block_id', 'last_block_id', 'quote', 'occurrence'}:
+                anchor, error = resolve_selection(node, request=source_request,
+                                                  blocks_by_id=source_blocks, owner=path)
+                if error:
+                    errors.append(error)
+                else:
+                    annotation_overlap = sum(max(0, min(anchor['end'], r['end']) - max(anchor['start'], r['start']))
+                                             for r in source_plan['annotation_ranges'])
+                    grounded_anchors.append({'path': path, 'anchor': anchor,
+                                             'annotation_overlap_chars': annotation_overlap})
+            for key, item in node.items():
+                walk(item, f'{path}.{key}')
+        elif isinstance(node, list):
+            for index, item in enumerate(node):
+                walk(item, f'{path}[{index}]')
+    walk(value, '$')
+    if spec['phase'] == 'translation-review':
+        coverage = [r['source_id'] for r in value['coverage']]
+        if len(coverage) != len(set(coverage)) or set(coverage) != set(spec['target_ids']):
+            errors.append('review coverage missing or duplicated')
+        ids = [r['issue_id'] for r in value['findings']]
+        if len(ids) != len(set(ids)):
+            errors.append('duplicate review issue IDs')
+        if value['verdict'] == 'no_material_issues_found' and any(r['severity'] == 'material' for r in value['findings']):
+            errors.append('verdict contradicts material findings')
+        for finding in value['findings']:
+            if not finding['source_evidence']:
+                errors.append(f"{finding['issue_id']}: missing source evidence")
+            for evidence in finding['translation_evidence']:
+                if evidence['quote'] not in translated_by_id[evidence['translation_id']]['text']:
+                    errors.append(f"{finding['issue_id']}: translation quote does not exist")
+    elif spec['phase'] == 'extraction':
+        all_refs = [r['ref'] for kind in ('entities', 'events', 'facts') for r in value[kind]]
+        if len(all_refs) != len(set(all_refs)):
+            errors.append('duplicate local refs')
+        entities = {r['ref'] for r in value['entities']}
+        for kind in ('entities', 'events', 'facts'):
+            for item in value[kind]:
+                if not item['evidence']:
+                    errors.append(item['ref'] + ': missing source evidence')
+                refs = item.get('participants', []) + item.get('object_refs', [])
+                if 'subject_ref' in item:
+                    refs.append(item['subject_ref'])
+                if set(refs) - entities:
+                    errors.append(item['ref'] + ': unknown entity refs')
+                if 'time' in item:
+                    t = item['time']
+                    if t['basis'] == 'unknown' and t['label'] is not None:
+                        errors.append(item['ref'] + ': unknown time must have null label')
+                    if t['basis'] != 'unknown' and (not t['label'] or not t['evidence']):
+                        errors.append(item['ref'] + ': known time lacks evidence/label')
+    return errors
+
+checkpoint_path = args.output / 'checkpoint.json'
+if checkpoint_path.exists():
+    checkpoint = json.loads(checkpoint_path.read_text())
+    if checkpoint['spec_sha256'] != spec_sha:
+        raise SystemExit('Checkpoint specification mismatch; refusing reuse')
+    raw = (args.output / 'raw.txt').read_text()
+    if hashlib.sha256(raw.encode()).hexdigest() != checkpoint['raw_sha256']:
+        raise SystemExit('Checkpoint output hash mismatch; refusing reuse')
+    errors = validate(json.loads(raw))
+    if errors:
+        raise SystemExit('Checkpoint does not revalidate; refusing reuse')
+    print(json.dumps({'kind': 'checkpoint_reused', 'phase': spec['phase'],
+                      'new_http_calls': 0, 'spec_sha256': spec_sha}), flush=True)
+    raise SystemExit(0)
+if (args.output / 'result.json').exists():
+    raise SystemExit('An earlier failed phase result exists; explicit new attempt required')
+lock = os.open(args.output / 'started.lock', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+os.close(lock)
+config = load_env_file(args.env_file)
+require_live_config(config)
+assert not config.get('CHRONICLE_CHAPTER_FIXTURE_PACK')
+assert spec['model'] in ('gpt-5.6-luna', 'gpt-5.6-sol')
+model = M.ResponsesHTTPModel(
+    name=spec['model'], endpoint=config['CHRONICLE_MODEL_ENDPOINT'],
+    api_key=config.get('CHRONICLE_MODEL_API_KEY'),
+    max_output_tokens=spec['max_output_tokens'],
+    max_response_bytes=spec['max_response_bytes'],
+    timeout_seconds=spec['wall_clock_limit_seconds'], max_attempts=1,
+    text_format={'type': 'json_schema', 'name': spec['format_name'],
+                 'strict': True, 'schema': spec['json_schema']})
+events = []
+observations = []
+http_calls = 0
+deadline_hit = False
+
+def event(kind, **fields):
+    row = {'kind': kind, 'phase': spec['phase'], 'time_unix': time.time(), **fields}
+    events.append(row)
+    save('progress.json', events)
+    print(json.dumps(row, ensure_ascii=False), flush=True)
+
+original_urlopen = M.request.urlopen
+class Observer:
+    def __init__(self, response, index):
+        self.response, self.index = response, index
+        self.headers = response.headers
+    def __enter__(self):
+        self.response.__enter__()
+        return self
+    def __exit__(self, *exc):
+        return self.response.__exit__(*exc)
+    def read(self, limit):
+        chunks, size, last_event = [], 0, time.monotonic()
+        while size < limit:
+            chunk = self.response.read1(min(16384, limit - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+            if time.monotonic() - last_event >= 15:
+                event('wire_progress', bytes_received=size)
+                last_event = time.monotonic()
+        raw = b''.join(chunks)
+        path = args.output / f'private-http-{self.index}.json'
+        path.write_bytes(raw)
+        path.chmod(0o600)
+        row = {'attempt': self.index, 'bytes': len(raw),
+               'sha256': hashlib.sha256(raw).hexdigest()}
+        try:
+            envelope = json.loads(raw)
+            row.update({'status': envelope.get('status'),
+                        'reported_model': envelope.get('model'),
+                        'usage': envelope.get('usage'),
+                        'incomplete_details': envelope.get('incomplete_details')})
+        except ValueError:
+            row['status'] = 'invalid_json_envelope'
+        observations.append(row)
+        save('http-observations.json', observations)
+        event('http_returned', **row)
+        return raw
+
+def observed_urlopen(*values, **kwargs):
+    global http_calls
+    http_calls += 1
+    event('http_started', attempt=http_calls)
+    try:
+        response = original_urlopen(*values, **kwargs)
+    except http_error.HTTPError as exc:
+        raw = exc.read(65536)
+        path = args.output / f'private-http-error-{http_calls}.json'
+        path.write_bytes(raw)
+        path.chmod(0o600)
+        observations.append({'attempt': http_calls, 'http_status': exc.code,
+                             'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
+        raise
+    event('http_headers', attempt=http_calls, status=response.status)
+    return Observer(response, http_calls)
+
+def deadline(signum, frame):
+    global deadline_hit
+    deadline_hit = True
+    raise TimeoutError('trial phase total wall-clock limit reached')
+
+M.request.urlopen = observed_urlopen
+signal.signal(signal.SIGALRM, deadline)
+result = {'phase': spec['phase'], 'spec_sha256': spec_sha,
+          'source_sha256': spec['source_sha256'], 'model': model.name,
+          'max_output_tokens': model.max_output_tokens,
+          'wall_clock_limit_seconds': spec['wall_clock_limit_seconds'],
+          'max_http_attempts': 1, 'production_artifact': False,
+          'semantic_quality_accepted': False,
+          'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+          'input_files': spec['input_files']}
+started = time.monotonic()
+event('phase_started', model=model.name, prompt_chars=len(spec['prompt']),
+      max_output_tokens=model.max_output_tokens,
+      wall_clock_limit_seconds=spec['wall_clock_limit_seconds'])
+signal.setitimer(signal.ITIMER_REAL, spec['wall_clock_limit_seconds'])
+try:
+    raw = model.complete(spec['prompt'])
+    (args.output / 'raw.txt').write_text(raw)
+    value = json.loads(raw)
+    errors = validate(value)
+    save('grounding-validation.json', {'anchors': grounded_anchors, 'errors': errors,
+          'semantic_entailment_verified': False})
+    if not observations or observations[-1].get('status') != 'completed':
+        errors.append('missing explicit completed response status')
+    result.update({'raw_sha256': hashlib.sha256(raw.encode()).hexdigest(),
+                   'raw_chars': len(raw), 'validation_errors': errors,
+                   'phase_shape_valid': not errors, 'candidate': value})
+    if not errors:
+        save('checkpoint.json', {'spec_sha256': spec_sha,
+                                'raw_sha256': result['raw_sha256'],
+                                'phase': spec['phase'],
+                                'meaning': 'trial shape/source-coverage checkpoint only; not accepted product data'})
+except (M.ModelProviderError, ValueError) as exc:
+    result.update({'error': str(exc), 'phase_shape_valid': False})
+finally:
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    result.update({'elapsed_seconds': round(time.monotonic() - started, 3),
+                   'http_calls': http_calls, 'http_observations': observations,
+                   'deadline_hit': deadline_hit, 'billed_cost': None})
+    save('result.json', result)
+    event('phase_finished', elapsed_seconds=result['elapsed_seconds'],
+          phase_shape_valid=result.get('phase_shape_valid', False),
+          error=result.get('error'), deadline_hit=deadline_hit,
+          validation_errors=result.get('validation_errors', []))

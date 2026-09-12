@@ -1,0 +1,13 @@
+{
+  "runner_sha256": "a8e2ef884963e91d366ec402e8114a0168f97daa94a35fd2052ce3c2431d016a",
+  "translation_sha256": "87ecf3ee083a76a3cc333dd348fbd2833d5f4c30b1a40326d2d6d6030447a908",
+  "parallel": [
+    "extraction-spec.json",
+    "review-luna-spec.json",
+    "review-sol-spec.json"
+  ],
+  "all_consume_frozen_translation": true,
+  "extraction_from_unaccepted_translation_is_speculative": true,
+  "downstream_must_be_reconciled_if_translation_changes": true,
+  "production_writes": false
+}

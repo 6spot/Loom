@@ -1,0 +1,11 @@
+{
+  "kind": "independent_trial_metadata_review",
+  "status": "failed_contract_preserved",
+  "field": "translation-spec.source_sha256",
+  "actual_value": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+  "expected_raw_source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "actual_value_is_normalized_sha256": true,
+  "frozen_plan_sha_matches": true,
+  "source_content_wrong": false,
+  "explanation": "The initial trial spec used the normalized text hash under the raw source hash field. The frozen plan and prompt supply the same intended chapter; original spec/result remain unchanged. Subsequent phase specs use the raw source hash. Production must store/check both fields distinctly."
+}

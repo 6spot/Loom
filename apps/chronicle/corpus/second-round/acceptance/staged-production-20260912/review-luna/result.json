@@ -1,0 +1,273 @@
+{
+  "phase": "translation-review",
+  "spec_sha256": "eca39a03c481be9a834f46f901d260d25098ce90c44ddd94e87e3da7775e5b7f",
+  "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "model": "gpt-5.6-luna",
+  "max_output_tokens": 8192,
+  "wall_clock_limit_seconds": 600,
+  "max_http_attempts": 1,
+  "production_artifact": false,
+  "semantic_quality_accepted": false,
+  "runner_sha256": "a8e2ef884963e91d366ec402e8114a0168f97daa94a35fd2052ce3c2431d016a",
+  "input_files": [
+    {
+      "role": "source_plan",
+      "path": "plan.json",
+      "sha256": "e4867923af9de098c689cefa64e231f779c6e5886d86d30213340f4cf34f45c8"
+    },
+    {
+      "role": "translation_raw",
+      "path": "translation/raw.txt",
+      "sha256": "87ecf3ee083a76a3cc333dd348fbd2833d5f4c30b1a40326d2d6d6030447a908"
+    },
+    {
+      "role": "translation_input",
+      "path": "translation-input.json",
+      "sha256": "3431ee4d6200c2f96630091b4eaef69ecb4c6b648cc003c810ab209ed6640bc5"
+    }
+  ],
+  "raw_sha256": "65c151e58c25c586422fa0e4ed5836493d4cf6b7a10ec36522acd050b0f570cd",
+  "raw_chars": 2771,
+  "validation_errors": [],
+  "phase_shape_valid": true,
+  "candidate": {
+    "verdict": "needs_correction",
+    "findings": [
+      {
+        "issue_id": "f_001",
+        "category": "wrong_actor",
+        "severity": "material",
+        "source_evidence": [
+          {
+            "first_block_id": "b_017",
+            "last_block_id": "b_017",
+            "quote": "先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛。",
+            "occurrence": 1
+          }
+        ],
+        "translation_evidence": [
+          {
+            "translation_id": "t_010",
+            "quote": "先主占据下邳。关羽等人回来后，先主便杀死徐州刺史车胄，留下关羽守下邳，自己回到小沛。"
+          }
+        ],
+        "explanation": "原文说“靈等還”，承接前文应指朱灵等人返回，并未说关羽返回；译文将行动者误译为关羽等人，改变了人物关系和叙事事实。",
+        "suggested_fix": "译为“先主占据下邳。朱灵等人返回后，先主于是杀死徐州刺史车胄……”"
+      },
+      {
+        "issue_id": "f_002",
+        "category": "omission",
+        "severity": "minor",
+        "source_evidence": [
+          {
+            "first_block_id": "b_019",
+            "last_block_id": "b_019",
+            "quote": "先主走青州。青州刺史袁譚，先主故茂才也，將步騎迎先主。",
+            "occurrence": 1
+          }
+        ],
+        "translation_evidence": [
+          {
+            "translation_id": "t_011",
+            "quote": "先主逃往青州。青州刺史袁谭过去曾被举荐为茂才，他率领步兵、骑兵迎接先主。"
+          }
+        ],
+        "explanation": "“先主故茂才也”说明袁谭过去是先主所举荐的茂才，译文只保留了被举荐这一事实，遗漏了举荐者是先主这一人物关系。",
+        "suggested_fix": "译为“青州刺史袁谭，过去曾被先主举荐为茂才……”"
+      },
+      {
+        "issue_id": "f_003",
+        "category": "wrong_meaning",
+        "severity": "material",
+        "source_evidence": [
+          {
+            "first_block_id": "b_043",
+            "last_block_id": "b_043",
+            "quote": "及曹公至，先主斂眾拒險，終不交鋒，積月不拔，亡者日多。",
+            "occurrence": 1
+          }
+        ],
+        "translation_evidence": [
+          {
+            "translation_id": "t_024",
+            "quote": "曹操到达后，先主收拢部众据险防守，始终不和他交锋。曹操围攻数月不能攻克，士卒每天都有逃亡。"
+          }
+        ],
+        "explanation": "“亡者日多”中的“亡者”指死亡的人日益增多，并非士卒逃亡；译文将死亡误译为逃亡，改变了战况记载。",
+        "suggested_fix": "应译为“相持数月而不能攻破，死亡的人日益增多”。"
+      }
+    ],
+    "coverage": [
+      {
+        "source_id": "b_005",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_007",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_009",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_011",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_013",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_015",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_017",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_019",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_021",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_023",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_025",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_027",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_033",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_035",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_037",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_039",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_041",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_043",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_045",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_047",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_049",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_051",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_053",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_055",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_057",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_059",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_061",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_063",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_065",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_067",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_071",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_073",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_075",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_081",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_083",
+        "status": "checked"
+      },
+      {
+        "source_id": "b_085",
+        "status": "checked"
+      }
+    ]
+  },
+  "elapsed_seconds": 67.06,
+  "http_calls": 1,
+  "http_observations": [
+    {
+      "attempt": 1,
+      "bytes": 34278,
+      "sha256": "b4e0b59cd42a03a62e13f36750c0728595eec37b6cd57b315132a3f474331cea",
+      "status": "completed",
+      "reported_model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 36721,
+        "output_tokens": 4382,
+        "total_tokens": 41103,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 36718
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 3305
+        }
+      },
+      "incomplete_details": null
+    }
+  ],
+  "deadline_hit": false,
+  "billed_cost": null
+}

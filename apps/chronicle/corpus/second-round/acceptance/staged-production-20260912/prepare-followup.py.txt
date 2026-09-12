@@ -1,0 +1,243 @@
+"""Build bounded experimental specs; no Chronicle production writes."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write(name, value):
+    path = ROOT / name
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    path.chmod(0o600)
+
+
+def obj(properties):
+    return {'type': 'object', 'properties': properties,
+            'required': list(properties), 'additionalProperties': False}
+
+
+def arr(items):
+    return {'type': 'array', 'items': items}
+
+
+def enum(values):
+    return {'type': 'string', 'enum': values}
+
+
+string = {'type': 'string', 'minLength': 1}
+plan = json.loads((ROOT / 'plan.json').read_text())
+translation = json.loads((ROOT / 'translation/raw.txt').read_text())
+translated = [{'translation_id': f't_{i:03}', **block}
+              for i, block in enumerate(translation['blocks'], 1)]
+write('translation-input.json', {
+    'artifact_kind': 'experimental_translation_candidate',
+    'raw_sha256': sha(ROOT / 'translation/raw.txt'),
+    'semantic_accepted': False, 'blocks': translated,
+})
+source_ids = [b['block_id'] for b in plan['original_context_blocks']]
+translation_ids = [b['translation_id'] for b in translated]
+selection = obj({
+    'first_block_id': enum(source_ids), 'last_block_id': enum(source_ids),
+    'quote': string, 'occurrence': {'type': 'integer', 'minimum': 1},
+})
+time_schema = obj({
+    'label': {'type': ['string', 'null']},
+    'basis': enum(['explicit', 'inferred', 'unknown']),
+    'evidence': arr(selection),
+})
+translation_refs = arr(enum(translation_ids))
+source_context = json.dumps(plan['original_context_blocks'], ensure_ascii=False, separators=(',', ':'))
+target_context = json.dumps(plan['targets'], ensure_ascii=False, separators=(',', ':'))
+translated_context = json.dumps(translated, ensure_ascii=False, separators=(',', ':'))
+input_files = [
+    {'role': role, 'path': name, 'sha256': sha(ROOT / name)}
+    for role, name in [('source_plan', 'plan.json'),
+                       ('translation_raw', 'translation/raw.txt'),
+                       ('translation_input', 'translation-input.json')]
+]
+
+
+def spec(phase, model, prompt, schema, budget):
+    return {
+        'phase': phase, 'model': model, 'prompt': prompt,
+        'format_name': phase.replace('-', '_'), 'json_schema': schema,
+        'max_output_tokens': budget, 'max_response_bytes': 4 * 1024 * 1024,
+        'wall_clock_limit_seconds': 600,
+        'source_sha256': plan['source_request']['source_sha256'],
+        'input_files': input_files,
+        'source_policy': plan['source_policy'],
+        'translation_ids': translation_ids,
+        'scope': 'isolated experiment; candidates are not accepted/published product artifacts',
+    }
+
+
+extraction_schema = obj({
+    'entities': arr(obj({
+        'ref': string, 'name': string,
+        'kind': enum(['person', 'place', 'polity']),
+        'evidence': arr(selection),
+    })),
+    'events': arr(obj({
+        'ref': string, 'name': string, 'summary': string,
+        'participants': arr(string), 'time': time_schema,
+        'evidence': arr(selection), 'translation_ids': translation_refs,
+    })),
+    'facts': arr(obj({
+        'ref': string, 'subject_ref': string,
+        'kind': enum(['office', 'affiliation', 'place_control', 'relationship', 'reported_claim']),
+        'value': string, 'object_refs': arr(string),
+        'assertion_basis': enum(['explicit', 'inferred', 'reported']),
+        'time': time_schema, 'evidence': arr(selection),
+        'translation_ids': translation_refs,
+    })),
+})
+extraction_prompt = '''你负责历史材料的独立事实提取，只输出结构化信息，不再次翻译或返回正文。
+输入包含完整原章（正文和原注）及已保存的白话候选。白话文尚未通过语义复核，不能把它当作事实证据。
+本次是小型试验，只提取支持本章主叙事的核心人物、地点、政权，少量适合作为历史流导航的重大事件，以及核心人物职位/势力/关系、地点归属的有据状态。普通任职、领有某地等细节作为 facts，不各自造一个导航事件。
+不要为了数量补记录；不存在的政权或不明确的信息不要补齐。原注的独有记载允许提取，但必须如实归属引用来源，不把注家辩驳或他人声称当成无异议史实。
+同章明确相同的简称使用同一个本地 ref；无法明确的保持分开。它们不是跨来源 canonical IDs，模型不能据名称做跨来源合并。
+每条 evidence 是原文逐字 quote，包含正确的 first_block_id、last_block_id 和窗口内从1开始的 occurrence。引文保持繁体、标点和空白，不使用白话文引用替代原文。
+事实与事件要有足够原文依据支持主体和内容；若需要前文解释简称，就同时给出相关原文证据。说话人的主张使用 reported，不能变成该事情已实际发生。
+time.label 用原文支持的年号、季月或相对时间，不凭常识补公元日期；explicit 需要直接日期依据，inferred 必须保留推断依据，未知用 label=null、basis=unknown。任命只说明当时任命，不凭空延长任职区间，也不把后来的身份带到前文。
+translation_ids 仅用于关联已存译段。原注独有事实没有正文位置时用空数组，不硬挂错段。
+entities 用 e_001 等本地 ref，events 用 evt_001，facts 用 f_001，各自唯一。所有 participants、subject_ref、object_refs 引用本次 entities。events 只选真正重要、可帮助读者定位的历史节点；其他状态变化放 facts。
+只返回 JSON，不输出说明、分析过程或重述译文。
+
+完整原章：
+''' + source_context + '\n\n已存白话候选：\n' + translated_context
+write('extraction-spec.json', spec('extraction', 'gpt-5.6-luna', extraction_prompt, extraction_schema, 24576))
+
+review_schema = obj({
+    'verdict': enum(['no_material_issues_found', 'needs_correction', 'needs_human']),
+    'findings': arr(obj({
+        'issue_id': string,
+        'category': enum(['wrong_actor', 'wrong_relation', 'wrong_time', 'wrong_place', 'wrong_meaning', 'omission', 'unsupported_addition', 'annotation_intrusion', 'source_ambiguity']),
+        'severity': enum(['material', 'minor']),
+        'source_evidence': arr(selection),
+        'translation_evidence': arr(obj({'translation_id': enum(translation_ids), 'quote': string})),
+        'explanation': string, 'suggested_fix': string,
+    })),
+    'coverage': arr(obj({'source_id': enum([t['source_id'] for t in plan['targets']]),
+                          'status': enum(['checked', 'uncertain'])})),
+})
+review_prompt = '''你是独立的历史译文复核者。核对全部待译正文与已保存译文，找出有具体原文依据的实质性误译、遗漏、凭空添加和注释打断。
+本次输出范围是待译正文，不要求把原有注释也译入读者正文；完整原章含原注供理解。原注独有故事没有出现在白话正文不算漏译。待译正文中的书信、奏表、对话仍须完整、准确。
+重点核对省略主语、人物简称、亲属关系、古词、地点及时间，不能因 JSON 正确或 source_id 全覆盖就认可内容。区分文字流畅与事实忠实。
+你看不到生成者的分析过程或其他审核结果，请独立判断。不要把史书中的记载直接称作已被外部证实的历史事实，不用外部知识覆盖原文。
+每项发现须提供具体 source_evidence：完整原章内逐字繁体 quote、first_block_id、last_block_id 及从1开始的 occurrence。对错译同时提供现有译文的 translation_id 与逐字 quote；只有完全遗漏才允许空的 translation_evidence。
+措辞风格不同而意思相同无需报错。不要捏造问题来显得严格，也不要为了给出通过而忽略错误。explanation 说明具体差别，suggested_fix 简短写正确含义或需要人工判断的原因，不能写长篇解释。
+coverage 逐一列出全部待译 source_id，表示本次确实看过对应的原文和全部译段；无法判断就 uncertain。no_material_issues_found 只表示此次复核未发现实质问题，不是事实真实保证。
+只返回规定 JSON，不输出全文、分析过程或无依据的赞同。
+
+完整原章：
+''' + source_context + '\n\n待译正文范围：\n' + target_context + '\n\n已存译文：\n' + translated_context
+for suffix, model in [('luna', 'gpt-5.6-luna'), ('sol', 'gpt-5.6-sol')]:
+    value = spec('translation-review', model, review_prompt, review_schema, 8192)
+    value['target_ids'] = [t['source_id'] for t in plan['targets']]
+    write(f'review-{suffix}-spec.json', value)
+
+runner = (ROOT / 'run-phase.py').read_text()
+runner = runner.replace("assert spec['model'] == 'gpt-5.6-luna'", "assert spec['model'] in ('gpt-5.6-luna', 'gpt-5.6-sol')")
+start = runner.index('def validate(value):')
+end = runner.index('\ncheckpoint_path =', start)
+validation = '''from chapter_contract import resolve_selection
+
+verified_inputs = {}
+for item in spec['input_files']:
+    input_path = args.spec.parent / item['path']
+    if hashlib.sha256(input_path.read_bytes()).hexdigest() != item['sha256']:
+        raise SystemExit('Input artifact changed; refusing run/reuse: ' + item['role'])
+    verified_inputs[item['role']] = json.loads(input_path.read_text())
+source_plan = verified_inputs['source_plan']
+source_request = source_plan['source_request']
+source_blocks = {b['block_id']: b for b in source_request['blocks']}
+translated_by_id = {b['translation_id']: b for b in verified_inputs['translation_input']['blocks']}
+grounded_anchors = []
+
+def validate(value):
+    errors = [f'{list(e.path)}: {e.message}'
+              for e in Draft202012Validator(spec['json_schema']).iter_errors(value)]
+    if errors:
+        return errors
+    grounded_anchors.clear()
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            if set(node) == {'first_block_id', 'last_block_id', 'quote', 'occurrence'}:
+                anchor, error = resolve_selection(node, request=source_request,
+                                                  blocks_by_id=source_blocks, owner=path)
+                if error:
+                    errors.append(error)
+                else:
+                    annotation_overlap = sum(max(0, min(anchor['end'], r['end']) - max(anchor['start'], r['start']))
+                                             for r in source_plan['annotation_ranges'])
+                    grounded_anchors.append({'path': path, 'anchor': anchor,
+                                             'annotation_overlap_chars': annotation_overlap})
+            for key, item in node.items():
+                walk(item, f'{path}.{key}')
+        elif isinstance(node, list):
+            for index, item in enumerate(node):
+                walk(item, f'{path}[{index}]')
+    walk(value, '$')
+    if spec['phase'] == 'translation-review':
+        coverage = [r['source_id'] for r in value['coverage']]
+        if len(coverage) != len(set(coverage)) or set(coverage) != set(spec['target_ids']):
+            errors.append('review coverage missing or duplicated')
+        ids = [r['issue_id'] for r in value['findings']]
+        if len(ids) != len(set(ids)):
+            errors.append('duplicate review issue IDs')
+        if value['verdict'] == 'no_material_issues_found' and any(r['severity'] == 'material' for r in value['findings']):
+            errors.append('verdict contradicts material findings')
+        for finding in value['findings']:
+            if not finding['source_evidence']:
+                errors.append(f"{finding['issue_id']}: missing source evidence")
+            for evidence in finding['translation_evidence']:
+                if evidence['quote'] not in translated_by_id[evidence['translation_id']]['text']:
+                    errors.append(f"{finding['issue_id']}: translation quote does not exist")
+    elif spec['phase'] == 'extraction':
+        all_refs = [r['ref'] for kind in ('entities', 'events', 'facts') for r in value[kind]]
+        if len(all_refs) != len(set(all_refs)):
+            errors.append('duplicate local refs')
+        entities = {r['ref'] for r in value['entities']}
+        for kind in ('entities', 'events', 'facts'):
+            for item in value[kind]:
+                if not item['evidence']:
+                    errors.append(item['ref'] + ': missing source evidence')
+                refs = item.get('participants', []) + item.get('object_refs', [])
+                if 'subject_ref' in item:
+                    refs.append(item['subject_ref'])
+                if set(refs) - entities:
+                    errors.append(item['ref'] + ': unknown entity refs')
+                if 'time' in item:
+                    t = item['time']
+                    if t['basis'] == 'unknown' and t['label'] is not None:
+                        errors.append(item['ref'] + ': unknown time must have null label')
+                    if t['basis'] != 'unknown' and (not t['label'] or not t['evidence']):
+                        errors.append(item['ref'] + ': known time lacks evidence/label')
+    return errors
+'''
+runner = runner[:start] + validation + runner[end:]
+runner = runner.replace("'semantic_quality_accepted': False}", "'semantic_quality_accepted': False,\n          'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),\n          'input_files': spec['input_files']}")
+runner = runner.replace("errors = validate(value)\n    if not observations", "errors = validate(value)\n    save('grounding-validation.json', {'anchors': grounded_anchors, 'errors': errors,\n          'semantic_entailment_verified': False})\n    if not observations")
+(ROOT / 'run-phase-v2.py').write_text(runner)
+(ROOT / 'run-phase-v2.py').chmod(0o600)
+compile(runner, 'run-phase-v2.py', 'exec')
+write('followup-plan.json', {
+    'runner_sha256': sha(ROOT / 'run-phase-v2.py'),
+    'translation_sha256': sha(ROOT / 'translation/raw.txt'),
+    'parallel': ['extraction-spec.json', 'review-luna-spec.json', 'review-sol-spec.json'],
+    'all_consume_frozen_translation': True,
+    'extraction_from_unaccepted_translation_is_speculative': True,
+    'downstream_must_be_reconciled_if_translation_changes': True,
+    'production_writes': False,
+})
+for name in ['extraction-spec.json', 'review-luna-spec.json', 'review-sol-spec.json']:
+    value = json.loads((ROOT / name).read_text())
+    print(json.dumps({'spec': name, 'model': value['model'],
+                      'prompt_chars': len(value['prompt']),
+                      'output_budget': value['max_output_tokens'], 'sha256': sha(ROOT / name)}))

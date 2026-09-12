@@ -1,0 +1,87 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "translation",
+    "time_unix": 1789218864.7209516,
+    "model": "gpt-5.6-luna",
+    "prompt_chars": 22797,
+    "max_output_tokens": 32768,
+    "wall_clock_limit_seconds": 600
+  },
+  {
+    "kind": "http_started",
+    "phase": "translation",
+    "time_unix": 1789218864.7215335,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "translation",
+    "time_unix": 1789218887.3175077,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation",
+    "time_unix": 1789218902.369493,
+    "bytes_received": 2
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation",
+    "time_unix": 1789218918.8563156,
+    "bytes_received": 3
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation",
+    "time_unix": 1789218947.3237498,
+    "bytes_received": 5
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation",
+    "time_unix": 1789218962.3768115,
+    "bytes_received": 6
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation",
+    "time_unix": 1789218978.2492425,
+    "bytes_received": 26045
+  },
+  {
+    "kind": "http_returned",
+    "phase": "translation",
+    "time_unix": 1789218978.8658388,
+    "attempt": 1,
+    "bytes": 38029,
+    "sha256": "c66a41c80a2525f219ccec7c1f1aeb3342242f4c73a7d75eaad8050d77b0ffad",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "input_tokens": 23826,
+      "output_tokens": 10889,
+      "total_tokens": 34715,
+      "input_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 23823
+      },
+      "output_tokens_details": {
+        "reasoning_tokens": 108
+      }
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "translation",
+    "time_unix": 1789218978.8708758,
+    "elapsed_seconds": 114.15,
+    "phase_shape_valid": true,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": []
+  }
+]

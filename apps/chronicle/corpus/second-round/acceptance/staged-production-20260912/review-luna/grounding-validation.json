@@ -1,0 +1,60 @@
+{
+  "anchors": [
+    {
+      "path": "$.findings[0].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_7920f36875b0e600",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_017",
+        "last_block_id": "b_017",
+        "quote": "先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛。",
+        "quote_sha256": "f8cb718f9b5b7d07036933e27bd3edbea3c68c2e8e22d668e2f0691546c30c49",
+        "occurrence": 1,
+        "start": 2620,
+        "end": 2654
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[1].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_504806d318dc050a",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_019",
+        "last_block_id": "b_019",
+        "quote": "先主走青州。青州刺史袁譚，先主故茂才也，將步騎迎先主。",
+        "quote_sha256": "f3522902860564e816ef2ccccc467cbf6c90df8102af0461fb1a774e831c8b12",
+        "occurrence": 1,
+        "start": 3003,
+        "end": 3030
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[2].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_32e7753d28d3d3d7",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "及曹公至，先主斂眾拒險，終不交鋒，積月不拔，亡者日多。",
+        "quote_sha256": "4f0cc1dc76a042bff7c85c1c553f3aa17dbf313261ddc78300ca3fe4b32256be",
+        "occurrence": 1,
+        "start": 8072,
+        "end": 8099
+      },
+      "annotation_overlap_chars": 0
+    }
+  ],
+  "errors": [],
+  "semantic_entailment_verified": false
+}

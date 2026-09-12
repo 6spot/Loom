@@ -1,0 +1,54 @@
+{
+  "kind": "independent_host_extraction_review",
+  "verdict": "needs_correction",
+  "not_a_production_contract": true,
+  "observations": [
+    {
+      "ref": "f_011",
+      "problem": "subject_ref=e_002 resolves to 曹操, but the value describes 曹丕 becoming emperor. A real quote and valid reference do not establish the correct subject.",
+      "source_blocks": [
+        "b_057",
+        "b_067"
+      ]
+    },
+    {
+      "ref": "e_019",
+      "problem": "Name combines 夷陵 with 猇亭, while the cited original uses 夷道猇亭. Related place names are not automatically one place identity.",
+      "source_blocks": [
+        "b_073"
+      ]
+    },
+    {
+      "refs": [
+        "evt_001",
+        "evt_003",
+        "evt_005"
+      ],
+      "problem": "Trial events intended as selected navigation still include 領徐州, 取得益州 and 受封漢中王. These cannot automatically become public anchors; retain factual/state records and select major narrative entry points separately."
+    },
+    {
+      "ref": "f_001",
+      "problem": "Ancestry is encoded as affiliation. Source genealogy cannot automatically establish current political service/allegiance.",
+      "source_blocks": [
+        "b_005"
+      ]
+    },
+    {
+      "ref": "evt_007",
+      "problem": "Combined campaign and defeat receives only the end-stage date; date evidence quotes yellow clouds rather than the defeat or beginning of the campaign. Timeline semantics require further validation.",
+      "source_blocks": [
+        "b_071",
+        "b_073"
+      ]
+    },
+    {
+      "problem": "周瑜 and 程普 are named commanders in the Red Cliff passage but absent from the entity list. This compact trial is not complete enough to certify main-character context/state extraction.",
+      "source_blocks": [
+        "b_025"
+      ]
+    },
+    {
+      "problem": "Several dates inherit year/era from context but carry only short local excerpts. Non-null labels and a valid quote do not prove the declared explicit time basis."
+    }
+  ]
+}

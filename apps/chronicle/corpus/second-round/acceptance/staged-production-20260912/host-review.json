@@ -1,0 +1,285 @@
+{
+  "kind": "independent_host_content_review",
+  "reviewer": "host agent; not a human review decision",
+  "translation_sha256": "87ecf3ee083a76a3cc333dd348fbd2833d5f4c30b1a40326d2d6d6030447a908",
+  "verdict": "needs_correction",
+  "scope": "Host agent read every translated block and recorded 12 potential issues before reading the model reports. These are observations, not an exhaustive gold-standard set or human decisions.",
+  "cases": [
+    {
+      "id": "M01",
+      "key": "actor-zhu-ling",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_013",
+          "last_block_id": "b_013",
+          "quote": "曹公遣先主督朱靈、路招要擊術。",
+          "occurrence": 1
+        },
+        {
+          "first_block_id": "b_017",
+          "last_block_id": "b_017",
+          "quote": "靈等還，先主乃殺徐州刺史車冑",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_010",
+          "quote": "关羽等人回来后"
+        }
+      ],
+      "assessment": "靈承接朱靈，不能改為關羽。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M02",
+      "key": "relation-dong-cheng",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_015",
+          "last_block_id": "b_015",
+          "quote": "獻帝舅車騎將軍董承",
+          "occurrence": 1
+        },
+        {
+          "first_block_id": "b_015",
+          "last_block_id": "b_015",
+          "quote": "於獻帝為丈人。蓋古無丈人之名，故謂之舅也。",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_009",
+          "quote": "献帝的舅舅"
+        }
+      ],
+      "assessment": "原注明確解釋此處舅指岳父，不能譯為母舅。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M03",
+      "key": "mission-omission",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_015",
+          "last_block_id": "b_015",
+          "quote": "會見使，未發。事覺，承等皆伏誅。",
+          "occurrence": 1
+        },
+        {
+          "first_block_id": "b_015",
+          "last_block_id": "b_015",
+          "quote": "承等與備謀未發，而備出。",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_009",
+          "quote": "恰逢事情被人察觉，尚未发动"
+        }
+      ],
+      "assessment": "漏掉劉備恰逢受遣外出的情節，把會見使與事覺混在一起。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M04",
+      "key": "relation-yuan-tan",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_019",
+          "last_block_id": "b_019",
+          "quote": "青州刺史袁譚，先主故茂才也，將步騎迎先主。",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_011",
+          "quote": "青州刺史袁谭过去曾被举荐为茂才"
+        }
+      ],
+      "assessment": "省略袁譚曾由劉備舉荐的關係，無法解釋此處承接。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M05",
+      "key": "actor-wan",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_023",
+          "last_block_id": "b_023",
+          "quote": "先主屯樊，不知曹公卒至，至宛乃聞之",
+          "occurrence": 1
+        },
+        {
+          "first_block_id": "b_023",
+          "last_block_id": "b_023",
+          "quote": "是時曹公在宛，備乃大驚駭",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_013",
+          "quote": "先主驻扎在樊城，不知道曹操突然到来，到了宛县才听说"
+        }
+      ],
+      "assessment": "到宛的是曹操，劉備當時駐樊。現有語序把到宛接成劉備。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M06",
+      "key": "actor-supplies",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_013",
+          "last_block_id": "b_013",
+          "quote": "曹公厚遇之，以為豫州牧。將至沛收散卒，給其軍糧，益與兵使東擊布。",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_008",
+          "quote": "先主将到沛县时，收集散失的士卒，供应军粮"
+        }
+      ],
+      "assessment": "將至沛的將是率領之意；供給軍糧及增兵者承接曹公，不能接成劉備自己供糧。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M07",
+      "key": "clan-shangguan",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_047",
+          "last_block_id": "b_047",
+          "quote": "孝昭幼衝而上官逆謀",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_026",
+          "quote": "汉昭帝年幼，霍氏却图谋叛逆"
+        }
+      ],
+      "assessment": "原文是上官氏而非霍氏，不能更換主体。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M08",
+      "key": "office-yuzhou",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_047",
+          "last_block_id": "b_047",
+          "quote": "左將軍領司隸校尉豫、荊、益三州牧宜城亭侯備",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_028",
+          "quote": "豫州刺史、荆州牧、益州牧"
+        }
+      ],
+      "assessment": "此奏表稱豫、荊、益三州牧，不能把豫州牧改為刺史。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M09",
+      "key": "relation-memorial-authors",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_047",
+          "last_block_id": "b_047",
+          "quote": "臣等以備肺腑枝葉，宗子籓翰",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_029",
+          "quote": "我们和刘备是皇室近亲、宗室屏障"
+        }
+      ],
+      "assessment": "臣等以備指群臣認為劉備是宗室，不表示群臣也都是宗室。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M10",
+      "key": "unsupported-father-name",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_059",
+          "last_block_id": "b_059",
+          "quote": "臣父群未亡時",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_039",
+          "quote": "臣的父亲刘群"
+        }
+      ],
+      "assessment": "此處僅給群之名，不能因前列劉豹或主人公劉備而補姓劉。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M11",
+      "key": "meaning-empress",
+      "severity": "material",
+      "source_evidence": [
+        {
+          "first_block_id": "b_067",
+          "last_block_id": "b_067",
+          "quote": "今曹操阻兵安忍，戮殺主後，滔天泯夏",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_045",
+          "quote": "杀害皇后和君主"
+        }
+      ],
+      "assessment": "主后在此為皇后，不是皇后加君主兩人，現譯額外加入殺害君主。",
+      "review_status": "requires_correction"
+    },
+    {
+      "id": "M12",
+      "key": "direction-request-troops",
+      "severity": "minor",
+      "source_evidence": [
+        {
+          "first_block_id": "b_071",
+          "last_block_id": "b_071",
+          "quote": "武陵五谿蠻夷遣使請兵",
+          "occurrence": 1
+        }
+      ],
+      "translation_evidence": [
+        {
+          "translation_id": "t_047",
+          "quote": "武陵五溪蛮夷派使者请求出兵相助"
+        }
+      ],
+      "assessment": "“请求出兵相助”可以理解为向刘备求援；不能据此确定模型把请兵方向译反。可为清晰度改写，但不作为已确认实质错误。",
+      "review_status": "wording_ambiguous_not_confirmed_error"
+    }
+  ]
+}

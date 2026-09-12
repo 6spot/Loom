@@ -1,0 +1,953 @@
+{
+  "passed": false,
+  "check_count": 235,
+  "new_http_calls": 0,
+  "semantic_quality_accepted": false,
+  "production_worker_verified": false,
+  "known_defects": {
+    "translation: source binding": "Initial trial spec mislabeled normalized_sha256 as source_sha256. Frozen plan and actual input are verified, but this failed metadata contract is preserved, not waived."
+  },
+  "scope": "Archive SHA/schema/source-reference/dependency/reuse consistency only. Not semantic accuracy.",
+  "checks": [
+    {
+      "name": "archive hash: comparison/grounding-validation.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: comparison/http-observations.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: comparison/progress.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: comparison/raw.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: comparison/result.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: comparison-spec.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction/grounding-validation.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction/http-observations.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction/progress.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction/raw.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction/result.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: extraction-spec.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: followup-plan.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: host-comparison-review.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: host-extraction-review.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: host-review.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: metadata-review.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: plan.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: prepare-comparison.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: prepare-followup.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: resume-verification.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/checkpoint.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/grounding-validation.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/http-observations.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/progress.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/raw.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna/result.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-luna-spec.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol/grounding-validation.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol/http-observations.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol/progress.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol/raw.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol/result.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: review-sol-spec.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: run-phase-v2.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: run-phase-v3.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: run-phase.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation/checkpoint.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation/http-observations.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation/progress.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation/raw.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation/result.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation-input.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation-spec.json",
+      "passed": true
+    },
+    {
+      "name": "archive hash: translation.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: verify-evidence.py.txt",
+      "passed": true
+    },
+    {
+      "name": "archive hash: verify-resume.py.txt",
+      "passed": true
+    },
+    {
+      "name": "grounding contract matches executed source",
+      "passed": true
+    },
+    {
+      "name": "complete source character count",
+      "passed": true
+    },
+    {
+      "name": "normalized source hash",
+      "passed": true
+    },
+    {
+      "name": "source block count",
+      "passed": true
+    },
+    {
+      "name": "target count and chars",
+      "passed": true
+    },
+    {
+      "name": "annotation count and ranges",
+      "passed": true
+    },
+    {
+      "name": "annotation continuation retained explicitly",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_001",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_002",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_003",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_004",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_005",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_006",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_007",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_008",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_009",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_010",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_011",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_012",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_013",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_014",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_015",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_016",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_017",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_018",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_019",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_020",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_021",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_022",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_023",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_024",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_025",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_026",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_027",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_028",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_029",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_030",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_031",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_032",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_033",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_034",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_035",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_036",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_037",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_038",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_039",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_040",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_041",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_042",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_043",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_044",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_045",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_046",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_047",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_048",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_049",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_050",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_051",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_052",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_053",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_054",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_055",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_056",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_057",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_058",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_059",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_060",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_061",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_062",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_063",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_064",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_065",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_066",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_067",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_068",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_069",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_070",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_071",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_072",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_073",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_074",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_075",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_076",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_077",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_078",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_079",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_080",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_081",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_082",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_083",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_084",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_085",
+      "passed": true
+    },
+    {
+      "name": "source block hash: b_086",
+      "passed": true
+    },
+    {
+      "name": "translation: exact raw output",
+      "passed": true
+    },
+    {
+      "name": "translation: spec hash",
+      "passed": true
+    },
+    {
+      "name": "translation: source binding",
+      "passed": false
+    },
+    {
+      "name": "translation: frozen plan hash",
+      "passed": true
+    },
+    {
+      "name": "translation: full original context supplied",
+      "passed": true
+    },
+    {
+      "name": "translation: JSON schema",
+      "passed": true
+    },
+    {
+      "name": "translation: replay citation errors",
+      "passed": true
+    },
+    {
+      "name": "translation: checkpoint only after mechanical pass",
+      "passed": true
+    },
+    {
+      "name": "translation: not product accepted",
+      "passed": true
+    },
+    {
+      "name": "translation: one bounded request",
+      "passed": true
+    },
+    {
+      "name": "translation: completed known usage",
+      "passed": true
+    },
+    {
+      "name": "translation: recorded HTTP digest",
+      "passed": true
+    },
+    {
+      "name": "translation: actual attempt count",
+      "passed": true
+    },
+    {
+      "name": "translation: coverage order",
+      "passed": true
+    },
+    {
+      "name": "translation: all plain blocks nonempty",
+      "passed": true
+    },
+    {
+      "name": "translation: prose length/count",
+      "passed": true
+    },
+    {
+      "name": "translation: derived prose export",
+      "passed": true
+    },
+    {
+      "name": "extraction: exact raw output",
+      "passed": true
+    },
+    {
+      "name": "extraction: spec hash",
+      "passed": true
+    },
+    {
+      "name": "extraction: source binding",
+      "passed": true
+    },
+    {
+      "name": "extraction: JSON schema",
+      "passed": true
+    },
+    {
+      "name": "extraction: replay citation errors",
+      "passed": true
+    },
+    {
+      "name": "extraction: checkpoint only after mechanical pass",
+      "passed": true
+    },
+    {
+      "name": "extraction: not product accepted",
+      "passed": true
+    },
+    {
+      "name": "extraction: one bounded request",
+      "passed": true
+    },
+    {
+      "name": "extraction: completed known usage",
+      "passed": true
+    },
+    {
+      "name": "extraction: recorded HTTP digest",
+      "passed": true
+    },
+    {
+      "name": "extraction: executed runner",
+      "passed": true
+    },
+    {
+      "name": "extraction: input source_plan",
+      "passed": true
+    },
+    {
+      "name": "extraction: input translation_raw",
+      "passed": true
+    },
+    {
+      "name": "extraction: input translation_input",
+      "passed": true
+    },
+    {
+      "name": "extraction: actual attempt count",
+      "passed": true
+    },
+    {
+      "name": "review-luna: exact raw output",
+      "passed": true
+    },
+    {
+      "name": "review-luna: spec hash",
+      "passed": true
+    },
+    {
+      "name": "review-luna: source binding",
+      "passed": true
+    },
+    {
+      "name": "review-luna: JSON schema",
+      "passed": true
+    },
+    {
+      "name": "review-luna: replay citation errors",
+      "passed": true
+    },
+    {
+      "name": "review-luna: checkpoint only after mechanical pass",
+      "passed": true
+    },
+    {
+      "name": "review-luna: not product accepted",
+      "passed": true
+    },
+    {
+      "name": "review-luna: one bounded request",
+      "passed": true
+    },
+    {
+      "name": "review-luna: completed known usage",
+      "passed": true
+    },
+    {
+      "name": "review-luna: recorded HTTP digest",
+      "passed": true
+    },
+    {
+      "name": "review-luna: executed runner",
+      "passed": true
+    },
+    {
+      "name": "review-luna: input source_plan",
+      "passed": true
+    },
+    {
+      "name": "review-luna: input translation_raw",
+      "passed": true
+    },
+    {
+      "name": "review-luna: input translation_input",
+      "passed": true
+    },
+    {
+      "name": "review-luna: actual attempt count",
+      "passed": true
+    },
+    {
+      "name": "review-luna: reported coverage complete",
+      "passed": true
+    },
+    {
+      "name": "review-luna: actual translation quotes",
+      "passed": true
+    },
+    {
+      "name": "review-sol: exact raw output",
+      "passed": true
+    },
+    {
+      "name": "review-sol: spec hash",
+      "passed": true
+    },
+    {
+      "name": "review-sol: source binding",
+      "passed": true
+    },
+    {
+      "name": "review-sol: JSON schema",
+      "passed": true
+    },
+    {
+      "name": "review-sol: replay citation errors",
+      "passed": true
+    },
+    {
+      "name": "review-sol: checkpoint only after mechanical pass",
+      "passed": true
+    },
+    {
+      "name": "review-sol: not product accepted",
+      "passed": true
+    },
+    {
+      "name": "review-sol: one bounded request",
+      "passed": true
+    },
+    {
+      "name": "review-sol: completed known usage",
+      "passed": true
+    },
+    {
+      "name": "review-sol: recorded HTTP digest",
+      "passed": true
+    },
+    {
+      "name": "review-sol: executed runner",
+      "passed": true
+    },
+    {
+      "name": "review-sol: input source_plan",
+      "passed": true
+    },
+    {
+      "name": "review-sol: input translation_raw",
+      "passed": true
+    },
+    {
+      "name": "review-sol: input translation_input",
+      "passed": true
+    },
+    {
+      "name": "review-sol: actual attempt count",
+      "passed": true
+    },
+    {
+      "name": "review-sol: reported coverage complete",
+      "passed": true
+    },
+    {
+      "name": "review-sol: actual translation quotes",
+      "passed": true
+    },
+    {
+      "name": "comparison: exact raw output",
+      "passed": true
+    },
+    {
+      "name": "comparison: spec hash",
+      "passed": true
+    },
+    {
+      "name": "comparison: source binding",
+      "passed": true
+    },
+    {
+      "name": "comparison: JSON schema",
+      "passed": true
+    },
+    {
+      "name": "comparison: replay citation errors",
+      "passed": true
+    },
+    {
+      "name": "comparison: checkpoint only after mechanical pass",
+      "passed": true
+    },
+    {
+      "name": "comparison: not product accepted",
+      "passed": true
+    },
+    {
+      "name": "comparison: one bounded request",
+      "passed": true
+    },
+    {
+      "name": "comparison: completed known usage",
+      "passed": true
+    },
+    {
+      "name": "comparison: recorded HTTP digest",
+      "passed": true
+    },
+    {
+      "name": "comparison: executed runner",
+      "passed": true
+    },
+    {
+      "name": "comparison: input source_plan",
+      "passed": true
+    },
+    {
+      "name": "comparison: input translation_raw",
+      "passed": true
+    },
+    {
+      "name": "comparison: input translation_input",
+      "passed": true
+    },
+    {
+      "name": "comparison: input review-luna",
+      "passed": true
+    },
+    {
+      "name": "comparison: input review-sol",
+      "passed": true
+    },
+    {
+      "name": "comparison: actual attempt count",
+      "passed": true
+    },
+    {
+      "name": "extraction: starts after saved translation",
+      "passed": true
+    },
+    {
+      "name": "review-luna: starts after saved translation",
+      "passed": true
+    },
+    {
+      "name": "review-sol: starts after saved translation",
+      "passed": true
+    },
+    {
+      "name": "three followups overlap",
+      "passed": true
+    },
+    {
+      "name": "comparison waits for both reports",
+      "passed": true
+    },
+    {
+      "name": "comparison accounts for all 18 findings once",
+      "passed": true
+    },
+    {
+      "name": "usage and HTTP totals",
+      "passed": true
+    },
+    {
+      "name": "six offline resume checks",
+      "passed": true
+    },
+    {
+      "name": "host issue source quotes exist",
+      "passed": true
+    },
+    {
+      "name": "host issue translation quotes exist",
+      "passed": true
+    },
+    {
+      "name": "host wording doubt not overstated",
+      "passed": true
+    },
+    {
+      "name": "private response/config excluded",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "extraction",
+    "time_unix": 1789219889.123024,
+    "model": "gpt-5.6-luna",
+    "prompt_chars": 28491,
+    "max_output_tokens": 24576,
+    "wall_clock_limit_seconds": 600
+  },
+  {
+    "kind": "http_started",
+    "phase": "extraction",
+    "time_unix": 1789219889.1237643,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "extraction",
+    "time_unix": 1789219914.9209468,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "extraction",
+    "time_unix": 1789219937.4478886,
+    "bytes_received": 3
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "extraction",
+    "time_unix": 1789219953.217401,
+    "bytes_received": 4
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "extraction",
+    "time_unix": 1789219982.5045447,
+    "bytes_received": 6
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "extraction",
+    "time_unix": 1789220007.6961045,
+    "bytes_received": 7
+  },
+  {
+    "kind": "http_returned",
+    "phase": "extraction",
+    "time_unix": 1789220013.1259348,
+    "attempt": 1,
+    "bytes": 34216,
+    "sha256": "2cf590dace0855185dac453c7a2bf8ed8df6457720ff76e80f9be39af65db998",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "attribution": {
+        "items": {
+          "msg_02285bc65e9a418b016aa5543641c087d0bb24e11dfbfbba67": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 26043,
+                "output_tokens": 0
+              }
+            ],
+            "input_tokens": 26043,
+            "output_tokens": 0
+          },
+          "rs_02285bc65e9a418b016aa5543757e087d0a050411cd9aa1ae8": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2,
+            "output_tokens": 516
+          },
+          "msg_02285bc65e9a418b016aa55440be8087d09ed86f7137d67ce4": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 5862
+              }
+            ],
+            "input_tokens": 0,
+            "output_tokens": 5862
+          }
+        },
+        "request_fields": {
+          "tools": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 296,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2623,
+            "output_tokens": 0
+          }
+        }
+      },
+      "input_tokens": 28964,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 6378,
+      "output_tokens_details": {
+        "reasoning_tokens": 516
+      },
+      "total_tokens": 35342
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "extraction",
+    "time_unix": 1789220013.1360972,
+    "elapsed_seconds": 124.013,
+    "phase_shape_valid": false,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": [
+      "$.entities[1].evidence[0] quote occurs 0 time(s) in ['b_013'..'b_013'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+      "$.entities[5].evidence[0] quote occurs 0 time(s) in ['b_013'..'b_013'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount",
+      "$.entities[18].evidence[0] quote occurs 0 time(s) in ['b_073'..'b_073'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+      "$.events[1].evidence[1] quote occurs 0 time(s) in ['b_025'..'b_025'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+      "$.events[2].evidence[0] quote occurs 0 time(s) in ['b_037'..'b_037'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+    ]
+  }
+]

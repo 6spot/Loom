@@ -1,0 +1,458 @@
+{
+  "phase": "review-comparison",
+  "spec_sha256": "6d36266e894480dba86d8c6e2d6ee4ec31e6aa3a2e0d3951d5f801030d7b8b7d",
+  "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "model": "gpt-5.6-luna",
+  "max_output_tokens": 8192,
+  "wall_clock_limit_seconds": 600,
+  "max_http_attempts": 1,
+  "production_artifact": false,
+  "semantic_quality_accepted": false,
+  "runner_sha256": "4cd299a26fefec19b285990b238aa250dbe1117be4d7584f4d5c2f67a03f60d7",
+  "input_files": [
+    {
+      "role": "source_plan",
+      "path": "plan.json",
+      "sha256": "e4867923af9de098c689cefa64e231f779c6e5886d86d30213340f4cf34f45c8"
+    },
+    {
+      "role": "translation_raw",
+      "path": "translation/raw.txt",
+      "sha256": "87ecf3ee083a76a3cc333dd348fbd2833d5f4c30b1a40326d2d6d6030447a908"
+    },
+    {
+      "role": "translation_input",
+      "path": "translation-input.json",
+      "sha256": "3431ee4d6200c2f96630091b4eaef69ecb4c6b648cc003c810ab209ed6640bc5"
+    },
+    {
+      "role": "review-luna",
+      "path": "review-luna/result.json",
+      "sha256": "4702708f6cb4f1d1becca62102faa24ea30d04edc0c37bb44af8eef3469fd32e"
+    },
+    {
+      "role": "review-sol",
+      "path": "review-sol/result.json",
+      "sha256": "589c92aa4d61be8c1e04e2fd4c672940695cecd31e3bf8393171a182ccd3abcc"
+    }
+  ],
+  "raw_sha256": "791edb9929b13c1e9e067418af3a7b079a7cebf024024194189e888740d53033",
+  "raw_chars": 5685,
+  "validation_errors": [
+    "$.decisions[11].source_evidence[0] quote occurs 0 time(s) in ['b_047'..'b_047'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+  ],
+  "phase_shape_valid": false,
+  "candidate": {
+    "verdict": "needs_correction",
+    "decisions": [
+      {
+        "finding_refs": [
+          "review-luna/f_001",
+          "review-sol/i_005"
+        ],
+        "disposition": "supported",
+        "explanation": "两项意见指向同一处人物关系错误。原文“靈等”承接前文曹操派先主督领的朱灵、路招等人，并非关羽等人；译文将其译为“关羽等人回来”，改变了行动者。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_017",
+            "last_block_id": "b_017",
+            "quote": "先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_010"
+        ],
+        "suggested_change": "改为“先主占据下邳。朱灵等人返回后，先主于是杀死徐州刺史车胄……”"
+      },
+      {
+        "finding_refs": [
+          "review-luna/f_002",
+          "review-sol/i_006"
+        ],
+        "disposition": "supported",
+        "explanation": "两项意见指向同一处关系遗漏。“先主故茂才也”说明袁谭过去是先主举荐的茂才，译文遗漏了举荐者先主。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_019",
+            "last_block_id": "b_019",
+            "quote": "先主走青州。青州刺史袁譚，先主故茂才也，將步騎迎先主。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_011"
+        ],
+        "suggested_change": "改为“青州刺史袁谭，过去曾被先主举荐为茂才，他率领步兵、骑兵迎接先主。”"
+      },
+      {
+        "finding_refs": [
+          "review-luna/f_003"
+        ],
+        "disposition": "supported",
+        "explanation": "“亡者日多”中的“亡者”指死亡者日益增多，不是士卒逃亡。译文将战死或死亡误译为逃亡，改变了战况。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_043",
+            "last_block_id": "b_043",
+            "quote": "及曹公至，先主斂眾拒險，終不交鋒，積月不拔，亡者日多。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_024"
+        ],
+        "suggested_change": "改为“曹操到达后，先主收拢部众据险防守，始终不与他交锋；相持数月而不能攻破，死亡的人日益增多。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_001"
+        ],
+        "disposition": "supported",
+        "explanation": "“義兵”是义军、义兵，结合后文“討黃巾賊”，这里不是响应黄巾起事。译文“举兵响应”改变了各州郡与黄巾军的关系。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_009",
+            "last_block_id": "b_009",
+            "quote": "靈帝末，黃巾起，州郡各舉義兵，先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_004"
+        ],
+        "suggested_change": "改为“灵帝末年，黄巾军起事，各州郡纷纷举起义兵。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_002"
+        ],
+        "disposition": "unsupported",
+        "explanation": "“將至沛收散卒”按原文可理解为先主将到沛县时收集散卒；后面的“給其軍糧，益與兵”也可承接曹操对先主的供给。译文并未形成报告所称的明确错误，建议的“曹操派他到沛县”超出了这句原文的明确内容。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_013",
+            "last_block_id": "b_013",
+            "quote": "曹公厚遇之，以為豫州牧。將至沛收散卒，給其軍糧，益與兵使東擊布。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_008"
+        ],
+        "suggested_change": null
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_003"
+        ],
+        "disposition": "unsupported",
+        "explanation": "报告将“辭受”解释为“声称接受”，但该句本身没有明确的“声称”或传闻标记；在上下文中译为董承接受献帝衣带中的密诏并无充分依据要求改成“声称”。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_015",
+            "last_block_id": "b_015",
+            "quote": "辭受帝衣帶中密詔，當誅曹公。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_009"
+        ],
+        "suggested_change": null
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_004"
+        ],
+        "disposition": "supported",
+        "explanation": "译文将“會見使，未發”压缩成“事情被人察觉，尚未发动”，遗漏了“见使”这一环节；但报告建议的“受命出使”并非原文明确表达。应保留先主尚未出发及有使者来见、谋划尚未发动的时序。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_015",
+            "last_block_id": "b_015",
+            "quote": "先主未發。",
+            "occurrence": 1
+          },
+          {
+            "first_block_id": "b_015",
+            "last_block_id": "b_015",
+            "quote": "會見使，未發。事覺，承等皆伏誅。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_009"
+        ],
+        "suggested_change": "改为“先主尚未出发……恰逢有使者来见，谋划尚未发动，事情便被察觉，董承等人全都被处死。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_007"
+        ],
+        "disposition": "unsupported",
+        "explanation": "“自南擊先主”通常可直接理解为从南面进攻先主；“自”在此并不必然表示“亲自”。译文“从南面进攻”没有足够依据要求改为“亲自南下”。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_021",
+            "last_block_id": "b_021",
+            "quote": "曹公既破紹，自南擊先主。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_012"
+        ],
+        "suggested_change": null
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_008"
+        ],
+        "disposition": "unsupported",
+        "explanation": "“先主屯樊，不知曹公卒至，至宛乃聞之”中“至宛”可承接先主，意为先主到达宛县后才听说曹操突然到来；译文的主语安排与原文叙事相符。报告将其强行解释为曹操抵达宛县，依据不足。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_023",
+            "last_block_id": "b_023",
+            "quote": "先主屯樊，不知曹公卒至，至宛乃聞之，遂將其眾去。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_013"
+        ],
+        "suggested_change": null
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_009"
+        ],
+        "disposition": "supported",
+        "explanation": "结合前句“關戍諸將”，此处“關中”是进入关内，而非关中地区这一地名。译文把先主写成“到达关中”，容易造成地点误读。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_035",
+            "last_block_id": "b_035",
+            "quote": "先主徑至關中，質諸將並士卒妻子，引兵與忠、膺等進到涪，據其城。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_020"
+        ],
+        "suggested_change": "改为“先主径直进入关内，扣留各将领以及士卒的妻子儿女作为人质……”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_010"
+        ],
+        "disposition": "supported",
+        "explanation": "原文明确写“上官逆謀”，不是霍氏谋反。译文将“上官”误译为“霍氏”，属于行动者错误。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_047",
+            "last_block_id": "b_047",
+            "quote": "孝昭幼衝而上官逆謀",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_026"
+        ],
+        "suggested_change": "改为“汉昭帝年幼，而上官氏图谋叛逆。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_011"
+        ],
+        "disposition": "supported",
+        "explanation": "“大有……小有……”是在对比王室可能遭遇的两种严重后果，并非“大规模”和“小规模”的事件规模。译文的“规模”表述改变了原文的比较关系。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_047",
+            "last_block_id": "b_047",
+            "quote": "臣等每懼王室大有閻樂之禍，小有定安之變，夙夜惴惴，戰栗累息。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_028"
+        ],
+        "suggested_change": "改为“我们常常担心，重则有阎乐弑君之祸，轻则有被废为定安公之变，早晚都惶恐不安，战栗不止。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_012"
+        ],
+        "disposition": "supported",
+        "explanation": "“以備肺腑枝葉，宗子籓翰”是说群臣认为刘备是皇室近亲、宗室屏障，并非说上奏群臣自己与刘备都是皇室近亲。译文混淆了“以备”为对象的关系。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_047",
+            "last_block_id": "b_047",
+            "quote": "臣等以備肺腑枝葉，宗子籓翰，心存國家，念在弭亂。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_029"
+        ],
+        "suggested_change": "改为“我们认为刘备是皇室近亲、宗室的屏障，心中存念国家，一心想着平息祸乱。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_013"
+        ],
+        "disposition": "supported",
+        "explanation": "原文只写“臣父群”，没有“刘”这一姓氏。译文添加“刘群”属于无原文依据的人物身份确定；至少应删除“刘”，姓名是否可据其他材料校定则需另行人工判断。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_059",
+            "last_block_id": "b_059",
+            "quote": "臣父群未亡時，言西南數有黃氣",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_039"
+        ],
+        "suggested_change": "改为“臣的父亲群在世时曾说……”；若需确定其完整姓名，应另作人工校定。"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_014"
+        ],
+        "disposition": "supported",
+        "explanation": "“篡弒”指篡位并弑君，后面的“湮滅漢室”另述对汉室的毁灭。译文将“汉室”处理成“弑杀汉室”的对象，造成句法和意义错误。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_063",
+            "last_block_id": "b_063",
+            "quote": "曹丕篡弒，湮滅漢室，竊據神器",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_041"
+        ],
+        "suggested_change": "改为“曹丕篡位弑君，湮灭汉室，窃据帝位。”"
+      },
+      {
+        "finding_refs": [
+          "review-sol/i_015"
+        ],
+        "disposition": "supported",
+        "explanation": "“昔周有烏魚之瑞”已经单独说周代的乌鱼祥瑞；其后的“二祖受命”承接汉室语境，指汉高祖、光武帝二祖。译文将其误接为周文王、周武王。",
+        "source_evidence": [
+          {
+            "first_block_id": "b_063",
+            "last_block_id": "b_063",
+            "quote": "昔周有烏魚之瑞，咸曰休哉。二祖受命，圖、書先著，以為徵驗。",
+            "occurrence": 1
+          }
+        ],
+        "translation_ids": [
+          "t_042"
+        ],
+        "suggested_change": "改为“从前周朝有乌鱼的祥瑞，众人都说美善。汉高祖、光武帝二祖接受天命时，图书预先显现，作为征验。”"
+      }
+    ]
+  },
+  "elapsed_seconds": 97.3,
+  "http_calls": 1,
+  "http_observations": [
+    {
+      "attempt": 1,
+      "bytes": 30569,
+      "sha256": "39eb9fae6bf247b7746c5a031949645d1c71f57ed4263f637f3c33229f466a8c",
+      "status": "completed",
+      "reported_model": "gpt-5.6-luna",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_0af79b6270d5315a016aa55738062087d08a899f3285523b4d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 31690,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 31690,
+              "output_tokens": 0
+            },
+            "rs_0af79b6270d5315a016aa5573a319487d08658491b7b95e68b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 516
+            },
+            "rs_0af79b6270d5315a016aa55743846c87d0ac836d4e153a4c1b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_0af79b6270d5315a016aa5574ce6ac87d0927de3dd0290b27d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_0af79b6270d5315a016aa557562bec87d0a727d5a713f2c25e": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 245
+            },
+            "msg_0af79b6270d5315a016aa5575aae2487d0bdf362e67606c515": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 2838
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 2838
+            }
+          },
+          "request_fields": {
+            "tools": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 296,
+              "output_tokens": 0
+            },
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 829,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 32817,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 4635,
+        "output_tokens_details": {
+          "reasoning_tokens": 1797
+        },
+        "total_tokens": 37452
+      },
+      "incomplete_details": null
+    }
+  ],
+  "deadline_hit": false,
+  "billed_cost": null
+}

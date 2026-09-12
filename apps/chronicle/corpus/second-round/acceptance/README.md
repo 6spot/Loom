@@ -4,7 +4,14 @@
 Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 provider
 现场运行**的验收证据与独立内容复核输入。
 
-最新指定模型对照见 [deepseek-flash 测试报告](provider-review-20260912-deepseek-official.md)：
+最新实验见 [整章翻译、独立提取与多模型复核](staged-production-20260912.md)：
+Luna 分别用 114.150 秒和 124.013 秒返回完整译文/提取响应；不是逐段翻译。
+后续两路复核与比较也全部返回，但译文、引用、事实主体和汇总判断仍有错误，
+内容未通过。临时检查点六项检查通过，新增 HTTP 为 0；正式后台未接入新流程。
+用户进一步明确的纯译文输出、阶段保存、节点单/多模型配置和人工例外见
+[讨论记录](../../../../../docs/tasks/chronicle/staged-production-discussion.md)。
+
+此前指定模型对照见 [deepseek-flash 测试报告](provider-review-20260912-deepseek-official.md)：
 原程序的严格 JSON Schema 请求返回 HTTP 400；单独改为 JSON 模式后，同一完整章
 等待 1,263.151 秒仍无完整结果，由测试控制器停止。小型 JSON 请求 4.578 秒成功，
 报告输出 56 token。没有完整候选，不能评定该模型的整章质量；产品代码未改。

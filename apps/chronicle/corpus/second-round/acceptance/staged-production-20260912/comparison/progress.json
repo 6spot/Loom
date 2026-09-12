@@ -1,0 +1,147 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "review-comparison",
+    "time_unix": 1789220655.8884668,
+    "model": "gpt-5.6-luna",
+    "prompt_chars": 42980,
+    "max_output_tokens": 8192,
+    "wall_clock_limit_seconds": 600
+  },
+  {
+    "kind": "http_started",
+    "phase": "review-comparison",
+    "time_unix": 1789220655.8893368,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "review-comparison",
+    "time_unix": 1789220678.7357297,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "review-comparison",
+    "time_unix": 1789220693.787839,
+    "bytes_received": 2
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "review-comparison",
+    "time_unix": 1789220726.7612104,
+    "bytes_received": 4
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "review-comparison",
+    "time_unix": 1789220751.5466924,
+    "bytes_received": 1368
+  },
+  {
+    "kind": "http_returned",
+    "phase": "review-comparison",
+    "time_unix": 1789220753.1838055,
+    "attempt": 1,
+    "bytes": 30569,
+    "sha256": "39eb9fae6bf247b7746c5a031949645d1c71f57ed4263f637f3c33229f466a8c",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "attribution": {
+        "items": {
+          "msg_0af79b6270d5315a016aa55738062087d08a899f3285523b4d": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 31690,
+                "output_tokens": 0
+              }
+            ],
+            "input_tokens": 31690,
+            "output_tokens": 0
+          },
+          "rs_0af79b6270d5315a016aa5573a319487d08658491b7b95e68b": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2,
+            "output_tokens": 516
+          },
+          "rs_0af79b6270d5315a016aa55743846c87d0ac836d4e153a4c1b": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0af79b6270d5315a016aa5574ce6ac87d0927de3dd0290b27d": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0af79b6270d5315a016aa557562bec87d0a727d5a713f2c25e": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 245
+          },
+          "msg_0af79b6270d5315a016aa5575aae2487d0bdf362e67606c515": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 2838
+              }
+            ],
+            "input_tokens": 0,
+            "output_tokens": 2838
+          }
+        },
+        "request_fields": {
+          "tools": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 296,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 829,
+            "output_tokens": 0
+          }
+        }
+      },
+      "input_tokens": 32817,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 4635,
+      "output_tokens_details": {
+        "reasoning_tokens": 1797
+      },
+      "total_tokens": 37452
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "review-comparison",
+    "time_unix": 1789220753.1884348,
+    "elapsed_seconds": 97.3,
+    "phase_shape_valid": false,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": [
+      "$.decisions[11].source_evidence[0] quote occurs 0 time(s) in ['b_047'..'b_047'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+    ]
+  }
+]

@@ -1,0 +1,117 @@
+"""Offline evidence audit. Does not call a model or write Chronicle product data."""
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1]).resolve()
+repo = Path(sys.argv[2]).resolve()
+sys.path.insert(0, str(repo / 'apps/chronicle/persistence'))
+from chapter_contract import resolve_selection
+from jsonschema import Draft202012Validator
+
+checks = []
+def check(name, result):
+    checks.append({'name': name, 'passed': bool(result)})
+def read(name):
+    return json.loads((root/name).read_text())
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+manifest = read('manifest.json')
+for name, expected in manifest['files'].items():
+    path = (root/name).resolve()
+    check('archive hash: '+name, path.is_relative_to(root) and path.is_file() and sha(path)==expected)
+check('grounding contract matches executed source', sha(repo/'apps/chronicle/persistence/chapter_contract.py') == manifest['executed_file_hashes']['chapter_contract.py'])
+plan = read('plan.json')
+request = plan['source_request']
+source = request['normalized_text']
+blocks = {b['block_id']: b for b in request['blocks']}
+targets = [t['source_id'] for t in plan['targets']]
+check('complete source character count', len(source)==12591)
+check('normalized source hash', hashlib.sha256(source.encode()).hexdigest()==request['normalized_sha256'])
+check('source block count', len(blocks)==86)
+check('target count and chars', len(targets)==36 and sum(len(t['text']) for t in plan['targets'])==7269)
+check('annotation count and ranges', len(plan['annotation_ranges'])==49 and all(0<=a['start']<a['end']<=len(source) for a in plan['annotation_ranges']))
+check('annotation continuation retained explicitly', any(a['reason'].startswith('reviewed_continuation_') for a in plan['annotation_ranges']))
+for b in request['blocks']:
+    check('source block hash: '+b['block_id'], hashlib.sha256(source[b['start']:b['end']].encode()).hexdigest()==b['content_sha256'])
+
+def quote_errors(candidate):
+    errors=[]
+    def walk(node, path):
+        if isinstance(node, dict):
+            if set(node)=={'first_block_id','last_block_id','quote','occurrence'}:
+                _, error = resolve_selection(node,request=request,blocks_by_id=blocks,owner=path)
+                if error: errors.append(error)
+            for key,value in node.items():walk(value,path+'.'+key)
+        elif isinstance(node,list):
+            for index,value in enumerate(node):walk(value,f'{path}[{index}]')
+    walk(candidate,'$')
+    return errors
+
+results={}
+translated=read('translation-input.json')['blocks']
+translated_by_id={t['translation_id']:t for t in translated}
+expected_errors={'translation':0,'extraction':5,'review-luna':0,'review-sol':2,'comparison':1}
+times={}
+for row in manifest['phases']:
+    phase=row['phase'];r=read(phase+'/result.json');s=read(row['spec']);results[phase]=r
+    raw=(root/phase/'raw.txt').read_text();candidate=json.loads(raw)
+    check(phase+': exact raw output', candidate==r['candidate'] and hashlib.sha256(raw.encode()).hexdigest()==r['raw_sha256'])
+    check(phase+': spec hash',sha(root/row['spec'])==r['spec_sha256'])
+    check(phase+': source binding',r['source_sha256']==request['source_sha256']==s['source_sha256'])
+    if phase=='translation':
+        check('translation: frozen plan hash',s['plan_sha256']==sha(root/'plan.json'))
+        check('translation: full original context supplied',json.dumps(plan['original_context_blocks'],ensure_ascii=False,separators=(',',':')) in s['prompt'])
+    check(phase+': JSON schema',not list(Draft202012Validator(s['json_schema']).iter_errors(candidate)))
+    errors=quote_errors(candidate)
+    check(phase+': replay citation errors',set(errors)==set(r['validation_errors']) and len(errors)==expected_errors[phase])
+    check(phase+': checkpoint only after mechanical pass',(root/phase/'checkpoint.json').exists()==r['phase_shape_valid'])
+    check(phase+': not product accepted',r['production_artifact'] is False and r['semantic_quality_accepted'] is False)
+    check(phase+': one bounded request',r['http_calls']==1 and r['max_http_attempts']==1 and r['elapsed_seconds']<600 and r['deadline_hit'] is False)
+    obs=r['http_observations'][0]
+    check(phase+': completed known usage',obs['status']=='completed' and obs['usage']['total_tokens']==row['reported_total_tokens'])
+    check(phase+': recorded HTTP digest',obs['sha256']==row['private_http_sha256'] and obs['bytes']==row['private_http_bytes'] and row['private_http_size_hash_status_usage_verified'])
+    if 'runner_sha256' in r:check(phase+': executed runner',sha(root/row['runner'])==r['runner_sha256'])
+    for item in s.get('input_files',[]):
+        check(phase+': input '+item['role'],sha(root/item['path'])==item['sha256'])
+    progress=read(phase+'/progress.json')
+    check(phase+': actual attempt count',sum(p['kind']=='http_started' for p in progress)==1)
+    times[phase]={p['kind']:p['time_unix'] for p in progress if p['kind'] in ['phase_started','phase_finished']}
+    if phase=='translation':
+        seen=set();order=[]
+        for block in candidate['blocks']:
+            seen.update(block['source_ids']);order.extend(targets.index(i) for i in block['source_ids'])
+        check('translation: coverage order',seen==set(targets) and order==sorted(order))
+        check('translation: all plain blocks nonempty',all(t['text'].strip() for t in candidate['blocks']))
+        check('translation: prose length/count',len(candidate['blocks'])==52 and sum(len(t['text']) for t in candidate['blocks'])==10625)
+        check('translation: derived prose export',(root/'translation.txt').read_text()=='\n\n'.join(t['text'] for t in candidate['blocks'])+'\n')
+    elif phase.startswith('review-'):
+        coverage=[i['source_id'] for i in candidate['coverage']]
+        check(phase+': reported coverage complete',len(coverage)==len(set(coverage)) and set(coverage)==set(targets))
+        check(phase+': actual translation quotes',all(q['quote'] in translated_by_id[q['translation_id']]['text'] for f in candidate['findings'] for q in f['translation_evidence']))
+
+for phase in ['extraction','review-luna','review-sol']:
+    check(phase+': starts after saved translation',times[phase]['phase_started']>times['translation']['phase_finished'])
+check('three followups overlap',max(times[p]['phase_started'] for p in ['extraction','review-luna','review-sol'])<min(times[p]['phase_finished'] for p in ['extraction','review-luna','review-sol']))
+check('comparison waits for both reports',times['comparison']['phase_started']>max(times[p]['phase_finished'] for p in ['review-luna','review-sol']))
+expected_refs={p+'/'+f['issue_id'] for p in ['review-luna','review-sol'] for f in results[p]['candidate']['findings']}
+actual_refs=[ref for d in results['comparison']['candidate']['decisions'] for ref in d['finding_refs']]
+check('comparison accounts for all 18 findings once',len(actual_refs)==len(set(actual_refs))==18 and set(actual_refs)==expected_refs)
+check('usage and HTTP totals',manifest['total_http_calls']==5 and manifest['reported_total_tokens']==194987==sum(r['http_observations'][0]['usage']['total_tokens'] for r in results.values()))
+resume=read('resume-verification.json')
+check('six offline resume checks',resume['passed'] is True and len(resume['cases'])==6 and all(c['passed'] for c in resume['cases']) and resume['new_http_calls']==0)
+host=read('host-review.json')
+check('host issue source quotes exist',not quote_errors(host))
+check('host issue translation quotes exist',all(q['quote'] in translated_by_id[q['translation_id']]['text'] for c in host['cases'] for q in c['translation_evidence']))
+check('host wording doubt not overstated',next(c for c in host['cases'] if c['id']=='M12')['review_status']=='wording_ambiguous_not_confirmed_error')
+check('private response/config excluded',not any('private-http' in p.name or p.suffix=='.env' for p in root.rglob('*') if p.is_file()))
+result={'passed':all(c['passed'] for c in checks),'check_count':len(checks),'new_http_calls':0,
+        'semantic_quality_accepted':False,'production_worker_verified':False,
+        'known_defects':{'translation: source binding':'Initial trial spec mislabeled normalized_sha256 as source_sha256. Frozen plan and actual input are verified, but this failed metadata contract is preserved, not waived.'},
+        'scope':'Archive SHA/schema/source-reference/dependency/reuse consistency only. Not semantic accuracy.',
+        'checks':checks}
+(root/'verification.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'passed':result['passed'],'checks':len(checks),'failures':[c['name'] for c in checks if not c['passed']]}))
+if not result['passed']:raise SystemExit(1)
