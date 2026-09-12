@@ -738,6 +738,33 @@ def _normalize_evidence(evidence: dict[str, Any]) -> dict[str, list[dict[str, An
     }
 
 
+def _record_chapter(record: dict[str, Any]) -> str | None:
+    """Return the chapter that owns one assembled person-state record."""
+    origin = record.get("origin") if isinstance(record.get("origin"), dict) else {}
+    chapter_id = origin.get("chapter_id") or record.get("chapter_id")
+    return chapter_id if isinstance(chapter_id, str) and chapter_id else None
+
+
+def _scope_to_chapter(
+    parts: dict[str, list[dict[str, Any]]], chapter_id: str
+) -> dict[str, list[dict[str, Any]]]:
+    """Restrict the revision-wide evidence to one chapter's namespace.
+
+    ``build_person_state_manifest`` compiles once per reading unit against the
+    unit's frozen phase binding. The assembled ``person_states`` evidence is
+    revision-wide, so without this scope every unit would also see every other
+    chapter's phases/facts. Cross-chapter phases have no order edge, so
+    ``_relation_to_current`` classifies them ``unknown`` and they would leak
+    into the unit as if they applied. The chapter scope keeps the per-unit
+    projection to the unit's own chapter; within-chapter unknown-order facts
+    are still retained as ``order_unknown``.
+    """
+    return {
+        name: [record for record in records if _record_chapter(record) == chapter_id]
+        for name, records in parts.items()
+    }
+
+
 def compile_person_state_projection(
     evidence: dict[str, Any],
     assessments: dict[str, Any],
@@ -766,6 +793,9 @@ def compile_person_state_projection(
 
     limits = _contract.PersonStateLimits()
     parts = _normalize_evidence(evidence)
+    unit_chapter = reading_manifest.get("chapter_id")
+    if isinstance(unit_chapter, str) and unit_chapter:
+        parts = _scope_to_chapter(parts, unit_chapter)
     phases = parts["phases"]
     phase_orders = parts["phase_orders"]
     facts = parts["facts"]

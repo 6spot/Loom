@@ -1619,6 +1619,7 @@ def build_person_state_manifest(
         ]
         reading_manifest = {
             "unit_id": unit.get("unit_id"),
+            "chapter_id": unit.get("chapter_id"),
             "unit_phase": {"mode": mode, "phase_ids": phase_refs},
             "chapter_publications": chapter_publications,
             "chapter_titles": chapter_titles,

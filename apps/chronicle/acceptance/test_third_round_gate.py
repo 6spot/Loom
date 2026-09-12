@@ -168,6 +168,25 @@ class GuardTests(unittest.TestCase):
         result = G.check_no_direct_product_writes()
         self.assertFalse(result["direct_product_writes"])
 
+    def test_source_state_inconsistencies_detects_409(self):
+        probes = [
+            {"status": 200, "unit_id": "ok"},
+            {"status": 409, "unit_id": "bad", "error_code": "inconsistent"},
+        ]
+        self.assertEqual(
+            [probe["unit_id"] for probe in G.source_state_inconsistencies(probes)],
+            ["bad"],
+        )
+        self.assertEqual(G.source_state_inconsistencies([{"status": 200}]), [])
+
+    def test_require_source_state_consistency_fails_closed(self):
+        G.require_source_state_consistency([{"status": 200}, {"status": 404}])
+        with self.assertRaises(GateError) as ctx:
+            G.require_source_state_consistency(
+                [{"status": 200}, {"status": 409, "unit_id": "bad"}]
+            )
+        self.assertIn("multi_chapter_source_state_consistency != PASS", str(ctx.exception))
+
     def test_fixture_env_refuses_fixture_packs(self):
         G.require_fixture_env({})
         for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):

@@ -131,17 +131,21 @@ fixture 模式只证明机器整链、审核交互与浏览器/性能机制可�
 （13 真 + 6 合成）是人工内容核对预期。真实翻译、人物阶段结论、来源分歧与阅读体验
 由 T15 处置，不得用 fixture PASS 代替。
 
-## 已发现的集成缺陷（交回所属模块）
+## 多章 unit phase 投影一致性
 
-fixture 运行会记录 `manifest.known_integration_issues`（本次为
-`multi_chapter_source_state_consistency=DEFECT_DETECTED`）：一个多自然章来源发布后，
-其 reading unit 的 `person_state_items` 含有**不属于该 unit 上下文**的人物，来源阅读
-接口按设计以 `409 inconsistent` 失败关闭。根因指向
-`resolve_publish.build_person_state_manifest` 调用
-`compile_person_state_projection` 时未传该 unit 的 phase（`current_phase_id`），导致
-每个 unit 投影了全部章的事实。该文件不在 T14 文件范围，按“失败交回对应模块修复后
-再验证相关门”处理；修复后重跑本门即可，无需改动本运行说明。单章来源与综合正文／
-独立人物页链路已实测通过。
+来源发布按 reading unit 编译人物阶段。修复前，逐 unit 编译未把 revision 级的
+`person_states` 证据限定到该 unit 所属章，其他章的 phase 因无排序边被当作
+`order_unknown` 一并投影，导致 unit 暴露出不属于其上下文的人物，来源阅读接口按设计
+以 `409 inconsistent` 失败关闭。修复：`resolve_publish.build_person_state_manifest` 把
+unit 的 `chapter_id` 传入 `compile_person_state_projection`，投影按章限定证据
+（同章未知顺序仍保留为 `order_unknown`）。回归由
+`test_person_state_projection_unit.py::ChapterScopeTests` 覆盖。
+
+门禁把该一致性作为硬条件：`criteria.multi_chapter_source_state_consistency` 必须为
+`PASS`；只要任一已发布 unit 的来源人物读取返回 409，gate 立即以
+`multi_chapter_source_state_consistency != PASS` 失败关闭并在 partial manifest 记录
+stream/unit/person/phase 证据，绝不发布整体 PASS。`chronicle.yml` 的 third-round
+manifest 断言同样要求该 criterion 为 `PASS`。
 
 ## 隔离栈与清理
 

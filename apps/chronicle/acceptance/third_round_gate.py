@@ -958,6 +958,29 @@ def collect_history(base_url: str, version: str) -> dict[str, Any]:
     return record
 
 
+def source_state_inconsistencies(
+    probes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return probes where a published unit exposed an out-of-context person.
+
+    The read API answers ``409 inconsistent`` for such a unit. The gate treats
+    any occurrence as a hard failure: recording it as a known issue is not a
+    substitute for the fail-closed contract.
+    """
+    return [probe for probe in probes if probe.get("status") == 409]
+
+
+def require_source_state_consistency(probes: list[dict[str, Any]]) -> None:
+    """Fail closed (never PASS) when any source unit exposed an out-of-context person."""
+    rejected = source_state_inconsistencies(probes)
+    if rejected:
+        raise GateError(
+            "multi_chapter_source_state_consistency != PASS: "
+            f"{len(rejected)} published reading unit(s) expose person-state "
+            "outside their context; refusing to report an overall PASS"
+        )
+
+
 def collect_source_person(
     base_url: str, works: list[dict[str, Any]]
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -966,8 +989,7 @@ def collect_source_person(
     The read API fails closed (409 ``inconsistent``) when a published unit
     exposes a person outside that unit's own context. The gate probes every
     work/unit and returns the first consistent read, recording each rejection
-    so a real publication defect is visible instead of hidden. See the caller
-    for how a rejection is surfaced as a known integration issue.
+    so the caller fails closed with exact evidence.
     """
     probes: list[dict[str, Any]] = []
     positive: dict[str, Any] | None = None
@@ -1429,7 +1451,7 @@ def run_fixture(
         source_person, source_probes = collect_source_person(base_url, works)
         evidence.data["source_person"] = source_person
         evidence.data["source_person_reads"] = source_probes
-        rejected = [probe for probe in source_probes if probe.get("status") == 409]
+        rejected = source_state_inconsistencies(source_probes)
         if rejected:
             evidence.data["known_integration_issues"] = [
                 {
@@ -1439,14 +1461,14 @@ def run_fixture(
                     ),
                     "observed": rejected,
                     "suspect_root_cause": (
-                        "resolve_publish.build_person_state_manifest calls "
-                        "compile_person_state_projection without the unit phase "
-                        "(current_phase_id), so facts from every chapter are projected "
-                        "into every unit; the read API then fails closed with 409"
+                        "the per-unit person-state compile did not scope the "
+                        "revision-wide evidence to the unit's chapter"
                     ),
                     "owning_module": "C2-R3-T04/T08",
                 }
             ]
+            evidence.checkpoint()
+            require_source_state_consistency(source_probes)
         evidence.checkpoint()
 
         # F. Failure and negative matrix on the real stack.
@@ -1520,9 +1542,11 @@ def run_fixture(
             "browser_interaction": "PASS" if measured else "NOT_RUN",
             "performance_budget": "PASS" if measured else "NOT_MEASURED",
             "multi_chapter_source_state_consistency": (
-                "DEFECT_DETECTED"
-                if evidence.data.get("known_integration_issues")
-                else "PASS"
+                "PASS"
+                if not source_state_inconsistencies(
+                    evidence.data.get("source_person_reads") or []
+                )
+                else "FAIL"
             ),
         }
         if browser_required and not measured:

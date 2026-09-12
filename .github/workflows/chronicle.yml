@@ -399,6 +399,7 @@ jobs:
           assert c["composite_history_two_review_chain"] == "PASS", c
           assert c["published_history_and_person_page"] == "PASS", c
           assert c["negative_faults"] == "PASS", c
+          assert c["multi_chapter_source_state_consistency"] == "PASS", c
           assert c["browser_interaction"] == "PASS", c
           assert c["performance_budget"] == "PASS", c
           assert m["history"]["version"] and m["history"]["paragraph_id"] and m["history"]["phase_id"], m["history"]
