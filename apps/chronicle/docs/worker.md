@@ -185,6 +185,13 @@ unchanged. Thin orchestration lives in
 without a chapter model fails closed; the old fake executor is never
 an implicit fallback for new chapters.
 
+The live provider receives `max_output_tokens` and `max_response_bytes`
+from those same `ChapterLimits`. The configured request fingerprint and
+the actual HTTP budget therefore agree; a chapter override must not leave
+the provider silently using its defaults. An override is an operator resource
+setting, not proof that the endpoint supports that capacity or produces
+acceptable content. The default envelope remains unchanged.
+
 ```bash
 export CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses
 export CHRONICLE_CHAPTER_MODEL=...

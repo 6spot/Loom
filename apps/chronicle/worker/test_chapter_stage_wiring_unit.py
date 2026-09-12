@@ -116,5 +116,25 @@ class ChapterModelVersionTests(unittest.TestCase):
             )
 
 
+class ChapterModelBudgetTests(unittest.TestCase):
+    def test_provider_receives_the_same_limits_as_the_chapter_request(self) -> None:
+        for overrides in ({}, {
+            "CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES": "1234567",
+            "CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS": "131072",
+        }):
+            with self.subTest(overrides=overrides):
+                env = live_env(overrides)
+                model = S.chapter_model_from_env(env)
+                limits = S.chapter_limits_from_env(env)
+                self.assertEqual(limits.max_output_tokens, model.max_output_tokens)
+                self.assertEqual(limits.max_response_bytes, model.max_response_bytes)
+
+    def test_invalid_budget_is_rejected_before_building_a_live_provider(self) -> None:
+        for field in ("CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES", "CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS"):
+            for value in ("0", "-1", "not-an-integer"):
+                with self.subTest(field=field, value=value), self.assertRaises(PersistenceError):
+                    S.chapter_model_from_env(live_env({field: value}))
+
+
 if __name__ == "__main__":
     unittest.main()
