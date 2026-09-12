@@ -381,36 +381,75 @@ def _current_context(context: _Context, reading_manifest: dict[str, Any]) -> Non
 
 
 def _chapter_maps(reading_manifest: dict[str, Any]) -> tuple[dict[str, str], dict[str, str], str | None, str | None]:
+    """Resolve chapter -> publication / source-title from a reading manifest.
+
+    Accepts the C2-R2 ``reading_projection`` shapes used by the repository:
+    the full projection (``manifest.chapters`` + ``manifest.source_title`` +
+    ``chapter_publications`` + ``units``) as well as the nested manifest
+    alone or T04's explicit ``chapter_publications`` / ``chapter_titles``
+    maps. No duplicate authority is created: the reading projection owns
+    these ids and the compiler only reads them.
+    """
     publications: dict[str, str] = {}
     titles: dict[str, str] = {}
+    nested = reading_manifest.get("manifest")
+    nested = nested if isinstance(nested, dict) else None
+
+    def add_publication(chapter_id: Any, publication_id: Any) -> None:
+        if isinstance(chapter_id, str) and isinstance(publication_id, str) and publication_id:
+            publications.setdefault(chapter_id, publication_id)
+
+    def add_title(chapter_id: Any, title: Any) -> None:
+        if isinstance(chapter_id, str) and isinstance(title, str) and title:
+            titles.setdefault(chapter_id, title)
+
+    # ``chapters: [{chapter_id, publication_id, ...}]`` (R2 canonical manifest)
+    for container in (reading_manifest, nested):
+        if not isinstance(container, dict):
+            continue
+        chapters = container.get("chapters")
+        if isinstance(chapters, list):
+            for chapter in chapters:
+                if isinstance(chapter, dict):
+                    add_publication(chapter.get("chapter_id"), chapter.get("publication_id"))
+        # ``chapter_publications`` may be a list (R2 projection) or a map.
+        chapter_publications = container.get("chapter_publications")
+        if isinstance(chapter_publications, list):
+            for chapter in chapter_publications:
+                if isinstance(chapter, dict):
+                    add_publication(chapter.get("chapter_id"), chapter.get("publication_id"))
+        elif isinstance(chapter_publications, dict):
+            for chapter_id, publication_id in chapter_publications.items():
+                add_publication(chapter_id, publication_id)
+
+    # Compiled reading units carry both ids.
     for unit in reading_manifest.get("units") or []:
         if not isinstance(unit, dict):
             continue
         chapter_id = unit.get("chapter_id")
-        if not isinstance(chapter_id, str):
-            continue
-        if isinstance(unit.get("publication_id"), str):
-            publications.setdefault(chapter_id, unit["publication_id"])
-        if isinstance(unit.get("source_title"), str):
-            titles.setdefault(chapter_id, unit["source_title"])
-    for source, target in (
-        (reading_manifest.get("chapter_publications"), publications),
-        (reading_manifest.get("chapter_titles"), titles),
-        (reading_manifest.get("source_titles"), titles),
-    ):
-        if isinstance(source, dict):
-            target.update(
-                {k: v for k, v in source.items() if isinstance(k, str) and isinstance(v, str) and v}
-            )
+        add_publication(chapter_id, unit.get("publication_id"))
+        add_title(chapter_id, unit.get("source_title"))
+        add_title(chapter_id, unit.get("chapter_title"))
+
+    # Explicit chapter_id -> title maps (top level and nested).
+    for key in ("chapter_titles", "source_titles"):
+        for container in (reading_manifest, nested):
+            source = container.get(key) if isinstance(container, dict) else None
+            if isinstance(source, dict):
+                for chapter_id, title in source.items():
+                    add_title(chapter_id, title)
+
     default_publication = reading_manifest.get("chapter_publication_id") or reading_manifest.get(
         "publication_id"
     )
     default_title = reading_manifest.get("source_title")
+    if not isinstance(default_title, str) and nested is not None:
+        default_title = nested.get("source_title")
     return (
         publications,
         titles,
-        default_publication if isinstance(default_publication, str) else None,
-        default_title if isinstance(default_title, str) else None,
+        default_publication if isinstance(default_publication, str) and default_publication else None,
+        default_title if isinstance(default_title, str) and default_title else None,
     )
 
 

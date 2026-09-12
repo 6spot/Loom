@@ -15,6 +15,7 @@ validator can be run directly on the compiled output.
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -23,8 +24,11 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import assembly as A  # noqa: E402
 import person_state_contract as P  # noqa: E402
 import person_state_projection as PP  # noqa: E402
+import reading_contract as RC  # noqa: E402
+import reading_projection as RP  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 PERSON = "ent_002"
@@ -897,6 +901,154 @@ class IntegrationShapeTests(unittest.TestCase):
             reading_manifest=manifest("ph_002", entity_labels={"ent_office": "偏將軍"}),
         )
         self.assertEqual(item_for(result, "pf_001")["value"], "偏將軍")
+
+
+class RealReadingManifestRegressionTests(unittest.TestCase):
+    """Real assembly -> R2 reading-manifest -> projection chain.
+
+    The reading manifest is produced by the actual
+    :func:`reading_projection.compile_reading_projection` (``chapters``
+    list + nested ``manifest.source_title``), and the person-state evidence
+    uses real assembled anchors, so publication/title/anchor resolution is
+    exercised against the production shapes instead of a hand-made map.
+    """
+
+    C2R2_FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r2-contract"
+    STREAM = "0192f0a0-0000-7000-8000-00000000aa01"
+
+    def _real_inputs(self) -> tuple[dict, dict, dict]:
+        request = json.loads(
+            (self.C2R2_FIXTURES / "request.json").read_text(encoding="utf-8")
+        )
+        candidate = json.loads(
+            (self.C2R2_FIXTURES / "candidate-valid.json").read_text(encoding="utf-8")
+        )
+        artifact = RC.accept_reading_candidate(
+            request,
+            candidate,
+            producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+        )
+        plan = {
+            "version": "c2r1-chapters-v1",
+            "plan_sha256": "p" * 64,
+            "revision_id": request["revision_id"],
+            "source_sha256": request["source_sha256"],
+            "normalized_sha256": request["normalized_sha256"],
+            "chapters": [
+                {
+                    "chapter_id": request["chapter_id"],
+                    "chapter_index": 0,
+                    "title": "contract chapter",
+                    "start": 0,
+                    "end": 36,
+                    "content_sha256": request["normalized_sha256"],
+                }
+            ],
+        }
+
+        def canonical(prefix: str, index: int) -> str:
+            return f"0192f0a0-0000-7000-8000-{prefix}{index:011x}"
+
+        catalog = {
+            "schema": "chronicle.canonical-catalog",
+            "version": "0.1",
+            "canonical_entities": [
+                {
+                    "canonical_id": canonical("e", index),
+                    "representations": [
+                        {"bundle": "c1rev-demo", "ref": f"ent_{index:06d}"}
+                    ],
+                }
+                for index in range(1, 5)
+            ],
+            "canonical_events": [
+                {
+                    "canonical_id": canonical("f", index),
+                    "representations": [
+                        {"bundle": "c1rev-demo", "ref": f"evt_{index:06d}"}
+                    ],
+                }
+                for index in range(1, 5)
+            ],
+            "event_relations": [],
+            "warnings": [],
+        }
+        projection = RP.compile_reading_projection(
+            accepted_artifacts=[artifact],
+            chapter_plan=plan,
+            catalog=catalog,
+            stream_id=self.STREAM,
+            publication_by_chapter={request["chapter_id"]: PUBLICATION_ID},
+            bundle_label="c1rev-demo",
+        )
+        assembled = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=plan)
+        return request, projection, assembled
+
+    def _evidence_from_real_anchors(self, request: dict, assembled: dict) -> dict:
+        anchors = [
+            entry
+            for entry in assembled["anchors"]
+            if entry.get("chapter_id") == request["chapter_id"]
+        ]
+        self.assertTrue(anchors)
+        entry = fact("pf_001", phase_ref="ph_001", anchors=[anchors[0]])
+        entry["chapter_id"] = request["chapter_id"]
+        entry["revision_id"] = request["revision_id"]
+        entry.pop("chapter_publication_id")
+        entry.pop("source_title")
+        return {
+            "phases": [{"phase_id": "ph_001"}],
+            "phase_orders": [],
+            "unit_phases": [],
+            "facts": [entry],
+            "continuities": [],
+            "disagreements": [],
+        }
+
+    def test_r2_manifest_only_chapters_resolves_publication_and_title(self) -> None:
+        request, projection, assembled = self._real_inputs()
+        evidence = self._evidence_from_real_anchors(request, assembled)
+        reading_manifest = dict(projection["manifest"])
+        reading_manifest["current_phase_id"] = "ph_001"
+        result = PP.compile_person_state_projection(
+            evidence, {"pf_001": "supported"}, {PERSON: PERSON_ID}, reading_manifest
+        )
+        source = result["items"][0]["source_facts"][0]
+        self.assertEqual(source["chapter_publication_id"], PUBLICATION_ID)
+        self.assertEqual(source["chapter_id"], request["chapter_id"])
+        descriptors = result["evidence"][0]["descriptors"]
+        self.assertTrue(descriptors)
+        self.assertEqual(descriptors[0]["source_publication_id"], PUBLICATION_ID)
+        self.assertEqual(
+            descriptors[0]["source_title"], projection["manifest"]["source_title"]
+        )
+        assert_dto(self, "evidence_descriptor", descriptors[0])
+
+    def test_r2_full_projection_reads_nested_manifest_title(self) -> None:
+        request, projection, assembled = self._real_inputs()
+        evidence = self._evidence_from_real_anchors(request, assembled)
+        reading_manifest = dict(projection)
+        reading_manifest["current_phase_id"] = "ph_001"
+        result = PP.compile_person_state_projection(
+            evidence, {"pf_001": "supported"}, {PERSON: PERSON_ID}, reading_manifest
+        )
+        descriptors = result["evidence"][0]["descriptors"]
+        self.assertTrue(descriptors)
+        self.assertEqual(
+            descriptors[0]["source_title"], projection["manifest"]["source_title"]
+        )
+
+    def test_r2_projection_without_current_phase_still_emits_evidence(self) -> None:
+        request, projection, assembled = self._real_inputs()
+        evidence = self._evidence_from_real_anchors(request, assembled)
+        # Passing the projection as-is (no explicit current phase) must not
+        # fail closed and must still expose the anchor evidence.
+        result = PP.compile_person_state_projection(
+            evidence, {"pf_001": "supported"}, {PERSON: PERSON_ID}, projection
+        )
+        self.assertTrue(result["evidence"])
+        self.assertTrue(result["evidence"][0]["descriptors"])
+        self.assertEqual(result["items"][0]["evidence_count"], 1)
 
 
 class DeterminismAndBoundsTests(unittest.TestCase):
