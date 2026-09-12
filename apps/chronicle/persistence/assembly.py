@@ -62,6 +62,7 @@ import copy
 import re
 from typing import Any
 
+import person_state_assembly as _person_state_assembly
 from common import PersistenceError, canonical_json_bytes, sha256_json
 
 try:
@@ -97,6 +98,15 @@ CHAPTER_CANDIDATE_VERSION = "0.1"
 
 #: Reading-enriched model candidate marker (embedded in 0.2 artifacts).
 CHAPTER_READING_CANDIDATE_VERSION = "0.2"
+
+#: Person-state-enriched accepted chapter artifact marker (C2-R3-T01 output).
+#: The 0.3 artifact keeps every 0.1/0.2 field and adds the accepted
+#: ``person_states`` block, its hash and the program-computed
+#: ``person_state_candidates`` keys (T03 input).
+CHAPTER_PERSON_STATE_ARTIFACT_VERSION = "0.3"
+
+#: Model-generatable person-state candidate marker (embedded in 0.3 artifacts).
+CHAPTER_PERSON_STATE_CANDIDATE_VERSION = "0.3"
 
 _T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
 _MENTION_ID_RE = re.compile(r"^m_(\d+)$")
@@ -1308,17 +1318,19 @@ def _validate_accepted_chapter_artifact(
     if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or version not in (
         CHAPTER_ARTIFACT_VERSION,
         CHAPTER_READING_ARTIFACT_VERSION,
+        CHAPTER_PERSON_STATE_ARTIFACT_VERSION,
     ):
         raise PersistenceError(
             f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/"
-            f"{CHAPTER_ARTIFACT_VERSION} or {CHAPTER_READING_ARTIFACT_VERSION}; "
+            f"{CHAPTER_ARTIFACT_VERSION}, {CHAPTER_READING_ARTIFACT_VERSION} or "
+            f"{CHAPTER_PERSON_STATE_ARTIFACT_VERSION}; "
             "unaccepted or wrong-generation products are rejected"
         )
-    candidate_version = (
-        CHAPTER_READING_CANDIDATE_VERSION
-        if version == CHAPTER_READING_ARTIFACT_VERSION
-        else CHAPTER_CANDIDATE_VERSION
-    )
+    candidate_version = {
+        CHAPTER_ARTIFACT_VERSION: CHAPTER_CANDIDATE_VERSION,
+        CHAPTER_READING_ARTIFACT_VERSION: CHAPTER_READING_CANDIDATE_VERSION,
+        CHAPTER_PERSON_STATE_ARTIFACT_VERSION: CHAPTER_PERSON_STATE_CANDIDATE_VERSION,
+    }[version]
     for key in ("chapter_id", "revision_id", "source_sha256", "normalized_sha256",
                 "candidate_sha256", "request_fingerprint"):
         if not isinstance(artifact.get(key), str) or not artifact.get(key):
@@ -1420,15 +1432,23 @@ def _validate_accepted_chapter_artifact(
     artifact_sha256 = sha256_json(artifact)
     reading: dict[str, Any] | None = None
     reading_units: list[dict[str, Any]] = []
-    if version == CHAPTER_READING_ARTIFACT_VERSION:
+    person_states: dict[str, Any] | None = None
+    person_state_candidates: list[dict[str, Any]] = []
+    if version in (CHAPTER_READING_ARTIFACT_VERSION, CHAPTER_PERSON_STATE_ARTIFACT_VERSION):
         accepted_sha = artifact.get("artifact_sha256")
         if not isinstance(accepted_sha, str) or not accepted_sha:
-            raise PersistenceError(f"{owner} 0.2 artifact is missing artifact_sha256")
-        core = {
-            key: value
-            for key, value in artifact.items()
-            if key not in ("artifact_sha256", "reading_units")
-        }
+            raise PersistenceError(
+                f"{owner} {version} artifact is missing artifact_sha256"
+            )
+        # The accepted artifact hash binds the artifact *core*. The 0.2
+        # contract excludes ``reading_units``; the 0.3 contract additionally
+        # excludes the program-computed ``person_state_candidates`` keys, so
+        # recomputing a whole-artifact hash would silently disagree with the
+        # artifact T01 accepted.
+        excluded = {"artifact_sha256", "reading_units"}
+        if version == CHAPTER_PERSON_STATE_ARTIFACT_VERSION:
+            excluded.add("person_state_candidates")
+        core = {key: value for key, value in artifact.items() if key not in excluded}
         if sha256_json(core) != accepted_sha:
             raise PersistenceError(
                 f"{owner} artifact core does not match artifact_sha256; "
@@ -1437,10 +1457,10 @@ def _validate_accepted_chapter_artifact(
         artifact_sha256 = accepted_sha
         reading = candidate.get("reading")
         if not isinstance(reading, dict) or not isinstance(reading.get("units"), list):
-            raise PersistenceError(f"{owner} 0.2 candidate is missing its reading.units")
+            raise PersistenceError(f"{owner} {version} candidate is missing its reading.units")
         reading_sha = artifact.get("reading_sha256")
         if not isinstance(reading_sha, str) or not reading_sha:
-            raise PersistenceError(f"{owner} 0.2 artifact is missing reading_sha256")
+            raise PersistenceError(f"{owner} {version} artifact is missing reading_sha256")
         if sha256_json(reading) != reading_sha:
             raise PersistenceError(
                 f"{owner} reading bytes do not match reading_sha256; "
@@ -1448,7 +1468,7 @@ def _validate_accepted_chapter_artifact(
             )
         resolved = artifact.get("reading_units")
         if not isinstance(resolved, list):
-            raise PersistenceError(f"{owner} 0.2 artifact is missing reading_units")
+            raise PersistenceError(f"{owner} {version} artifact is missing reading_units")
         if len(resolved) != len(reading["units"]):
             raise PersistenceError(
                 f"{owner} reading_units count {len(resolved)} does not match "
@@ -1460,6 +1480,47 @@ def _validate_accepted_chapter_artifact(
                     f"{owner} reading_units[{unit_index}] must name a translation block_id"
                 )
         reading_units = list(resolved)
+    if version == CHAPTER_PERSON_STATE_ARTIFACT_VERSION:
+        person_states = artifact.get("person_states")
+        if not isinstance(person_states, dict):
+            raise PersistenceError(f"{owner} 0.3 artifact is missing its person_states block")
+        for name in (
+            "phases",
+            "phase_orders",
+            "unit_phases",
+            "facts",
+            "continuities",
+            "disagreements",
+        ):
+            if not isinstance(person_states.get(name), list):
+                raise PersistenceError(
+                    f"{owner} person_states.{name} must be an array"
+                )
+        if candidate.get("person_states") != person_states:
+            raise PersistenceError(
+                f"{owner} accepted candidate person_states do not match the "
+                "artifact person_states block; tampered or unaccepted products "
+                "are rejected"
+            )
+        person_states_sha = artifact.get("person_states_sha256")
+        if not isinstance(person_states_sha, str) or not person_states_sha:
+            raise PersistenceError(f"{owner} 0.3 artifact is missing person_states_sha256")
+        if sha256_json(person_states) != person_states_sha:
+            raise PersistenceError(
+                f"{owner} person_states bytes do not match person_states_sha256; "
+                "tampered or unaccepted products are rejected"
+            )
+        candidates = artifact.get("person_state_candidates")
+        if not isinstance(candidates, list):
+            raise PersistenceError(
+                f"{owner} 0.3 artifact is missing its person_state_candidates keys"
+            )
+        for entry in candidates:
+            if not isinstance(entry, dict) or not isinstance(entry.get("item_ref"), str):
+                raise PersistenceError(
+                    f"{owner} person_state_candidates entries must name an item_ref"
+                )
+        person_state_candidates = list(candidates)
     return {
         "chapter_id": artifact["chapter_id"],
         "revision_id": artifact["revision_id"],
@@ -1481,6 +1542,8 @@ def _validate_accepted_chapter_artifact(
         "artifact_sha256": artifact_sha256,
         "reading": reading,
         "reading_units": reading_units,
+        "person_states": person_states,
+        "person_state_candidates": person_state_candidates,
     }
 
 
@@ -1492,8 +1555,9 @@ def assemble_chapters(
     """Assemble accepted chapter artifacts into one revision-staged bundle.
 
     Inputs are the T01 accepted artifacts (``chronicle.chapter-artifact /
-    0.1``) or the reading-enriched T01/T03 artifacts (``0.2``) plus the T03
-    chapter plan; one assembly call never mixes the two generations. Every
+    0.1``), the reading-enriched artifacts (``0.2``) or the
+    person-state-enriched T01/T02 artifacts (``0.3``) plus the T03 chapter
+    plan; one assembly call never mixes generations. Every
     expected chapter must have
     exactly one accepted artifact: missing chapters, extra chapters,
     duplicate chapters, mixed revisions, or unaccepted/tampered products
@@ -1513,9 +1577,12 @@ def assemble_chapters(
     records and never merges by name.
 
     Returns ``{"bundle", "translation_blocks", "mentions",
-    "record_sources", "anchors", "report"}``. Deterministic: unchanged
-    inputs yield byte-identical canonical JSON. No model calls, no worker
-    changes, no source-candidate mutation.
+    "record_sources", "anchors", "reading_units", "person_states",
+    "person_state_evidence", "report"}``. For 0.3 inputs the accepted
+    ``person_states`` block is lifted into the same revision namespace from
+    :mod:`person_state_assembly`; 0.1/0.2 inputs keep empty state outputs.
+    Deterministic: unchanged inputs yield byte-identical canonical JSON.
+    No model calls, no worker changes, no source-candidate mutation.
     """
     plan_chapters = _validate_chapter_plan(chapter_plan)
     if not isinstance(accepted_artifacts, list) or not accepted_artifacts:
@@ -1556,9 +1623,13 @@ def assemble_chapters(
     if len(artifact_versions) != 1:
         raise PersistenceError(
             f"assembly artifacts mix generation versions {sorted(artifact_versions)}; "
-            "refusing to mix 0.1 and 0.2 chapter products"
+            "refusing to mix 0.1, 0.2 and 0.3 chapter products"
         )
-    reading_path = artifact_versions == {CHAPTER_READING_ARTIFACT_VERSION}
+    reading_path = artifact_versions in (
+        {CHAPTER_READING_ARTIFACT_VERSION},
+        {CHAPTER_PERSON_STATE_ARTIFACT_VERSION},
+    )
+    person_state_path = artifact_versions == {CHAPTER_PERSON_STATE_ARTIFACT_VERSION}
 
     expected_ids = [c["chapter_id"] for c in plan_chapters]
     seen_ids: set[str] = set()
@@ -1698,6 +1769,8 @@ def assemble_chapters(
             evidence["source_ref"] = "src_001"
             record["evidence"] = evidence
             final_claims.append(record)
+
+    claim_ids: set[str] = {record["temp_id"] for record in final_claims}
 
     # -- translation / mentions / record_sources through the same mapping -----
     translation_blocks: list[dict[str, Any]] = []
@@ -1960,6 +2033,39 @@ def assemble_chapters(
         key=lambda a: (str(a.get("chapter_id")), int(a.get("start", 0)), int(a.get("end", 0)), str(a.get("anchor_id")))
     )
 
+    # -- person-state evidence into the same revision namespace (C2-R3-T03) ----
+    # The 0.3 ``person_states`` block reuses this exact ``(chapter_index,
+    # local_ref) -> revision_ref`` map for its entity/event/Claim refs, while
+    # its phase/fact/order/continuity/disagreement local IDs receive a
+    # chapter-bound namespace so the same local ``pf_001`` in two chapters can
+    # never collide. Assembly never assigns a canonical ID and never links
+    # same-name records; it only lifts and preserves their origin evidence.
+    assembled_person_states: dict[str, Any] = {
+        name: [] for name in _person_state_assembly.STATE_COLLECTIONS
+    }
+    person_state_evidence: list[dict[str, Any]] = []
+    person_state_report: dict[str, Any] | None = None
+    if person_state_path:
+        state_result = _person_state_assembly.assemble_person_state_evidence(
+            artifacts=ordered,
+            chapter_index_by_id={
+                chapter["chapter_id"]: chapter["chapter_index"]
+                for chapter in plan_chapters
+            },
+            ref_map=id_map,
+            block_map=block_id_map,
+            entity_ids=entity_ids,
+            event_ids=event_ids,
+            claim_ids=claim_ids,
+        )
+        assembled_person_states = state_result["person_states"]
+        person_state_evidence = state_result["evidence_manifests"]
+        person_state_report = state_result["report"]
+        # One revision-local map: state local IDs join the same report map as
+        # the entity/event/Claim refs so downstream review/compile can resolve
+        # every origin ref.
+        local_to_revision.update(state_result["local_to_revision"])
+
     # -- closed references across types (fail closed) ---------------------------
     for block in translation_blocks:
         for ref in block.get("entity_refs") or []:
@@ -2118,7 +2224,11 @@ def assemble_chapters(
         "schema_version": SCHEMA_VERSION,
         "candidate_schema": CHAPTER_CANDIDATE_SCHEMA,
         "candidate_version": (
-            CHAPTER_READING_CANDIDATE_VERSION if reading_path else CHAPTER_CANDIDATE_VERSION
+            CHAPTER_PERSON_STATE_CANDIDATE_VERSION
+            if person_state_path
+            else CHAPTER_READING_CANDIDATE_VERSION
+            if reading_path
+            else CHAPTER_CANDIDATE_VERSION
         ),
         "plan_version": CHAPTER_PLAN_VERSION,
         "revision": {
@@ -2172,8 +2282,13 @@ def assemble_chapters(
                 "anchors": len(merged_anchors),
                 "warnings": len(warnings),
                 "reading_units": len(assembled_reading_units),
+                "person_states": len(person_state_evidence),
+                "person_state_items": sum(
+                    len(manifest.get("items") or []) for manifest in person_state_evidence
+                ),
             },
         },
+        "person_state": person_state_report,
         "chapter_by_ref": dict(sorted(chapter_by_ref.items())),
         "local_to_revision": dict(sorted(local_to_revision.items())),
         "chapter_artifacts": dict(sorted(chapter_artifacts.items())),
@@ -2191,5 +2306,7 @@ def assemble_chapters(
         "record_sources": out_record_sources,
         "anchors": merged_anchors,
         "reading_units": assembled_reading_units,
+        "person_states": assembled_person_states,
+        "person_state_evidence": person_state_evidence,
         "report": report,
     }

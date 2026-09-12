@@ -220,3 +220,65 @@ python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_proj
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_assembly_unit.py' -v
 ```
 
+## Person-state evidence assembly (C2-R3-T03)
+
+`assemble_chapters(...)` also accepts accepted
+`chronicle.chapter-artifact / 0.3` products and, for those only, lifts the
+accepted `person_states` block into the same revision namespace through
+`apps/chronicle/persistence/person_state_assembly.py`
+(`assemble_person_state_evidence`). One assembly call still never mixes
+0.1/0.2/0.3 generations. The evidence result is what T04/T06/T08 consume;
+they call assembly and never re-implement the mapping.
+
+```text
+accepted 0.3 artifacts (one per planned chapter, one revision)
+        │  assembly.assemble_chapters: one (chapter_index, local_ref) map
+        │  + the block map built for the reading units
+        ▼
+assemble_person_state_evidence → phase/fact/order/continuity/disagreement
+        │                          revision IDs + remapped entity/claim refs
+        │                          + unit_phases bound to revision blocks
+        ▼
+{person_states, person_state_evidence, local_to_revision, report}
+
+person_state_evidence = per-chapter manifest keeping origin chapter/local
+refs, artifact/source hashes, resolved anchors and source selections
+```
+
+Key contracts:
+
+- **One revision namespace, chapter-bound state IDs.** The phase / fact /
+  order / continuity / disagreement local IDs receive a chapter-bound
+  namespace (`ph_001` in chapter 0 → `ph_000001`, in chapter 1 →
+  `ph_001001`), so the same local ID in two chapters can never collide.
+  `person_ref`/`value_ref`/`target_ref`, `claim_refs` and phase `event_refs`
+  reuse the exact same `(chapter_index, local_ref) → revision_ref` map as
+  every other chapter reference; the state IDs join the report's
+  `local_to_revision`.
+- **`unit_phases` stay translation-bound.** A unit-phase binding's
+  `block_id` is remapped to the reading unit's revision block ID while the
+  original chapter-local `block_id` is kept as `chapter_block_id`. Prose is
+  never re-sorted by year and no cross-chapter adjacency is used to infer
+  time.
+- **Origin evidence is preserved, never merged.** Every item keeps an
+  `origin` block with its chapter, chapter index, origin revision/local ref
+  and artifact hash; the per-chapter `person_state_evidence` manifest adds
+  the resolved `anchor_ids` for each review candidate key. Assembly assigns
+  no canonical ID and introduces no same-link: same-name entities or
+  offices stay distinct.
+- **0.3 ordering and hash are stable.** Chapters are processed in
+  `chapter_index` order and each chapter's arrays keep their source order,
+  so identical input yields byte-identical canonical JSON and report
+  hashes.
+- **Fail closed.** Missing/extra/duplicate chapters, mixed generations,
+  tampered `person_states_sha256`/artifact cores, duplicate local state IDs
+  and dangling phase/fact/entity/claim/block references reject the whole
+  assembly instead of publishing a partial state set.
+
+Verification:
+
+```bash
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_assembly_unit.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reading_assembly_unit.py' -v
+```
+
