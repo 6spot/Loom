@@ -150,6 +150,26 @@ in Studio → imports, and complete the facts and prose reviews. These are
 separate explicit steps: source publication alone does not approve a new
 synthesized article. See [worker.md](worker.md) for the production procedure.
 
+New natural chapters use the staged 0.4 pipeline. Set `CHRONICLE_CHAPTER_MODEL`
+for the primary model and optionally `CHRONICLE_CHAPTER_REVIEW_MODELS` for a
+comma-separated reviewer list. To configure every step independently, copy
+`apps/chronicle/worker/config/chapter-pipeline.example.json` to a private host
+config directory as `chapter-pipeline.json`, replace its model names, and set:
+
+```text
+CHRONICLE_CHAPTER_CONFIG_DIR=/srv/loom-data/chronicle/config
+CHRONICLE_CHAPTER_PIPELINE_CONFIG=/etc/chronicle/chapter/chapter-pipeline.json
+```
+
+Compose mounts that directory read-only in the worker. The file contains model
+profiles and environment-variable names, never API key values. The default
+profile key comes from the existing `CHRONICLE_MODEL_API_KEY` passthrough. If a
+profile uses a different `api_key_env`, explicitly supply that variable in the
+worker service environment; an `.env` file alone does not inject arbitrary
+variables into containers. Recreate the worker after configuration changes;
+saved jobs reject profile drift and require a new job for a changed pipeline.
+Step budgets and recovery operations are defined in [worker.md](worker.md).
+
 ### Explicit C0 fixture regression
 
 The retained C0-T7 acceptance dataset (武帝纪 + 吴主传, 66 entities /

@@ -20,6 +20,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 const DECISION_LABELS: Record<ReviewDecision, string> = {
   approve: "审核通过",
+  accept: "接受当前版本",
+  revise: "修订后重新复核",
   reject: "驳回",
   same_entity: "同一实体",
   not_same: "明确不同",

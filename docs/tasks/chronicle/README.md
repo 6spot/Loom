@@ -119,3 +119,13 @@ The product contract is [person-state-reading.md](../../../apps/chronicle/docs/p
 Preparation and disjoint modules can proceed according to the dependency
 graph; shared publication, routing and page integration have ordered owners.
 The original R3 split is being revised by C2-R2E-D02 to cover compact current-state rows, place state, a separate person page and the new narrative locator. Existing task names do not imply those extensions are already implemented.
+
+## Staged chapter production
+
+[Issue #684](https://github.com/6spot/Loom/issues/684) and the
+[implementation note](staged-chapter-production.md) cover complete-chapter
+plain translation, independent extraction, durable per-step model results,
+bounded comparison/review/repair, and Studio content exceptions. The product
+contract is [staged-chapter-production.md](../../../apps/chronicle/docs/staged-chapter-production.md).
+This implementation keeps the existing identity/state/publication boundaries;
+real historical quality acceptance remains in #586 and #549.

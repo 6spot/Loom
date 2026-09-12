@@ -24,6 +24,7 @@ single publish transaction calling this store.
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import os
@@ -45,6 +46,7 @@ if str(HERE) not in sys.path:
 import canonical_store
 import control_plane
 import person_state_contract as P
+import person_state_projection as projection
 import person_state_store as store
 import reading_store
 from common import PersistenceConflict, PersistenceError
@@ -405,6 +407,7 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                 phase_id=to_phase_id,
                 person_ref=person_id,
                 operation=operation,
+                item_kind="change",
             ),
             "person_id": person_id,
             "dimension": dimension,
@@ -684,6 +687,66 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             self.assertIn("0010_chronicle_place_states.sql", versions)
 
     # -- happy path / idempotency -------------------------------------------
+
+    def test_compiled_start_persists_identity_change_and_each_items_evidence(self) -> None:
+        with self._connect_ready() as conn:
+            quote = "策授瑜建威中郎將。"
+            catalog_sha = self._seed_catalog(conn, tag="compiled-start")
+            ctx, stream_id = self._setup_stream(
+                conn, label="grant", blocks=[quote], catalog_sha=catalog_sha)
+            assessment_sha = self._assessment(conn, catalog_sha)
+            person_id = _uuid7()
+            anchor_id = "anc_" + "5" * 16
+            fact = {
+                "fact_ref": "pf_001", "person_ref": {"kind": "entity", "ref": "ent_002"},
+                "dimension": "office", "value": "建威中郎將", "operation": "start",
+                "qualification": "ordinary", "attribution": "narrator", "phase_ref": "ph_001",
+                "chapter_id": ctx["chapter_id"], "revision_id": str(ctx["revision_id"]),
+                "chapter_publication_id": str(ctx["publication_id"]), "source_title": "周瑜传",
+                "claim_refs": [], "anchor_ids": [anchor_id],
+                "anchors": [{"anchor_id": anchor_id, "quote": quote, "quote_sha256": _sha256(quote)}],
+            }
+            compiled = projection.compile_person_state_projection(
+                {"phases": [{"phase_id": "ph_001"}], "facts": [fact]},
+                {"pf_001": "supported"}, {"ent_002": person_id}, {"current_phase_id": "ph_001"})
+            self.assertEqual(len(compiled["items"]), 1)
+            self.assertEqual(len(compiled["changes"]), 1)
+            identity_id = compiled["items"][0]["item_id"]
+            change_id = compiled["changes"][0]["item_id"]
+            self.assertNotEqual(identity_id, change_id)
+            unit_id = "ru_grant_0"
+            manifest = self._manifest(
+                ctx, stream_id, catalog_sha, assessment_hashes=[assessment_sha],
+                units=[self._unit(
+                    ctx, unit_id=unit_id, unit_ordinal=0,
+                    people=[self._person(person_id, "周瑜", items=compiled["items"],
+                                         changes=compiled["changes"], evidence=compiled["evidence"])])])
+            manifest["compiler_version"] = projection.PROJECTION_VERSION
+
+            duplicate = copy.deepcopy(manifest)
+            duplicate["units"][0]["people"][0]["changes"][0]["item_id"] = identity_id
+            with self.assertRaisesRegex(PersistenceError, "repeats item_id"):
+                store.persist_person_state_manifest(conn, duplicate)
+
+            manifest_sha = store.persist_person_state_manifest(conn, manifest)
+            summary = store.list_unit_people(conn, stream_id=stream_id, unit_id=unit_id)["people"][0]
+            self.assertEqual(summary["identity_count"], 1)
+            self.assertEqual(summary["change_count"], 1)
+            for section, field, item_id in (("identities", "items", identity_id), ("changes", "changes", change_id)):
+                with self.subTest(section=section):
+                    page = store.list_unit_person_states(
+                        conn, stream_id=stream_id, unit_id=unit_id, person_id=person_id,
+                        section=section, limit=20)
+                    self.assertEqual(page["state_manifest_sha"], manifest_sha)
+                    self.assertEqual([item["item_id"] for item in page[field]], [item_id])
+                    self.assertEqual(page[field][0]["source_facts"][0]["fact_ref"], "pf_001")
+                    evidence = store.list_state_item_evidence(
+                        conn, stream_id=stream_id, unit_id=unit_id, person_id=person_id,
+                        item_id=item_id, limit=50)
+                    self.assertEqual(evidence["descriptor_count"], 1)
+                    self.assertEqual(evidence["descriptors"][0]["source_publication_id"], str(ctx["publication_id"]))
+                    self.assertEqual(evidence["descriptors"][0]["anchor_id"], anchor_id)
+                    self.assertEqual(evidence["descriptors"][0]["quote"], quote)
 
     def test_persist_and_read_bounded(self) -> None:
         with self._connect_ready() as conn:

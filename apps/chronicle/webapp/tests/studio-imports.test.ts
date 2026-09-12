@@ -37,7 +37,7 @@ describe("Studio imports API client", () => {
       }
       expect(path).toBe("/api/v1/studio/jobs");
       expect(init?.method).toBe("POST");
-      expect(JSON.parse(String(init?.body))).toEqual({ revision_id: "rev", max_attempts: 3 });
+      expect(JSON.parse(String(init?.body))).toEqual({ revision_id: "rev", max_attempts: 8 });
       return new Response(JSON.stringify({ schema: "chronicle.job", version: "0.2", job: { job_id: "j", status: "queued" } }), { status: 201, headers: { "Content-Type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);

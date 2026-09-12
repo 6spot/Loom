@@ -382,8 +382,8 @@ def build_person_state_review_plan(
         artifact = _require_object(artifact, "accepted artifact")
         if artifact.get("schema") != _contract.ARTIFACT_SCHEMA or artifact.get(
             "version"
-        ) != _contract.ARTIFACT_VERSION:
-            raise PersistenceError("plan input must be chronicle.chapter-artifact / 0.3")
+        ) not in (_contract.ARTIFACT_VERSION, "0.4"):
+            raise PersistenceError("plan input must be chronicle.chapter-artifact / 0.3 or / 0.4")
         chapter_id = _require_text(artifact.get("chapter_id"), "artifact chapter_id")
         artifact_sha = _require_sha256(artifact.get("artifact_sha256"), "artifact_sha256")
         person_states_sha = _require_sha256(

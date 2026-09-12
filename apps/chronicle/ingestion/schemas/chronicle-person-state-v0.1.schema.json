@@ -24,7 +24,7 @@
         "phase_not_begun"
       ]
     },
-    "review_scope": {"enum": ["resolution", "person_state", "all"]},
+    "review_scope": {"enum": ["resolution", "person_state", "chapter_content", "all"]},
     "assessment": {"enum": ["supported", "uncertain", "disputed", "rejected"]},
     "predicted_effect": {"enum": ["current", "prior", "ended", "none"]},
     "section": {"enum": ["identities", "changes", "evidence", "places"]},

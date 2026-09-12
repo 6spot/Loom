@@ -94,7 +94,7 @@ UNLIMITED_QUALIFICATIONS = ("recommendation", "posthumous")
 #: Review scope contract (person-state-reading.md §5.1). The omitted
 #: parameter keeps the legacy ``resolution`` default so the existing
 #: review entry does not lose facts/prose when person_state is added.
-REVIEW_SCOPES = ("resolution", "person_state", "all")
+REVIEW_SCOPES = ("resolution", "person_state", "chapter_content", "all")
 DEFAULT_REVIEW_SCOPE = "resolution"
 
 #: Fixed HTTP statuses for the person-state read API.
@@ -323,18 +323,22 @@ def validate_person_state_dto(name: str, value: Any) -> list[str]:
 
 
 def item_id_for(*, chapter_id: str, fact_ref: str, dimension: str, phase_id: str,
-                person_ref: str, operation: str) -> str:
-    digest = sha256_json(
-        {
-            "contract": CONTRACT_VERSION,
-            "chapter_id": chapter_id,
-            "fact_ref": fact_ref,
-            "dimension": dimension,
-            "phase_id": phase_id,
-            "person_ref": person_ref,
-            "operation": operation,
-        }
-    )
+                person_ref: str, operation: str, item_kind: str = "identity") -> str:
+    """Keep identity IDs stable while giving changes their own item namespace."""
+    if item_kind not in ("identity", "change"):
+        raise PersistenceError(f"unknown person-state item kind {item_kind!r}")
+    identity = {
+        "contract": CONTRACT_VERSION,
+        "chapter_id": chapter_id,
+        "fact_ref": fact_ref,
+        "dimension": dimension,
+        "phase_id": phase_id,
+        "person_ref": person_ref,
+        "operation": operation,
+    }
+    if item_kind == "change":
+        identity["item_kind"] = item_kind
+    digest = sha256_json(identity)
     return "psi_" + digest[:24]
 
 
@@ -1150,8 +1154,8 @@ def remap_person_state_evidence(
     for artifact in chapter_artifacts:
         if not isinstance(artifact, dict):
             continue
-        if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") != ARTIFACT_VERSION:
-            raise PersistenceError("remap input must be chronicle.chapter-artifact / 0.3")
+        if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (ARTIFACT_VERSION, "0.4"):
+            raise PersistenceError("remap input must be chronicle.chapter-artifact / 0.3 or 0.4")
         chapter_id = artifact.get("chapter_id")
         mapping = revision_ref_map.get(chapter_id) if isinstance(chapter_id, str) else None
         mapping = mapping if isinstance(mapping, dict) else {}
@@ -1572,7 +1576,7 @@ def normalize_review_scope(value: Any) -> str:
 
     The current review entry keeps resolution (facts/prose) when no scope
     is given; ``all`` explicitly covers resolution + person_state +
-    narrative. Unknown scopes fail closed as a 400-style error.
+    narrative + chapter_content. Unknown scopes fail closed as a 400-style error.
     """
     if value in (None, ""):
         return DEFAULT_REVIEW_SCOPE
@@ -1585,20 +1589,22 @@ def review_scope_covers(scope: str, target: str) -> bool:
     """Return whether a review scope includes one review surface.
 
     Mirrors ``person-state-types.ts`` ``reviewScopeCovers`` and
-    ``person-state-reading.md`` §5.1 exactly:
+    ``person-state-reading.md`` §5.1, with the chapter-content extension in
+    ``review-workflow.md`` §7:
 
     - the omitted scope normalizes to ``resolution`` and covers both the
       identity ``resolution`` surface and the existing facts/prose
       ``narrative`` surface, so adding person_state never drops the
       current comprehensive review entry;
     - ``person_state`` covers only ``person_state``;
-    - ``all`` covers ``resolution``, ``person_state`` and ``narrative``.
+    - ``chapter_content`` covers only ``chapter_content``;
+    - ``all`` covers all four review surfaces.
     """
     scope = normalize_review_scope(scope)
     if scope == "all":
         return True
-    if scope == "person_state":
-        return target == "person_state"
+    if scope in ("person_state", "chapter_content"):
+        return target == scope
     return target in ("resolution", "narrative")
 
 

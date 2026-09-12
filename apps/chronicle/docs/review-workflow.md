@@ -71,10 +71,69 @@ Studio auth 继续由 Rust front 在路由/资源检查前执行：匿名或错�
 
 第三轮在同一 `GET /api/v1/studio/jobs/reviews` 队列外壳内加入 `review_scope`，不新增顶层路径；`studio_person_states.py` 负责 `payload.scope=person_state` 分支，`studio_reviews.py` 仍持有队列本身。scope 语义只来自 T01 的 `person_state_contract.normalize_review_scope` / `review_scope_covers`，代码不另定默认值。
 
-- 队列：`review_scope=resolution|person_state|all`，省略为 `resolution`（覆盖 `resolution` 与 `narrative`，既有综合 facts/prose 不因扩展消失）；`person_state` 只含阶段依据包；`all` 覆盖三类。`link_kind` 只在 `resolution` 合法，与 `person_state`/`all` 混用 400。`cursor`、`open_count`、`plan_fingerprint` 与 URL 均绑定所选 scope；换 scope 复用旧 cursor 为 400。
+- 队列：`review_scope=resolution|person_state|chapter_content|all`，省略为 `resolution`（覆盖 `resolution` 与 `narrative`，既有综合 facts/prose 不因扩展消失）；`person_state` 只含阶段依据包，`chapter_content` 见 §7；`all` 覆盖四类。`link_kind` 只在 `resolution` 合法，与其他 scope 混用 400。`cursor`、`open_count`、`plan_fingerprint` 与 URL 均绑定所选 scope；换 scope 复用旧 cursor 为 400。
 - 列表项：person_state 项返回 `review_mode`、`chapter_id`、`candidate_count`、`default_assessment`、`allowed_assessments` 与包自身的 `plan_fingerprint`；`decision` 只给有界的 `{default_assessment, override_count, rationale, dismissed}`，不内联逐候选明细。
-- 详情：`GET /reviews/{review_id}` 对 person_state 返回冻结包，`candidates` 只读投影自 accepted 0.3 与不可变 anchors（人物/官职/阶段标签、原文引文、`source_label`、`attribution`、`reason_codes`），不按名称合并、不重跑模型。候选分页 `limit`（1..50，默认 20）与绑定 `(review, plan_fingerprint)` 的 `cursor`；无 artifact 时只降级为 null 标签，不伪造结论。
-- contexts：`GET /reviews/{review_id}/contexts?candidate_id=&limit=&cursor=` 按冻结 `anchor_ids` 返回描述符，`candidate_id` 限定单个候选，缺省覆盖整包；cursor 复用 `source_context` 的 group 绑定（group 即 candidate_id）。证据类型按 accepted 0.3 state item 的实际 `claim_refs` 计算：有直接 Claim 的 fact 为 `direct_claim`，仅有精确 `source_selections` 的阶段事实为 `record_source`；同一 anchor 被多个候选引用时描述符保留全部 `candidate_keys` 与并集证据类型，不塌缩为第一个候选。
+- 详情：`GET /reviews/{review_id}` 对 person_state 返回冻结包，`candidates` 只读投影自 accepted 0.3/0.4 与不可变 anchors（人物/官职/阶段标签、原文引文、`source_label`、`attribution`、`reason_codes`），不按名称合并、不重跑模型。候选分页 `limit`（1..50，默认 20）与绑定 `(review, plan_fingerprint)` 的 `cursor`；无 artifact 时只降级为 null 标签，不伪造结论。
+- contexts：`GET /reviews/{review_id}/contexts?candidate_id=&limit=&cursor=` 按冻结 `anchor_ids` 返回描述符，`candidate_id` 限定单个候选，缺省覆盖整包；cursor 复用 `source_context` 的 group 绑定（group 即 candidate_id）。证据类型按 accepted 0.3/0.4 state item 的实际 `claim_refs` 计算：有直接 Claim 的 fact 为 `direct_claim`，仅有精确 `source_selections` 的阶段事实为 `record_source`；同一 anchor 被多个候选引用时描述符保留全部 `candidate_keys` 与并集证据类型，不塌缩为第一个候选。
 - sources：`GET /reviews/{review_id}/sources/{anchor_id}?view=window|chapter` 读取本包 anchor；anchor 不属于该包为 404，revision/hash/章节边界漂移或文件缺失为 409，绝不为冻结包补读新 revision。读取复用 `source_context` 的字节读取、hash 校验、code point 切片与高亮。
 - decision：`POST .../decision` 的 person_state 分支为 `{plan_fingerprint, default_assessment, overrides:[{candidate_key|candidate_id, assessment, rationale}], rationale, dismiss?}`。`plan_fingerprint` 为必填非空字符串，缺失或非字符串为 400；与冻结包不一致为 409 `plan_drift`。服务端还要求显式 `default_assessment`（未审候选不得默认 `supported`）、覆盖必须命中冻结候选并带理由，重复提交为 409；非法候选/评估/缺理由为 400。校验复用 T06 `normalize_person_state_decision`，身份 `same_entity`/`group_decisions` 等决议词表在 person_state 包上被拒。终态与决定同事务写入（沿用 job/review 锁），供 T08 的 `collect_person_state_assessments` 逐候选回填。
 
+## 7. 分阶段章节内容审核（0.4）
+
+[分阶段生产合同](staged-chapter-production.md) 的内容例外仍使用同一队列，
+`kind=stage_gate`、`payload.scope=chapter_content`、`review_mode=chapter_content`、
+`stage=extract`。一个章节版本集中处理全部意见，已有身份与阶段依据审核的含义不变。
+`review_scope` 增加 `chapter_content`，`all` 包含四种内容；省略仍只覆盖原有
+`resolution+narrative`。`link_kind` 仍只能与 `resolution` 合用。
+
+`persistence/chapter_content_review.py` 是内容决定的唯一写入者。冻结包保存在
+已有 `ingestion_outputs`，类型为 `chapter-content-review`；ReviewItem保存精确输出引用。
+包同时固定完整章节请求、当前候选、全部历史记录、意见、机械校验错误、pipeline指纹
+及所有步骤输出hash。`plan_fingerprint` 覆盖这一整包；每项的指纹独立，不随同队列
+后来加入其他章节而变化。重启收养同一包，存在不同的open包时拒绝覆盖。
+
+来源请求保留0.4的完整 `normalized_text`、`blocks`、`source_scope` 以及绝对
+`chapter_start/chapter_end`。`normalized_sha256` 是章文本hash，
+`revision_normalized_sha256` 是完整规范化revision hash。整章原文读取复用
+`source_context` 的同一字节读取、hash验证、code-point切片与分页；不需要先建立
+accepted chapter，不读取最新revision，也不把原文搜索结果冒充固定定位。
+
+API沿用 `/api/v1/studio/jobs/reviews/{review_id}`：
+
+- 详情增加 `chapter_content`，含当前候选、每条意见、只读 `source_scope`、
+  `candidate_sha256/history_sha256/plan_fingerprint`、`can_accept`、机械错误、
+  各次历史记录摘要及按现有对象提供的 `patch_targets`（path及前值hash）。
+- `/contexts` 返回本冻结章的来源描述符；`/sources/{anchor_id}?view=window|chapter`
+  保持原有原文DTO。整章每页最多16,000 code points。
+- `/history?entry=N&cursor=…&limit=16000` 按记录分页读取完整原始文本、解析结果及
+  模型意见，cursor绑定审核项、计划、记录序号和记录hash。详情不内联长历史；
+  所有记录都可完整展开，不截成最终一稿。
+  有 `output_sha256` 的记录从同job/revision/chunk的既有输出精确读取原始结果、
+  用量与验证报告，不复制到冻结包，不按step取最新输出；重算输出hash并核对
+  冻结投影后，详情描述符和分页都绑定实际展示记录的hash。prompt、请求配置和
+  凭据不进入展示，receipt仅公开模型、状态、耗时、用量等运输观测。没有输出引用的
+  既有内联记录仍可读取；缺失、跨章或发生漂移的输出返回409 `plan_drift`。
+- `POST /decision` 要求 `{decision, plan_fingerprint, candidate_sha256,
+  history_sha256, rationale, issue_dispositions}`，`revise` 另带 `patches`。
+  所有意见必须恰好处置一次：`{issue_id, disposition, rationale}`，disposition为
+  `resolved|source_uncertainty|rejected`。`rejected` 表示该意见不成立；整个任务的
+  驳回是顶层 `decision=reject`。处理错误不能用 `source_uncertainty` 洗成史料疑问。
+- `accept` 只能接受原样且机械校验通过的完整候选，连空 `patches` 字段也不允许。
+  `revise` 只保存1..128个 `{path,before_sha256,value,op?}` 局部补丁，
+  `op=replace`为默认；新增、删除metadata仍受唯一生产补丁验证器约束。
+  正文只允许替换已有段落text，不删除或重排段落，来源范围和身份头不得修改。
+  revise不产生接受凭据，后台形成新版本并重新复核。
+- `reject` 保存决定后取消job。未形成完整候选的包只能查看并驳回，绝不能接受
+  部分产物。技术失败仍走retry，不包装为内容分歧。
+
+决定在 `job→review` 的短事务锁顺序内检查job仍可处理、review仍open、候选与历史
+指纹一致，决定及终态同事务保存。取消任务后、重复提交、过期版本均409；缺字段、
+遗漏/重复意见或非法补丁为400。之后只读取该固定决定，不把改稿同时当作通过。
+
+Studio将原文、当前白话正文、每条意见及其证据、全部模型结果和修正历史集中展示。
+原文和长历史展开保留当前草稿；内部hash及完整提取JSON置于可展开材料。修订逐段
+或逐记录进行，前值hash来自服务端的固定候选。草稿按
+`(review_scope,review_id,plan_fingerprint,candidate_sha256)`隔离。
+底部保持“接受原样并下一项／提交修订并下一项／暂时跳过／返回队列”可达；有编辑时
+禁用接受原样。成功响应必须核对本review和版本再清草稿，失败与409保留。最后一项
+处理成功后，通过原resume入口继续生产；暂时跳过仍只影响当前浏览会话。

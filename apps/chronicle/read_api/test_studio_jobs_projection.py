@@ -8,6 +8,23 @@ from studio_jobs import _studio_job_projection
 
 
 class StudioJobProjectionTests(unittest.TestCase):
+    def test_staged_progress_exposes_only_bounded_metadata(self) -> None:
+        progress = {"step": "extraction", "status": "completed", "model": "model-a",
+                    "request": "PRIVATE SOURCE", "steps": {
+                        "node-a": {"step": "translation", "status": "completed", "round": 0,
+                                   "attempt": 1, "elapsed_seconds": 15.2, "model": "model-a",
+                                   "raw_text": "PRIVATE TRANSLATION", "prompt": "PRIVATE PROMPT",
+                                   "usage": {"output_tokens": 72, "internal": "PRIVATE USAGE"}},
+                        "node-b": {"step": "extraction", "status": "started", "usage": None},
+                    }}
+        result = _studio_job_projection({"chunks": [{"checkpoint": {"production": progress}, "runs": []}]})
+        safe = result["chunks"][0]["production"]
+        self.assertNotIn("PRIVATE", repr(result))
+        self.assertNotIn("checkpoint", result["chunks"][0])
+        self.assertEqual(safe["steps"][0]["elapsed_seconds"], 15.2)
+        self.assertEqual(safe["steps"][0]["usage"], {"output_tokens": 72})
+        self.assertIsNone(safe["steps"][1]["usage"])
+
     def test_chunk_run_projection_excludes_verbatim_model_artifacts(self) -> None:
         detail = {
             "job_id": "job-1",

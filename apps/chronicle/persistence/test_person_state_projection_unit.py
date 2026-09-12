@@ -724,6 +724,35 @@ class DtoContractRegressionTests(unittest.TestCase):
         for change in result["changes"]:
             assert_dto(self, "state_change", change)
 
+    def test_start_identity_and_change_have_distinct_ids_and_independent_evidence(self) -> None:
+        evidence = build([fact("pf_001", phase_ref="ph_002")], phase_orders=CHAIN)
+        result = compile_(evidence, {**CHAIN_ASSESSMENTS, "pf_001": "supported"})
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(len(result["changes"]), 1)
+        identity, change = result["items"][0], result["changes"][0]
+        self.assertNotEqual(identity["item_id"], change["item_id"])
+        self.assertEqual(identity["item_id"], P.item_id_for(
+            chapter_id=CHAPTER_ID, fact_ref="pf_001", dimension="office",
+            phase_id="ph_002", person_ref=PERSON, operation="start"))
+        self.assertEqual(identity["source_facts"], change["source_facts"])
+        item_ids = {identity["item_id"], change["item_id"]}
+        self.assertEqual(set(result["reasoning"]), item_ids)
+        by_item = {entry["item_id"]: entry["descriptors"] for entry in result["evidence"]}
+        self.assertEqual(set(by_item), item_ids)
+        descriptor_ids = set()
+        for item_id in item_ids:
+            self.assertEqual(result["reasoning"][item_id]["assessment"], "supported")
+            self.assertEqual(result["reasoning"][item_id]["source_facts"][0]["fact_ref"], "pf_001")
+            self.assertEqual(len(by_item[item_id]), 1)
+            descriptor = by_item[item_id][0]
+            self.assertEqual(descriptor["anchor_id"], ANCHOR["anchor_id"])
+            self.assertEqual(descriptor["quote"], ANCHOR["quote"])
+            assert_dto(self, "evidence_descriptor", descriptor)
+            descriptor_ids.add(descriptor["descriptor_id"])
+        self.assertEqual(len(descriptor_ids), 2)
+        self.assertEqual({entry["item_id"] for entry in result["people"][PERSON_ID]["evidence"]}, item_ids)
+        self.assertEqual(set(result["people"][PERSON_ID]["reasoning"]), item_ids)
+
     def test_item_has_exactly_the_allowed_fields(self) -> None:
         result = self._compiled()
         allowed = {

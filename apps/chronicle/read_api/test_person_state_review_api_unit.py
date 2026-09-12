@@ -71,7 +71,7 @@ class ReviewScopeQueueUnitTests(unittest.TestCase):
         self.assertEqual(spec["review_scope"], "resolution")
 
     def test_scope_accepts_all_vocabulary(self) -> None:
-        for scope in ("resolution", "person_state", "all"):
+        for scope in ("resolution", "person_state", "chapter_content", "all"):
             spec = studio._parse_page({"review_scope": [scope]})
             self.assertEqual(spec["review_scope"], scope)
 
@@ -81,7 +81,7 @@ class ReviewScopeQueueUnitTests(unittest.TestCase):
 
     def test_link_kind_only_combines_with_resolution(self) -> None:
         studio._parse_page({"link_kind": ["entity"]})
-        for scope in ("person_state", "all"):
+        for scope in ("person_state", "chapter_content", "all"):
             with self.assertRaises(studio._BadRequest):
                 studio._parse_page({"review_scope": [scope], "link_kind": ["entity"]})
 

@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Mapping
 from urllib import error, parse, request
@@ -47,8 +48,8 @@ except ImportError:  # pragma: no cover - package import path
     )
     from .presentation_model_schema import presentation_text_format
 
-#: Chapter candidate version new production emits (person states on top of
-#: the reading joint product).
+#: Frozen joint-provider generation (new live chapter work uses staged 0.4
+#: through chapter_models, never this whole-candidate provider).
 PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.3"
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
@@ -74,6 +75,11 @@ TRANSIENT_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504, 520, 522, 523
 
 class ModelProviderError(RuntimeError):
     """Raised when the configured model endpoint cannot produce valid text."""
+
+    def __init__(self, message: str, *, receipt: dict | None = None, raw_text: str = ""):
+        super().__init__(message)
+        self.receipt = receipt
+        self.raw_text = raw_text
 
 
 def _nonempty_env(name: str) -> str | None:
@@ -339,6 +345,148 @@ class ResponsesHTTPModel:
             f"{attempts_made} attempt(s): {last_transient}"
         )
 
+    def complete_with_receipt(self, prompt: str, *, total_timeout_seconds: float,
+                              on_progress=None, cancelled=None) -> tuple[str, dict]:
+        """One observable HTTP attempt with an actual wall-clock deadline.
+
+        The staged scheduler owns retries and persists each attempt. Use an
+        interruptible async transport here so a peer sending keep-alive bytes
+        cannot reset the total budget indefinitely. The legacy complete hook
+        retains its frozen retry behavior; both paths use the same Responses
+        payload and text/status validation. Raw reasoning/envelopes are never
+        returned to the product audit log.
+        """
+        if not isinstance(prompt, str) or not prompt or total_timeout_seconds <= 0:
+            raise ModelProviderError("model prompt and total deadline are required")
+        try:
+            import httpx
+        except ImportError as exc:
+            raise PersistenceError("install apps/chronicle/worker/requirements.txt for staged model transport") from exc
+        started = time.monotonic()
+        receipt: dict[str, Any] = {
+            "requested_model": self.name, "model": None, "status": "started",
+            "usage": None, "http_attempts": 1, "response_bytes": 0,
+            "elapsed_seconds": 0.0, "incomplete_reason": None,
+        }
+        payload: dict[str, Any] = {"model": self.name, "input": prompt}
+        if self.text_format is not None:
+            payload["text"] = {"format": self.text_format}
+        if self.max_output_tokens is not None:
+            payload["max_output_tokens"] = self.max_output_tokens
+        headers = {"Accept": "application/json", "User-Agent": MODEL_HTTP_USER_AGENT}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        async def perform():
+            async with httpx.AsyncClient(timeout=self.timeout_seconds, follow_redirects=False) as client:
+                async with client.stream("POST", self.endpoint, json=payload, headers=headers) as response:
+                    receipt["http_status"] = response.status_code
+                    if response.status_code >= 300:
+                        raise ModelProviderError(f"model endpoint returned HTTP {response.status_code}")
+                    chunks: list[bytes] = []
+                    count = 0
+                    async for chunk in response.aiter_bytes():
+                        count += len(chunk)
+                        receipt["response_bytes"] = count
+                        if count > self.max_response_bytes:
+                            raise ModelProviderError("model response exceeds configured size limit")
+                        chunks.append(chunk)
+                        if on_progress is not None:
+                            on_progress({"response_bytes": count,
+                                         "elapsed_seconds": time.monotonic() - started})
+                    return b"".join(chunks)
+
+        async def perform_cancellable():
+            # Watch independently of response bytes: a peer may send neither
+            # headers nor content after the job has been cancelled or lost.
+            async def watch_cancellation():
+                while cancelled is None or not cancelled():
+                    await asyncio.sleep(0.1)
+                receipt["status"] = "cancelled"
+                raise ModelProviderError("model attempt cancelled")
+
+            if cancelled is not None and cancelled():
+                receipt["status"] = "cancelled"
+                raise ModelProviderError("model attempt cancelled before dispatch")
+            request_task = asyncio.create_task(perform())
+            tasks = [request_task]
+            if cancelled is not None:
+                tasks.append(asyncio.create_task(watch_cancellation()))
+            try:
+                completed, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                if len(tasks) > 1 and tasks[1] in completed:
+                    return tasks[1].result()
+                return request_task.result()
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+        async def bounded_attempt():
+            # wait_for also supports the repository's Python 3.9 test runtime.
+            return await asyncio.wait_for(perform_cancellable(), timeout=total_timeout_seconds)
+
+        raw_text = ""
+        try:
+            raw = asyncio.run(bounded_attempt())
+            try:
+                response = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError) as exc:
+                raise ModelProviderError("model endpoint returned invalid JSON") from exc
+            if not isinstance(response, dict):
+                raise ModelProviderError("model response must be a JSON object")
+            receipt["status"] = response.get("status")
+            receipt["model"] = response.get("model") if isinstance(response.get("model"), str) else None
+            usage = response.get("usage")
+            if isinstance(usage, dict):
+                safe_usage = {}
+                for key in ("input_tokens", "output_tokens", "total_tokens"):
+                    value = usage.get(key)
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                        safe_usage[key] = value
+                details = usage.get("output_tokens_details")
+                if (isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int)
+                        and not isinstance(details["reasoning_tokens"], bool) and details["reasoning_tokens"] >= 0):
+                    safe_usage["reasoning_tokens"] = details["reasoning_tokens"]
+                receipt["usage"] = safe_usage or None
+            incomplete = response.get("incomplete_details")
+            if isinstance(incomplete, dict):
+                reason = incomplete.get("reason")
+                if reason in ("max_output_tokens", "content_filter"):
+                    receipt["incomplete_reason"] = reason
+                elif reason:
+                    receipt["incomplete_reason"] = "other"
+            # Save any visible incomplete output for diagnosis, but never
+            # treat it as a completed candidate. Reasoning is not extracted.
+            try:
+                raw_text = _response_text({**response, "status": "completed", "incomplete_details": None, "refusal": None})
+            except ModelProviderError:
+                pass
+            if response.get("status") not in ("completed", "succeeded"):
+                raise ModelProviderError("model response did not explicitly complete")
+            for item in response.get("output") or []:
+                if isinstance(item, dict) and any(
+                    isinstance(part, dict) and part.get("type") == "refusal"
+                    for part in item.get("content") or []
+                ):
+                    raise ModelProviderError("model response was refused")
+            text = _response_text(response)
+            receipt["status"] = "completed"
+            return text, receipt
+        except (asyncio.TimeoutError, TimeoutError, httpx.TimeoutException) as exc:
+            receipt["status"] = "timeout"
+            raise ModelProviderError("model attempt exceeded its time budget", receipt=receipt, raw_text=raw_text) from exc
+        except httpx.HTTPError as exc:
+            receipt["status"] = "transport_error"
+            raise ModelProviderError("model endpoint transport failure", receipt=receipt, raw_text=raw_text) from exc
+        except ModelProviderError as exc:
+            if receipt["status"] in ("started", "completed", None):
+                receipt["status"] = "failed"
+            raise ModelProviderError(str(exc), receipt=receipt, raw_text=raw_text) from exc
+        finally:
+            receipt["elapsed_seconds"] = round(time.monotonic() - started, 3)
+
 
 def _fixture_models_from_env() -> tuple[Any, Any] | None:
     """Build the explicit development fixture provider when requested.
@@ -441,8 +589,9 @@ def build_chapter_model(
     The request carries the chapter-candidate strict format (only
     model-generatable fields) plus the chapter-production §3 output token
     budget and 4 MiB response byte cap. ``candidate_version`` selects the
-    strict contract; it defaults to the registered production version (0.3
-    person states on top of the reading annotations). Acceptance still runs
+    strict contract; this frozen joint factory defaults to 0.3 person states
+    on top of the reading annotations. New staged work uses ChapterModels.
+    Acceptance still runs
     the matching T01/reading/person-state validator on the returned text;
     this factory only constrains generation and transport. Legacy
     extraction/presentation providers keep their own 2 MiB default and are

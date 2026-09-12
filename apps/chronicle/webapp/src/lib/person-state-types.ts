@@ -244,8 +244,8 @@ export interface PlaceStatePage {
 // Review surfaces (person-state-reading.md §5)
 // ---------------------------------------------------------------------------
 
-export type ReviewScope = "resolution" | "person_state" | "all";
-export const REVIEW_SCOPES: readonly ReviewScope[] = ["resolution", "person_state", "all"];
+export type ReviewScope = "resolution" | "person_state" | "chapter_content" | "all";
+export const REVIEW_SCOPES: readonly ReviewScope[] = ["resolution", "person_state", "chapter_content", "all"];
 export const DEFAULT_REVIEW_SCOPE: ReviewScope = "resolution";
 
 export interface ReviewCandidate {
@@ -328,15 +328,15 @@ export function normalizeReviewScope(value: string | null | undefined): ReviewSc
   return value as ReviewScope;
 }
 
-/** ``all`` covers resolution + person_state + narrative; the legacy resolution
+/** ``all`` covers resolution + person_state + narrative + chapter_content; the legacy resolution
  * scope covers the existing facts/prose (narrative) entry. */
 export function reviewScopeCovers(
   scope: string | null | undefined,
-  target: "resolution" | "person_state" | "narrative",
+  target: "resolution" | "person_state" | "narrative" | "chapter_content",
 ): boolean {
   const normalized = normalizeReviewScope(scope);
   if (normalized === "all") return true;
-  if (normalized === "person_state") return target === "person_state";
+  if (normalized === "person_state" || normalized === "chapter_content") return target === normalized;
   return target === "resolution" || target === "narrative";
 }
 

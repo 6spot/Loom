@@ -1099,12 +1099,14 @@ READING_ARTIFACT_VERSION = reading_contract.ARTIFACT_VERSION
 #: Accepted chapter artifact generation that additionally carries the 0.3
 #: ``person_states`` block (C2-R3-T01/T02; T08 publishes it).
 PERSON_STATE_ARTIFACT_VERSION = "0.3"
+STAGED_ARTIFACT_VERSION = "0.4"
 
 #: Chapter artifact generations the atomic chapter publish accepts.
 CHAPTER_ARTIFACT_VERSIONS = (
     chapter_store.ARTIFACT_VERSION,
     READING_ARTIFACT_VERSION,
     PERSON_STATE_ARTIFACT_VERSION,
+    STAGED_ARTIFACT_VERSION,
 )
 
 #: Control-plane output type for the frozen person-state review plan. Kept
@@ -2224,10 +2226,13 @@ def publish_chapters(
                 f"generations {sorted(str(v) for v in artifact_versions)}; "
                 "refusing to publish a mixed-generation book"
             )
-        person_state_path = artifact_versions == {PERSON_STATE_ARTIFACT_VERSION}
+        person_state_path = artifact_versions in (
+            {PERSON_STATE_ARTIFACT_VERSION}, {STAGED_ARTIFACT_VERSION},
+        )
         reading_path = artifact_versions in (
             {READING_ARTIFACT_VERSION},
             {PERSON_STATE_ARTIFACT_VERSION},
+            {STAGED_ARTIFACT_VERSION},
         )
         if reading_path and not isinstance(chapter_plan, dict):
             raise PersistenceError(

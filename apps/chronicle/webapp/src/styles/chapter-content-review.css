@@ -1,0 +1,26 @@
+.chapter-content-review { padding-bottom: 8rem; }
+.ccr-section { padding: 1.25rem; background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; }
+.ccr-section h2 { font-size: 1.1rem; margin: 0 0 .75rem; }
+.ccr-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.ccr-reading-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; margin: 1.2rem 0; align-items: start; }
+.ccr-prose { font-size: 1rem; line-height: 1.95; overflow-wrap: anywhere; }
+.ccr-prose p { white-space: pre-wrap; margin: 0 0 1.2rem; }
+.chapter-content-review .studio-textarea { display: block; box-sizing: border-box; width: 100%; min-height: 6rem; margin-top: .5rem; padding: .75rem; border: 1px solid #d4d4d8; border-radius: .5rem; background: #fff; color: inherit; font: inherit; line-height: 1.65; resize: vertical; }
+.chapter-content-review .studio-textarea:focus-visible { outline: 2px solid #71717a; outline-offset: 2px; }
+.chapter-content-review .studio-select { display: block; box-sizing: border-box; width: 100%; margin-top: .5rem; }
+.ccr-prose textarea { min-height: 9rem; }
+.ccr-issue { margin: 1rem 0; border: 1px solid #e4e4e7; border-radius: 6px; padding: 1rem; }
+.ccr-issue legend { padding: 0 .5rem; font-weight: 600; }
+.ccr-issue label, .ccr-metadata label { display: block; margin-top: .85rem; }
+.ccr-history-record { border-top: 1px solid #e4e4e7; padding: .8rem 0; }
+.ccr-history-record summary { cursor: pointer; }
+.ccr-history-text { max-height: 32rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chapter-content-review .ccr-record-editor { min-height: 20rem; font-family: ui-monospace, monospace; }
+.ccr-actions { gap: .7rem; }
+@media (max-width: 900px) { .ccr-reading-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 820px) {
+  .ccr-actions .studio-review-actionbar-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ccr-actions .studio-review-actionbar-buttons > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .ccr-actions button { min-height: 2.5rem; height: auto; padding: .5rem .6rem; white-space: normal; }
+}
+@media (max-width: 640px) { .chapter-content-review { padding-bottom: 12rem; } .ccr-section { padding: .85rem; } }

@@ -546,6 +546,8 @@ def build_chapter_request(
     chapter_index: int,
     text: str,
     limits: ChapterLimits | None = None,
+    *,
+    candidate_version: str = CANDIDATE_VERSION,
 ) -> dict[str, Any]:
     """Build the T01 program-owned request for one planned chapter.
 
@@ -605,7 +607,11 @@ def build_chapter_request(
                 "not match the supplied text"
             )
         blocks.append(relative)
-    return {
+    from chapter_contract import CANDIDATE_VERSIONS
+
+    if candidate_version not in CANDIDATE_VERSIONS:
+        raise PersistenceError(f"unregistered chapter candidate version {candidate_version!r}")
+    request = {
         "chapter_id": chapter["chapter_id"],
         "chapter_index": chapter["chapter_index"],
         "title": chapter["title"],
@@ -619,7 +625,17 @@ def build_chapter_request(
         "plan_version": PLAN_VERSION,
         "limits": limits.to_dict(),
         "schema_versions": {
-            "candidate": CANDIDATE_VERSION,
+            "candidate": candidate_version,
             "bundle": "0.1",
         },
     }
+    if candidate_version == "0.4":
+        from staged_chapter_contract import build_source_scope
+
+        request["chapter_start"] = start
+        request["chapter_end"] = end
+        request["revision_normalized_sha256"] = plan["normalized_sha256"]
+        request["normalized_sha256"] = sha256_text(request["normalized_text"])
+        request["source_scope"] = build_source_scope(request)
+        request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+    return request

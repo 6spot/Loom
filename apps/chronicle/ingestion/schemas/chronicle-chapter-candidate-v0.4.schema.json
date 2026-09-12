@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.4.schema.json",
+  "title": "Chronicle staged chapter candidate v0.4",
+  "description": "Complete staged candidate: frozen 0.3 fields and immutable program-owned source scope. Only body scope requires translation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "chapter_id",
+    "bundle",
+    "translation",
+    "mentions",
+    "record_sources",
+    "reading",
+    "person_states",
+    "warnings",
+    "source_scope"
+  ],
+  "properties": {
+    "schema": {
+      "const": "chronicle.chapter-candidate"
+    },
+    "version": {
+      "const": "0.4"
+    },
+    "chapter_id": {
+      "type": "string",
+      "pattern": "^ch_[0-9a-f]{24}$"
+    },
+    "bundle": {
+      "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/staged_bundle"
+    },
+    "translation": {
+      "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/translation"
+    },
+    "mentions": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/mention"
+      }
+    },
+    "record_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/record_source"
+      }
+    },
+    "reading": {
+      "$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/reading"
+    },
+    "person_states": {
+      "$ref": "chronicle-chapter-candidate-v0.3.schema.json#/$defs/person_states"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/warning"
+      }
+    },
+    "source_scope": {
+      "$ref": "#/$defs/source_scope"
+    }
+  },
+  "$defs": {
+    "source_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "version",
+        "chapter_id",
+        "revision_id",
+        "source_sha256",
+        "normalized_sha256",
+        "revision_normalized_sha256",
+        "chapter_content_sha256",
+        "chapter_start",
+        "chapter_end",
+        "offset_unit",
+        "body_block_ids",
+        "fragments"
+      ],
+      "properties": {
+        "schema": {
+          "const": "chronicle.chapter-source-scope"
+        },
+        "version": {
+          "const": "0.1"
+        },
+        "chapter_id": {
+          "type": "string",
+          "pattern": "^ch_[0-9a-f]{24}$"
+        },
+        "revision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "normalized_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "revision_normalized_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chapter_content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "chapter_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chapter_end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "offset_unit": {
+          "const": "chars-normalized-utf8"
+        },
+        "body_block_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "fragments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "block_id",
+              "role",
+              "start",
+              "end",
+              "text_sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^sf_[0-9a-f]{24}$"
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "enum": [
+                  "body",
+                  "annotation"
+                ]
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "text_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

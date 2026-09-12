@@ -84,7 +84,7 @@ class ChapterModelTimeoutTests(unittest.TestCase):
 class ChapterModelVersionTests(unittest.TestCase):
     def test_environment_selection_keeps_worker_and_strict_format_together(self) -> None:
         for name, expected in (
-            ("live-chapter-model", "0.3"),
+            ("live-chapter-model", "0.4"),
             ("fixture:person-state-chapter", "0.3"),
             ("fixture:reading-chapter", "0.2"),
             ("fixture:chapter", "0.1"),
@@ -94,6 +94,10 @@ class ChapterModelVersionTests(unittest.TestCase):
                     live_env({"CHRONICLE_CHAPTER_MODEL": name})
                 )
                 self.assertEqual(expected, S.candidate_version_for_model(model))
+                if expected == "0.4":
+                    self.assertIsNone(model.model_for("translation", "executor").text_format)
+                    self.assertEqual({"type": "json_object"}, model.model_for("extraction", "executor").text_format)
+                    continue
                 self.assertEqual(
                     expected,
                     model.text_format["schema"]["properties"]["version"]["const"],
