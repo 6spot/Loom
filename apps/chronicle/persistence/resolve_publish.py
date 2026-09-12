@@ -1466,10 +1466,15 @@ def build_reading_stream_payload(
 
 
 def read_person_state_plan_output(conn, *, job_id: uuid.UUID) -> dict[str, Any] | None:
-    """Return the frozen person-state review plan recorded by resolve, if any."""
+    """Return the frozen person-state review plan recorded by resolve, if any.
+
+    ``artifact_sha256`` is the recorded digest of the whole plan payload
+    (including the frozen evidence-manifest digest), so publish can bind the
+    plan object back to its immutable content key.
+    """
     row = conn.execute(
         """
-        SELECT payload FROM chronicle.ingestion_outputs
+        SELECT payload, artifact_sha256 FROM chronicle.ingestion_outputs
         WHERE job_id = %s AND artifact_type = %s
         ORDER BY created_at DESC LIMIT 1
         """,
@@ -1477,7 +1482,7 @@ def read_person_state_plan_output(conn, *, job_id: uuid.UUID) -> dict[str, Any] 
     ).fetchone()
     if row is None or not isinstance(row[0], dict):
         return None
-    return row[0]
+    return {**row[0], "artifact_sha256": row[1]}
 
 
 def open_person_state_review_count(conn, *, job_id: uuid.UUID) -> int:
@@ -1522,6 +1527,12 @@ def build_person_state_plan(
         resolution_hashes=resolution_hashes,
         base_catalog_sha=base_catalog_sha256,
     )
+    # Freeze the complete evidence-manifest digest as its own plan field. The
+    # plan is recorded under sha256_json(plan), so the digest is bound to the
+    # frozen plan content key; publish requires it and fails closed when the
+    # persisted manifests no longer match.
+    manifests = assembly.get("evidence_manifests")
+    plan["evidence_manifests_sha256"] = sha256_json(manifests if isinstance(manifests, list) else [])
     return plan
 
 
@@ -1825,6 +1836,57 @@ def validate_frozen_person_state_inputs(
             "state_drift: reported evidence_manifests_sha256 does not match the "
             "assembled evidence manifests"
         )
+    # The complete evidence-manifest digest is frozen in the plan itself, not
+    # only in the same mutable assembled row, so a manifest edit that also
+    # rewrites the row's report hash still fails closed.
+    frozen_manifest_digest = plan.get("evidence_manifests_sha256")
+    if not isinstance(frozen_manifest_digest, str) or not frozen_manifest_digest:
+        raise PersistenceConflict(
+            "state_drift: frozen plan carries no evidence-manifest digest"
+        )
+    if frozen_manifest_digest != sha256_json(manifests):
+        raise PersistenceConflict(
+            "state_drift: evidence manifests do not match the frozen plan digest"
+        )
+    # Every manifest must still carry the accepted artifact/source/normalized/
+    # person_states hashes it was assembled from.
+    accepted_by_artifact = {
+        artifact.get("artifact_sha256"): artifact
+        for artifact in accepted_artifacts
+        if isinstance(artifact, dict)
+    }
+    for manifest in manifests:
+        if not isinstance(manifest, dict):
+            raise PersistenceConflict("state_drift: evidence manifest must be an object")
+        artifact_sha = manifest.get("artifact_sha256")
+        accepted = accepted_by_artifact.get(artifact_sha)
+        if accepted is None:
+            raise PersistenceConflict(
+                f"state_drift: evidence manifest artifact {artifact_sha!r} is not accepted"
+            )
+        for field in ("source_sha256", "normalized_sha256"):
+            if manifest.get(field) != accepted.get(field):
+                raise PersistenceConflict(
+                    f"state_drift: evidence manifest {field} drifted from its accepted artifact"
+                )
+        # The manifest's per-chapter state hash is bound through the accepted
+        # artifact (T03 does not copy it into the manifest), so require the
+        # accepted artifact's own state bytes to match its declared hash and,
+        # when the manifest carries a value, that it agrees.
+        if sha256_json(accepted.get("person_states")) != accepted.get("person_states_sha256"):
+            raise PersistenceConflict(
+                "state_drift: accepted artifact person_states no longer matches its "
+                "declared person_states_sha256"
+            )
+        manifest_states_hash = manifest.get("person_states_sha256")
+        if (
+            manifest_states_hash is not None
+            and manifest_states_hash != accepted.get("person_states_sha256")
+        ):
+            raise PersistenceConflict(
+                "state_drift: evidence manifest person_states_sha256 drifted from its "
+                "accepted artifact"
+            )
     artifact_hashes = sorted(
         str(artifact.get("artifact_sha256"))
         for artifact in accepted_artifacts
@@ -2140,6 +2202,18 @@ def publish_chapters(
                     "(run resolve first)"
                 )
             person_state_review.validate_person_state_review_plan(person_state_plan)
+            # Bind the plan object (including the frozen evidence-manifest
+            # digest) to the digest it was recorded under, so a rewritten plan
+            # payload cannot loosen the publish-time state checks.
+            recorded_plan_sha = plan_payload.get("artifact_sha256")
+            if (
+                not isinstance(recorded_plan_sha, str)
+                or sha256_json(person_state_plan) != recorded_plan_sha
+            ):
+                raise PersistenceConflict(
+                    f"job {job_id} frozen person-state plan payload does not match "
+                    "its recorded digest; refusing to publish"
+                )
             if open_person_state_review_count(conn, job_id=job_id) > 0:
                 raise PersistenceError(
                     f"job {job_id} has open person-state reviews; refusing to "
@@ -2284,6 +2358,28 @@ def publish_chapters(
                     "persisted assembled bundle; refusing to publish reading "
                     "metadata compiled from drifted bytes"
                 )
+            if person_state_path:
+                # Independent of the persisted assembled row and the plan row:
+                # re-derive the 0.3 state block and evidence manifests from the
+                # accepted artifacts under the bound chapter plan and require
+                # the frozen digests. Any manifest/artifact/source/normalized/
+                # person_states drift fails here, before any public write.
+                assert person_state_evidence is not None
+                assert person_state_plan is not None
+                if sha256_json(assembled_for_publish.get("person_states")) != person_state_plan.get(
+                    "assembled_hash"
+                ):
+                    raise PersistenceConflict(
+                        "state_drift: persisted person_states do not match a fresh "
+                        "assembly from the accepted artifacts"
+                    )
+                if sha256_json(
+                    assembled_for_publish.get("person_state_evidence")
+                ) != person_state_plan.get("evidence_manifests_sha256"):
+                    raise PersistenceConflict(
+                        "state_drift: persisted evidence manifests do not match a fresh "
+                        "assembly from the accepted artifacts"
+                    )
             for block in assembled_for_publish.get("translation_blocks") or []:
                 reading_blocks_by_chapter.setdefault(
                     str(block.get("chapter_id")), []

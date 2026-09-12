@@ -246,6 +246,9 @@ class PersonStatePipelineTests(unittest.TestCase):
         return job_id
 
     def _tamper_assembled_states(self, job_id, mutate):
+        self._tamper_assembled_payload(job_id, lambda payload: mutate(payload["person_states"]))
+
+    def _tamper_assembled_payload(self, job_id, mutate):
         with psycopg.connect(self.database_url) as conn:
             row = conn.execute(
                 """
@@ -256,7 +259,7 @@ class PersonStatePipelineTests(unittest.TestCase):
                 (job_id,),
             ).fetchone()
             output_id, payload = row
-            mutate(payload["person_states"])
+            mutate(payload)
             conn.execute(
                 "UPDATE chronicle.ingestion_outputs SET payload = %s WHERE output_id = %s",
                 (Jsonb(payload), output_id),
@@ -293,8 +296,15 @@ class PersonStatePipelineTests(unittest.TestCase):
                 "canonical_catalogs",
                 "chapter_publications",
                 "reading_streams",
+                "reading_units",
+                "reading_time_groups",
+                "reading_event_occurrences",
                 "person_state_manifests",
                 "person_state_assessments",
+                "person_state_unit_people",
+                "person_state_items",
+                "person_state_item_evidence",
+                "person_state_disagreements",
             ):
                 self.assertEqual(
                     0,
@@ -433,6 +443,26 @@ class PersonStatePipelineTests(unittest.TestCase):
         self.assertIn("state_drift", str(error))
         self._assert_no_public_state()
 
+    def test_evidence_manifest_drift_fails_closed_at_publish(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+
+        def mutate(payload):
+            # Tamper one manifest's accepted-artifact metadata and rewrite the
+            # same row's report digest, exactly mirroring the reviewer's
+            # reproduction: only the independently frozen manifest digest (and
+            # the fresh assembly) can reject it.
+            payload["person_state_evidence"][0]["source_sha256"] = "0" * 64
+            payload["report"]["person_state"]["evidence_manifests_sha256"] = (
+                R.sha256_json(payload["person_state_evidence"])
+            )
+
+        self._tamper_assembled_payload(job_id, mutate)
+        error = self._claim_and_publish(job_id)
+        self.assertIn("state_drift", str(error))
+        self._assert_no_public_state()
+
     def test_wrong_phase_association_fails_closed_at_publish(self):
         job_id = self._drive_to_park()
         job, text, source_sha, model, plan = self.args
@@ -459,9 +489,13 @@ class PersonStatePipelineTests(unittest.TestCase):
             # internally consistent: only the publish phase-closure check can
             # reject it.
             candidate["phase_ids"] = ["ph_999"]
+            # Keep the plan bound to its recorded content key too, so the
+            # phase-closure check (not the plan-digest check) is what rejects
+            # this wrong-phase association.
             conn.execute(
-                "UPDATE chronicle.ingestion_outputs SET payload = %s WHERE output_id = %s",
-                (Jsonb(payload), output_id),
+                "UPDATE chronicle.ingestion_outputs SET payload = %s, artifact_sha256 = %s"
+                " WHERE output_id = %s",
+                (Jsonb(payload), R.sha256_json(tampered), output_id),
             )
             conn.commit()
         error = self._claim_and_publish(job_id)
