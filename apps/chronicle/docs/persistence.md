@@ -374,6 +374,17 @@ slice it in Python:
 - `list_catalog_disagreements(conn, *, catalog_sha, limit, cursor)` — one keyset
   page of one catalog's immutable disagreement index.
 
+Every cursor is opaque and **scope-bound**: it carries the complete read scope
+(kind, stream, unit, person, section, phase, catalog, manifest, item) and
+decoding rejects a cursor replayed against different arguments (a cursor from
+one person/item/phase/catalog can never silently skip or leak another scope's
+rows). Malformed or mis-typed cursor positions raise `PersonStateCursorError`
+(a 400-class bad request) before any SQL runs. Membership is validated on every
+read, whether or not a snapshot `catalog_sha` is supplied: an unknown person or
+item and a phase that is not bound to the unit's compiled manifest raise an
+error instead of returning a misleading empty page, and
+`list_catalog_disagreements` rejects an unknown catalog.
+
 Snapshot visibility never uses wall-clock time. When a `catalog_sha` is
 supplied the stream's origin catalog `publication_sequence` must be `<=` the
 snapshot's, exactly like the reading store, so an older snapshot never sees a

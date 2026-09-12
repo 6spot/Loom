@@ -23,6 +23,7 @@ single publish transaction calling this store.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -536,6 +537,95 @@ class PersonStateStorePostgresTests(unittest.TestCase):
         }
 
     # -- migration -----------------------------------------------------
+
+    def _state_fixture(self, conn) -> dict:
+        """Seed one manifest with two people, several items and evidence.
+
+        Person A carries four identities (two bound phases) and two changes,
+        person B two identities, and person A's first identity four evidence
+        descriptors. Enough to mint and cross-replay every cursor kind.
+        """
+        catalog_sha = self._seed_catalog(conn, tag="c1")
+        ctx, stream_id = self._setup_stream(
+            conn, label="zhou", blocks=["瑜字公瑾"], catalog_sha=catalog_sha
+        )
+        assessment_sha = self._assessment(conn, catalog_sha)
+        unit_id = "ru_zhou_0"
+        person_a = _uuid7()
+        person_b = _uuid7()
+        a_identities = [
+            self._item(ctx, person_a, fact_ref=f"pf_{index:03d}") for index in range(4)
+        ]
+        a_changes = [
+            self._change(
+                ctx, person_a, fact_ref=f"pf_{100 + index:03d}", to_phase_id="ph_002"
+            )
+            for index in range(2)
+        ]
+        b_identities = [
+            self._item(ctx, person_b, fact_ref=f"pf_{200 + index:03d}")
+            for index in range(2)
+        ]
+        descriptors = [self._descriptor(ctx, index) for index in range(4)]
+        unit_phases = [
+            {"phase_id": "ph_001", "label": "初", "ordinal": 0, "mode": "single"},
+            {"phase_id": "ph_002", "label": "後", "ordinal": 1, "mode": "single"},
+        ]
+        manifest_sha = store.persist_person_state_manifest(
+            conn,
+            self._manifest(
+                ctx,
+                stream_id,
+                catalog_sha,
+                assessment_hashes=[assessment_sha],
+                units=[
+                    self._unit(
+                        ctx,
+                        unit_id=unit_id,
+                        unit_ordinal=0,
+                        phases=unit_phases,
+                        people=[
+                            self._person(
+                                person_a,
+                                "周瑜",
+                                items=a_identities,
+                                changes=a_changes,
+                                evidence=[
+                                    {
+                                        "item_id": a_identities[0]["item_id"],
+                                        "descriptors": descriptors,
+                                    }
+                                ],
+                            ),
+                            self._person(
+                                person_b,
+                                "魯肅",
+                                items=b_identities,
+                                importance="other",
+                            ),
+                        ],
+                    )
+                ],
+            ),
+        )
+        return {
+            "ctx": ctx,
+            "stream_id": stream_id,
+            "catalog_sha": catalog_sha,
+            "manifest_sha": manifest_sha,
+            "unit_id": unit_id,
+            "person_a": person_a,
+            "person_b": person_b,
+            "a_identities": a_identities,
+            "b_identities": b_identities,
+        }
+
+    def _tamper_cursor(self, cursor: str, **overrides) -> str:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        payload.update(overrides)
+        raw = json.dumps(payload, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+        return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
 
     def test_fresh_migrate_reapply_and_tables(self) -> None:
         with self._connect_ready() as conn:
@@ -1261,6 +1351,216 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                     conn.execute(
                         "DELETE FROM chronicle.person_state_unit_people"
                     )
+
+    def test_cursor_is_scope_bound(self) -> None:
+        with self._connect_ready() as conn:
+            fx = self._state_fixture(conn)
+            stream_id = fx["stream_id"]
+            unit_id = fx["unit_id"]
+            person_a = fx["person_a"]
+            person_b = fx["person_b"]
+            catalog_sha = fx["catalog_sha"]
+
+            states = store.list_unit_person_states(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                person_id=person_a,
+                section="identities",
+                limit=1,
+            )
+            cursor = states["next_cursor"]
+            self.assertIsNotNone(cursor)
+            # cross-person, cross-section, cross-phase and cross-catalog replays
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_b,
+                    section="identities",
+                    cursor=cursor,
+                )
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    section="changes",
+                    cursor=cursor,
+                )
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    section="identities",
+                    phase_id="ph_002",
+                    cursor=cursor,
+                )
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    section="identities",
+                    catalog_sha=catalog_sha,
+                    cursor=cursor,
+                )
+
+            people = store.list_unit_people(
+                conn, stream_id=stream_id, unit_id=unit_id, limit=1
+            )
+            people_cursor = people["next_cursor"]
+            self.assertIsNotNone(people_cursor)
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_people(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    catalog_sha=catalog_sha,
+                    cursor=people_cursor,
+                )
+
+            evidence = store.list_state_item_evidence(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                person_id=person_a,
+                item_id=fx["a_identities"][0]["item_id"],
+                limit=1,
+            )
+            evidence_cursor = evidence["next_cursor"]
+            self.assertIsNotNone(evidence_cursor)
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_state_item_evidence(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    item_id=fx["a_identities"][1]["item_id"],
+                    cursor=evidence_cursor,
+                )
+
+            # malformed typed positions never reach PostgreSQL
+            tampered = self._tamper_cursor(evidence_cursor, after="not-an-int")
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_state_item_evidence(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    item_id=fx["a_identities"][0]["item_id"],
+                    cursor=tampered,
+                )
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_unit_people(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    cursor="not-base64!!",
+                )
+
+    def test_person_and_phase_membership_with_catalog(self) -> None:
+        with self._connect_ready() as conn:
+            fx = self._state_fixture(conn)
+            stream_id = fx["stream_id"]
+            unit_id = fx["unit_id"]
+            catalog_sha = fx["catalog_sha"]
+
+            # unknown person is an error even when a catalog is supplied
+            with self.assertRaises(PersistenceError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=_uuid7(),
+                    section="identities",
+                    catalog_sha=catalog_sha,
+                )
+            # a phase that is not bound to the unit is an error, not an empty page
+            with self.assertRaises(PersistenceError):
+                store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=fx["person_a"],
+                    section="identities",
+                    phase_id="ph_099",
+                    catalog_sha=catalog_sha,
+                )
+            with self.assertRaises(PersistenceError):
+                store.list_state_item_evidence(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=fx["person_a"],
+                    item_id=fx["a_identities"][0]["item_id"],
+                    phase_id="ph_099",
+                    catalog_sha=catalog_sha,
+                )
+            # malformed item ids are rejected before touching the database
+            with self.assertRaises(PersistenceError):
+                store.list_state_item_evidence(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=fx["person_a"],
+                    item_id="not-an-item-id",
+                )
+
+    def test_list_catalog_disagreements_requires_known_catalog(self) -> None:
+        with self._connect_ready() as conn:
+            with self.assertRaises(PersistenceError):
+                store.list_catalog_disagreements(conn, catalog_sha=_sha256("no-such-catalog"))
+            catalog_sha = self._seed_catalog(conn, tag="c1")
+            page = store.list_catalog_disagreements(conn, catalog_sha=catalog_sha)
+            self.assertEqual(page["items"], [])
+
+    def test_disagreement_cursor_is_catalog_bound(self) -> None:
+        with self._connect_ready() as conn:
+            catalog_one = self._seed_catalog(conn, tag="c1")
+            catalog_two = self._seed_catalog(conn, tag="c2")
+            ctx, _stream = self._setup_stream(
+                conn, label="zhou", blocks=["瑜字公瑾"], catalog_sha=catalog_one
+            )
+            store.persist_person_state_disagreements(
+                conn,
+                self._disagreements(
+                    catalog_one,
+                    [
+                        self._disagreement_entry(
+                            ctx, fact_refs=["pf_001", "pf_002"], topic="A"
+                        ),
+                        self._disagreement_entry(
+                            ctx, fact_refs=["pf_003", "pf_004"], topic="B"
+                        ),
+                    ],
+                ),
+            )
+            store.persist_person_state_disagreements(
+                conn,
+                self._disagreements(
+                    catalog_two,
+                    [self._disagreement_entry(ctx, fact_refs=["pf_001", "pf_002"], topic="A")],
+                ),
+            )
+            page = store.list_catalog_disagreements(
+                conn, catalog_sha=catalog_one, limit=1
+            )
+            cursor = page["next_cursor"]
+            self.assertIsNotNone(cursor)
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_catalog_disagreements(
+                    conn, catalog_sha=catalog_two, cursor=cursor
+                )
+            with self.assertRaises(store.PersonStateCursorError):
+                store.list_catalog_disagreements(
+                    conn, catalog_sha=catalog_one, cursor="garbage"
+                )
 
     def test_reason_text_matches_shared_contract(self) -> None:
         for code in P.REASON_CODES:

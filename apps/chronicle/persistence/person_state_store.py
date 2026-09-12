@@ -71,6 +71,20 @@ from common import (  # noqa: E402
 
 _SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 _PHASE_ID_RE = re.compile(r"^ph_[0-9]{3,}$")
+_ITEM_ID_RE = re.compile(r"^psi_[0-9a-f]{24}$")
+
+#: Bumped whenever the opaque cursor payload shape changes.
+CURSOR_VERSION = 1
+
+
+class PersonStateCursorError(PersistenceError):
+    """A pagination cursor is malformed or bound to a different read scope.
+
+    The read API maps this to a 400-style bad request; a cursor minted for one
+    stream/unit/person/section/phase/catalog/item can never be replayed against
+    another scope, and malformed cursor values never reach PostgreSQL.
+    """
+
 
 PHASE_MODES = tuple(_contract.PHASE_MODES)
 STATE_DIMENSIONS = tuple(_contract.STATE_DIMENSIONS)
@@ -1058,34 +1072,129 @@ def _manifest_metadata(conn, *, stream_id: uuid.UUID, unit_id: str) -> dict[str,
     }
 
 
+def _require_catalog(conn, catalog_sha: Any) -> str:
+    catalog_sha = _require_sha(catalog_sha, "catalog_sha")
+    row = conn.execute(
+        "SELECT 1 FROM chronicle.canonical_catalogs WHERE artifact_sha256 = %s",
+        (catalog_sha,),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(f"unknown catalog {catalog_sha}")
+    return catalog_sha
+
+
+def _require_unit_person(
+    conn, *, stream_id: uuid.UUID, unit_id: str, person_id: str
+) -> None:
+    row = conn.execute(
+        """
+        SELECT 1 FROM chronicle.person_state_unit_people
+        WHERE stream_id = %s AND unit_id = %s AND person_id = %s
+        """,
+        (stream_id, unit_id, person_id),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(
+            f"unknown person {person_id!r} in stream {stream_id} unit {unit_id}"
+        )
+
+
+def _bound_phase_ids(meta: dict[str, Any]) -> set[str]:
+    return {
+        phase.get("phase_id")
+        for phase in meta.get("phases", [])
+        if isinstance(phase, dict) and isinstance(phase.get("phase_id"), str)
+    }
+
+
+def _require_bound_phase(meta: dict[str, Any], phase_id: str) -> None:
+    if phase_id not in _bound_phase_ids(meta):
+        raise PersistenceError(
+            f"phase {phase_id!r} is not bound to this unit's person-state manifest"
+        )
+
+
 # ---------------------------------------------------------------------------
-# Cursor helpers
+# Cursor helpers (scope-bound opaque keysets)
 # ---------------------------------------------------------------------------
 
 
-def _encode_cursor(*parts: Any) -> str:
-    raw = json.dumps(list(parts), separators=(",", ":"), ensure_ascii=False)
+def _encode_cursor(scope: dict[str, Any], after: Any) -> str:
+    """Encode an opaque cursor carrying its complete read scope.
+
+    The scope names every dimension that changes the result set
+    (kind/stream/unit/person/section/phase/catalog/manifest/item); decoding
+    rejects a cursor whose scope does not match the current request.
+    """
+    payload = {"v": CURSOR_VERSION, "after": after, **scope}
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
     return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
 
 
-def _decode_cursor(cursor: Any, arity: int, description: str = "cursor") -> list[Any]:
+def _decode_cursor(cursor: Any, scope: dict[str, Any], description: str = "cursor") -> Any:
     if not isinstance(cursor, str) or not cursor:
-        raise PersistenceError(f"{description} must be a non-empty string")
+        raise PersonStateCursorError(f"{description} must be a non-empty string")
     padded = cursor + "=" * (-len(cursor) % 4)
     try:
         raw = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
-        parts = json.loads(raw)
+        payload = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as exc:
-        raise PersistenceError(f"{description} is not a valid cursor") from exc
-    if not isinstance(parts, list) or len(parts) != arity:
-        raise PersistenceError(f"{description} is not a valid cursor")
-    return parts
+        raise PersonStateCursorError(f"{description} is not a valid cursor") from exc
+    if not isinstance(payload, dict) or payload.get("v") != CURSOR_VERSION:
+        raise PersonStateCursorError(f"{description} is not a valid cursor")
+    if payload.get("kind") != scope.get("kind"):
+        raise PersonStateCursorError(
+            f"{description} belongs to another person-state scope"
+        )
+    for key, value in scope.items():
+        if payload.get(key) != value:
+            raise PersonStateCursorError(
+                f"{description} is bound to a different person-state {key} scope"
+            )
+    return payload.get("after")
+
+
+def _cursor_ordinal(after: Any, description: str = "cursor") -> int:
+    if not isinstance(after, int) or isinstance(after, bool) or after < 0:
+        raise PersonStateCursorError(
+            f"{description} must carry a non-negative integer position"
+        )
+    return after
+
+
+def _cursor_person_rank(after: Any, description: str = "cursor") -> tuple[int, str]:
+    if (
+        not isinstance(after, list)
+        or len(after) != 2
+        or not isinstance(after[0], int)
+        or isinstance(after[0], bool)
+        or after[0] not in (0, 1)
+        or not isinstance(after[1], str)
+        or not after[1]
+    ):
+        raise PersonStateCursorError(
+            f"{description} must carry an (importance_rank, person_id) position"
+        )
+    return after[0], after[1]
+
+
+def _cursor_text(after: Any, description: str = "cursor") -> str:
+    if not isinstance(after, str) or not after:
+        raise PersonStateCursorError(f"{description} must carry a string position")
+    return after
 
 
 def _normalize_limit(limit: Any, *, maximum: int = 50, description: str = "limit") -> int:
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > maximum:
         raise PersistenceError(f"{description} must be an integer between 1 and {maximum}")
     return limit
+
+
+def _require_item_id(value: Any, description: str = "item_id") -> str:
+    text = _require_text(value, description)
+    if not _ITEM_ID_RE.match(text):
+        raise PersistenceError(f"{description} must look like psi_<24 hex>, got {text!r}")
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -1171,12 +1280,19 @@ def list_unit_people(
     if catalog_sha is not None:
         _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
 
+    scope = {
+        "kind": "unit_people",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "catalog_sha": catalog_sha,
+        "manifest_sha": meta["manifest_sha"],
+    }
     clauses = ["stream_id = %s", "unit_id = %s"]
     params: list[Any] = [stream_id, unit_id]
     if cursor is not None:
-        rank, person_id = _decode_cursor(cursor, 2)
+        rank, cursor_person = _cursor_person_rank(_decode_cursor(cursor, scope))
         clauses.append("(importance_rank, person_id) > (%s, %s)")
-        params.extend([rank, person_id])
+        params.extend([rank, cursor_person])
     rows = conn.execute(
         f"""
         SELECT person_id, name, importance, phase_mode, certainty, reason_codes,
@@ -1196,13 +1312,16 @@ def list_unit_people(
             manifest_sha=meta["manifest_sha"],
             stream_id=stream_id,
             unit_id=unit_id,
+            catalog_sha=catalog_sha,
         )
         for row in rows
     ]
     next_cursor = None
     if has_more and rows:
         last = rows[-1]
-        next_cursor = _encode_cursor(0 if last[2] == "primary" else 1, last[0])
+        next_cursor = _encode_cursor(
+            scope, [0 if last[2] == "primary" else 1, last[0]]
+        )
     return {
         "stream_id": str(stream_id),
         "unit_id": unit_id,
@@ -1220,7 +1339,12 @@ def list_unit_people(
 
 
 def _person_summary(
-    row: tuple, *, manifest_sha: str, stream_id: uuid.UUID, unit_id: str
+    row: tuple,
+    *,
+    manifest_sha: str,
+    stream_id: uuid.UUID,
+    unit_id: str,
+    catalog_sha: str | None,
 ) -> dict[str, Any]:
     (
         person_id,
@@ -1234,11 +1358,26 @@ def _person_summary(
         preview_identities,
         preview_changes,
     ) = row
+    identity_scope = {
+        "kind": "unit_person_states",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "person_id": person_id,
+        "section": "identities",
+        "phase_id": None,
+        "catalog_sha": catalog_sha,
+        "manifest_sha": manifest_sha,
+    }
+    change_scope = {**identity_scope, "section": "changes"}
     identity_cursor = (
-        _encode_cursor(0) if identity_count > len(preview_identities or []) else None
+        _encode_cursor(identity_scope, len(preview_identities) - 1)
+        if identity_count > len(preview_identities or [])
+        else None
     )
     change_cursor = (
-        _encode_cursor(0) if change_count > len(preview_changes or []) else None
+        _encode_cursor(change_scope, len(preview_changes) - 1)
+        if change_count > len(preview_changes or [])
+        else None
     )
     return {
         "person_id": person_id,
@@ -1282,17 +1421,23 @@ def list_unit_person_states(
     meta = _manifest_metadata(conn, stream_id=stream_id, unit_id=unit_id)
     if catalog_sha is not None:
         _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
-    else:
-        person = conn.execute(
-            "SELECT 1 FROM chronicle.person_state_unit_people"
-            " WHERE stream_id = %s AND unit_id = %s AND person_id = %s",
-            (stream_id, unit_id, person_id),
-        ).fetchone()
-        if person is None:
-            raise PersistenceError(
-                f"unknown person {person_id!r} in stream {stream_id} unit {unit_id}"
-            )
+    # Membership is validated for every read, catalog present or not.
+    _require_unit_person(
+        conn, stream_id=stream_id, unit_id=unit_id, person_id=person_id
+    )
+    if phase_id is not None:
+        _require_bound_phase(meta, phase_id)
 
+    scope = {
+        "kind": "unit_person_states",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "person_id": person_id,
+        "section": section,
+        "phase_id": phase_id,
+        "catalog_sha": catalog_sha,
+        "manifest_sha": meta["manifest_sha"],
+    }
     item_kind = "identity" if section == "identities" else "change"
     clauses = [
         "stream_id = %s",
@@ -1308,7 +1453,7 @@ def list_unit_person_states(
             clauses.append("to_phase_id = %s")
         params.append(phase_id)
     if cursor is not None:
-        (after_ordinal,) = _decode_cursor(cursor, 1)
+        after_ordinal = _cursor_ordinal(_decode_cursor(cursor, scope))
         clauses.append("item_ordinal > %s")
         params.append(after_ordinal)
     rows = conn.execute(
@@ -1327,7 +1472,7 @@ def list_unit_person_states(
     payloads = _overlay_catalog_disagreements(conn, catalog_sha=catalog_sha, rows=payloads)
     next_cursor = None
     if has_more and rows:
-        next_cursor = _encode_cursor(rows[-1][1])
+        next_cursor = _encode_cursor(scope, rows[-1][1])
     items = payloads if section == "identities" else []
     changes = payloads if section == "changes" else []
     return {
@@ -1365,13 +1510,18 @@ def list_state_item_evidence(
     stream_id = _require_uuid(stream_id, "stream_id")
     unit_id = _require_text(unit_id, "unit_id")
     person_id = _require_text(person_id, "person_id")
-    item_id = _require_text(item_id, "item_id")
+    item_id = _require_item_id(item_id, "item_id")
     if phase_id is not None:
         phase_id = _require_phase_id(phase_id, "phase_id")
     limit = _normalize_limit(limit, maximum=50)
     meta = _manifest_metadata(conn, stream_id=stream_id, unit_id=unit_id)
     if catalog_sha is not None:
         _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
+    _require_unit_person(
+        conn, stream_id=stream_id, unit_id=unit_id, person_id=person_id
+    )
+    if phase_id is not None:
+        _require_bound_phase(meta, phase_id)
 
     item = conn.execute(
         "SELECT 1 FROM chronicle.person_state_items"
@@ -1383,13 +1533,23 @@ def list_state_item_evidence(
             f"unknown item {item_id!r} for person {person_id!r} in stream {stream_id} unit {unit_id}"
         )
 
+    scope = {
+        "kind": "state_item_evidence",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "person_id": person_id,
+        "item_id": item_id,
+        "phase_id": phase_id,
+        "catalog_sha": catalog_sha,
+        "manifest_sha": meta["manifest_sha"],
+    }
     clauses = ["stream_id = %s", "unit_id = %s", "item_id = %s"]
     params: list[Any] = [stream_id, unit_id, item_id]
     if phase_id is not None:
         clauses.append("phase_id = %s")
         params.append(phase_id)
     if cursor is not None:
-        (after_ordinal,) = _decode_cursor(cursor, 1)
+        after_ordinal = _cursor_ordinal(_decode_cursor(cursor, scope))
         clauses.append("descriptor_ordinal > %s")
         params.append(after_ordinal)
     rows = conn.execute(
@@ -1422,7 +1582,7 @@ def list_state_item_evidence(
     ]
     next_cursor = None
     if has_more and rows:
-        next_cursor = _encode_cursor(rows[-1][9])
+        next_cursor = _encode_cursor(scope, rows[-1][9])
     return {
         "stream_id": str(stream_id),
         "unit_id": unit_id,
@@ -1448,12 +1608,13 @@ def list_catalog_disagreements(
     cursor: str | None = None,
 ) -> dict[str, Any]:
     """Return one bounded page of an immutable catalog's disagreement index."""
-    catalog_sha = _require_sha(catalog_sha, "catalog_sha")
+    catalog_sha = _require_catalog(conn, catalog_sha)
     limit = _normalize_limit(limit, maximum=50)
+    scope = {"kind": "catalog_disagreements", "catalog_sha": catalog_sha}
     clauses = ["catalog_sha = %s"]
     params: list[Any] = [catalog_sha]
     if cursor is not None:
-        (after_id,) = _decode_cursor(cursor, 1)
+        after_id = _cursor_text(_decode_cursor(cursor, scope))
         clauses.append("disagreement_id > %s")
         params.append(after_id)
     rows = conn.execute(
@@ -1482,7 +1643,7 @@ def list_catalog_disagreements(
     ]
     next_cursor = None
     if has_more and rows:
-        next_cursor = _encode_cursor(rows[-1][0])
+        next_cursor = _encode_cursor(scope, rows[-1][0])
     return {
         "catalog_sha": catalog_sha,
         "items": items,
@@ -1495,11 +1656,13 @@ def list_catalog_disagreements(
 
 __all__ = [
     "CERTAINTIES",
+    "CURSOR_VERSION",
     "EVIDENCE_RELATIONS",
     "IMPORTANCES",
     "ITEM_KINDS",
     "OPERATIONS",
     "PHASE_MODES",
+    "PersonStateCursorError",
     "QUALIFICATIONS",
     "REASON_CODES",
     "SECTIONS",
