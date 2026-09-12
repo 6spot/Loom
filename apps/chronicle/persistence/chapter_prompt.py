@@ -578,6 +578,11 @@ def render_chapter_prompt(
             "source passages to fit the bundle or reading metadata into the response.\n"
         )
     if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        reading_guide = reading_guide.replace(
+            "READING ANNOTATION SHAPE (0.2 only;",
+            "READING ANNOTATION SHAPE (0.3 inherits 0.2;",
+            1,
+        )
         reading_guide += "\n\n" + PERSON_STATE_GUIDE
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
