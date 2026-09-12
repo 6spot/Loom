@@ -193,7 +193,8 @@ WHOLE_CHAPTER_SEMANTIC_GUIDE = r'''WHOLE-CHAPTER SEMANTIC CHECK (interpretation 
   任职、归属、驻地、行动结果等事实，用现有 Claim 的 subject、predicate、object、
   evidence 保存；证据要支持该主体和该断言，保留原文归属，不把劝进、传闻或征兆当
   成已证实事实。没有可支持断言时允许 []，不为了凑数制造 Claim，也不为每个细节
-  新建 Event。相同对象沿用同一章内 temp_id，后续读取再选择少数导航锚点。
+  新建 Event。相同对象沿用同一章内 temp_id；导航锚点由后续综合正文审核选择，
+  读取只消费已发布结果。
 - 日历成分来自章内其他语句时，保留原文有据的 era／era_year／season／month／day，
   并在 inherited_fields 标记继承的字段。time.original_text 只能是实际连续出现的
   原文日期表达；缩短它以修复引用时，不能忘记同步更新继承声明。
