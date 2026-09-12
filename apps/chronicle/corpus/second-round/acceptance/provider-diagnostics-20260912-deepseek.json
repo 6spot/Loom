@@ -1,0 +1,142 @@
+{
+  "evidence_type": "provider_availability_and_reasoning_diagnostics",
+  "evidence_version": 1,
+  "date": "2026-09-12",
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "scope": "Four tiny strict-JSON diagnostics on the authorized CPA service. These are separate from full-chapter attempts, not translation, extraction, R2, or R3 acceptance.",
+  "database_writes": false,
+  "review_decisions": 0,
+  "publications": 0,
+  "probes": {
+    "default": {
+      "exact_expected_json": true,
+      "http_observations": [
+        {
+          "reported_model": "deepseek-v4.1-flash",
+          "status": "completed",
+          "usage": {
+            "input_tokens": 91,
+            "input_tokens_details": {
+              "cached_tokens": 0
+            },
+            "output_tokens": 24,
+            "output_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "total_tokens": 115
+          }
+        }
+      ],
+      "latency_ms": 3123,
+      "max_http_attempts": 1,
+      "max_output_tokens": 1024,
+      "model": "deepseek-v4.1-flash",
+      "output_chars": 12,
+      "scope": "Tiny strict-output provider availability diagnostic; not chapter or content acceptance.",
+      "streaming": false,
+      "timeout_seconds": 60
+    },
+    "low_suffix": {
+      "exact_expected_json": true,
+      "http_observations": [
+        {
+          "model": "deepseek-v4.1-flash",
+          "reasoning": {
+            "effort": null,
+            "summary": null
+          },
+          "status": "completed",
+          "usage": {
+            "input_tokens": 91,
+            "input_tokens_details": {
+              "cached_tokens": 0
+            },
+            "output_tokens": 27,
+            "output_tokens_details": {
+              "reasoning_tokens": 21
+            },
+            "total_tokens": 118
+          }
+        }
+      ],
+      "latency_ms": 6835,
+      "max_http_attempts": 1,
+      "max_output_tokens": 1024,
+      "output_chars": 12,
+      "requested_model": "deepseek-v4.1-flash(low)",
+      "requested_reasoning": "low via documented CPA model suffix",
+      "scope": "Tiny CPA model-suffix/strict-output diagnostic; not chapter or content acceptance.",
+      "streaming": false,
+      "timeout_seconds": 60
+    },
+    "none_suffix": {
+      "exact_expected_json": true,
+      "http_observations": [
+        {
+          "model": "deepseek-v4.1-flash",
+          "reasoning": {
+            "effort": null,
+            "summary": null
+          },
+          "status": "completed",
+          "usage": {
+            "input_tokens": 91,
+            "input_tokens_details": {
+              "cached_tokens": 0
+            },
+            "output_tokens": 24,
+            "output_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "total_tokens": 115
+          }
+        }
+      ],
+      "latency_ms": 2675,
+      "max_http_attempts": 1,
+      "max_output_tokens": 1024,
+      "requested_model": "deepseek-v4.1-flash(none)",
+      "scope": "Tiny CPA non-thinking switch diagnostic, not a chapter or content acceptance.",
+      "streaming": false,
+      "timeout_seconds": 60
+    },
+    "none_explicit_field": {
+      "exact_expected_json": true,
+      "http_observations": [
+        {
+          "model": "deepseek-v4.1-flash",
+          "reasoning": {
+            "effort": null,
+            "summary": null
+          },
+          "status": "completed",
+          "usage": {
+            "input_tokens": 91,
+            "input_tokens_details": {
+              "cached_tokens": 0
+            },
+            "output_tokens": 24,
+            "output_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "total_tokens": 115
+          }
+        }
+      ],
+      "latency_ms": 3563,
+      "max_http_attempts": 1,
+      "max_output_tokens": 1024,
+      "requested_model": "deepseek-v4.1-flash",
+      "requested_reasoning": {
+        "effort": "none"
+      },
+      "scope": "Tiny explicit Responses reasoning-field diagnostic, not a chapter or content acceptance. The only payload addition is reasoning.effort=none.",
+      "streaming": false,
+      "timeout_seconds": 60
+    }
+  },
+  "observation": "All four tiny requests completed with the expected JSON. Low/none model suffixes and explicit Responses reasoning.effort=none did not return a verified downstream effort; the responses still report reasoning tokens. This is insufficient to conclude that CPA applied the requested reasoning setting.",
+  "billed_cost": null
+}

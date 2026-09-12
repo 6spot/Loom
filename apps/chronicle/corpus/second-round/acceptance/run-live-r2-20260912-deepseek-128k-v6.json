@@ -1,0 +1,116 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v6",
+  "provider": {
+    "max_attempts": 1,
+    "max_output_tokens": 131072,
+    "max_response_bytes": 4194304,
+    "model": "deepseek-v4.1-flash",
+    "reasoning_effort_requested": null,
+    "timeout_seconds": 1200.0,
+    "streaming": false,
+    "http_observations": [
+      {
+        "http_attempt": 1,
+        "incomplete_details": {
+          "reason": "max_output_tokens"
+        },
+        "reasoning": {
+          "effort": null,
+          "summary": null
+        },
+        "reported_model": "deepseek-v4.1-flash",
+        "response_bytes": 248386,
+        "status": "incomplete",
+        "usage": {
+          "input_tokens": 36071,
+          "input_tokens_details": {
+            "cached_tokens": 8192
+          },
+          "output_tokens": 65536,
+          "output_tokens_details": {
+            "reasoning_tokens": 40923
+          },
+          "total_tokens": 101607
+        }
+      }
+    ],
+    "reported_usage": {
+      "input_tokens": 36071,
+      "input_tokens_details": {
+        "cached_tokens": 8192
+      },
+      "output_tokens": 65536,
+      "output_tokens_details": {
+        "reasoning_tokens": 40923
+      },
+      "total_tokens": 101607
+    },
+    "billed_cost": null,
+    "cost_unavailable_reason": "No billed cost returned."
+  },
+  "scope": {
+    "comparison": "Canonical extract_chapter and build_chapter_model with the same complete source, v6 prompt renderer, strict schema and nonstreaming transport. Compared with the default DeepSeek trial, only max_output_tokens is raised from 65536 to 131072 through the existing ChapterLimits configuration, reflected in the request and fingerprint. All other limits, including the 4 MiB HTTP body cap and at most one correction, remain fixed. No reasoning override requested. Max HTTP attempts 1, timeout 1200 seconds; no database writes, review or publication, not full R2/R3 acceptance.",
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false,
+    "complete_http_envelope_preserved": true,
+    "diagnostic_limit": "The Chronicle provider was configured for 131072 output tokens and the complete request fingerprint uses that limit. The response reports incomplete/max_output_tokens after 65536 output tokens; this does not identify which CPA/upstream layer imposed that limit. The private HTTP envelope is not a complete candidate."
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "calls": {
+    "semantic_calls": 1,
+    "http_attempts": 1,
+    "transport_retries": 0,
+    "correction_rounds": 0,
+    "scope": "This full-chapter execution only; small availability probes are separate."
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "latency_ms": 262014,
+      "prompt_sha256": "2aa8f1972b58fbce1906cf9a16ebe0f15cd4db4037093aa282d766b8838b789f",
+      "raw_response_sha256": null,
+      "transport_error": "model call failed: model response did not complete (status incomplete)"
+    }
+  ],
+  "checks": {
+    "mechanical_accepted": false,
+    "error": {
+      "code": "model_transport_error",
+      "message": "chapter extraction stopped on model transport failure (model response did not complete (status incomplete)); transport retry belongs to the provider layer, not to the semantic correction round"
+    },
+    "server_history_replay_mismatches": [],
+    "independent_content_review": "NOT_RUN_NO_COMPLETE_CANDIDATE",
+    "local_history_replay_mismatches": [],
+    "local_history_replay_environment": {
+      "python": "/private/tmp/loom-chronicle-history-venv/bin/python3",
+      "version": "3.9.6"
+    }
+  },
+  "evidence": {
+    "candidate_file": "candidate-live-r2-20260912-deepseek-128k-v6.json",
+    "candidate_file_sha256": "fd4d7b965ee88f1338dab6d65cfbcc934c1b9b9660f8940a1fe209378cb3a722",
+    "private_http_envelope_sha256": "eaabf4f7ec9444d182fc3fca620c7947ad8cdc4f6c79d1f1f55d124c5bca7ee4"
+  },
+  "not_verified": [
+    "Translation and extraction content quality for this model",
+    "Four-chapter R2 Studio/review/publication/browser acceptance",
+    "R3 0.3 person-state acceptance"
+  ],
+  "observation": "Requested 131072 output tokens; returned incomplete with explicit max_output_tokens after 262 seconds, reporting 65536 output tokens including 40923 reasoning tokens. No complete candidate was returned, accepted, or assessed for content quality. This does not prove the upstream cap or a model quality result."
+}

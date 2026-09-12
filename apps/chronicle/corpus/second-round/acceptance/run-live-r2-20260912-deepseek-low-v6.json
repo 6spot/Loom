@@ -1,0 +1,117 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v6",
+  "provider": {
+    "downstream_reasoning_effort_verified": false,
+    "max_attempts": 1,
+    "max_output_tokens": 65536,
+    "max_response_bytes": 4194304,
+    "model": "deepseek-v4.1-flash(low)",
+    "requested_reasoning_effort": "low via CPA model suffix",
+    "timeout_seconds": 1200.0,
+    "streaming": false,
+    "http_observations": [
+      {
+        "http_attempt": 1,
+        "incomplete_details": {
+          "reason": "max_output_tokens"
+        },
+        "reasoning": {
+          "effort": null,
+          "summary": null
+        },
+        "reported_model": "deepseek-v4.1-flash",
+        "response_bytes": 225845,
+        "status": "incomplete",
+        "usage": {
+          "input_tokens": 36071,
+          "input_tokens_details": {
+            "cached_tokens": 35840
+          },
+          "output_tokens": 65537,
+          "output_tokens_details": {
+            "reasoning_tokens": 63773
+          },
+          "total_tokens": 101608
+        }
+      }
+    ],
+    "reported_usage": {
+      "input_tokens": 36071,
+      "input_tokens_details": {
+        "cached_tokens": 35840
+      },
+      "output_tokens": 65537,
+      "output_tokens_details": {
+        "reasoning_tokens": 63773
+      },
+      "total_tokens": 101608
+    },
+    "billed_cost": null,
+    "cost_unavailable_reason": "No billed cost returned."
+  },
+  "scope": {
+    "comparison": "Canonical extract_chapter and build_chapter_model with the same complete saved request, v6 prompt, strict schema, output budget and nonstreaming transport. Compared with the default DeepSeek trial, only the requested CPA model name gains (low), the documented reasoning-level suffix. CPA probe accepted that suffix but did not echo an effort, so downstream application is not independently proven. Max HTTP attempts 1, timeout 1200 seconds; no database writes, review or publication, not full R2/R3 acceptance.",
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false,
+    "complete_http_envelope_preserved": true,
+    "diagnostic_limit": "Original HTTP envelope retained privately on the test server for failure diagnosis; it is not a finished candidate. Provider did not echo an effort, so downstream application of the requested CPA low suffix is not independently established."
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "calls": {
+    "semantic_calls": 1,
+    "http_attempts": 1,
+    "transport_retries": 0,
+    "correction_rounds": 0,
+    "scope": "This full-chapter execution only; small availability probes are separate."
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "latency_ms": 281948,
+      "prompt_sha256": "5808834e2650514aff7c84e4a4223710fdb3834d3b7bd1985a13f21cf0c5bd40",
+      "raw_response_sha256": null,
+      "transport_error": "model call failed: model response did not complete (status incomplete)"
+    }
+  ],
+  "checks": {
+    "mechanical_accepted": false,
+    "error": {
+      "code": "model_transport_error",
+      "message": "chapter extraction stopped on model transport failure (model response did not complete (status incomplete)); transport retry belongs to the provider layer, not to the semantic correction round"
+    },
+    "server_history_replay_mismatches": [],
+    "independent_content_review": "NOT_RUN_NO_COMPLETE_CANDIDATE",
+    "local_history_replay_mismatches": [],
+    "local_history_replay_environment": {
+      "python": "/private/tmp/loom-chronicle-history-venv/bin/python3",
+      "version": "3.9.6"
+    }
+  },
+  "evidence": {
+    "candidate_file": "candidate-live-r2-20260912-deepseek-low-v6.json",
+    "candidate_file_sha256": "c7b7f6323ceb2611548dcc4398bfcfbdf9cfdf7108498657c6de71184ee10cf5",
+    "private_http_envelope_sha256": "c370ebe8036e8aafe66dc67a3d8a904ed8c83a7aab539c0e722484fdda9e936c"
+  },
+  "not_verified": [
+    "Translation and extraction content quality for this model",
+    "Four-chapter R2 Studio/review/publication/browser acceptance",
+    "R3 0.3 person-state acceptance"
+  ],
+  "observation": "Returned incomplete with explicit max_output_tokens after 282 seconds; reported output_tokens=65537 for requested 65536, including 63773 reasoning tokens. The provider reports the one-token discrepancy as-is. Only 5242 message characters were present in the partial response; no candidate was accepted or semantically assessed."
+}

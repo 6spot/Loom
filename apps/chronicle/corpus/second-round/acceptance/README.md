@@ -30,6 +30,25 @@ Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 
   的独立内容 FAIL 报告，分别列出旧错修复、新旧共有问题、退化及解释疑点。
 - [`preflight-live-r2-20260912-v6.json`](preflight-live-r2-20260912-v6.json)：该次
   canonical live 预检原始记录，`READY` 仅表示执行条件满足；实际调用单独记录。
+- [`run-live-r2-20260912-sol-v6.json`](run-live-r2-20260912-sol-v6.json) 与
+  [`完整请求及失败记录`](candidate-live-r2-20260912-sol-v6.json)：同一 v6 请求
+  改用 Sol，单次约 908 秒后无 output text；无终稿，不能评价翻译质量。
+- [`run-live-r2-20260912-deepseek-v6.json`](run-live-r2-20260912-deepseek-v6.json) 与
+  [`完整请求及失败记录`](candidate-live-r2-20260912-deepseek-v6.json)：用户指定的
+  `deepseek-v4.1-flash` 非流式对照；返回 incomplete，输出接近 65,536 token
+  上限，其中 31,751 为推理 token；未接受产物，未评定内容质量。
+- [`run-live-r2-20260912-deepseek-low-v6.json`](run-live-r2-20260912-deepseek-low-v6.json)
+  与 [`完整请求及失败记录`](candidate-live-r2-20260912-deepseek-low-v6.json)：同章
+  请求 CPA 的 `(low)` 后缀，约 282 秒后仍因 `max_output_tokens` 中止；服务
+  报告输出 65,537，其中推理 63,773。原样保留用量，不假定下游采用了 low。
+- [`run-live-r2-20260912-deepseek-128k-v6.json`](run-live-r2-20260912-deepseek-128k-v6.json)
+  与 [`完整请求及失败记录`](candidate-live-r2-20260912-deepseek-128k-v6.json)：仅将
+  完整章 provider 输出预算改为 131,072，同步 request/fingerprint；服务仍在
+  65,536 输出 token 时返回 `incomplete/max_output_tokens`，没有完整候选。
+  这不能确定限制由 CPA 或哪个上游环节施加，也不能评价翻译质量。
+- [`provider-diagnostics-20260912-deepseek.json`](provider-diagnostics-20260912-deepseek.json)：
+  四个小型严格 JSON 请求的可用性及推理参数观察；均成功，但无法确认下游
+  推理控制生效。它们与完整章调用分开计数，不构成章节验收。
 
 ## 最近重跑结论（2026-09-12）
 
@@ -38,6 +57,10 @@ Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 
 发现人物关系反转、整条嵌注及奏表论据遗漏。已有明确源历日期的段落也全部被标为
 未知时间，人物和事件阅读关联全空。部分旧错修复不抵消这些问题，不据单次对照
 宣称提示或模型的普遍效果。本次两次调用共报告 128,583 tokens，账单费用未知。
+
+换用 Sol 及 DeepSeek 的对照都未返回完整候选；DeepSeek 的小请求成功不代表
+完整章能完成，单纯增加本地输出预算也未解除本次截断。各次请求、用量和终止
+原因分别归档，没有截断原章、接受半份产物或自动审核／发布。
 
 此前 v5 单章回归在一次纠错后通过机械校验，41 段正文、15,943
 字符前后完全一致；7 条初稿诊断全部进入纠错提示。独立内容复核仍发现确定的
