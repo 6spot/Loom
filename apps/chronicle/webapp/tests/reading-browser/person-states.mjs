@@ -11,6 +11,9 @@
 // 由共享 runner 以 `reading-browser/<name>.mjs` 发现并调用 `run(ctx)`；ctx 提供
 // check / info / screenshot / openScene。全部数据合成，不冒充真实后端。
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 export const FIXTURE_PATH = "/tests/fixtures/reading/scenes/person-states/index.html";
 export const SCENE_CASES = ["reading", "slot"];
 export const TASK = "C2-R3-T11";
@@ -117,14 +120,14 @@ async function slotSuite(ctx) {
   await page.waitForSelector('[data-test="person-state-slot-scene"]', { timeout: 15000 });
   ctx.check("slot-scene-synthetic", (await page.getAttribute('[data-test="person-state-slot-scene"]', "data-synthetic")) === "true");
   ctx.check(
-    "stage-hosted-by-context-panel",
+    "slot-injected-into-context-panel",
     (await page.locator('[data-test="person-states-slot-probe"] [data-test="reading-context-panel"] [data-test="person-state-context"]').count()) === 1,
-    "stage content did not render inside ReadingContextPanel",
+    "stage slot did not render inside ReadingContextPanel",
   );
   ctx.check(
-    "stage-host-keeps-existing-context-groups",
+    "slot-keeps-existing-context-groups",
     (await page.locator('[data-test="reading-context-group"]').count()) >= 1,
-    "existing context groups lost when stage content is hosted",
+    "existing context groups lost when stage slot is present",
   );
   ctx.check("no-page-error-slot", errors.length === 0, errors.join("; "));
   await ctx.screenshot(page, "slot-1280");
@@ -303,7 +306,38 @@ async function readingSuite(ctx) {
   });
 }
 
+/**
+ * T11 owns this suite's browser evidence. The shared runner's top-level
+ * `result.json` is registered by the T01 base suite, so this writes a
+ * suite-scoped artifact carrying the correct `C2-R3-T11` task id without
+ * modifying the shared runner.
+ */
+function writeSuiteEvidence(ctx) {
+  if (!ctx.outputDir) return;
+  const checks = ctx.runner?.checks ?? [];
+  const payload = {
+    schema: "chronicle.reading-component-suite-evidence",
+    version: "0.1",
+    task: TASK,
+    suite: "person-states",
+    base_url: ctx.baseUrl,
+    ok: checks.length > 0 && checks.every((check) => check.ok),
+    checks,
+    evidence: ctx.runner?.evidence ?? {},
+  };
+  mkdirSync(ctx.outputDir, { recursive: true });
+  writeFileSync(
+    join(ctx.outputDir, "person-states-evidence.json"),
+    `${JSON.stringify(payload, null, 2)}\n`,
+    "utf8",
+  );
+}
+
 export async function run(ctx) {
-  await readingSuite(ctx);
-  await slotSuite(ctx);
+  try {
+    await readingSuite(ctx);
+    await slotSuite(ctx);
+  } finally {
+    writeSuiteEvidence(ctx);
+  }
 }

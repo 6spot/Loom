@@ -95,9 +95,8 @@ export default function PersonStatesScene({ mode = "reading" }: { mode?: "readin
             entities={SLOT_ENTITIES}
             variant="column"
             unitId="ru_0123456789abcdef01234567"
-          >
-            {stateBlock}
-          </ReadingContextPanel>
+            stage={stateBlock}
+          />
         </div>
       </main>
     );
