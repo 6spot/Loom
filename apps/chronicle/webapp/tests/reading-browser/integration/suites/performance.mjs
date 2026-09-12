@@ -17,6 +17,34 @@ const CONSECUTIVE_ADVANCES_PER_RUN = 1000;
 const SCROLL_SECONDS = 30;
 const FIXED_VIEWPORT = { width: 1440, height: 900 };
 
+// Installed before each document loads. Long reading can fill Chromium's
+// resource timing buffer (for example with per-unit person-state requests).
+// PerformanceObserver still receives those resources; retain only a bounded
+// set of actual locate responses instead of depending on the global buffer.
+export function installLocateTimingProbe() {
+  const entries = [];
+  const collect = (resources) => {
+    for (const resource of resources) {
+      const url = new URL(resource.name);
+      if (url.origin !== location.origin ||
+        !/^\/api\/v1\/public\/reading-streams\/[^/]+\/locate$/.test(url.pathname)) continue;
+      const unitId = url.searchParams.get("unit_id");
+      if (!unitId || resource.responseEnd <= 0) continue;
+      entries.push({ unit_id: unitId, name: resource.name,
+        startTime: resource.startTime, responseEnd: resource.responseEnd });
+      if (entries.length > 64) entries.shift();
+    }
+  };
+  const observer = new PerformanceObserver((list) => collect(list.getEntries()));
+  observer.observe({ type: "resource", buffered: true });
+  window.__r2LocateTiming = {
+    latest(unitId) {
+      collect(observer.takeRecords());
+      return entries.filter((entry) => entry.unit_id === unitId).at(-1) ?? null;
+    },
+  };
+}
+
 async function installProbes(page) {
   await page.evaluate(() => {
     window.__r2LongTasks = [];
@@ -215,10 +243,7 @@ async function waitForUnit(page, unitId, relativeOffset = 0) {
         } else stable = 0;
         previousTop = rect.top;
         if (stable >= 2) {
-          const response = performance.getEntriesByType("resource").filter((entry) => {
-            const url = new URL(entry.name);
-            return url.pathname.endsWith("/locate") && url.searchParams.get("unit_id") === wanted;
-          }).at(-1);
+          const response = window.__r2LocateTiming?.latest(wanted);
           if (!response) throw new Error(`missing real locate response timing for ${wanted}`);
           return { data_ready_ms: response.responseEnd, completed_ms: performance.now(), ...last };
         }
@@ -258,6 +283,7 @@ async function runOnce(runner, baseUrl, scaleStream) {
   const page = await runner.newPage({ viewport: FIXED_VIEWPORT });
   const requests = countRequests(page);
   try {
+    await page.addInitScript(installLocateTimingProbe);
     await page.goto(readingUrl(baseUrl, scaleStream), { waitUntil: "domcontentloaded" });
     await page.waitForSelector(UNIT, { timeout: 30000 });
     await page.waitForSelector(`${UNIT}[data-active="true"]`, { timeout: 30000 });

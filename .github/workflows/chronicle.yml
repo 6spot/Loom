@@ -239,6 +239,9 @@ jobs:
             node --check "$file"
           done
 
+      - name: Reading locate timing probe regression (Chromium)
+        run: node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
+
       - name: Build Chronicle image
         run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
 
