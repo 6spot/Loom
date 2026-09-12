@@ -310,6 +310,92 @@ The worker/publication wiring and the chapter completeness gate belong to
 T06; the stream/event read APIs belong to T07/T08. Both reuse these helpers
 instead of building a second read or write path.
 
+## Person-state assessment, projection and disagreement index (C2-R3-T05)
+
+The ninth migration (`0009_chronicle_person_states.sql`, owned by C2-R3-T05)
+adds the third-round person-state layer from `person-state-reading.md`
+sections 5-7 without touching any existing table, without copying body text,
+full translations, Entity/Claim tables or the job state machine, and without
+relaxing the 0007 reading immutability/snapshot fences. Connection identity is
+still `CHRONICLE_DATABASE_URL`; the Loom engine database is never read.
+
+- `chronicle.person_state_assessments` — one immutable reviewed assessment
+  artifact per `plan_fingerprint`: `assessment_sha` of the payload,
+  `base_catalog_sha`, `compiler_version` and the exact candidate decisions /
+  audit references in `payload`. The accepted chapter artifact is untouched.
+- `chronicle.person_state_manifests` — one compiled state manifest per reading
+  stream: `stream_id`, `revision_id`, `origin_catalog_sha`, the assessment
+  hashes that fed the compile, the stream's `chapter_publication_ids`, the
+  compiler version, the per-unit phase summaries and the compiler manifest.
+  `manifest_sha` is the hash of the complete normalized compiled input.
+- `chronicle.person_state_unit_people` — the per-unit person index:
+  stream/unit/person, name/importance, phase grouping, certainty/reasons and
+  the bounded preview identities/changes.
+- `chronicle.person_state_items` — the full compiled identity/change rows behind
+  one unit person: dimension/value/relation/target, qualification, certainty,
+  reason codes, phase ids, source fact refs and the frozen DTO payload.
+- `chronicle.person_state_item_evidence` — evidence descriptors for one item,
+  each keeping its own source publication / anchor / quote so a disagreement's
+  other side can point at a different chapter publication.
+- `chronicle.person_state_disagreements` — the immutable, catalog-scoped
+  cross-source disagreement index. `source_keys` is the flattened
+  `{chapter_id}:{fact_ref}` membership used to overlay a catalog's recorded
+  explanations onto a published unit.
+
+All six tables are append-only (mutation triggers). Composite foreign keys and
+unique constraints stop cross-stream / cross-unit / cross-person / cross-plan
+splices, and binding triggers prove a manifest's stream revision/catalog,
+assessment hashes and chapter publications against the stream's own snapshot.
+
+`apps/chronicle/persistence/person_state_store.py` owns the tables. The
+`persist_person_state_assessments` / `persist_person_state_manifest` /
+`persist_person_state_disagreements` entries write **inside the caller's
+already-open transaction** (T08's unique publish transaction) and never open or
+commit a transaction and never take a second worker lease, so the catalog,
+every chapter publication, the reading index and the whole person-state layer
+commit atomically. Replaying identical bytes is a no-op; the same stable key
+with different bytes raises `PersistenceConflict`
+(`immutable_assessment_conflict` / `immutable_state_manifest_conflict` /
+`immutable_disagreement_conflict`). Inputs are validated against the T01
+machine contract (`person_state_contract.py`) and fail closed before any row is
+written.
+
+The SELECT-only read helpers are bounded and never read the whole history and
+slice it in Python:
+
+- `list_unit_people(conn, *, stream_id, unit_id, catalog_sha=None, limit, cursor)`
+  — one indexed keyset page of per-unit person summaries.
+- `list_unit_person_states(conn, *, stream_id, unit_id, person_id, section,
+  phase_id=None, catalog_sha=None, limit, cursor)` — one keyset page of a
+  person's identities or changes for the unit.
+- `list_state_item_evidence(conn, *, stream_id, unit_id, person_id, item_id,
+  phase_id=None, catalog_sha=None, limit, cursor)` — one keyset page of an
+  item's evidence descriptors.
+- `list_catalog_disagreements(conn, *, catalog_sha, limit, cursor)` — one keyset
+  page of one catalog's immutable disagreement index.
+
+Snapshot visibility never uses wall-clock time. When a `catalog_sha` is
+supplied the stream's origin catalog `publication_sequence` must be `<=` the
+snapshot's, exactly like the reading store, so an older snapshot never sees a
+later state manifest. The disagreement overlay only combines the **exact**
+supplied catalog's recorded links: reading with an older catalog never sees a
+newer catalog's disagreements, and the overlay can only add recorded
+`source_disagreement` reasons and downgrade certainty — it never promotes an
+uncertain claim to clear. Existing groups/production publishes new immutable
+versions instead of editing rows.
+
+```bash
+python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_store_postgres.py' -v
+python3 tools/check_storage_sql_ownership.py
+```
+
+When `LOOM_TEST_POSTGRES_URL` is unset, the person-state suite follows the same
+repository-local control database and `tools/postgres-test.sh up` fallback as
+the other persistence suites. Its fixture seeds real control-plane / chapter /
+catalog / reading-stream rows; that is an explicit test loading path, not a
+second production success path.
+
 ## Boundary to C0-T10
 
 C0-T10 may read these Chronicle-owned tables through a Chronicle repository/read-model module. It must preserve the same three-layer distinction when assembling Timeline, Event Detail, and Entity Detail responses. C0-T10 must not turn persistence rows into synthetic historical truth or collapse unresolved Resolution decisions.
