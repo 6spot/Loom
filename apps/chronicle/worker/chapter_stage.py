@@ -135,11 +135,14 @@ def chapter_model_from_env(
         )
     import model_provider as model_provider  # noqa: E402
 
+    limits = chapter_limits_from_env(source)
     return model_provider.build_chapter_model(
         chapter_name,
         endpoint,
         api_key=(source.get(CHAPTER_API_KEY_ENV) or "").strip() or None,
         timeout_seconds=model_provider.timeout_from_env(source),
+        max_response_bytes=limits.max_response_bytes,
+        max_output_tokens=limits.max_output_tokens,
         candidate_version=candidate_version_for_model(SimpleNamespace(name=chapter_name)),
     )
 
