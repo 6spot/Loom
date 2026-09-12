@@ -3,6 +3,30 @@ import { ApiError, entityPath, eventPath, fetchJSON, searchPathFromSearch, timel
 import { historicalMomentPathFromSearch, type HistoricalMomentResponse } from "./historical-moment";
 import type { EntityDetail, EventDetail, SearchResponse, TimelineResponse } from "./types";
 
+/**
+ * Composite-history phase locator (C2-R3-T13). The main reading locator is
+ * `{version, paragraph_id, phase_id}`; the snapshot (version) is part of the
+ * query key so two publications can never share a cached phase context. The
+ * source reading locator stays `{stream_id, catalog_sha, unit_id}` and is keyed
+ * by `personStateKeys` (T10) instead of being mixed in here.
+ */
+export interface HistoryPhaseLocator {
+  readonly version: string;
+  readonly paragraph_id: string;
+  readonly phase_id: string | null;
+}
+
+export function personStatePhaseKey(locator: HistoryPhaseLocator) {
+  return [
+    "chronicle",
+    "person-state",
+    "phase",
+    locator.version,
+    locator.paragraph_id,
+    locator.phase_id ?? null,
+  ] as const;
+}
+
 export function useTimeline(search: string) {
   const path = timelinePathFromSearch(search);
   return useQuery<TimelineResponse, ApiError>({

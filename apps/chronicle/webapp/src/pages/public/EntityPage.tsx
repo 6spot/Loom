@@ -1,14 +1,20 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import HistoryReturnLink from "../../components/HistoryReturnLink";
+import { StateFacts } from "../../components/reading/ReadingContextPanel";
+import PersonStateDetails from "../../components/reading/PersonStateDetails";
 import { useEntity } from "../../lib/queries";
+import { personStatePhaseKey } from "../../lib/queries";
+import { loadHistoryPage } from "../../lib/history-api";
 import { formatTime, readPath } from "../../lib/routes";
 import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
 import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
 import type { Representation, TrajectoryEvent } from "../../lib/types";
 import { buildReadingUrl, readReturnToken } from "../../lib/reading-location";
 import { ReadingHistoryStore, ReadingStorage } from "../../lib/reading-history";
+import { useSourcePersonStateContext } from "../../hooks/usePersonStateContext";
 import type { ReadingLocator } from "../../lib/reading-types";
 
 function EntityRepresentation({ rep }: { rep: Representation }) {
@@ -69,11 +75,89 @@ function ReadingReturnBar({ returnLocator }: { returnLocator: ReadingLocator | n
   );
 }
 
+/**
+ * Composite-history phase state for this entity (C2-R3-T13). It reads the one
+ * published paragraph the reader came from and shows the compact reviewed
+ * states for this entity plus the other people/places in the same paragraph.
+ * It never turns event participation into a title and never re-derives
+ * certainty: the values are the server-compiled `states`.
+ */
+function HistoryPhasePanel({
+  version,
+  paragraphId,
+  phaseId,
+  entityId,
+}: {
+  version: string | null;
+  paragraphId: string | null;
+  phaseId: string | null;
+  entityId: string;
+}) {
+  const query = useQuery({
+    queryKey: personStatePhaseKey({ version: version ?? "", paragraph_id: paragraphId ?? "", phase_id: phaseId ?? null }),
+    queryFn: () => loadHistoryPage(version as string, { at: paragraphId as string }),
+    enabled: Boolean(version && paragraphId),
+    staleTime: Infinity,
+    retry: 1,
+  });
+  if (!version || !paragraphId) return null;
+  if (query.isPending) return <section className="panel"><div className="panel-heading"><h2>当时状态</h2></div><p role="status">正在载入该段人物与地点状态…</p></section>;
+  if (query.isError) {
+    const reload = query.refetch;
+    return <section className="panel"><div className="panel-heading"><h2>当时状态</h2></div><div role="alert"><p>该段的当时状态暂时无法读取。</p><button className="public-text-button" onClick={() => { void reload(); }}>重试</button></div></section>;
+  }
+  const paragraph = query.data.paragraphs.find((item) => item.id === paragraphId) ?? query.data.paragraphs[0];
+  if (!paragraph) return null;
+  const states = paragraph.entities.find((item) => item.id === entityId)?.states ?? [];
+  const related = paragraph.entities.filter((item) => item.id !== entityId);
+  return (
+    <section className="panel" data-test="entity-phase-state" data-phase-id={paragraph.phase_id}>
+      <div className="panel-heading"><h2>当时状态</h2><span className="count">{phaseId ?? paragraph.phase_id}</span></div>
+      {states.length ? <StateFacts facts={states} /> : <p className="chr-context-unknown">这一段的综合正文没有该人物的当时状态记载。</p>}
+      {related.length ? (
+        <div className="chip-row" data-test="entity-phase-related">
+          {related.map((item) => <span key={item.id} className="chip">{item.name}</span>)}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Source-reading person state for this entity. When the reader arrived from a
+ * `/read/...` locator we resolve the return token back to the exact stream/unit
+ * and use the T09/T10 typed client, so the full compiled PersonSummary (intro
+ * experience + identity-change timeline) is real source data, not a projection.
+ */
+function SourcePersonPanel({ locator, entityId }: { locator: ReadingLocator | null; entityId: string }) {
+  const source = useSourcePersonStateContext(locator, { enabled: Boolean(locator) });
+  if (!locator) return null;
+  if (source.status === "loading") return <section className="panel"><div className="panel-heading"><h2>来源当时身份</h2></div><p role="status">正在载入来源人物阶段资料…</p></section>;
+  if (source.status === "error") return (
+    <section className="panel"><div className="panel-heading"><h2>来源当时身份</h2></div>
+      <div role="alert"><p>{source.error}</p><button className="public-text-button" onClick={source.retry}>重试</button></div>
+    </section>
+  );
+  const person = source.people.find((item) => item.person_id === entityId);
+  if (!person) return (
+    <section className="panel" data-test="entity-source-person-missing">
+      <div className="panel-heading"><h2>来源当时身份</h2></div>
+      <p className="muted">该来源阅读位置没有登记此人物；不按名称或年份猜一份身份。</p>
+    </section>
+  );
+  return (
+    <PersonStateDetails person={person} phases={source.phases} />
+  );
+}
+
 export default function EntityPage() {
   const { id } = useParams();
   const location = useLocation();
   const params = new URLSearchParams(location.search.startsWith("?") ? location.search.slice(1) : location.search);
   const catalog = params.get("catalog");
+  const version = params.get("version");
+  const paragraphId = params.get("para");
+  const phaseId = params.get("phase");
   const returnLocator = useReadingReturn(location.search);
   const entity = useEntity(id, catalog);
 
@@ -90,6 +174,9 @@ export default function EntityPage() {
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
       <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>实体</span></div>
       <HistoryReturnLink fallback={<ReadingReturnBar returnLocator={returnLocator} />} />
+      <p className="muted" data-test="entity-phase-note">
+        {phaseId ? `从历史正文第 ${paragraphId ?? "—"} 段的阶段 ${phaseId} 进入；返回时恢复原段与段内位置。` : "直接进入人物页；不指定当前年份，也不把最终称号当作当时身份。"}
+      </p>
       <header className="page-header">
         <p className="eyebrow">Canonical Entity</p>
         <h1>{data.display?.name ?? "未命名实体"}</h1>
@@ -133,6 +220,8 @@ export default function EntityPage() {
           </section>
         </div>
         <aside className="detail-side">
+          <SourcePersonPanel locator={returnLocator} entityId={data.canonical_entity_id} />
+          <HistoryPhasePanel version={version} paragraphId={paragraphId} phaseId={phaseId} entityId={data.canonical_entity_id} />
           <section className="panel"><div className="panel-heading"><h2>Resolution</h2><span className="count">identity</span></div><ResolutionBlock links={data.resolution_links ?? []} targetKind="entity" currentId={data.canonical_entity_id} /></section>
           <section className="panel"><div className="panel-heading"><h2>直接 Claims</h2><span className="count">{claims.length}</span></div><ClaimsBlock claims={claims} /></section>
         </aside>

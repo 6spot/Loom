@@ -11,6 +11,8 @@ import {
   listReviewPage,
   mutateJob,
   StudioApiError,
+  studioRequest,
+  submitPersonStateAssessment,
   submitReviewDecision,
 } from "../../lib/studio-api";
 import type {
@@ -22,6 +24,14 @@ import type {
 } from "../../lib/studio-api";
 import { ReviewEvidenceSection } from "../../components/studio/ReviewEvidencePanel";
 import NarrativeReviewPanel from "../../components/studio/NarrativeReviewPanel";
+import PersonStateReviewPanel from "../../components/studio/PersonStateReviewPanel";
+import {
+  buildAssessmentOverlay,
+  createDraft,
+  isDraftForReview,
+  type PersonStateReviewDraft,
+} from "../../lib/person-state-review-display";
+import type { ReviewCandidate, ReviewPackage } from "../../lib/person-state-types";
 import {
   comparisonRows,
   decisionHelp,
@@ -70,6 +80,89 @@ function pretty(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string") return value;
   return JSON.stringify(value, null, 2);
+}
+
+interface PersonStateDetailFields {
+  candidates?: ReviewCandidate[];
+  has_more?: boolean;
+  cursor?: string | null;
+  next_cursor?: string | null;
+  limit?: number;
+  catalog_sha?: string | null;
+}
+
+/**
+ * The review detail endpoint returns the frozen person-state package inline.
+ * This adapter only renames fields into the T01 `ReviewPackage` shape; it never
+ * invents candidates, assessments or phases, and a missing package field fails
+ * closed through the panel (empty/unreviewed), not through a fabricated value.
+ */
+function toPersonPackage(review: ReviewDetail): ReviewPackage {
+  const raw = review as unknown as PersonStateDetailFields;
+  return {
+    schema: "chronicle.person-state-review",
+    version: "0.1",
+    review_id: review.review_id,
+    plan_fingerprint: review.plan_fingerprint ?? "",
+    scope: "person_state",
+    review_mode: "chapter_state_evidence",
+    chapter_id: review.chapter_id ?? "",
+    catalog_sha: raw.catalog_sha ?? "",
+    candidates: raw.candidates ?? [],
+    candidate_count: review.candidate_count ?? raw.candidates?.length ?? 0,
+    limit: raw.limit ?? 20,
+    cursor: raw.cursor ?? null,
+    next_cursor: raw.next_cursor ?? null,
+    has_more: Boolean(raw.has_more),
+    default_assessment: review.default_assessment ?? "supported",
+  };
+}
+
+/**
+ * Scope-aware person-state draft lifecycle (§5.1). The draft namespace is
+ * `(review_scope, review_id, plan_fingerprint)`; the identity string below
+ * includes `review_scope`, so switching the queue family on the SAME review
+ * (including browser back/forward between `all` and `person_state`) rehydrates
+ * that scope's own draft or a clean one. `hydrated` pins which identity the
+ * on-screen draft belongs to, so the render that just changed scope still holds
+ * the previous scope's draft but never writes it into the new namespace.
+ */
+export function usePersonStateDraft(
+  scope: ReviewScope,
+  reviewId: string,
+  reviewPackage: ReviewPackage | null,
+  store: ReviewSessionStore | null,
+): [PersonStateReviewDraft | null, (draft: PersonStateReviewDraft) => void] {
+  const identity = `${scope.reviewScope}|${reviewPackage?.review_id ?? ""}|${reviewPackage?.plan_fingerprint ?? ""}`;
+  const [draft, setDraft] = useState<PersonStateReviewDraft | null>(null);
+  const [hydrated, setHydrated] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!reviewPackage) {
+      setDraft(null);
+      setHydrated(identity);
+      return;
+    }
+    const stored =
+      store?.loadPersonStateDraft<PersonStateReviewDraft>(
+        scope,
+        reviewId,
+        reviewPackage.plan_fingerprint,
+      ) ?? null;
+    setDraft(isDraftForReview(reviewPackage, stored) ? stored : createDraft(reviewPackage));
+    setHydrated(identity);
+    // `identity` already encodes review_scope + review_id + plan_fingerprint.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, store]);
+
+  useEffect(() => {
+    if (!reviewPackage || !draft || hydrated !== identity) return;
+    if (!isDraftForReview(reviewPackage, draft)) return;
+    store?.savePersonStateDraft(scope, reviewId, reviewPackage.plan_fingerprint, draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, hydrated, identity, store]);
+
+  return [draft, setDraft];
 }
 
 function EvidenceList({ context }: { context: HumanReviewContext }) {
@@ -243,8 +336,8 @@ export default function StudioReviewDetailPage() {
   const [searchParams] = useSearchParams();
   const scope = useMemo<ReviewScope>(() => parseReviewSearch(searchParams.toString()), [searchParams]);
   const traverseScope = useMemo<ReviewScope>(
-    () => ({ status: "open", jobId: scope.jobId, linkKind: scope.linkKind }),
-    [scope.jobId, scope.linkKind],
+    () => ({ status: "open", jobId: scope.jobId, linkKind: scope.linkKind, reviewScope: scope.reviewScope }),
+    [scope.jobId, scope.linkKind, scope.reviewScope],
   );
   const auth = useStudioAuth();
   const authHeader = auth.authHeader();
@@ -412,6 +505,7 @@ export default function StudioReviewDetailPage() {
         status: "open",
         jobId: traverseScope.jobId,
         linkKind: traverseScope.linkKind,
+        reviewScope: traverseScope.reviewScope,
         limit: ADVANCE_PAGE_LIMIT,
         cursor,
       });
@@ -639,6 +733,64 @@ export default function StudioReviewDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.review_id, item?.plan_fingerprint]);
 
+  // -------------------------------------------------------------------------
+  // C2-R3-T13 person-state package wiring (§5.1). The package detail is the
+  // frozen chapter_state_evidence package; candidate pages are loaded through
+  // the same review route and the typed draft is keyed by
+  // (review_scope, review_id, plan_fingerprint) so it never crosses families.
+  // -------------------------------------------------------------------------
+  const personPackage = useMemo<ReviewPackage | null>(() => {
+    if (!item || item.scope !== "person_state") return null;
+    return toPersonPackage(item);
+  }, [item]);
+
+  const [extraPackages, setExtraPackages] = useState<ReviewPackage[]>([]);
+  const [personDraft, setPersonDraft] = usePersonStateDraft(scope, reviewId, personPackage, store);
+
+  useEffect(() => {
+    setExtraPackages([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personPackage?.review_id, personPackage?.plan_fingerprint]);
+
+  const personCandidates = useMemo<ReviewCandidate[]>(() => {
+    if (!personPackage) return [];
+    const seen = new Set<string>();
+    const merged: ReviewCandidate[] = [];
+    for (const page of [personPackage, ...extraPackages]) {
+      for (const candidate of page.candidates ?? []) {
+        if (seen.has(candidate.candidate_key)) continue;
+        seen.add(candidate.candidate_key);
+        merged.push(candidate);
+      }
+    }
+    return merged;
+  }, [personPackage, extraPackages]);
+
+  const loadPersonCandidates = async (cursor: string): Promise<ReviewPackage> => {
+    const response = await studioRequest<{ review: ReviewDetail }>(
+      authHeader,
+      `/api/v1/studio/jobs/reviews/${encodeURIComponent(reviewId)}?limit=20&cursor=${encodeURIComponent(cursor)}`,
+    );
+    const page = toPersonPackage(response.review);
+    setExtraPackages((current) => [...current, page]);
+    return page;
+  };
+
+  const submitPersonState = async (draft: PersonStateReviewDraft) => {
+    if (!personPackage) return;
+    await submitPersonStateAssessment(
+      authHeader,
+      reviewId,
+      buildAssessmentOverlay(personPackage, draft, personCandidates),
+    );
+    store?.clearPersonStateDraft(scope, reviewId, personPackage.plan_fingerprint);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["studio", "reviews"] }),
+      queryClient.invalidateQueries({ queryKey: ["studio", "review", reviewId] }),
+    ]);
+    await advance({ createdAt: item?.created_at ?? null, reviewId });
+  };
+
   if (review.isLoading) return <p className="studio-muted">正在读取审核项…</p>;
   if (review.error) return <p className="studio-error">{errorText(review.error)}</p>;
   if (!item) return <p className="studio-muted">审核项不存在。</p>;
@@ -647,6 +799,24 @@ export default function StudioReviewDetailPage() {
     item={item} onNext={() => advance({ createdAt: item.created_at, reviewId: item.review_id })}
     onSkip={skipCurrent} queueHref={`/studio/review${buildReviewSearch(scope, item.review_id)}`}
     navigationNote={endState ? (endState.kind === "empty" ? "当前范围暂无待审项；生产中的内容稍后会进入队列。" : "本轮已查看，可返回队列继续检查。") : advanceNote} />;
+
+  if (item.scope === "person_state") {
+    if (!personPackage || !personDraft) return <p className="studio-muted">正在读取阶段依据包…</p>;
+    return (
+      <div className="studio-stack" data-view="studio-review-detail">
+        <PersonStateReviewPanel
+          key={`${personPackage.review_id}:${personPackage.plan_fingerprint}`}
+          review={personPackage}
+          draft={personDraft}
+          onDraftChange={setPersonDraft}
+          onSubmit={submitPersonState}
+          onSkip={skipCurrent}
+          onReturn={backToQueue}
+          onLoadMore={loadPersonCandidates}
+        />
+      </div>
+    );
+  }
 
   const leftContexts = (item.left_contexts?.length ? item.left_contexts : [item.left_context]) as HumanReviewContext[];
   const rightContexts = (item.right_contexts?.length ? item.right_contexts : [item.right_context]) as HumanReviewContext[];
