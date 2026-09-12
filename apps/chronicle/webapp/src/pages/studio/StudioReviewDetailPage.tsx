@@ -118,6 +118,53 @@ function toPersonPackage(review: ReviewDetail): ReviewPackage {
   };
 }
 
+/**
+ * Scope-aware person-state draft lifecycle (§5.1). The draft namespace is
+ * `(review_scope, review_id, plan_fingerprint)`; the identity string below
+ * includes `review_scope`, so switching the queue family on the SAME review
+ * (including browser back/forward between `all` and `person_state`) rehydrates
+ * that scope's own draft or a clean one. `hydrated` pins which identity the
+ * on-screen draft belongs to, so the render that just changed scope still holds
+ * the previous scope's draft but never writes it into the new namespace.
+ */
+export function usePersonStateDraft(
+  scope: ReviewScope,
+  reviewId: string,
+  reviewPackage: ReviewPackage | null,
+  store: ReviewSessionStore | null,
+): [PersonStateReviewDraft | null, (draft: PersonStateReviewDraft) => void] {
+  const identity = `${scope.reviewScope}|${reviewPackage?.review_id ?? ""}|${reviewPackage?.plan_fingerprint ?? ""}`;
+  const [draft, setDraft] = useState<PersonStateReviewDraft | null>(null);
+  const [hydrated, setHydrated] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!reviewPackage) {
+      setDraft(null);
+      setHydrated(identity);
+      return;
+    }
+    const stored =
+      store?.loadPersonStateDraft<PersonStateReviewDraft>(
+        scope,
+        reviewId,
+        reviewPackage.plan_fingerprint,
+      ) ?? null;
+    setDraft(isDraftForReview(reviewPackage, stored) ? stored : createDraft(reviewPackage));
+    setHydrated(identity);
+    // `identity` already encodes review_scope + review_id + plan_fingerprint.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, store]);
+
+  useEffect(() => {
+    if (!reviewPackage || !draft || hydrated !== identity) return;
+    if (!isDraftForReview(reviewPackage, draft)) return;
+    store?.savePersonStateDraft(scope, reviewId, reviewPackage.plan_fingerprint, draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, hydrated, identity, store]);
+
+  return [draft, setDraft];
+}
+
 function EvidenceList({ context }: { context: HumanReviewContext }) {
   const evidence = context.display?.evidence ?? [];
   return (
@@ -697,29 +744,13 @@ export default function StudioReviewDetailPage() {
     return toPersonPackage(item);
   }, [item]);
 
-  const [personDraft, setPersonDraft] = useState<PersonStateReviewDraft | null>(null);
   const [extraPackages, setExtraPackages] = useState<ReviewPackage[]>([]);
+  const [personDraft, setPersonDraft] = usePersonStateDraft(scope, reviewId, personPackage, store);
 
   useEffect(() => {
     setExtraPackages([]);
-    if (!personPackage) {
-      setPersonDraft(null);
-      return;
-    }
-    const stored = store?.loadPersonStateDraft<PersonStateReviewDraft>(
-      scope,
-      reviewId,
-      personPackage.plan_fingerprint,
-    ) ?? null;
-    setPersonDraft(isDraftForReview(personPackage, stored) ? stored : createDraft(personPackage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personPackage?.review_id, personPackage?.plan_fingerprint]);
-
-  useEffect(() => {
-    if (!personPackage || !personDraft || !isDraftForReview(personPackage, personDraft)) return;
-    store?.savePersonStateDraft(scope, reviewId, personPackage.plan_fingerprint, personDraft);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personDraft, personPackage?.review_id, personPackage?.plan_fingerprint]);
 
   const personCandidates = useMemo<ReviewCandidate[]>(() => {
     if (!personPackage) return [];
