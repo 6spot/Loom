@@ -177,11 +177,13 @@ def require_production_entry(
 
 
 #: Candidate generation bound to each model family. The live production
-#: provider emits 0.2 reading annotations by default; the frozen first-round
-#: development fixture emits 0.1.
+#: provider emits 0.3 person-state annotations on top of the reading
+#: annotations; the frozen first-round development fixture emits 0.1 and the
+#: second-round reading fixture emits 0.2.
 CANDIDATE_VERSIONS = (
     chapter_contract.CANDIDATE_VERSION,
     reading_contract.CANDIDATE_VERSION,
+    chapter_contract.PRODUCTION_CANDIDATE_VERSION,
 )
 
 
@@ -190,14 +192,14 @@ def candidate_version_for_model(model: Any) -> str:
 
     An explicit ``candidate_version`` on the provider wins. Otherwise a
     development fixture is recognized by its ``fixture:<version>:<kind>``
-    name (the reading fixture is ``reading-chapter``); every other provider is
-    the live joint model, whose production default is the 0.2 reading
-    contract. This is the only place the worker decides which candidate
-    version a planned request must declare, so the request, prompt, model
-    strict format and acceptance validator always agree.
+    name (``reading-chapter`` is 0.2, ``person-state-chapter`` is 0.3); every
+    other provider is the live joint model, whose production default is the
+    0.3 person-state contract. This is the only place the worker decides
+    which candidate version a planned request must declare, so the request,
+    prompt, model strict format and acceptance validator always agree.
     """
     if model is None:
-        return reading_contract.CANDIDATE_VERSION
+        return chapter_contract.PRODUCTION_CANDIDATE_VERSION
     declared = getattr(model, "candidate_version", None)
     if declared is not None:
         if declared not in CANDIDATE_VERSIONS:
@@ -208,11 +210,13 @@ def candidate_version_for_model(model: Any) -> str:
     import fixture_model as fixture_model  # noqa: E402
 
     name = str(getattr(model, "name", ""))
+    if name.endswith(":" + fixture_model.PERSON_STATE_CHAPTER_MODEL_SUFFIX):
+        return chapter_contract.PRODUCTION_CANDIDATE_VERSION
     if name.endswith(":" + fixture_model.READING_CHAPTER_MODEL_SUFFIX):
         return reading_contract.CANDIDATE_VERSION
     if name.endswith(":" + fixture_model.CHAPTER_MODEL_SUFFIX):
         return chapter_contract.CANDIDATE_VERSION
-    return reading_contract.CANDIDATE_VERSION
+    return chapter_contract.PRODUCTION_CANDIDATE_VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -820,19 +824,26 @@ def execute_chapter_assemble(
         chapter_plan=plan,
     )
     bundle_sha256 = sha256_json(assembled["bundle"])
+    report = assembled.get("report") if isinstance(assembled.get("report"), dict) else {}
+    payload = {
+        "bundle_sha256": bundle_sha256,
+        "report": report,
+        "bundle": assembled["bundle"],
+        "chapter_by_ref": report.get("chapter_by_ref") or assembled.get("chapter_by_ref"),
+    }
+    # C2-R3-T08: a 0.3 assembled bundle persists its person-state evidence as
+    # binding input for the resolve review plan and the publish compilation.
+    # A 0.1/0.2 bundle carries no state and stays byte-compatible with the
+    # earlier reading publish path.
+    if isinstance(report.get("person_state"), dict):
+        payload["person_states"] = assembled.get("person_states")
+        payload["person_state_evidence"] = assembled.get("person_state_evidence")
     with psycopg.connect(database_url) as conn:
         control_plane.record_output_fenced(
             conn, job_id=job_id, revision_id=revision_id,
             worker=worker, artifact_type=chapter_assembly.ARTIFACT_TYPE,
             artifact_sha256=bundle_sha256,
-            payload={
-                "bundle_sha256": bundle_sha256,
-                "report": assembled["report"],
-                "bundle": assembled["bundle"],
-                "chapter_by_ref": assembled["report"].get("chapter_by_ref")
-                if isinstance(assembled.get("report"), dict)
-                else assembled.get("chapter_by_ref"),
-            },
+            payload=payload,
         )
         control_plane.write_stage_checkpoint_fenced(
             conn, job_id=job_id, stage="assemble", worker=worker,
@@ -890,6 +901,47 @@ def _read_assembled_bundle(
     return bundle, row[1], {str(key): str(value) for key, value in mapping.items()}
 
 
+def read_assembled_state(
+    database_url: str, job_id: uuid.UUID
+) -> dict[str, Any] | None:
+    """Return the frozen 0.3 person-state assembly from the assemble output.
+
+    The assembled bundle row persists the T03 ``person_states`` block, its
+    evidence manifests and the person-state report next to the source bundle
+    so resolve freezes a review plan over exactly the accepted bytes and
+    publish compiles from the same evidence instead of re-running anything.
+    Returns ``None`` for a 0.1/0.2 assembled output that carries no state.
+    """
+    with psycopg.connect(database_url) as conn:
+        row = conn.execute(
+            """
+            SELECT payload FROM chronicle.ingestion_outputs
+            WHERE job_id = %s AND artifact_type = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (job_id, chapter_assembly.ARTIFACT_TYPE),
+        ).fetchone()
+    if row is None or not isinstance(row[0], dict):
+        raise PersistenceError(
+            f"job {job_id} has no assembled chapter bundle; refusing to "
+            "read person-state evidence"
+        )
+    payload = row[0]
+    person_states = payload.get("person_states")
+    evidence = payload.get("person_state_evidence")
+    if not isinstance(person_states, dict) or not isinstance(evidence, list):
+        return None
+    report = payload.get("report")
+    person_report = report.get("person_state") if isinstance(report, dict) else None
+    if not isinstance(person_report, dict):
+        person_report = report if isinstance(report, dict) else {}
+    return {
+        "person_states": person_states,
+        "evidence_manifests": evidence,
+        "report": person_report,
+    }
+
+
 def _read_plan_output(
     database_url: str, job_id: uuid.UUID
 ) -> dict[str, Any] | None:
@@ -930,6 +982,74 @@ def _read_resolutions_by_sha(
             )
         initials.append(payload)
     return initials
+
+
+def _settle_person_state_resolve(
+    database_url: str,
+    *,
+    job_id: uuid.UUID,
+    worker: str,
+    revision_id: uuid.UUID,
+    final: list[dict[str, Any]],
+    base_catalog_sha256: str,
+    on_event: Callable[[str, dict[str, Any]], None] | None = None,
+) -> str:
+    """Freeze/adopt the 0.3 state-evidence reviews after identity resolution.
+
+    The identity Resolution reviews finish first; then one frozen
+    ``chapter_state_evidence`` package per chapter is opened (or adopted on
+    resume) and the job keeps parking in ``needs_review`` until every package
+    is terminal. The immutable assessment artifact is persisted by the unique
+    publish transaction, not here, so a takeover never half-collects state.
+    Returns ``"needs_review"`` while packages are open and ``"ok"`` otherwise
+    (including a non-0.3 job with no state evidence).
+    """
+    assembly = read_assembled_state(database_url, job_id)
+    if assembly is None:
+        return "ok"
+    with psycopg.connect(database_url) as conn:
+        accepted = chapter_store.read_accepted_chapters(conn, job_id=job_id)
+    plan = resolve_publish.build_person_state_plan(
+        job_id=job_id, revision_id=revision_id,
+        accepted_artifacts=[entry["artifact"] for entry in accepted],
+        assembly=assembly, final_resolutions=final,
+        base_catalog_sha256=base_catalog_sha256,
+    )
+    with psycopg.connect(database_url) as conn:
+        control_plane.record_output_fenced(
+            conn, job_id=job_id, revision_id=revision_id, worker=worker,
+            artifact_type=resolve_publish.PERSON_STATE_PLAN_OUTPUT_TYPE,
+            artifact_sha256=sha256_json(plan),
+            payload={"plan": plan, "plan_fingerprint": plan["plan_fingerprint"]},
+        )
+        conn.commit()
+    with psycopg.connect(database_url) as conn:
+        resolve_publish.person_state_review.open_person_state_reviews(
+            conn, job_id=job_id, plan=plan
+        )
+        conn.commit()
+    with psycopg.connect(database_url) as conn:
+        open_count = resolve_publish.open_person_state_review_count(
+            conn, job_id=job_id
+        )
+    if open_count > 0:
+        with psycopg.connect(database_url) as conn:
+            control_plane.write_stage_checkpoint_fenced(
+                conn, job_id=job_id, stage="resolve", worker=worker,
+                checkpoint={
+                    "chapter_stage_version": CHAPTER_STAGE_VERSION,
+                    "person_state_plan_fingerprint": plan["plan_fingerprint"],
+                    "person_state_open_reviews": open_count,
+                    "authoritative": False,
+                },
+            )
+        if on_event is not None:
+            on_event(
+                "stage_needs_review",
+                {"stage": "resolve", "person_state_open_reviews": open_count},
+            )
+        return "needs_review"
+    return "ok"
 
 
 def _settle_resolve(
@@ -986,6 +1106,12 @@ def _settle_resolve(
         for resolution in final:
             resolution_store.persist_resolution(conn, resolution)
             conn.commit()
+    if _settle_person_state_resolve(
+        database_url, job_id=job_id, worker=worker,
+        revision_id=revision_id, final=final,
+        base_catalog_sha256=base_catalog_sha256, on_event=on_event,
+    ) == "needs_review":
+        return "needs_review"
     with psycopg.connect(database_url) as conn:
         control_plane.write_stage_checkpoint_fenced(
             conn, job_id=job_id, stage="resolve", worker=worker,
@@ -1179,7 +1305,8 @@ def execute_chapter_present(
     # publication: present verifies the stream binds exactly this job's
     # published chapters (never a second/partial reading index).
     reading_stream_id: str | None = None
-    if {entry["artifact"].get("version") for entry in accepted} == {"0.2"}:
+    accepted_versions = {entry["artifact"].get("version") for entry in accepted}
+    if accepted_versions in ({"0.2"}, {"0.3"}):
         with psycopg.connect(database_url) as conn:
             stream_row = conn.execute(
                 """
@@ -1190,7 +1317,7 @@ def execute_chapter_present(
             ).fetchone()
         if stream_row is None:
             raise PersistenceError(
-                f"job {job_id} published 0.2 chapters but has no reading "
+                f"job {job_id} published reading chapters but has no reading "
                 "stream; refusing present"
             )
         stream_ids = {str(value) for value in stream_row[1]}
@@ -1208,6 +1335,44 @@ def execute_chapter_present(
                 "units/groups; refusing present"
             )
         reading_stream_id = str(stream_row[0])
+        if accepted_versions == {"0.3"}:
+            # A 0.3 book must also expose exactly one immutable person-state
+            # manifest bound to this stream and its complete publication set;
+            # present never verifies chapters while the state index is partial.
+            with psycopg.connect(database_url) as conn:
+                state_row = conn.execute(
+                    """
+                    SELECT m.manifest_sha, m.chapter_publication_ids, m.assessment_hashes,
+                           (SELECT count(*) FROM chronicle.person_state_unit_people p
+                             WHERE p.manifest_sha = m.manifest_sha) AS people,
+                           (SELECT count(*) FROM chronicle.person_state_items i
+                             WHERE i.manifest_sha = m.manifest_sha) AS items
+                    FROM chronicle.person_state_manifests m
+                    WHERE m.stream_id = %s
+                    """,
+                    (uuid.UUID(reading_stream_id),),
+                ).fetchone()
+            if state_row is None:
+                raise PersistenceError(
+                    f"job {job_id} published 0.3 chapters but has no person-state "
+                    "manifest; refusing present"
+                )
+            state_publications = {str(value) for value in state_row[1]}
+            if state_publications != stream_ids:
+                raise PersistenceError(
+                    f"job {job_id} person-state manifest {state_row[0]} does not "
+                    "bind the stream's chapter publications; refusing present"
+                )
+            if not state_row[2]:
+                raise PersistenceError(
+                    f"job {job_id} person-state manifest {state_row[0]} cites no "
+                    "reviewed assessment; refusing present"
+                )
+            if int(state_row[3]) < 0 or int(state_row[4]) < 0:
+                raise PersistenceError(
+                    f"job {job_id} person-state manifest {state_row[0]} index is invalid; "
+                    "refusing present"
+                )
     with psycopg.connect(database_url) as conn:
         control_plane.write_stage_checkpoint_fenced(
             conn, job_id=job_id, stage="present", worker=worker,
@@ -1219,6 +1384,9 @@ def execute_chapter_present(
                     if item["chapter_id"] in expected
                 ),
                 "reading_stream_id": reading_stream_id,
+                "person_state_manifest_sha": (
+                    state_row[0] if accepted_versions == {"0.3"} else None
+                ),
                 "verified_only": True,
                 "authoritative": False,
             },

@@ -138,6 +138,9 @@ class NarrativePipelineTests(unittest.TestCase):
         for source in context['sources']:
             self.assertIn(source['chapter_text'], base.TEXT_DISTINCT)
             self.assertEqual('person', context['entities'][next(iter(source['canonical_refs']['entities'].values()))]['kind'])
+            # A 0.2 source has no published person-state manifest, so the
+            # composite input stays explicitly empty instead of inventing one.
+            self.assertEqual([], source['reviewed_person_states'])
         with psycopg.connect(self.database_url) as conn:
             apply_migrations(conn)
             self.assertIsNone(store.read_publication(conn))
