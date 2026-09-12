@@ -124,6 +124,13 @@ live 严格禁用 `CHRONICLE_MODEL_FIXTURE_PACK`/`CHRONICLE_CHAPTER_FIXTURE_PACK
 阶段审核，也不套用 fixture 的固定决定**；真实 provider 调用与逐项人工核对由 T15 在
 受控会话中执行，并用同一个 HistoryPage / 人物页 / 审核队列入口逐案记录。
 
+2026-09-12 的首次 T15 现场运行证据见
+[`corpus/third-round/acceptance/README.md`](../corpus/third-round/acceptance/README.md)。
+该次 preflight 为 `READY`，但真实《先主传》0.3 初稿／纠错稿仍违反 anchor 与译文
+block 限制，来源 job 在 extract 阶段 fail closed；来源审核、综合两次审核、发布、
+最终读取和真实浏览器走查均被阻断。逐案结论为真实 13 案 `BLOCKED`、synthetic 6 案
+`NOT_RUN`，因此第三轮验收未通过；不得引用 T14 fixture PASS 补齐这些结果。
+
 ## fixture 机制与 live 内容判断的区别
 
 fixture 模式只证明机器整链、审核交互与浏览器/性能机制可复现，**不是真实模型、

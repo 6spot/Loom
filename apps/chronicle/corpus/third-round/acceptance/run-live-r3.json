@@ -1,0 +1,214 @@
+{
+  "schema": "chronicle.third-round-live-acceptance",
+  "version": "0.1",
+  "task": "C2-R3-T15",
+  "github_issue": 633,
+  "multica_issue": "LM-58",
+  "recorded_at": "2026-09-12",
+  "acceptance_claimed": false,
+  "overall_result": "FAIL",
+  "evidence_class": "live-provider-product-run",
+  "candidate": {
+    "commit": "149af552705b9333d9c4c8de8eced83b8caa7eb1",
+    "git_clean": true
+  },
+  "environment": {
+    "isolated_fresh_data": true,
+    "postgres_major": 18,
+    "fixture_configuration_present": false,
+    "credentials_recorded": false,
+    "private_paths_recorded": false,
+    "stack_cleaned_after_run": true
+  },
+  "provider": {
+    "kind": "responses-compatible-live",
+    "chapter_model": "gpt-5.6-luna",
+    "narrative_model": "gpt-5.6-luna",
+    "candidate_version": "0.3",
+    "api_key_present_during_run": true,
+    "api_key_recorded": false,
+    "timeout_seconds": 600
+  },
+  "source_pack": {
+    "pack_id": "c2-r1-t02-first-round-v1",
+    "manifest_hashes_verified": true,
+    "full_natural_chapters": true,
+    "uploads": [
+      {
+        "work": "三國志",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "chapter_count": 3,
+        "live_result": "FAIL"
+      },
+      {
+        "work": "資治通鑑",
+        "source_sha256": "b9831c28217e397b3d67f5d38870dacead1e327f06c8ac8bea0878538e4e18bd",
+        "chapter_count": 1,
+        "live_result": "NOT_RUN",
+        "reason": "the first full upload failed closed before publication"
+      }
+    ]
+  },
+  "preflight": {
+    "result": "READY",
+    "provider_calls": 0,
+    "compose_config_checked": true,
+    "interactive_review_required": true,
+    "fixture_decisions_disabled": true
+  },
+  "source_job": {
+    "job_id": "9010e281-be46-4784-ad9a-0abc5455586c",
+    "revision_id": "7077f200-6695-44d9-8a27-d20d3cd332bc",
+    "status": "needs_review",
+    "attempts_recorded": 3,
+    "max_attempts": 3,
+    "first_attempt": {
+      "started_at": "2026-09-12T06:33:46.321841+00:00",
+      "finished_at": "2026-09-12T06:47:42.928095+00:00",
+      "chapter": "三國志·蜀書·先主傳",
+      "initial_validation_error_count": 30,
+      "correction_validation_error_count": 5,
+      "initial_prompt_sha256": "56c64e74305cdf515b3765db2997f2c0c2ed15d6d0fffb32efbf366d3a3be63f",
+      "initial_response_sha256": "6b0512435e560fd992a8a51df6895d279d853b5c67f99b5e9c74729f15b082a1",
+      "correction_prompt_sha256": "7021c466ca6067689bc136a3e91a593112817a13a02331c39462f9aaba4ad0bb",
+      "correction_response_sha256": "b0b7c03859474622822ea2d69632f7939d0ee31e190659a463eff1a0982e73ac",
+      "accepted": false,
+      "result": "FAIL"
+    },
+    "second_attempt": {
+      "run_id": "e8b52808-4b21-421a-bdd2-0f38ba4a3fa0",
+      "finished_at": "2026-09-12T06:59:41.755740+00:00",
+      "initial_validation_error_count": 13,
+      "correction_validation_error_count": 1,
+      "initial_prompt_sha256": "56c64e74305cdf515b3765db2997f2c0c2ed15d6d0fffb32efbf366d3a3be63f",
+      "initial_response_sha256": "a4dd39da62e568ff592c0e8f5cb9c9831f609c2acdb923d134d599150eb6bca0",
+      "correction_prompt_sha256": "3ce80bbb2b91b102938af1a2d4259f70b6a8c25b280b05ac1af77a5a7173fb0a",
+      "correction_response_sha256": "0e1557363e792c276314a85de498cacb88b8fc973136a89a1b64549bae9a8e8a",
+      "accepted": false,
+      "remaining_validation": "reading.units[9].context_entities[0].source_selections[1] is not a verbatim chapter quote",
+      "result": "FAIL"
+    },
+    "third_attempt": {
+      "run_id": "3b2dad70-b31b-4067-8b63-d2fd13cb4624",
+      "initial_validation_error_count": 9,
+      "initial_prompt_sha256": "56c64e74305cdf515b3765db2997f2c0c2ed15d6d0fffb32efbf366d3a3be63f",
+      "initial_response_sha256": "f9385b484d3be131ac55d2e300dcd137cf63d8e161dc4efd996170c945f96a4d",
+      "correction_prompt_sha256": "14e0159c7c75dd6790f67b7aa2ca36f3a8e2fb00de20f140ce6db8a94cde3b6b",
+      "correction_response_sha256": null,
+      "accepted": false,
+      "error_class": "provider_transport",
+      "error": "model response contains no output text",
+      "result": "FAIL"
+    },
+    "final_error_class": "generation_contract_and_provider_transport",
+    "final_error": "three claims were exhausted; the last correction returned no output text",
+    "remaining_validation": {
+      "count": 5,
+      "anchor_block_mismatch": 2,
+      "mirrored_reading_context_anchor_mismatch": 2,
+      "translation_block_too_large": {
+        "block_id": "t_001",
+        "observed_code_points": 15507,
+        "maximum_code_points": 8192
+      }
+    },
+    "stages": {
+      "prepare": "PASS",
+      "structure": "PASS",
+      "segment": "PASS",
+      "extract": "FAIL",
+      "assemble": "NOT_RUN",
+      "resolve": "NOT_RUN",
+      "publish": "NOT_RUN",
+      "present": "NOT_RUN"
+    },
+    "later_chapters": "NOT_RUN",
+    "open_review_packages": 0,
+    "blocked_state_note": "the job reports needs_review after attempts were exhausted, but no identity, person-state, or narrative review package exists",
+    "raw_responses_committed": false,
+    "note": "hashes and validation diagnostics are retained; rejected model text is not a published product result"
+  },
+  "review_decisions": {
+    "source_identity": [],
+    "source_person_state": [],
+    "composite_facts": [],
+    "composite_prose": [],
+    "automatic_decisions": 0,
+    "human_operator_decisions": 0
+  },
+  "publication_evidence": {
+    "publication_id": null,
+    "stream_id": null,
+    "unit_id": null,
+    "catalog_sha": null,
+    "person_state_manifest": null,
+    "history_version": null,
+    "paragraph_id": null,
+    "phase_id": null,
+    "source_anchor": null,
+    "result": "BLOCKED"
+  },
+  "experience_evidence": {
+    "history_page": "NOT_RUN",
+    "person_page": "NOT_RUN",
+    "source_return": "NOT_RUN",
+    "refresh_back": "NOT_RUN",
+    "mobile_touch": "NOT_RUN",
+    "keyboard": "NOT_RUN",
+    "screenshots": [],
+    "reason": "no live publication/version existed to anchor a truthful browser run"
+  },
+  "case_summary": {
+    "real": {"pass": 0, "fail": 0, "blocked": 13},
+    "synthetic": {"pass": 0, "fail": 0, "not_run": 6},
+    "fixture_results_counted": 0
+  },
+  "case_results": [
+    {"case_id": "R3C01", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C02", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C03", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C04", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C05", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C06", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C07", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C08", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C09", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C10", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C11", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C12", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3C13", "class": "real", "result": "BLOCKED"},
+    {"case_id": "R3N01", "class": "synthetic", "result": "NOT_RUN"},
+    {"case_id": "R3N02", "class": "synthetic", "result": "NOT_RUN"},
+    {"case_id": "R3N03", "class": "synthetic", "result": "NOT_RUN"},
+    {"case_id": "R3N04", "class": "synthetic", "result": "NOT_RUN"},
+    {"case_id": "R3N05", "class": "synthetic", "result": "NOT_RUN"},
+    {"case_id": "R3N06", "class": "synthetic", "result": "NOT_RUN"}
+  ],
+  "criteria": {
+    "real_provider_source_generation": "FAIL",
+    "source_identity_review": "BLOCKED",
+    "source_person_state_review": "BLOCKED",
+    "source_publication": "BLOCKED",
+    "composite_facts_review": "BLOCKED",
+    "composite_prose_review": "BLOCKED",
+    "published_history_and_person_page": "BLOCKED",
+    "version_projection_consistency": "NOT_RUN",
+    "browser_mobile_keyboard_return": "NOT_RUN",
+    "sixteen_case_minimum": "NOT_MET",
+    "real_synthetic_separation": "PASS",
+    "failure_and_unverified_preservation": "PASS"
+  },
+  "ownership_handoffs": [
+    {
+      "owner": "C2-R3-T02",
+      "classification": "extraction",
+      "issue": "real 0.3 initial/correction output remains contract-invalid; correct prompt/provider adaptation and rerun from a fresh database"
+    },
+    {
+      "owner": "provider integration",
+      "classification": "transport",
+      "issue": "the final semantic correction response contained no output text; preserve separately from content/contract failures"
+    }
+  ],
+  "required_rerun": "all four complete chapters, all explicit source and composite reviews, all 19 cases, fixed publication/person/source anchors, and real browser evidence in a fresh isolated environment"
+}
