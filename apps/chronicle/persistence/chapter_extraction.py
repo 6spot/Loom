@@ -65,8 +65,26 @@ except ImportError:  # pragma: no cover - package import path
 #: frozen; 0.2 adds reading annotations; 0.3 adds person states and is the
 #: registered production generation.
 EXTRACTION_VERSION = "c2r1-extraction-v1"
-READING_EXTRACTION_VERSION = "c2r2-extraction-v1"
-PERSON_STATE_EXTRACTION_VERSION = "c2r3-extraction-v1"
+READING_EXTRACTION_VERSION = "c2r2-extraction-v2"
+PERSON_STATE_EXTRACTION_VERSION = "c2r3-extraction-v2"
+
+#: Versioned, replayable restriction on metadata-only correction rounds.
+#: This is an extraction check, not a replacement candidate validator or
+#: evidence that a structurally valid translation is semantically complete.
+CORRECTION_POLICY_VERSION = "c2-chapter-correction-v1"
+
+# Historical prompt generations must stay explicit: changing a current
+# fingerprint to v1 cannot turn a new protected run into a legacy run.
+_HISTORY_PROMPT_VERSIONS = {
+    ("0.2", "c2r2-extraction-v1", None): {
+        f"c2r2-chapter-prompt-v{i}" for i in range(1, 5)
+    },
+    ("0.3", "c2r3-extraction-v1", None): {
+        "c2r3-chapter-prompt-v1", "c2r3-chapter-prompt-v2",
+    },
+    ("0.2", "c2r2-extraction-v2", CORRECTION_POLICY_VERSION): {"c2r2-chapter-prompt-v5"},
+    ("0.3", "c2r3-extraction-v2", CORRECTION_POLICY_VERSION): {"c2r3-chapter-prompt-v3"},
+}
 
 #: Prompt template version bound into every attempt and producing run.
 PROMPT_VERSION = P.PROMPT_VERSION
@@ -160,6 +178,7 @@ def fingerprints_for(
     if version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
         fingerprints["reading_schema"] = f"{R.READING_SCHEMA}/{R.READING_VERSION}"
         fingerprints["reading_limits"] = R.ReadingLimits().to_dict()
+        fingerprints["correction_policy_version"] = CORRECTION_POLICY_VERSION
     if version == PERSON_STATE_CANDIDATE_VERSION:
         fingerprints["person_state_schema"] = (
             f"{PS.PERSON_STATE_SCHEMA}/{PS.PERSON_STATE_VERSION}"
@@ -233,6 +252,123 @@ def _error_categories(report: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def _translation_sequence(candidate: Any) -> list[tuple[str, str]] | None:
+    """Return ordered prose only; references remain independently repairable."""
+    translation = candidate.get("translation") if isinstance(candidate, dict) else None
+    blocks = translation.get("blocks") if isinstance(translation, dict) else None
+    if not isinstance(blocks, list) or not blocks:
+        return None
+    sequence: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for block in blocks:
+        if not isinstance(block, dict):
+            return None
+        block_id, text = block.get("block_id"), block.get("text")
+        if (
+            not isinstance(block_id, str) or not block_id or block_id in seen
+            or not isinstance(text, str) or not text.strip()
+        ):
+            return None
+        seen.add(block_id)
+        sequence.append((block_id, text))
+    return sequence
+
+
+def _preserve_translation(
+    candidate: Any, report: Any, *, candidate_version: str
+) -> bool:
+    """Conservatively restrict repairs using the FULL, unabridged report.
+
+    Schema, source coverage, identity, capacity and unknown failures may
+    require prose/block changes, so they keep the existing whole-chapter
+    repair. A duplicate translation block ID is a `references` failure;
+    checking the sequence separately prevents freezing that invalid shape.
+    The 0.3 report nests all 0.2 errors under `reading`.
+    """
+    report_schema = {
+        READING_CANDIDATE_VERSION: "chronicle.reading-validation",
+        PERSON_STATE_CANDIDATE_VERSION: "chronicle.person-state-validation",
+    }.get(candidate_version)
+    if (
+        report_schema is None or not isinstance(report, dict)
+        or report.get("schema") != report_schema or report.get("passed") is not False
+        or _translation_sequence(candidate) is None
+    ):
+        return False
+    categories = report.get("errors")
+    if not isinstance(categories, dict) or any(
+        not isinstance(messages, list) or any(not isinstance(m, str) for m in messages)
+        for messages in categories.values()
+    ):
+        return False
+    errors = _flatten_report_errors(report)
+    if not errors:
+        return False
+    chapter_metadata = {
+        "references", "record_sources", "mentions", "anchors", "time_precision", "aliases",
+    }
+    reading_metadata = {
+        "reading_coverage", "reading_refs", "reading_time", "reading_spans",
+        "reading_context", "canonical_id",
+    }
+    state_metadata = {
+        "person_state_coverage", "person_state_refs", "person_state_phase",
+        "person_state_types", "person_state_continuity", "canonical_id",
+    }
+    for error in errors:
+        if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+            category, _, message = error.partition(": ")
+            if category in state_metadata and message and not message.startswith("request:"):
+                continue
+            if category != "reading":
+                return False
+            error = message
+        category, _, message = error.partition(": ")
+        if category == "chapter":
+            category, _, message = message.partition(": ")
+            allowed = chapter_metadata
+        else:
+            allowed = reading_metadata
+        if category not in allowed or not message or message.startswith("request:"):
+            return False
+    return True
+
+
+def _validate_correction(
+    previous_candidate: Any,
+    previous_report: Any,
+    candidate: dict[str, Any],
+    *,
+    candidate_version: str,
+) -> dict[str, Any]:
+    """Shared generation/history check; never silently splice old prose back."""
+    preserve = _preserve_translation(
+        previous_candidate, previous_report, candidate_version=candidate_version,
+    )
+    errors: list[str] = []
+    if preserve:
+        previous = _translation_sequence(previous_candidate)
+        assert previous is not None  # Established by _preserve_translation.
+        current = _translation_sequence(candidate)
+        if current is None:
+            errors.append("translation.blocks lost valid, unique block IDs or non-empty text")
+        else:
+            if [block_id for block_id, _ in previous] != [block_id for block_id, _ in current]:
+                errors.append("translation.blocks changed block IDs or order during metadata correction")
+            current_by_id = dict(current)
+            for block_id, text in previous:
+                if block_id not in current_by_id:
+                    errors.append(f"translation block {block_id!r} was removed during metadata correction")
+                elif current_by_id[block_id] != text:
+                    errors.append(f"translation block {block_id!r} text changed during metadata correction")
+    return {
+        "policy_version": CORRECTION_POLICY_VERSION,
+        "mode": "preserve_translation" if preserve else "whole_chapter",
+        "passed": not errors,
+        "errors": errors,
+    }
+
+
 def parse_candidate_response(text: str) -> dict[str, Any]:
     """Parse plain JSON or one Markdown-fenced JSON object."""
     if not isinstance(text, str) or not text.strip():
@@ -276,8 +412,9 @@ def _attempt(
     validation: dict[str, Any] | None = None,
     candidate: dict[str, Any] | None = None,
     latency_ms: int | None = None,
+    correction_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    attempt = {
         "kind": kind,
         "prompt": prompt,
         "prompt_chars": len(prompt) if isinstance(prompt, str) else None,
@@ -294,6 +431,9 @@ def _attempt(
         "validation": copy.deepcopy(validation),
         "candidate": copy.deepcopy(candidate),
     }
+    if correction_validation is not None:
+        attempt["correction_validation"] = copy.deepcopy(correction_validation)
+    return attempt
 
 
 def _failure(
@@ -627,13 +767,25 @@ def extract_chapter(
         report = _validate_candidate(
             request, candidate, candidate_version=candidate_version
         )
+        correction_validation = None
+        if round_no and candidate_version in (
+            READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION,
+        ):
+            previous = attempts[0]
+            correction_validation = _validate_correction(
+                previous.get("candidate"), previous.get("validation"), candidate,
+                candidate_version=candidate_version,
+            )
         attempts.append(
             _attempt(
                 kind=kind, prompt=prompt, raw_response=raw_response,
                 validation=report, candidate=candidate, latency_ms=latency_ms,
+                correction_validation=correction_validation,
             )
         )
-        if report.get("passed"):
+        if report.get("passed") and (
+            correction_validation is None or correction_validation["passed"]
+        ):
             artifact = _accept_candidate(
                 request,
                 candidate,
@@ -661,6 +813,9 @@ def extract_chapter(
                 request,
                 validation_errors=_flatten_report_errors(report),
                 previous_candidate=candidate,
+                preserve_translation=_preserve_translation(
+                    candidate, report, candidate_version=candidate_version,
+                ),
             )
         except PersistenceError as exc:
             return {
@@ -711,6 +866,12 @@ def extract_chapter(
         elif last.get("validation") is not None:
             detail = "; ".join(_flatten_report_errors(last["validation"]))
             categories = _error_categories(last["validation"])
+            correction_errors = (last.get("correction_validation") or {}).get("errors", [])
+            if correction_errors:
+                categories["translation_preservation"] = len(correction_errors)
+                detail = "; ".join(filter(None, [
+                    detail, *(f"translation_preservation: {e}" for e in correction_errors),
+                ]))
     correction_rounds_used = sum(1 for a in attempts if a.get("kind") == "correction")
     return {
         "accepted": False,
@@ -734,13 +895,54 @@ def extract_chapter(
     }
 
 
+def _history_attempt_bindings(
+    attempt: dict[str, Any], *, prompt_version: str,
+) -> list[str]:
+    """Verify the retained bytes/header, not only editable run-level labels."""
+    errors: list[str] = []
+    prompt = attempt.get("prompt")
+    if isinstance(prompt, str):
+        if (
+            attempt.get("prompt_sha256") != sha256_text(prompt)
+            or attempt.get("prompt_chars") != len(prompt)
+        ):
+            errors.append("prompt hash/size mismatch")
+        try:
+            prefix, header_text = prompt.split("\nCHAPTER REQUEST\n", 1)
+            header, _ = json.JSONDecoder().raw_decode(
+                header_text.lstrip()
+            )
+            # Legacy repairs precede the request; new repairs follow the
+            # full chapter. Exclude the source body from marker inspection.
+            suffix = prompt.rsplit("\n---END CHAPTER---\n", 1)[-1]
+            correction_prompt = "\nCORRECTION RE-ASK\n" in prefix + suffix
+            if correction_prompt != (attempt.get("kind") == "correction"):
+                errors.append("prompt repair scope disagrees with attempt kind")
+        except ValueError:
+            header = None
+        if not isinstance(header, dict) or header.get("prompt_version") != prompt_version:
+            errors.append("prompt header/version mismatch")
+    elif attempt.get("kind") != "correction-skipped":
+        errors.append("missing prompt for a model attempt")
+    raw = attempt.get("raw_response")
+    if isinstance(raw, str) and (
+        attempt.get("raw_response_sha256") != sha256_text(raw)
+        or attempt.get("raw_response_chars") != len(raw)
+        or attempt.get("raw_response_bytes") != len(raw.encode("utf-8"))
+    ):
+        errors.append("raw response hash/size mismatch")
+    return errors
+
+
 def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[str]:
     """Replay validation over a stored result; return mismatches (empty = OK).
 
     For every attempt carrying both a raw response and a stored
     validation report, re-parse and re-validate and compare the pass/fail
-    outcome plus the flattened error set. A mismatch means the history is
-    not replayable and must fail closed downstream.
+    outcome plus the flattened error set. New 0.2/0.3 runs also replay the
+    correction policy from the raw initial/corrected candidates. The
+    original v1 extraction histories retain their pre-policy interpretation.
+    A mismatch means the history is not replayable and must fail closed.
     """
     mismatches: list[str] = []
     attempts = result.get("attempts")
@@ -750,19 +952,88 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
         candidate_version = request_candidate_version(request)
     except PersistenceError as exc:
         return [f"stored request declares no usable candidate version: {exc}"]
+    check_correction = False
+    check_bindings = candidate_version in (
+        READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION,
+    )
+    if check_bindings:
+        fingerprints = result.get("fingerprints")
+        if not isinstance(fingerprints, dict):
+            return ["stored run carries no usable fingerprints"]
+        extraction_version = fingerprints.get("extraction_version")
+        policy_version = fingerprints.get("correction_policy_version")
+        prompt_version = fingerprints.get("prompt_version")
+        if (
+            not isinstance(extraction_version, str)
+            or not isinstance(prompt_version, str)
+            or (policy_version is not None and not isinstance(policy_version, str))
+            or prompt_version not in _HISTORY_PROMPT_VERSIONS.get(
+                (candidate_version, extraction_version, policy_version), set(),
+            )
+        ):
+            return [f"unsupported extraction/correction policy: {extraction_version!r}/{policy_version!r}"]
+        check_correction = policy_version == CORRECTION_POLICY_VERSION
+        kinds = [a.get("kind") if isinstance(a, dict) else None for a in attempts]
+        if kinds not in (["initial"], ["initial", "correction"], ["initial", "correction-skipped"]):
+            mismatches.append("history must contain an initial attempt and at most one correction")
+        if result.get("correction_rounds_used") != kinds.count("correction"):
+            mismatches.append("correction_rounds_used disagrees with attempt history")
+    previous_candidate = previous_report = None
+    passing_attempts: list[bool] = []
     for position, attempt in enumerate(attempts, 1):
         if not isinstance(attempt, dict):
             mismatches.append(f"attempt {position} is not a JSON object")
             continue
+        if check_bindings:
+            mismatches.extend(
+                f"attempt {position} {message}"
+                for message in _history_attempt_bindings(attempt, prompt_version=prompt_version)
+            )
+        if attempt.get("correction_validation") is not None and (
+            not check_correction or attempt.get("kind") != "correction"
+        ):
+            mismatches.append(f"attempt {position} has an unexpected correction policy")
+        if check_correction and (
+            (position == 1 and attempt.get("kind") != "initial")
+            or (position > 1 and attempt.get("kind") not in ("correction", "correction-skipped"))
+        ):
+            mismatches.append(f"attempt {position} has an invalid correction sequence")
         stored = attempt.get("validation")
         raw = attempt.get("raw_response")
+        # Only an actual parse failure can lead to a correction without an
+        # initial validation report. Missing first-draft evidence must not
+        # silently disable preservation for the second response.
+        if check_bindings and position == 1 and "correction" in kinds:
+            if not isinstance(raw, str):
+                mismatches.append("initial raw response is missing before correction")
+            elif stored is None:
+                try:
+                    parse_candidate_response(raw)
+                except ChapterModelError as exc:
+                    if attempt.get("parse_error") != str(exc):
+                        mismatches.append("initial parse error disagrees with its raw response")
+                else:
+                    mismatches.append("initial validation is missing before correction")
+        if check_bindings and stored is not None and raw is None:
+            mismatches.append(f"attempt {position} validation has no raw response")
         if stored is None or raw is None:
             continue  # Transport/size/policy failures have nothing to replay.
+        if (
+            not isinstance(stored, dict) or not isinstance(stored.get("errors"), dict)
+            or any(
+                not isinstance(messages, list) or any(not isinstance(e, str) for e in messages)
+                for messages in stored["errors"].values()
+            )
+        ):
+            mismatches.append(f"attempt {position} carries a malformed validation report")
+            continue
         try:
             candidate = parse_candidate_response(raw)
         except ChapterModelError as exc:
             mismatches.append(f"attempt {position} no longer parses: {exc}")
             continue
+        if check_bindings and candidate != attempt.get("candidate"):
+            mismatches.append(f"attempt {position} cached candidate disagrees with raw response")
         try:
             report = _validate_candidate(
                 request, candidate, candidate_version=candidate_version
@@ -770,6 +1041,20 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
         except Exception as exc:  # fail closed on any replay breakage
             mismatches.append(f"attempt {position} no longer validates: {exc}")
             continue
+        passed = bool(report.get("passed"))
+        if check_correction and position > 1:
+            correction = _validate_correction(
+                previous_candidate, previous_report, candidate,
+                candidate_version=candidate_version,
+            )
+            if correction != attempt.get("correction_validation"):
+                mismatches.append(f"attempt {position} replay disagrees on correction policy")
+            passed = passed and correction["passed"]
+        if position == 1:
+            previous_candidate, previous_report = candidate, report
+            if check_bindings and passed and "correction" in kinds:
+                mismatches.append("correction follows an already passing initial candidate")
+        passing_attempts.append(passed)
         if bool(report.get("passed")) != bool(stored.get("passed")):
             mismatches.append(
                 f"attempt {position} replay disagrees on outcome: stored "
@@ -778,18 +1063,8 @@ def verify_history(result: dict[str, Any], *, request: dict[str, Any]) -> list[s
             continue
         if set(_flatten_report_errors(report)) != set(_flatten_report_errors(stored)):
             mismatches.append(f"attempt {position} replay disagrees on error set")
-    if result.get("accepted") and not any(
-        isinstance(a, dict)
-        and a.get("validation") is not None
-        and a["validation"].get("passed")
-        for a in attempts
-    ):
+    if result.get("accepted") and not any(passing_attempts):
         mismatches.append("result claims accepted output with no passing attempt")
-    if not result.get("accepted") and any(
-        isinstance(a, dict)
-        and a.get("validation") is not None
-        and a["validation"].get("passed")
-        for a in attempts
-    ):
+    if not result.get("accepted") and any(passing_attempts):
         mismatches.append("result rejects output despite a passing attempt")
     return mismatches

@@ -169,21 +169,20 @@ Unit suite: `persistence/test_chapter_extraction_unit.py` (fake
 
 ## Whole-chapter joint translation/extraction + reading annotations (C2-R2-T03)
 
-> 本节描述 C2-R2 生产 0.2 联合路径（Issue #572，Task C2-R2-T03）。
+> 本节描述 C2-R2 的显式 0.2 联合路径（Issue #572，Task C2-R2-T03）；当前默认生产为下文的 0.3。
 > 契约权威见 [continuous-reading.md](continuous-reading.md) §§2–3；本节只说明
 > 生成/provider 落点，不复制规范。上文 C2-R1 的 0.1 小节保持不变。
 
-New production emits `chronicle.chapter-candidate / 0.2` — the frozen 0.1
+An explicit 0.2 request emits `chronicle.chapter-candidate / 0.2` — the frozen 0.1
 joint product (full translation + staged bundle + mentions + record_sources)
 plus one `reading` block — in the *same* whole-chapter request. There is no
 per-segment call and no read-time semantic annotation.
 
 - **Version registration.** `persistence/chapter_contract.py` owns the
-  candidate/artifact version registry after the first round:
-  `CANDIDATE_VERSIONS = ("0.1", "0.2")`, `PRODUCTION_CANDIDATE_VERSION =
-  "0.2"`, schema paths/IDs for both, and `candidate_schema_for(...)` /
-  `artifact_schema_for(...)`. 0.1 stays frozen; the 0.2 validator is **not**
-  reimplemented here.
+  candidate/artifact version registry, schema paths/IDs, and
+  `candidate_schema_for(...)` / `artifact_schema_for(...)`. 0.1 stays
+  frozen, 0.2 remains explicitly selectable, and 0.3 is the production
+  default. The 0.2 validator is **not** reimplemented here.
 - **One whole-chapter call + at most one whole-chapter correction.**
   `chapter_prompt.render_chapter_prompt` renders the 0.2 reading guide on
   top of the joint guide (main narrative vs. retrospective spans,
@@ -204,16 +203,17 @@ per-segment call and no read-time semantic annotation.
   instead of returning translation-only success.
 - **Fingerprints/run history.** `fingerprints` records
   `candidate_schema` (`.../0.1` vs `.../0.2`), `prompt_version`
-  (`c2r1-chapter-prompt-v10` vs `c2r2-chapter-prompt-v1`),
-  `extraction_version`, and — for 0.2 — `reading_schema` /
+  (`c2r1-chapter-prompt-v11` vs `c2r2-chapter-prompt-v5`),
+  `extraction_version` (`c2r2-extraction-v2` for 0.2),
+  `correction_policy_version`, and — for 0.2 — `reading_schema` /
   `reading_limits`, so model/contract/limit versions stay distinguishable.
 - **Provider/fixture parity.** `worker/extraction_model_schema.py` keeps the
   frozen 0.1 projection and adds `reading_chapter_candidate_model_schema()`
   with the required `reading` block; `chapter_candidate_text_format()`
-  returns the production 0.2 format and
-  `chapter_candidate_text_format_for(version)` selects either.
-  `model_provider.build_chapter_model(..., candidate_version=...)` defaults
-  to 0.2 and keeps the 4 MiB response cap / explicit output-token budget.
+  returns the current production format and
+  `chapter_candidate_text_format_for("0.2")` selects the reading format.
+  `model_provider.build_chapter_model(..., candidate_version="0.2")` keeps
+  the 4 MiB response cap / explicit output-token budget.
   `fixture_model.build_reading_chapter_candidate` /
   `models_from_reading_chapter_fixture_pack` emit the same 0.2 shape from
   one whole-chapter request.
@@ -226,6 +226,61 @@ Unit suites: `persistence/test_reading_extraction_unit.py`,
 `worker/test_reading_model_schema_unit.py`,
 `worker/test_reading_provider_unit.py`; the 0.1 first-round regression
 suites above stay in place.
+
+### Correction integrity for 0.2 and 0.3
+
+Both versions use the same bounded, whole-chapter correction path. The
+correction task, diagnostics and previous complete candidate follow the
+full source text. There is still at most one correction, returning one
+complete joint candidate; no patch-only output, per-paragraph model call,
+automatic splicing, or additional semantic retry is introduced.
+
+`chapter_extraction` inspects the **full original validator report** before
+selecting the repair scope. If the only failures concern known references,
+anchors, aliases, reading annotations or person-state metadata, and the
+translation has valid unique block IDs and non-empty text, the correction
+must preserve every ordered `(block_id, text)` exactly. Source block links,
+entity/event refs, spans and person-state annotations remain repairable; a
+span may move to the block containing its literal quote. The prompt does
+not simultaneously ask for prose expansion in this mode.
+
+Schema, source-coverage/order, identity, capacity, duplicate/invalid block
+IDs, parse failures and unknown error categories retain the ordinary full
+chapter repair. This includes a missing tail or an overlong paragraph that
+needs splitting, including when 0.3 nests those failures under `reading`.
+Neither branch certifies semantic completeness: an initial summary can
+still satisfy structural coverage and must be caught by content review.
+
+The correction uses at most twenty diagnostics, each bounded to 280
+characters, within 4,096 characters plus an omission summary when needed.
+Distinct array indices remain distinct repair locations. A chapter-wide
+anchor hint names a source block only for a unique match; repeated names
+require passage-context disambiguation, never automatic selection of the
+first occurrence. Full unabridged reports remain in attempt history. The
+archived 2026-09-12 v4 failure's sixteen diagnostics all fit this envelope.
+
+New runs bind `correction_policy_version=c2-chapter-correction-v1` in their
+fingerprints. Each parsed correction records `correction_validation` with
+the policy version, mode, pass/fail and differences. A prohibited rewrite
+rejects the complete product with `error.categories.translation_preservation`,
+even if candidate validation alone passes. Both original responses remain
+unchanged in the history. `verify_history` recomputes the same scope and
+comparison from those responses; it does not trust the stored decision.
+Original `c2r2-extraction-v1` / `c2r3-extraction-v1` histories keep their
+pre-policy interpretation, and unknown/missing current policy versions fail
+replay. Extraction, policy and prompt generations must agree, including the
+actual prompt header and recorded hashes/sizes. Replay also checks raw text
+against the cached candidate, retains the initial evidence before correction,
+and enforces the initial-plus-one-correction sequence and round count. Changing
+a new run's version labels cannot opt it into the legacy rule. The 0.1 path
+is unchanged.
+
+Regression suite: `persistence/test_chapter_correction_unit.py`. It includes
+the saved real v4 collapse, structurally valid but shortened corrections,
+legitimate reference/span repairs, structural prose repairs and history
+tampering. These offline checks do not replace a fresh real-provider run
+and independent source-to-translation review. The Chronicle static CI lane
+runs the correction, extraction and worker/provider unit suites.
 
 ## Whole-chapter joint translation/extraction + person states (C2-R3-T02)
 
@@ -267,8 +322,9 @@ state generation.
   `person_state_coverage`, `person_state_refs`, `person_state_phase`,
   `person_state_types`, `person_state_continuity`, `limits`, `canonical_id`).
 - **Fingerprints/run history.** `fingerprints` records `candidate_schema`
-  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v2`),
-  `extraction_version` (`c2r3-extraction-v1`), and for 0.3 the
+  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v3`),
+  `extraction_version` (`c2r3-extraction-v2`), `correction_policy_version`
+  (see the shared correction-integrity procedure above), and for 0.3 the
   `person_state_schema` / `person_state_contract` / `person_state_limits`
   (plus the reading bindings), so model/contract/limit versions stay
   distinguishable.

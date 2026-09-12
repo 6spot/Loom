@@ -413,6 +413,14 @@ jobs:
           python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_v0.py' -v
           python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_publication_v0.py' -v
 
+      - name: Chapter generation, correction and provider regressions
+        if: needs.changes.outputs.chronicle_python == 'true'
+        run: |
+          python3 -m pip install -r apps/chronicle/persistence/requirements.txt
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*extraction_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_correction_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p '*_unit.py' -v
+
       - name: Install Chronicle Rust toolchain
         if: needs.changes.outputs.chronicle_rust == 'true'
         run: |

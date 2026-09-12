@@ -1,0 +1,148 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "20054a3da610f32b83b96a0948eb4017769867cf",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v5",
+  "correction_policy_version": "c2-chapter-correction-v1",
+  "provider": {
+    "max_attempts": 3,
+    "max_output_tokens": 65536,
+    "max_response_bytes": 4194304,
+    "model": "gpt-5.6-luna",
+    "timeout_seconds": 600.0,
+    "http_observations": [
+      {
+        "http_attempt": 1,
+        "status": "completed",
+        "usage": {
+          "input_tokens": 36855,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 28455,
+          "output_tokens_details": {
+            "reasoning_tokens": 842
+          },
+          "total_tokens": 65310
+        }
+      },
+      {
+        "http_attempt": 2,
+        "status": "completed",
+        "usage": {
+          "input_tokens": 65011,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 28612,
+          "output_tokens_details": {
+            "reasoning_tokens": 1111
+          },
+          "total_tokens": 93623
+        }
+      }
+    ],
+    "total_usage": {
+      "input_tokens": 101866,
+      "output_tokens": 57067,
+      "total_tokens": 158933
+    },
+    "cost": null,
+    "cost_unavailable_reason": "Provider returned token usage but no billed cost; no price estimate is treated as a bill."
+  },
+  "scope": {
+    "entrypoints": [
+      "chapter_extraction.extract_chapter",
+      "model_provider.build_chapter_model"
+    ],
+    "input": "Same complete saved request as candidate-live-r2-20260912-v4.json",
+    "preflight": "canonical live preflight READY",
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false,
+    "note": "Isolated generation regression only; no four-chapter Studio/upload/review/publication/browser acceptance."
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+    "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "calls": {
+    "semantic_calls": 2,
+    "http_attempts": 2,
+    "transport_retries": 0,
+    "correction_rounds": 1
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "latency_ms": 517806,
+      "raw_sha256": "a06b9cc8d2cdedf7adf0f3c49a621053eaa40ed38d66fd7b1cb5fe0fc81a3d09",
+      "prompt_sha256": "596dc31a61947e1bdcb2ac20b2d635958f4b9adb15bf010e447cd691eadf276a",
+      "validation_errors": 7,
+      "translation_blocks": 41,
+      "translation_code_points": 15943,
+      "entities": 15,
+      "events": 10,
+      "claims": 0,
+      "reading_units": 41,
+      "event_spans": 8,
+      "context_entries": 45
+    },
+    {
+      "kind": "correction",
+      "latency_ms": 524385,
+      "raw_sha256": "cab423df6c914ae9520f7f1c2f500a73c423d447aeed5027ba14f91ffd4dbb7e",
+      "prompt_sha256": "c72c67a57ad456352ab48788c4c43d6607bb9620ff970f3c508a7234b1c5dc52",
+      "validation_errors": 0,
+      "translation_blocks": 41,
+      "translation_code_points": 15943,
+      "entities": 15,
+      "events": 10,
+      "claims": 0,
+      "reading_units": 41,
+      "event_spans": 8,
+      "context_entries": 45
+    }
+  ],
+  "checks": {
+    "mechanical_accepted": true,
+    "error": null,
+    "correction_validation": {
+      "errors": [],
+      "mode": "preserve_translation",
+      "passed": true,
+      "policy_version": "c2-chapter-correction-v1"
+    },
+    "ordered_block_ids_and_text_unchanged": true,
+    "server_history_replay_mismatches": [],
+    "local_history_replay_mismatches": [],
+    "initial_diagnostics": 7,
+    "sent_diagnostics": 7,
+    "diagnostic_characters": 887,
+    "independent_content_review": "FAIL",
+    "content_review_file": "reading-review-20260912-v5.md"
+  },
+  "evidence": {
+    "candidate_file": "candidate-live-r2-20260912-v5.json",
+    "candidate_file_sha256": "1f8aee40f94f5a28ec1788215e801949406943206d104a00c1c7d38b97d579c9"
+  },
+  "not_verified": [
+    "Full four-chapter R2 live acceptance",
+    "Studio human review and publication of this candidate",
+    "Browser reading of this candidate",
+    "R3 0.3 person-state generation/assessment/projection/browser acceptance"
+  ]
+}

@@ -76,6 +76,8 @@ Studio 显式选择来源后创建，章节导入本身不自动重写公开历�
 
 HTTP 运输重试沿用现有最多 3 次，和上述内容修正分开计数；job/租约重试继续受既有有限状态机约束。请求 fingerprint 和 run 历史记录实际模型、prompt/schema/plan/limits 版本。修正不塞回无限大的旧响应：完整章 + schema + 有界错误要求重新生成完整产物。
 
+0.2/0.3 联合产物的纠错按完整验证报告区分元数据修复与正文结构修复。仅修元数据时保留原有段落 ID、顺序及全文，结果仍是完整联合产物；缺段、正文超限等仍可完整修复。具体诊断预算、版本绑定和两稿重放程序见 [extraction.md 的纠错完整性说明](extraction.md#correction-integrity-for-02-and-03)。该限制防止纠错删文，不证明初稿翻译完整或正确。
+
 ## 4. 联合产物：机器契约的固定形状
 
 模型仅生成 `chronicle.chapter-candidate / 0.1`。程序补齐 hash、offset、DB ID 和 canonical 映射，模型不能生成它们。
