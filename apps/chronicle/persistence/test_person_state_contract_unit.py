@@ -363,6 +363,30 @@ class ReviewScopeTests(unittest.TestCase):
         self.assertTrue(P.review_scope_covers("all", "person_state"))
         self.assertTrue(P.review_scope_covers("all", "resolution"))
 
+    def test_omitted_scope_still_covers_narrative_facts_prose(self) -> None:
+        # §5.1 regression: the legacy entry keeps comprehensive facts/prose;
+        # adding person_state must not make narrative items disappear. This
+        # must match person-state-types.ts reviewScopeCovers exactly.
+        self.assertTrue(P.review_scope_covers(None, "narrative"))
+        self.assertTrue(P.review_scope_covers("", "narrative"))
+        self.assertTrue(P.review_scope_covers("resolution", "narrative"))
+        self.assertTrue(P.review_scope_covers("all", "narrative"))
+
+    def test_scope_coverage_matrix_matches_ts(self) -> None:
+        expected = {
+            None: {"resolution": True, "person_state": False, "narrative": True},
+            "resolution": {"resolution": True, "person_state": False, "narrative": True},
+            "person_state": {"resolution": False, "person_state": True, "narrative": False},
+            "all": {"resolution": True, "person_state": True, "narrative": True},
+        }
+        for scope, surfaces in expected.items():
+            for target, covered in surfaces.items():
+                with self.subTest(scope=scope, target=target):
+                    self.assertEqual(
+                        P.review_scope_covers(scope, target), covered,
+                        f"scope={scope!r} target={target!r}",
+                    )
+
     def test_unknown_scope_and_link_kind_mixing_rejected(self) -> None:
         with self.assertRaises(PersistenceError):
             P.normalize_review_scope("narrative")

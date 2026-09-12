@@ -1488,10 +1488,24 @@ def normalize_review_scope(value: Any) -> str:
 
 
 def review_scope_covers(scope: str, target: str) -> bool:
+    """Return whether a review scope includes one review surface.
+
+    Mirrors ``person-state-types.ts`` ``reviewScopeCovers`` and
+    ``person-state-reading.md`` §5.1 exactly:
+
+    - the omitted scope normalizes to ``resolution`` and covers both the
+      identity ``resolution`` surface and the existing facts/prose
+      ``narrative`` surface, so adding person_state never drops the
+      current comprehensive review entry;
+    - ``person_state`` covers only ``person_state``;
+    - ``all`` covers ``resolution``, ``person_state`` and ``narrative``.
+    """
     scope = normalize_review_scope(scope)
     if scope == "all":
         return True
-    return scope == target
+    if scope == "person_state":
+        return target == "person_state"
+    return target in ("resolution", "narrative")
 
 
 def assert_link_kind_scope(scope: str, link_kind: Any) -> None:

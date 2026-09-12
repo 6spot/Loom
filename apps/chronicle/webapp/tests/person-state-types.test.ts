@@ -78,6 +78,13 @@ describe("review scope", () => {
     expect(reviewScopeCovers("all", "resolution")).toBe(true);
     expect(reviewScopeCovers("all", "person_state")).toBe(true);
     expect(reviewScopeCovers("all", "narrative")).toBe(true);
+    // §5.1 parity with Python review_scope_covers: the omitted/resolution
+    // entry still includes the existing facts/prose (narrative) surface.
+    expect(reviewScopeCovers(undefined, "narrative")).toBe(true);
+    expect(reviewScopeCovers("resolution", "narrative")).toBe(true);
+    expect(reviewScopeCovers("resolution", "person_state")).toBe(false);
+    expect(reviewScopeCovers("person_state", "narrative")).toBe(false);
+    expect(reviewScopeCovers("person_state", "person_state")).toBe(true);
     expect(REVIEW_SCOPES).toEqual(["resolution", "person_state", "all"]);
   });
 
