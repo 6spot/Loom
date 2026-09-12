@@ -385,15 +385,19 @@ item and a phase that is not bound to the unit's compiled manifest raise an
 error instead of returning a misleading empty page, and
 `list_catalog_disagreements` rejects an unknown catalog.
 
-Snapshot visibility never uses wall-clock time. When a `catalog_sha` is
-supplied the stream's origin catalog `publication_sequence` must be `<=` the
-snapshot's, exactly like the reading store, so an older snapshot never sees a
-later state manifest. The disagreement overlay only combines the **exact**
-supplied catalog's recorded links: reading with an older catalog never sees a
-newer catalog's disagreements, and the overlay can only add recorded
-`source_disagreement` reasons and downgrade certainty — it never promotes an
-uncertain claim to clear. Existing groups/production publishes new immutable
-versions instead of editing rows.
+Snapshot visibility never uses wall-clock time. An omitted `catalog_sha` is
+normalized once to the stream's own origin snapshot and that single effective
+catalog is used consistently for the cursor scope, the response
+`catalog_sha` and the disagreement overlay — so a client can read a first page
+without a catalog and follow up with the catalog SHA the response advertised.
+When a `catalog_sha` is supplied the stream's origin catalog
+`publication_sequence` must be `<=` the snapshot's, exactly like the reading
+store, so an older snapshot never sees a later state manifest. The disagreement
+overlay only combines that effective catalog's recorded links: a cursor or read
+is never silently combined with another catalog's disagreements, and the
+overlay can only add recorded `source_disagreement` reasons and downgrade
+certainty — it never promotes an uncertain claim to clear. Existing
+groups/production publishes new immutable versions instead of editing rows.
 
 ```bash
 python3 -m pip install -r apps/chronicle/persistence/requirements.txt

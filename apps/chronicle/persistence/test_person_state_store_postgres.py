@@ -1278,12 +1278,14 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                     catalog_two,
                     [
                         self._disagreement_entry(
-                            ctx, fact_refs=["pf_001", "pf_003"], topic="來源"
+                            ctx, fact_refs=["pf_005", "pf_006"], topic="來源"
                         )
                     ],
                 ),
             )
 
+            # An omitted catalog means the origin snapshot, whose own recorded
+            # disagreement is combined.
             plain = store.list_unit_person_states(
                 conn,
                 stream_id=stream_id,
@@ -1291,7 +1293,9 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                 person_id=person_id,
                 section="identities",
             )
-            self.assertEqual(plain["items"][0]["certainty"], "clear")
+            self.assertEqual(plain["catalog_sha"], catalog_one)
+            self.assertEqual(plain["items"][0]["certainty"], "uncertain")
+            self.assertIn("source_disagreement", plain["items"][0]["reason_codes"])
 
             c1 = store.list_unit_person_states(
                 conn,
@@ -1304,8 +1308,20 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             self.assertEqual(c1["items"][0]["certainty"], "uncertain")
             self.assertIn("source_disagreement", c1["items"][0]["reason_codes"])
 
-            # The newer catalog's disagreement is not combined with the older
-            # catalog read (exact catalog isolation).
+            # A later catalog only overlays its own (non-matching) links, so the
+            # same item stays clear there: exact catalog isolation.
+            c2 = store.list_unit_person_states(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                person_id=person_id,
+                section="identities",
+                catalog_sha=catalog_two,
+            )
+            self.assertEqual(c2["catalog_sha"], catalog_two)
+            self.assertEqual(c2["items"][0]["certainty"], "clear")
+            self.assertEqual(c2["items"][0]["reason_codes"], [])
+
             listed_one = store.list_catalog_disagreements(conn, catalog_sha=catalog_one)
             self.assertEqual(len(listed_one["items"]), 1)
             self.assertEqual(listed_one["items"][0]["topic"], "任職")
@@ -1359,7 +1375,7 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             unit_id = fx["unit_id"]
             person_a = fx["person_a"]
             person_b = fx["person_b"]
-            catalog_sha = fx["catalog_sha"]
+            catalog_two = self._seed_catalog(conn, tag="c2")
 
             states = store.list_unit_person_states(
                 conn,
@@ -1407,7 +1423,7 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                     unit_id=unit_id,
                     person_id=person_a,
                     section="identities",
-                    catalog_sha=catalog_sha,
+                    catalog_sha=catalog_two,
                     cursor=cursor,
                 )
 
@@ -1421,7 +1437,7 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                     conn,
                     stream_id=stream_id,
                     unit_id=unit_id,
-                    catalog_sha=catalog_sha,
+                    catalog_sha=catalog_two,
                     cursor=people_cursor,
                 )
 
@@ -1463,6 +1479,114 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                     unit_id=unit_id,
                     cursor="not-base64!!",
                 )
+
+    def test_no_catalog_first_page_then_follow_up_with_returned_catalog(self) -> None:
+        with self._connect_ready() as conn:
+            fx = self._state_fixture(conn)
+            stream_id = fx["stream_id"]
+            unit_id = fx["unit_id"]
+            origin = fx["catalog_sha"]
+            person_a = fx["person_a"]
+            person_b = fx["person_b"]
+
+            # An omitted-catalog read still overlays the origin snapshot's
+            # own recorded disagreements (it advertises that catalog).
+            store.persist_person_state_disagreements(
+                conn,
+                self._disagreements(
+                    origin,
+                    [
+                        self._disagreement_entry(
+                            fx["ctx"], fact_refs=["pf_000", "pf_003"], topic="任職"
+                        )
+                    ],
+                ),
+            )
+
+            # people: first page without a catalog, follow-up with the returned
+            # catalog SHA must succeed and reach the final page.
+            page = store.list_unit_people(
+                conn, stream_id=stream_id, unit_id=unit_id, limit=1
+            )
+            self.assertEqual(page["catalog_sha"], origin)
+            self.assertTrue(page["has_more"])
+            seen = [person["person_id"] for person in page["people"]]
+            page = store.list_unit_people(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                catalog_sha=page["catalog_sha"],
+                limit=1,
+                cursor=page["next_cursor"],
+            )
+            self.assertEqual(page["catalog_sha"], origin)
+            self.assertFalse(page["has_more"])
+            seen.extend(person["person_id"] for person in page["people"])
+            self.assertEqual(sorted(seen), sorted([person_a, person_b]))
+
+            # identities: walk every page, passing the returned catalog on the
+            # follow-up requests, and see the omitted-catalog overlay.
+            seen_ids: list[str] = []
+            cursor = None
+            catalog = None
+            while True:
+                page = store.list_unit_person_states(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    section="identities",
+                    catalog_sha=catalog,
+                    limit=1,
+                    cursor=cursor,
+                )
+                self.assertEqual(page["catalog_sha"], origin)
+                seen_ids.extend(item["item_id"] for item in page["items"])
+                if not page["has_more"]:
+                    break
+                cursor = page["next_cursor"]
+                catalog = page["catalog_sha"]
+            self.assertEqual(len(seen_ids), 4)
+            self.assertEqual(len(set(seen_ids)), 4)
+
+            first = store.list_unit_person_states(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                person_id=person_a,
+                section="identities",
+                limit=1,
+            )
+            self.assertEqual(first["items"][0]["certainty"], "uncertain")
+            self.assertIn("source_disagreement", first["items"][0]["reason_codes"])
+
+            # evidence: same first-page-without-catalog then returned-catalog
+            # follow-up flow.
+            item_id = fx["a_identities"][0]["item_id"]
+            seen_descriptors: list[str] = []
+            cursor = None
+            catalog = None
+            while True:
+                page = store.list_state_item_evidence(
+                    conn,
+                    stream_id=stream_id,
+                    unit_id=unit_id,
+                    person_id=person_a,
+                    item_id=item_id,
+                    catalog_sha=catalog,
+                    limit=1,
+                    cursor=cursor,
+                )
+                self.assertEqual(page["catalog_sha"], origin)
+                seen_descriptors.extend(
+                    descriptor["descriptor_id"] for descriptor in page["descriptors"]
+                )
+                if not page["has_more"]:
+                    break
+                cursor = page["next_cursor"]
+                catalog = page["catalog_sha"]
+            self.assertEqual(len(seen_descriptors), 4)
+            self.assertEqual(len(set(seen_descriptors)), 4)
 
     def test_person_and_phase_membership_with_catalog(self) -> None:
         with self._connect_ready() as conn:

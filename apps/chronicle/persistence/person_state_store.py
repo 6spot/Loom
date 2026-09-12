@@ -1279,12 +1279,15 @@ def list_unit_people(
     meta = _manifest_metadata(conn, stream_id=stream_id, unit_id=unit_id)
     if catalog_sha is not None:
         _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
+    # The omitted catalog means the stream's own origin snapshot. Normalize it
+    # once so the cursor scope, the response and the overlay all agree.
+    effective_catalog_sha = catalog_sha or meta["origin_catalog_sha"]
 
     scope = {
         "kind": "unit_people",
         "stream_id": str(stream_id),
         "unit_id": unit_id,
-        "catalog_sha": catalog_sha,
+        "catalog_sha": effective_catalog_sha,
         "manifest_sha": meta["manifest_sha"],
     }
     clauses = ["stream_id = %s", "unit_id = %s"]
@@ -1312,7 +1315,7 @@ def list_unit_people(
             manifest_sha=meta["manifest_sha"],
             stream_id=stream_id,
             unit_id=unit_id,
-            catalog_sha=catalog_sha,
+            catalog_sha=effective_catalog_sha,
         )
         for row in rows
     ]
@@ -1325,7 +1328,7 @@ def list_unit_people(
     return {
         "stream_id": str(stream_id),
         "unit_id": unit_id,
-        "catalog_sha": catalog_sha or meta["origin_catalog_sha"],
+        "catalog_sha": effective_catalog_sha,
         "publication_id": meta["publication_id"],
         "state_manifest_sha": meta["manifest_sha"],
         "phase_mode": meta["phase_mode"],
@@ -1427,6 +1430,9 @@ def list_unit_person_states(
     )
     if phase_id is not None:
         _require_bound_phase(meta, phase_id)
+    # The omitted catalog means the stream's own origin snapshot. Normalize it
+    # once so the cursor scope, the response and the overlay all agree.
+    effective_catalog_sha = catalog_sha or meta["origin_catalog_sha"]
 
     scope = {
         "kind": "unit_person_states",
@@ -1435,7 +1441,7 @@ def list_unit_person_states(
         "person_id": person_id,
         "section": section,
         "phase_id": phase_id,
-        "catalog_sha": catalog_sha,
+        "catalog_sha": effective_catalog_sha,
         "manifest_sha": meta["manifest_sha"],
     }
     item_kind = "identity" if section == "identities" else "change"
@@ -1469,7 +1475,9 @@ def list_unit_person_states(
     has_more = len(rows) > limit
     rows = rows[:limit]
     payloads = [dict(row[2]) for row in rows]
-    payloads = _overlay_catalog_disagreements(conn, catalog_sha=catalog_sha, rows=payloads)
+    payloads = _overlay_catalog_disagreements(
+        conn, catalog_sha=effective_catalog_sha, rows=payloads
+    )
     next_cursor = None
     if has_more and rows:
         next_cursor = _encode_cursor(scope, rows[-1][1])
@@ -1478,7 +1486,7 @@ def list_unit_person_states(
     return {
         "stream_id": str(stream_id),
         "unit_id": unit_id,
-        "catalog_sha": catalog_sha or meta["origin_catalog_sha"],
+        "catalog_sha": effective_catalog_sha,
         "publication_id": meta["publication_id"],
         "state_manifest_sha": meta["manifest_sha"],
         "person_id": person_id,
@@ -1522,6 +1530,9 @@ def list_state_item_evidence(
     )
     if phase_id is not None:
         _require_bound_phase(meta, phase_id)
+    # The omitted catalog means the stream's own origin snapshot. Normalize it
+    # once so the cursor scope and the response agree across pages.
+    effective_catalog_sha = catalog_sha or meta["origin_catalog_sha"]
 
     item = conn.execute(
         "SELECT 1 FROM chronicle.person_state_items"
@@ -1540,7 +1551,7 @@ def list_state_item_evidence(
         "person_id": person_id,
         "item_id": item_id,
         "phase_id": phase_id,
-        "catalog_sha": catalog_sha,
+        "catalog_sha": effective_catalog_sha,
         "manifest_sha": meta["manifest_sha"],
     }
     clauses = ["stream_id = %s", "unit_id = %s", "item_id = %s"]
@@ -1586,7 +1597,7 @@ def list_state_item_evidence(
     return {
         "stream_id": str(stream_id),
         "unit_id": unit_id,
-        "catalog_sha": catalog_sha or meta["origin_catalog_sha"],
+        "catalog_sha": effective_catalog_sha,
         "publication_id": meta["publication_id"],
         "state_manifest_sha": meta["manifest_sha"],
         "item_id": item_id,
