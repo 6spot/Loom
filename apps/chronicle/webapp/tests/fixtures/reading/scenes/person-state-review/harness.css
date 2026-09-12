@@ -1,0 +1,98 @@
+/* C2-R3-T12 审核组件 harness 自身样式（仅测试使用，不进生产构建）。 */
+.psr-harness {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.psr-harness-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #e2e6e2;
+}
+
+.psr-harness-flag {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid #d9c489;
+  border-radius: 999px;
+  background: #fdf8ea;
+  color: #6a5312;
+  font-size: 0.8rem;
+}
+
+.psr-harness-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed #c9d2cb;
+  border-radius: 6px;
+  background: #f7f9f7;
+  font-size: 0.85rem;
+}
+
+.psr-harness-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.psr-harness-controls select {
+  min-height: 40px;
+  border: 1px solid #d7dcd6;
+  border-radius: 5px;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}
+
+.psr-harness-controls button {
+  min-height: 40px;
+  border: 1px solid #cfd6cf;
+  border-radius: 5px;
+  background: #fff;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.psr-harness-source-error {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #e6c46a;
+  border-radius: 6px;
+  background: #fdf7e4;
+  color: #6a5312;
+}
+
+.psr-harness-source {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.psr-harness-source-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.psr-harness-source-tabs button {
+  min-height: 44px;
+  border: 1px solid #cfd6cf;
+  border-radius: 5px;
+  background: #fff;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.psr-harness-source p {
+  margin: 0;
+  font-family: "Songti SC", serif;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
