@@ -1519,7 +1519,11 @@ def build_person_state_plan(
             f"job {job_id} has no frozen base catalog for the person-state plan"
         )
     resolution_hashes = sorted(sha256_json(item) for item in final_resolutions)
-    plan = person_state_review.build_person_state_review_plan(
+    # ``build_person_state_review_plan`` computes the complete
+    # evidence-manifest digest before fingerprinting and includes it in the
+    # plan fingerprint, so the frozen review/assessment plan is bound to the
+    # exact evidence manifests it was reviewed against.
+    return person_state_review.build_person_state_review_plan(
         job_id=job_id,
         revision_id=revision_id,
         accepted_artifacts=accepted_artifacts,
@@ -1527,13 +1531,6 @@ def build_person_state_plan(
         resolution_hashes=resolution_hashes,
         base_catalog_sha=base_catalog_sha256,
     )
-    # Freeze the complete evidence-manifest digest as its own plan field. The
-    # plan is recorded under sha256_json(plan), so the digest is bound to the
-    # frozen plan content key; publish requires it and fails closed when the
-    # persisted manifests no longer match.
-    manifests = assembly.get("evidence_manifests")
-    plan["evidence_manifests_sha256"] = sha256_json(manifests if isinstance(manifests, list) else [])
-    return plan
 
 
 def _person_state_context(projection: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:

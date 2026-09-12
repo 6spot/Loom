@@ -463,6 +463,39 @@ class PersonStatePipelineTests(unittest.TestCase):
         self.assertIn("state_drift", str(error))
         self._assert_no_public_state()
 
+    def test_plan_manifest_digest_tamper_fails_fingerprint(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT output_id, payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_id, R.PERSON_STATE_PLAN_OUTPUT_TYPE),
+            ).fetchone()
+            output_id, payload = row
+            tampered = payload["plan"]
+            tampered["evidence_manifests_sha256"] = "0" * 64
+            # Keep the plan bound to its recorded content key so only the
+            # fingerprinted manifest digest can reject it.
+            conn.execute(
+                "UPDATE chronicle.ingestion_outputs SET payload = %s, artifact_sha256 = %s"
+                " WHERE output_id = %s",
+                (Jsonb(payload), R.sha256_json(tampered), output_id),
+            )
+            conn.commit()
+            # The frozen review/assessment plan is bound to the digest through
+            # the fingerprint, so the validator rejects the tampered digest.
+            with self.assertRaises(PersistenceConflict) as ctx:
+                person_state_review.validate_person_state_review_plan(tampered)
+            self.assertIn("fingerprint mismatch", str(ctx.exception))
+        error = self._claim_and_publish(job_id)
+        self.assertIn("fingerprint mismatch", str(error))
+        self._assert_no_public_state()
+
     def test_wrong_phase_association_fails_closed_at_publish(self):
         job_id = self._drive_to_park()
         job, text, source_sha, model, plan = self.args

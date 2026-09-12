@@ -322,6 +322,30 @@ class PersonStateReviewPlanTests(unittest.TestCase):
         changed_catalog = _plan(base_catalog_sha="f" * 64)
         self.assertNotEqual(baseline["plan_fingerprint"], changed_catalog["plan_fingerprint"])
 
+    def test_evidence_manifest_digest_is_a_fingerprint_input(self) -> None:
+        baseline = _plan()
+        changed_assembly = _assembly()
+        # A benign manifest field that the reference map never reads: only the
+        # frozen evidence-manifest digest can notice it, and it must change the
+        # plan fingerprint.
+        changed_assembly["evidence_manifests"][0]["source_sha256"] = "a" * 64
+        changed = _plan(assembly=changed_assembly)
+        self.assertNotEqual(
+            baseline["evidence_manifests_sha256"], changed["evidence_manifests_sha256"]
+        )
+        self.assertNotEqual(baseline["plan_fingerprint"], changed["plan_fingerprint"])
+
+    def test_tampered_evidence_manifest_digest_fails_closed(self) -> None:
+        plan = _plan()
+        plan["evidence_manifests_sha256"] = "0" * 64
+        with self.assertRaisesRegex(PersistenceConflict, "fingerprint mismatch"):
+            review.validate_person_state_review_plan(plan)
+        # A plan without the digest is rejected too (new required binding).
+        missing = _plan()
+        missing.pop("evidence_manifests_sha256")
+        with self.assertRaisesRegex(PersistenceConflict, "evidence-manifest digest"):
+            review.validate_person_state_review_plan(missing)
+
     def test_predicted_effect_distinguishes_operations(self) -> None:
         candidates = {
             candidate["item_ref"]: candidate

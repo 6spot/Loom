@@ -368,17 +368,25 @@ def person_state_plan_fingerprint(
     *,
     accepted_artifact_hashes: list[str],
     assembled_hash: str,
+    evidence_manifests_sha256: str,
     resolution_hashes: list[str],
     base_catalog_sha: str,
     candidate_keys: list[str],
 ) -> str:
-    """The ``c2r3-person-state-review-plan-v1`` fingerprint input."""
+    """The ``c2r3-person-state-review-plan-v1`` fingerprint input.
+
+    ``evidence_manifests_sha256`` is the complete assembled evidence-manifest
+    digest. It is a first-class fingerprint input (not only a stored plan
+    field), so the frozen review/assessment plan is cryptographically bound to
+    the exact evidence manifests it was reviewed against.
+    """
     return sha256_json(
         {
             "contract": CONTRACT_VERSION,
             "plan": "c2r3-person-state-review-plan-v1",
             "accepted_artifact_hashes": sorted(accepted_artifact_hashes),
             "assembled_hash": assembled_hash,
+            "evidence_manifests_sha256": evidence_manifests_sha256,
             "resolution_hashes": sorted(resolution_hashes),
             "base_catalog_sha": base_catalog_sha,
             "candidate_keys": sorted(candidate_keys),

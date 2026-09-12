@@ -130,9 +130,12 @@ unchanged. Thin orchestration lives in
   before the publish checkpoint. A 0.3 book first re-verifies every frozen
   state binding after the final resolutions are derived: the assembled
   ``person_states`` hash must equal the plan's ``assembled_hash``, the
-  complete evidence-manifest digest is frozen in the plan
-  (``evidence_manifests_sha256``; the plan object is bound to its recorded
-  content key) and must match the persisted manifests, every manifest must
+  complete evidence-manifest digest is computed before
+  ``person_state_plan_fingerprint`` and is a first-class fingerprint input
+  (``evidence_manifests_sha256``, recomputed by
+  ``validate_person_state_review_plan`` and therefore binding every review and
+  assessment to the exact manifests) and must match the persisted manifests,
+  every manifest must
   still carry the accepted ``artifact_sha256``/``source_sha256``/
   ``normalized_sha256`` (and agree with the accepted artifact's own
   ``person_states_sha256``), the manifests must still map every frozen
@@ -424,15 +427,21 @@ retry publishes the complete set. The same file also drives the full
 history; the facts and prose review gates each block publication; after
 both approvals the published history text, reviewed states and conclusion
 evidence read back on one fixed `publication_version`, with the reviewed
-source states present in the frozen composite context. Three independent
+source states present in the frozen composite context. Four independent
 negative cases prove the publish boundary: mutating the persisted
 assembled `person_states` fails closed with `state_drift`; mutating only a
 persisted evidence manifest's `source_sha256` and rewriting the same row's
 `report.evidence_manifests_sha256` still fails closed with `state_drift`
-against the frozen plan digest; and a frozen candidate phase that is not in
-the assembled evidence fails closed with `wrong_phase`. Each asserts every
+against the frozen plan digest; tampering the frozen plan's
+`evidence_manifests_sha256` (while keeping the plan content key consistent)
+is rejected by the plan fingerprint itself; and a frozen candidate phase
+that is not in the assembled evidence fails closed with `wrong_phase`. Each
+asserts every
 public table (catalog, chapter, reading index, state
-manifest/index/assessment/disagreement) stays empty. No-manifest 0.2
+manifest/index/assessment/disagreement) stays empty. Unit tests in
+`persistence/test_person_state_contract_unit.py` and
+`persistence/test_person_state_review_unit.py` prove the
+evidence-manifest digest is a fingerprint input. No-manifest 0.2
 sources contribute an explicitly empty
 `reviewed_person_states` list (regression in
 `worker/test_narrative_pipeline_postgres.py`).

@@ -462,15 +462,32 @@ class DtoContractTests(unittest.TestCase):
     def test_plan_fingerprint_is_order_insensitive(self) -> None:
         first = P.person_state_plan_fingerprint(
             accepted_artifact_hashes=["a", "b"], assembled_hash="x",
+            evidence_manifests_sha256="m" * 64,
             resolution_hashes=["r2", "r1"], base_catalog_sha=CATALOG_SHA,
             candidate_keys=["k2", "k1"],
         )
         second = P.person_state_plan_fingerprint(
             accepted_artifact_hashes=["b", "a"], assembled_hash="x",
+            evidence_manifests_sha256="m" * 64,
             resolution_hashes=["r1", "r2"], base_catalog_sha=CATALOG_SHA,
             candidate_keys=["k1", "k2"],
         )
         self.assertEqual(first, second)
+
+    def test_plan_fingerprint_covers_evidence_manifest_digest(self) -> None:
+        baseline = P.person_state_plan_fingerprint(
+            accepted_artifact_hashes=["a"], assembled_hash="x",
+            evidence_manifests_sha256="m" * 64,
+            resolution_hashes=["r1"], base_catalog_sha=CATALOG_SHA,
+            candidate_keys=["k1"],
+        )
+        changed = P.person_state_plan_fingerprint(
+            accepted_artifact_hashes=["a"], assembled_hash="x",
+            evidence_manifests_sha256="n" * 64,
+            resolution_hashes=["r1"], base_catalog_sha=CATALOG_SHA,
+            candidate_keys=["k1"],
+        )
+        self.assertNotEqual(baseline, changed)
 
 
 if __name__ == "__main__":
