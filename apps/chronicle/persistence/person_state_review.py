@@ -357,6 +357,22 @@ def build_person_state_review_plan(
             "assembly report person_states_sha256 does not match the actual assembled "
             f"payload ({reported_hash!r} != {assembled_hash!r}); refusing to freeze a plan"
         )
+    manifests = assembly.get("evidence_manifests")
+    if not isinstance(manifests, list):
+        raise PersistenceError(
+            "person-state assembly must carry its evidence manifests"
+        )
+    evidence_manifests_sha256 = sha256_json(manifests)
+    reported_manifest_hash = report.get("evidence_manifests_sha256")
+    if (
+        reported_manifest_hash is not None
+        and reported_manifest_hash != evidence_manifests_sha256
+    ):
+        raise PersistenceConflict(
+            "assembly report evidence_manifests_sha256 does not match the actual "
+            f"assembled manifests ({reported_manifest_hash!r} != "
+            f"{evidence_manifests_sha256!r}); refusing to freeze a plan"
+        )
 
     references = _reference_maps(assembly)
     artifact_hashes: list[str] = []
@@ -399,6 +415,7 @@ def build_person_state_review_plan(
     fingerprint = _contract.person_state_plan_fingerprint(
         accepted_artifact_hashes=sorted(artifact_hashes),
         assembled_hash=assembled_hash,
+        evidence_manifests_sha256=evidence_manifests_sha256,
         resolution_hashes=sorted(hashes),
         base_catalog_sha=base_catalog_sha,
         candidate_keys=candidate_keys,
@@ -410,6 +427,7 @@ def build_person_state_review_plan(
         "revision_id": str(revision_id),
         "base_catalog_sha": base_catalog_sha,
         "assembled_hash": assembled_hash,
+        "evidence_manifests_sha256": evidence_manifests_sha256,
         "accepted_artifact_hashes": sorted(artifact_hashes),
         "resolution_hashes": sorted(hashes),
         "candidate_keys": candidate_keys,
@@ -491,9 +509,15 @@ def validate_person_state_review_plan(plan: dict[str, Any]) -> str:
     resolutions = plan.get("resolution_hashes")
     if not isinstance(accepted, list) or not isinstance(resolutions, list):
         raise PersistenceConflict("person-state review plan is missing its hash bindings")
+    manifest_digest = plan.get("evidence_manifests_sha256")
+    if not isinstance(manifest_digest, str) or not _SHA_RE.match(manifest_digest):
+        raise PersistenceConflict(
+            "person-state review plan is missing its evidence-manifest digest"
+        )
     recomputed = _contract.person_state_plan_fingerprint(
         accepted_artifact_hashes=[str(value) for value in accepted],
         assembled_hash=str(plan.get("assembled_hash")),
+        evidence_manifests_sha256=manifest_digest,
         resolution_hashes=[str(value) for value in resolutions],
         base_catalog_sha=str(plan.get("base_catalog_sha")),
         candidate_keys=frozen_keys,

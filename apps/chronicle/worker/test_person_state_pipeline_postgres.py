@@ -1,0 +1,774 @@
+"""PostgreSQL 18 integration tests for the C2-R3-T08 person-state publication.
+
+Proves the production chapter chain freezes, reviews and publishes the 0.3
+phase evidence in the same unique transaction as the catalog, every complete
+chapter and the reading index:
+
+- a fresh 0.3 revision extracts/assembles/resolves; identity Resolution
+  finishes first and the job then parks in ``needs_review`` on one
+  ``chapter_state_evidence`` package per chapter;
+- once every package is terminal the same job resumes through
+  publish/present and exposes exactly one immutable person-state manifest
+  whose units bind the reading stream and whose reviewed assessment is
+  persisted in the same transaction;
+- replaying the same accepted artifacts, assessments and mapping reuses the
+  identical manifest and assessment without a second model call;
+- a fault injected after the catalog/chapters/reading index while writing the
+  person-state manifest leaves zero public content (no catalog, chapter,
+  stream, manifest or assessment), and a clean retry then succeeds.
+
+The 0.3 joint provider is the explicit fixture-pack test injection
+(``FixturePersonStateChapterModel``); production model selection is covered by
+``test_person_state_provider_unit.py``.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import sys
+import tempfile
+import unittest
+import uuid
+from pathlib import Path
+
+import psycopg
+from psycopg.types.json import Jsonb
+
+HERE = Path(__file__).resolve().parent
+for path in (HERE, HERE.parent / "persistence", HERE.parent / "read_api"):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+import chapter_contract  # noqa: E402
+import chapter_store  # noqa: E402
+import control_plane  # noqa: E402
+import narrative_store  # noqa: E402
+import person_state_contract  # noqa: E402
+import person_state_review  # noqa: E402
+from common import PersistenceConflict, PersistenceError  # noqa: E402
+from migrations import apply_migrations  # noqa: E402
+
+import chapter_stage as stage  # noqa: E402
+import history  # noqa: E402
+import resolve_publish as R  # noqa: E402
+import studio_jobs  # noqa: E402
+import test_reading_pipeline_postgres as base  # noqa: E402
+from test_narrative_contract import drafts as narrative_drafts  # noqa: E402
+
+
+TEXT = """# 測試書
+
+## 先主傳
+
+劉備字玄德，涿郡涿縣人也。公孫瓚舉備為別部司馬。
+
+## 周瑜傳
+
+周瑜字公瑾，廬江舒人也。孫策與瑜為友。
+"""
+
+
+def _specs() -> list[dict]:
+    return [
+        {
+            "translation": "劉備，字玄德，公孫瓚任其為別部司馬。",
+            "entities": [
+                {"name": "劉備", "type": "person", "mention": "劉備"},
+                {"name": "公孫瓚", "type": "person", "mention": "公孫瓚"},
+            ],
+            "event": {"type": "appointment", "title": "公孫瓚舉劉備"},
+        },
+        {
+            "translation": "周瑜，字公瑾，與孫策為友。",
+            "entities": [
+                {"name": "周瑜", "type": "person", "mention": "周瑜"},
+                {"name": "孫策", "type": "person", "mention": "孫策"},
+            ],
+            "event": {"type": "cultural", "title": "孫策周瑜為友"},
+        },
+    ]
+
+
+class StateAwareNarrativeModel:
+    """Deterministic composite model that consumes the reviewed source states.
+
+    The base drafts come from the frozen narrative contract fixture; this model
+    additionally derives one reviewed ``office`` conclusion per source from the
+    published ``reviewed_person_states`` input, so the test can prove the 0.3
+    source state evidence reaches the composite facts check and ends up in the
+    published paragraph states bound to the same version.
+    """
+
+    name = "explicit-narrative-state-test-model"
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.context: dict | None = None
+
+    def complete(self, prompt: str) -> str:
+        kind = prompt.split("\nSTAGE=")[1].split("\n")[0]
+        context = json.loads(
+            prompt.split("\nINPUT=")[1].split("\nAPPROVED_CONCLUSIONS=")[0]
+        )
+        self.calls.append(kind)
+        self.context = context
+        facts, prose = narrative_drafts(context)
+        self._add_reviewed_states(context, facts, prose)
+        return json.dumps(facts if kind == "facts" else prose, ensure_ascii=False)
+
+    @staticmethod
+    def _add_reviewed_states(context, facts, prose) -> None:
+        for index, source in enumerate(context["sources"]):
+            for state in source.get("reviewed_person_states") or []:
+                person_id = state.get("person_id")
+                value = state.get("value") or state.get("target")
+                if not person_id or not value:
+                    continue
+                conclusion_id = f"s{index}"
+                if any(item["id"] == conclusion_id for item in facts["conclusions"]):
+                    continue
+                facts["conclusions"].append(
+                    {
+                        "id": conclusion_id,
+                        "question": "该人物在此阶段的身份",
+                        "subject_id": person_id,
+                        "event_id": None,
+                        "dimension": "office",
+                        "phase_ids": [f"p{index}"],
+                        "text": "据已审核来源阶段资料，该人物在此阶段有此身份。",
+                        "value": str(value),
+                        "certainty": state.get("certainty", "uncertain"),
+                        "reason": "据已审核来源阶段资料。",
+                        "evidence": [
+                            {
+                                "id": source["evidence"][0]["id"],
+                                "relation": "support",
+                                "attribution": "本传作者",
+                                "note": "已审核来源阶段资料。",
+                            }
+                        ],
+                    }
+                )
+                prose["paragraphs"][index]["segments"][0]["conclusion_ids"].append(
+                    conclusion_id
+                )
+
+
+class PersonStatePipelineTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.control_url = base._control_url()
+
+    setUp = base.ReadingPipelinePostgresTests.setUp
+    tearDown = base.ReadingPipelinePostgresTests.tearDown
+    _queue_job = base.ReadingPipelinePostgresTests._queue_job
+    _run_once = base.ReadingPipelinePostgresTests._run_once
+    _public_counts = base.ReadingPipelinePostgresTests._public_counts
+    _reading_stream_row = base.ReadingPipelinePostgresTests._reading_stream_row
+
+    # -- helpers --------------------------------------------------------
+
+    def _prepare_person_state_model(self, text, revision_id, source_sha):
+        import fixture_model
+
+        plan = base._plan_for(text, revision_id, source_sha)
+        pack = base._pack_payload(plan, revision_id, _specs())
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as handle:
+            json.dump(pack, handle, ensure_ascii=False)
+            path = handle.name
+        try:
+            model = fixture_model.models_from_person_state_chapter_fixture_pack(path)
+        finally:
+            os.unlink(path)
+        return model, plan
+
+    def _open_person_state_reviews(self, job_id):
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                "SELECT review_id, payload FROM chronicle.review_items"
+                " WHERE job_id = %s AND payload->>'scope' = 'person_state'"
+                " ORDER BY created_at, review_id",
+                (job_id,),
+            ).fetchall()
+        return [(row[0], row[1]) for row in rows]
+
+    def _person_state_plan(self, job_id):
+        with psycopg.connect(self.database_url) as conn:
+            payload = R.read_person_state_plan_output(conn, job_id=job_id)
+        self.assertIsNotNone(payload)
+        return payload["plan"]
+
+    def _approve_person_state(self, job_id):
+        plan = self._person_state_plan(job_id)
+        reviews = self._open_person_state_reviews(job_id)
+        self.assertTrue(reviews)
+        with psycopg.connect(self.database_url) as conn:
+            for review_id, payload in reviews:
+                package = next(
+                    item for item in plan["packages"]
+                    if item["chapter_id"] == payload["chapter_id"]
+                )
+                person_state_review.resolve_person_state_review(
+                    conn,
+                    job_id=job_id,
+                    review_id=review_id,
+                    plan=plan,
+                    decision={
+                        "default_assessment": "supported",
+                        "rationale": "整章阶段依据逐项核对原文后确认。",
+                        "overrides": [
+                            {
+                                "candidate_id": candidate["candidate_key"],
+                                "assessment": "supported",
+                                "rationale": "直接原文支持。",
+                            }
+                            for candidate in package["candidates"]
+                        ],
+                    },
+                )
+                conn.commit()
+            control_plane.resume_job(conn, job_id=job_id)
+            conn.commit()
+
+    def _drive_to_park(self, text=TEXT):
+        job_id, revision_id, source_sha = self._queue_job(text)
+        model, plan = self._prepare_person_state_model(text, revision_id, source_sha)
+        _claimed, outcome = self._run_once(job_id, text, source_sha, model)
+        if outcome != "needs_review":
+            with psycopg.connect(self.database_url) as conn:
+                detail = control_plane.get_job_detail(conn, job_id=job_id)
+            self.fail(f"expected needs_review, got {outcome}: {detail}")
+        self.args = (job_id, text, source_sha, model, plan)
+        return job_id
+
+    def _tamper_assembled_states(self, job_id, mutate):
+        self._tamper_assembled_payload(job_id, lambda payload: mutate(payload["person_states"]))
+
+    def _tamper_assembled_payload(self, job_id, mutate):
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT output_id, payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = 'assembled-source-bundle'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_id,),
+            ).fetchone()
+            output_id, payload = row
+            mutate(payload)
+            conn.execute(
+                "UPDATE chronicle.ingestion_outputs SET payload = %s WHERE output_id = %s",
+                (Jsonb(payload), output_id),
+            )
+            conn.commit()
+
+    def _claim_and_publish(self, job_id):
+        _job, text, source_sha, _model, _plan = self.args
+        # Bind the exact worker plan (document_id + per-request hashes) so the
+        # publish reaches the person-state revalidation instead of failing on
+        # an unrelated chapter-plan drift.
+        _text, _binding, worker_plan, _requests = stage.load_chapter_inputs(
+            self.database_url,
+            job_id=job_id,
+            revision_source=lambda _job: (text, source_sha),
+            limits=chapter_contract.ChapterLimits(),
+            candidate_version="0.3",
+        )
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.claim_job(
+                conn, worker=base.WORKER, lease_seconds=300, job_id=job_id
+            )
+            conn.commit()
+        with psycopg.connect(self.database_url) as conn:
+            with self.assertRaises(PersistenceConflict) as ctx:
+                R.publish_chapters(
+                    conn, job_id=job_id, worker=base.WORKER, chapter_plan=worker_plan
+                )
+        return ctx.exception
+
+    def _assert_no_public_state(self):
+        with psycopg.connect(self.database_url) as conn:
+            for table in (
+                "canonical_catalogs",
+                "chapter_publications",
+                "reading_streams",
+                "reading_units",
+                "reading_time_groups",
+                "reading_event_occurrences",
+                "person_state_manifests",
+                "person_state_assessments",
+                "person_state_unit_people",
+                "person_state_items",
+                "person_state_item_evidence",
+                "person_state_disagreements",
+            ):
+                self.assertEqual(
+                    0,
+                    conn.execute(f"SELECT count(*) FROM chronicle.{table}").fetchone()[0],
+                    f"{table} must stay empty",
+                )
+
+    def _approve_narrative(self, job_id, kind):
+        with psycopg.connect(self.database_url) as conn:
+            row = narrative_store.read_candidate(conn, job_id, kind)
+            narrative_store.decide(
+                conn,
+                review_id=row["review_id"],
+                candidate_sha=row["candidate_sha"],
+                decision="approve",
+                rationale="测试明确人工审核门禁，非真实内容验收。",
+                reviewed_conclusion_ids=[
+                    fact["id"] for fact in row["candidate"].get("conclusions", [])
+                ],
+            )
+            control_plane.resume_job(conn, job_id=job_id)
+            conn.commit()
+
+    # -- tests ----------------------------------------------------------
+
+    def test_resolve_parks_on_state_review_then_publishes_manifest(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, _plan = self.args
+        package_plan = self._person_state_plan(job_id)
+        reviews = self._open_person_state_reviews(job_id)
+        self.assertEqual(2, len(reviews))
+        self.assertEqual(
+            {item["chapter_id"] for item in package_plan["packages"]},
+            {payload["chapter_id"] for _row, payload in reviews},
+        )
+        calls_before = getattr(model, "calls", None)
+
+        self._approve_person_state(job_id)
+        _claimed, outcome = self._run_once(job_id, text, source_sha, model)
+        if outcome != "completed":
+            with psycopg.connect(self.database_url) as conn:
+                detail = control_plane.get_job_detail(conn, job_id=job_id)
+            self.fail(f"expected completed, got {outcome}: {detail['error']}::{detail['stages']}")
+
+        with psycopg.connect(self.database_url) as conn:
+            manifest = conn.execute(
+                """
+                SELECT m.manifest_sha, m.stream_id, m.chapter_publication_ids,
+                       m.assessment_hashes
+                FROM chronicle.person_state_manifests m
+                """
+            ).fetchall()
+            self.assertEqual(1, len(manifest))
+            manifest_sha, stream_id, publications, assessments = manifest[0]
+            self.assertEqual(1, len(assessments))
+            self.assertEqual(len(publications), 2)
+            people = conn.execute(
+                "SELECT count(*) FROM chronicle.person_state_unit_people"
+                " WHERE manifest_sha = %s",
+                (manifest_sha,),
+            ).fetchone()[0]
+            items = conn.execute(
+                "SELECT count(*) FROM chronicle.person_state_items"
+                " WHERE manifest_sha = %s",
+                (manifest_sha,),
+            ).fetchone()[0]
+            self.assertGreaterEqual(people, 1)
+            self.assertGreaterEqual(items, 1)
+            (assessment_sha,) = assessments
+            assessed = conn.execute(
+                "SELECT base_catalog_sha FROM chronicle.person_state_assessments"
+                " WHERE assessment_sha = %s",
+                (assessment_sha,),
+            ).fetchone()
+            self.assertIsNotNone(assessed)
+            catalog_sha = conn.execute(
+                "SELECT artifact_sha256 FROM chronicle.canonical_catalogs"
+            ).fetchone()[0]
+            self.assertEqual(catalog_sha, assessed[0])
+
+        # The published reading stream and the manifest bind one revision.
+        with psycopg.connect(self.database_url) as conn:
+            stream = conn.execute(
+                "SELECT chapter_publication_ids FROM chronicle.reading_streams"
+                " WHERE stream_id = %s",
+                (stream_id,),
+            ).fetchone()
+        self.assertEqual(
+            {str(value) for value in stream[0]},
+            {str(value) for value in publications},
+        )
+        if calls_before is not None:
+            self.assertEqual(calls_before, model.calls)
+
+    def test_reviewed_source_states_reach_composite_context(self):
+        import narrative_store
+
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        self.assertEqual("completed", self._run_once(job_id, text, source_sha, model)[1])
+        with psycopg.connect(self.database_url) as conn:
+            published = chapter_store.list_published_chapters(
+                conn, job_id=job_id, limit=100
+            )
+            descriptors = narrative_store.source_descriptors(
+                conn, publication_ids=[item["publication_id"] for item in published]
+            )
+        facts = [
+            fact
+            for source in descriptors["sources"]
+            for fact in source["reviewed_person_states"]
+        ]
+        self.assertTrue(facts, "published 0.3 source must expose reviewed state facts")
+        for fact in facts:
+            self.assertTrue(fact["phase_ids"])
+            self.assertIn(fact["certainty"], ("clear", "uncertain"))
+            self.assertIn("source_facts", fact)
+        context = narrative_store.build_context(
+            descriptors, lambda _job: (text, source_sha)
+        )
+        self.assertTrue(
+            any(source["reviewed_person_states"] for source in context["sources"])
+        )
+
+    def test_state_drift_fails_closed_at_publish(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+
+        def mutate(states):
+            states["facts"][0]["qualification"] = "self_designation"
+
+        self._tamper_assembled_states(job_id, mutate)
+        error = self._claim_and_publish(job_id)
+        self.assertIn("state_drift", str(error))
+        self._assert_no_public_state()
+
+    def test_evidence_manifest_drift_fails_closed_at_publish(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+
+        def mutate(payload):
+            # Tamper one manifest's accepted-artifact metadata and rewrite the
+            # same row's report digest, exactly mirroring the reviewer's
+            # reproduction: only the independently frozen manifest digest (and
+            # the fresh assembly) can reject it.
+            payload["person_state_evidence"][0]["source_sha256"] = "0" * 64
+            payload["report"]["person_state"]["evidence_manifests_sha256"] = (
+                R.sha256_json(payload["person_state_evidence"])
+            )
+
+        self._tamper_assembled_payload(job_id, mutate)
+        error = self._claim_and_publish(job_id)
+        self.assertIn("state_drift", str(error))
+        self._assert_no_public_state()
+
+    def test_plan_manifest_digest_tamper_fails_fingerprint(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT output_id, payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_id, R.PERSON_STATE_PLAN_OUTPUT_TYPE),
+            ).fetchone()
+            output_id, payload = row
+            tampered = payload["plan"]
+            tampered["evidence_manifests_sha256"] = "0" * 64
+            # Keep the plan bound to its recorded content key so only the
+            # fingerprinted manifest digest can reject it.
+            conn.execute(
+                "UPDATE chronicle.ingestion_outputs SET payload = %s, artifact_sha256 = %s"
+                " WHERE output_id = %s",
+                (Jsonb(payload), R.sha256_json(tampered), output_id),
+            )
+            conn.commit()
+            # The frozen review/assessment plan is bound to the digest through
+            # the fingerprint, so the validator rejects the tampered digest.
+            with self.assertRaises(PersistenceConflict) as ctx:
+                person_state_review.validate_person_state_review_plan(tampered)
+            self.assertIn("fingerprint mismatch", str(ctx.exception))
+        error = self._claim_and_publish(job_id)
+        self.assertIn("fingerprint mismatch", str(error))
+        self._assert_no_public_state()
+
+    def test_wrong_phase_association_fails_closed_at_publish(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                """
+                SELECT output_id, payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_id, R.PERSON_STATE_PLAN_OUTPUT_TYPE),
+            ).fetchone()
+            output_id, payload = row
+            tampered = payload["plan"]
+            candidate = next(
+                item
+                for package in tampered["packages"]
+                for item in package["candidates"]
+                if item.get("phase_ids")
+            )
+            # ``phase_ids`` is not part of the frozen candidate key or plan
+            # fingerprint, so this injects a wrong phase while the plan stays
+            # internally consistent: only the publish phase-closure check can
+            # reject it.
+            candidate["phase_ids"] = ["ph_999"]
+            # Keep the plan bound to its recorded content key too, so the
+            # phase-closure check (not the plan-digest check) is what rejects
+            # this wrong-phase association.
+            conn.execute(
+                "UPDATE chronicle.ingestion_outputs SET payload = %s, artifact_sha256 = %s"
+                " WHERE output_id = %s",
+                (Jsonb(payload), R.sha256_json(tampered), output_id),
+            )
+            conn.commit()
+        error = self._claim_and_publish(job_id)
+        self.assertIn("wrong_phase", str(error))
+        self._assert_no_public_state()
+
+    def test_full_narrative_chain_binds_states_to_one_version(self):
+        job_id = self._drive_to_park()
+        job, text, source_sha, chapter_model, _plan = self.args
+        self._approve_person_state(job_id)
+        self.assertEqual(
+            "completed", self._run_once(job_id, text, source_sha, chapter_model)[1]
+        )
+        # Source publication alone must not expose a composite history.
+        with psycopg.connect(self.database_url) as conn:
+            self.assertIsNone(narrative_store.read_publication(conn))
+            self.assertIsNone(
+                history.dispatch_history(conn, "/v0/history", "")["publication"]
+            )
+            sources = narrative_store.list_source_choices(conn)
+            status, _, body = studio_jobs.dispatch_jobs(
+                conn,
+                control_plane,
+                method="POST",
+                path="/api/v1/studio/jobs/history",
+                body=json.dumps(
+                    {
+                        "catalog_sha": sources["catalog_sha"],
+                        "publication_ids": [
+                            item["publication_id"] for item in sources["items"]
+                        ],
+                    }
+                ).encode(),
+            )
+            self.assertEqual(201, status, body)
+            narrative_job = uuid.UUID(json.loads(body)["job"]["job_id"])
+        narrative = StateAwareNarrativeModel()
+
+        # First gate: facts. Nothing is public before its approval.
+        self.assertEqual(
+            "needs_review",
+            self._run_once(
+                narrative_job, text, source_sha, chapter_model, narrative_model=narrative
+            )[1],
+        )
+        with psycopg.connect(self.database_url) as conn:
+            self.assertIsNone(narrative_store.read_publication(conn))
+            self.assertIsNone(
+                history.dispatch_history(conn, "/v0/history", "")["publication"]
+            )
+        self._approve_narrative(narrative_job, "facts")
+
+        # Second gate: prose. Still nothing public after facts approval alone.
+        self.assertEqual(
+            "needs_review",
+            self._run_once(
+                narrative_job, text, source_sha, chapter_model, narrative_model=narrative
+            )[1],
+        )
+        with psycopg.connect(self.database_url) as conn:
+            self.assertIsNone(narrative_store.read_publication(conn))
+        self._approve_narrative(narrative_job, "prose")
+
+        self.assertEqual(
+            "completed",
+            self._run_once(
+                narrative_job, text, source_sha, chapter_model, narrative_model=narrative
+            )[1],
+        )
+        self.assertTrue(narrative.context is not None)
+        self.assertTrue(
+            any(source.get("reviewed_person_states") for source in narrative.context["sources"])
+        )
+        with psycopg.connect(self.database_url) as conn:
+            publication = narrative_store.read_publication(conn)
+            self.assertIsNotNone(publication)
+            version = publication["publication_version"]
+            states = [
+                state
+                for paragraph in publication["paragraphs"]
+                for entity in paragraph["entities"]
+                for state in entity["states"]
+            ]
+            self.assertTrue(states, "published history must carry reviewed states")
+            self.assertTrue(
+                {state["value"] for state in states} & {"公孫瓚", "孫策"}
+            )
+            state = states[0]
+            meta = history.dispatch_history(
+                conn, "/v0/history", "version=" + version
+            )["publication"]
+            self.assertEqual(version, meta["version"])
+            conclusion = history.dispatch_history(
+                conn,
+                "/v0/history/conclusions/" + state["id"],
+                "version=" + version,
+            )["conclusion"]
+            self.assertEqual(state["value"], conclusion["value"])
+            self.assertEqual(state["certainty"], conclusion["certainty"])
+            stored = next(
+                item for item in publication["conclusions"] if item["id"] == state["id"]
+            )
+            self.assertEqual(stored["value"], conclusion["value"])
+            self.assertEqual(stored["certainty"], conclusion["certainty"])
+            self.assertTrue(conclusion["evidence"][0]["publication_id"])
+            published = chapter_store.list_published_chapters(
+                conn, job_id=job_id, limit=100
+            )
+            self.assertIn(
+                conclusion["evidence"][0]["publication_id"],
+                {item["publication_id"] for item in published},
+            )
+            self.assertEqual(1, conn.execute("SELECT count(*) FROM chronicle.historical_narratives").fetchone()[0])
+
+    def test_replay_reuses_manifest_without_regeneration(self):
+        import reading_projection
+
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        self.assertEqual("completed", self._run_once(job_id, text, source_sha, model)[1])
+        with psycopg.connect(self.database_url) as conn:
+            first = conn.execute(
+                "SELECT manifest_sha FROM chronicle.person_state_manifests"
+            ).fetchone()[0]
+            first_assessment = conn.execute(
+                "SELECT assessment_sha FROM chronicle.person_state_assessments"
+            ).fetchone()[0]
+            accepted = chapter_store.read_accepted_chapters(conn, job_id=job_id)
+            published = chapter_store.list_published_chapters(
+                conn, job_id=job_id, limit=100
+            )
+            catalog = R.read_latest_catalog(conn)
+            revision_id = conn.execute(
+                "SELECT revision_id FROM chronicle.ingestion_jobs WHERE job_id = %s",
+                (job_id,),
+            ).fetchone()[0]
+            plan_payload = R.read_person_state_plan_output(conn, job_id=job_id)
+            assembled = conn.execute(
+                """
+                SELECT payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND artifact_type = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_id, "assembled-source-bundle"),
+            ).fetchone()[0]
+            before = {
+                table: conn.execute(f"SELECT count(*) FROM chronicle.{table}").fetchone()[0]
+                for table in (
+                    "person_state_manifests",
+                    "person_state_unit_people",
+                    "person_state_items",
+                    "person_state_disagreements",
+                    "person_state_assessments",
+                )
+            }
+        publication_by_chapter = {
+            item["chapter_id"]: item["publication_id"] for item in published
+        }
+        bundle_label = R.new_bundle_label(revision_id)
+        projection = reading_projection.compile_reading_projection(
+            accepted_artifacts=[entry["artifact"] for entry in accepted],
+            chapter_plan=plan,
+            catalog=catalog,
+            stream_id=R.reading_stream_seed(revision_id),
+            publication_by_chapter=publication_by_chapter,
+            bundle_label=bundle_label,
+        )
+        # Replaying the same compiled bytes and reviewed decisions must reuse
+        # the identical manifest/assessment and append no rows.
+        with psycopg.connect(self.database_url) as conn:
+            result = R.persist_person_state_publication(
+                conn,
+                job_id=job_id,
+                plan=plan_payload["plan"],
+                catalog=catalog,
+                catalog_sha256=R.sha256_json(catalog),
+                bundle_label=bundle_label,
+                revision_id=revision_id,
+                projection=projection,
+                chapter_publication_ids=R._ordered_chapter_publications(
+                    projection, publication_by_chapter
+                ),
+                publication_by_chapter=publication_by_chapter,
+                evidence=assembled["person_states"],
+            )
+            conn.commit()
+            after = {
+                table: conn.execute(f"SELECT count(*) FROM chronicle.{table}").fetchone()[0]
+                for table in before
+            }
+        self.assertEqual(first, result["person_state_manifest_sha"])
+        self.assertEqual(first_assessment, result["person_state_assessment_sha"])
+        self.assertEqual(before, after)
+
+    def test_manifest_fault_rolls_back_all_public_content(self):
+        from unittest import mock
+
+        job_id = self._drive_to_park()
+        job, text, source_sha, model, plan = self.args
+        self._approve_person_state(job_id)
+        with mock.patch.object(
+            R,
+            "persist_person_state_publication",
+            side_effect=PersistenceError("injected person-state publish fault"),
+        ):
+            self.assertEqual(
+                "failed", self._run_once(job_id, text, source_sha, model)[1]
+            )
+        with psycopg.connect(self.database_url) as conn:
+            counts = self._public_counts()
+            counts["person_state_manifests"] = conn.execute(
+                "SELECT count(*) FROM chronicle.person_state_manifests"
+            ).fetchone()[0]
+            counts["person_state_assessments"] = conn.execute(
+                "SELECT count(*) FROM chronicle.person_state_assessments"
+            ).fetchone()[0]
+            self.assertEqual(0, counts["canonical_catalogs"])
+            self.assertEqual(0, counts["chapter_publications"])
+            self.assertEqual(0, counts["reading_streams"])
+            self.assertEqual(0, counts["person_state_manifests"])
+            self.assertEqual(0, counts["person_state_assessments"])
+            control_plane.retry_job(conn, job_id=job_id)
+            conn.commit()
+        # A clean retry after the injected fault publishes the complete set.
+        self.assertEqual("completed", self._run_once(job_id, text, source_sha, model)[1])
+        with psycopg.connect(self.database_url) as conn:
+            self.assertEqual(
+                1,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.person_state_manifests"
+                ).fetchone()[0],
+            )
+            self.assertEqual(
+                1,
+                conn.execute(
+                    "SELECT count(*) FROM chronicle.reading_streams"
+                ).fetchone()[0],
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

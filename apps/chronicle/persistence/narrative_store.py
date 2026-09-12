@@ -14,6 +14,67 @@ import reading_projection
 from common import PersistenceConflict, PersistenceError, sha256_bytes, sha256_json
 
 
+def _reviewed_person_states(conn, *, publication_id) -> list[dict]:
+    """Return the reviewed, published state facts for one source chapter.
+
+    Reads only the immutable T05 person-state index already bound to the
+    source publication's stream. It never inspects the un-reviewed accepted
+    candidate and never re-runs the projection, and it keeps the source
+    ``phase_ids`` verbatim: the composite facts check sees traceable,
+    version-fixed source material, and the program never infers a composite
+    phase from a matching year or event name. A 0.1/0.2 source with no
+    published manifest contributes nothing.
+    """
+    try:
+        publication_uuid = uuid.UUID(str(publication_id))
+    except (ValueError, TypeError, AttributeError):
+        return []
+    row = conn.execute(
+        "SELECT m.manifest_sha FROM chronicle.person_state_manifests m"
+        " WHERE %s = ANY (m.chapter_publication_ids)",
+        (publication_uuid,),
+    ).fetchone()
+    if row is None:
+        return []
+    manifest_sha = row[0]
+    rows = conn.execute(
+        """
+        SELECT p.person_id, p.name, i.item_kind, i.dimension, i.value,
+               i.relation, i.target, i.qualification, i.certainty,
+               i.reason_codes, i.phase_ids, i.operation, i.from_phase_id,
+               i.to_phase_id, i.source_facts
+        FROM chronicle.person_state_items i
+        JOIN chronicle.person_state_unit_people p
+          USING (manifest_sha, stream_id, unit_id, person_id)
+        JOIN chronicle.reading_units u
+          ON u.stream_id = i.stream_id AND u.unit_id = i.unit_id
+        WHERE i.manifest_sha = %s AND u.publication_id = %s
+        ORDER BY i.person_id, i.item_kind, i.item_ordinal, i.item_id
+        """,
+        (manifest_sha, publication_uuid),
+    ).fetchall()
+    return [
+        {
+            "person_id": row[0],
+            "person_name": row[1],
+            "item_kind": row[2],
+            "dimension": row[3],
+            "value": row[4],
+            "relation": row[5],
+            "target": row[6],
+            "qualification": row[7],
+            "certainty": row[8],
+            "reason_codes": list(row[9] or []),
+            "phase_ids": list(row[10] or []),
+            "operation": row[11],
+            "from_phase_id": row[12],
+            "to_phase_id": row[13],
+            "source_facts": list(row[14] or []),
+        }
+        for row in rows
+    ]
+
+
 def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
     """Select complete published chapters; never read unaccepted candidates."""
     latest = canonical_store.read_latest_catalog_sha256(conn)
@@ -72,7 +133,10 @@ def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
                     raise PersistenceConflict("published source record lost its canonical binding")
                 source_refs[collection][local_ref] = canonical_id
         sources.append({**full, "title": chapter.get("title") or title, "document_title": title,
-                        "bounds": chapter, "canonical_refs": source_refs})
+                        "bounds": chapter, "canonical_refs": source_refs,
+                        "reviewed_person_states": _reviewed_person_states(
+                            conn, publication_id=full["publication_id"]
+                        )})
     identities = {}
     for kind, collection, table in (("entities", "canonical_entities", "staged_entities"), ("events", "canonical_events", "staged_events")):
         known = {}
@@ -181,6 +245,11 @@ def build_context(descriptors: dict, revision_source) -> dict:
                             for record in artifact["candidate"]["bundle"].get("entities", [])],
                         "source_events": [{key: value for key, value in record.items() if key not in {"extraction", "kind"}}
                             for record in artifact["candidate"]["bundle"].get("events", [])],
+                        # C2-R3-T08 composite input: the reviewed, version-fixed
+                        # source state facts. They are attributable material for
+                        # the facts check; the program never equates a source
+                        # phase with a composite phase by year or event name.
+                        "reviewed_person_states": list(full.get("reviewed_person_states") or []),
                         "canonical_refs": full["canonical_refs"], "evidence": evidence})
     return {"schema": "chronicle.narrative-context", "version": contract.VERSION,
             "catalog_sha": descriptors["catalog_sha"], "sources": sources,

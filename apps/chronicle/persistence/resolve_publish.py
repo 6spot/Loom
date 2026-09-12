@@ -101,6 +101,10 @@ import review_subjects  # noqa: E402
 from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
 import staged_store  # noqa: E402
 
+import person_state_projection as person_state_projection  # noqa: E402
+import person_state_review as person_state_review  # noqa: E402
+import person_state_store as person_state_store  # noqa: E402
+
 #: Version of this resolve/review/publish pipeline step.
 RESOLVE_PUBLISH_VERSION = "c2r1t8-v1"
 
@@ -1092,11 +1096,25 @@ def build_chapter_publication(
 #: Accepted chapter artifact generation that carries reading annotations.
 READING_ARTIFACT_VERSION = reading_contract.ARTIFACT_VERSION
 
+#: Accepted chapter artifact generation that additionally carries the 0.3
+#: ``person_states`` block (C2-R3-T01/T02; T08 publishes it).
+PERSON_STATE_ARTIFACT_VERSION = "0.3"
+
 #: Chapter artifact generations the atomic chapter publish accepts.
 CHAPTER_ARTIFACT_VERSIONS = (
     chapter_store.ARTIFACT_VERSION,
     READING_ARTIFACT_VERSION,
+    PERSON_STATE_ARTIFACT_VERSION,
 )
+
+#: Control-plane output type for the frozen person-state review plan. Kept
+#: distinct from the chapter review plan so resolve reuses the exact frozen
+#: plan on resume instead of rebuilding one.
+PERSON_STATE_PLAN_OUTPUT_TYPE = "person-state-review-plan"
+
+#: Review-item scope marker for a frozen chapter-state-evidence package
+#: (mirrors :mod:`person_state_review`).
+PERSON_STATE_REVIEW_SCOPE = "person_state"
 
 
 def reading_stream_seed(revision_id: uuid.UUID | str) -> str:
@@ -1442,6 +1460,583 @@ def build_reading_stream_payload(
     }
 
 
+# ---------------------------------------------------------------------------
+# C2-R3-T08 person-state review wiring + atomic state publication
+# ---------------------------------------------------------------------------
+
+
+def read_person_state_plan_output(conn, *, job_id: uuid.UUID) -> dict[str, Any] | None:
+    """Return the frozen person-state review plan recorded by resolve, if any.
+
+    ``artifact_sha256`` is the recorded digest of the whole plan payload
+    (including the frozen evidence-manifest digest), so publish can bind the
+    plan object back to its immutable content key.
+    """
+    row = conn.execute(
+        """
+        SELECT payload, artifact_sha256 FROM chronicle.ingestion_outputs
+        WHERE job_id = %s AND artifact_type = %s
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        (job_id, PERSON_STATE_PLAN_OUTPUT_TYPE),
+    ).fetchone()
+    if row is None or not isinstance(row[0], dict):
+        return None
+    return {**row[0], "artifact_sha256": row[1]}
+
+
+def open_person_state_review_count(conn, *, job_id: uuid.UUID) -> int:
+    """Count open ``person_state`` review packages for a job."""
+    return int(
+        conn.execute(
+            """
+            SELECT count(*) FROM chronicle.review_items
+            WHERE job_id = %s AND payload->>'scope' = %s AND status = 'open'
+            """,
+            (job_id, PERSON_STATE_REVIEW_SCOPE),
+        ).fetchone()[0]
+    )
+
+
+def build_person_state_plan(
+    *,
+    job_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    accepted_artifacts: list[dict[str, Any]],
+    assembly: dict[str, Any],
+    final_resolutions: list[dict[str, Any]],
+    base_catalog_sha256: str,
+) -> dict[str, Any]:
+    """Freeze the person-state review plan over the accepted 0.3 evidence.
+
+    Wraps :func:`person_state_review.build_person_state_review_plan` with the
+    revision-level bindings the chapter pipeline already owns (final identity
+    Resolution hashes and the frozen base catalog), so resolve never rebuilds
+    or re-ranks the plan on resume.
+    """
+    if not isinstance(base_catalog_sha256, str) or not base_catalog_sha256:
+        raise PersistenceError(
+            f"job {job_id} has no frozen base catalog for the person-state plan"
+        )
+    resolution_hashes = sorted(sha256_json(item) for item in final_resolutions)
+    # ``build_person_state_review_plan`` computes the complete
+    # evidence-manifest digest before fingerprinting and includes it in the
+    # plan fingerprint, so the frozen review/assessment plan is bound to the
+    # exact evidence manifests it was reviewed against.
+    return person_state_review.build_person_state_review_plan(
+        job_id=job_id,
+        revision_id=revision_id,
+        accepted_artifacts=accepted_artifacts,
+        assembly=assembly,
+        resolution_hashes=resolution_hashes,
+        base_catalog_sha=base_catalog_sha256,
+    )
+
+
+def _person_state_context(projection: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    """Return ``(entity_labels, canonical_name)`` from the reading projection."""
+    labels: dict[str, str] = {}
+    names: dict[str, str] = {}
+    for unit in projection.get("units") or []:
+        for context in unit.get("context_entities") or []:
+            if not isinstance(context, dict):
+                continue
+            ref = context.get("entity_ref")
+            canonical_id = context.get("canonical_id")
+            name = context.get("name")
+            if isinstance(ref, str) and isinstance(name, str) and name:
+                labels.setdefault(ref, name)
+            if isinstance(canonical_id, str) and isinstance(name, str) and name:
+                names.setdefault(canonical_id, name)
+    return labels, names
+
+
+def build_person_state_manifest(
+    *,
+    projection: dict[str, Any],
+    catalog: dict[str, Any],
+    bundle_label: str,
+    stream_id: str,
+    revision_id: uuid.UUID,
+    chapter_publication_ids: list[str],
+    publication_by_chapter: dict[str, str],
+    evidence: dict[str, Any],
+    assessments: dict[str, Any],
+    assessment_hashes: list[str],
+) -> dict[str, Any]:
+    """Adapt the T04 compiled projection into the T05 manifest/index input.
+
+    Compiles the pure T04 projection once per reading unit with that unit's own
+    frozen phase binding, so a fact proven only for a later phase never leaks
+    into an earlier unit and no GET-time inference is needed. Any missing
+    binding, unresolved person or oversized item fails closed before a row is
+    written; the manifest is persisted in the same publish transaction as the
+    catalog, chapters and reading stream.
+    """
+    if not isinstance(projection.get("units"), list) or not projection["units"]:
+        raise PersistenceError("person-state compile requires compiled reading units")
+    canonical_map = dict(
+        reading_projection.build_canonical_ref_map(catalog, bundle_label=bundle_label)[
+            "entities"
+        ]
+    )
+    labels, canonical_names = _person_state_context(projection)
+    canonical_map["labels"] = labels
+    chapter_publications = {
+        str(chapter_id): str(publication_id)
+        for chapter_id, publication_id in publication_by_chapter.items()
+    }
+    chapter_titles = {
+        str(unit.get("chapter_id")): str(unit.get("source_title") or "")
+        for unit in projection["units"]
+    }
+    bindings = {
+        binding.get("block_id"): binding
+        for binding in evidence.get("unit_phases") or []
+        if isinstance(binding, dict)
+    }
+    phases_by_id = {
+        phase.get("phase_id"): phase
+        for phase in evidence.get("phases") or []
+        if isinstance(phase, dict)
+    }
+
+    units: list[dict[str, Any]] = []
+    for unit in sorted(projection["units"], key=lambda item: item["ordinal"]):
+        binding = bindings.get(unit.get("block_id"))
+        if binding is None:
+            raise PersistenceError(
+                f"reading unit {unit.get('unit_id')!r} has no frozen person-state "
+                "phase binding; refusing to publish a partial state projection"
+            )
+        mode = binding.get("mode")
+        if mode not in ("single", "process", "ambiguous", "unknown"):
+            raise PersistenceError(
+                f"reading unit {unit.get('unit_id')!r} has invalid phase mode {mode!r}"
+            )
+        phase_refs = [
+            ref for ref in binding.get("phase_refs") or [] if isinstance(ref, str)
+        ]
+        reading_manifest = {
+            "unit_id": unit.get("unit_id"),
+            "unit_phase": {"mode": mode, "phase_ids": phase_refs},
+            "chapter_publications": chapter_publications,
+            "chapter_titles": chapter_titles,
+            "entity_labels": labels,
+        }
+        compiled = person_state_projection.compile_person_state_projection(
+            evidence, assessments, canonical_map, reading_manifest
+        )
+        context_by_canonical = {
+            context.get("canonical_id"): context
+            for context in unit.get("context_entities") or []
+            if isinstance(context, dict) and isinstance(context.get("canonical_id"), str)
+        }
+        people: list[dict[str, Any]] = []
+        for person_id in sorted(compiled.get("people") or {}):
+            person = compiled["people"][person_id]
+            context = context_by_canonical.get(person_id) or {}
+            name = context.get("name") or canonical_names.get(person_id) or person_id
+            people.append(
+                {
+                    "person_id": person_id,
+                    "name": str(name),
+                    "importance": context.get("importance") or "other",
+                    "phase_mode": person.get("phase_mode") or mode,
+                    "certainty": person.get("certainty") or "uncertain",
+                    "reason_codes": list(person.get("reason_codes") or []),
+                    "items": list(person.get("items") or []),
+                    "changes": list(person.get("changes") or []),
+                    "evidence": list(person.get("evidence") or []),
+                }
+            )
+        phase_summaries = []
+        for index, phase_id in enumerate(phase_refs):
+            phase = phases_by_id.get(phase_id)
+            if phase is None:
+                raise PersistenceConflict(
+                    f"wrong_phase: reading unit {unit.get('unit_id')!r} binds "
+                    f"unknown phase {phase_id!r}"
+                )
+            label = phase.get("label")
+            if not isinstance(label, str) or not label:
+                label = phase_id
+            phase_summaries.append(
+                {
+                    "phase_id": phase_id,
+                    "label": label,
+                    "ordinal": index,
+                    "mode": mode,
+                }
+            )
+        units.append(
+            {
+                "unit_id": unit.get("unit_id"),
+                "unit_ordinal": unit.get("ordinal"),
+                "publication_id": unit.get("publication_id"),
+                "phase_mode": mode,
+                "phases": phase_summaries,
+                "people": people,
+            }
+        )
+
+    manifest_payload = {
+        "schema": "chronicle.person-state-manifest",
+        "version": "0.1",
+        "compiler_version": person_state_projection.PROJECTION_VERSION,
+        "stream_id": str(stream_id),
+        "revision_id": str(revision_id),
+        "chapter_publications": [str(value) for value in chapter_publication_ids],
+        "counts": {
+            "units": len(units),
+            "people": sum(len(unit["people"]) for unit in units),
+        },
+    }
+    return {
+        "stream_id": stream_id,
+        "compiler_version": person_state_projection.PROJECTION_VERSION,
+        "assessment_hashes": list(assessment_hashes),
+        "chapter_publication_ids": [str(value) for value in chapter_publication_ids],
+        "manifest": manifest_payload,
+        "units": units,
+    }
+
+
+def build_person_state_disagreement_envelope(
+    *,
+    catalog_sha: str,
+    evidence: dict[str, Any],
+    assessments: dict[str, Any],
+    publication_by_chapter: dict[str, str],
+) -> dict[str, Any]:
+    """Compile the reviewed, catalog-scoped disagreement index input.
+
+    Only reviewed disagreements whose facts belong to the published revision
+    participate; an explicitly rejected candidate is dropped. Every side keeps
+    its own source publication, phase and Claim attribution, and the index can
+    only add recorded explanations — it never promotes an uncertain claim.
+    """
+    rejected = {
+        ref
+        for ref, assessment in (assessments or {}).items()
+        if assessment == "rejected"
+    }
+    base: list[dict[str, Any]] = []
+    facts: dict[str, dict[str, Any]] = {}
+    for fact in evidence.get("facts") or []:
+        if not isinstance(fact, dict):
+            continue
+        ref = fact.get("fact_id") or fact.get("fact_ref")
+        origin = fact.get("origin") if isinstance(fact.get("origin"), dict) else {}
+        chapter_id = origin.get("chapter_id") or fact.get("chapter_id")
+        if not isinstance(ref, str) or not isinstance(chapter_id, str):
+            continue
+        phase_ref = fact.get("phase_ref")
+        facts[ref] = {
+            "chapter_id": chapter_id,
+            "phase_ids": [phase_ref] if isinstance(phase_ref, str) else [],
+            "claim_refs": [
+                claim.get("ref")
+                for claim in fact.get("claim_refs") or []
+                if isinstance(claim, dict) and isinstance(claim.get("ref"), str)
+            ],
+            "source_publication_id": publication_by_chapter.get(chapter_id),
+        }
+    for record in evidence.get("disagreements") or []:
+        if not isinstance(record, dict):
+            continue
+        assertion = record.get("assertion_id")
+        if isinstance(assertion, str) and assertion in rejected:
+            continue
+        base.append(record)
+    compiled = person_state_projection.compile_person_state_disagreements(
+        base, [], {"catalog_sha": catalog_sha, "facts": facts}
+    )
+    records: list[dict[str, Any]] = []
+    for record in compiled:
+        sources: list[dict[str, Any]] = []
+        for side in record.get("sides") or []:
+            publication = side.get("source_publication_id")
+            for fact_ref in side.get("fact_refs") or []:
+                info = facts.get(fact_ref) or {}
+                entry: dict[str, Any] = {
+                    "fact_ref": fact_ref,
+                    "chapter_id": info.get("chapter_id"),
+                }
+                if isinstance(publication, str) and publication:
+                    entry["publication_id"] = publication
+                if side.get("claim_refs"):
+                    entry["claim_refs"] = list(side["claim_refs"])
+                sources.append(entry)
+        records.append(
+            {
+                "disagreement_id": record["disagreement_id"],
+                "topic": record["topic"],
+                "fact_refs": list(record["fact_refs"]),
+                "phase_ids": list(record.get("phase_ids") or []),
+                "reason_codes": list(record.get("reason_codes") or []),
+                "sources": sources,
+            }
+        )
+    return {
+        "catalog_sha": catalog_sha,
+        "compiler_version": person_state_projection.PROJECTION_VERSION,
+        "disagreements": records,
+    }
+
+
+def validate_frozen_person_state_inputs(
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    evidence: dict[str, Any],
+    accepted_artifacts: list[dict[str, Any]],
+    final_resolutions: list[dict[str, Any]],
+    base_catalog_sha256: str,
+) -> None:
+    """Re-verify the frozen 0.3 state inputs at the publication boundary.
+
+    Resolve freezes the plan over the accepted artifacts, the assembled
+    ``person_states``/evidence manifests, the final Resolution hashes and the
+    base catalog. Publish must never trust the persisted rows alone: this
+    recomputes every binding and fails closed when the accepted artifact set,
+    the resolution set, the base catalog, the assembled state hash, the
+    evidence-manifest reference mapping or the unit-phase closure drifted after
+    the review was frozen. A wrong phase binding can otherwise compile a
+    manifest with a fallback label and publish it. Any drift is a
+    :class:`PersistenceConflict` and writes nothing.
+    """
+    states = evidence.get("person_states")
+    manifests = evidence.get("evidence_manifests")
+    if not isinstance(states, dict) or not isinstance(manifests, list):
+        raise PersistenceError(
+            f"job {job_id} person-state evidence is not a frozen 0.3 assembly"
+        )
+    assembled_hash = sha256_json(states)
+    if assembled_hash != plan.get("assembled_hash"):
+        raise PersistenceConflict(
+            "state_drift: assembled person_states no longer matches the frozen "
+            f"plan assembled_hash ({assembled_hash} != {plan.get('assembled_hash')})"
+        )
+    report = evidence.get("report") if isinstance(evidence.get("report"), dict) else {}
+    reported_states_hash = report.get("person_states_sha256")
+    if reported_states_hash is not None and reported_states_hash != assembled_hash:
+        raise PersistenceConflict(
+            "state_drift: reported person_states_sha256 does not match the "
+            "assembled person_states"
+        )
+    reported_manifest_hash = report.get("evidence_manifests_sha256")
+    if reported_manifest_hash is not None and reported_manifest_hash != sha256_json(
+        manifests
+    ):
+        raise PersistenceConflict(
+            "state_drift: reported evidence_manifests_sha256 does not match the "
+            "assembled evidence manifests"
+        )
+    # The complete evidence-manifest digest is frozen in the plan itself, not
+    # only in the same mutable assembled row, so a manifest edit that also
+    # rewrites the row's report hash still fails closed.
+    frozen_manifest_digest = plan.get("evidence_manifests_sha256")
+    if not isinstance(frozen_manifest_digest, str) or not frozen_manifest_digest:
+        raise PersistenceConflict(
+            "state_drift: frozen plan carries no evidence-manifest digest"
+        )
+    if frozen_manifest_digest != sha256_json(manifests):
+        raise PersistenceConflict(
+            "state_drift: evidence manifests do not match the frozen plan digest"
+        )
+    # Every manifest must still carry the accepted artifact/source/normalized/
+    # person_states hashes it was assembled from.
+    accepted_by_artifact = {
+        artifact.get("artifact_sha256"): artifact
+        for artifact in accepted_artifacts
+        if isinstance(artifact, dict)
+    }
+    for manifest in manifests:
+        if not isinstance(manifest, dict):
+            raise PersistenceConflict("state_drift: evidence manifest must be an object")
+        artifact_sha = manifest.get("artifact_sha256")
+        accepted = accepted_by_artifact.get(artifact_sha)
+        if accepted is None:
+            raise PersistenceConflict(
+                f"state_drift: evidence manifest artifact {artifact_sha!r} is not accepted"
+            )
+        for field in ("source_sha256", "normalized_sha256"):
+            if manifest.get(field) != accepted.get(field):
+                raise PersistenceConflict(
+                    f"state_drift: evidence manifest {field} drifted from its accepted artifact"
+                )
+        # The manifest's per-chapter state hash is bound through the accepted
+        # artifact (T03 does not copy it into the manifest), so require the
+        # accepted artifact's own state bytes to match its declared hash and,
+        # when the manifest carries a value, that it agrees.
+        if sha256_json(accepted.get("person_states")) != accepted.get("person_states_sha256"):
+            raise PersistenceConflict(
+                "state_drift: accepted artifact person_states no longer matches its "
+                "declared person_states_sha256"
+            )
+        manifest_states_hash = manifest.get("person_states_sha256")
+        if (
+            manifest_states_hash is not None
+            and manifest_states_hash != accepted.get("person_states_sha256")
+        ):
+            raise PersistenceConflict(
+                "state_drift: evidence manifest person_states_sha256 drifted from its "
+                "accepted artifact"
+            )
+    artifact_hashes = sorted(
+        str(artifact.get("artifact_sha256"))
+        for artifact in accepted_artifacts
+        if isinstance(artifact, dict)
+    )
+    if artifact_hashes != sorted(str(value) for value in plan.get("accepted_artifact_hashes") or []):
+        raise PersistenceConflict(
+            "state_drift: accepted artifact set no longer matches the frozen plan"
+        )
+    resolution_hashes = sorted(sha256_json(item) for item in final_resolutions)
+    if resolution_hashes != sorted(str(value) for value in plan.get("resolution_hashes") or []):
+        raise PersistenceConflict(
+            "state_drift: final Resolution hashes no longer match the frozen plan"
+        )
+    if plan.get("base_catalog_sha") != base_catalog_sha256:
+        raise PersistenceConflict(
+            "state_drift: frozen plan base catalog no longer matches the resolve baseline"
+        )
+    references = person_state_review._reference_maps(evidence)
+    for package in plan.get("packages") or []:
+        chapter_refs = references.get(package.get("chapter_id"), {})
+        for candidate in package.get("candidates") or []:
+            mapped = chapter_refs.get((candidate.get("kind"), candidate.get("item_ref")))
+            if mapped != candidate.get("revision_ref"):
+                raise PersistenceConflict(
+                    "state_drift: evidence manifest no longer maps "
+                    f"{candidate.get('kind')}:{candidate.get('item_ref')} to the "
+                    "frozen revision reference"
+                )
+
+    phase_ids = {
+        phase.get("phase_id")
+        for phase in states.get("phases") or []
+        if isinstance(phase, dict) and isinstance(phase.get("phase_id"), str)
+    }
+    # Frozen candidates carry chapter-local phase refs; resolve the manifest's
+    # local->revision mapping so a candidate that points at a phase no longer
+    # present in the assembled evidence fails closed instead of compiling with a
+    # fallback label.
+    local_phase_map: dict[tuple[Any, Any], Any] = {}
+    for manifest in manifests:
+        if not isinstance(manifest, dict):
+            continue
+        chapter_id = manifest.get("chapter_id")
+        for item in manifest.get("items") or []:
+            if not isinstance(item, dict) or item.get("kind") != "phase":
+                continue
+            local_phase_map[(chapter_id, item.get("origin_ref"))] = item.get("revision_ref")
+    for package in plan.get("packages") or []:
+        chapter_id = package.get("chapter_id")
+        for candidate in package.get("candidates") or []:
+            for local_phase in candidate.get("phase_ids") or []:
+                mapped = local_phase_map.get((chapter_id, local_phase))
+                if mapped is None or mapped not in phase_ids:
+                    raise PersistenceConflict(
+                        "wrong_phase: frozen candidate "
+                        f"{candidate.get('kind')}:{candidate.get('item_ref')} references "
+                        f"phase {local_phase!r} that is not in the assembled evidence"
+                    )
+
+    def require_phase(value: Any, owner: str) -> None:
+        if value is not None and value not in phase_ids:
+            raise PersistenceConflict(
+                f"wrong_phase: {owner} references unknown phase {value!r}"
+            )
+
+    for binding in states.get("unit_phases") or []:
+        owner = f"unit_phase {binding.get('block_id')!r}"
+        for phase_ref in binding.get("phase_refs") or []:
+            require_phase(phase_ref, owner)
+    for order in states.get("phase_orders") or []:
+        require_phase(order.get("earlier_phase_ref"), "phase_order earlier")
+        require_phase(order.get("later_phase_ref"), "phase_order later")
+    for fact in states.get("facts") or []:
+        require_phase(fact.get("phase_ref"), f"fact {fact.get('fact_id')!r}")
+    for continuity in states.get("continuities") or []:
+        require_phase(continuity.get("start_phase_ref"), "continuity start")
+        require_phase(continuity.get("end_phase_ref"), "continuity end")
+    for disagreement in states.get("disagreements") or []:
+        for phase_ref in disagreement.get("phase_refs") or []:
+            require_phase(phase_ref, f"disagreement {disagreement.get('assertion_id')!r}")
+
+
+def persist_person_state_publication(
+    conn,
+    *,
+    job_id: uuid.UUID,
+    plan: dict[str, Any],
+    catalog: dict[str, Any],
+    catalog_sha256: str,
+    bundle_label: str,
+    revision_id: uuid.UUID,
+    projection: dict[str, Any],
+    chapter_publication_ids: list[str],
+    publication_by_chapter: dict[str, str],
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist assessments, the state manifest/index and disagreements in-txn.
+
+    Called from :func:`publish_chapters` after the catalog, chapters, and
+    reading stream exist in the same transaction, so the reviewed assessments,
+    the immutable state projection and the catalog disagreement index either
+    all commit together or roll back with everything else.
+    """
+    collected = person_state_review.collect_person_state_assessments(
+        conn, job_id=job_id, plan=plan, persist=False
+    )
+    compiler_assessments = collected["compiler_assessments"]
+    payload = copy.deepcopy(collected["payload"])
+    # The published catalog is the membership the state facts actually belong
+    # to; binding it here keeps the assessment reproducible from the published
+    # version instead of an unpublished baseline.
+    payload["base_catalog_sha"] = catalog_sha256
+    assessment_sha = person_state_store.persist_person_state_assessments(
+        conn,
+        {
+            "plan_fingerprint": plan["plan_fingerprint"],
+            "base_catalog_sha": catalog_sha256,
+            "compiler_version": payload["compiler_version"],
+            "payload": payload,
+        },
+    )[0]
+    stream_id = reading_stream_seed(revision_id)
+    manifest = build_person_state_manifest(
+        projection=projection,
+        catalog=catalog,
+        bundle_label=bundle_label,
+        stream_id=stream_id,
+        revision_id=revision_id,
+        chapter_publication_ids=chapter_publication_ids,
+        publication_by_chapter=publication_by_chapter,
+        evidence=evidence,
+        assessments=compiler_assessments,
+        assessment_hashes=[assessment_sha],
+    )
+    manifest_sha = person_state_store.persist_person_state_manifest(conn, manifest)
+    disagreements = build_person_state_disagreement_envelope(
+        catalog_sha=catalog_sha256,
+        evidence=evidence,
+        assessments=compiler_assessments,
+        publication_by_chapter=publication_by_chapter,
+    )
+    if disagreements["disagreements"]:
+        person_state_store.persist_person_state_disagreements(conn, disagreements)
+    return {
+        "person_state_manifest_sha": manifest_sha,
+        "person_state_assessment_sha": assessment_sha,
+        "person_state_unit_count": len(manifest["units"]),
+        "person_state_person_count": int(manifest["manifest"]["counts"]["people"]),
+        "person_state_disagreement_count": len(disagreements["disagreements"]),
+    }
+
+
 def publish_chapters(
     conn,
     *,
@@ -1534,12 +2129,18 @@ def publish_chapters(
                 f"generations {sorted(str(v) for v in artifact_versions)}; "
                 "refusing to publish a mixed-generation book"
             )
-        reading_path = artifact_versions == {READING_ARTIFACT_VERSION}
+        person_state_path = artifact_versions == {PERSON_STATE_ARTIFACT_VERSION}
+        reading_path = artifact_versions in (
+            {READING_ARTIFACT_VERSION},
+            {PERSON_STATE_ARTIFACT_VERSION},
+        )
         if reading_path and not isinstance(chapter_plan, dict):
             raise PersistenceError(
-                f"job {job_id} carries 0.2 reading artifacts but no chapter "
+                f"job {job_id} carries reading artifacts but no chapter "
                 "plan; refusing to publish without the compiled reading index"
             )
+        person_state_evidence: dict[str, Any] | None = None
+        person_state_plan: dict[str, Any] | None = None
 
         assembled_row = conn.execute(
             """
@@ -1569,6 +2170,52 @@ def publish_chapters(
                 assembled_sha256=assembled_sha256,
                 job_id=job_id,
             )
+        if person_state_path:
+            raw_states = assembled_payload.get("person_states")
+            raw_manifests = assembled_payload.get("person_state_evidence")
+            if not isinstance(raw_states, dict) or not isinstance(raw_manifests, list):
+                raise PersistenceError(
+                    f"job {job_id} carries 0.3 artifacts but no persisted "
+                    "person-state assembly; refusing to publish a partial state "
+                    "projection (run assemble first)"
+                )
+            report = assembled_payload.get("report")
+            person_report = (
+                report.get("person_state") if isinstance(report, dict) else None
+            )
+            person_state_evidence = {
+                "person_states": raw_states,
+                "evidence_manifests": raw_manifests,
+                "report": person_report if isinstance(person_report, dict) else {},
+            }
+            plan_payload = read_person_state_plan_output(conn, job_id=job_id)
+            person_state_plan = (
+                plan_payload.get("plan") if isinstance(plan_payload, dict) else None
+            )
+            if not isinstance(person_state_plan, dict) or not person_state_plan:
+                raise PersistenceError(
+                    f"job {job_id} has no frozen person-state review plan; "
+                    "refusing to publish before the state evidence review "
+                    "(run resolve first)"
+                )
+            person_state_review.validate_person_state_review_plan(person_state_plan)
+            # Bind the plan object (including the frozen evidence-manifest
+            # digest) to the digest it was recorded under, so a rewritten plan
+            # payload cannot loosen the publish-time state checks.
+            recorded_plan_sha = plan_payload.get("artifact_sha256")
+            if (
+                not isinstance(recorded_plan_sha, str)
+                or sha256_json(person_state_plan) != recorded_plan_sha
+            ):
+                raise PersistenceConflict(
+                    f"job {job_id} frozen person-state plan payload does not match "
+                    "its recorded digest; refusing to publish"
+                )
+            if open_person_state_review_count(conn, job_id=job_id) > 0:
+                raise PersistenceError(
+                    f"job {job_id} has open person-state reviews; refusing to "
+                    "publish a partially reviewed state projection"
+                )
 
         plan_row = conn.execute(
             """
@@ -1635,6 +2282,22 @@ def publish_chapters(
             initials, decisions, require_complete=True
         )
 
+        if person_state_path:
+            # Re-verify every frozen state/evidence binding against the actual
+            # accepted artifacts and terminal decisions before compiling the
+            # projection: drift or a wrong phase fails closed and writes
+            # nothing public.
+            assert person_state_evidence is not None
+            assert person_state_plan is not None
+            validate_frozen_person_state_inputs(
+                job_id=job_id,
+                plan=person_state_plan,
+                evidence=person_state_evidence,
+                accepted_artifacts=[entry["artifact"] for entry in accepted],
+                final_resolutions=final,
+                base_catalog_sha256=base_catalog_sha256,
+            )
+
         latest = read_latest_catalog(conn)
         latest_sha = sha256_json(latest) if latest is not None else sha256_json(None)
         if latest_sha != base_catalog_sha256:
@@ -1692,6 +2355,28 @@ def publish_chapters(
                     "persisted assembled bundle; refusing to publish reading "
                     "metadata compiled from drifted bytes"
                 )
+            if person_state_path:
+                # Independent of the persisted assembled row and the plan row:
+                # re-derive the 0.3 state block and evidence manifests from the
+                # accepted artifacts under the bound chapter plan and require
+                # the frozen digests. Any manifest/artifact/source/normalized/
+                # person_states drift fails here, before any public write.
+                assert person_state_evidence is not None
+                assert person_state_plan is not None
+                if sha256_json(assembled_for_publish.get("person_states")) != person_state_plan.get(
+                    "assembled_hash"
+                ):
+                    raise PersistenceConflict(
+                        "state_drift: persisted person_states do not match a fresh "
+                        "assembly from the accepted artifacts"
+                    )
+                if sha256_json(
+                    assembled_for_publish.get("person_state_evidence")
+                ) != person_state_plan.get("evidence_manifests_sha256"):
+                    raise PersistenceConflict(
+                        "state_drift: persisted evidence manifests do not match a fresh "
+                        "assembly from the accepted artifacts"
+                    )
             for block in assembled_for_publish.get("translation_blocks") or []:
                 reading_blocks_by_chapter.setdefault(
                     str(block.get("chapter_id")), []
@@ -1741,14 +2426,15 @@ def publish_chapters(
                 publication_by_chapter=dict(publication_by_chapter),
                 bundle_label=new_label,
             )
+            ordered_publications = _ordered_chapter_publications(
+                projection, publication_by_chapter
+            )
             stream_payload = build_reading_stream_payload(
                 projection=projection,
                 catalog=catalog,
                 revision_id=revision_id,
                 document_id=document_id,
-                chapter_publication_ids=_ordered_chapter_publications(
-                    projection, publication_by_chapter
-                ),
+                chapter_publication_ids=ordered_publications,
                 artifact_sha256_by_chapter=artifact_sha256_by_chapter,
                 bundle_label=new_label,
             )
@@ -1763,6 +2449,29 @@ def publish_chapters(
                 "reading_group_count": int(projection["counts"]["groups"]),
                 "reading_occurrence_count": int(projection["counts"]["occurrences"]),
             }
+            if person_state_path:
+                # The catalog, every chapter publication and the reading
+                # stream are already written in this transaction; persist the
+                # reviewed assessments, the immutable state manifest/index and
+                # the catalog disagreement index next. Any fault here rolls
+                # back all of it — no partial state is ever visible.
+                assert person_state_evidence is not None
+                assert person_state_plan is not None
+                reading.update(
+                    persist_person_state_publication(
+                        conn,
+                        job_id=job_id,
+                        plan=person_state_plan,
+                        catalog=catalog,
+                        catalog_sha256=catalog_sha256,
+                        bundle_label=new_label,
+                        revision_id=revision_id,
+                        projection=projection,
+                        chapter_publication_ids=ordered_publications,
+                        publication_by_chapter=publication_by_chapter,
+                        evidence=person_state_evidence["person_states"],
+                    )
+                )
 
         # Final live-clock fence immediately before the fenced output,
         # checkpoint and commit: no public content may commit on a lease

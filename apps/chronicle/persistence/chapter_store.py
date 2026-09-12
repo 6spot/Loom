@@ -58,6 +58,7 @@ if str(HERE) not in sys.path:
 
 import chapter_contract as chapter_contract  # noqa: E402
 import control_plane as control_plane  # noqa: E402
+import person_state_contract as person_state_contract  # noqa: E402
 import reading_contract as reading_contract  # noqa: E402
 from common import (  # noqa: E402
     LeaseLost,
@@ -155,10 +156,16 @@ def record_accepted_chapter_fenced(
     # candidate generation selects its own owner: 0.1 stays with the frozen
     # first-round validator, 0.2 is consumed only through the T01
     # ``reading_contract`` validator so the accepted artifact keeps the
-    # program-resolved reading annotations and unit IDs.
+    # program-resolved reading annotations and unit IDs, and 0.3 only
+    # through ``person_state_contract`` so the accepted artifact also keeps
+    # the program-computed state candidate keys.
     accepted_run = {**producing_run, "run_id": str(producing_run_id)}
     candidate_version = candidate.get("version")
-    if candidate_version == reading_contract.CANDIDATE_VERSION:
+    if candidate_version == person_state_contract.CANDIDATE_VERSION:
+        artifact = person_state_contract.accept_person_state_candidate(
+            request, candidate, producing_run=accepted_run
+        )
+    elif candidate_version == reading_contract.CANDIDATE_VERSION:
         artifact = reading_contract.accept_reading_candidate(
             request, candidate, producing_run=accepted_run
         )
@@ -169,15 +176,17 @@ def record_accepted_chapter_fenced(
     else:
         raise PersistenceError(
             "chapter candidate version must be "
-            f"{chapter_contract.CANDIDATE_VERSION!r} or "
-            f"{reading_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
+            f"{chapter_contract.CANDIDATE_VERSION!r}, "
+            f"{reading_contract.CANDIDATE_VERSION!r} or "
+            f"{person_state_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
         )
     if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (
         ARTIFACT_VERSION,
         reading_contract.ARTIFACT_VERSION,
+        person_state_contract.ARTIFACT_VERSION,
     ):
         raise PersistenceError(
-            "accepted artifact must be chronicle.chapter-artifact/0.1 or /0.2"
+            "accepted artifact must be chronicle.chapter-artifact/0.1, /0.2 or /0.3"
         )
     chapter_id = artifact["chapter_id"]
     if not isinstance(chapter_id, str) or not chapter_id:

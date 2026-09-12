@@ -83,19 +83,29 @@ unchanged. Thin orchestration lives in
   accepted run whose checkpoint commit never landed is adopted from
   its complete stored request/response with zero new model calls.
   `candidate_version_for_model` selects the candidate generation a
-  model produces: the live joint provider and the reading fixture plan
-  0.2 (reading annotations), the frozen first-round fixture stays 0.1.
+  model produces: the live joint provider plans the 0.3 person-state
+  contract (reading annotations plus `person_states`); the reading
+  fixture plans 0.2 and the frozen first-round fixture stays 0.1.
   The planned request declares that version, so prompt, strict output
-  format and acceptance validator always agree; a 0.2 candidate is
-  accepted only through the T01 `reading_contract`, keeping its
-  program-resolved reading units.
+  format and acceptance validator always agree; a 0.3 candidate is
+  accepted only through the T01 `person_state_contract`, and a 0.2
+  candidate only through `reading_contract`, each keeping its
+  program-resolved units/candidate keys.
 - `assemble` requires every expected accepted chapter (T07; partial
-  books fail closed) and records one revision bundle output.
+  books fail closed) and records one revision bundle output. A 0.3
+  bundle also persists its assembled `person_states` block and evidence
+  manifests next to the source bundle, so resolve and publish consume
+  exactly the accepted bytes.
 - `resolve` freezes the mixed review plan (`chapter_pair` +
   `published_batch`, T08) as a job output; resume reuses that exact
   plan (never rebuilding or re-ranking it) and parks in
-  `needs_review` while any candidate is open. Zero candidates proceed
-  unattended.
+  `needs_review` while any candidate is open. After the identity
+  reviews are terminal, a 0.3 job freezes one `chapter_state_evidence`
+  package per chapter from the accepted artifacts, the assembled state
+  evidence, the final Resolution hashes and the base catalog
+  (`person_state_review`), records that plan as a job output and keeps
+  parking until every state package is terminal. Zero candidates
+  proceed unattended.
 - `publish` runs `resolve_publish.publish_chapters` in one short
   transaction under the unified advisory lock: latest catalog by
   `publication_sequence` (never `imported_at`), lease re-verified
@@ -106,10 +116,10 @@ unchanged. Thin orchestration lives in
   the reading compile, and again immediately before the commit, so a
   lease that expires mid-transaction (or is taken over) fails closed
   with `LeaseLost` and rolls back every write instead of committing on
-  a stale lease. For a 0.2 reading book the caller's T03 `chapter_plan`
-  is strictly bound to the persisted T03/assembled record: the canonical
-  T03 `plan_sha256` is recomputed over the complete plan (version,
-  revision binding and every chapter's blocks/`content_sha256`/
+  a stale lease. For a reading book (0.2 or 0.3) the caller's T03
+  `chapter_plan` is strictly bound to the persisted T03/assembled record:
+  the canonical T03 `plan_sha256` is recomputed over the complete plan
+  (version, revision binding and every chapter's blocks/`content_sha256`/
   `required_block_ids`) and must match both the plan's own declared hash
   and the persisted hash, the revision binding and plan geometry are
   compared, and the re-assembled bundle must equal the persisted
@@ -117,23 +127,52 @@ unchanged. Thin orchestration lives in
   projection and persists the whole T05 reading index (stream, units,
   time groups, event occurrences) **inside the
   same transaction**, after the catalog and every chapter publication and
-  before the publish checkpoint. The compiled stream identity is derived
+  before the publish checkpoint. A 0.3 book first re-verifies every frozen
+  state binding after the final resolutions are derived: the assembled
+  ``person_states`` hash must equal the plan's ``assembled_hash``, the
+  complete evidence-manifest digest is computed before
+  ``person_state_plan_fingerprint`` and is a first-class fingerprint input
+  (``evidence_manifests_sha256``, recomputed by
+  ``validate_person_state_review_plan`` and therefore binding every review and
+  assessment to the exact manifests) and must match the persisted manifests,
+  every manifest must
+  still carry the accepted ``artifact_sha256``/``source_sha256``/
+  ``normalized_sha256`` (and agree with the accepted artifact's own
+  ``person_states_sha256``), the manifests must still map every frozen
+  candidate to its ``revision_ref``, the accepted-artifact and Resolution
+  hashes and the base catalog must match the plan, and every candidate/fact/
+  order/continuity/disagreement/unit-phase reference must stay inside the
+  assembled phase set (a wrong phase never compiles with a fallback label).
+  The manifests are additionally re-derived by a fresh assembly from the
+  accepted artifacts under the bound chapter plan before any public write.
+  Only then, in the
+  same transaction, it persists the reviewed T06 assessment artifact,
+  compiles the T04 person-state projection once per reading unit with that
+  unit's frozen phase binding, and writes the immutable T05 state
+  manifest/index plus the catalog disagreement index; a missing plan, an open
+  state review, an unbound unit, an oversized item, a drifted state or
+  evidence-manifest hash or a
+  wrong-phase association fails closed with no public row. The compiled
+  stream identity is derived
   deterministically from the revision, so recompiling and replaying
-  the same revision reuses the exact stream/units without a second
-  model call. Catalog, every chapter publication, canonical maps,
-  catalog output, reading index and publish checkpoint/completed
+  the same revision reuses the exact stream/units/state-manifest without a
+  second model call. Catalog, every chapter publication, canonical maps,
+  catalog output, reading index, person-state index and publish
+  checkpoint/completed
   commit together; any fault rolls back all public content (no
-  partial reading index). A moved baseline raises
+  partial reading or person-state index). A moved baseline raises
   `publication_plan_stale`: the frozen plan and its evidence are kept,
   nothing is auto-passed or rebuilt (a follow-up job must replan). All
   catalog writers (chapter publish, legacy publish, dataset import)
   take the same lock.
 - `present` only verifies the published complete translation blocks;
   it never re-translates and never substitutes a blurb for the full
-  text. A 0.2 book additionally verifies that exactly one reading
+  text. A 0.2/0.3 book additionally verifies that exactly one reading
   stream binds this job's chapter publications with at least one
-  unit/group, so `present` never passes while a partial reading index
-  is public.
+  unit/group. A 0.3 book also verifies that exactly one person-state
+  manifest binds that same stream/publication snapshot, cites at least
+  one reviewed assessment and carries its bounded index, so `present`
+  never passes while a partial reading or person-state index is public.
 
 ### Production chapter schema / provider / limits entry
 
@@ -372,4 +411,37 @@ first public write / stream write, rolling every row back. The
 compile/store helpers are covered by
 `persistence/test_reading_projection_unit.py` and
 `persistence/test_reading_store_postgres.py`; the stream/event read APIs
-belong to T07/T08.
+belong to T07/T09.
+
+The T08 person-state publication path is covered by
+`worker/test_person_state_pipeline_postgres.py`: a fresh 0.3 revision
+parks in `needs_review` on one `chapter_state_evidence` package per
+chapter after identity Resolution, then resumes through publish/present
+and exposes exactly one person-state manifest whose units bind the
+reading stream and whose reviewed assessment is persisted in the same
+transaction; replaying the same accepted artifacts/assessments/mapping
+reuses the identical manifest and assessment without a model call; a
+fault while writing the manifest leaves zero public rows and a clean
+retry publishes the complete set. The same file also drives the full
+0.3 → explicit composite job chain: source publication alone exposes no
+history; the facts and prose review gates each block publication; after
+both approvals the published history text, reviewed states and conclusion
+evidence read back on one fixed `publication_version`, with the reviewed
+source states present in the frozen composite context. Four independent
+negative cases prove the publish boundary: mutating the persisted
+assembled `person_states` fails closed with `state_drift`; mutating only a
+persisted evidence manifest's `source_sha256` and rewriting the same row's
+`report.evidence_manifests_sha256` still fails closed with `state_drift`
+against the frozen plan digest; tampering the frozen plan's
+`evidence_manifests_sha256` (while keeping the plan content key consistent)
+is rejected by the plan fingerprint itself; and a frozen candidate phase
+that is not in the assembled evidence fails closed with `wrong_phase`. Each
+asserts every
+public table (catalog, chapter, reading index, state
+manifest/index/assessment/disagreement) stays empty. Unit tests in
+`persistence/test_person_state_contract_unit.py` and
+`persistence/test_person_state_review_unit.py` prove the
+evidence-manifest digest is a fingerprint input. No-manifest 0.2
+sources contribute an explicitly empty
+`reviewed_person_states` list (regression in
+`worker/test_narrative_pipeline_postgres.py`).

@@ -168,4 +168,21 @@ Offline publication tests cover:
 - canonical JSON Schema validation;
 - bundle/resolution metadata mismatch rejection.
 
+## Downstream chapter / reading / person-state publication
+
+The canonical catalog above is the baseline the chapter pipeline resolves
+against. Its unique transaction is extended by
+[`worker.md`](worker.md) (`resolve_publish.publish_chapters`): for a 0.3
+book the same commit also persists the reviewed person-state assessment
+(T05), the T04 per-unit state projection as the immutable T05
+manifest/index, and the catalog-scoped disagreement index, so the public
+history reading's text, states and evidence belong to one fixed version.
+A 0.3 acceptance candidate is admitted only through
+`person_state_contract.accept_person_state_candidate`; the accepted
+`person_states` block and its evidence manifests remain the frozen input
+for that publication and are never re-derived on resume. The composite
+historical narrative consumes the published, reviewed source states as
+read-only input (`narrative_store.source_descriptors`) and never equates a
+source phase with a composite phase by year or event name.
+
 The first real acceptance run uses the independently ingested 武帝纪 and 吴主传 bundles plus the accepted C0-T7 Resolution Links. It must show one canonical 曹操 identity, one canonical 赤壁 occurrence, distinct but related Jiangling Events, and no automatic merge of the five uncertain same-name place pairs.
