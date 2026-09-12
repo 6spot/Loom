@@ -227,6 +227,9 @@ class ResponsesHTTPModel:
     # their exact historical request shape; chapter providers set it
     # (default 65536) so the request carries an explicit output token limit.
     max_output_tokens: int | None = None
+    # Worker-local contract metadata; never sent as a provider payload field.
+    # The chapter factory binds this to the same version as text_format.
+    candidate_version: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -460,4 +463,5 @@ def build_chapter_model(
         retry_backoff_seconds=retry_backoff_seconds,
         text_format=chapter_candidate_text_format_for(version),
         max_output_tokens=max_output_tokens,
+        candidate_version=version,
     )

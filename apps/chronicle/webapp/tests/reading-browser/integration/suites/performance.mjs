@@ -17,6 +17,35 @@ const CONSECUTIVE_ADVANCES_PER_RUN = 1000;
 const SCROLL_SECONDS = 30;
 const FIXED_VIEWPORT = { width: 1440, height: 900 };
 
+// Installed before each document loads. Long reading can fill Chromium's
+// resource timing buffer (for example with per-unit person-state requests).
+// PerformanceObserver still receives those resources; retain only a bounded
+// set of actual locate responses instead of depending on the global buffer.
+export function installLocateTimingProbe() {
+  const entries = [];
+  const collect = (resources) => {
+    for (const resource of resources) {
+      const url = new URL(resource.name);
+      if (url.origin !== location.origin ||
+        !/^\/api\/v1\/public\/reading-streams\/[^/]+\/locate$/.test(url.pathname)) continue;
+      const unitId = url.searchParams.get("unit_id");
+      if (!unitId || resource.responseEnd <= 0) continue;
+      entries.push({ unit_id: unitId, name: resource.name,
+        startTime: resource.startTime, responseEnd: resource.responseEnd });
+      if (entries.length > 64) entries.shift();
+    }
+  };
+  const observer = new PerformanceObserver((list) => collect(list.getEntries()));
+  observer.observe({ type: "resource", buffered: true });
+  window.__r2LocateTiming = {
+    latest(unitId, requestedAfter = 0) {
+      collect(observer.takeRecords());
+      return entries.filter((entry) => entry.unit_id === unitId &&
+        entry.startTime >= requestedAfter).at(-1) ?? null;
+    },
+  };
+}
+
 async function installProbes(page) {
   await page.evaluate(() => {
     window.__r2LongTasks = [];
@@ -35,15 +64,17 @@ async function installProbes(page) {
   });
 }
 
-function countRequests(page) {
-  const counts = { units: 0, groups: 0, locate: 0, preview: 0, other: 0 };
+export function countRequests(page) {
+  const counts = { units: 0, groups: 0, locate: 0, preview: 0, people: 0, person_details: 0, other: 0 };
   page.on("request", (request) => {
-    const url = request.url();
-    if (!url.includes("/api/v1/public/reading-")) return;
-    if (/\/reading-streams\/[^/]+\/units/.test(url)) counts.units += 1;
-    else if (/\/reading-streams\/[^/]+\/groups/.test(url)) counts.groups += 1;
-    else if (/\/reading-streams\/[^/]+\/locate/.test(url)) counts.locate += 1;
-    else if (/\/reading-events\/[^/]+\/preview/.test(url)) counts.preview += 1;
+    const path = new URL(request.url()).pathname;
+    if (!path.startsWith("/api/v1/public/reading-")) return;
+    if (/\/reading-streams\/[^/]+\/units$/.test(path)) counts.units += 1;
+    else if (/\/reading-streams\/[^/]+\/groups$/.test(path)) counts.groups += 1;
+    else if (/\/reading-streams\/[^/]+\/locate$/.test(path)) counts.locate += 1;
+    else if (/\/reading-events\/[^/]+\/preview$/.test(path)) counts.preview += 1;
+    else if (/\/reading-streams\/[^/]+\/units\/[^/]+\/people$/.test(path)) counts.people += 1;
+    else if (/\/reading-streams\/[^/]+\/units\/[^/]+\/people\//.test(path)) counts.person_details += 1;
     else counts.other += 1;
   });
   return counts;
@@ -189,8 +220,8 @@ async function advanceConsecutiveUnits(page, count, step = 1) {
   }, { wanted: count, step });
 }
 
-async function waitForUnit(page, unitId, relativeOffset = 0) {
-  return await page.evaluate(async ({ wanted, relativeOffset }) => {
+async function waitForUnit(page, unitId, relativeOffset = 0, requestedAfter = 0) {
+  return await page.evaluate(async ({ wanted, relativeOffset, requestedAfter }) => {
     const deadline = performance.now() + 30000;
     let previousTop = null;
     let stable = 0;
@@ -215,10 +246,7 @@ async function waitForUnit(page, unitId, relativeOffset = 0) {
         } else stable = 0;
         previousTop = rect.top;
         if (stable >= 2) {
-          const response = performance.getEntriesByType("resource").filter((entry) => {
-            const url = new URL(entry.name);
-            return url.pathname.endsWith("/locate") && url.searchParams.get("unit_id") === wanted;
-          }).at(-1);
+          const response = window.__r2LocateTiming?.latest(wanted, requestedAfter);
           if (!response) throw new Error(`missing real locate response timing for ${wanted}`);
           return { data_ready_ms: response.responseEnd, completed_ms: performance.now(), ...last };
         }
@@ -226,7 +254,7 @@ async function waitForUnit(page, unitId, relativeOffset = 0) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     throw new Error(`reading restore did not complete for ${wanted}: ${JSON.stringify(last)}`);
-  }, { wanted: unitId, relativeOffset });
+  }, { wanted: unitId, relativeOffset, requestedAfter });
 }
 
 async function navigateToUnreadEnd(page) {
@@ -244,9 +272,10 @@ async function navigateToUnreadEnd(page) {
     '[data-test="reading-unit"], [data-test="reading-unit-placeholder"]',
   ), (node) => Number(node.dataset.ordinal))));
   const locate = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/locate"));
+  const requestedAfter = await page.evaluate(() => performance.now());
   await groups.last().click();
   const targetId = new URL((await locate).url()).searchParams.get("unit_id");
-  await waitForUnit(page, targetId);
+  await waitForUnit(page, targetId, 0, requestedAfter);
   const targetOrdinal = Number(await activeUnitOrdinal(page));
   if (targetOrdinal <= cachedMax) throw new Error("distant target was already cached; missing unread-gap scenario");
   const backward = await advanceConsecutiveUnits(page, 40, -1);
@@ -258,6 +287,7 @@ async function runOnce(runner, baseUrl, scaleStream) {
   const page = await runner.newPage({ viewport: FIXED_VIEWPORT });
   const requests = countRequests(page);
   try {
+    await page.addInitScript(installLocateTimingProbe);
     await page.goto(readingUrl(baseUrl, scaleStream), { waitUntil: "domcontentloaded" });
     await page.waitForSelector(UNIT, { timeout: 30000 });
     await page.waitForSelector(`${UNIT}[data-active="true"]`, { timeout: 30000 });
@@ -295,10 +325,12 @@ async function runOnce(runner, baseUrl, scaleStream) {
       return { unitId: active.dataset.unitId, marker: window.__r2ViewMarker,
         offset: Math.max(0, Math.min(1, (chrome + (innerHeight - chrome) * 0.3 - rect.top) / rect.height)) };
     });
+    const axisRequestedAfter = await page.evaluate(() => performance.now());
     await page.locator('[data-test="reading-axis-group"]').first().click();
-    await waitForUnit(page, firstUnitId);
+    await waitForUnit(page, firstUnitId, 0, axisRequestedAfter);
+    const returnRequestedAfter = await page.evaluate(() => performance.now());
     await page.goBack();
-    await waitForUnit(page, returnPosition.unitId, returnPosition.offset);
+    await waitForUnit(page, returnPosition.unitId, returnPosition.offset, returnRequestedAfter);
     evidence.same_page_return = await page.evaluate((marker) => window.__r2ViewMarker === marker, returnPosition.marker);
     evidence.distant_gap_navigation = await navigateToUnreadEnd(page);
     evidence.same_page_return &&= await page.evaluate((marker) => window.__r2ViewMarker === marker, returnPosition.marker);

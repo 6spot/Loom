@@ -17,6 +17,7 @@ import sys
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 for path in (str(HERE),):
@@ -24,6 +25,7 @@ for path in (str(HERE),):
         sys.path.insert(0, path)
 
 import resolve_publish as R  # noqa: E402
+import person_state_contract as P  # noqa: E402
 from common import PersistenceError, canonical_json_bytes  # noqa: E402
 
 
@@ -392,6 +394,288 @@ class FinalResolutionTests(unittest.TestCase):
         )
         # Inputs are never mutated by finalization.
         self.assertEqual(initial[0]["entity_links"][0]["decision"], "uncertain")
+
+
+class PersonStateManifestPlaceTests(unittest.TestCase):
+    def _real_compiler_input(self) -> dict:
+        from test_person_state_projection_unit import CHAPTER_ID, PUBLICATION_ID, fact
+
+        revision_id = uuid.UUID("0192f0a0-0000-7000-8000-00000000aa03")
+        place_fact = fact(
+            "pf_001", phase_ref="ph_001", dimension="administration",
+            value="乙郡", operation="attest",
+        )
+        place_fact.update(
+            person_ref={"kind": "entity", "ref": "ent_place"},
+            person_key="ent_place", revision_id=str(revision_id),
+        )
+        first = {
+            "unit_id": "ru_001", "ordinal": 0, "block_id": "t_001",
+            "chapter_id": CHAPTER_ID, "publication_id": PUBLICATION_ID,
+            "source_title": "synthetic", "context_entities": [{
+                "entity_ref": "ent_place", "canonical_id": "ent_canonical_place",
+                "kind": "place", "name": "甲地",
+            }],
+        }
+        return {
+            "projection": {"units": [first, {
+                **first, "unit_id": "ru_002", "ordinal": 1,
+                "block_id": "t_002", "context_entities": [],
+            }]},
+            "catalog": {"canonical_entities": [{
+                "canonical_id": "ent_canonical_place", "canonical_name": "甲地",
+                "representations": [{"bundle": "bundle", "ref": "ent_place"}],
+            }], "canonical_events": []},
+            "bundle_label": "bundle", "stream_id": str(uuid.uuid4()),
+            "revision_id": revision_id, "chapter_publication_ids": [PUBLICATION_ID],
+            "publication_by_chapter": {CHAPTER_ID: PUBLICATION_ID},
+            "evidence": {
+                "phases": [{"phase_id": "ph_001", "chapter_id": CHAPTER_ID, "label": "同一阶段"}],
+                "phase_orders": [], "facts": [place_fact],
+                "continuities": [], "disagreements": [],
+                "unit_phases": [
+                    {"block_id": block_id, "mode": "single", "phase_refs": ["ph_001"]}
+                    for block_id in ("t_001", "t_002")
+                ],
+            },
+            "assessments": {"pf_001": "supported"}, "assessment_hashes": [],
+        }
+
+    def test_same_phase_place_state_only_in_unit_that_mentions_place(self) -> None:
+        import person_state_store
+
+        manifest = R.build_person_state_manifest(**self._real_compiler_input())
+        first, second = manifest["units"]
+        self.assertEqual([len(unit["places"]) for unit in manifest["units"]], [1, 0])
+        self.assertEqual(first["places"][0]["place_id"], "ent_canonical_place")
+        self.assertEqual(P.validate_person_state_dto("place_state_item", first["places"][0]), [])
+        self.assertEqual(len(first["place_evidence"]), 1)
+        self.assertEqual(second["place_evidence"], [])
+        for unit in manifest["units"]:
+            normalized = person_state_store._normalize_unit(unit, "test.unit")
+            self.assertEqual([], normalized["people"])
+
+    def test_place_context_must_match_frozen_canonical_map(self) -> None:
+        for canonical_id in ("ent_other", None):
+            with self.subTest(canonical_id=canonical_id):
+                args = self._real_compiler_input()
+                args["projection"]["units"] = args["projection"]["units"][:1]
+                args["projection"]["units"][0]["context_entities"][0]["canonical_id"] = canonical_id
+                with self.assertRaises(PersistenceError):
+                    R.build_person_state_manifest(**args)
+
+    def test_one_place_ref_cannot_have_two_context_canonical_ids(self) -> None:
+        args = self._real_compiler_input()
+        args["projection"]["units"] = args["projection"]["units"][:1]
+        contexts = args["projection"]["units"][0]["context_entities"]
+        contexts.append({**contexts[0], "canonical_id": "ent_other"})
+        with self.assertRaises(PersistenceError):
+            R.build_person_state_manifest(**args)
+
+    def test_merged_place_refs_share_canonical_unit_membership(self) -> None:
+        args = self._real_compiler_input()
+        args["catalog"]["canonical_entities"][0]["representations"].append(
+            {"bundle": "bundle", "ref": "ent_place_alias"}
+        )
+        first, second = args["projection"]["units"]
+        second["context_entities"] = [{
+            **first["context_entities"][0], "entity_ref": "ent_place_alias",
+        }]
+        manifest = R.build_person_state_manifest(**args)
+        self.assertEqual([len(unit["places"]) for unit in manifest["units"]], [1, 1])
+        self.assertEqual(manifest["units"][0]["places"], manifest["units"][1]["places"])
+
+    def test_filtering_does_not_hide_unresolved_or_wrong_kind_place_facts(self) -> None:
+        for invalid in ("unresolved", "wrong_kind"):
+            with self.subTest(invalid=invalid):
+                args = self._real_compiler_input()
+                if invalid == "unresolved":
+                    args["catalog"]["canonical_entities"] = []
+                else:
+                    args["projection"]["units"][0]["context_entities"][0]["kind"] = "polity"
+                with self.assertRaises(PersistenceError):
+                    R.build_person_state_manifest(**args)
+
+    def test_manifest_carries_canonical_place_items_and_evidence(self) -> None:
+        revision_id = uuid.uuid4()
+        publication_id = str(uuid.uuid4())
+        place = P.example_place_state_item(
+            place_id="place_ref",
+            name="荊州",
+            dimension="administration",
+            value="荊州",
+            controller="ent_controller",
+            certainty="clear",
+            phase_ids=["ph_001"],
+            source_facts=[
+                {
+                    "chapter_publication_id": publication_id,
+                    "chapter_id": "ch_001",
+                    "revision_id": str(revision_id),
+                    "fact_ref": "pf_001",
+                    "claim_refs": [],
+                    "phase_id": "ph_001",
+                }
+            ],
+            chapter_id="ch_001",
+            fact_ref="pf_001",
+            person_ref="place_ref",
+            current=True,
+        )
+        descriptor = P.example_evidence_descriptor(
+            descriptor_id="desc_place",
+            source_publication_id=publication_id,
+            anchor_id="anc_0123456789abcdef",
+            quote="荊州刺史",
+            source_title="吳主傳",
+            phase_id="ph_001",
+        )
+        projection = {
+            "units": [
+                {
+                    "unit_id": "ru_001",
+                    "ordinal": 0,
+                    "block_id": "block_001",
+                    "chapter_id": "ch_001",
+                    "publication_id": publication_id,
+                    "context_entities": [
+                        {
+                            "entity_ref": "place_ref",
+                            "canonical_id": "ent_place",
+                            "kind": "place",
+                            "name": "荊州",
+                        }
+                    ],
+                }
+            ]
+        }
+        catalog = {
+            "canonical_entities": [
+                {
+                    "canonical_id": "ent_place",
+                    "canonical_name": "荊州",
+                    "representations": [{"bundle": "bundle", "ref": "place_ref"}],
+                }
+            ],
+            "canonical_events": [],
+        }
+        compiled = {
+            "people": {},
+            "places": [place],
+            "evidence": [{"item_id": place["item_id"], "descriptors": [descriptor]}],
+        }
+        with mock.patch.object(
+            R.person_state_projection,
+            "compile_person_state_projection",
+            return_value=compiled,
+        ):
+            manifest = R.build_person_state_manifest(
+                projection=projection,
+                catalog=catalog,
+                bundle_label="bundle",
+                stream_id=str(uuid.uuid4()),
+                revision_id=revision_id,
+                chapter_publication_ids=[publication_id],
+                publication_by_chapter={"ch_001": publication_id},
+                evidence={
+                    "unit_phases": [
+                        {"block_id": "block_001", "mode": "single", "phase_refs": ["ph_001"]}
+                    ],
+                    "phases": [{"phase_id": "ph_001", "label": "初"}],
+                },
+                assessments={},
+                assessment_hashes=[],
+            )
+
+        unit = manifest["units"][0]
+        self.assertEqual("ent_place", unit["places"][0]["place_id"])
+        self.assertEqual(place["item_id"], unit["places"][0]["item_id"])
+        self.assertEqual(place["item_id"], unit["place_evidence"][0]["item_id"])
+        self.assertEqual(1, manifest["manifest"]["counts"]["places"])
+
+    def test_manifest_rejects_place_item_bound_to_non_place_context(self) -> None:
+        revision_id = uuid.uuid4()
+        publication_id = str(uuid.uuid4())
+        place = P.example_place_state_item(
+            place_id="place_ref",
+            name="荊州",
+            dimension="administration",
+            value="荊州",
+            controller="ent_controller",
+            certainty="clear",
+            phase_ids=["ph_001"],
+            source_facts=[
+                {
+                    "chapter_publication_id": publication_id,
+                    "chapter_id": "ch_001",
+                    "revision_id": str(revision_id),
+                    "fact_ref": "pf_002",
+                    "claim_refs": [],
+                    "phase_id": "ph_001",
+                }
+            ],
+            chapter_id="ch_001",
+            fact_ref="pf_002",
+            person_ref="place_ref",
+            current=True,
+        )
+        projection = {
+            "units": [
+                {
+                    "unit_id": "ru_001",
+                    "ordinal": 0,
+                    "block_id": "block_001",
+                    "chapter_id": "ch_001",
+                    "publication_id": publication_id,
+                    "context_entities": [
+                        {
+                            "entity_ref": "place_ref",
+                            "canonical_id": "ent_polity",
+                            "kind": "polity",
+                            "name": "荊州政權",
+                        }
+                    ],
+                }
+            ]
+        }
+        catalog = {
+            "canonical_entities": [
+                {
+                    "canonical_id": "ent_polity",
+                    "canonical_name": "荊州政權",
+                    "representations": [{"bundle": "bundle", "ref": "place_ref"}],
+                }
+            ],
+            "canonical_events": [],
+        }
+        compiled = {"people": {}, "places": [place], "evidence": []}
+        with mock.patch.object(
+            R.person_state_projection,
+            "compile_person_state_projection",
+            return_value=compiled,
+        ):
+            with self.assertRaisesRegex(PersistenceError, "without a place context entity"):
+                R.build_person_state_manifest(
+                    projection=projection,
+                    catalog=catalog,
+                    bundle_label="bundle",
+                    stream_id=str(uuid.uuid4()),
+                    revision_id=revision_id,
+                    chapter_publication_ids=[publication_id],
+                    publication_by_chapter={"ch_001": publication_id},
+                    evidence={
+                        "unit_phases": [
+                            {
+                                "block_id": "block_001",
+                                "mode": "single",
+                                "phase_refs": ["ph_001"],
+                            }
+                        ],
+                        "phases": [{"phase_id": "ph_001", "label": "初"}],
+                    },
+                    assessments={},
+                    assessment_hashes=[],
+                )
 
 
 class PublicationTests(unittest.TestCase):

@@ -59,7 +59,9 @@ python3 apps/chronicle/acceptance/second_round_gate.py \
 gate 会：
 1. 用 `gate_runtime.ComposeStack` 起隔离 Compose 栈（PG18 + Rust `chronicle-server`
    前端 + Python `read_api` sidecar + durable worker），并起进程内确定性 0.2 fixture
-   模型 HTTP provider（`host.docker.internal`）。
+   模型 HTTP provider（`host.docker.internal`）。gate 使用 `gate-fixture:reading-chapter`
+   明确选择 0.2；worker 将同一版本传入请求与 provider strict schema，避免当前生产默认
+   0.3 与 R2 fixture 混用。普通生产模型仍默认 0.3。
 2. 经真实 Studio HTTP（Rust 前端）上传冻结源、排队、处理 `needs_review`
    （fixture 固定决定）并发布。
 3. 经公开 HTTP 读回 stream/units/groups/locate/event preview+targets，并做未知
@@ -82,6 +84,20 @@ gate 会：
    用 MutationObserver 回调时刻抹去同一 JS task 中的同步耗时。恢复从目标 locate
    响应完成（含 page）计时，直到目标 active、侧栏一致且滚动位置正确稳定。
    跨过的 ordinal 数不能代替逐段推进次数。
+
+定位恢复计时从文档加载前注册的 `PerformanceObserver` 取得真实 locate 请求的
+`responseEnd`，仅保留最近 64 条定位记录；长文阅读填满浏览器默认资源计时缓冲区
+也不能丢失后续定位计时。同页导航只接受此次操作开始之后的请求；缺少实际请求
+记录仍失败，不用当前时间补值。探针的
+Chromium 回归会主动填满资源缓冲区，并检查导航后不会沿用上一文档的记录：
+
+```bash
+node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
+```
+
+请求计数按精确 API pathname 区分正文 `/units` 分页、R3 `/units/{unit}/people`
+摘要及逐人详情，三者分别记入证据；查询参数和子路由不能被算成正文分页。原有正文
+分页请求、响应时间和长任务预算不变，测量仍包含实际人物摘要请求带来的负载。
 
 `manifest.json` 的 `criteria` 逐项记录
 `real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，

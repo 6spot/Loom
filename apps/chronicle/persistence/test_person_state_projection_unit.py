@@ -812,6 +812,9 @@ class DtoContractRegressionTests(unittest.TestCase):
         self.assertTrue(result["places"])
         for place in result["places"]:
             assert_dto(self, "place_state_item", place)
+        self.assertEqual({}, result["people"])
+        self.assertEqual([], result["items"])
+        self.assertEqual([], result["changes"])
 
 
 class IntegrationShapeTests(unittest.TestCase):

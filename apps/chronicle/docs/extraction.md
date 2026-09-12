@@ -213,7 +213,11 @@ per-segment call and no read-time semantic annotation.
   returns the current production format and
   `chapter_candidate_text_format_for("0.2")` selects the reading format.
   `model_provider.build_chapter_model(..., candidate_version="0.2")` keeps
-  the 4 MiB response cap / explicit output-token budget.
+  the 4 MiB response cap / explicit output-token budget and declares the
+  same version to the worker. Environment wiring resolves the existing
+  fixture name selector before building the provider, keeping the planned
+  request and strict format on one version; ordinary live names default to
+  production 0.3. The version metadata is local, not an extra provider field.
   `fixture_model.build_reading_chapter_candidate` /
   `models_from_reading_chapter_fixture_pack` emit the same 0.2 shape from
   one whole-chapter request.

@@ -2,7 +2,7 @@
 
 Covers ``person-state-reading.md`` section 6:
 
-- fresh migration + reapply and the six person-state tables;
+- fresh migration + reapply and the nine person-state tables;
 - immutable assessment / manifest / unit-person / item / evidence /
   disagreement writes, idempotent replay and different-byte conflicts;
 - caller-owned transaction rollback with no residue and mid-transaction
@@ -61,6 +61,9 @@ PERSON_STATE_TABLES = (
     "person_state_items",
     "person_state_item_evidence",
     "person_state_disagreements",
+    "person_state_unit_places",
+    "person_state_place_items",
+    "person_state_place_item_evidence",
 )
 
 
@@ -416,6 +419,36 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             "source_facts": [self._source_fact(ctx, fact_ref, to_phase_id)],
         }
 
+    def _place_item(
+        self,
+        ctx: dict,
+        place_id: str,
+        *,
+        fact_ref: str,
+        dimension: str = "administration",
+        phase_id: str = "ph_001",
+        value: str | None = "荊州",
+        controller: str | None = "ent_controller",
+        certainty: str = "clear",
+        current: bool = True,
+        reason_codes: list[str] | None = None,
+    ) -> dict:
+        return P.example_place_state_item(
+            place_id=place_id,
+            name="荊州",
+            dimension=dimension,
+            value=value,
+            controller=controller,
+            certainty=certainty,
+            phase_ids=[phase_id],
+            source_facts=[self._source_fact(ctx, fact_ref, phase_id)],
+            chapter_id=ctx["chapter_id"],
+            fact_ref=fact_ref,
+            person_ref=place_id,
+            reason_codes=reason_codes,
+            current=current,
+        )
+
     def _descriptor(self, ctx: dict, index: int, phase_id: str = "ph_001") -> dict:
         quote = f"瑜為前部大督-{index}"
         return {
@@ -478,6 +511,8 @@ class PersonStateStorePostgresTests(unittest.TestCase):
         people: list[dict],
         phase_mode: str = "single",
         phases: list[dict] | None = None,
+        places: list[dict] | None = None,
+        place_evidence: list[dict] | None = None,
     ) -> dict:
         return {
             "unit_id": unit_id,
@@ -487,6 +522,8 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             "phases": phases
             or [{"phase_id": "ph_001", "label": "初", "ordinal": 0, "mode": "single"}],
             "people": people,
+            "places": list(places or []),
+            "place_evidence": list(place_evidence or []),
         }
 
     def _person(
@@ -644,6 +681,7 @@ class PersonStateStorePostgresTests(unittest.TestCase):
                 for row in conn.execute("SELECT version FROM chronicle.schema_migrations")
             }
             self.assertIn("0009_chronicle_person_states.sql", versions)
+            self.assertIn("0010_chronicle_place_states.sql", versions)
 
     # -- happy path / idempotency -------------------------------------------
 
@@ -731,6 +769,223 @@ class PersonStateStorePostgresTests(unittest.TestCase):
             self.assertEqual(
                 evidence_page["descriptors"][0]["quote_sha256"], _sha256("瑜為前部大督-0")
             )
+
+    def test_place_persist_and_read_bounded(self) -> None:
+        with self._connect_ready() as conn:
+            catalog_sha = self._seed_catalog(conn, tag="places")
+            ctx, stream_id = self._setup_stream(
+                conn, label="place", blocks=["荊州"], catalog_sha=catalog_sha
+            )
+            assessment_sha = self._assessment(conn, catalog_sha, plan="place-plan")
+            place_a_admin = self._place_item(
+                ctx, "ent_place_a", fact_ref="pf_301", dimension="administration"
+            )
+            place_a_control = self._place_item(
+                ctx,
+                "ent_place_a",
+                fact_ref="pf_302",
+                dimension="control",
+                value="周瑜",
+            )
+            place_b_admin = self._place_item(
+                ctx, "ent_place_b", fact_ref="pf_303", dimension="administration"
+            )
+            place_evidence = [
+                {
+                    "item_id": place_a_admin["item_id"],
+                    "descriptors": [self._descriptor(ctx, 0), self._descriptor(ctx, 1)],
+                }
+            ]
+            unit_id = "ru_place_0"
+            manifest = self._manifest(
+                ctx,
+                stream_id,
+                catalog_sha,
+                assessment_hashes=[assessment_sha],
+                units=[
+                    self._unit(
+                        ctx,
+                        unit_id=unit_id,
+                        unit_ordinal=0,
+                        people=[],
+                        places=[place_a_control, place_b_admin, place_a_admin],
+                        place_evidence=place_evidence,
+                    )
+                ],
+            )
+            manifest_sha = store.persist_person_state_manifest(conn, manifest)
+
+            first = store.list_unit_places(
+                conn, stream_id=stream_id, unit_id=unit_id, limit=2
+            )
+            self.assertEqual(first["state_manifest_sha"], manifest_sha)
+            self.assertEqual(first["section"], "places")
+            self.assertEqual(
+                [item["dimension"] for item in first["places"]],
+                ["administration", "control"],
+            )
+            self.assertTrue(first["has_more"])
+            second = store.list_unit_places(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                limit=2,
+                cursor=first["next_cursor"],
+            )
+            self.assertEqual([item["place_id"] for item in second["places"]], ["ent_place_b"])
+            self.assertFalse(second["has_more"])
+            self.assertEqual(
+                [
+                    error
+                    for item in first["places"] + second["places"]
+                    for error in P.validate_person_state_dto("place_state_item", item)
+                ],
+                [],
+            )
+
+            filtered = store.list_unit_places(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                place_id="ent_place_a",
+                phase_id="ph_001",
+                limit=10,
+            )
+            self.assertEqual(len(filtered["places"]), 2)
+            self.assertEqual({item["place_id"] for item in filtered["places"]}, {"ent_place_a"})
+
+            evidence_page = store.list_place_state_item_evidence(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                place_id="ent_place_a",
+                item_id=place_a_admin["item_id"],
+                limit=1,
+            )
+            self.assertEqual(evidence_page["descriptor_count"], 1)
+            self.assertTrue(evidence_page["has_more"])
+            evidence_tail = store.list_place_state_item_evidence(
+                conn,
+                stream_id=stream_id,
+                unit_id=unit_id,
+                place_id="ent_place_a",
+                item_id=place_a_admin["item_id"],
+                limit=1,
+                cursor=evidence_page["next_cursor"],
+            )
+            self.assertEqual(evidence_tail["descriptor_count"], 1)
+            self.assertFalse(evidence_tail["has_more"])
+
+            immutable_updates = (
+                (
+                    "UPDATE chronicle.person_state_unit_places SET name = '改写'",
+                ),
+                (
+                    "UPDATE chronicle.person_state_place_items SET value = '改写'",
+                ),
+                (
+                    "UPDATE chronicle.person_state_place_item_evidence SET quote = '改写'",
+                ),
+            )
+            for (statement,) in immutable_updates:
+                with self.assertRaises(psycopg.errors.RaiseException):
+                    with conn.transaction():
+                        conn.execute(statement)
+
+    def test_real_place_compiler_manifest_round_trip(self) -> None:
+        import resolve_publish as R
+        import staged_store
+        from test_resolve_publish_unit import _bundle, _entity
+        from test_person_state_projection_unit import fact
+
+        with self._connect_ready() as conn:
+            label = "compiled_place"
+            bundle = _bundle("synthetic", [_entity("ent_place", "甲地", "place")], [])
+            staged_store.persist_bundle(conn, label, bundle)
+            catalog, _ = R.publish_with_decisions(
+                bundles={label: bundle}, resolutions=[], existing_catalog=None
+            )
+            catalog_sha, _ = canonical_store.persist_catalog(conn, catalog)
+            place_id = catalog["canonical_entities"][0]["canonical_id"]
+            ctx = self._seed_source(
+                conn, label=label, title="synthetic", blocks=["甲地隶乙郡。", "随后。"],
+                catalog_sha=catalog_sha,
+            )
+            projection = self._build_stream(ctx, catalog_sha=catalog_sha, tag="v1")
+            projection["units"][0]["context_entities"] = [{
+                "entity_ref": "ent_place", "canonical_id": place_id,
+                "kind": "place", "name": "甲地",
+            }]
+            stream_id = str(reading_store.persist_reading_stream(conn, projection))
+            quote = "甲地隶乙郡。"
+            place_fact = fact(
+                "pf_001", phase_ref="ph_001", dimension="administration",
+                value="乙郡", operation="attest", anchors=[{
+                    "anchor_id": "anc_" + _sha256(quote)[:16], "quote": quote,
+                    "quote_sha256": _sha256(quote), "revision_id": str(ctx["revision_id"]),
+                    "chapter_id": ctx["chapter_id"],
+                }],
+            )
+            place_fact.update(
+                person_ref={"kind": "entity", "ref": "ent_place"}, person_key="ent_place",
+                chapter_id=ctx["chapter_id"], revision_id=str(ctx["revision_id"]),
+                chapter_publication_id=str(ctx["publication_id"]), source_title="synthetic",
+            )
+            manifest = R.build_person_state_manifest(
+                projection=projection, catalog=catalog, bundle_label=label,
+                stream_id=stream_id, revision_id=ctx["revision_id"],
+                chapter_publication_ids=[str(ctx["publication_id"])],
+                publication_by_chapter={ctx["chapter_id"]: str(ctx["publication_id"])},
+                evidence={
+                    "phases": [{"phase_id": "ph_001", "label": "同一阶段", "chapter_id": ctx["chapter_id"]}],
+                    "phase_orders": [], "facts": [place_fact], "continuities": [], "disagreements": [],
+                    "unit_phases": [
+                        {"block_id": block["block_id"], "mode": "single", "phase_refs": ["ph_001"]}
+                        for block in ctx["blocks"]
+                    ],
+                },
+                assessments={"pf_001": "supported"}, assessment_hashes=[],
+            )
+            manifest_sha = store.persist_person_state_manifest(conn, manifest)
+            self.assertEqual(manifest_sha, store.persist_person_state_manifest(conn, manifest))
+            pages = [store.list_unit_places(
+                conn, stream_id=stream_id, unit_id=unit["unit_id"], catalog_sha=catalog_sha,
+            ) for unit in projection["units"]]
+            self.assertEqual([1, 0], [len(page["places"]) for page in pages])
+            self.assertEqual(0, conn.execute("SELECT count(*) FROM chronicle.person_state_unit_people").fetchone()[0])
+            evidence_page = store.list_place_state_item_evidence(
+                conn, stream_id=stream_id, unit_id=projection["units"][0]["unit_id"],
+                place_id=place_id, item_id=pages[0]["places"][0]["item_id"], catalog_sha=catalog_sha,
+            )
+            self.assertEqual([quote], [entry["quote"] for entry in evidence_page["descriptors"]])
+
+    def test_unreadable_place_evidence_rejected_before_any_state_write(self) -> None:
+        with self._connect_ready() as conn:
+            catalog_sha = self._seed_catalog(conn, tag="place_budget")
+            ctx, stream_id = self._setup_stream(
+                conn, label="place_budget", blocks=["甲地"], catalog_sha=catalog_sha,
+            )
+            item = self._place_item(ctx, "ent_place", fact_ref="pf_950")
+            # Single oversized quote, combined first batch, page-envelope
+            # overhead, and an oversized later descriptor must all fail.
+            for lengths in ([22000], [12000, 12000], [21200], [10] * 16 + [22000]):
+                with self.subTest(lengths=lengths):
+                    descriptors = []
+                    for index, length in enumerate(lengths):
+                        descriptor = self._descriptor(ctx, index)
+                        descriptor.update(quote="甲" * length, quote_sha256=_sha256("甲" * length))
+                        descriptors.append(descriptor)
+                    manifest = self._manifest(
+                        ctx, stream_id, catalog_sha, assessment_hashes=[], units=[self._unit(
+                            ctx, unit_id="ru_place_budget_0", unit_ordinal=0, people=[], places=[item],
+                            place_evidence=[{"item_id": item["item_id"], "descriptors": descriptors}],
+                        )],
+                    )
+                    with self.assertRaisesRegex(PersistenceError, "compiled_item_max_bytes|evidence_max_bytes"):
+                        store.persist_person_state_manifest(conn, manifest)
+                    for table in ("person_state_manifests", "person_state_unit_places",
+                                  "person_state_place_items", "person_state_place_item_evidence"):
+                        self.assertEqual(0, conn.execute(f"SELECT count(*) FROM chronicle.{table}").fetchone()[0])
 
     def test_manifest_replay_idempotent_and_conflict(self) -> None:
         with self._connect_ready() as conn:

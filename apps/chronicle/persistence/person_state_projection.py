@@ -850,6 +850,10 @@ def compile_person_state_projection(
     records: list[dict[str, Any]] = []
     end_facts: list[dict[str, Any]] = []
     for fact in ordered_facts:
+        # Place facts have their own DTO and projection below; they cannot
+        # also become a person's office/title/affiliation or identity change.
+        if fact.get("dimension") in _PLACE_DIMENSIONS:
+            continue
         fact_ref = _fact_ref(fact) or ""
         person_local, person_id = _resolve_person(fact, canonical_map)
         if person_id is None:

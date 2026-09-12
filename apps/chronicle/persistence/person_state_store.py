@@ -27,6 +27,8 @@ Read entries are SELECT-only and bounded. They never read the whole history and
 slice it in Python: ordinal keysets use indexed ranges with ``limit + 1``.
 
 - :func:`list_unit_people` — one bounded page of per-unit person summaries.
+- :func:`list_unit_places` — one bounded page of per-unit administration /
+  control place items.
 - :func:`list_unit_person_states` — one bounded page of a person's identities
   or changes for the unit, optionally filtered by phase. When a snapshot
   ``catalog_sha`` is supplied it must be visible (the stream's origin catalog
@@ -35,6 +37,8 @@ slice it in Python: ordinal keysets use indexed ranges with ``limit + 1``.
   The overlay can only add uncertainty; it never promotes a claim to clear.
 - :func:`list_state_item_evidence` — one bounded page of evidence descriptors
   for one compiled item.
+- :func:`list_place_state_item_evidence` — one bounded page of evidence
+  descriptors for one compiled administration / control item.
 - :func:`list_catalog_disagreements` — one bounded page of one catalog's
   immutable disagreement index (the only disagreement read path).
 
@@ -77,6 +81,10 @@ _ITEM_ID_RE = re.compile(r"^psi_[0-9a-f]{24}$")
 #: Bumped whenever the opaque cursor payload shape changes.
 CURSOR_VERSION = 1
 
+# Shared with the read API's whole-entry response fitting. Publication checks
+# reserve the same room so an accepted descriptor can actually be read back.
+STATE_PAGE_CURSOR_MARGIN_BYTES = 1024
+
 
 class PersonStateCursorError(PersistenceError):
     """A pagination cursor is malformed or bound to a different read scope.
@@ -89,6 +97,7 @@ class PersonStateCursorError(PersistenceError):
 
 PHASE_MODES = tuple(_contract.PHASE_MODES)
 STATE_DIMENSIONS = tuple(_contract.STATE_DIMENSIONS)
+PLACE_DIMENSIONS = tuple(_contract.PLACE_DIMENSIONS)
 OPERATIONS = tuple(_contract.OPERATIONS)
 QUALIFICATIONS = tuple(_contract.QUALIFICATIONS)
 CERTAINTIES = tuple(_contract.CERTAINTIES)
@@ -246,6 +255,30 @@ def _normalize_change_item(item: Any, owner: str) -> dict[str, Any]:
     return item
 
 
+def _normalize_place_item(item: Any, owner: str) -> dict[str, Any]:
+    """Normalize one compiled administration/control place item.
+
+    Place items intentionally have their own storage path.  The people table
+    is constrained to ``office``/``title``/``affiliation`` and must not be
+    widened after its immutable migration was published.  Validation still
+    uses the shared T01 DTO so the read API cannot grow a second place shape.
+    """
+    item = dict(_require_object(item, owner))
+    item.setdefault("value", None)
+    item.setdefault("controller", None)
+    item.setdefault("reason_codes", [])
+    item["reason_codes"] = _normalize_reason_codes(item["reason_codes"], owner)
+    item.setdefault("reason_text", _reason_text(item["reason_codes"]))
+    item.setdefault("source_facts", [])
+    if not isinstance(item.get("source_facts"), list):
+        raise PersistenceError(f"{owner}.source_facts must be an array")
+    item.setdefault("evidence_count", 0)
+    item.setdefault("evidence_cursor", None)
+    _validate_dto("place_state_item", item, owner)
+    _require_compiled_item_size(item, owner)
+    return item
+
+
 def _normalize_evidence(evidence: Any, person_owner: str) -> dict[str, list[dict[str, Any]]]:
     """Return ``item_id -> [descriptor, ...]`` for one person."""
     if evidence is None:
@@ -365,6 +398,86 @@ def _normalize_person(person: Any, owner: str, unit_phase_mode: str) -> dict[str
     }
 
 
+def _normalize_places(
+    places: Any, evidence: Any, owner: str
+) -> dict[str, Any]:
+    """Normalize the flat place projection into stable unit/place indexes."""
+    raw_places = _require_list(places, f"{owner}.places")
+    place_evidence = _normalize_evidence(evidence, owner)
+    normalized: list[dict[str, Any]] = []
+    seen_items: set[str] = set()
+    for index, raw_item in enumerate(raw_places):
+        item_owner = f"{owner}.places[{index}]"
+        item = _normalize_place_item(raw_item, item_owner)
+        item_id = item["item_id"]
+        if item_id in seen_items:
+            raise PersistenceError(f"{owner} repeats place item_id {item_id!r}")
+        seen_items.add(item_id)
+        item["evidence_count"] = len(place_evidence.get(item_id, []))
+        _validate_dto("place_state_item", item, item_owner)
+        descriptors = place_evidence.get(item_id, [])
+        for position, descriptor in enumerate(descriptors):
+            _require_compiled_item_size(descriptor, f"{item_owner}.evidence[{position}]")
+        # Section 7 bounds the complete item together with its first 16
+        # descriptors; later descriptors remain accessible by bounded pages.
+        _require_compiled_item_size(
+            {"item": item, "descriptors": descriptors[:16]}, item_owner
+        )
+        normalized.append(item)
+
+    unknown_evidence = sorted(set(place_evidence) - seen_items)
+    if unknown_evidence:
+        raise PersistenceError(
+            f"{owner}.place_evidence cites unknown place item(s): {unknown_evidence}"
+        )
+
+    normalized.sort(key=lambda item: (item["place_id"], item["dimension"], item["item_id"]))
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in normalized:
+        grouped.setdefault(item["place_id"], []).append(item)
+
+    place_rows: list[dict[str, Any]] = []
+    item_rows: list[dict[str, Any]] = []
+    for place_ordinal, place_id in enumerate(sorted(grouped)):
+        items = grouped[place_id]
+        reason_codes = sorted(
+            {code for item in items for code in item.get("reason_codes") or []}
+        )
+        place_rows.append(
+            {
+                "place_id": place_id,
+                "place_ordinal": place_ordinal,
+                "name": items[0]["name"],
+                "item_count": len(items),
+                "administration_count": sum(
+                    item["dimension"] == "administration" for item in items
+                ),
+                "control_count": sum(item["dimension"] == "control" for item in items),
+                "certainty": "uncertain"
+                if any(item["certainty"] == "uncertain" for item in items)
+                else "clear",
+                "reason_codes": reason_codes,
+                "preview_places": items[: _contract.PersonStateLimits().summary_max_items],
+                "items": items,
+            }
+        )
+        for item_ordinal, item in enumerate(items):
+            item_rows.append(
+                {
+                    "place_id": place_id,
+                    "item_id": item["item_id"],
+                    "item_ordinal": item_ordinal,
+                    "payload": item,
+                }
+            )
+
+    return {
+        "places": place_rows,
+        "items": item_rows,
+        "evidence": place_evidence,
+    }
+
+
 def _normalize_unit(unit: Any, owner: str) -> dict[str, Any]:
     unit = _require_object(unit, owner)
     unit_id = _require_text(unit.get("unit_id"), f"{owner}.unit_id")
@@ -392,6 +505,10 @@ def _normalize_unit(unit: Any, owner: str) -> dict[str, Any]:
         seen_people.add(normalized["person_id"])
         normalized_people.append(normalized)
 
+    normalized_places = _normalize_places(
+        unit.get("places", []), unit.get("place_evidence", []), owner
+    )
+
     return {
         "unit_id": unit_id,
         "unit_ordinal": unit_ordinal,
@@ -399,10 +516,54 @@ def _normalize_unit(unit: Any, owner: str) -> dict[str, Any]:
         "phase_mode": phase_mode,
         "phases": normalized_phases,
         "people": normalized_people,
+        "places": normalized_places["places"],
+        "place_items": normalized_places["items"],
+        "place_evidence": normalized_places["evidence"],
     }
 
 
 def _canonical_manifest(normalized: dict[str, Any]) -> dict[str, Any]:
+    units = []
+    for unit in normalized["units"]:
+        canonical_unit = {
+            "unit_id": unit["unit_id"],
+            "unit_ordinal": unit["unit_ordinal"],
+            "publication_id": str(unit["publication_id"]),
+            "phase_mode": unit["phase_mode"],
+            "phases": unit["phases"],
+            "people": [
+                {
+                    "person_id": person["person_id"],
+                    "name": person["name"],
+                    "importance": person["importance"],
+                    "phase_mode": person["phase_mode"],
+                    "certainty": person["certainty"],
+                    "reason_codes": person["reason_codes"],
+                    "items": [row["payload"] for row in person["items"]],
+                    "evidence": [
+                        {
+                            "item_id": item_id,
+                            "descriptors": descriptors,
+                        }
+                        for item_id, descriptors in person["evidence"].items()
+                    ],
+                }
+                for person in unit["people"]
+            ],
+        }
+        # Keep people-only manifest hashes stable across the additive place
+        # migration. Place fields are part of the canonical bytes only when
+        # the published unit actually carries place state.
+        if unit["place_items"] or unit["place_evidence"]:
+            canonical_unit["places"] = [
+                row["payload"] for row in unit["place_items"]
+            ]
+            canonical_unit["place_evidence"] = [
+                {"item_id": item_id, "descriptors": descriptors}
+                for item_id, descriptors in unit["place_evidence"].items()
+            ]
+        units.append(canonical_unit)
+
     return {
         "stream_id": str(normalized["stream_id"]),
         "revision_id": str(normalized["revision_id"]),
@@ -413,35 +574,7 @@ def _canonical_manifest(normalized: dict[str, Any]) -> dict[str, Any]:
             str(value) for value in normalized["chapter_publication_ids"]
         ],
         "manifest": normalized["manifest"],
-        "units": [
-            {
-                "unit_id": unit["unit_id"],
-                "unit_ordinal": unit["unit_ordinal"],
-                "publication_id": str(unit["publication_id"]),
-                "phase_mode": unit["phase_mode"],
-                "phases": unit["phases"],
-                "people": [
-                    {
-                        "person_id": person["person_id"],
-                        "name": person["name"],
-                        "importance": person["importance"],
-                        "phase_mode": person["phase_mode"],
-                        "certainty": person["certainty"],
-                        "reason_codes": person["reason_codes"],
-                        "items": [row["payload"] for row in person["items"]],
-                        "evidence": [
-                            {
-                                "item_id": item_id,
-                                "descriptors": descriptors,
-                            }
-                            for item_id, descriptors in person["evidence"].items()
-                        ],
-                    }
-                    for person in unit["people"]
-                ],
-            }
-            for unit in normalized["units"]
-        ],
+        "units": units,
     }
 
 
@@ -550,6 +683,42 @@ def _normalize_manifest(conn, manifest: Any) -> dict[str, Any]:
                             f"manifest item {row['item_id']!r} cites publication {parsed} "
                             "outside the stream snapshot"
                         )
+        for row in unit["place_items"]:
+            for source_fact in row["payload"].get("source_facts") or []:
+                chapter_publication_id = source_fact.get("chapter_publication_id")
+                try:
+                    parsed = _require_uuid(
+                        chapter_publication_id, "place source_fact chapter_publication_id"
+                    )
+                except PersistenceError as exc:
+                    raise PersistenceConflict(
+                        f"place item {row['item_id']!r} source fact is not bound to a "
+                        "chapter publication"
+                    ) from exc
+                if parsed not in publication_set:
+                    raise PersistenceConflict(
+                        f"place item {row['item_id']!r} cites publication {parsed} "
+                        "outside the stream snapshot"
+                    )
+        for item_id, descriptors in unit["place_evidence"].items():
+            for descriptor in descriptors:
+                try:
+                    parsed = _require_uuid(
+                        descriptor.get("source_publication_id"),
+                        "place evidence source_publication_id",
+                    )
+                except PersistenceError as exc:
+                    raise PersistenceConflict(
+                        f"place item {item_id!r} evidence is not bound to a chapter publication"
+                    ) from exc
+                if parsed not in publication_set:
+                    raise PersistenceConflict(
+                        f"place item {item_id!r} evidence cites publication {parsed} "
+                        "outside the stream snapshot"
+                    )
+        _require_place_evidence_page_sizes(
+            unit, stream_id=stream_id, catalog_sha=origin_catalog_sha
+        )
 
     unit_phases = {
         unit["unit_id"]: {"phase_mode": unit["phase_mode"], "phases": unit["phases"]}
@@ -890,6 +1059,78 @@ def _insert_unit(conn, *, manifest_sha: str, stream_id: uuid.UUID, unit: dict[st
                     ),
                 )
 
+    for place in unit["places"]:
+        conn.execute(
+            """
+            INSERT INTO chronicle.person_state_unit_places(
+                manifest_sha, stream_id, unit_id, place_id, place_ordinal, name,
+                item_count, administration_count, control_count, certainty,
+                reason_codes, phases, preview_places
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                manifest_sha,
+                stream_id,
+                unit["unit_id"],
+                place["place_id"],
+                place["place_ordinal"],
+                place["name"],
+                place["item_count"],
+                place["administration_count"],
+                place["control_count"],
+                place["certainty"],
+                place["reason_codes"],
+                Jsonb(unit["phases"]),
+                Jsonb(place["preview_places"]),
+            ),
+        )
+
+    for row in unit["place_items"]:
+        _insert_place_item(
+            conn,
+            manifest_sha=manifest_sha,
+            stream_id=stream_id,
+            unit_id=unit["unit_id"],
+            row=row,
+        )
+
+    for item_id, descriptors in unit["place_evidence"].items():
+        for ordinal, descriptor in enumerate(descriptors):
+            conn.execute(
+                """
+                INSERT INTO chronicle.person_state_place_item_evidence(
+                    manifest_sha, stream_id, unit_id, place_id, item_id,
+                    descriptor_ordinal, descriptor_id, source_publication_id,
+                    anchor_id, quote, quote_sha256, attribution, source_title,
+                    phase_id, relation
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    manifest_sha,
+                    stream_id,
+                    unit["unit_id"],
+                    next(
+                        row["place_id"]
+                        for row in unit["place_items"]
+                        if row["item_id"] == item_id
+                    ),
+                    item_id,
+                    ordinal,
+                    descriptor["descriptor_id"],
+                    _require_uuid(
+                        descriptor["source_publication_id"],
+                        "place descriptor source_publication_id",
+                    ),
+                    descriptor["anchor_id"],
+                    descriptor["quote"],
+                    descriptor["quote_sha256"],
+                    descriptor["attribution"],
+                    descriptor["source_title"],
+                    descriptor["phase_id"],
+                    descriptor["relation"],
+                ),
+            )
+
 
 def _insert_item(
     conn,
@@ -933,6 +1174,46 @@ def _insert_item(
             payload.get("operation"),
             payload.get("from_phase_id"),
             payload.get("to_phase_id"),
+            Jsonb(payload.get("source_facts", [])),
+            int(payload.get("evidence_count", 0)),
+            row["item_ordinal"],
+            Jsonb(payload),
+        ),
+    )
+
+
+def _insert_place_item(
+    conn,
+    *,
+    manifest_sha: str,
+    stream_id: uuid.UUID,
+    unit_id: str,
+    row: dict[str, Any],
+) -> None:
+    payload = row["payload"]
+    conn.execute(
+        """
+        INSERT INTO chronicle.person_state_place_items(
+            manifest_sha, stream_id, unit_id, place_id, item_id, dimension,
+            value, controller, certainty, reason_codes, reason_text, phase_ids,
+            current, source_facts, evidence_count, item_ordinal, payload
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                  %s, %s, %s)
+        """,
+        (
+            manifest_sha,
+            stream_id,
+            unit_id,
+            row["place_id"],
+            row["item_id"],
+            payload["dimension"],
+            payload.get("value"),
+            payload.get("controller"),
+            payload["certainty"],
+            payload["reason_codes"],
+            payload.get("reason_text", ""),
+            payload.get("phase_ids", []) or [],
+            payload["current"],
             Jsonb(payload.get("source_facts", [])),
             int(payload.get("evidence_count", 0)),
             row["item_ordinal"],
@@ -1124,6 +1405,33 @@ def _require_unit_person(
         )
 
 
+def _require_unit_place(
+    conn, *, stream_id: uuid.UUID, unit_id: str, place_id: str
+) -> None:
+    row = conn.execute(
+        """
+        SELECT 1 FROM chronicle.person_state_unit_places
+        WHERE stream_id = %s AND unit_id = %s AND place_id = %s
+        """,
+        (stream_id, unit_id, place_id),
+    ).fetchone()
+    if row is None:
+        # A typed context place can legitimately have no recorded state, so
+        # there is no item-derived summary row. Check this exact reading unit,
+        # not another unit or the whole chapter, before allowing an empty page.
+        row = conn.execute(
+            """
+            SELECT 1 FROM chronicle.reading_units
+            WHERE stream_id = %s AND unit_id = %s AND context_entities @> %s
+            """,
+            (stream_id, unit_id, Jsonb([{"canonical_id": place_id, "kind": "place"}])),
+        ).fetchone()
+    if row is None:
+        raise PersistenceError(
+            f"unknown place {place_id!r} in stream {stream_id} unit {unit_id}"
+        )
+
+
 def _bound_phase_ids(meta: dict[str, Any]) -> set[str]:
     return {
         phase.get("phase_id")
@@ -1201,6 +1509,26 @@ def _cursor_person_rank(after: Any, description: str = "cursor") -> tuple[int, s
             f"{description} must carry an (importance_rank, person_id) position"
         )
     return after[0], after[1]
+
+
+def _cursor_place_position(
+    after: Any, description: str = "cursor"
+) -> tuple[str, int, str]:
+    if (
+        not isinstance(after, list)
+        or len(after) != 3
+        or not isinstance(after[0], str)
+        or not after[0]
+        or not isinstance(after[1], int)
+        or isinstance(after[1], bool)
+        or after[1] < 0
+        or not isinstance(after[2], str)
+        or not after[2]
+    ):
+        raise PersonStateCursorError(
+            f"{description} must carry a (place_id, item_ordinal, item_id) position"
+        )
+    return after[0], after[1], after[2]
 
 
 def _cursor_text(after: Any, description: str = "cursor") -> str:
@@ -1361,6 +1689,95 @@ def list_unit_people(
         "limit": limit,
         "people": people,
         "people_count": len(people),
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+    }
+
+
+def list_unit_places(
+    conn,
+    *,
+    stream_id: uuid.UUID,
+    unit_id: str,
+    place_id: str | None = None,
+    phase_id: str | None = None,
+    catalog_sha: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Return a bounded page of a unit's administration/control place items."""
+    stream_id = _require_uuid(stream_id, "stream_id")
+    unit_id = _require_text(unit_id, "unit_id")
+    if place_id is not None:
+        place_id = _require_text(place_id, "place_id")
+    if phase_id is not None:
+        phase_id = _require_phase_id(phase_id, "phase_id")
+    limit = _normalize_limit(limit, maximum=50)
+    meta = _manifest_metadata(conn, stream_id=stream_id, unit_id=unit_id)
+    if catalog_sha is not None:
+        _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
+    if place_id is not None:
+        _require_unit_place(
+            conn, stream_id=stream_id, unit_id=unit_id, place_id=place_id
+        )
+    if phase_id is not None:
+        _require_bound_phase(meta, phase_id)
+    effective_catalog_sha = catalog_sha or meta["origin_catalog_sha"]
+
+    scope = {
+        "kind": "unit_places",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "place_id": place_id,
+        "phase_id": phase_id,
+        "catalog_sha": effective_catalog_sha,
+        "manifest_sha": meta["manifest_sha"],
+    }
+    clauses = ["stream_id = %s", "unit_id = %s"]
+    params: list[Any] = [stream_id, unit_id]
+    if place_id is not None:
+        clauses.append("place_id = %s")
+        params.append(place_id)
+    if phase_id is not None:
+        clauses.append("%s = ANY (phase_ids)")
+        params.append(phase_id)
+    if cursor is not None:
+        after_place, after_ordinal, after_item = _cursor_place_position(
+            _decode_cursor(cursor, scope)
+        )
+        clauses.append("(place_id, item_ordinal, item_id) > (%s, %s, %s)")
+        params.extend([after_place, after_ordinal, after_item])
+    rows = conn.execute(
+        f"""
+        SELECT place_id, item_id, item_ordinal, payload
+        FROM chronicle.person_state_place_items
+        WHERE {' AND '.join(clauses)}
+        ORDER BY place_id, item_ordinal, item_id
+        LIMIT %s
+        """,
+        (*params, limit + 1),
+    ).fetchall()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    places = _overlay_catalog_disagreements(
+        conn,
+        catalog_sha=effective_catalog_sha,
+        rows=[dict(row[3]) for row in rows],
+    )
+    next_cursor = None
+    if has_more and rows:
+        last = rows[-1]
+        next_cursor = _encode_cursor(scope, [last[0], last[2], last[1]])
+    return {
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "catalog_sha": effective_catalog_sha,
+        "publication_id": meta["publication_id"],
+        "state_manifest_sha": meta["manifest_sha"],
+        "section": "places",
+        "phases": list(meta["phases"]),
+        "places": places,
+        "limit": limit,
         "next_cursor": next_cursor,
         "has_more": has_more,
     }
@@ -1636,6 +2053,159 @@ def list_state_item_evidence(
     }
 
 
+def _place_evidence_page(
+    *, stream_id, unit_id, catalog_sha, meta, item_id, phase_id,
+    descriptors, limit, next_cursor, has_more,
+) -> dict[str, Any]:
+    return {
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "catalog_sha": catalog_sha,
+        "publication_id": str(meta["publication_id"]),
+        "state_manifest_sha": meta["manifest_sha"],
+        "item_id": item_id,
+        "section": "evidence",
+        "phase_id": phase_id,
+        "descriptors": descriptors,
+        "descriptor_count": len(descriptors),
+        "limit": limit,
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+    }
+
+
+def _require_place_evidence_page_sizes(unit, *, stream_id, catalog_sha) -> None:
+    """Reject a descriptor that cannot fit even a one-entry public page."""
+    meta = {"publication_id": unit["publication_id"], "manifest_sha": "0" * 64}
+    for item in unit["place_items"]:
+        descriptors = unit["place_evidence"].get(item["item_id"], [])
+        for ordinal, descriptor in enumerate(descriptors):
+            phase_id = descriptor["phase_id"]
+            scope = {
+                "kind": "place_state_item_evidence", "stream_id": str(stream_id),
+                "unit_id": unit["unit_id"], "place_id": item["place_id"],
+                "item_id": item["item_id"], "phase_id": phase_id,
+                "catalog_sha": catalog_sha, "manifest_sha": meta["manifest_sha"],
+            }
+            page = _place_evidence_page(
+                stream_id=stream_id, unit_id=unit["unit_id"], catalog_sha=catalog_sha,
+                meta=meta, item_id=item["item_id"], phase_id=phase_id,
+                descriptors=[descriptor], limit=50,
+                next_cursor=_encode_cursor(scope, ordinal), has_more=True,
+            )
+            limit = _contract.PersonStateLimits().evidence_max_bytes
+            if len(canonical_json_bytes(page)) + STATE_PAGE_CURSOR_MARGIN_BYTES > limit:
+                raise PersistenceError(
+                    f"place item {item['item_id']!r} descriptor {ordinal} "
+                    f"cannot fit evidence_max_bytes {limit}"
+                )
+
+
+def list_place_state_item_evidence(
+    conn,
+    *,
+    stream_id: uuid.UUID,
+    unit_id: str,
+    place_id: str,
+    item_id: str,
+    phase_id: str | None = None,
+    catalog_sha: str | None = None,
+    limit: int = 50,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Return a bounded evidence page for an administration/control item."""
+    stream_id = _require_uuid(stream_id, "stream_id")
+    unit_id = _require_text(unit_id, "unit_id")
+    place_id = _require_text(place_id, "place_id")
+    item_id = _require_item_id(item_id, "item_id")
+    if phase_id is not None:
+        phase_id = _require_phase_id(phase_id, "phase_id")
+    limit = _normalize_limit(limit, maximum=50)
+    meta = _manifest_metadata(conn, stream_id=stream_id, unit_id=unit_id)
+    if catalog_sha is not None:
+        _require_visible_manifest(conn, stream_id=stream_id, catalog_sha=catalog_sha)
+    _require_unit_place(
+        conn, stream_id=stream_id, unit_id=unit_id, place_id=place_id
+    )
+    if phase_id is not None:
+        _require_bound_phase(meta, phase_id)
+    effective_catalog_sha = catalog_sha or meta["origin_catalog_sha"]
+
+    item = conn.execute(
+        """
+        SELECT 1 FROM chronicle.person_state_place_items
+        WHERE stream_id = %s AND unit_id = %s AND place_id = %s AND item_id = %s
+        """,
+        (stream_id, unit_id, place_id, item_id),
+    ).fetchone()
+    if item is None:
+        raise PersistenceError(
+            f"unknown item {item_id!r} for place {place_id!r} in stream "
+            f"{stream_id} unit {unit_id}"
+        )
+
+    scope = {
+        "kind": "place_state_item_evidence",
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "place_id": place_id,
+        "item_id": item_id,
+        "phase_id": phase_id,
+        "catalog_sha": effective_catalog_sha,
+        "manifest_sha": meta["manifest_sha"],
+    }
+    clauses = [
+        "stream_id = %s",
+        "unit_id = %s",
+        "place_id = %s",
+        "item_id = %s",
+    ]
+    params: list[Any] = [stream_id, unit_id, place_id, item_id]
+    if phase_id is not None:
+        clauses.append("phase_id = %s")
+        params.append(phase_id)
+    if cursor is not None:
+        after_ordinal = _cursor_ordinal(_decode_cursor(cursor, scope))
+        clauses.append("descriptor_ordinal > %s")
+        params.append(after_ordinal)
+    rows = conn.execute(
+        f"""
+        SELECT descriptor_id, source_publication_id, anchor_id, quote,
+               quote_sha256, attribution, source_title, phase_id, relation,
+               descriptor_ordinal
+        FROM chronicle.person_state_place_item_evidence
+        WHERE {' AND '.join(clauses)}
+        ORDER BY descriptor_ordinal
+        LIMIT %s
+        """,
+        (*params, limit + 1),
+    ).fetchall()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    descriptors = [
+        {
+            "descriptor_id": row[0],
+            "source_publication_id": str(row[1]),
+            "anchor_id": row[2],
+            "quote": row[3],
+            "quote_sha256": row[4],
+            "attribution": row[5],
+            "source_title": row[6],
+            "phase_id": row[7],
+            "relation": row[8],
+        }
+        for row in rows
+    ]
+    next_cursor = None
+    if has_more and rows:
+        next_cursor = _encode_cursor(scope, rows[-1][9])
+    return _place_evidence_page(
+        stream_id=stream_id, unit_id=unit_id, catalog_sha=effective_catalog_sha,
+        meta=meta, item_id=item_id, phase_id=phase_id, descriptors=descriptors,
+        limit=limit, next_cursor=next_cursor, has_more=has_more,
+    )
+
+
 def list_catalog_disagreements(
     conn,
     *,
@@ -1696,6 +2266,7 @@ __all__ = [
     "EVIDENCE_RELATIONS",
     "IMPORTANCES",
     "ITEM_KINDS",
+    "PLACE_DIMENSIONS",
     "OPERATIONS",
     "PHASE_MODES",
     "PersonStateCursorError",
@@ -1704,7 +2275,9 @@ __all__ = [
     "SECTIONS",
     "STATE_DIMENSIONS",
     "list_catalog_disagreements",
+    "list_place_state_item_evidence",
     "list_state_item_evidence",
+    "list_unit_places",
     "list_unit_people",
     "list_unit_person_states",
     "persist_person_state_assessments",
