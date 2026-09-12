@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 PERSISTENCE = HERE.parent / "persistence"
@@ -78,6 +79,41 @@ class ChapterModelTimeoutTests(unittest.TestCase):
         )
         self.assertEqual(12.5, M.timeout_from_env(
             {"CHRONICLE_MODEL_TIMEOUT_SECONDS": "12.5"}))
+
+
+class ChapterModelVersionTests(unittest.TestCase):
+    def test_environment_selection_keeps_worker_and_strict_format_together(self) -> None:
+        for name, expected in (
+            ("live-chapter-model", "0.3"),
+            ("fixture:person-state-chapter", "0.3"),
+            ("fixture:reading-chapter", "0.2"),
+            ("fixture:chapter", "0.1"),
+        ):
+            with self.subTest(name=name):
+                model = S.chapter_model_from_env(
+                    live_env({"CHRONICLE_CHAPTER_MODEL": name})
+                )
+                self.assertEqual(expected, S.candidate_version_for_model(model))
+                self.assertEqual(
+                    expected,
+                    model.text_format["schema"]["properties"]["version"]["const"],
+                )
+
+    def test_explicit_factory_version_wins_over_the_model_name(self) -> None:
+        for version in ("0.1", "0.2", "0.3"):
+            with self.subTest(version=version):
+                model = M.build_chapter_model(
+                    "fixture:chapter",
+                    "https://gateway.example/v1/responses",
+                    candidate_version=version,
+                )
+                self.assertEqual(version, S.candidate_version_for_model(model))
+
+    def test_unsupported_declared_version_fails_closed(self) -> None:
+        with self.assertRaisesRegex(PersistenceError, "unsupported candidate version"):
+            S.candidate_version_for_model(
+                SimpleNamespace(name="fixture:chapter", candidate_version="9.9")
+            )
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ Run::
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -55,9 +56,13 @@ from gate_runtime import Evidence, GateError, default_gate_project  # noqa: E402
 from reading_scale_fixture import parse_scale_result  # noqa: E402
 
 import chapter_contract  # noqa: E402
+import chapter_extraction  # noqa: E402
 import chapter_plan  # noqa: E402
+import chapter_stage  # noqa: E402
 import fixture_model  # noqa: E402
+import model_provider  # noqa: E402
 import reading_contract  # noqa: E402
+from jsonschema import Draft202012Validator  # noqa: E402
 
 GATE = HERE / "second_round_gate.py"
 SOURCE_PACK = REPO / "apps/chronicle/corpus/first-round/source-pack.json"
@@ -122,6 +127,53 @@ def run_gate(*args: str, stdin_data: str | None = None) -> subprocess.CompletedP
 
 
 class FixtureConstructionTests(unittest.TestCase):
+    def test_stack_env_to_provider_and_worker_accepts_reading_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            env_path = G.write_stack_env(
+                write_env(directory), directory / "stack.env",
+                endpoint="http://127.0.0.1:12345/v1/responses", web_port=8092,
+            )
+            model = chapter_stage.chapter_model_from_env(G.load_env_file(env_path))
+
+        version = chapter_stage.candidate_version_for_model(model)
+        _, requests = chapter_stage.plan_job_chapters(
+            text=TINY_TEXT,
+            source_sha256=hashlib.sha256(TINY_TEXT.encode("utf-8")).hexdigest(),
+            binding={
+                "revision_id": uuid.uuid5(uuid.NAMESPACE_URL, "c2r2-test"),
+                "filename": "tiny.md",
+            },
+            limits=chapter_contract.ChapterLimits(), candidate_version=version,
+        )
+        bodies = []
+
+        def fixture_response(req, timeout):
+            body = json.loads(req.data.decode("utf-8"))
+            bodies.append(body)
+            raw = G.fixture_candidate(body["input"])
+            response = mock.MagicMock()
+            response.__enter__.return_value = response
+            response.headers.get.return_value = None
+            response.read.return_value = json.dumps(
+                {"status": "completed", "output_text": raw}, ensure_ascii=False,
+            ).encode("utf-8")
+            return response
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fixture_response):
+            result = chapter_extraction.extract_chapter(requests[0], model)
+
+        self.assertTrue(result["accepted"], result["error"])
+        self.assertEqual("0.2", version)
+        self.assertEqual("0.2", requests[0]["schema_versions"]["candidate"])
+        self.assertEqual(1, len(bodies), "valid fixture must not need correction")
+        body = bodies[0]
+        self.assertNotIn("candidate_version", body, "version metadata is worker-local")
+        schema = body["text"]["format"]["schema"]
+        self.assertEqual("0.2", schema["properties"]["version"]["const"])
+        Draft202012Validator(schema).validate(json.loads(G.fixture_candidate(body["input"])))
+        self.assertEqual([], chapter_extraction.verify_history(result, request=requests[0]))
+
     def test_grounded_spec_is_bound_to_request(self) -> None:
         request = tiny_request()
         spec = G.grounded_spec(request, "Fixture書")
