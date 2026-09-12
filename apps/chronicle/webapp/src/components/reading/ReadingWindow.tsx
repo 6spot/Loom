@@ -175,6 +175,7 @@ export default function ReadingWindow({
   const [focusedUnitId, setFocusedUnitId] = useState<string | null>(null);
   const [selectionPinned, setSelectionPinned] = useState<readonly string[]>([]);
   const windowRef = useRef<HTMLDivElement>(null);
+  const previousMountedRef = useRef<readonly string[]>([]);
 
   const units = useMemo(() => mergeReadingUnitPages(pages), [pages]);
   const headings = useMemo(
@@ -201,11 +202,16 @@ export default function ReadingWindow({
         units,
         activeUnitId,
         pinnedUnitIds,
+        previousMountedUnitIds: previousMountedRef.current,
         placeholderHeights: heights,
         limits,
       }),
     [units, activeUnitId, pinnedUnitIds, heights, limits],
   );
+
+  useIsomorphicLayoutEffect(() => {
+    previousMountedRef.current = plan.mountedUnitIds;
+  }, [plan.mountedUnitIds]);
 
   const pinnedChangeRef = useRef(onPinnedUnitIdsChange);
   pinnedChangeRef.current = onPinnedUnitIdsChange;

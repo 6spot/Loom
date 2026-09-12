@@ -267,6 +267,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const narrow = useNarrowViewport();
   const [currentStream, setCurrentStream] = useState(streamId);
   const [pages, setPages] = useState<StreamPage[]>([]);
+  const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ReadingStreamDetailPage | null>(null);
   const [groups, setGroups] = useState<readonly TimeGroup[]>([]);
   const [groupCursor, setGroupCursor] = useState<string | null>(null);
@@ -326,7 +327,11 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
    * stream 的正文/轴/详情，不能把两个 source 的 ordinal 混排成一段连续正文。
    */
   const locate = useCallback(
-    async (locator: ReadingLocator) => {
+    async (locator: ReadingLocator, signal?: AbortSignal) => {
+      if (signal?.aborted) return null;
+      // Mount the destination before waitForDom; active still belongs to the
+      // old location until the controller completes or cancels navigation.
+      setPendingUnitId(locator.unit_id);
       const stream = locator.stream_id;
       if (stream !== currentStreamRef.current) {
         currentStreamRef.current = stream;
@@ -341,7 +346,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
         catalog: locator.catalog_sha,
         unitId: locator.unit_id,
         limit: 20,
-      });
+      }, { signal });
+      if (signal?.aborted) return null;
       addPage(envelope.page);
       return { locator, unitIds: envelope.page.units.map((unit) => unit.unit_id) };
     },
@@ -371,6 +377,13 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
     unitSelector: '[data-test="reading-unit"]',
     headerHeight: chromeHeight,
   });
+
+  useEffect(() => {
+    if (pendingUnitId && (controller.navigationState === "interrupted" ||
+      (controller.navigationState === "idle" && (controller.activeUnitId === pendingUnitId || controller.issue)))) {
+      setPendingUnitId(null);
+    }
+  }, [pendingUnitId, controller.navigationState, controller.activeUnitId, controller.issue]);
 
   // 时间轴区段：按阅读顺序分页加载，不在浏览器重新归组。切换来源时重新取。
   useEffect(() => {
@@ -555,7 +568,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
 
   const hasContent = units.length > 0;
   return (
-    <section className="rpage" data-test="reading-page" data-catalog={catalog} data-stream={currentStream}>
+    <section className="rpage" data-test="reading-page" data-catalog={catalog} data-stream={currentStream}
+      data-navigation-state={controller.navigationState}>
       <div className="rpage-compact" data-test="reading-compact-bar" ref={chromeRef}>
         <span className="rpage-compact-time" data-test="reading-compact-time">
           {narrativeTimeLabel(narrativeTime)}
@@ -589,6 +603,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           <ReadingWindow
             pages={pages}
             activeUnitId={controller.activeUnitId}
+            pinnedUnitIds={pendingUnitId ? [pendingUnitId] : []}
             chapterTitles={chapterTitles}
             showChapterHeadings={false}
             showSources={false}

@@ -288,6 +288,45 @@ describe("reading-window: bounded plan and pinning", () => {
     }
   });
 
+  it("defers a new target when every slot protects operated DOM, then admits it on release", () => {
+    const units = Array.from({ length: 600 }, (_, ordinal) => makeUnit(ordinal, "连续正文。"));
+    const previous = planReadingWindow({
+      units, activeUnitId: units[300].unit_id,
+      pinnedUnitIds: units.slice(0, 20).map((unit) => unit.unit_id),
+    });
+    expect(previous.mountedUnitIds).toHaveLength(140);
+    const target = units[500].unit_id;
+    const blocked = planReadingWindow({
+      units, activeUnitId: target,
+      pinnedUnitIds: [target, ...previous.mountedUnitIds],
+      previousMountedUnitIds: previous.mountedUnitIds,
+    });
+    expect(blocked.mountedUnitIds).toEqual(previous.mountedUnitIds);
+    expect(blocked.mountedUnitIds).not.toContain(target);
+    expect(blocked.autoPrefetch).toBe(false);
+    expect(blocked.overflowPinnedUnitIds).toContain(target);
+    const released = planReadingWindow({
+      units, activeUnitId: target, pinnedUnitIds: [target],
+      previousMountedUnitIds: blocked.mountedUnitIds,
+    });
+    expect(released.mountedUnitIds).toContain(target);
+    expect(released.mountedUnitIds).toHaveLength(120);
+    expect(released.autoPrefetch).toBe(true);
+  });
+
+  it("admits a pending distant target before the controller commits a new active unit", () => {
+    const units = Array.from({ length: 1000 }, (_, ordinal) => makeUnit(ordinal, "连续正文。"));
+    const activeUnitId = units[600].unit_id;
+    const before = planReadingWindow({ units, activeUnitId });
+    const pending = units[0].unit_id;
+    const locating = planReadingWindow({
+      units, activeUnitId, pinnedUnitIds: [pending], previousMountedUnitIds: before.mountedUnitIds,
+    });
+    expect(locating.mountedUnitIds).toContain(activeUnitId);
+    expect(locating.mountedUnitIds).toContain(pending);
+    expect(locating.mountedUnitIds).toHaveLength(121);
+  });
+
   it("resolves limits and estimates unmounted heights", () => {
     expect(resolveReadingWindowLimits()).toEqual({ maxMountedUnits: 120, maxPinnedUnits: 20 });
     expect(resolveReadingWindowLimits({ maxMountedUnits: 40, maxPinnedUnits: 99 })).toEqual({

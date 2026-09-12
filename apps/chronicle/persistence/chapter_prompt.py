@@ -512,17 +512,11 @@ def render_chapter_prompt(
             # (e.g. 16404 chars) to a fraction (e.g. 7318). The contract is
             # unchanged — only the re-ask now names the prior full length and
             # forbids condensing it. Never a validation gate; a repair signal.
-            preserve = (
-                f"FIDELITY: the previous translation had {prev_chars} characters. "
-                "The corrected product MUST keep the whole translation at that "
-                "full length — faithfully translate every sentence and every "
-                "embedded annotation. Do NOT summarize, condense, shorten, or "
-                "replace any passage with an overview; only repair the listed "
-                "issues while preserving (or lengthening) the full translation.\n"
-            )
             if candidate_version == READING_CANDIDATE_VERSION:
-                preserve += (
-                    "Keep every faithful translated passage, its block_id and order. "
+                preserve = (
+                    f"FIDELITY: {prev_chars} characters is the previous draft's length, "
+                    "not evidence that it translates the whole chapter. Keep every "
+                    "faithful translated passage, its block_id and order. "
                     "A reference-validation report does not certify completeness: "
                     "check the entire source again and expand any omitted or condensed "
                     "passages, including quoted documents and annotations. Update "
@@ -530,7 +524,13 @@ def render_chapter_prompt(
                     "shorten the translation while repairing references.\n"
                 )
             else:
-                preserve += (
+                preserve = (
+                    f"FIDELITY: the previous translation had {prev_chars} characters. "
+                    "The corrected product MUST keep the whole translation at that "
+                    "full length — faithfully translate every sentence and every "
+                    "embedded annotation. Do NOT summarize, condense, shorten, or "
+                    "replace any passage with an overview; only repair the listed "
+                    "issues while preserving (or lengthening) the full translation.\n"
                     "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
                     "translation.blocks through unchanged (same block_ids, same order, "
                     "same full text). Do NOT rewrite, shorten, or re-summarize the "

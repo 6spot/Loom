@@ -171,6 +171,16 @@ export function ControlledContentWindow() {
     activateBulkEnd();
   }, [activateBulkEnd]);
 
+  const protectAllAndNavigate = useCallback(() => {
+    const mounted = Array.from(document.querySelectorAll<HTMLElement>('[data-test="reading-unit"]'));
+    const ids = mounted.map((node) => node.dataset.unitId!);
+    const target = BULK_PAGE.units.find((unit) => !ids.includes(unit.unit_id));
+    if (target) {
+      setPinnedUnitIds([target.unit_id, ...ids]);
+      setActiveUnitId(target.unit_id);
+    }
+  }, []);
+
   const reset = useCallback(() => {
     setPages([INITIAL_PAGE]);
     setActiveUnitId(INITIAL_PAGE.units[0]?.unit_id ?? null);
@@ -222,6 +232,9 @@ export function ControlledContentWindow() {
         </button>
         <button type="button" data-test="content-pin-overflow" onClick={protectWindow}>
           保护当前段落并前移窗口
+        </button>
+        <button type="button" data-test="content-pin-all" onClick={protectAllAndNavigate}>
+          保护全部已挂载正文并请求新目标
         </button>
         <button type="button" data-test="content-clear-pins" onClick={() => setPinnedUnitIds([])}>
           结束保护操作

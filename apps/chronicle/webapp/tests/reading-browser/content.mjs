@@ -217,10 +217,19 @@ export async function run(ctx) {
   await page.waitForTimeout(200);
   ctx.check("manual-load-keeps-window-bounded", (await page.locator(UNIT).count()) <= 140);
   ctx.check("manual-load-requested", (await windowRequests(page)).length > requestsAtPause);
+  const allProtectedIds = (await readUnits(page)).map((unit) => unit.unitId);
+  ctx.check("full-protection-setup-has-140-units", allProtectedIds.length === 140);
+  await page.locator('[data-test="content-pin-all"]').click();
+  await page.waitForTimeout(100);
+  const fullProtection = await readUnits(page);
+  ctx.check("full-protection-defers-new-target",
+    fullProtection.length === 140 && allProtectedIds.every((id) =>
+      fullProtection.some((unit) => unit.unitId === id && unit.pinned)));
   await page.locator('[data-test="content-clear-pins"]').click();
   await page.waitForSelector('[data-test="reading-paused"]', { state: "detached", timeout: 10000 });
   ctx.check("released-pins-resume-auto-prefetch",
     await page.locator('[data-test="reading-window"]').getAttribute("data-auto-prefetch") === "true");
+  ctx.check("released-capacity-mounts-deferred-active", (await readUnits(page)).some((unit) => unit.active));
 
   // 8. 跨段选择的首尾及中间正文在回收后都保留，选中文字没有改变。
   await page.locator('[data-test="content-reset"]').click();

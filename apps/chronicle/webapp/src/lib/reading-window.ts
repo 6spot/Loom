@@ -262,6 +262,8 @@ export interface ReadingWindowPlanInput {
   readonly units: readonly ReadingUnit[];
   readonly activeUnitId?: string | null;
   readonly pinnedUnitIds?: readonly string[];
+  /** 上一帧实际挂载的单位；已经开始的操作先于新的挂载请求保留。 */
+  readonly previousMountedUnitIds?: readonly string[];
   readonly placeholderHeights?: Readonly<Record<string, number>>;
   readonly limits?: Partial<ReadingWindowLimits>;
 }
@@ -304,7 +306,8 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
   }
 
   const presentIds = new Set(units.map((unit) => unit.unit_id));
-  const pinnedUnitIds = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
+  const requestedPins = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
+  const previousMounted = new Set(input.previousMountedUnitIds ?? []);
 
   const activeUnitId =
     input.activeUnitId && presentIds.has(input.activeUnitId)
@@ -317,17 +320,26 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
     return distance || a.ordinal - b.ordinal;
   });
   const normalIds = new Set(nearest.slice(0, limits.maxMountedUnits).map((unit) => unit.unit_id));
-  const extraPins = pinnedUnitIds.filter((id) => !normalIds.has(id));
-  const overflowPinnedUnitIds = extraPins.slice(limits.maxPinnedUnits);
+  const extraPins = requestedPins.filter((id) => !normalIds.has(id));
   const mountedLimit = limits.maxMountedUnits + Math.min(extraPins.length, limits.maxPinnedUnits);
+  const hardLimit = limits.maxMountedUnits + limits.maxPinnedUnits;
 
-  // Do not truncate the protected set: that would destroy a selection or an
-  // open reference. With a full allowance, reclaim ordinary units first.
-  const selected = new Set<string>([activeUnitId, ...pinnedUnitIds]);
+  // Existing operated DOM has priority. In particular, when all 140 mounted
+  // units are selected, a new navigation target must wait for capacity instead
+  // of either evicting selected text or silently mounting a 141st unit.
+  const selected = new Set(requestedPins.filter((id) => previousMounted.has(id)));
+  if (selected.size < hardLimit) selected.add(activeUnitId);
+  for (const id of requestedPins) {
+    if (selected.size >= hardLimit) break;
+    selected.add(id);
+  }
   for (const unit of nearest) {
     if (selected.size >= mountedLimit) break;
     selected.add(unit.unit_id);
   }
+  const pinnedUnitIds = requestedPins.filter((id) => selected.has(id));
+  const deferredPins = requestedPins.filter((id) => !selected.has(id));
+  const overflowPinnedUnitIds = dedupeStrings([...extraPins.slice(limits.maxPinnedUnits), ...deferredPins]);
 
   const mountedUnits = units.filter((unit) => selected.has(unit.unit_id));
   const evictedUnits = units.filter((unit) => !selected.has(unit.unit_id));
@@ -342,7 +354,7 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
     };
   });
 
-  const requiresExplicitLoad = overflowPinnedUnitIds.length > 0;
+  const requiresExplicitLoad = overflowPinnedUnitIds.length > 0 || !selected.has(activeUnitId);
   return {
     mountedUnitIds: mountedUnits.map((unit) => unit.unit_id),
     mountedUnits,

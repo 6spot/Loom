@@ -21,6 +21,24 @@ async function installProbes(page) {
   await page.evaluate(() => {
     window.__r2LongTasks = [];
     window.__r2PreviewRequests = 0;
+    window.__r2ActiveToSidebar = [];
+    window.__r2ViewMarker = Math.random().toString(36);
+    let activeId = document.querySelector('[data-test="reading-unit"][data-active="true"]')?.dataset.unitId;
+    let pending = null;
+    const updates = new MutationObserver(() => {
+      const id = document.querySelector('[data-test="reading-unit"][data-active="true"]')?.dataset.unitId;
+      const now = performance.now();
+      if (id && id !== activeId) {
+        activeId = id;
+        pending = { unit_id: id, start: now };
+      }
+      if (pending && document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === pending.unit_id) {
+        window.__r2ActiveToSidebar.push({ unit_id: pending.unit_id, ms: now - pending.start });
+        pending = null;
+      }
+    });
+    updates.observe(document.body, { subtree: true, childList: true, attributes: true,
+      attributeFilter: ["data-active", "data-unit"] });
     if (typeof PerformanceObserver !== "undefined") {
       try {
         const observer = new PerformanceObserver((list) => {
@@ -60,21 +78,23 @@ async function measureActiveUpdates(page, iterations) {
   const timeouts = [];
   for (let index = 0; index < iterations; index += 1) {
     const before = await activeUnitOrdinal(page);
-    const start = Date.now();
+    const cursor = await page.evaluate(() => window.__r2ActiveToSidebar.length);
     await page.mouse.wheel(0, 900);
     try {
       await page.waitForFunction(
-        (previous) => {
+        ({ previous, cursor }) => {
           const active = document.querySelector(
             '[data-test="reading-unit"][data-active="true"]',
           );
           const ordinal = active ? active.getAttribute("data-ordinal") : null;
-          return ordinal !== null && ordinal !== previous;
+          return ordinal !== null && ordinal !== previous &&
+            document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === active.dataset.unitId &&
+            window.__r2ActiveToSidebar.slice(cursor).some((sample) => sample.unit_id === active.dataset.unitId);
         },
-        before,
+        { previous: before, cursor },
         { timeout: 2000 },
       );
-      samples.push(Date.now() - start);
+      samples.push(await page.evaluate(() => window.__r2ActiveToSidebar.at(-1).ms));
     } catch {
       timeouts.push(index);
     }
@@ -110,6 +130,8 @@ async function continuousScroll(page, seconds) {
     }
     await page.waitForTimeout(80);
   }
+  const finalOrdinal = await activeUnitOrdinal(page);
+  checkpoints.push({ elapsed_ms: Date.now() - started, ordinal: finalOrdinal === null ? null : Number(finalOrdinal) });
   return {
     duration_seconds: Math.round((Date.now() - started) / 1000),
     wheels,
@@ -175,15 +197,44 @@ async function advanceConsecutiveUnits(page, count) {
   }, count);
 }
 
-async function waitForUnit(page, unitId, timeout = 30000) {
-  await page.waitForFunction(
-    (wanted) =>
-      Array.from(document.querySelectorAll('[data-test="reading-unit"]')).some(
-        (unit) => unit.getAttribute("data-unit-id") === wanted,
-      ),
-    unitId,
-    { timeout },
-  );
+async function waitForUnit(page, unitId, relativeOffset = 0) {
+  return await page.evaluate(async ({ wanted, relativeOffset }) => {
+    const deadline = performance.now() + 30000;
+    let previousTop = null;
+    let stable = 0;
+    let last = null;
+    while (performance.now() < deadline) {
+      const node = document.querySelector(`[data-test="reading-unit"][data-unit-id="${wanted}"]`);
+      if (node) {
+        const rect = node.getBoundingClientRect();
+        const header = document.querySelector(".site-header")?.getBoundingClientRect().height ?? 0;
+        const compact = document.querySelector('[data-test="reading-compact-bar"]')?.getBoundingClientRect().height ?? 0;
+        const reference = header + compact + (innerHeight - header - compact) * 0.3;
+        const targetScroll = Math.max(0, Math.min(document.documentElement.scrollHeight - innerHeight,
+          scrollY + rect.top - reference + Math.max(rect.height * relativeOffset, Math.min(2, rect.height / 2))));
+        last = { active: node.dataset.active === "true",
+          context: document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === wanted,
+          idle: document.querySelector('[data-test="reading-page"]')?.dataset.navigationState === "idle",
+          position_error: Math.abs(scrollY - targetScroll), top: rect.top,
+          visible: rect.bottom > header + compact && rect.top < innerHeight };
+        if (last.active && last.context && last.idle && last.visible && last.position_error <= 3 &&
+          document.fonts.status === "loaded" && previousTop !== null && Math.abs(rect.top - previousTop) <= 1) {
+          stable += 1;
+        } else stable = 0;
+        previousTop = rect.top;
+        if (stable >= 2) {
+          const response = performance.getEntriesByType("resource").filter((entry) => {
+            const url = new URL(entry.name);
+            return url.pathname.endsWith("/locate") && url.searchParams.get("unit_id") === wanted;
+          }).at(-1);
+          if (!response) throw new Error(`missing real locate response timing for ${wanted}`);
+          return { data_ready_ms: response.responseEnd, completed_ms: performance.now(), ...last };
+        }
+      }
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    throw new Error(`reading restore did not complete for ${wanted}: ${JSON.stringify(last)}`);
+  }, { wanted: unitId, relativeOffset });
 }
 
 async function runOnce(runner, baseUrl, scaleStream) {
@@ -194,6 +245,7 @@ async function runOnce(runner, baseUrl, scaleStream) {
     await page.waitForSelector(UNIT, { timeout: 30000 });
     await page.waitForSelector(`${UNIT}[data-active="true"]`, { timeout: 30000 });
     await installProbes(page);
+    const firstUnitId = await page.locator(`${UNIT}[data-active="true"]`).getAttribute("data-unit-id");
     const consecutive = await advanceConsecutiveUnits(page, CONSECUTIVE_ADVANCES_PER_RUN);
     const { samples, timeouts } = await measureActiveUpdates(
       page,
@@ -215,19 +267,37 @@ async function runOnce(runner, baseUrl, scaleStream) {
       window_progression: progression,
       consecutive_advances: consecutive,
     };
-    // Restore latency (warms locate/page data, then measures restore).
+    // Same-page navigation after long reading must remount an evicted target;
+    // reloading the application would hide a locate -> waitForDom deadlock.
+    await page.waitForTimeout(300);
+    const returnPosition = await page.evaluate(() => {
+      const active = document.querySelector('[data-test="reading-unit"][data-active="true"]');
+      const rect = active.getBoundingClientRect();
+      const chrome = (document.querySelector(".site-header")?.getBoundingClientRect().height ?? 0) +
+        (document.querySelector('[data-test="reading-compact-bar"]')?.getBoundingClientRect().height ?? 0);
+      return { unitId: active.dataset.unitId, marker: window.__r2ViewMarker,
+        offset: Math.max(0, Math.min(1, (chrome + (innerHeight - chrome) * 0.3 - rect.top) / rect.height)) };
+    });
+    await page.locator('[data-test="reading-axis-group"]').first().click();
+    await waitForUnit(page, firstUnitId);
+    await page.goBack();
+    await waitForUnit(page, returnPosition.unitId, returnPosition.offset);
+    evidence.same_page_return = await page.evaluate((marker) => window.__r2ViewMarker === marker, returnPosition.marker);
+
+    // Deep-link restore: start at the exact locate response's responseEnd
+    // (it contains the page), finish only at stable, correctly placed content.
     await page.goto(readingUrl(baseUrl, scaleStream, scaleStream.last_unit_id), {
       waitUntil: "domcontentloaded",
     });
     await waitForUnit(page, scaleStream.last_unit_id);
     await page.goto(readingUrl(baseUrl, scaleStream), { waitUntil: "domcontentloaded" });
     await page.waitForSelector(UNIT, { timeout: 30000 });
-    const start = Date.now();
     await page.goto(readingUrl(baseUrl, scaleStream, scaleStream.last_unit_id), {
       waitUntil: "domcontentloaded",
     });
-    await waitForUnit(page, scaleStream.last_unit_id);
-    evidence.restore_ms = Date.now() - start;
+    const restore = await waitForUnit(page, scaleStream.last_unit_id);
+    evidence.restore_ms = restore.completed_ms - restore.data_ready_ms;
+    evidence.restore_observation = restore;
     return evidence;
   } finally {
     await runner.closePages();
@@ -274,6 +344,8 @@ export async function run(ctx) {
       mounted_units: observed.mounted_units,
       window_progression: observed.window_progression,
       consecutive_advances: observed.consecutive_advances,
+      same_page_return: observed.same_page_return,
+      restore_observation: observed.restore_observation,
       long_tasks_ms: observed.long_tasks_ms,
       max_long_task_ms: observed.max_long_task_ms,
       request_counts: observed.request_counts,
@@ -281,6 +353,9 @@ export async function run(ctx) {
     };
     runs.push(run);
     runner.info(`run_${index + 1}`, run);
+
+    runner.check(`run-${index + 1}-same-page-navigation-return`, observed.same_page_return,
+      "long-reading navigation/return reloaded the page instead of restoring within its existing window");
 
     runner.check(
       `run-${index + 1}-1000-consecutive-advances`,
@@ -324,7 +399,7 @@ export async function run(ctx) {
     const checkpoints = observed.window_progression.checkpoints;
     runner.check(
       `run-${index + 1}-sustained-scroll-progress`,
-      checkpoints.length >= 6 && checkpoints.every((point, i) =>
+      checkpoints.length >= 7 && checkpoints.every((point, i) =>
         point.ordinal !== null && (i === 0 || point.ordinal > checkpoints[i - 1].ordinal)),
       `run ${index + 1} stopped advancing during the 30-second scroll: ${JSON.stringify(checkpoints)}`,
     );
