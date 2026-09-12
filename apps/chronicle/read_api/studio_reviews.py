@@ -39,10 +39,25 @@ from urllib.parse import parse_qs
 
 import source_context as _source_context
 
+_STUDIO_PERSON_STATES = None
+
+
+def _person_states():
+    """Lazy module handle so read_api can load without persistence imports."""
+    global _STUDIO_PERSON_STATES
+    if _STUDIO_PERSON_STATES is None:
+        import studio_person_states as _module
+
+        _STUDIO_PERSON_STATES = _module
+    return _STUDIO_PERSON_STATES
+
+
 STUDIO_REVIEWS_PREFIX = "/api/v1/studio/jobs/reviews"
 _ALLOWED_STATUSES = ("open", "resolved", "dismissed", "all")
 _ALLOWED_LINK_KINDS = ("entity", "event")
-_ALLOWED_LIST_PARAMS = frozenset({"status", "job_id", "link_kind", "limit", "cursor"})
+_ALLOWED_LIST_PARAMS = frozenset(
+    {"status", "job_id", "link_kind", "review_scope", "limit", "cursor"}
+)
 _DEFAULT_LIMIT = 50
 _MAX_LIMIT = 100
 _CURSOR_VERSION = 1
@@ -127,6 +142,9 @@ def _parse_uuid_param(raw: str | None, name: str) -> uuid.UUID | None:
 
 
 def _parse_page(query: dict[str, list[str]]) -> dict[str, Any]:
+    from common import PersistenceError
+    from person_state_contract import assert_link_kind_scope, normalize_review_scope
+
     unknown = sorted(set(query) - _ALLOWED_LIST_PARAMS)
     if unknown:
         raise _BadRequest(f"unsupported query parameters: {unknown}")
@@ -136,6 +154,11 @@ def _parse_page(query: dict[str, list[str]]) -> dict[str, Any]:
     link_kind = _single(query, "link_kind")
     if link_kind is not None and link_kind not in _ALLOWED_LINK_KINDS:
         raise _BadRequest(f"link_kind must be one of {list(_ALLOWED_LINK_KINDS)}")
+    try:
+        review_scope = normalize_review_scope(_single(query, "review_scope"))
+        assert_link_kind_scope(review_scope, link_kind)
+    except PersistenceError as exc:
+        raise _BadRequest(str(exc)) from exc
     job_id = _parse_uuid_param(_single(query, "job_id"), "job_id")
     try:
         limit = int(_single(query, "limit") or str(_DEFAULT_LIMIT))
@@ -149,23 +172,26 @@ def _parse_page(query: dict[str, list[str]]) -> dict[str, Any]:
         cursor["status"] != status
         or cursor["job_id"] != (str(job_id) if job_id is not None else None)
         or cursor["link_kind"] != link_kind
+        or cursor["review_scope"] != review_scope
     ):
         raise _BadRequest("cursor was issued for a different filter scope and cannot be reused")
     return {
         "status": status,
         "job_id": job_id,
         "link_kind": link_kind,
+        "review_scope": review_scope,
         "limit": limit,
         "cursor": cursor,
     }
 
 
 def _encode_cursor(
-    *, status: str, job_id: uuid.UUID | None, link_kind: str | None,
-    created_at: Any, review_id: uuid.UUID,
+    *, review_scope: str, status: str, job_id: uuid.UUID | None,
+    link_kind: str | None, created_at: Any, review_id: uuid.UUID,
 ) -> str:
     payload = {
         "v": _CURSOR_VERSION,
+        "review_scope": review_scope,
         "status": status,
         "job_id": str(job_id) if job_id is not None else None,
         "link_kind": link_kind,
@@ -177,6 +203,8 @@ def _encode_cursor(
 
 
 def _decode_cursor(raw: str) -> dict[str, Any]:
+    from person_state_contract import REVIEW_SCOPES
+
     try:
         padded = raw + ("=" * (-len(raw) % 4))
         payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
@@ -191,6 +219,11 @@ def _decode_cursor(raw: str) -> dict[str, Any]:
     link_kind = payload.get("link_kind")
     if link_kind is not None and link_kind not in _ALLOWED_LINK_KINDS:
         raise _BadRequest("cursor carries an unsupported link_kind scope")
+    review_scope_raw = payload.get("review_scope")
+    if review_scope_raw is None:
+        review_scope_raw = "resolution"
+    if review_scope_raw not in REVIEW_SCOPES:
+        raise _BadRequest("cursor carries an unsupported review_scope")
     job_id_raw = payload.get("job_id")
     job_id: str | None = None
     if job_id_raw is not None:
@@ -210,6 +243,7 @@ def _decode_cursor(raw: str) -> dict[str, Any]:
     except ValueError as exc:
         raise _BadRequest("cursor carries an invalid sort key") from exc
     return {
+        "review_scope": review_scope_raw,
         "status": payload.get("status"),
         "job_id": job_id,
         "link_kind": link_kind,
@@ -221,8 +255,16 @@ def _decode_cursor(raw: str) -> dict[str, Any]:
 def _scope_filter(
     spec: dict[str, Any], *, include_status: bool, alias: str = "ri",
 ) -> tuple[str, list[Any]]:
-    where = f"{alias}.payload->>'scope' IN ('resolution', 'narrative')"
-    params: list[Any] = []
+    from person_state_contract import review_scope_covers
+
+    covered = [
+        scope
+        for scope in ("resolution", "person_state", "narrative")
+        if review_scope_covers(spec["review_scope"], scope)
+    ]
+    placeholders = ", ".join(["%s"] * len(covered))
+    where = f"{alias}.payload->>'scope' IN ({placeholders})"
+    params: list[Any] = list(covered)
     if include_status and spec["status"] != "all":
         where += f" AND {alias}.status = %s"
         params.append(spec["status"])
@@ -290,6 +332,20 @@ def _immutable_candidate_entry(payload: dict[str, Any], index: int) -> dict[str,
     if payload.get("scope") == "narrative":
         return {"candidate_key": _candidate_key_of(payload, index), "scope": "narrative",
                 "narrative_kind": payload["narrative_kind"], "candidate_sha": payload["candidate_sha"]}
+    if payload.get("scope") == "person_state":
+        candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
+        candidate_keys = sorted(
+            str(candidate.get("candidate_key"))
+            for candidate in candidates
+            if isinstance(candidate, dict) and isinstance(candidate.get("candidate_key"), str)
+        )
+        return {
+            "candidate_key": f"person_state:{payload.get('plan_fingerprint')}",
+            "scope": "person_state",
+            "plan_fingerprint": payload.get("plan_fingerprint"),
+            "chapter_id": payload.get("chapter_id"),
+            "candidate_keys": candidate_keys,
+        }
 
     def _ref(value: Any) -> dict[str, str] | None:
         if not isinstance(value, dict):
@@ -383,6 +439,10 @@ def _plan_fingerprint(
             value = payload.get(field)
             if isinstance(value, str) and value:
                 target.add(value)
+        if payload.get("scope") == "person_state":
+            base_catalog_value = payload.get("base_catalog_sha")
+            if isinstance(base_catalog_value, str) and base_catalog_value:
+                base_catalog.add(base_catalog_value)
         candidates.append(_immutable_candidate_entry(payload, index))
     document = {
         "algorithm": _FINGERPRINT_ALGORITHM,
@@ -738,6 +798,27 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         item["left_label"] = "多史料事实核对" if payload["narrative_kind"] == "facts" else "综合正文审核"
         item["right_label"] = None
         item["decision"] = {key: decision[key] for key in ("decision", "rationale", "content_sha") if key in decision} if decision else None
+    if payload.get("scope") == "person_state":
+        candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
+        overrides = decision.get("overrides") if isinstance(decision, dict) else None
+        item["review_mode"] = payload.get("review_mode")
+        item["chapter_id"] = payload.get("chapter_id")
+        item["candidate_count"] = int(payload.get("candidate_count") or len(candidates))
+        item["default_assessment"] = payload.get("default_assessment")
+        item["allowed_assessments"] = list(payload.get("allowed_assessments") or [])
+        item["plan_fingerprint"] = payload.get("plan_fingerprint")
+        item["left_label"] = "阶段依据审核"
+        item["right_label"] = None
+        item["decision"] = (
+            {
+                "default_assessment": decision.get("default_assessment"),
+                "override_count": len(overrides) if isinstance(overrides, list) else 0,
+                "rationale": decision.get("rationale"),
+                "dismissed": bool(decision.get("dismissed")),
+            }
+            if decision
+            else None
+        )
     return item
 
 
@@ -753,13 +834,15 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
-        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative')
+        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_state')
         """,
         (review_id,),
     ).fetchall()
     if not rows:
         raise _NotFound(f"unknown review {review_id}")
     item = _summary(rows[0], conn)
+    if item["scope"] == "person_state":
+        return _person_states().detail(conn, review_id)
     if item["scope"] == "narrative":
         import narrative_store
         item["narrative"] = narrative_store.review_detail(conn, review_id)
@@ -1533,7 +1616,7 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     (bundle_sha, ref) and the revision read via the lookup helpers).
     """
     item = _detail(conn, review_id)
-    if item["scope"] == "narrative":
+    if item["scope"] in ("narrative", "person_state"):
         return item
     try:
         identity = _review_identity(conn, review_id)
@@ -1570,6 +1653,14 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     return item
 
 
+def _scope_of(conn, review_id: uuid.UUID) -> str | None:
+    row = conn.execute(
+        "SELECT payload->>'scope' FROM chronicle.review_items WHERE review_id = %s",
+        (review_id,),
+    ).fetchone()
+    return row[0] if row is not None else None
+
+
 def _route(
     conn,
     resolve_publish,
@@ -1596,6 +1687,7 @@ def _route(
         if has_more:
             last = page_rows[-1]
             next_cursor = _encode_cursor(
+                review_scope=spec["review_scope"],
                 status=spec["status"],
                 job_id=spec["job_id"],
                 link_kind=spec["link_kind"],
@@ -1612,6 +1704,7 @@ def _route(
                     "status": spec["status"],
                     "job_id": str(spec["job_id"]) if spec["job_id"] is not None else None,
                     "link_kind": spec["link_kind"],
+                    "review_scope": spec["review_scope"],
                     "limit": spec["limit"],
                 },
                 "items": items,
@@ -1630,6 +1723,11 @@ def _route(
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":
             raise _BadRequest(f"method {method} is not supported on {path}")
+        if _scope_of(conn, review_id) == "person_state":
+            return _person_states().dispatch_person_state_review(
+                conn, review_id, method=method, route="detail",
+                raw_query=raw_query, source_dir=source_dir,
+            )
         return 200, "application/json; charset=utf-8", _json_bytes(
             {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
         )
@@ -1637,11 +1735,21 @@ def _route(
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":
             raise _MethodNotAllowed(f"method {method} is not supported on {path}")
+        if _scope_of(conn, review_id) == "person_state":
+            return _person_states().dispatch_person_state_review(
+                conn, review_id, method=method, route="contexts",
+                raw_query=raw_query, source_dir=source_dir,
+            )
         return _handle_contexts(conn, review_id, raw_query=raw_query)
     if len(parts) == 3 and parts[0] and parts[1] == "sources" and parts[2]:
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":
             raise _MethodNotAllowed(f"method {method} is not supported on {path}")
+        if _scope_of(conn, review_id) == "person_state":
+            return _person_states().dispatch_person_state_review(
+                conn, review_id, method=method, route="sources",
+                raw_query=raw_query, source_dir=source_dir, anchor_id=parts[2],
+            )
         return _handle_source(
             conn, review_id, parts[2], raw_query=raw_query, source_dir=source_dir
         )
@@ -1649,6 +1757,11 @@ def _route(
         review_id = _require_uuid(parts[0], "review")
         if method != "POST":
             raise _BadRequest(f"method {method} is not supported on {path}")
+        if _scope_of(conn, review_id) == "person_state":
+            return _person_states().dispatch_person_state_review(
+                conn, review_id, method=method, route="decision",
+                raw_query=raw_query, body=body, source_dir=source_dir,
+            )
         try:
             payload = json.loads(body.decode("utf-8")) if body else {}
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
