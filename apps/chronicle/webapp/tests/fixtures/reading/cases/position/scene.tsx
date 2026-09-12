@@ -4,7 +4,7 @@
 // published DTO 形状与受控 locate 响应，用于验证 active unit、深链接/刷新、
 // 返回栈、旧响应忽略、用户滚动打断与 storage 降级。所有数据显式 synthetic。
 
-import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import {
   parseReadingFields,
@@ -148,6 +148,7 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
   const [returnResult, setReturnResult] = useState<string>("");
   const [returnTokens, setReturnTokens] = useState<string[]>([]);
   const [previewCount, setPreviewCount] = useState(0);
+  const [prependedHeight, setPrependedHeight] = useState(0);
 
   const getUnit = useCallback(
     (id: string): ReadingUnitSnapshot | null => FIXTURE_UNIT_SNAPSHOTS.get(id) ?? null,
@@ -201,11 +202,15 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       urlStrategy: FIXTURE_URL_STRATEGY,
       headerHeight: HEADER_HEIGHT,
       settleDelayMs: 120,
+      preserveLayoutPosition: true,
     }),
     [getUnit, locate, resolveStart, loadWindow, storageMode],
   );
 
   const controller = useReadingPosition(options);
+  useLayoutEffect(() => {
+    controller.notifyLayoutChange();
+  }, [prependedHeight, controller.notifyLayoutChange]);
 
   const navigateAxis = () => {
     const target = UNITS[10]!;
@@ -291,7 +296,8 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
   };
 
   return (
-    <main data-test="position-scene" data-synthetic="true" data-storage={storageMode === null ? "off" : "on"}>
+    <main data-test="position-scene" data-synthetic="true" data-storage={storageMode === null ? "off" : "on"}
+      style={{ overflowAnchor: "none" }}>
       <header
         data-test="position-header"
         style={{ position: "sticky", top: 0, height: HEADER_HEIGHT, background: "#fff", zIndex: 2 }}
@@ -313,6 +319,12 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       >
         <button type="button" data-test="position-nav-axis" onClick={navigateAxis}>
           轴定位到 u10
+        </button>
+        <button type="button" data-test="position-prepend" onClick={() => {
+          setPrependedHeight((height) => height + 46);
+          window.setTimeout(() => setPrependedHeight((height) => height + 5954), 150);
+        }}>
+          延迟补载前文
         </button>
         <button type="button" data-test="position-nav-event" onClick={navigateEvent}>
           进入事件 u15
@@ -370,6 +382,7 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       <p data-test="position-sample-note">{READING_FIXTURE_SAMPLE_NOTE}</p>
       <p data-test="position-sample-note">{READING_FIXTURE_SAMPLE_NOTE}</p>
 
+      <div data-test="position-prepended" data-height={prependedHeight} style={{ height: prependedHeight }} />
       <div data-test="position-units">
         {UNITS.map((unit) => (
           <section

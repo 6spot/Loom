@@ -9,6 +9,7 @@ import {
   mergeReadingUnitPages,
   planAutoPrefetch,
   planReadingWindow,
+  readingAdjacentPages,
   readingChapterHeadings,
   readingStreamEdges,
   resolveReadingWindowLimits,
@@ -26,6 +27,7 @@ import {
   NEXT_PAGE,
   PREVIOUS_PAGE,
   makeUnit,
+  pageOf,
 } from "./fixtures/reading/cases/content/fixtures";
 
 const webappRoot = new URL("..", import.meta.url).pathname;
@@ -89,7 +91,7 @@ describe("reading-window: adjacent-page auto prefetch", () => {
       hasPrevious: true,
       hasNext: true,
     });
-    expect(readingStreamEdges([PREVIOUS_PAGE, NEXT_PAGE])).toEqual({
+    expect(readingStreamEdges([PREVIOUS_PAGE, INITIAL_PAGE, NEXT_PAGE])).toEqual({
       firstOrdinal: 0,
       lastOrdinal: 8,
       hasPrevious: false,
@@ -101,6 +103,28 @@ describe("reading-window: adjacent-page auto prefetch", () => {
       hasPrevious: false,
       hasNext: false,
     });
+  });
+
+  it("loads adjacent to a distant locate even when old cached pages include both stream ends", () => {
+    const start = pageOf(Array.from({ length: 1040 }, (_, i) => makeUnit(i, "此前已读正文。")), {
+      hasNext: true, nextCursor: "after-1039",
+    });
+    const end = pageOf(Array.from({ length: 20 }, (_, i) => makeUnit(4980 + i, "远端正文。")), {
+      hasPrevious: true, prevCursor: "before-4980",
+    });
+    const pages = [end, start];
+    const active = end.units[0].unit_id;
+    const edges = readingStreamEdges(pages, active);
+    expect(edges).toEqual({ firstOrdinal: 4980, lastOrdinal: 4999, hasPrevious: true, hasNext: false });
+    expect(readingAdjacentPages(pages, active).previous?.prev_cursor).toBe("before-4980");
+    expect(planAutoPrefetch({ autoPrefetch: true, units: mergeReadingUnitPages(pages), edges, activeUnitId: active }).requests)
+      .toEqual(["previous"]);
+    expect(readingAdjacentPages(pages, start.units.at(-1)!.unit_id).next?.next_cursor).toBe("after-1039");
+    const previous = pageOf(Array.from({ length: 20 }, (_, i) => makeUnit(4960 + i, "刚加载的前文。")), {
+      hasPrevious: true, hasNext: true, prevCursor: "before-4960", nextCursor: "after-4979",
+    });
+    expect(readingStreamEdges([...pages, previous], active).firstOrdinal).toBe(4960);
+    expect(readingAdjacentPages([...pages, previous], active).previous?.prev_cursor).toBe("before-4960");
   });
 
   it("requests both adjacent pages at a normal boundary", () => {

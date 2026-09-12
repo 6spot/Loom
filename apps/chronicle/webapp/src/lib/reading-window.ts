@@ -127,39 +127,48 @@ export interface ReadingStreamEdges {
 }
 
 /**
- * 从已加载页推导真实双向边界，而不是假设“首屏就是 stream 起点”。
- * 取覆盖最小 ordinal 的页的 `has_previous`、覆盖最大 ordinal 的页的 `has_next`。
+ * Locate can leave gaps between cached pages. Load from the contiguous range
+ * containing active, not the extremes of unrelated previously read ranges.
+ * Both automatic prefetch and the HTTP cursor selection use this one rule.
  */
-export function readingStreamEdges(
+export function readingAdjacentPages(
   pages: readonly StreamPage[] | null | undefined,
-): ReadingStreamEdges {
-  let firstOrdinal: number | null = null;
-  let lastOrdinal: number | null = null;
-  let backwardPage: StreamPage | null = null;
-  let forwardPage: StreamPage | null = null;
-  for (const page of pages ?? []) {
-    const pageUnits = page?.units ?? [];
-    if (pageUnits.length === 0) continue;
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    for (const unit of pageUnits) {
-      if (unit.ordinal < min) min = unit.ordinal;
-      if (unit.ordinal > max) max = unit.ordinal;
-    }
-    if (firstOrdinal === null || min < firstOrdinal) {
-      firstOrdinal = min;
-      backwardPage = page;
-    }
-    if (lastOrdinal === null || max > lastOrdinal) {
-      lastOrdinal = max;
-      forwardPage = page;
+  activeUnitId?: string | null,
+): { readonly previous: StreamPage | null; readonly next: StreamPage | null } {
+  const ranges = (pages ?? []).filter((page) => page?.units?.length).map((page) => ({
+    page,
+    first: Math.min(...page.units.map((unit) => unit.ordinal)),
+    last: Math.max(...page.units.map((unit) => unit.ordinal)),
+    active: page.units.some((unit) => unit.unit_id === activeUnitId),
+  })).sort((a, b) => a.first - b.first || a.last - b.last);
+  const groups: { first: number; last: number; previous: StreamPage; next: StreamPage; active: boolean }[] = [];
+  for (const range of ranges) {
+    const group = groups[groups.length - 1];
+    if (!group || range.first > group.last + 1) {
+      groups.push({ first: range.first, last: range.last, previous: range.page, next: range.page, active: range.active });
+    } else {
+      group.active ||= range.active;
+      if (range.last > group.last) {
+        group.last = range.last;
+        group.next = range.page;
+      }
     }
   }
+  const group = groups.find((item) => item.active) ?? groups[0];
+  return { previous: group?.previous ?? null, next: group?.next ?? null };
+}
+
+/** 当前连续缓存区间的真实双向边界；深链首屏不冒充 stream 起点。 */
+export function readingStreamEdges(
+  pages: readonly StreamPage[] | null | undefined,
+  activeUnitId?: string | null,
+): ReadingStreamEdges {
+  const { previous, next } = readingAdjacentPages(pages, activeUnitId);
   return {
-    firstOrdinal,
-    lastOrdinal,
-    hasPrevious: Boolean(backwardPage?.has_previous),
-    hasNext: Boolean(forwardPage?.has_next),
+    firstOrdinal: previous ? Math.min(...previous.units.map((unit) => unit.ordinal)) : null,
+    lastOrdinal: next ? Math.max(...next.units.map((unit) => unit.ordinal)) : null,
+    hasPrevious: Boolean(previous?.has_previous),
+    hasNext: Boolean(next?.has_next),
   };
 }
 

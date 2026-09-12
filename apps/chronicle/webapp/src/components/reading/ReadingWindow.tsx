@@ -244,7 +244,7 @@ export default function ReadingWindow({
   }, []);
 
   // 正常回收后继续双向预取相邻一页；只有受保护内容阻止安全回收时才暂停。
-  const streamEdges = useMemo(() => readingStreamEdges(pages), [pages]);
+  const streamEdges = useMemo(() => readingStreamEdges(pages, activeUnitId), [pages, activeUnitId]);
   const autoMarkersRef = useRef<AutoPrefetchMarkers>({ previous: null, next: null });
   const requestPage = callbacks?.requestPage;
 

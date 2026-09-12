@@ -92,6 +92,8 @@ export interface ReadingPositionOptions {
   readonly referenceRatio?: number;
   readonly settleDelayMs?: number;
   readonly restoreFrameBudget?: number;
+  /** Window reports layout changes; this controller preserves the reading point. */
+  readonly preserveLayoutPosition?: boolean;
 }
 
 export interface ReadingPositionControllerState {
@@ -210,6 +212,12 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const navStateRef = useRef<ReadingNavigationState>("idle");
   const settleTimerRef = useRef<number | null>(null);
   const schedulerRef = useRef<FrameScheduler | null>(null);
+  const layoutAnchorRef = useRef<{
+    unitId: string;
+    offset: number;
+    documentPoint: number;
+    referenceLine: number;
+  } | null>(null);
 
   optionsRef.current = options;
   storeRef.current = store;
@@ -363,7 +371,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
       if (!node) return;
       const rect = node.getBoundingClientRect();
-      const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
+      const referenceY = referenceLineFor(window.innerHeight,
+        optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
       // 目标 unit 顶部对齐参考线时，sub-pixel 取整可能把直线留在上一段边界上；
       // 至少把直线放进目标段内 2px（不超过段高一半），保证 active unit 是被定位段。
       const inset = Math.min(2, rect.height / 2);
@@ -374,6 +383,37 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     },
     [selectorFor, headerHeight, referenceRatio],
   );
+
+  const rememberLayoutAnchor = useCallback((unitId: string) => {
+    if (!optionsRef.current.preserveLayoutPosition || typeof window === "undefined") return;
+    const node = document.querySelector<HTMLElement>(selectorFor(unitId));
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const referenceLine = referenceLineFor(window.innerHeight,
+      optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
+    const offset = relativeOffsetWithin(rect, referenceLine);
+    layoutAnchorRef.current = {
+      unitId, offset, referenceLine,
+      documentPoint: window.scrollY + rect.top + rect.height * offset,
+    };
+  }, [selectorFor]);
+
+  const preserveLayoutAnchor = useCallback(() => {
+    const anchor = layoutAnchorRef.current;
+    if (!optionsRef.current.preserveLayoutPosition || !anchor || typeof window === "undefined") return;
+    const node = document.querySelector<HTMLElement>(selectorFor(anchor.unitId));
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const referenceLine = referenceLineFor(window.innerHeight,
+      optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
+    const documentPoint = window.scrollY + rect.top + rect.height * anchor.offset;
+    // Document coordinates separate layout growth from the user's own scroll.
+    // Applying only this delta keeps wheel/touch movement intact while newly
+    // prepended paragraphs, loading notices and remeasured units change height.
+    const delta = documentPoint - anchor.documentPoint - (referenceLine - anchor.referenceLine);
+    layoutAnchorRef.current = { ...anchor, documentPoint, referenceLine };
+    if (Math.abs(delta) > 0.5) window.scrollBy({ top: delta, behavior: "auto" });
+  }, [selectorFor]);
 
   const waitForDom = useCallback(
     (unitId: string, seq: number): Promise<boolean> =>
@@ -484,6 +524,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       });
       writeUrl(locator, detail.push ? "push" : "replace", key);
       scrollToTarget(locator.unit_id, detail.relativeOffset);
+      rememberLayoutAnchor(locator.unit_id);
       commitState({ navigationState: "idle" });
       optionsRef.current.onActiveUnitChange?.(unit);
       storeRef.current.saveEntry({
@@ -508,17 +549,19 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         }
       }
     },
-    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, ordinalOf, selectorFor],
+    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, rememberLayoutAnchor, ordinalOf, selectorFor],
   );
 
   const refreshActive = useCallback(() => {
     if (!mountedRef.current || typeof window === "undefined") return;
+    preserveLayoutAnchor();
     if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       return;
     }
     const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
     const chosen = selectActiveUnit(measureUnits(), referenceY);
     if (chosen) {
+      rememberLayoutAnchor(chosen.unitId);
       const changed = chosen.unitId !== activeRef.current?.unitId;
       if (changed) {
         activeRef.current = { unitId: chosen.unitId, ordinal: chosen.ordinal };
@@ -542,6 +585,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     headerHeight,
     referenceRatio,
     scheduleSettleUrl,
+    preserveLayoutAnchor,
+    rememberLayoutAnchor,
   ]);
 
   const onUserIntent = useCallback(() => {
@@ -702,8 +747,11 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   }, []);
 
   const notifyLayoutChange = useCallback((_unitId?: string) => {
-    // 展开引用/尺寸变化时保持触发 unit；下一次用户滚动才恢复跟读。
-  }, []);
+    // Layout-effect notifications arrive after DOM changes but before paint.
+    // Compensate now, before a new input can target the changed geometry.
+    preserveLayoutAnchor();
+    schedulerRef.current?.schedule(refreshActive);
+  }, [preserveLayoutAnchor, refreshActive]);
 
   useEffect(() => {
     mountedRef.current = true;

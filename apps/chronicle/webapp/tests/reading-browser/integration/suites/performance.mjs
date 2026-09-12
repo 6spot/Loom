@@ -21,24 +21,7 @@ async function installProbes(page) {
   await page.evaluate(() => {
     window.__r2LongTasks = [];
     window.__r2PreviewRequests = 0;
-    window.__r2ActiveToSidebar = [];
     window.__r2ViewMarker = Math.random().toString(36);
-    let activeId = document.querySelector('[data-test="reading-unit"][data-active="true"]')?.dataset.unitId;
-    let pending = null;
-    const updates = new MutationObserver(() => {
-      const id = document.querySelector('[data-test="reading-unit"][data-active="true"]')?.dataset.unitId;
-      const now = performance.now();
-      if (id && id !== activeId) {
-        activeId = id;
-        pending = { unit_id: id, start: now };
-      }
-      if (pending && document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === pending.unit_id) {
-        window.__r2ActiveToSidebar.push({ unit_id: pending.unit_id, ms: now - pending.start });
-        pending = null;
-      }
-    });
-    updates.observe(document.body, { subtree: true, childList: true, attributes: true,
-      attributeFilter: ["data-active", "data-unit"] });
     if (typeof PerformanceObserver !== "undefined") {
       try {
         const observer = new PerformanceObserver((list) => {
@@ -77,27 +60,36 @@ async function measureActiveUpdates(page, iterations) {
   const samples = [];
   const timeouts = [];
   for (let index = 0; index < iterations; index += 1) {
-    const before = await activeUnitOrdinal(page);
-    const cursor = await page.evaluate(() => window.__r2ActiveToSidebar.length);
-    await page.mouse.wheel(0, 900);
-    try {
-      await page.waitForFunction(
-        ({ previous, cursor }) => {
-          const active = document.querySelector(
+    // Start in the browser's input handler, before controller/render work.
+    // MutationObserver timestamps would hide synchronous work between two DOM
+    // mutations in one task. Input -> new active AND matching sidebar is a
+    // conservative upper bound for active -> sidebar; retain the same budget.
+    await page.evaluate(() => {
+      window.__r2NextUpdate = new Promise((resolve) => {
+        window.addEventListener("wheel", () => {
+          const started = performance.now();
+          const previous = document.querySelector(
             '[data-test="reading-unit"][data-active="true"]',
-          );
-          const ordinal = active ? active.getAttribute("data-ordinal") : null;
-          return ordinal !== null && ordinal !== previous &&
-            document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === active.dataset.unitId &&
-            window.__r2ActiveToSidebar.slice(cursor).some((sample) => sample.unit_id === active.dataset.unitId);
-        },
-        { previous: before, cursor },
-        { timeout: 2000 },
-      );
-      samples.push(await page.evaluate(() => window.__r2ActiveToSidebar.at(-1).ms));
-    } catch {
-      timeouts.push(index);
-    }
+          )?.dataset.unitId;
+          const check = () => {
+            const active = document.querySelector(
+              '[data-test="reading-unit"][data-active="true"]',
+            );
+            const elapsed = performance.now() - started;
+            if (active && active.dataset.unitId !== previous &&
+              document.querySelector('[data-test="reading-context-panel"]')?.dataset.unit === active.dataset.unitId) {
+              resolve({ ms: elapsed, unit_id: active.dataset.unitId });
+            } else if (elapsed >= 2000) resolve(null);
+            else requestAnimationFrame(check);
+          };
+          requestAnimationFrame(check);
+        }, { once: true, passive: true, capture: true });
+      });
+    });
+    await page.mouse.wheel(0, 900);
+    const sample = await page.evaluate(() => window.__r2NextUpdate);
+    if (sample) samples.push(sample.ms);
+    else timeouts.push(index);
     await page.waitForTimeout(60);
   }
   return { samples, timeouts };
@@ -147,8 +139,8 @@ async function continuousScroll(page, seconds) {
 // Each step scrolls to the next real paragraph and waits for the production
 // controller to select it. Counting ordinal distance alone would miss a reader
 // that jumps ahead or stops loading after its first virtual window.
-async function advanceConsecutiveUnits(page, count) {
-  return await page.evaluate(async (wanted) => {
+async function advanceConsecutiveUnits(page, count, step = 1) {
+  return await page.evaluate(async ({ wanted, step }) => {
     const activeOrdinal = () => {
       const active = document.querySelector('[data-test="reading-unit"][data-active="true"]');
       return active ? Number(active.getAttribute("data-ordinal")) : null;
@@ -161,7 +153,7 @@ async function advanceConsecutiveUnits(page, count) {
     let mountedMax = 0;
     let stalledAt = null;
     for (let index = 0; index < wanted; index += 1) {
-      const nextOrdinal = current + 1;
+      const nextOrdinal = current + step;
       const deadline = performance.now() + 5000;
       let scrolled = false;
       while (performance.now() < deadline) {
@@ -194,7 +186,7 @@ async function advanceConsecutiveUnits(page, count) {
       duration_ms: Math.round(performance.now() - started),
       stalled_at: stalledAt,
     };
-  }, count);
+  }, { wanted: count, step });
 }
 
 async function waitForUnit(page, unitId, relativeOffset = 0) {
@@ -235,6 +227,31 @@ async function waitForUnit(page, unitId, relativeOffset = 0) {
     }
     throw new Error(`reading restore did not complete for ${wanted}: ${JSON.stringify(last)}`);
   }, { wanted: unitId, relativeOffset });
+}
+
+async function navigateToUnreadEnd(page) {
+  const groups = page.locator('[data-test="reading-axis-group"]');
+  const more = page.locator('[data-test="reading-axis-load-more"]');
+  for (let index = 0; index < 100 && await more.count(); index += 1) {
+    const before = await groups.count();
+    await more.click();
+    await page.waitForFunction((count) =>
+      document.querySelectorAll('[data-test="reading-axis-group"]').length > count,
+    before, { timeout: 10000 });
+  }
+  if (await more.count()) throw new Error("axis pagination did not reach the final group");
+  const cachedMax = await page.evaluate(() => Math.max(...Array.from(document.querySelectorAll(
+    '[data-test="reading-unit"], [data-test="reading-unit-placeholder"]',
+  ), (node) => Number(node.dataset.ordinal))));
+  const locate = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/locate"));
+  await groups.last().click();
+  const targetId = new URL((await locate).url()).searchParams.get("unit_id");
+  await waitForUnit(page, targetId);
+  const targetOrdinal = Number(await activeUnitOrdinal(page));
+  if (targetOrdinal <= cachedMax) throw new Error("distant target was already cached; missing unread-gap scenario");
+  const backward = await advanceConsecutiveUnits(page, 40, -1);
+  const forward = await advanceConsecutiveUnits(page, 35);
+  return { cached_max: cachedMax, target_ordinal: targetOrdinal, backward, forward };
 }
 
 async function runOnce(runner, baseUrl, scaleStream) {
@@ -283,6 +300,8 @@ async function runOnce(runner, baseUrl, scaleStream) {
     await page.goBack();
     await waitForUnit(page, returnPosition.unitId, returnPosition.offset);
     evidence.same_page_return = await page.evaluate((marker) => window.__r2ViewMarker === marker, returnPosition.marker);
+    evidence.distant_gap_navigation = await navigateToUnreadEnd(page);
+    evidence.same_page_return &&= await page.evaluate((marker) => window.__r2ViewMarker === marker, returnPosition.marker);
 
     // Deep-link restore: start at the exact locate response's responseEnd
     // (it contains the page), finish only at stable, correctly placed content.
@@ -345,6 +364,7 @@ export async function run(ctx) {
       window_progression: observed.window_progression,
       consecutive_advances: observed.consecutive_advances,
       same_page_return: observed.same_page_return,
+      distant_gap_navigation: observed.distant_gap_navigation,
       restore_observation: observed.restore_observation,
       long_tasks_ms: observed.long_tasks_ms,
       max_long_task_ms: observed.max_long_task_ms,
@@ -356,6 +376,11 @@ export async function run(ctx) {
 
     runner.check(`run-${index + 1}-same-page-navigation-return`, observed.same_page_return,
       "long-reading navigation/return reloaded the page instead of restoring within its existing window");
+    const gap = observed.distant_gap_navigation;
+    runner.check(`run-${index + 1}-distant-gap-adjacent-reading`,
+      gap.backward.completed_adjacent_steps === 40 && gap.forward.completed_adjacent_steps === 35 &&
+      Math.max(gap.backward.mounted_max, gap.forward.mounted_max) <= limits.mounted_max_units,
+      `distant same-page locate cannot continue adjacent reading: ${JSON.stringify(gap)}`);
 
     runner.check(
       `run-${index + 1}-1000-consecutive-advances`,
@@ -440,6 +465,7 @@ export async function run(ctx) {
     viewport: `${FIXED_VIEWPORT.width}x${FIXED_VIEWPORT.height}`,
     runs: RUNS,
     active_samples_per_run: ACTIVE_SAMPLES_PER_RUN,
+    active_measurement: "wheel-to-active-and-sidebar-ready (conservative upper bound)",
     consecutive_advances_per_run: CONSECUTIVE_ADVANCES_PER_RUN,
     continuous_scroll_seconds: SCROLL_SECONDS,
   });

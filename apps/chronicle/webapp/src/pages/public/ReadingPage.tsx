@@ -8,7 +8,7 @@
 // 本页不重写分组/定位/关联算法，也不修改 World 时间或 Runtime Timeline；URL 只
 // 由校验过的 stream/catalog/unit 字段构建。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import PublicDialog from "../../components/PublicDialog";
@@ -42,7 +42,7 @@ import {
   type TimeGroup,
   type TimeObservation,
 } from "../../lib/reading-types";
-import { mergeReadingUnitPages } from "../../lib/reading-window";
+import { mergeReadingUnitPages, readingAdjacentPages } from "../../lib/reading-window";
 import { isSupportedHistoricalYear } from "../../lib/historical-time";
 import { readPath, readingPath } from "../../lib/routes";
 import "../../styles/reading-layout.css";
@@ -132,34 +132,6 @@ function safeLocator(streamId: string, catalog: string, unitId: string): Reading
   } catch {
     return null;
   }
-}
-
-function forwardPage(pages: readonly StreamPage[]): StreamPage | null {
-  let chosen: StreamPage | null = null;
-  let max = Number.NEGATIVE_INFINITY;
-  for (const page of pages) {
-    for (const unit of page.units ?? []) {
-      if (unit.ordinal > max) {
-        max = unit.ordinal;
-        chosen = page;
-      }
-    }
-  }
-  return chosen;
-}
-
-function backwardPage(pages: readonly StreamPage[]): StreamPage | null {
-  let chosen: StreamPage | null = null;
-  let min = Number.POSITIVE_INFINITY;
-  for (const page of pages) {
-    for (const unit of page.units ?? []) {
-      if (unit.ordinal < min) {
-        min = unit.ordinal;
-        chosen = page;
-      }
-    }
-  }
-  return chosen;
 }
 
 function ReadingPageError({ title, detail }: { title: string; detail: string }) {
@@ -281,15 +253,11 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const chromeRef = useRef<HTMLDivElement | null>(null);
   const [chromeHeight, setChromeHeight] = useState(0);
 
-  const pagesRef = useRef<StreamPage[]>([]);
   const unitByIdRef = useRef<Map<string, ReadingUnit>>(new Map());
   const currentStreamRef = useRef(streamId);
   const loadingDirectionsRef = useRef<Record<ReadingDirection, boolean>>({ previous: false, next: false });
 
   const units = useMemo(() => mergeReadingUnitPages(pages), [pages]);
-  useEffect(() => {
-    pagesRef.current = pages;
-  }, [pages]);
   useEffect(() => {
     unitByIdRef.current = new Map(units.map((unit) => [unit.unit_id, unit]));
   }, [units]);
@@ -376,7 +344,12 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
     resolveStart,
     unitSelector: '[data-test="reading-unit"]',
     headerHeight: chromeHeight,
+    preserveLayoutPosition: true,
   });
+
+  useLayoutEffect(() => {
+    controller.notifyLayoutChange();
+  }, [pages, loadingDirection, windowError, chromeHeight, controller.notifyLayoutChange]);
 
   useEffect(() => {
     if (pendingUnitId && (controller.navigationState === "interrupted" ||
@@ -436,7 +409,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const requestPage = useCallback(
     (direction: ReadingDirection) => {
       if (loadingDirectionsRef.current[direction]) return;
-      const edge = direction === "next" ? forwardPage(pagesRef.current) : backwardPage(pagesRef.current);
+      const edge = readingAdjacentPages(pages, controller.activeUnitId)[direction];
       const cursor = direction === "next" ? edge?.next_cursor : edge?.prev_cursor;
       if (!cursor) return;
       loadingDirectionsRef.current[direction] = true;
@@ -458,7 +431,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           }
         });
     },
-    [client, currentStream, catalog, addPage],
+    [client, currentStream, catalog, addPage, pages, controller.activeUnitId],
   );
 
   const handleNavigation = useCallback(
@@ -611,6 +584,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
             error={windowError}
             callbacks={{ requestPage, onRetry: () => requestPage(windowError?.direction ?? "next") }}
             renderEvent={renderEvent}
+            onUnitReady={controller.notifyLayoutChange}
+            onUnitMeasured={controller.notifyLayoutChange}
           />
         </div>
         {!narrow ? (

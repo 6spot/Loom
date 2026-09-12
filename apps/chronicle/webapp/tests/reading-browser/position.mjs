@@ -236,6 +236,24 @@ export async function run(ctx) {
     (await text(page, '[data-test="position-nav-state"]')) === "idle",
   );
 
+  // Loading notices and delayed prepends keep the reading point in place;
+  // subsequent user scrolling must still update active normally.
+  await page.click('[data-test="position-nav-axis"]');
+  await waitForActive(page, 10);
+  const topBeforePrepend = await page.locator(`[data-reading-unit][data-unit-id="${ru(10)}"]`)
+    .evaluate((node) => node.getBoundingClientRect().top);
+  await page.click('[data-test="position-prepend"]');
+  await page.waitForFunction(() => document.querySelector('[data-test="position-prepended"]')?.dataset.height === "6000");
+  await page.waitForTimeout(100);
+  const topAfterPrepend = await page.locator(`[data-reading-unit][data-unit-id="${ru(10)}"]`)
+    .evaluate((node) => node.getBoundingClientRect().top);
+  ctx.check("delayed-prepend-preserves-reading-point",
+    Math.abs(topAfterPrepend - topBeforePrepend) <= 3 && await activeOrdinal(page) === 10,
+    `top=${topBeforePrepend}->${topAfterPrepend}, active=${await activeOrdinal(page)}`);
+  await page.mouse.wheel(0, 500);
+  await page.waitForFunction(() => Number(document.querySelector('[data-test="position-active-unit"]')?.dataset.ordinal) > 10);
+  ctx.check("layout-preservation-does-not-lock-user-scroll", await activeOrdinal(page) > 10);
+
   ctx.check("no-page-error", pageErrors.length === 0, pageErrors.join(";"));
 
   // 11. storage 不可用：URL 定位仍可用，token 安全降级。
