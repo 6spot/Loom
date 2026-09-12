@@ -77,15 +77,24 @@
 }
 
 .pstate-reason {
+  align-self: flex-start;
   padding: 0 0.35rem;
   border: 1px solid #c9c7bd;
   border-radius: 3px;
   color: #5c615b;
   font-size: 0.68rem;
+  text-align: left;
 }
 
 .pstate-evidence {
   display: inline;
+}
+
+.pstate-evidence-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
 }
 
 .pstate-evidence-button {

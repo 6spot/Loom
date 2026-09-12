@@ -171,7 +171,7 @@ describe("state item views", () => {
     expect(self.accessibleText).toContain("自称");
   });
 
-  it("renders affiliation as relation plus target without inventing an office", () => {
+  it("renders the affiliation relation once and keeps the target as the value", () => {
     const view = stateItemView(
       stateItem({
         dimension: "affiliation",
@@ -182,7 +182,16 @@ describe("state item views", () => {
       }),
     );
     expect(view.labelText).toBe("效力");
-    expect(view.valueText).toBe("效力孙权");
+    expect(view.valueText).toBe("孙权");
+    expect(`${view.labelText}${view.valueText}`).toBe("效力孙权");
+    expect(view.accessibleText).toContain("效力");
+    expect(view.accessibleText).toContain("孙权");
+    expect(view.accessibleText.match(/效力/g)?.length).toBe(1);
+    const attached = stateItemView(
+      stateItem({ dimension: "affiliation", relation: "attached_to", target: "陶谦" }),
+    );
+    expect(attached.labelText).toBe("归附");
+    expect(attached.valueText).toBe("陶谦");
   });
 
   it("prefers the server reason text and falls back to stable codes", () => {
@@ -265,6 +274,25 @@ describe("change timeline", () => {
     );
     expect(timeline[0].certainty).toBe("uncertain");
     expect(timeline[0].reasonText).toBe("证据未能确定");
+  });
+
+  it("renders an affiliation change with the relation label only once", () => {
+    const timeline = buildChangeTimeline(
+      [
+        change({
+          dimension: "affiliation",
+          value: null,
+          relation: "attached_to",
+          target: "陶谦",
+          operation: "start",
+        }),
+      ],
+      phases,
+    );
+    expect(timeline[0].dimensionLabel).toBe("归附");
+    expect(timeline[0].valueText).toBe("陶谦");
+    expect(`${timeline[0].dimensionLabel}${timeline[0].valueText}`).toBe("归附陶谦");
+    expect(timeline[0].accessibleText).toContain("归附陶谦");
   });
 
   it("is empty when there are no reviewed changes", () => {

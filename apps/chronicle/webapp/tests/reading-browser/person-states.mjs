@@ -117,14 +117,14 @@ async function slotSuite(ctx) {
   await page.waitForSelector('[data-test="person-state-slot-scene"]', { timeout: 15000 });
   ctx.check("slot-scene-synthetic", (await page.getAttribute('[data-test="person-state-slot-scene"]', "data-synthetic")) === "true");
   ctx.check(
-    "slot-injected-into-context-panel",
+    "stage-hosted-by-context-panel",
     (await page.locator('[data-test="person-states-slot-probe"] [data-test="reading-context-panel"] [data-test="person-state-context"]').count()) === 1,
-    "stage slot did not render inside ReadingContextPanel",
+    "stage content did not render inside ReadingContextPanel",
   );
   ctx.check(
-    "slot-keeps-existing-context-groups",
+    "stage-host-keeps-existing-context-groups",
     (await page.locator('[data-test="reading-context-group"]').count()) >= 1,
-    "existing context groups lost when stage slot is present",
+    "existing context groups lost when stage content is hosted",
   );
   ctx.check("no-page-error-slot", errors.length === 0, errors.join("; "));
   await ctx.screenshot(page, "slot-1280");
@@ -210,13 +210,18 @@ async function readingSuite(ctx) {
   ctx.check("detail-close-restores-focus", focusRestored);
   await ctx.screenshot(page, "reading-1440-detail");
 
-  // 依据：原因/限定语可见，原文与相关事件入口可操作，且不改当前阅读阶段。
+  // 依据：限定语始终可见；原因隐藏在 disclosure 内，按需展开后可见；原文与事件入口可操作，且不改当前阅读阶段。
   const paragraphBefore = await page.getAttribute('[data-test="person-state-stage"]', "data-active-paragraph");
   const targetItem = page.locator('[data-item-id="zy-office-jianwei"]');
   await targetItem.scrollIntoViewIfNeeded();
-  await targetItem.locator('[data-test="person-state-evidence"]').click();
   ctx.check("evidence-qualification-visible", (await targetItem.locator('[data-test="person-state-qualification"]').count()) >= 1);
-  ctx.check("evidence-reason-visible", (await page.locator('[data-test="person-state-reason"]').count()) >= 1);
+  ctx.check(
+    "evidence-reason-hidden-until-open",
+    (await targetItem.locator('[data-test="person-state-reason"]').first().isVisible()) === false,
+    "reason must not be visible before the disclosure is opened",
+  );
+  await targetItem.locator('[data-test="person-state-evidence"]').click();
+  ctx.check("evidence-reason-visible", await targetItem.locator('[data-test="person-state-reason"]').first().isVisible());
   await targetItem.locator('[data-test="person-state-source"]').first().click();
   const lastAction = page.locator('[data-test="person-states-last-action"]');
   ctx.check("evidence-source-operable", (await lastAction.textContent()).startsWith("source:"), await lastAction.textContent());

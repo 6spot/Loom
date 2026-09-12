@@ -143,9 +143,10 @@ export function stateItemLabelText(item: StateItem): string {
 }
 
 export function stateItemValueText(item: StateItem): string {
+  // affiliation 的关系标签已由 labelText 呈现（例如 label「效力」＋value「孙权」）；
+  // 值只放对象本身，避免同一关系在同一行出现两次。
   if (item.dimension === "affiliation") {
-    const relation = item.relation ? RELATION_LABELS[item.relation] : PERSON_DIMENSION_LABELS.affiliation;
-    return `${relation}${item.target ?? "（对象未明）"}`;
+    return item.target ?? "（对象未明）";
   }
   return item.value ?? "—";
 }
@@ -298,11 +299,19 @@ export interface ChangeTimelineEntry {
 }
 
 function changeValueText(change: StateChange): string {
+  // 关系标签放进 dimensionLabel（「效力」／「归附」），值只保留对象，避免重复。
   if (change.dimension === "affiliation") {
-    const relation = change.relation ? RELATION_LABELS[change.relation] : PERSON_DIMENSION_LABELS.affiliation;
-    return `${relation}${change.target ?? "（对象未明）"}`;
+    return change.target ?? "（对象未明）";
   }
   return change.value ?? "—";
+}
+
+/** 变化行的维度短标签；affiliation 用具体关系（效力／归附）而非笼统「效力」。 */
+function changeDimensionLabel(change: StateChange): string {
+  if (change.dimension === "affiliation") {
+    return change.relation ? RELATION_LABELS[change.relation] : PERSON_DIMENSION_LABELS.affiliation;
+  }
+  return PERSON_DIMENSION_LABELS[change.dimension];
 }
 
 /**
@@ -314,7 +323,7 @@ export function buildChangeTimeline(
   phases: readonly PhaseSummary[] | null | undefined,
 ): readonly ChangeTimelineEntry[] {
   return (changes ?? []).map((change) => {
-    const dimensionLabel = PERSON_DIMENSION_LABELS[change.dimension];
+    const dimensionLabel = changeDimensionLabel(change);
     const valueText = changeValueText(change);
     const operationLabel = OPERATION_LABELS[change.operation];
     const toLabel = phaseLabel(change.to_phase_id, phases) || change.to_phase_id;

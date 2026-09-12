@@ -143,8 +143,11 @@ function EvidenceActions({
 }) {
   const item = view.item;
   const sourceFacts: readonly SourceFactRef[] = item.source_facts;
-  const hasActions = (sourceFacts.length > 0 && onOpenSource) || (events.length > 0 && onOpenEvent);
-  if (!hasActions && !view.hasEvidence) return null;
+  const hasSourceActions = sourceFacts.length > 0 && Boolean(onOpenSource);
+  const hasEventActions = events.length > 0 && Boolean(onOpenEvent);
+  // 限定语始终可见；原因与来源按需在「依据」中展开。
+  const hasDisclosure = Boolean(view.reasonText) || hasSourceActions || hasEventActions;
+  if (!hasDisclosure) return null;
   return (
     <details className="pstate-evidence">
       <summary
@@ -154,41 +157,50 @@ function EvidenceActions({
       >
         依据
       </summary>
-      <span className="pstate-evidence-actions">
-        {sourceFacts.map((sourceFact) => (
-          <button
-            type="button"
-            className="public-text-button pstate-source-button"
-            data-test="person-state-source"
-            data-source-ref={sourceFact.fact_ref}
-            key={`${sourceFact.chapter_id}:${sourceFact.fact_ref}`}
-            onClick={() =>
-              onOpenSource?.({
-                subjectId,
-                subjectName,
-                itemId: item.item_id,
-                certainty: item.certainty,
-                sourceFact,
-              })
-            }
-          >
-            原文
-          </button>
-        ))}
-        {events.map((event) => (
-          <button
-            type="button"
-            className="public-text-button pstate-event-button"
-            data-test="person-state-event"
-            data-event-ref={event.eventRef}
-            key={event.eventRef}
-            onClick={() =>
-              onOpenEvent?.({ subjectId, itemId: item.item_id, eventRef: event.eventRef, label: event.label })
-            }
-          >
-            事件：{event.label}
-          </button>
-        ))}
+      <span className="pstate-evidence-body">
+        {view.reasonText ? (
+          <span className="pstate-reason" data-test="person-state-reason">
+            原因：{view.reasonText}
+          </span>
+        ) : null}
+        {hasSourceActions || hasEventActions ? (
+          <span className="pstate-evidence-actions">
+            {sourceFacts.map((sourceFact) => (
+              <button
+                type="button"
+                className="public-text-button pstate-source-button"
+                data-test="person-state-source"
+                data-source-ref={sourceFact.fact_ref}
+                key={`${sourceFact.chapter_id}:${sourceFact.fact_ref}`}
+                onClick={() =>
+                  onOpenSource?.({
+                    subjectId,
+                    subjectName,
+                    itemId: item.item_id,
+                    certainty: item.certainty,
+                    sourceFact,
+                  })
+                }
+              >
+                原文
+              </button>
+            ))}
+            {events.map((event) => (
+              <button
+                type="button"
+                className="public-text-button pstate-event-button"
+                data-test="person-state-event"
+                data-event-ref={event.eventRef}
+                key={event.eventRef}
+                onClick={() =>
+                  onOpenEvent?.({ subjectId, itemId: item.item_id, eventRef: event.eventRef, label: event.label })
+                }
+              >
+                事件：{event.label}
+              </button>
+            ))}
+          </span>
+        ) : null}
       </span>
     </details>
   );
@@ -231,11 +243,6 @@ function ItemLine({
       {view.qualificationText ? (
         <span className="pstate-qualification" data-test="person-state-qualification" aria-hidden="true">
           （{view.qualificationText}）
-        </span>
-      ) : null}
-      {view.reasonText ? (
-        <span className="pstate-reason" data-test="person-state-reason" aria-hidden="true">
-          {view.reasonText}
         </span>
       ) : null}
       <EvidenceActions

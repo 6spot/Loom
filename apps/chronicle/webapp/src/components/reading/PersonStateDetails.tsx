@@ -117,29 +117,42 @@ export default function PersonStateDetails({
                     （{view.qualificationText}）
                   </span>
                 ) : null}
-                {view.reasonText ? (
-                  <span className="pstate-reason" data-test="person-state-reason">
-                    {view.reasonText}
-                  </span>
-                ) : null}
                 {tag ? <AttributionTag attribution={tag} /> : null}
-                {sourceFacts.length > 0 && onOpenSource ? (
-                  <button
-                    type="button"
-                    className="public-text-button pstate-inline-source"
-                    data-test="person-detail-source"
-                    onClick={() =>
-                      onOpenSource({
-                        subjectId: person.person_id,
-                        subjectName: person.name,
-                        itemId: item.item_id,
-                        certainty: item.certainty,
-                        sourceFact: sourceFacts[0],
-                      })
-                    }
-                  >
-                    查看原文
-                  </button>
+                {view.reasonText || (sourceFacts.length > 0 && onOpenSource) ? (
+                  <details className="pstate-evidence">
+                    <summary
+                      className="public-text-button pstate-evidence-button"
+                      data-test="person-state-evidence"
+                      aria-label={`查看${view.labelText}「${view.valueText}」的原因与原文依据`}
+                    >
+                      依据
+                    </summary>
+                    <span className="pstate-evidence-body">
+                      {view.reasonText ? (
+                        <span className="pstate-reason" data-test="person-state-reason">
+                          原因：{view.reasonText}
+                        </span>
+                      ) : null}
+                      {sourceFacts.length > 0 && onOpenSource ? (
+                        <button
+                          type="button"
+                          className="public-text-button pstate-inline-source"
+                          data-test="person-detail-source"
+                          onClick={() =>
+                            onOpenSource({
+                              subjectId: person.person_id,
+                              subjectName: person.name,
+                              itemId: item.item_id,
+                              certainty: item.certainty,
+                              sourceFact: sourceFacts[0],
+                            })
+                          }
+                        >
+                          查看原文
+                        </button>
+                      ) : null}
+                    </span>
+                  </details>
                 ) : null}
               </li>
             );
@@ -173,32 +186,43 @@ export default function PersonStateDetails({
                 {entry.operationLabel}
                 {"）"}
               </span>
-              {entry.reasonText ? (
-                <span className="pstate-reason" data-test="person-state-reason">
-                  {entry.reasonText}
-                </span>
-              ) : null}
-              <span className="pstate-timeline-meta">
-                {tag ? <AttributionTag attribution={tag} /> : null}
-                {sourceFacts.length > 0 && onOpenSource ? (
-                  <button
-                    type="button"
-                    className="public-text-button pstate-inline-source"
-                    data-test="person-detail-source"
-                    onClick={() =>
-                      onOpenSource({
-                        subjectId: person.person_id,
-                        subjectName: person.name,
-                        itemId: entry.change.item_id,
-                        certainty: entry.certainty,
-                        sourceFact: sourceFacts[0],
-                      })
-                    }
+              {tag ? <AttributionTag attribution={tag} /> : null}
+              {entry.reasonText || (sourceFacts.length > 0 && onOpenSource) ? (
+                <details className="pstate-evidence">
+                  <summary
+                    className="public-text-button pstate-evidence-button"
+                    data-test="person-state-evidence"
+                    aria-label={`查看${entry.phaseLabel}${entry.dimensionLabel}${entry.valueText}的原因与原文依据`}
                   >
-                    查看原文
-                  </button>
-                ) : null}
-              </span>
+                    依据
+                  </summary>
+                  <span className="pstate-evidence-body">
+                    {entry.reasonText ? (
+                      <span className="pstate-reason" data-test="person-state-reason">
+                        原因：{entry.reasonText}
+                      </span>
+                    ) : null}
+                    {sourceFacts.length > 0 && onOpenSource ? (
+                      <button
+                        type="button"
+                        className="public-text-button pstate-inline-source"
+                        data-test="person-detail-source"
+                        onClick={() =>
+                          onOpenSource({
+                            subjectId: person.person_id,
+                            subjectName: person.name,
+                            itemId: entry.change.item_id,
+                            certainty: entry.certainty,
+                            sourceFact: sourceFacts[0],
+                          })
+                        }
+                      >
+                        查看原文
+                      </button>
+                    ) : null}
+                  </span>
+                </details>
+              ) : null}
             </li>
           );
         })}

@@ -57,6 +57,9 @@ class SuiteRunner {
     this.checks = [];
     this.evidence = {};
     this.pages = [];
+    // Owning task id declared by the suite spec (e.g. C2-R3-T11); used for the
+    // result payload so evidence is attributed to the right task.
+    this.taskId = null;
   }
 
   check(name, condition, detail = "") {
@@ -293,10 +296,11 @@ export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir 
         } else {
           runner = await runComponentSuite(name, ctx);
         }
-        results.push({ suite: name, ok: true, checks: runner.checks, evidence: runner.evidence });
+        results.push({ suite: name, task: runner.taskId, ok: true, checks: runner.checks, evidence: runner.evidence });
       } catch (error) {
         results.push({
           suite: name,
+          task: runner ? runner.taskId : null,
           ok: false,
           checks: runner ? runner.checks : [],
           evidence: runner ? runner.evidence : {},
@@ -312,10 +316,18 @@ export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir 
   const isThirdRound = requested.some(
     (name) => name === R3_BASE_SUITE || R3_COMPONENT_SUITES.includes(name),
   );
+  // Attribute a single-suite third-round run to the task that owns the suite
+  // (declared by the suite spec); mixed runs fall back to the base task.
+  const taskIds = [...new Set(results.map((result) => result.task).filter(Boolean))];
+  const task = isThirdRound
+    ? taskIds.length === 1
+      ? taskIds[0]
+      : "C2-R3-T01"
+    : "C2-R2-T02";
   const payload = {
     schema: "chronicle.reading-component-harness",
     version: "0.1",
-    task: isThirdRound ? "C2-R3-T01" : "C2-R2-T02",
+    task,
     base_url: baseUrl,
     requested_suite: suite,
     ok,
@@ -373,6 +385,7 @@ async function runR3Suite(name, ctx) {
   };
   if (name === R3_BASE_SUITE) {
     r3ctx.scene = "all";
+    runner.taskId = "C2-R3-T01";
     try {
       await spec.run(r3ctx);
     } finally {
@@ -391,6 +404,7 @@ async function runR3Suite(name, ctx) {
   if (typeof component.run !== "function") {
     throw new Error(`reading ${name} suite: FAIL: ${componentPath} 未导出 run(ctx)`);
   }
+  runner.taskId = typeof component.TASK === "string" ? component.TASK : null;
   try {
     await component.run(r3ctx);
   } finally {

@@ -37,13 +37,11 @@ export interface ReadingContextPanelProps {
   readonly resolveEventLabel?: (eventRef: string) => string | null;
   readonly limits?: Partial<Record<ContextGroupKey, number>>;
   readonly defaultExpanded?: Partial<Record<ContextGroupKey, boolean>>;
-  /** C2-R3-T11 stage slot: caller-owned person/place state for this exact stage. */
-  readonly stage?: ReactNode;
   readonly children?: ReactNode | ((close: () => void) => ReactNode);
 }
 
 export default function ReadingContextPanel({ entities, variant = "column", unitId,
-  stateFacts, onViewEntity, onViewSource, onClose, limits, defaultExpanded, stage, children,
+  stateFacts, onViewEntity, onViewSource, onClose, limits, defaultExpanded, children,
 }: ReadingContextPanelProps) {
   const [expanded, setExpanded] = useState<Partial<Record<ContextGroupKey, boolean>>>(() => ({ ...defaultExpanded }));
   const [open, setOpen] = useState(false);
@@ -57,7 +55,6 @@ export default function ReadingContextPanel({ entities, variant = "column", unit
   const close = () => { setOpen(false); onClose?.(); };
   const body = <>
     {typeof children === "function" ? children(close) : children}
-    {stage}
     {display.hasAny ? display.groups.map((group) => <section className="chr-context-group"
       data-test="reading-context-group" data-group={group.key} key={group.key}>
       <h3 className="chr-context-group-title">{group.label}</h3>
